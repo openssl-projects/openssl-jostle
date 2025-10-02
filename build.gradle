@@ -1,0 +1,38 @@
+plugins {
+
+}
+
+
+def String deriveOSGIVersion(String prjVersion) {
+    if (prjVersion.contains("-SNAPSHOT")) {
+        // Snapshots always extend to fourth level and terminate with time in seconds since epoch.
+        prjVersion = prjVersion.replace("-SNAPSHOT", "");
+        while (prjVersion.count(".") < 2) {
+            prjVersion = prjVersion + ".0";
+        }
+        prjVersion = prjVersion + "." + System.currentTimeMillis().intdiv(1000L).intdiv(60).intdiv(60).intdiv(24);
+    }
+    return prjVersion
+}
+
+ext {
+    bundle_version = deriveOSGIVersion(version.toString());
+}
+
+allprojects {
+    tasks.withType(Javadoc) {
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+}
+
+
+subprojects {
+    apply plugin: 'java'
+    repositories {
+        mavenCentral()
+        google()
+    }
+
+
+
+}

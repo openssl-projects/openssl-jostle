@@ -1,0 +1,52 @@
+/*
+ *  Copyright 2005-2025 The OpenSSL Project Authors. All Rights Reserved.
+ *
+ *  Licensed under the Apache License 2.0 (the "License"). You may not use
+ *  this file except in compliance with the License.  You can obtain a copy
+ *  in the file LICENSE in the source distribution or at
+ *  https://www.openssl.org/source/license.html
+ *
+ */
+
+package org.openssl.jostle;
+
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSL;
+
+public class CryptoServicesRegistrar
+{
+    
+    static
+    {
+        Loader.load();
+    }
+
+    public static boolean isNativeAvailable()
+    {
+        return Loader.isLoadSuccessful() && NISelector.NativeServiceNI.isNativeAvailable();
+    }
+
+    public static void assertNativeAvailable()
+    {
+
+        if (!isNativeAvailable())
+        {
+            throw new IllegalStateException("no access to native library");
+        }
+    }
+
+    /**
+     * Set the openssl provider by name
+     *
+     * @param provider The provider.
+     */
+    public static void setOpenSSLProvider(String provider)
+    {
+        OpenSSL.setOSSLProvider(provider);
+    }
+
+    public String getOpenSSLVersion() {
+        return NISelector.NativeServiceNI.getOpenSSLVersion();
+    }
+
+}

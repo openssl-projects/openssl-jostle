@@ -1,0 +1,57 @@
+/*
+ *  Copyright 2005-2025 The OpenSSL Project Authors. All Rights Reserved.
+ *
+ *  Licensed under the Apache License 2.0 (the "License"). You may not use
+ *  this file except in compliance with the License.  You can obtain a copy
+ *  in the file LICENSE in the source distribution or at
+ *  https://www.openssl.org/source/license.html
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider;
+
+public class SLHDSAServiceJNI implements SLHDSAServiceNI
+{
+    @Override
+    public native long generateKeyPair(int type);
+
+    @Override
+    public native long generateKeyPair(int type, byte[] seed, int seedLen);
+
+//    @Override
+//    public native int getSeed(long reference, byte[] output);
+
+    @Override
+    public native int getPrivateKey(long reference, byte[] output);
+
+    @Override
+    public native long getPublicKey(long reference, byte[] output);
+
+    @Override
+    public native int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    @Override
+    public native int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    @Override
+    public native long allocateSigner();
+
+    @Override
+    public native int initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
+
+    @Override
+    public native int update(long reference, byte[] b, int off, int len);
+
+    @Override
+    public native long sign(long ref, byte[] sig, int offset);
+
+    @Override
+    public native int verify(long reference, byte[] sigBytes, int len);
+
+    @Override
+    public native long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
+
+    @Override
+    public native void disposeSigner(long reference);
+
+}

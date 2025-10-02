@@ -1,0 +1,4 @@
+OSSL:libcrypto.so.3
+
+JNI:libinterface_jni.so
+FFI:libinterface_ffi.so

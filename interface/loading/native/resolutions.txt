@@ -1,0 +1,24 @@
+# Resolutions file.
+# Format: "os regexp" "arch regexp" "path to where deps.txt is located on classpath"
+# For Example:
+#  "^Mac.*" "^aarch64$" "/native/osx/arm64"  would match "Mac" with apple silicon and /native/darwin/arm64 contains
+# deps.txt and any native libraries it lists as needed to be loaded
+#
+
+"^Mac.*" "^aarch64" "/native/osx/arm64"
+#
+# Linux Intel / AMD
+#
+"^Linux.*" "^amd64" "/native/linux/x86_64"
+"^Linux.*" "^x86_64" "/native/linux/x86_64"
+
+#
+# Linux ARM
+#
+"^Linux.*" "^aarch64" "/native/linux/aarch64"
+"^Linux.*" "^arm64" "/native/linux/aarch64"
+
+#
+# Linux System 390x
+#
+"^Linux.*" "^s390x" "/native/linux/s390x"

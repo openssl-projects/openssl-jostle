@@ -1,0 +1,33 @@
+/*
+ *  Copyright 2005-2025 The OpenSSL Project Authors. All Rights Reserved.
+ *
+ *  Licensed under the Apache License 2.0 (the "License"). You may not use
+ *  this file except in compliance with the License.  You can obtain a copy
+ *  in the file LICENSE in the source distribution or at
+ *  https://www.openssl.org/source/license.html
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider;
+
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+
+public class AsymmetricKeyImpl
+{
+    protected final PKEYKeySpec spec;
+
+    public AsymmetricKeyImpl(PKEYKeySpec spec)
+    {
+        this.spec = spec;
+    }
+
+    public OSSLKeyType getType() {
+       return spec.getType();
+    }
+
+    public long getReference() {
+        return spec.getReference();
+    }
+
+}
