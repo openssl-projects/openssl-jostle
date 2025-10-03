@@ -86,31 +86,37 @@ public class DisposalDaemon
         //
         // On shutdown clean up the reference queue.
         //
-        Runtime.getRuntime().addShutdownHook(new Thread()
+        try
         {
-            @Override
-            public void run()
+            Runtime.getRuntime().addShutdownHook(new Thread()
             {
-                if (LOG.isLoggable(Level.FINE))
+                @Override
+                public void run()
                 {
-                    LOG.fine("Shutdown hook started");
-                }
-                ReferenceWrapperWithDisposerRunnable item =
-                        (ReferenceWrapperWithDisposerRunnable) referenceQueue.poll();
-                while (item != null)
-                {
-                    refs.remove(item);
-                    item.dispose();
-                    item = (ReferenceWrapperWithDisposerRunnable) referenceQueue.poll();
-
                     if (LOG.isLoggable(Level.FINE))
                     {
-                        LOG.fine("Shutdown hook disposed: " + item);
+                        LOG.fine("Shutdown hook started");
                     }
-                }
+                    ReferenceWrapperWithDisposerRunnable item =
+                            (ReferenceWrapperWithDisposerRunnable) referenceQueue.poll();
+                    while (item != null)
+                    {
+                        refs.remove(item);
+                        item.dispose();
+                        item = (ReferenceWrapperWithDisposerRunnable) referenceQueue.poll();
 
-            }
-        });
+                        if (LOG.isLoggable(Level.FINE))
+                        {
+                            LOG.fine("Shutdown hook disposed: " + item);
+                        }
+                    }
+
+                }
+            });
+        } catch (Throwable ex)
+        {
+            LOG.log(Level.WARNING, "Adding shutdown hook failed.", ex);
+        }
     }
 
     public static void addDisposable(Disposable disposable)
