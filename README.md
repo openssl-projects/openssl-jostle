@@ -1,6 +1,7 @@
 # The JOSTLE Project
 
-Jostle is Java provider for OpenSSL. 
+Jostle is a Java provider for OpenSSL.
+
 This is a collaboration within the OpenSSL Foundation between the OpenSSL Project and
 the Legion of the Bouncy Castle. This project wraps features of OpenSSL native library into a
 standard Java JCA/JCE Provider.
@@ -177,7 +178,9 @@ CMake suite maintained and supported by Kitware (kitware.com/cmake).
 > __Skip this step if you do not want to perform Operations Testing!__
 
 The interface libraries can be built with support for operations testing which should be left
-out for generate use. If you want to do operations testing then set the following:
+out for normal use. 
+
+If you want to do operations testing then set the following:
 
 ```
 # This is optional, leave it unset 
