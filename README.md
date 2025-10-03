@@ -1,13 +1,18 @@
 # The JOSTLE Project
 
-A java provider for OpenSSL is a collaboration within the OpenSSL Foundation between the 
-OpenSSL Project and the Legion of the Bouncy Castle. This project wraps features of OpenSSL
-native library into standard Java JCA/JCE Provider.
+Jostle is Java provider for OpenSSL. 
+This is a collaboration within the OpenSSL Foundation between the OpenSSL Project and
+the Legion of the Bouncy Castle. This project wraps features of OpenSSL native library into a
+standard Java JCA/JCE Provider.
 
-The JOSTLE code base is under the OpenSSL license. 
+The JOSTLE code base is released under the OpenSSL license. 
+
 A copy of the license appears in LICENSE.md.
 
-## Default Usage
+Compiled for Java 1.8 to 25, requires Java 25 to build.
+
+
+## Usage
 
 This section will be updated when there are published in maven central or equivalent.
 For the time being you will need to build JOSTLE before you can try it out.
@@ -103,11 +108,34 @@ echo "${OPENSSL_PREFIX}"
 ### Step 3. Compile Headers
 This step produces the C headers needed to compile the interface between Java provider and OpenSSL.
 
-For this step you will need to have java 25 available on your command line.
-
-For example:
+#### 3.1 Clone repo
+Clone this repository and change into the root directory of that clone.
 
 ```
+ls -al
+
+-rw-r--r--. 1 ec2-user ec2-user 11357 Oct  3 01:01 LICENSE
+-rw-r--r--. 1 ec2-user ec2-user 14205 Oct  3 01:01 README.md
+-rw-r--r--. 1 ec2-user ec2-user   800 Oct  3 01:01 build.gradle
+-rw-r--r--. 1 ec2-user ec2-user   368 Oct  3 01:01 settings.gradle
+-- etc
+
+```
+
+#### Set up Java 25
+
+For this step you will need to have Java 25 on your PATH (aka command line), and you should also set 
+```JAVA_HOME``` appropriately, for example:
+
+```
+#
+# This value will be different depending on the machine you are building on
+#
+export JAVA_HOME=/usr/lib/jvm/java-25-amazon-corretto.x86_64
+
+export PATH=$JAVA_HOME/bin:$PATH
+
+
 java -version
 
 openjdk version "25" 2025-09-16 LTS
@@ -115,6 +143,7 @@ OpenJDK Runtime Environment Corretto-25.0.0.36.2 (build 25+36-LTS)
 OpenJDK 64-Bit Server VM Corretto-25.0.0.36.2 (build 25+36-LTS, mixed mode, sharing)
 
 ```
+#### Build headers
 
 Use gradlew to generate the headers, make sure you are in the root of the jostle repository
 
@@ -127,9 +156,12 @@ BUILD SUCCESSFUL in 2s
 2 actionable tasks: 2 executed
 ```
 
-Step 4. Compile interface
+### Step 4. Compile interface
 
+This step will compile and install the interface layer, both JNI and FFI that
+connects the Java side of Jostle to OpenSSL.
 
+#### CMAKE 
 You will  need CMAKE version of at least 3.31
 
 ```
@@ -140,14 +172,25 @@ cmake version 3.31.6
 CMake suite maintained and supported by Kitware (kitware.com/cmake).
 ```
 
+#### Optional, build with Operations Test support
+
+> __Skip this step if you do not want to perform Operations Testing!__
+
 The interface libraries can be built with support for operations testing which should be left
 out for generate use. If you want to do operations testing then set the following:
 
 ```
-# This is optional
+# This is optional, leave it unset 
 
 export JOSTLE_OPS_TEST=true
+
+# To unset
+
+unset JOSTLE_OPS_TEST
+
 ```
+
+#### Ensure OPENSSL_PREFIX is set
 
 To build the interface you need to make sure the ```OPENSSL_PREFIX``` is set from either Step 2 or 
 points to a directory that has the same structure as what the OpenSSL build would have generated.
@@ -161,6 +204,8 @@ echo $OPENSSL_PREFIX
 echo $JAVA_HOME
 /usr/lib/jvm/java-25-amazon-corretto.x86_64/
 ```
+
+#### Build and install the interface
 
 To build:
 
@@ -231,68 +276,94 @@ The Jostle jars can be found in:
 
 ### Step 6. Running DumpInfo
 
-#### Java 8 -- non modular 
-
-```
-java -version
-openjdk version "1.8.0_462"
-OpenJDK Runtime Environment Corretto-8.462.08.1 (build 1.8.0_462-b08)
-OpenJDK 64-Bit Server VM Corretto-8.462.08.1 (build 25.462-b08, mixed mode)
-
-java -cp jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo 
-
-
--------------------------------------------------------------------------------
-DumpInfo
-
-Provider:
-  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
-  Name: JSL
-  OS: Linux
-  Version: 6.1.153-175.280.amzn2023.x86_64
-   
-   -- snip
-.
-END
-Use: -fine to emit FINE level logs
--------------------------------------------------------------------------------
-```
-
-#### Java 17 -- non modular
-
-```
-java -version
-
-openjdk version "17.0.16" 2025-07-15 LTS
-OpenJDK Runtime Environment Corretto-17.0.16.8.1 (build 17.0.16+8-LTS)
-OpenJDK 64-Bit Server VM Corretto-17.0.16.8.1 (build 17.0.16+8-LTS, mixed mode, sharing)
-
-
--------------------------------------------------------------------------------
-DumpInfo
-
-Provider:
-  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
-  Name: JSL
-  OS: Linux
-  Version: 6.1.153-175.280.amzn2023.x86_64
-  Arch: amd64
-  Java Version: 17.0.16
-   
-   -- snip
-   
-  OpenSSL Version: 3.5.4
-.END
-Use: -fine to emit FINE level logs
--------------------------------------------------------------------------------
-```
-
-#### java 17 -- modular
+#### With modules
 
 ```
 java --module-path jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar \
 --enable-native-access=jostle \
 --module jostle/org.openssl.jostle.util.DumpInfo
+```
+
+```
+-------------------------------------------------------------------------------
+DumpInfo
+
+Provider:
+  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+  Name: JSL
+  OS: Linux
+  Version: 6.1.153-175.280.amzn2023.x86_64
+  Arch: amd64
+  Java Version: 25
+  Java Vendor: Amazon.com Inc.
+
+Loader:
+  Load Attempted: true
+  Load Successful: true
+  Loader Message: Loader Finished Successfully
+  Loader Interface Resolution Strategy: auto
+  Loader Interface: FFI
+  Loaded Native Libraries:
+    Extracted: /native/linux/x86_64/libcrypto.so.3
+    Extracted: /native/linux/x86_64/libinterface_ffi.so
+
+Native Status:
+  Native Available: true
+  OpenSSL Version: 3.5.4
+.END
+Use: -fine to emit FINE level logs
+-------------------------------------------------------------------------------
+```
+
+
+#### Without modules
+
+```
+-------------------------------------------------------------------------------
+DumpInfo
+
+Provider:
+  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+  Name: JSL
+  OS: Linux
+  Version: 6.1.153-175.280.amzn2023.x86_64
+  Arch: amd64
+  Java Version: 25
+  Java Vendor: Amazon.com Inc.
+
+Loader:
+  Load Attempted: true
+  Load Successful: true
+  Loader Message: Loader Finished Successfully
+  Loader Interface Resolution Strategy: auto
+  Loader Interface: FFI
+  Loaded Native Libraries:
+    Extracted: /native/linux/x86_64/libcrypto.so.3
+    Extracted: /native/linux/x86_64/libinterface_ffi.so
+
+Native Status:
+  Native Available: true
+  OpenSSL Version: 3.5.4
+.END
+Use: -fine to emit FINE level logs
+-------------------------------------------------------------------------------
+
+```
+
+NB: Java25 will emit a warning about access to restricted methods in java.lang.System.
+
+```
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.openssl.jostle.Loader in an unnamed module (file:/home/ec2-user/build/jostle/jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+```
+
+#### Java 8
+
+```
+java -cp jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 
 
 -------------------------------------------------------------------------------
@@ -304,14 +375,25 @@ Provider:
   OS: Linux
   Version: 6.1.153-175.280.amzn2023.x86_64
   Arch: amd64
-  Java Version: 17.0.16
-  
-  -- snip
-  
+  Java Version: 1.8.0_462
+  Java Vendor: Amazon.com Inc.
+
+Loader:
+  Load Attempted: true
+  Load Successful: true
+  Loader Message: Loader Finished Successfully
+  Loader Interface Resolution Strategy: auto
+  Loader Interface: JNI
+  Loaded Native Libraries:
+    Extracted: /native/linux/x86_64/libcrypto.so.3
+    Extracted: /native/linux/x86_64/libinterface_jni.so
+
+Native Status:
+  Native Available: true
   OpenSSL Version: 3.5.4
 .END
 Use: -fine to emit FINE level logs
--------------------------------------------------------------------------------
+
 ```
 
 #### java 25 -- default will use FFI
@@ -407,7 +489,64 @@ Exception in thread "main" java.lang.IllegalStateException: no access to native 
 
 ```
 
+## Testing on multiple JVMs specifically
 
+The build can execute tests on specific JVMs, the enable these tests users must set one or more
+of the following environmental variables to the relevant JAVA_HOME for that JVM.
+
+```
+BC_JDK8= .. jdk 8
+BC_JDK17= .. jdk 17
+BC_JDK22= .. jdk22
+BC_JDK25= .. jdk25
+
+```
+
+For example, setting:
+
+```
+export BC_JDK17=/usr/lib/jvm/java-17-amazon-corretto.x86_64
+export BC_JDK8=/usr/lib/jvm/java-1.8.0-amazon-corretto.x86_64
+export BC_JDK22=/usr/lib/jvm/java-22-amazon-corretto.x86_64
+export BC_JDK25=/usr/lib/jvm/java-25-amazon-corretto.x86_64
+```
+
+Will get picked up by the gradle build and will the trigger the addition of
+extra JVM specific tests tasks to the main test task.
+
+```
+jostle: Adding test8 as dependency for test task because BC_JDK8 is defined
+jostle: Adding test17 as dependency for test task because BC_JDK17 is defined
+jostle: Adding test22 as dependency for test task because BC_JDK22 is defined
+jostle: Adding test25 as dependency for test task because BC_JDK25 is defined
+```
+
+#### Notes
+
+There is a unit test class dedicated to asserting the JVM version and which interface
+library have been loaded. In normal testing they accept anything however for more
+specific testing they will assert.
+
+For example in ```integrationTest25JNI``` task.
+
+```
+jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.bouncycastle.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
+```
+
+These options are stipulating:
+1. JVM version must start with '25' 
+2. Loader must use the JNI interface
+3. The test is expecting the 'jni' interface to be loaded.
+
+See ```org.openssl.jostle.test.ExpectedJVMTest```
+
+To build test:
+
+```
+./gradlew clean build
+```
+
+Note that it will take about four times longer to complete.
 
 
 ## Options
