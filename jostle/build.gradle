@@ -85,14 +85,14 @@ compileJava25Java {
 }
 
 tasks.register('javadocJar', Jar) {
-    archiveBaseName = "bc-jostle"
+    archiveBaseName = "openssl-jostle"
     archiveClassifier = 'javadoc'
     from javadoc.outputs
 }
 
 
 tasks.register('sourcesJar', Jar) {
-    archiveBaseName = "bc-jostle"
+    archiveBaseName = "openssl-jostle"
     archiveClassifier = 'sources'
     from sourceSets.main.allSource
     exclude("**/*.so")
@@ -112,7 +112,7 @@ tasks.register('sourcesJar', Jar) {
 }
 
 jar {
-    jar.archiveBaseName = "bc-jostle"
+    jar.archiveBaseName = "openssl-jostle"
     from sourceSets.main.output
 
     into('META-INF/versions/9') {
@@ -133,7 +133,7 @@ jar {
 
     String v = "${rootProject.extensions.ext.bundle_version}"
     manifest.attributes('Multi-Release': 'true')
-    manifest.attributes('Bundle-Name': 'bc-openssl')
+    manifest.attributes('Bundle-Name': 'openssl-jostle')
     manifest.attributes('Bundle-SymbolicName': 'jostle')
     manifest.attributes('Bundle-RequiredExecutionEnvironment': 'JavaSE-9')
     manifest.attributes('Export-Package': "!org.bouncycastle.jostle.internal.*,org.bouncycastle.*;version=${v}")
