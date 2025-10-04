@@ -1,33 +1,30 @@
-# The JOSTLE Project
+# The OpenSSL JOSTLE Project
 
-Jostle is a Java provider for OpenSSL.
+OpenSSL Jostle is a Java provider that uses the [OpenSSL Library](https://openssl-library.org/) for the cryptographic implementation.
 
-This is a collaboration within the OpenSSL Foundation between the OpenSSL Project and
-the Legion of the Bouncy Castle. This project wraps features of OpenSSL native library into a
+This is a collaboration between the [OpenSSL Corporation](https://openssl-corporation.org/) and
+the [Legion of the Bouncy Castle](https://bouncycastle.org/). This project wraps features of OpenSSL native library into a
 standard Java JCA/JCE Provider.
 
-The JOSTLE code base is released under the OpenSSL license. 
+The JOSTLE code base is released under the same license as the [OpenSSL Library](https://openssl-library.org/) - i.e. [Apache License 2.0](https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE). 
 
-A copy of the license appears in LICENSE.md.
-
-Compiled for Java 1.8 to 25, requires Java 25 to build.
-
+OpenSSL Jostle supports running on Java 1.8 to Java 25, and requires [Java 25](https://jdk.java.net/25/) to build.
 
 ## Usage
 
 This section will be updated when there are published in maven central or equivalent.
-For the time being you will need to build JOSTLE before you can try it out.
+For the time being you will need to build OpenSSL Jostle before you can try it out.
 
 ## Building
 
-In this example we are going to build Jostle on an Intel machine spun up in AWS EC2.
+In this example we are going to build OpenSSL Jostle on an Intel machine spun up in AWS EC2.
 
 ### Building Locally + General Information
 
 Building may present complexities.
 
 Building involves generating the interface binaries and then installing those binaries and, potentially,
-the OpenSSL libraries into the ```src/main/resources``` directory of the ```jostle``` Java project so
+the OpenSSL Library libraries into the ```src/main/resources``` directory of the ```jostle``` Java project so
 that they can ultimately be bundled into a single jar file.
 
 The interface libraries are organised by common os name then architecture, eg "osx/arm64". The base directory
@@ -35,23 +32,24 @@ structure for this is laid out in ```interface/loading``` along with appropriate
 "deps.txt" files.
 
 
-### Step 1 Obtain and build OpenSSL 3.5
+### Step 1 Obtain and build OpenSSL Library 3.5
 
-OpenSSL 3.5 source bundle can be downloaded from [OpenSSL Downloads](https://openssl-library.org/source/)
+OpenSSL Library 3.5 source bundle can be downloaded from [OpenSSL Downloads](https://openssl-library.org/source/)
 
 After copying the source url, download the source tarball onto a suitable machine and unpack it.
+For the current LTS release you can use the following commands.
 
 ```
     wget https://github.com/openssl/openssl/releases/download/openssl-3.5.4/openssl-3.5.4.tar.gz
     
-    tar -xvf openssl-3.5.4.tar.gz    
+    tar -zxvf openssl-3.5.4.tar.gz    
 ```
 
-In order to build OpenSSL 3.5 you will need to have also installed the build tools for the OS that you are building on.
+In order to build OpenSSL 3.5 you will need to have also installed the appropriate build tools for the OS that you are building on.
 
-### Step 2 Build OpenSSL 3.5 
+### Step 2 Build OpenSSL Library 3.5 
 
-Users should specify a prefix when building OpenSSL for this example there is no need to install it on the host 
+Users should specify a prefix when building the OpenSSL Library for this example there is no need to install it on the host 
 for all users so we will use prefix and keep it nearby. 
 
 ```
@@ -68,7 +66,7 @@ for all users so we will use prefix and keep it nearby.
    
 ```
 
-When the OpenSSL build finishes you should have the build products available in ```../openssl_3_5```
+When the OpenSSL Library build finishes you should have the build artefacts available in ```../openssl_3_5```
 
 For example, it should look something like this.
 
@@ -93,7 +91,7 @@ drwxr-xr-x. 6 ec2-user ec2-user 186 Oct  2 08:08 lib64
 ```
 
 Lastly we need to set the ```OPENSSL_PREFIX``` env var, this variable will be used by the 
-Jostle build to locate the OpenSSL libraries.
+OpenSSL Jostle build to locate the OpenSSL libraries.
 
 ```
 cd openssl_3_5/
@@ -107,12 +105,16 @@ echo "${OPENSSL_PREFIX}"
 ```
 
 ### Step 3. Compile Headers
-This step produces the C headers needed to compile the interface between Java provider and OpenSSL.
+This step produces the C headers needed to compile the interface between the Java provider and the OpenSSL Library libraries.
 
 #### 3.1 Clone repo
 Clone this repository and change into the root directory of that clone.
 
+
 ```
+git clone https://github.com/openssl-projects/openssl-jostle.git
+cd openssl-jostle
+
 ls -al
 
 -rw-r--r--. 1 ec2-user ec2-user 11357 Oct  3 01:01 LICENSE
@@ -146,7 +148,7 @@ OpenJDK 64-Bit Server VM Corretto-25.0.0.36.2 (build 25+36-LTS, mixed mode, shar
 ```
 #### Build headers
 
-Use gradlew to generate the headers, make sure you are in the root of the jostle repository
+Use gradlew to generate the headers, make sure you are in the root of the OpenSSL Jostle repository
 
 ```
 ./gradlew clean compileJava
@@ -160,7 +162,7 @@ BUILD SUCCESSFUL in 2s
 ### Step 4. Compile interface
 
 This step will compile and install the interface layer, both JNI and FFI that
-connects the Java side of Jostle to OpenSSL.
+connects the Java side of OpenSSL Jostle to the OpenSSL Library libraries.
 
 #### CMAKE 
 You will  need CMAKE version of at least 3.31
@@ -253,6 +255,8 @@ drwxr-xr-x. 4 ec2-user ec2-user      35 Oct  2 10:35 ..
 ### Step 5. Building the Jar
 
 To build the jar with the libraries baked in.
+Note that the tests will be automatically run unless you use
+provide "-x test" on the command line.
 
 ```
     # Ensure Java 25
@@ -282,7 +286,7 @@ The Jostle jars can be found in:
 #### With modules
 
 ```
-java --module-path jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar \
+java --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
 --enable-native-access=jostle \
 --module jostle/org.openssl.jostle.util.DumpInfo
 ```
@@ -357,7 +361,7 @@ NB: Java25 will emit a warning about access to restricted methods in java.lang.S
 
 ```
 WARNING: A restricted method in java.lang.System has been called
-WARNING: java.lang.System::load has been called by org.openssl.jostle.Loader in an unnamed module (file:/home/ec2-user/build/jostle/jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar)
+WARNING: java.lang.System::load has been called by org.openssl.jostle.Loader in an unnamed module (file:/home/ec2-user/build/jostle/jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar)
 WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
 WARNING: Restricted methods will be blocked in a future release unless native access is enabled
 
@@ -366,7 +370,7 @@ WARNING: Restricted methods will be blocked in a future release unless native ac
 #### Java 8
 
 ```
-java -cp jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+java -cp jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 
 
 -------------------------------------------------------------------------------
@@ -402,7 +406,7 @@ Use: -fine to emit FINE level logs
 #### java 25 -- default will use FFI
 
 ```
-java --module-path jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar \
+java --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
 --enable-native-access=jostle \
 --module  jostle/org.openssl.jostle.util.DumpInfo
 
@@ -440,7 +444,7 @@ For example, with module loading
 
 ```
 java -Dorg.openssl.jostle.loader.interface=JNI \
---module-path jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar \
+--module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
 --enable-native-access=jostle \
 --module  jostle/org.openssl.jostle.util.DumpInfo
 
@@ -470,9 +474,9 @@ Extracted: /native/linux/x86_64/libinterface_jni.so
 #### Unsuccessful loading example
 
 ```
-java -cp jostle/build/libs/bc-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+java -cp jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 
-java -cp bc-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+java -cp openssl-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 Oct 02, 2025 10:02:41 PM org.openssl.jostle.Loader load
 WARNING: extraction file '/native/osx/arm64/libcrypto.3.dylib' not found
 java.io.IOException: extraction file '/native/osx/arm64/libcrypto.3.dylib' not found
@@ -498,8 +502,8 @@ The build can execute tests on specific JVMs, the enable these tests users must 
 of the following environmental variables to the relevant JAVA_HOME for that JVM.
 
 ```
-BC_JDK8= .. jdk 8
-BC_JDK17= .. jdk 17
+BC_JDK8= .. jdk8
+BC_JDK17= .. jdk17
 BC_JDK22= .. jdk22
 BC_JDK25= .. jdk25
 
@@ -624,10 +628,10 @@ This property can be one of the following values:
 
 |Setting| Description                                             |
 |-------|---------------------------------------------------------|
-| auto | Loader will detect FFI / JNI interface automatically     |
-| jni | Force the extraction and use of the JNI interface only    |
-| ffi | Force the extraction and use of the FFI interface only    |
-| none | Do not extract an interface library                      |
+| auto  | Loader will detect FFI / JNI interface automatically    |
+| jni   | Force the extraction and use of the JNI interface only  |
+| ffi   | Force the extraction and use of the FFI interface only  |
+| none  | Do not extract an interface library                     |
 
 If "none" is selected then the name or path to the interface library must
 be defined by either:
