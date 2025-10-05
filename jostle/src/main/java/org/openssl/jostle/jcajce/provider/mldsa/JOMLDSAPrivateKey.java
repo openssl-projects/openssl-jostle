@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
@@ -92,9 +93,15 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSS
             }
         }
 
-        return new JOMLDSAPrivateKey(spec); // TODO clone native spec
+        return new JOMLDSAPrivateKey(spec);
     }
 
+
+    @Override
+    public MLDSAPublicKey getPublicKey()
+    {
+        return new JOMLDSAPublicKey(spec);
+    }
 
     public PKEYKeySpec getSpec()
     {

@@ -86,53 +86,6 @@ fail:
     return 0;
 }
 
-/**
- * Extract the Tr from the private key
- * @param key_spec the key spex
- * @param tr place to write Tr value
- * @param ret_code pointer for error codes
- * @return 0 = fail, 1 = success
- */
-int extract_tr_sign(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret_code) {
-    size_t min_len;
-
-    switch (type) {
-        case KS_MLDSA_44:
-            min_len = 2560;
-            break;
-        case KS_MLDSA_65:
-            min_len = 4032;
-            break;
-        case KS_MLDSA_87:
-            min_len = 4896;
-            break;
-        default:
-            *ret_code = JO_INCORRECT_KEY_TYPE;
-            return 0;
-    }
-
-    uint8_t key_enc[min_len];
-
-    size_t written = 0;
-
-    if (1 != EVP_PKEY_get_octet_string_param(key_spec->key, OSSL_PKEY_PARAM_PRIV_KEY, key_enc, min_len, &written)) {
-        *ret_code = JO_OPENSSL_ERROR;
-        return 0;
-    }
-
-    if (written != min_len) {
-        *ret_code = JO_EXTRACTED_KEY_UNEXPECTED_LEN;
-        return 0;
-    }
-
-
-    memcpy(tr, &key_enc[TR_PRIVATE_KEY_OFFSET], TR_LEN); // TODO magic
-
-    OPENSSL_cleanse(key_enc, min_len);
-
-    return 1;
-}
-
 
 /**
  * Extract the Tr from the public key
@@ -141,7 +94,7 @@ int extract_tr_sign(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t
  * @param ret_code pointer for error codes
  * @return 0 = fail, 1 = success
  */
-int extract_tr_verify(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret_code) {
+int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret_code) {
     size_t min_len;
 
     switch (type) {
@@ -768,7 +721,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 
 
     if (ctx->mu_mode == MLDSA_Mu_INTERNAL || ctx->mu_mode == MLDSA_Mu_CALCULATE_ONLY) {
-        if (!extract_tr_sign(key_spec, typeId, ctx->tr, &ret_code)) {
+        if (!extract_tr(key_spec, typeId, ctx->tr, &ret_code)) {
             goto exit;
         }
 
@@ -917,7 +870,7 @@ int32_t mldsa_ctx_init_verify(
 
 
     if (ctx->mu_mode == MLDSA_Mu_INTERNAL) {
-        if (!extract_tr_verify(key_spec, typeId, ctx->tr, &ret_code)) {
+        if (!extract_tr(key_spec, typeId, ctx->tr, &ret_code)) {
             goto exit;
         }
 

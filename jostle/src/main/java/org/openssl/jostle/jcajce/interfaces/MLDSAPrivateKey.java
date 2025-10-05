@@ -19,7 +19,7 @@ public interface MLDSAPrivateKey extends PrivateKey,MLDSAKey
      *
      * @return a ML-DSA Public Key
      */
-   // MLDSAPublicKey getPublicKey();
+    MLDSAPublicKey getPublicKey();
 
      /**
       * Return the long form private data for the ML-DSA private key.

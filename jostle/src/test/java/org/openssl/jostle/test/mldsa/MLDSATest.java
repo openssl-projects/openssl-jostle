@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
 import org.openssl.jostle.jcajce.spec.MLDSAPublicKeySpec;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.MLDSAProxyPrivateKey;
 import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
@@ -504,6 +505,91 @@ public class MLDSATest
             jostle.initVerify(keyPair.getPublic());
             jostle.update(jostleMuBytes);
             Assertions.assertTrue(jostle.verify(bcSigFromExternalMu));
+
+
+//            //
+//            // Using proxy private key
+//            //
+//            Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
+//            jostle.initSign(keyPair.getPrivate());
+//            jostle.update(msg);
+//            byte[] jostleMuBytes = jostle.sign();
+//
+//            Assertions.assertEquals(jostleMuBytes.length, 64);
+
+
+        }
+    }
+
+
+    @Test
+    public void testCalculateRawMuProxyKey() throws Exception
+    {
+
+        for (MLDSAParameterSpec spec : joSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicKey = keyPair.getPublic().getEncoded();
+            byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+            KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
+            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+
+            byte[] msg = "Hello World!".getBytes();
+
+            Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
+            jostle.initSign(new MLDSAProxyPrivateKey(keyPair.getPublic()));
+            jostle.update(msg);
+            byte[] jostleMuBytes = jostle.sign();
+
+            Assertions.assertEquals(jostleMuBytes.length, 64);
+
+
+            Signature bc = Signature.getInstance("ML-DSA-CALCULATE-MU", BouncyCastleProvider.PROVIDER_NAME);
+            bc.initSign(privKeyBC);
+            bc.update(msg);
+            byte[] bcMuBytes = bc.sign();
+
+            Assertions.assertEquals(bcMuBytes.length, 64);
+
+            Assertions.assertArrayEquals(bcMuBytes, jostleMuBytes);
+
+            // Mu is the same between both providers.
+            // Create a signature from the external mu.
+
+            jostle = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
+            jostle.initSign(keyPair.getPrivate());
+            jostle.update(jostleMuBytes);
+            byte[] jostleSigFromExternalMu = jostle.sign();
+
+
+            // Check that BC in external Mu mode will verify the signature.
+            bc = Signature.getInstance("ML-DSA-EXTERNAL-MU", BouncyCastleProvider.PROVIDER_NAME);
+            bc.initVerify(pubKeyBC);
+            bc.update(jostleMuBytes);
+            Assertions.assertTrue(bc.verify(jostleSigFromExternalMu));
+
+            // Use BC to create a signature from an external mu
+
+            bc = Signature.getInstance("ML-DSA-EXTERNAL-MU", BouncyCastleProvider.PROVIDER_NAME);
+            bc.initSign(privKeyBC);
+            bc.update(bcMuBytes);
+            byte[] bcSigFromExternalMu = bc.sign();
+
+            // Use jostle to verify an external signature
+            jostle = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
+            jostle.initVerify(keyPair.getPublic());
+            jostle.update(jostleMuBytes);
+            Assertions.assertTrue(jostle.verify(bcSigFromExternalMu));
+
+
+
+
         }
     }
 

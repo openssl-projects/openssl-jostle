@@ -2,6 +2,9 @@ package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
+import org.openssl.jostle.jcajce.interfaces.MLDSAKey;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
@@ -23,7 +26,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
     private final OSSLKeyType forcedType;
     private MLDSARef ref = null;
-    private AsymmetricKeyImpl lastKey = null;
+    private MLDSAKey lastKey = null;
 
     private AlgorithmParameterSpec algorithmParameterSpec = null;
     private boolean updateCalled = false;
@@ -40,12 +43,12 @@ public class MLDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
-        if (publicKey instanceof JOMLDSAPublicKey)
+        if (publicKey instanceof MLDSAPublicKey)
         {
             try
             {
                 updateCalled = false;
-                JOMLDSAPublicKey key = (JOMLDSAPublicKey) publicKey;
+                MLDSAPublicKey key = (MLDSAPublicKey) publicKey;
                 lastKey = key;
 
                 if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
@@ -82,12 +85,12 @@ public class MLDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
     {
-        if (privateKey instanceof JOMLDSAPrivateKey)
+        if (privateKey instanceof MLDSAPrivateKey)
         {
             try
             {
 
-                JOMLDSAPrivateKey key = (JOMLDSAPrivateKey) privateKey;
+                MLDSAPrivateKey key = (MLDSAPrivateKey) privateKey;
                 lastKey = key;
                 updateCalled = false;
 
@@ -230,10 +233,10 @@ public class MLDSASignatureSpi extends SignatureSpi
         {
             try
             {
-                if (lastKey instanceof JOMLDSAPublicKey)
+                if (lastKey instanceof MLDSAPublicKey)
                 {
                     engineInitVerify((PublicKey) lastKey);
-                } else if (lastKey instanceof JOMLDSAPrivateKey)
+                } else if (lastKey instanceof MLDSAPrivateKey)
                 {
                     engineInitSign((PrivateKey) lastKey);
                 } else if (lastKey != null)
