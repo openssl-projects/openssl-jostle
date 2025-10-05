@@ -57,7 +57,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
 
-            PKEYKeySpec pkeySpec = ASNEncoder.fromPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {

@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-public class ProvSLHDSA
+class ProvSLHDSA
 {
     private static final String PREFIX = ProvSLHDSA.class.getPackage().getName() + ".slhdsa.";
 

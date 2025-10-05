@@ -45,9 +45,9 @@ public class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPriva
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asSubjectPrivateKeyInfo(spec);
+        return ASNEncoder.asPrivateKeyInfo(spec);
     }
-    
+
     public byte[] getDirectEncoding()
     {
         //

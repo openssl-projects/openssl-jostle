@@ -45,7 +45,8 @@ public class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKe
         return ASNEncoder.asSubjectPublicKeyInfo(spec);
     }
 
-    public byte[] getDirectEncoding()
+    @Override
+    public byte[] getPublicData()
     {
         //
         // Raw bytes
@@ -57,7 +58,7 @@ public class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKe
         return out;
     }
 
-
+    
     public PKEYKeySpec getSpec()
     {
         return spec;

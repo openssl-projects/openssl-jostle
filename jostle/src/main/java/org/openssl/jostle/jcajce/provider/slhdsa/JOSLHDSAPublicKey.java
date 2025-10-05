@@ -18,7 +18,7 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
-public class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey, OSSLKey
+class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey, OSSLKey
 {
 
     public JOSLHDSAPublicKey(PKEYKeySpec spec)
@@ -45,19 +45,6 @@ public class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublic
         return ASNEncoder.asSubjectPublicKeyInfo(spec);
     }
 
-    public byte[] getDirectEncoding()
-    {
-        //
-        // Raw bytes
-        //
-        long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null));
-        byte[] out = new byte[(int) len];
-        NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out));
-
-        return out;
-    }
-
-
     public PKEYKeySpec getSpec()
     {
         return spec;
@@ -78,6 +65,13 @@ public class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublic
     @Override
     public byte[] getPublicData()
     {
-        return getDirectEncoding();
+        //
+        // Raw bytes
+        //
+        long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null));
+        byte[] out = new byte[(int) len];
+        NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out));
+
+        return out;
     }
 }

@@ -1,14 +1,14 @@
 package org.openssl.jostle.test.slhdsa;
 
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.interfaces.SLHDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.*;
-import org.openssl.jostle.jcajce.provider.slhdsa.JOSLHDSAPrivateKey;
-import org.openssl.jostle.jcajce.provider.slhdsa.JOSLHDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
@@ -327,7 +327,7 @@ public class SLHDSAOpsTest
             keyPairGenerator.initialize(parameterSpec);
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
-            tuples.add(new Object[]{parameterSpec.getKeyType().getKsType(), ((JOSLHDSAPublicKey) keyPair.getPublic()).getDirectEncoding()});
+            tuples.add(new Object[]{parameterSpec.getKeyType().getKsType(), ((SLHDSAPublicKey) keyPair.getPublic()).getPublicData()});
 
         }
 
@@ -402,7 +402,8 @@ public class SLHDSAOpsTest
             keyPairGenerator.initialize(parameterSpec);
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
-            tuples.add(new Object[]{parameterSpec.getKeyType().getKsType(), ((JOSLHDSAPrivateKey) keyPair.getPrivate()).getDirectEncoding()});
+            byte[] b = PrivateKeyInfo.getInstance(keyPair.getPrivate().getEncoded()).getPrivateKey().getOctets();
+            tuples.add(new Object[]{parameterSpec.getKeyType().getKsType(), b});
 
         }
 

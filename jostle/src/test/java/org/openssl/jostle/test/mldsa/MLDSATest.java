@@ -902,7 +902,7 @@ public class MLDSATest
         KeyPair keyPair = keyGen.generateKeyPair();
 
 
-        byte[] publicKey = ((JOMLDSAPublicKey) keyPair.getPublic()).getDirectEncoding();
+        byte[] publicKey = ((JOMLDSAPublicKey) keyPair.getPublic()).getPublicData();
         byte[] privateKey = ((JOMLDSAPrivateKey) keyPair.getPrivate()).getDirectEncoding();
 
         KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
@@ -967,7 +967,7 @@ public class MLDSATest
         KeyPair keyPair = keyGen.generateKeyPair();
 
 
-        byte[] publicKey = ((JOMLDSAPublicKey) keyPair.getPublic()).getDirectEncoding();
+        byte[] publicKey = ((JOMLDSAPublicKey) keyPair.getPublic()).getPublicData();
         byte[] privateKey = ((JOMLDSAPrivateKey) keyPair.getPrivate()).getDirectEncoding();
 
         KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");

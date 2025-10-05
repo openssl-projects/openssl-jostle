@@ -14,7 +14,7 @@ package org.openssl.jostle.jcajce.provider;
  * NB: Values passed to native layer as ordinals, if you change the order of any
  * values in this enum you must check the definitions in the native layer are correct.
  */
-public enum SigAlgs
+enum SigAlgs
 {
     DSA_SHA1,
     DSA_SHA2_224,

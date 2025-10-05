@@ -32,7 +32,7 @@ public class JostleProvider
      */
     public static final String OPENSSL_PROVIDER_NAME = "org.openssl.jostle.ossl_prov";
 
-    private Map<String, BcService> serviceMap = new HashMap<String, BcService>();
+    private Map<String, JoService> serviceMap = new HashMap<String, JoService>();
     private Map<String, EngineCreator> creatorMap = new HashMap<String, EngineCreator>();
 
     private WeakReference<Set<Service>> serviceSetCache = new WeakReference<Set<Service>>(null);
@@ -214,7 +214,7 @@ public class JostleProvider
     {
         String upperCaseAlgName = algorithm.toUpperCase(Locale.ROOT);
 
-        BcService service = serviceMap.get(type + "." + upperCaseAlgName);
+        JoService service = serviceMap.get(type + "." + upperCaseAlgName);
 
         if (service == null)
         {
@@ -254,7 +254,7 @@ public class JostleProvider
                 }
             }
 
-            service = new BcService(this, type, upperCaseAlgName, className, aliases, getAttributeMap(attributes), creatorMap.get(className));
+            service = new JoService(this, type, upperCaseAlgName, className, aliases, getAttributeMap(attributes), creatorMap.get(className));
 
             serviceMap.put(type + "." + upperCaseAlgName, service);
         }
@@ -307,7 +307,7 @@ public class JostleProvider
         return attributeMap;
     }
 
-    private static class BcService
+    private static class JoService
             extends Service
     {
         private final EngineCreator creator;
@@ -325,7 +325,7 @@ public class JostleProvider
          * @throws NullPointerException if provider, type, algorithm, or
          *                              className is null
          */
-        public BcService(Provider provider, String type, String algorithm, String className, List<String> aliases, Map<String, String> attributes, EngineCreator creator)
+        public JoService(Provider provider, String type, String algorithm, String className, List<String> aliases, Map<String, String> attributes, EngineCreator creator)
         {
             super(provider, type, algorithm, className, aliases, attributes);
             this.creator = creator;

@@ -15,4 +15,10 @@ import java.security.PublicKey;
 
 public interface MLDSAPublicKey extends PublicKey
 {
+    /**
+     * Return the raw encoded data representing the public key: t || rho.
+     *
+     * @return the concatenation of t and rho.
+     */
+    byte[] getPublicData();
 }

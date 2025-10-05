@@ -5,7 +5,7 @@ import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class SLHDSAServiceFFI implements SLHDSAServiceNI
+class SLHDSAServiceFFI implements SLHDSAServiceNI
 {
 
     private static final Logger L = Logger.getLogger("SLH_DSA_NI_FFI");

@@ -44,19 +44,7 @@ public class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKe
         return ASNEncoder.asSubjectPublicKeyInfo(spec);
     }
 
-    public byte[] getDirectEncoding()
-    {
-        //
-        // Raw bytes
-        //
-        long len = NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), null));
-        byte[] out = new byte[(int) len];
-        NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), out));
-
-        return out;
-    }
-
-
+    
     public PKEYKeySpec getSpec()
     {
         return spec;
@@ -77,6 +65,13 @@ public class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKe
     @Override
     public byte[] getPublicData()
     {
-        return getDirectEncoding();
+        //
+        // Raw bytes
+        //
+        long len = NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), null));
+        byte[] out = new byte[(int) len];
+        NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), out));
+
+        return out;
     }
 }

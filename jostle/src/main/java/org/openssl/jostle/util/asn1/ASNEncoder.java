@@ -37,7 +37,7 @@ public class ASNEncoder
         }
     }
 
-    public static byte[] asSubjectPrivateKeyInfo(PKEYKeySpec spec)
+    public static byte[] asPrivateKeyInfo(PKEYKeySpec spec)
     {
         long ref = NISelector.Asn1NI.allocate();
         try
@@ -58,7 +58,7 @@ public class ASNEncoder
         return new PKEYKeySpec(ref);
     }
 
-    public static PKEYKeySpec fromPublicKeyInfo(byte[] data, int start, int len)
+    public static PKEYKeySpec fromSubjectPublicKeyInfo(byte[] data, int start, int len)
     {
         long ref = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.fromPublicKeyInfo(data, start, len));
         return new PKEYKeySpec(ref);

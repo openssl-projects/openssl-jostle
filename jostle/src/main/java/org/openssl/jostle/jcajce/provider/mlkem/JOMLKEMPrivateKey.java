@@ -49,7 +49,7 @@ public class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivate
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asSubjectPrivateKeyInfo(spec);
+        return ASNEncoder.asPrivateKeyInfo(spec);
     }
 
     public byte[] getSeed()
