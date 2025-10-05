@@ -15,10 +15,11 @@ import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
-public class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
+class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
 {
     final boolean seedOnly;
 
@@ -66,9 +67,20 @@ public class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivate
     {
         if (preferSeedOnly)
         {
-
+            byte[] seed = getSeed();
+            if (seed != null)
+            {
+                OSSLKeyType type = getType();
+                return new JOMLKEMPrivateKey(
+                        new PKEYKeySpec(
+                                NISelector.MLKEMServiceNI.handleErrors(
+                                        NISelector.MLKEMServiceNI.generateKeyPair(type.getKsType(), seed, seed.length)
+                                ), type)
+                );
+            }
         }
-        return null;
+
+        return new JOMLKEMPrivateKey(spec); // TODO clone native spec
     }
 
     public byte[] getDirectEncoding()

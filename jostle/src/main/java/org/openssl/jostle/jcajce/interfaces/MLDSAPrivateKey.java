@@ -12,9 +12,11 @@ package org.openssl.jostle.jcajce.interfaces;
 
 import java.security.PrivateKey;
 
-public interface MLDSAPrivateKey extends PrivateKey
+public interface MLDSAPrivateKey extends PrivateKey,MLDSAKey
 {
     byte[] getSeed();
 
     MLDSAPrivateKey getPrivateKey(boolean b);
+
+    byte[] getPrivateData();
 }

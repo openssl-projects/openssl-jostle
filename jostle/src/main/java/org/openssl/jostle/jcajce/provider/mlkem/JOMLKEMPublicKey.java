@@ -17,7 +17,7 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
-public class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
+class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
 {
 
     public JOMLKEMPublicKey(PKEYKeySpec spec)
@@ -44,7 +44,7 @@ public class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKe
         return ASNEncoder.asSubjectPublicKeyInfo(spec);
     }
 
-    
+
     public PKEYKeySpec getSpec()
     {
         return spec;

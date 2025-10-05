@@ -19,7 +19,7 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
-public class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSSLKey
+class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSSLKey
 {
     final boolean seedOnly;
 
@@ -62,7 +62,8 @@ public class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivate
         return out;
     }
 
-    public byte[] getDirectEncoding()
+    @Override
+    public byte[] getPrivateData()
     {
         //
         // Raw bytes

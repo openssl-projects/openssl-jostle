@@ -13,7 +13,7 @@ package org.openssl.jostle.jcajce.interfaces;
 import java.security.PrivateKey;
 
 public interface SLHDSAPrivateKey
-        extends PrivateKey
+        extends PrivateKey,SLHDSAKey
 {
     /**
      * Return the public key corresponding to this private key.

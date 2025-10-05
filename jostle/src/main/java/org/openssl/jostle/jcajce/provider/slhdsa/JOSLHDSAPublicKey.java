@@ -18,7 +18,7 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
-class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey, OSSLKey
+class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
 {
 
     public JOSLHDSAPublicKey(PKEYKeySpec spec)

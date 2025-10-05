@@ -10,14 +10,17 @@
 
 package org.openssl.jostle.jcajce.interfaces;
 
-import java.security.PublicKey;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 
-public interface MLDSAPublicKey extends PublicKey,MLDSAKey
+public interface MLDSAKey extends OSSLKey
 {
+
+
     /**
-     * Return the raw encoded data representing the public key: t || rho.
+     * Return the parameters for this key.
      *
-     * @return the concatenation of t and rho.
+     * @return a MLDSAParameterSpec
      */
-    byte[] getPublicData();
+    MLDSAParameterSpec getParameterSpec();
+
 }

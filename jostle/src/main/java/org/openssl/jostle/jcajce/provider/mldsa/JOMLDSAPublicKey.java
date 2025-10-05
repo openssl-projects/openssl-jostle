@@ -18,7 +18,7 @@ import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
-public class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey, OSSLKey
+class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
 {
 
     public JOMLDSAPublicKey(PKEYKeySpec spec)
@@ -58,7 +58,7 @@ public class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKe
         return out;
     }
 
-    
+
     public PKEYKeySpec getSpec()
     {
         return spec;

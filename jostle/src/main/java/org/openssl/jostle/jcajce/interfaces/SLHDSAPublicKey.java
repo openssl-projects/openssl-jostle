@@ -12,7 +12,7 @@ package org.openssl.jostle.jcajce.interfaces;
 
 import java.security.PublicKey;
 
-public interface SLHDSAPublicKey extends PublicKey
+public interface SLHDSAPublicKey extends PublicKey, SLHDSAKey
 {
     /**
      * Return the raw encoded data representing the public key: seed || root.

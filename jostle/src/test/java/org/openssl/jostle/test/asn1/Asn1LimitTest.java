@@ -5,10 +5,12 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
-import org.openssl.jostle.jcajce.provider.mldsa.JOMLDSAPrivateKey;
-import org.openssl.jostle.jcajce.provider.mldsa.JOMLDSAPublicKey;
+
 import org.openssl.jostle.test.crypto.TestNISelector;
 
 import java.security.*;
@@ -112,7 +114,7 @@ public class Asn1LimitTest
         keyGen.initialize( org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
         KeyPair keyPair = keyGen.generateKeyPair();
 
-        JOMLDSAPublicKey publicKey = (JOMLDSAPublicKey) keyPair.getPublic();
+        MLDSAPublicKey publicKey = (MLDSAPublicKey) keyPair.getPublic();
        
 
         long asn1Ref = TestNISelector.Asn1NI.allocate();
@@ -195,8 +197,8 @@ public class Asn1LimitTest
         keyGen.initialize( org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
         KeyPair keyPair = keyGen.generateKeyPair();
 
-        JOMLDSAPublicKey publicKey = (JOMLDSAPublicKey) keyPair.getPublic();
-        JOMLDSAPrivateKey privateKey = (JOMLDSAPrivateKey) keyPair.getPrivate();
+
+        MLDSAPrivateKey privateKey = (MLDSAPrivateKey) keyPair.getPrivate();
 
         long asn1Ref = TestNISelector.Asn1NI.allocate();
         try

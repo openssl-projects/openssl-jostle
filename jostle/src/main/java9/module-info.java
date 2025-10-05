@@ -20,9 +20,6 @@ module org.openssl.jostle.prov {
     exports org.openssl.jostle.jcajce;
     exports org.openssl.jostle.jcajce.spec;
     exports org.openssl.jostle.jcajce.provider;
-    exports org.openssl.jostle.jcajce.provider.slhdsa;
-    exports org.openssl.jostle.jcajce.provider.mlkem;
-    exports org.openssl.jostle.jcajce.provider.mldsa;
     exports org.openssl.jostle.jcajce.interfaces;
     exports org.openssl.jostle.disposal;
 }
