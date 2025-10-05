@@ -287,8 +287,8 @@ The Jostle jars can be found in:
 
 ```
 java --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
---enable-native-access=jostle \
---module jostle/org.openssl.jostle.util.DumpInfo
+--enable-native-access=org.openssl.jostle.prov \
+--module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo
 ```
 
 ```
@@ -407,8 +407,8 @@ Use: -fine to emit FINE level logs
 
 ```
 java --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
---enable-native-access=jostle \
---module  jostle/org.openssl.jostle.util.DumpInfo
+--enable-native-access=org.openssl.jostle.prov \
+--module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo
 
 -------------------------------------------------------------------------------
 DumpInfo
@@ -445,8 +445,8 @@ For example, with module loading
 ```
 java -Dorg.openssl.jostle.loader.interface=JNI \
 --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
---enable-native-access=jostle \
---module  jostle/org.openssl.jostle.util.DumpInfo
+--enable-native-access=org.openssl.jostle.prov \
+--module  org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo
 
 
 -------------------------------------------------------------------------------
