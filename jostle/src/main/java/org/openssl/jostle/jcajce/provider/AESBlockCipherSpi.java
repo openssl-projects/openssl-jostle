@@ -21,7 +21,8 @@ class AESBlockCipherSpi extends BlockCipherSpi
 
     AESBlockCipherSpi()
     {
-        super(null);
+        this(null, null);
+        osslMode = OSSLMode.ECB;
     }
 
     AESBlockCipherSpi(OSSLCipher cipher)

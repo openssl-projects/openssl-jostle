@@ -9,6 +9,7 @@ module org.openssl.jostle.prov {
     opens org.openssl.jostle.jcajce.provider to java.base;
 
     exports org.openssl.jostle;
+    exports org.openssl.jostle.disposal;
     exports org.openssl.jostle.util;
     exports org.openssl.jostle.util.test;
     exports org.openssl.jostle.util.ops;
@@ -21,5 +22,5 @@ module org.openssl.jostle.prov {
     exports org.openssl.jostle.jcajce.spec;
     exports org.openssl.jostle.jcajce.provider;
     exports org.openssl.jostle.jcajce.interfaces;
-    exports org.openssl.jostle.disposal;
+    exports org.openssl.jostle.jcajce.util;
 }

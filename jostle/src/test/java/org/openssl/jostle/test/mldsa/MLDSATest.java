@@ -1,7 +1,6 @@
 package org.openssl.jostle.test.mldsa;
 
 
-import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -16,6 +15,7 @@ import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
 import org.openssl.jostle.jcajce.spec.MLDSAPublicKeySpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.MLDSAProxyPrivateKey;
+import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
@@ -135,6 +135,49 @@ public class MLDSATest
         }
     }
 
+
+    @Test
+    public void testCustomParameterSpec() throws Exception
+    {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+
+        AlgorithmParameterSpec customSpec = new TestAlgorithmParameterSpec();
+
+
+        Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        signature.initSign(keyPair.getPrivate());
+        signature.setParameter(customSpec);
+
+        try
+        {
+            signature.setParameter(new AlgorithmParameterSpec()
+            {
+            });
+            Assertions.fail();
+        } catch (InvalidAlgorithmParameterException e)
+        {
+            Assertions.assertEquals("unknown AlgorithmParameterSpec", e.getMessage());
+        }
+
+        Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(keyPair.getPublic());
+        try
+        {
+            signature.setParameter(new AlgorithmParameterSpec()
+            {
+            });
+            Assertions.fail();
+        } catch (InvalidAlgorithmParameterException e)
+        {
+            Assertions.assertEquals("unknown AlgorithmParameterSpec", e.getMessage());
+        }
+
+    }
+
+
     @Test
     public void testUnknownParameterSpec() throws Exception
     {
@@ -169,6 +212,7 @@ public class MLDSATest
         }
 
     }
+
 
     @Test
     public void testInitVerifyWrongClass() throws Exception
@@ -324,6 +368,59 @@ public class MLDSATest
         Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         verifier.initVerify(keyPair.getPublic());
         verifier.setParameter(new ContextParameterSpec(ctx));
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(secondSignature));
+
+        //
+        // Verifier should have reset
+        //
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(firstSignature));
+
+
+        // Vandalise message
+        message[0] ^= 1;
+        verifier.update(message);
+        Assertions.assertFalse(verifier.verify(firstSignature));
+    }
+
+
+    @Test
+    public void testSignVerifyWithCustomContextAndReuse() throws Exception
+    {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] ctx = new byte[129];
+        random.nextBytes(ctx);
+
+        byte[] message = new byte[1025];
+        random.nextBytes(message);
+
+
+        //
+        // Take first signature on a fresh instance that is fully set up
+        //
+        Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        signature.initSign(keyPair.getPrivate());
+        signature.setParameter(new TestAlgorithmParameterSpec(ctx));
+
+        signature.update(message);
+        byte[] firstSignature = signature.sign();
+
+        //
+        // Signer should have reset
+        //
+        signature.update(message);
+        byte[] secondSignature = signature.sign();
+
+        //
+        // Set up verifier, it should verify second signature
+        //
+        Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.setParameter(new TestAlgorithmParameterSpec(ctx));
         verifier.update(message);
         Assertions.assertTrue(verifier.verify(secondSignature));
 
@@ -586,8 +683,6 @@ public class MLDSATest
             jostle.initVerify(keyPair.getPublic());
             jostle.update(jostleMuBytes);
             Assertions.assertTrue(jostle.verify(bcSigFromExternalMu));
-
-
 
 
         }
@@ -1054,7 +1149,7 @@ public class MLDSATest
 
 
         byte[] publicKey = ((MLDSAPublicKey) keyPair.getPublic()).getPublicData();
-        byte[] privateKey =   ((MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
+        byte[] privateKey = ((MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
 
         KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
         PrivateKey privKeyBC = factory.generatePrivate(new org.bouncycastle.jcajce.spec.MLDSAPrivateKeySpec(specBC, privateKey, publicKey));
@@ -1165,4 +1260,23 @@ public class MLDSATest
     }
 
 
+    public static class TestAlgorithmParameterSpec implements AlgorithmParameterSpec
+    {
+        private final byte[] ctx;
+
+        public TestAlgorithmParameterSpec(byte[] ctx)
+        {
+            this.ctx = ctx;
+        }
+
+        public TestAlgorithmParameterSpec()
+        {
+            this(Strings.toByteArray("Jostle"));
+        }
+
+        public byte[] getContext()
+        {
+            return ctx;
+        }
+    }
 }

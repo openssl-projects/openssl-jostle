@@ -15,11 +15,11 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.MLDSAKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
-import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.util.SpecUtil;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
@@ -208,10 +208,19 @@ public class MLDSASignatureSpi extends SignatureSpi
             reInit();
             return;
         }
+
+        byte[] context = SpecUtil.getContextFrom(params);
+        if (context != null)
+        {
+            algorithmParameterSpec = new ContextParameterSpec(context);
+            reInit();
+            return;
+        }
+
         throw new InvalidAlgorithmParameterException("unknown AlgorithmParameterSpec");
     }
 
-    private  void  reInit()
+    private void reInit()
     {
 
         synchronized (this)
