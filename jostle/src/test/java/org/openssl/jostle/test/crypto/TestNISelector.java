@@ -5,10 +5,10 @@ import org.openssl.jostle.jcajce.provider.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.provider.SLHDSAServiceNI;
+import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
-
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
@@ -57,6 +57,10 @@ public class TestNISelector extends NISelector
         return Asn1NI;
     }
 
+    public static KdfNI getKDFNI()
+    {
+        return KdfNI;
+    }
 
     public static OperationsTestNI getOperationsTestNI()
     {

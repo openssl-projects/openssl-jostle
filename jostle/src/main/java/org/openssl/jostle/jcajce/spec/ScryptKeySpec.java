@@ -1,8 +1,10 @@
-package org.bouncycastle.jcajce.spec;
+package org.openssl.jostle.jcajce.spec;
+
+import org.openssl.jostle.util.Arrays;
 
 import java.security.spec.KeySpec;
 
-import org.bouncycastle.util.Arrays;
+
 
 /**
  * Key spec for use with the scrypt SecretKeyFactory.

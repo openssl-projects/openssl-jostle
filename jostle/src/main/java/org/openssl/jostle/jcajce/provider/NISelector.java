@@ -12,6 +12,8 @@ package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
+import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
+import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceJNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
@@ -39,6 +41,7 @@ public class NISelector
     public static final Asn1Ni Asn1NI;
     public static final SLHDSAServiceNI SLHDSAServiceNI;
     public static final MLKEMServiceNI MLKEMServiceNI;
+    public static final KdfNI KdfNI;
 
     static
     {
@@ -51,5 +54,6 @@ public class NISelector
         OperationsTestNI = new OperationsTestJNI();
         SLHDSAServiceNI = new SLHDSAServiceJNI();
         MLKEMServiceNI = new MLKEMServiceJNI();
+        KdfNI = new KdfNIJNI();
     }
 }

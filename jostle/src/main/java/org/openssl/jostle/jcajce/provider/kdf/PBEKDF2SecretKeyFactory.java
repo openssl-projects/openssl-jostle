@@ -12,17 +12,17 @@ import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
-public class PBESecretKeyFactory extends SecretKeyFactorySpi
+public class PBEKDF2SecretKeyFactory extends SecretKeyFactorySpi
 {
 
     private final String forcedDigestAlgorithm;
 
-    public PBESecretKeyFactory(String forcedDigestAlgorithm)
+    public PBEKDF2SecretKeyFactory(String forcedDigestAlgorithm)
     {
         this.forcedDigestAlgorithm = DigestUtil.getCanonicalDigestName(forcedDigestAlgorithm);
     }
 
-    public PBESecretKeyFactory()
+    public PBEKDF2SecretKeyFactory()
     {
         this.forcedDigestAlgorithm = null;
     }
@@ -70,7 +70,7 @@ public class PBESecretKeyFactory extends SecretKeyFactorySpi
             return new JOPBEKey(name, spec.getPassword(), spec.getSalt(), spec.getIterationCount(), rawKey);
 
         }
-        
+
         throw new InvalidKeySpecException("unsupported KeySpec " + keySpec.getClass().getName());
     }
 

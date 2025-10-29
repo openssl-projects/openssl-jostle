@@ -10,15 +10,15 @@
 
 package org.openssl.jostle.jcajce.provider;
 
-import java.lang.ref.WeakReference;
-import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
-import java.util.*;
-
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.util.AccessSupplier;
 import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.Properties;
+
+import java.lang.ref.WeakReference;
+import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.util.*;
 
 public class JostleProvider
         extends Provider
@@ -81,6 +81,7 @@ public class JostleProvider
         new ProvMLDSA().configure(this);
         new ProvSLHDSA().configure(this);
         new ProvMLKEM().configure(this);
+        new ProvPBEKDF().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)
@@ -368,9 +369,9 @@ public class JostleProvider
     {
         put(key + " ImplementedIn", "Software");
 
-        for (Iterator it = attributeMap.keySet().iterator(); it.hasNext();)
+        for (Iterator it = attributeMap.keySet().iterator(); it.hasNext(); )
         {
-            String attributeName = (String)it.next();
+            String attributeName = (String) it.next();
             String attributeKey = key + " " + attributeName;
             if (containsKey(attributeKey))
             {
@@ -380,8 +381,6 @@ public class JostleProvider
             put(attributeKey, attributeMap.get(attributeName));
         }
     }
-
-
 
 
 }

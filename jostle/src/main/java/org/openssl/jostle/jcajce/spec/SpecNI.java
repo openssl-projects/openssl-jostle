@@ -29,7 +29,6 @@ public interface SpecNI
     long allocate();
 
 
-
     String getName(long keyRef);
 
     int encap(long keyRef, String opt, byte[] input, int intOff, int inLen, byte[] out, int off, int len);

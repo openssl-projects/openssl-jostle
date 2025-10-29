@@ -38,9 +38,6 @@ else ()
 endif ()
 
 
-
-
-
 SET(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 
@@ -93,6 +90,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
             util/ops.h
             util/ops.c
             jni/ops.c
+            jni/kdf_jni.c
+            util/kdf.h
+            util/kdf.c
+
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -141,6 +142,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
             util/asn1_util.h
             util/ops.h
             util/ops.c
+            ffi/kdf_ffi.c
+            util/kdf.h
+            util/kdf.c
     )
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
@@ -215,6 +219,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/ops.h
             util/ops.c
             jni/ops.c
+            jni/kdf_jni.c
+            util/kdf.h
+            util/kdf.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -263,6 +270,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/asn1_util.h
             util/ops.h
             util/ops.c
+            ffi/kdf_ffi.c
+            util/kdf.h
+            util/kdf.c
     )
 
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
