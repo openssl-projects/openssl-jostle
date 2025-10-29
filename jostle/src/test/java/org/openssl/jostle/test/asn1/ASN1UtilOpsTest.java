@@ -40,6 +40,60 @@ public class ASN1UtilOpsTest
 
 
     @Test
+    public void opsTestDecodePublicKey_Int32Overflow() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
+            asn1NI.handleErrors(keyRef);
+            Assertions.fail();
+        } catch (OverflowException e)
+        {
+            Assertions.assertEquals("input size int32 overflow", e.getMessage());
+        } finally
+        {
+            if (keyRef > 0)
+            {
+                specNI.dispose(keyRef);
+            }
+            operationsTestNI.resetFlags();
+        }
+
+    }
+
+
+    @Test
+    public void opsTestDecodePrivateKey_Int32Overflow() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            keyRef = asn1NI.fromPrivateKeyInfo(new byte[10], 0, 10);
+            asn1NI.handleErrors(keyRef);
+            Assertions.fail();
+        } catch (OverflowException e)
+        {
+            Assertions.assertEquals("input size int32 overflow", e.getMessage());
+        } finally
+        {
+            if (keyRef > 0)
+            {
+                specNI.dispose(keyRef);
+            }
+            operationsTestNI.resetFlags();
+        }
+
+    }
+
+
+    @Test
     public void opsTestEncodePublicKey_Int32Overflow() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
@@ -119,8 +173,7 @@ public class ASN1UtilOpsTest
         {
             Assertions.assertEquals("unable to access output array", e.getMessage());
         } finally
-        {
-            asn1NI.dispose(asn1Ref);
+        {asn1NI.dispose(asn1Ref);
             operationsTestNI.resetFlags();
         }
 

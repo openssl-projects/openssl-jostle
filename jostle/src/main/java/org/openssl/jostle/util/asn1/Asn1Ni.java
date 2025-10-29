@@ -67,6 +67,8 @@ public interface Asn1Ni
                 throw new AccessException("unable to access output array");
             case JO_OUTPUT_OUT_OF_RANGE:
                 throw new AccessException("output is out of range");
+            case JO_INPUT_TOO_LONG_INT32:
+                throw new OverflowException("input size int32 overflow");
             default:
                 throw new IllegalStateException("unexpected error code: " + errorCode.name() + " " + code);
         }

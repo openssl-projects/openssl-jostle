@@ -101,11 +101,19 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
         goto err;
     }
 
+    if (OPS_INT32_OVERFLOW_1 src_len > INT_MAX) {
+        *ret_code = JO_INPUT_TOO_LONG_INT32;
+        return NULL;
+    }
+
+    const long _src_len = (int32_t) src_len;
     const uint8_t *_src = src;
+
 
     new_key = EVP_PKEY_new();
 
-    const EVP_PKEY *new_key_ = d2i_PrivateKey(EVP_PKEY_NONE, &new_key, &_src, (long) src_len);
+
+    const EVP_PKEY *new_key_ = d2i_PrivateKey(EVP_PKEY_NONE, &new_key, &_src, _src_len);
 
     if (new_key_ == NULL) {
         *ret_code = JO_OPENSSL_ERROR;
@@ -116,51 +124,6 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
         *ret_code = JO_UNEXPECTED_POINTER_CHANGE;
         goto err;
     }
-
-
-
-    // // TODO return string name from OpenSSL and use a hash table on java side to map it to an key type enum
-    //
-    // if (EVP_PKEY_is_a(new_key, "ML-DSA-44"))
-    //     spec_type = KS_MLDSA_44;
-    // else if (EVP_PKEY_is_a(new_key, "ML-DSA-65"))
-    //     spec_type = KS_MLDSA_65;
-    // else if (EVP_PKEY_is_a(new_key, "ML-DSA-87"))
-    //     spec_type = KS_MLDSA_87;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-128s"))
-    //     spec_type = KS_SLH_DSA_SHA2_128s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-128f"))
-    //     spec_type = KS_SLH_DSA_SHA2_128f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-192s"))
-    //     spec_type = KS_SLH_DSA_SHA2_192s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-192f"))
-    //     spec_type = KS_SLH_DSA_SHA2_192f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-256s"))
-    //     spec_type = KS_SLH_DSA_SHA2_256s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-256f"))
-    //     spec_type = KS_SLH_DSA_SHA2_256f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-128s"))
-    //     spec_type = KS_SLH_DSA_SHAKE_128s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-128f"))
-    //     spec_type = KS_SLH_DSA_SHAKE_128f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-192s"))
-    //     spec_type = KS_SLH_DSA_SHAKE_192s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-192f"))
-    //     spec_type = KS_SLH_DSA_SHAKE_192f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-256s"))
-    //     spec_type = KS_SLH_DSA_SHAKE_256s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-256f"))
-    //     spec_type = KS_SLH_DSA_SHAKE_256f;
-    // else if (EVP_PKEY_is_a(new_key, "ML-KEM-512"))
-    //     spec_type = KS_ML_KEM_512;
-    // else if (EVP_PKEY_is_a(new_key, "ML-KEM-768"))
-    //     spec_type = KS_ML_KEM_768;
-    // else if (EVP_PKEY_is_a(new_key, "ML-KEM-1024"))
-    //     spec_type = KS_ML_KEM_1024;
-    // else {
-    //     *ret_code = JO_UNKNOWN_OSSL_KEY_TYPE;
-    //     goto err;
-    // }
 
 
     key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
@@ -186,11 +149,18 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
         return NULL;
     }
 
+    if (OPS_INT32_OVERFLOW_1 src_len > INT_MAX) {
+        *ret_code = JO_INPUT_TOO_LONG_INT32;
+        return NULL;
+    }
+
+    const long _src_len = (int32_t) src_len;
+
     new_key = EVP_PKEY_new();
 
     const uint8_t *_src = src;
 
-    const EVP_PKEY *new_key_ = d2i_PUBKEY(&new_key, &_src, (long) &src_len);
+    const EVP_PKEY *new_key_ = d2i_PUBKEY(&new_key, &_src, _src_len);
 
     if (new_key_ == NULL) {
         *ret_code = JO_OPENSSL_ERROR;
@@ -202,56 +172,10 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
         goto err;
     }
 
-
-
-    // TODO return string name from OpenSSL and use a hash table on java side to map it to an key type enum
-
-    // if (EVP_PKEY_is_a(new_key, "ML-DSA-44"))
-    //     spec_type = KS_MLDSA_44;
-    // else if (EVP_PKEY_is_a(new_key, "ML-DSA-65"))
-    //     spec_type = KS_MLDSA_65;
-    // else if (EVP_PKEY_is_a(new_key, "ML-DSA-87"))
-    //     spec_type = KS_MLDSA_87;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-128s"))
-    //     spec_type = KS_SLH_DSA_SHA2_128s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-128f"))
-    //     spec_type = KS_SLH_DSA_SHA2_128f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-192s"))
-    //     spec_type = KS_SLH_DSA_SHA2_192s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-192f"))
-    //     spec_type = KS_SLH_DSA_SHA2_192f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-256s"))
-    //     spec_type = KS_SLH_DSA_SHA2_256s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHA2-256f"))
-    //     spec_type = KS_SLH_DSA_SHA2_256f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-128s"))
-    //     spec_type = KS_SLH_DSA_SHAKE_128s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-128f"))
-    //     spec_type = KS_SLH_DSA_SHAKE_128f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-192s"))
-    //     spec_type = KS_SLH_DSA_SHAKE_192s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-192f"))
-    //     spec_type = KS_SLH_DSA_SHAKE_192f;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-256s"))
-    //     spec_type = KS_SLH_DSA_SHAKE_256s;
-    // else if (EVP_PKEY_is_a(new_key, "SLH-DSA-SHAKE-256f"))
-    //     spec_type = KS_SLH_DSA_SHAKE_256f;
-    // else if (EVP_PKEY_is_a(new_key, "ML-KEM-512"))
-    //     spec_type = KS_ML_KEM_512;
-    // else if (EVP_PKEY_is_a(new_key, "ML-KEM-768"))
-    //     spec_type = KS_ML_KEM_768;
-    // else if (EVP_PKEY_is_a(new_key, "ML-KEM-1024"))
-    //     spec_type = KS_ML_KEM_1024;
-    // else {
-    //     *ret_code = JO_UNKNOWN_OSSL_KEY_TYPE;
-    //     goto err;
-    // }
-
-
     key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
     assert(key != NULL);
 
-   // key->type = spec_type;
+    // key->type = spec_type;
     key->key = new_key;
 
     *ret_code = JO_SUCCESS;

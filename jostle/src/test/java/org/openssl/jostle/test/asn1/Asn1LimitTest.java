@@ -7,13 +7,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
-import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
-
 import org.openssl.jostle.test.crypto.TestNISelector;
 
-import java.security.*;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Security;
 
 public class Asn1LimitTest
 {
@@ -31,7 +31,6 @@ public class Asn1LimitTest
             {
                 Security.addProvider(new BouncyCastleProvider());
             }
-
         }
     }
 
@@ -111,11 +110,11 @@ public class Asn1LimitTest
     {
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize( org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         MLDSAPublicKey publicKey = (MLDSAPublicKey) keyPair.getPublic();
-       
+
 
         long asn1Ref = TestNISelector.Asn1NI.allocate();
         try
@@ -194,7 +193,7 @@ public class Asn1LimitTest
     {
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize( org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
         KeyPair keyPair = keyGen.generateKeyPair();
 
 
@@ -332,6 +331,32 @@ public class Asn1LimitTest
         }
     }
 
+    @Test
+    public void fromPrivateKey_dodgyDataTooShort() throws Exception
+    {
+
+        //
+        // Correct data in array but length too short
+        //
+
+        byte[] validKey;
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", "BC");
+            keyGen.initialize(MLDSAParameterSpec.ml_dsa_44);
+            validKey = keyGen.generateKeyPair().getPrivate().getEncoded();
+        }
+
+        try
+        {
+            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length - 10));
+            Assertions.fail();
+        } catch (OpenSSLException ex)
+        {
+            Assertions.assertEquals(OpenSSLException.class, ex.getClass());
+            Assertions.assertTrue(ex.getMessage().contains("No supported data to decode"));
+        }
+    }
+
 
     @Test
     public void fromPublicKeyInfo_inIsNull() throws Exception
@@ -410,10 +435,6 @@ public class Asn1LimitTest
     }
 
 
-
-
-
-
     @Test
     public void fromPublicKey_dodgyData() throws Exception
     {
@@ -434,6 +455,31 @@ public class Asn1LimitTest
         {
             Assertions.assertEquals(OpenSSLException.class, ex.getClass());
             Assertions.assertTrue(ex.getMessage().contains("wrong tag"));
+        }
+    }
+
+
+    @Test
+    public void fromPublicKey_dodgyDataTooShort() throws Exception
+    {
+        // Valid data in array but length too short.
+
+        byte[] validKey;
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", "BC");
+            keyGen.initialize(MLDSAParameterSpec.ml_dsa_44);
+            validKey = keyGen.generateKeyPair().getPublic().getEncoded();
+        }
+
+
+        try
+        {
+            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length - 10));
+            Assertions.fail();
+        } catch (OpenSSLException ex)
+        {
+            Assertions.assertEquals(OpenSSLException.class, ex.getClass());
+            Assertions.assertTrue(ex.getMessage().contains("bad object header"));
         }
     }
 
