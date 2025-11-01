@@ -67,6 +67,12 @@ public enum OSSLKeyType
         return ksType;
     }
 
+    public String getAlgorithmName()
+    {
+        return name().replace('_', '-').toUpperCase();
+    }
+
+
     public static OSSLKeyType forAlias(String alias)
     {
         if (alias == null)
@@ -87,5 +93,6 @@ public enum OSSLKeyType
         }
         throw new IllegalArgumentException("Unknown OSSLKeyType " + ksType);
     }
+
 
 }

@@ -61,7 +61,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
-                throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType());
+                throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
             }
 
             switch (pkeySpec.getType())
@@ -71,7 +71,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 case ML_KEM_1024:
                     break;
                 default:
-                    throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType());
+                    throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
             }
 
             return new JOMLKEMPublicKey(pkeySpec);
@@ -108,7 +108,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
-                throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType());
+                throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType().getAlgorithmName());
             }
 
             switch (pkeySpec.getType())
@@ -118,7 +118,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 case ML_KEM_1024:
                     break;
                 default:
-                    throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType());
+                    throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
             }
 
             return new JOMLKEMPrivateKey(pkeySpec);

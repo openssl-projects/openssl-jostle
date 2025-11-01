@@ -39,7 +39,7 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSS
     @Override
     public String getAlgorithm()
     {
-        return getType().name();
+        return getType().getAlgorithmName();
     }
 
     @Override

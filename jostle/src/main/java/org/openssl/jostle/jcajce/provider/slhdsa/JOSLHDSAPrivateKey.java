@@ -33,7 +33,7 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
     @Override
     public String getAlgorithm()
     {
-        return getType().name();
+        return getType().getAlgorithmName();
     }
 
     @Override

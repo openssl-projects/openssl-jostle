@@ -29,7 +29,7 @@ class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
     @Override
     public String getAlgorithm()
     {
-        return getType().name();
+        return getType().getAlgorithmName();
     }
 
     @Override
