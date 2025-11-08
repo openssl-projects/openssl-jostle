@@ -38,7 +38,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
     @Override
     public String getAlgorithm()
     {
-        return getType().name();
+        return getType().getAlgorithmName();
     }
 
     @Override

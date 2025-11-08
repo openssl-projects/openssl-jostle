@@ -29,7 +29,7 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
     @Override
     public String getAlgorithm()
     {
-        return getType().name();
+        return getType().getAlgorithmName();
     }
 
     @Override

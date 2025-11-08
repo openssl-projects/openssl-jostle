@@ -61,7 +61,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
-                throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType());
+                throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
             }
 
             switch (pkeySpec.getType())
@@ -108,7 +108,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
-                throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType());
+                throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType());
             }
 
             switch (pkeySpec.getType())

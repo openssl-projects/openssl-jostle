@@ -20,6 +20,7 @@ import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
@@ -1257,6 +1258,57 @@ public class MLDSATest
 
             Assertions.assertArrayEquals(newPrivateKey1.getEncoded(), newPrivateKey2.getEncoded());
         }
+    }
+
+
+    @Test
+    public void keyFactoryByNameTest() throws Exception
+    {
+        String[] names = new String[]{
+                "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"
+        };
+
+
+        for (int t = 0; t < names.length; t++)
+        {
+            String name = names[t];
+
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+            {
+                KeyFactory keyFactory = KeyFactory.getInstance(name, JostleProvider.PROVIDER_NAME);
+                PublicKey pubK = keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
+                PrivateKey privK = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+
+                Assertions.assertEquals(name, pubK.getAlgorithm());
+                Assertions.assertEquals(name, privK.getAlgorithm());
+            }
+
+            //
+            // Check it will actually fail
+            //
+
+            {
+                String failingName = names[(t + 1) % names.length];
+
+                try
+                {
+                    KeyFactory keyFactory = KeyFactory.getInstance(failingName, JostleProvider.PROVIDER_NAME);
+                    keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
+                    keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+
+                    Assertions.fail();
+                } catch (InvalidKeySpecException ikse)
+                {
+                    Assertions.assertEquals("expected " + failingName + " but got " + name, ikse.getMessage());
+                }
+
+            }
+
+        }
+
+
     }
 
 

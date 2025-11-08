@@ -14,6 +14,7 @@ import org.openssl.jostle.util.Strings;
 
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class SLHDSAParameterSpec implements AlgorithmParameterSpec
 {
@@ -37,7 +38,7 @@ public class SLHDSAParameterSpec implements AlgorithmParameterSpec
     public static final SLHDSAParameterSpec slh_dsa_shake_256f = new SLHDSAParameterSpec("SLH-DSA-SHAKE-256F", OSSLKeyType.SLH_DSA_SHAKE_256f);
     public static final SLHDSAParameterSpec slh_dsa_shake_256s = new SLHDSAParameterSpec("SLH-DSA-SHAKE-256S", OSSLKeyType.SLH_DSA_SHAKE_256s);
 
-    private static final Map<Object, SLHDSAParameterSpec> parameters = new HashMap<>();
+    private static final Map<String, SLHDSAParameterSpec> parameters = new HashMap<>();
     private static final Map<OSSLKeyType, SLHDSAParameterSpec> osslTypeToSpec;
 
     private static final Set<SLHDSAParameterSpec> parameterSpecs;
@@ -90,9 +91,9 @@ public class SLHDSAParameterSpec implements AlgorithmParameterSpec
     private final OSSLKeyType keyType;
     private final String name;
 
-    public static Map<Object, SLHDSAParameterSpec> getParameters()
+    public static Set<String> getParameterNames()
     {
-        return Collections.unmodifiableMap(new HashMap<>(parameters));
+        return parameters.values().stream().map(SLHDSAParameterSpec::getName).collect(Collectors.toSet());
     }
 
 

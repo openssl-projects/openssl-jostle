@@ -14,6 +14,7 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.util.AccessSupplier;
 import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.Properties;
+import org.openssl.jostle.util.Strings;
 
 import java.lang.ref.WeakReference;
 import java.security.NoSuchAlgorithmException;
@@ -126,6 +127,8 @@ public class JostleProvider
 
     public void addAlgorithmImplementation(String type, String name, String className, Map<String, String> attributes, EngineCreator creator)
     {
+        name = Strings.toUpperCase(name);
+
         String key1 = type + "." + name;
         if (containsKey(key1))
         {

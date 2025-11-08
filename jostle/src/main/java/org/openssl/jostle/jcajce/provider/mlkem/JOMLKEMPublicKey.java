@@ -28,7 +28,7 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
     @Override
     public String getAlgorithm()
     {
-        return getType().name();
+        return getType().getAlgorithmName();
     }
 
     @Override

@@ -34,7 +34,8 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
     {
         {
             put("SLH-DSA", NONE);
-            SLHDSAParameterSpec.getParameters().forEach((key, value) -> {
+            SLHDSAParameterSpec.getParameterNames().forEach((key) -> {
+                SLHDSAParameterSpec value = SLHDSAParameterSpec.fromName(key);
                 put(value.getName(), ((SLHDSAParameterSpec) value).getKeyType());
                 put(value,((SLHDSAParameterSpec) value).getKeyType());
             });

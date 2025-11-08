@@ -59,10 +59,9 @@ class ProvSLHDSA
         provider.addAlias("KeyFactory", "SLHDSA", "SLH-DSA");
 
 
-        new HashSet<>(SLHDSAParameterSpec.getParameters().values()).forEach(entry -> {
-            String name = entry.getName();
+        SLHDSAParameterSpec.getParameterNames().forEach(name -> {
             provider.addAlgorithmImplementation("KeyPairGenerator", name, PREFIX + "SLHDSAKeyPairGeneratorSpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyPairGenerator(name));
-            provider.addAlgorithmImplementation("KeyFactory", name, PREFIX + "SLHDSAKeyFactorySpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyFactorySpi(SLHDSAParameterSpec.getParameters().get(name).getKeyType()));
+            provider.addAlgorithmImplementation("KeyFactory", name, PREFIX + "SLHDSAKeyFactorySpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyFactorySpi(SLHDSAParameterSpec.fromName(name).getKeyType()));
         });
 
         final Map<String, String> slhdsaSigAttr = new HashMap<String, String>();
