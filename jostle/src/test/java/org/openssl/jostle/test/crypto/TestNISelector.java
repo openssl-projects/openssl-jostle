@@ -21,7 +21,7 @@ public class TestNISelector extends NISelector
         return BlockCipherNI;
     }
 
-    protected static OpenSSLNI getOpenSSLNI()
+    public static OpenSSLNI getOpenSSLNI()
     {
         return OpenSSLNI;
     }
