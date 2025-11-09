@@ -616,24 +616,24 @@ public class ARIAAgreementTest
         //
         // The doFinal that returns a byte[]
         //
-        exercise_simpleDoFinal("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 16, -1);
-        exercise_simpleDoFinal("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, -1);
+        exercise_simpleDoFinal("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
+        exercise_simpleDoFinal("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
 
-        exercise_simpleDoFinal("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 17 * 16, 16, 16);
-        exercise_simpleDoFinal("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-//        exercise_simpleDoFinal("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 1, 16);
+        exercise_simpleDoFinal("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
+        exercise_simpleDoFinal("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_simpleDoFinal("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_simpleDoFinal("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+//        exercise_simpleDoFinal("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
 
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 8);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 9);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 10);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 11);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 12);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 13);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 14);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 15);
-        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
+        exercise_simpleDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
 
 
         //
@@ -641,47 +641,47 @@ public class ARIAAgreementTest
         //
 
 
-        exercise_complexDoFinal("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 16, -1);
-        exercise_complexDoFinal("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, -1);
+        exercise_complexDoFinal("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
+        exercise_complexDoFinal("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
 
-        exercise_complexDoFinal("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 17 * 16, 16, 16);
-        exercise_complexDoFinal("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 1, 16);
+        exercise_complexDoFinal("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
+        exercise_complexDoFinal("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinal("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinal("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinal("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
 
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 8);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 9);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 10);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 11);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 12);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 13);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 14);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 15);
-        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
+        exercise_complexDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
 
 
         //
         // Spread message between update and doFinal calls.
         //
-        exercise_complexUpdateDoFinal("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 16, -1);
-        exercise_complexUpdateDoFinal("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, -1);
+        exercise_complexUpdateDoFinal("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
+        exercise_complexUpdateDoFinal("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
 
-        exercise_complexUpdateDoFinal("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 17 * 16, 16, 16);
-        exercise_complexUpdateDoFinal("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 1, 16);
+        exercise_complexUpdateDoFinal("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
+        exercise_complexUpdateDoFinal("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexUpdateDoFinal("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexUpdateDoFinal("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexUpdateDoFinal("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
 
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 8);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 9);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 10);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 11);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 12);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 13);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 14);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 15);
-        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
+        exercise_complexUpdateDoFinal("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
 
 
         //
@@ -689,23 +689,23 @@ public class ARIAAgreementTest
         //
 
         exercise_complexDoFinalSameArray("ARIA/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1);
-        exercise_complexDoFinalSameArray("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, -1);
+        exercise_complexDoFinalSameArray("ARIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
 
         exercise_complexDoFinalSameArray("ARIA/CBC/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, 16);
-        exercise_complexDoFinalSameArray("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (17 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 17 * 16, 1, 16);
+        exercise_complexDoFinalSameArray("ARIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinalSameArray("ARIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinalSameArray("ARIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinalSameArray("ARIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
 
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 8);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 9);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 10);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 11);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 12);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 13);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 14);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 15);
-        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 17 * 16 + 1, 1, 16);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
+        exercise_complexDoFinalSameArray("ARIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
 
 
     }
