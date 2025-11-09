@@ -30,8 +30,6 @@ class ProvPBEKDF
     public void configure(final JostleProvider provider)
     {
 
-        // "SHA-512(224)", "SHA512(224)", "SHA-512/224", "SHA512/224"
-
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PREFIX + "Base", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory());
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA1", PREFIX + "BaseSHA1", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SHA-1"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA224", PREFIX + "BaseSHA224", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SHA-224"));
@@ -47,20 +45,8 @@ class ProvPBEKDF
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-384", PREFIX + "BaseSHA3_384", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SHA3-384"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-512", PREFIX + "BaseSHA3_512", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SHA3-512"));
 
-// TODO check output to confirm if the following are HMAC-Digest or just Digest
-
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACKECCAK-128",PREFIX+"BaseKECCAK_128",generalKDFAttributes,(arg)->new PBESecretKeyFactory("KECCAK-128"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACKECCAK-256",PREFIX+"BaseKECCAK_256",generalKDFAttributes,(arg)->new PBESecretKeyFactory("KECCAK-256"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACKECCAK-384",PREFIX+"BaseKECCAK_384",generalKDFAttributes,(arg)->new PBESecretKeyFactory("KECCAK-384"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACKECCAK-512",PREFIX+"BaseKECCAK_512",generalKDFAttributes,(arg)->new PBESecretKeyFactory("KECCAK-512"));
-//
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHSHAKE-128",PREFIX+"BaseSHAKE_128",generalKDFAttributes,(arg)->new PBESecretKeyFactory("SHAKE-128"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHSHAKE-256",PREFIX+"BaseSHAKE_256",generalKDFAttributes,(arg)->new PBESecretKeyFactory("SHAKE-256"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHKMAC-128",PREFIX+"KMAC_128",generalKDFAttributes,(arg)->new PBESecretKeyFactory("KMAC-128"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHKMAC-256",PREFIX+"KMAC_256",generalKDFAttributes,(arg)->new PBESecretKeyFactory("KMAC-256"));
-
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHBLAKE2B-512",PREFIX+"BLAKE2B_512",generalKDFAttributes,(arg)->new PBESecretKeyFactory("BLAKE2B-512"));
-//        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHBLAKE2S-256",PREFIX+"BLAKE2S_256",generalKDFAttributes,(arg)->new PBESecretKeyFactory("BLAKE2s-256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACBLAKE2B-512",PREFIX+"BLAKE2B_512",generalKDFAttributes,(arg)->new PBEKDF2SecretKeyFactory("BLAKE2B-512"));
+        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACBLAKE2S-256",PREFIX+"BLAKE2S_256",generalKDFAttributes,(arg)->new PBEKDF2SecretKeyFactory("BLAKE2s-256"));
 
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSM3", PREFIX + "SM3", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SM3"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACMD5", PREFIX + "MD5", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("MD5"));

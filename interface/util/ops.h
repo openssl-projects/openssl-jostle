@@ -25,17 +25,18 @@
 #define OPS_FAILED_ACCESS_1 is_ops_set(3) ||
 #define OPS_FAILED_ACCESS_2 is_ops_set(4) ||
 #define OPS_FAILED_ACCESS_3 is_ops_set(5) ||
-#define OPS_POINTER_CHANGE is_ops_set(6) ||
-#define OPS_OPENSSL_ERROR_1 is_ops_set(7) ||
-#define OPS_OPENSSL_ERROR_2 is_ops_set(8) ||
-#define OPS_OPENSSL_ERROR_3 is_ops_set(9) ||
-#define OPS_OPENSSL_ERROR_4 is_ops_set(10) ||
-#define OPS_OPENSSL_ERROR_5 is_ops_set(11) ||
-#define OPS_OPENSSL_ERROR_6 is_ops_set(12) ||
+#define OPS_FAILED_ACCESS_4 is_ops_set(6) ||
+#define OPS_POINTER_CHANGE is_ops_set(7) ||
+#define OPS_OPENSSL_ERROR_1 is_ops_set(8) ||
+#define OPS_OPENSSL_ERROR_2 is_ops_set(9) ||
+#define OPS_OPENSSL_ERROR_3 is_ops_set(10) ||
+#define OPS_OPENSSL_ERROR_4 is_ops_set(11) ||
+#define OPS_OPENSSL_ERROR_5 is_ops_set(12) ||
+#define OPS_OPENSSL_ERROR_6 is_ops_set(13) ||
 
-#define OPS_LEN_CHANGE_1 is_ops_set(13) ||
+#define OPS_LEN_CHANGE_1 is_ops_set(14) ||
 
-#define OPS_MAX_TEST 14
+#define OPS_MAX_TEST 15
 
 // Offset the error code by fixed amount during ops testing
 #define OPS_OFFSET(x) - x

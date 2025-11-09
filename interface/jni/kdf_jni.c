@@ -12,6 +12,7 @@
 #include "org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI.h"
 #include "types.h"
 #include "../util/kdf.h"
+#include "../util/ops.h"
 
 
 /*
@@ -35,7 +36,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scry
     init_bytearray_ctx(&salt);
     init_bytearray_ctx(&output);
 
-    if (!load_bytearray_ctx(&password, env, _password)) {
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&password, env, _password)) {
         ret_code = JO_KDF_PASSWORD_FAILED_ACCESS;
         goto exit;
     }
@@ -46,8 +47,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scry
     }
 
 
-    if (!load_bytearray_ctx(&salt, env, _salt)) {
+    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&salt, env, _salt)) {
         ret_code = JO_KDF_SALT_FAILED_ACCESS;
+        goto exit;
     }
 
     if (salt.array == NULL) {
@@ -60,8 +62,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scry
         goto exit;
     }
 
-    if (n < 0) {
-        ret_code = JO_KDF_SCRYPT_N_NEGATIVE;
+    if (n < 2) {
+        ret_code = JO_KDF_SCRYPT_N_TOO_SMALL;
+        goto exit;
+    }
+
+    if ((n & (n - 1)) != 0) {
+        ret_code = JO_KDF_SCRYPT_N_NOT_POW2;
         goto exit;
     }
 
@@ -70,7 +77,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scry
         goto exit;
     }
 
-    if (!load_bytearray_ctx(&output, env, _out)) {
+    if (p < 0) {
+        ret_code = JO_KDF_SCRYPT_P_NEGATIVE;
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -132,6 +145,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
 
     int ret_code = JO_FAIL;
     const char *digest_str = NULL;
+    jsize digest_str_len = 0;
 
     java_bytearray_ctx password;
     java_bytearray_ctx salt;
@@ -141,7 +155,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
     init_bytearray_ctx(&salt);
     init_bytearray_ctx(&output);
 
-    if (!load_bytearray_ctx(&password, env, _password)) {
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&password, env, _password)) {
         ret_code = JO_KDF_PASSWORD_FAILED_ACCESS;
         goto exit;
     }
@@ -152,8 +166,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
     }
 
 
-    if (!load_bytearray_ctx(&salt, env, _salt)) {
+    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&salt, env, _salt)) {
         ret_code = JO_KDF_SALT_FAILED_ACCESS;
+        goto exit;
     }
 
     if (salt.array == NULL) {
@@ -172,7 +187,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
     }
 
 
-    if (!load_bytearray_ctx(&output, env, _out)) {
+    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -202,11 +217,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
         goto exit;
     }
 
-    jsize digest_str_len = (*env)->GetStringUTFLength(env, digest);
+    digest_str_len = (*env)->GetStringUTFLength(env, digest);
     if (digest_str_len <= 0) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
+
     digest_str = (*env)->GetStringUTFChars(env, digest,NULL);
 
 
@@ -230,7 +246,6 @@ exit:
     if (digest_str != NULL) {
         (*env)->ReleaseStringUTFChars(env, digest, digest_str);
     }
-
 
     return ret_code;
 }

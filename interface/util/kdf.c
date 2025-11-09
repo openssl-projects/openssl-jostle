@@ -9,11 +9,14 @@
 #include "kdf.h"
 #include "openssl/kdf.h"
 
+#include <assert.h>
 #include <openssl/core_names.h>
+#include <openssl/err.h>
 #include <openssl/params.h>
 #include <openssl/types.h>
 
 #include "bc_err_codes.h"
+#include "ops.h"
 
 int32_t scrypt(
     uint8_t *password, size_t password_len,
@@ -31,16 +34,16 @@ int32_t scrypt(
     OSSL_PARAM params[6] = {0};
 
     kdf = EVP_KDF_fetch(NULL, "SCRYPT", NULL);
-    if (kdf == NULL) {
+    if (OPS_OPENSSL_ERROR_1  kdf == NULL) {
         ret = JO_OPENSSL_ERROR;
         goto exit;
     }
 
     kctx = EVP_KDF_CTX_new(kdf);
-    EVP_KDF_free(kdf);
 
-    if (!kctx) {
-        ret = JO_OPENSSL_ERROR;
+
+    if (OPS_OPENSSL_ERROR_2 !kctx) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1000);
         goto exit;
     }
 
@@ -52,12 +55,17 @@ int32_t scrypt(
     params[4] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_P, &p);
     params[5] = OSSL_PARAM_construct_end();
 
-    if (EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
-        ret = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1001);
+        goto exit;
     }
 
+    ret = JO_SUCCESS;
+
 exit:
+    EVP_KDF_free(kdf);
     EVP_KDF_CTX_free(kctx);
+
     return ret;
 }
 
@@ -75,19 +83,19 @@ int32_t pbkdf2(
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
 
-    OSSL_PARAM params[6] = {0};
+    OSSL_PARAM params[5] = {0};
 
     kdf = EVP_KDF_fetch(NULL, "PBKDF2", NULL);
-    if (kdf == NULL) {
+    if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR;
         goto exit;
     }
 
     kctx = EVP_KDF_CTX_new(kdf);
-    EVP_KDF_free(kdf);
 
-    if (!kctx) {
-        ret = JO_OPENSSL_ERROR;
+
+    if (OPS_OPENSSL_ERROR_2 !kctx) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1000);
         goto exit;
     }
 
@@ -99,59 +107,27 @@ int32_t pbkdf2(
     params[3] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char *) digest, digest_len);
     params[4] = OSSL_PARAM_construct_end();
 
-    if (EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
-        ret = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1001);
         goto exit;
     }
 
+    ret = JO_SUCCESS;
 exit:
-    EVP_KDF_CTX_free(kctx);
-    return ret;
-}
-
-int32_t pkcs12(
-    uint8_t *password, size_t password_len,
-    uint8_t *salt, size_t salt_len,
-    uint32_t iter,
-    uint8_t *digest,
-    size_t digest_len,
-    uint8_t *out,
-    size_t out_len
-) {
-    int ret = JO_FAIL;
-    EVP_KDF *kdf = NULL;
-    EVP_KDF_CTX *kctx = NULL;
-
-    OSSL_PARAM params[6] = {0};
-
-    kdf = EVP_KDF_fetch(NULL, "PKCS12KDF", NULL);
-    if (kdf == NULL) {
-        ret = JO_OPENSSL_ERROR;
-        goto exit;
-    }
-
-    kctx = EVP_KDF_CTX_new(kdf);
     EVP_KDF_free(kdf);
-
-    if (!kctx) {
-        ret = JO_OPENSSL_ERROR;
-        goto exit;
-    }
-
-
-    params[0] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_PASSWORD,
-                                                  password, password_len);
-    params[1] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len);
-    params[2] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_ITER, &iter);
-    params[3] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char *) digest, digest_len);
-    params[4] = OSSL_PARAM_construct_end();
-
-    if (EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
-        ret = JO_OPENSSL_ERROR;
-        goto exit;
-    }
-
-exit:
     EVP_KDF_CTX_free(kctx);
     return ret;
 }
+
+// int32_t pkcs12(
+//     uint8_t *password, size_t password_len,
+//     uint8_t *salt, size_t salt_len,
+//     uint32_t iter,
+//     uint8_t *digest,
+//     size_t digest_len,
+//     uint8_t *out,
+//     size_t out_len
+// ) {
+//    assert(0);
+//
+// }

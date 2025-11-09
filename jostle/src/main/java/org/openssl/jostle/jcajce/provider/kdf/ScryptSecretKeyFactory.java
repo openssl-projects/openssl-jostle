@@ -10,74 +10,48 @@
 package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.spec.PBKDF2KeySpec;
-import org.openssl.jostle.jcajce.util.DigestUtil;
+import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactorySpi;
 import javax.crypto.interfaces.PBEKey;
-import javax.crypto.spec.PBEKeySpec;
 import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
-public class PBEKDF2SecretKeyFactory extends SecretKeyFactorySpi
+public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
 {
 
-    private final String forcedDigestAlgorithm;
 
-    public PBEKDF2SecretKeyFactory(String forcedDigestAlgorithm)
+    public ScryptSecretKeyFactory()
     {
-        this.forcedDigestAlgorithm = DigestUtil.getCanonicalDigestName(forcedDigestAlgorithm);
-    }
 
-    public PBEKDF2SecretKeyFactory()
-    {
-        this.forcedDigestAlgorithm = null;
     }
 
 
     @Override
     protected SecretKey engineGenerateSecret(KeySpec keySpec) throws InvalidKeySpecException
     {
-        if (keySpec instanceof PBEKeySpec)
+        if (keySpec instanceof ScryptKeySpec)
         {
-            PBEKeySpec spec = (PBEKeySpec) keySpec;
+            ScryptKeySpec spec = (ScryptKeySpec) keySpec;
 
             byte[] rawKey = new byte[spec.getKeyLength() >> 3];
 
-            String algo = null;
-            if (spec instanceof PBKDF2KeySpec)
-            {
-                algo = ((PBKDF2KeySpec) spec).getPrf();
-            }
 
-            if (algo == null)
-            {
-                algo = forcedDigestAlgorithm;
-            }
-
-            if (forcedDigestAlgorithm != null && !forcedDigestAlgorithm.equals(algo))
-            {
-                throw new InvalidKeySpecException("PRF in spec " + algo + " does not match forced prf " + forcedDigestAlgorithm);
-            }
-
-            if (algo == null)
-            {
-                algo = DigestUtil.getCanonicalDigestName("SHA-1");
-            }
-
-            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.pbkdf2(
+            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.scrypt(
                     Strings.toUTF8ByteArray(spec.getPassword()),
                     spec.getSalt(),
-                    spec.getIterationCount(),
-                    algo, rawKey, 0, rawKey.length));
+                    spec.getCostParameter(),
+                    spec.getBlockSize(),
+                    spec.getParallelizationParameter(),
+                    rawKey, 0, rawKey.length));
 
 
-            String name = "PBKDF2WithHmac" + algo + "andUTF8";
+            String name = "ScryptWithUTF8";
 
-            return new JOPBEKey(name, spec.getPassword(), spec.getSalt(), spec.getIterationCount(), rawKey);
+            return new JOScryptKey(name, spec.getPassword(), spec.getSalt(), spec.getCostParameter(), spec.getBlockSize(), spec.getParallelizationParameter(), rawKey);
 
         }
 

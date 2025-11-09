@@ -83,6 +83,7 @@ public class JostleProvider
         new ProvSLHDSA().configure(this);
         new ProvMLKEM().configure(this);
         new ProvPBEKDF().configure(this);
+        new ProvScryptKDF().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)

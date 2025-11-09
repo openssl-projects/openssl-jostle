@@ -1,4 +1,4 @@
-package org.openssl.jostle.jcajce.provider.kdf;
+package org.openssl.jostle.jcajce.spec;
 
 import org.openssl.jostle.jcajce.util.DigestUtil;
 

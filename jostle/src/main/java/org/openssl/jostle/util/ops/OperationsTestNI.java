@@ -66,6 +66,7 @@ public interface OperationsTestNI
         OPS_FAILED_ACCESS_1,
         OPS_FAILED_ACCESS_2,
         OPS_FAILED_ACCESS_3,
+        OPS_FAILED_ACCESS_4,
         OPS_POINTER_CHANGE,
         OPS_OPENSSL_ERROR_1,
         OPS_OPENSSL_ERROR_2,

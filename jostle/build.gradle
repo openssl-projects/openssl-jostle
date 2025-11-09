@@ -188,7 +188,7 @@ sourceSets {
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.82' 
+    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.82'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     test17Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'

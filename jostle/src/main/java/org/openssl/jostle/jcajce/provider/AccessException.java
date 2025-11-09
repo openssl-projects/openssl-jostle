@@ -12,7 +12,7 @@ package org.openssl.jostle.jcajce.provider;
 
 /**
  * ArrayAccessException is thrown when the JNI layer was unable to obtain a valid pointer
- * to a java byte array even though that array was valid, that is not null.
+ * to a java byte array even though that array was valid, and it is not null.
  */
 public class AccessException extends RuntimeException
 {
