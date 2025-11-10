@@ -1,0 +1,62 @@
+name: "GitHub CI"
+
+on:
+  - "pull_request"
+  - "push"
+
+permissions:
+  contents: "read"
+
+jobs:
+  build_openssl:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ["ubuntu-latest", "ubuntu-24.04-arm"]
+        java: ["8", "17", "22", "25"]
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - name: "Checkout openssl"
+      uses: "actions/checkout@v5"
+      with:
+        repository: "openssl/openssl"
+        ref: "openssl-3.6"
+        persist-credentials: false
+        path: "openssl"
+    - name: "Build openssl"
+      working-directory: "openssl"
+      run: |
+        ./config --prefix=$(pwd)/dist
+        make -j
+        make install_sw
+    - name: "Checkout jostle"
+      uses: "actions/checkout@v5"
+      with:
+        persist-credentials: false
+        path: "jostle"
+    - uses: "actions/setup-java@v5"
+      with:
+        distribution: "corretto"
+        java-version: ${{ matrix.java }}
+    - name: "Setup gradle"
+      uses: "gradle/actions/setup-gradle@v5"
+      with:
+        add-job-summary: "on-failure"
+    - name: "Check Java version"
+      run: |
+        java -version
+    - name: "Build headers"
+      working-directory: "jostle"
+      run: |
+        ./gradlew clean compileJava
+    - name: "Build and install the interface"
+      working-directory: "jostle"
+      env:
+        JOSTLE_OPS_TEST: "true"
+        OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
+      run: |
+        ./interface/build.sh
+    - name: "Build jar"
+      working-directory: "jostle"
+      run: |
+        ./gradlew clean build
