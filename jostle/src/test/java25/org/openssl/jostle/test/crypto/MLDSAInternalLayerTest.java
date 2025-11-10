@@ -11,7 +11,6 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
-import java.nio.ByteOrder;
 
 /**
  * Test paths where that we cannot test using simple arguments
