@@ -17,4 +17,5 @@ Individuals
 -----------
 
  * Megan Woods
+ * Dmitry Misharov <https://github.com/quarckster>
 
