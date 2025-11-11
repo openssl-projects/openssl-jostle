@@ -1,62 +1,106 @@
-name: "GitHub CI"
-
 on:
   - "pull_request"
   - "push"
 
 permissions:
   contents: "read"
+  checks: write
+  pull-requests: write
 
 jobs:
   build_openssl:
     strategy:
       fail-fast: false
       matrix:
-        runner: ["ubuntu-latest", "ubuntu-24.04-arm"]
-        java: ["8", "17", "22", "25"]
+        runner: ["ubuntu-latest","ubuntu-24.04-arm"]
     runs-on: ${{ matrix.runner }}
     steps:
-    - name: "Checkout openssl"
-      uses: "actions/checkout@v5"
-      with:
-        repository: "openssl/openssl"
-        ref: "openssl-3.6"
-        persist-credentials: false
-        path: "openssl"
-    - name: "Build openssl"
-      working-directory: "openssl"
-      run: |
-        ./config --prefix=$(pwd)/dist
-        make -j
-        make install_sw
-    - name: "Checkout jostle"
-      uses: "actions/checkout@v5"
-      with:
-        persist-credentials: false
-        path: "jostle"
-    - uses: "actions/setup-java@v5"
-      with:
-        distribution: "corretto"
-        java-version: ${{ matrix.java }}
-    - name: "Setup gradle"
-      uses: "gradle/actions/setup-gradle@v5"
-      with:
-        add-job-summary: "on-failure"
-    - name: "Check Java version"
-      run: |
-        java -version
-    - name: "Build headers"
-      working-directory: "jostle"
-      run: |
-        ./gradlew clean compileJava
-    - name: "Build and install the interface"
-      working-directory: "jostle"
-      env:
-        JOSTLE_OPS_TEST: "true"
-        OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
-      run: |
-        ./interface/build.sh
-    - name: "Build jar"
-      working-directory: "jostle"
-      run: |
-        ./gradlew clean build
+      - name: "Checkout openssl"
+        uses: "actions/checkout@v5"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.6"
+          persist-credentials: false
+          path: "openssl"
+      - name: "Build openssl"
+        working-directory: "openssl"
+        run: |
+          ./config --prefix=$(pwd)/dist
+          make -j
+          make install_sw
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v5"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '8'
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '17'
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '21'
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Check Java version"
+        run: |
+          java -version
+          ls -al
+      - name: "Build headers"
+        working-directory: "jostle"
+        run: |
+          ./gradlew clean compileJava
+      - name: "Build and install the interface"
+        working-directory: "jostle"
+        env:
+          JOSTLE_OPS_TEST: "true"
+          OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
+        run: |
+          ./interface/build.sh
+      - name: "Build jar"
+        working-directory: "jostle"
+        env:
+          BC_JDK8: "${{ env.JAVA_HOME_8_X64 }}${{ env.JAVA_HOME_8_ARM64 }}"
+          BC_JDK17: "${{ env.JAVA_HOME_17_X64 }}${{ env.JAVA_HOME_17_ARM64 }}"
+          BC_JDK21: "${{ env.JAVA_HOME_21_X64 }}${{ env.JAVA_HOME_21_ARM64 }}"
+          BC_JDK25: "${{ env.JAVA_HOME_25_X64 }}${{ env.JAVA_HOME_25_ARM64 }}"
+        run: |
+          ./gradlew clean build
+      - name: Foo
+        run: |
+          ls -al ${{ github.workspace }}/jostle/jostle/build/test-results/unitTest8
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v5
+        if: success() || failure() # always run even if the previous step fails
+        with:
+          check_name: |
+            Unit Test
+            Unit Test 8
+            Unit Test 17
+            Unit Test 21
+            Unit Test 25 FFI
+            Unit Test 25 JNI
+            Integration Test 8
+            Integration Test 17
+            Integration Test 21
+            Integration Test 25 FFI
+            Integration Test 25 JNI
+          report_paths: |
+            **/build/test-results/test/TEST-*.xml
+            **/build/test-results/unitTest8/TEST-*.xml
+            **/build/test-results/unitTest17/TEST-*.xml
+            **/build/test-results/unitTest21/TEST-*.xml
+            **/build/test-results/unitTest25FFI/TEST-*.xml
+            **/build/test-results/unitTest25JNI/TEST-*.xml
+            **/build/test-results/integrationTest8/TEST-*.xml
+            **/build/test-results/integrationTest17/TEST-*.xml
+            **/build/test-results/integrationTest21/TEST-*.xml
+            **/build/test-results/integrationTest25FFI/TEST-*.xml
+            **/build/test-results/integrationTest25JNI/TEST-*.xml
