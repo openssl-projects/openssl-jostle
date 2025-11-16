@@ -12,8 +12,10 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.SecureRandom;
-import java.security.Security;
+import java.io.IOException;
+import java.security.*;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidParameterSpecException;
 
 /**
  * Test agreement between BC Java and Jostle.
@@ -60,7 +62,7 @@ public class SM4AgreementTest
                 }
 
 
-                SecretKey secretKey = new SecretKeySpec(key, "AES");
+                SecretKey secretKey = new SecretKeySpec(key, "SM4");
 
                 Cipher javaEncrypt = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
                 javaEncrypt.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
@@ -249,7 +251,6 @@ public class SM4AgreementTest
             }
         }
     }
-
 
     private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
     {
@@ -607,6 +608,51 @@ public class SM4AgreementTest
                 }
             }
         }
+    }
+
+    @Test
+    public void testRejectIncorrectKeyAlgorithm() throws Exception
+    {
+        SecretKeySpec wrongSpec = new SecretKeySpec(new byte[16], "AES");
+
+        try {
+            Cipher cipher = Cipher.getInstance("SM4/ECB/NoPadding",JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm AES",ikes.getMessage());
+        }
+
+        try {
+            Cipher cipher = Cipher.getInstance("SM4/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, new IvParameterSpec(new byte[16]));
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm AES",ikes.getMessage());
+        }
+
+        try {
+            Cipher cipher = Cipher.getInstance("SM4/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
+            org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+            params.init(new byte[16]);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, params);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm AES",ikes.getMessage());
+        }
+
+
+        // Correct spec
+        Cipher cipher = Cipher.getInstance("SM4/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "SM4"));
+
+        cipher = Cipher.getInstance("SM4/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "SM4"), new IvParameterSpec(new byte[16]));
+
+        cipher = Cipher.getInstance("SM4/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+        params.init(new byte[16]);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "SM4"), params);
     }
 
 

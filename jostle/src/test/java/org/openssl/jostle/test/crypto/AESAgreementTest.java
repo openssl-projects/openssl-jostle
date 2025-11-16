@@ -14,6 +14,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
@@ -1127,6 +1128,52 @@ public class AESAgreementTest
         }
     }
 
+    @Test
+    public void testRejectIncorrectKeyAlgorithm() throws Exception
+    {
+        SecretKeySpec wrongSpec = new SecretKeySpec(new byte[16], "ARIA");
+
+        try {
+            Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding",JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm ARIA",ikes.getMessage());
+        }
+
+        try {
+            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, new IvParameterSpec(new byte[16]));
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm ARIA",ikes.getMessage());
+        }
+
+        try {
+            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
+            org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+            params.init(new byte[16]);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, params);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm ARIA",ikes.getMessage());
+        }
+
+
+        // Correct spec
+        Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"));
+
+        cipher = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+
+        cipher = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+        params.init(new byte[16]);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), params);
+    }
+    
+    
     private String pad(int len)
     {
         char[] buf = new char[len];

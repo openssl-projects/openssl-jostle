@@ -27,12 +27,12 @@ class AESBlockCipherSpi extends BlockCipherSpi
 
     AESBlockCipherSpi(OSSLCipher cipher)
     {
-        super(cipher);
+        super(cipher,"AES");
     }
 
     AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
-        super(cipher, mode);
+        super(cipher, mode,"AES");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
@@ -65,6 +65,7 @@ class AESBlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
+
         determineOSSLCipher(key.getEncoded().length);
         super.engineInit(opmode, key, random);
     }
@@ -72,6 +73,7 @@ class AESBlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+
         determineOSSLCipher(key.getEncoded().length);
         super.engineInit(opmode, key, params, random);
     }
@@ -79,6 +81,7 @@ class AESBlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+
         determineOSSLCipher(key.getEncoded().length);
         // TODO: we should have a list of ParameterSpec to try here.
         try

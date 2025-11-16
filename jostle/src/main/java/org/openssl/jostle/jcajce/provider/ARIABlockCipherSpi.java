@@ -20,15 +20,15 @@ class ARIABlockCipherSpi extends BlockCipherSpi
 
      ARIABlockCipherSpi()
     {
-        super(null);
+        super(null,"ARIA");
     }
 
      ARIABlockCipherSpi(OSSLCipher cipher) {
-        super(cipher);
+        super(cipher,"ARIA");
     }
 
      ARIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode) {
-        super(cipher, mode);
+        super(cipher, mode,"ARIA");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException

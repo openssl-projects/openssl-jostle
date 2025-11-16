@@ -12,6 +12,7 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
 
@@ -60,7 +61,7 @@ public class CAMELLIAAgreementTest
                 }
 
 
-                SecretKey secretKey = new SecretKeySpec(key, "AES");
+                SecretKey secretKey = new SecretKeySpec(key, "CAMELLIA");
 
                 Cipher javaEncrypt = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
                 javaEncrypt.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
@@ -615,6 +616,50 @@ public class CAMELLIAAgreementTest
 
     }
 
+    @Test
+    public void testRejectIncorrectKeyAlgorithm() throws Exception
+    {
+        SecretKeySpec wrongSpec = new SecretKeySpec(new byte[16], "AES");
+
+        try {
+            Cipher cipher = Cipher.getInstance("CAMELLIA/ECB/NoPadding",JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm AES",ikes.getMessage());
+        }
+
+        try {
+            Cipher cipher = Cipher.getInstance("CAMELLIA/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, new IvParameterSpec(new byte[16]));
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm AES",ikes.getMessage());
+        }
+
+        try {
+            Cipher cipher = Cipher.getInstance("CAMELLIA/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
+            DummyParams params = new DummyParams();
+            params.init(new byte[16]);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, params);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm AES",ikes.getMessage());
+        }
+
+        // Correct spec
+        Cipher cipher = Cipher.getInstance("CAMELLIA/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "CAMELLIA"));
+
+        cipher = Cipher.getInstance("CAMELLIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "CAMELLIA"), new IvParameterSpec(new byte[16]));
+
+        cipher = Cipher.getInstance("CAMELLIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        DummyParams params = new DummyParams();
+        params.init(new byte[16]);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "CAMELLIA"), params);
+
+    }
 
     @Test
     public void testCamellia() throws Exception

@@ -20,15 +20,15 @@ class CAMELLIABlockCipherSpi extends BlockCipherSpi
 
      CAMELLIABlockCipherSpi()
     {
-        super(null);
+        super(null,"CAMELLIA");
     }
 
      CAMELLIABlockCipherSpi(OSSLCipher cipher) {
-        super(cipher);
+        super(cipher,"CAMELLIA");
     }
 
      CAMELLIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode) {
-        super(cipher, mode);
+        super(cipher, mode,"CAMELLIA");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
@@ -77,6 +77,7 @@ class CAMELLIABlockCipherSpi extends BlockCipherSpi
     {
         determineOSSLCipher(key.getEncoded().length);
         // TODO: we should have a list of ParameterSpec to try here.
+
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);

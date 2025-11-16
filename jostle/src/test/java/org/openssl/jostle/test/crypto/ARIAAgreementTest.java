@@ -1,19 +1,18 @@
 package org.openssl.jostle.test.crypto;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.util.Arrays;
-import org.openssl.jostle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.SecureRandom;
-import java.security.Security;
+import java.security.*;
 
 /**
  * Test agreement between BC Java and Jostle.
@@ -60,7 +59,7 @@ public class ARIAAgreementTest
                 }
 
 
-                SecretKey secretKey = new SecretKeySpec(key, "AES");
+                SecretKey secretKey = new SecretKeySpec(key, "ARIA");
 
                 Cipher javaEncrypt = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
                 javaEncrypt.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
@@ -609,6 +608,57 @@ public class ARIAAgreementTest
         }
     }
 
+
+    @Test
+    public void testRejectIncorrectKeyAlgorithm() throws Exception
+    {
+        SecretKeySpec wrongSpec = new SecretKeySpec(new byte[16], "AES");
+
+        try
+        {
+            Cipher cipher = Cipher.getInstance("ARIA/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes)
+        {
+            Assertions.assertEquals("unsupported key algorithm AES", ikes.getMessage());
+        }
+
+        try
+        {
+            Cipher cipher = Cipher.getInstance("ARIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, new IvParameterSpec(new byte[16]));
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes)
+        {
+            Assertions.assertEquals("unsupported key algorithm AES", ikes.getMessage());
+        }
+
+        try
+        {
+            Cipher cipher = Cipher.getInstance("ARIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+            DummyParams params = new DummyParams();
+            params.init(new byte[16]);
+            cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, params);
+            Assertions.fail("Should have thrown an exception");
+        } catch (InvalidKeyException ikes)
+        {
+            Assertions.assertEquals("unsupported key algorithm AES", ikes.getMessage());
+        }
+
+        // Correct spec
+        Cipher cipher = Cipher.getInstance("ARIA/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "ARIA"));
+
+        cipher = Cipher.getInstance("ARIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "ARIA"), new IvParameterSpec(new byte[16]));
+
+        cipher = Cipher.getInstance("ARIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        DummyParams params = new DummyParams();
+        params.init(new byte[16]);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "ARIA"), params);
+
+    }
 
     @Test
     public void testAria() throws Exception

@@ -20,17 +20,17 @@ class SM4BlockCipherSpi extends BlockCipherSpi
 
     SM4BlockCipherSpi()
     {
-        super(null);
+        super(null, "SM4");
     }
 
     SM4BlockCipherSpi(OSSLCipher cipher)
     {
-        super(cipher);
+        super(cipher, "SM4");
     }
 
     SM4BlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
-        super(cipher, mode);
+        super(cipher, mode, "SM4");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
@@ -57,6 +57,7 @@ class SM4BlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
+        validateKeyAlg(key);
         determineOSSLCipher(key.getEncoded().length);
         super.engineInit(opmode, key, random);
     }
@@ -64,6 +65,10 @@ class SM4BlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        if (!"SM4".equalsIgnoreCase(key.getAlgorithm()))
+        {
+            throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
+        }
         determineOSSLCipher(key.getEncoded().length);
         super.engineInit(opmode, key, params, random);
     }
@@ -71,6 +76,10 @@ class SM4BlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        if (!"SM4".equalsIgnoreCase(key.getAlgorithm()))
+        {
+            throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
+        }
         determineOSSLCipher(key.getEncoded().length);
         // TODO: we should have a list of ParameterSpec to try here.
         try

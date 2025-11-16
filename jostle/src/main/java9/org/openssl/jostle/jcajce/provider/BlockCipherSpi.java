@@ -34,6 +34,7 @@ class BlockCipherSpi extends CipherSpi
     OSSLBlockCipherRefWrapper refWrapper;
     int blockSize;
     int opMode;
+    final String keyAlgorithm;
 
     private static int BUF_SIZE = 1024;
 
@@ -42,22 +43,25 @@ class BlockCipherSpi extends CipherSpi
             GCMParameterSpec.class,
     };
 
-    BlockCipherSpi(Object params)
+    BlockCipherSpi(Object params, String keyAlgorithm)
     {
         mandatedCipher = null;
         mandatedMode = null;
+        this.keyAlgorithm = keyAlgorithm;
     }
 
-    BlockCipherSpi(OSSLCipher osslCipher)
+    BlockCipherSpi(OSSLCipher osslCipher, String keyAlgorithm)
     {
         mandatedCipher = osslCipher;
         mandatedMode = null;
+        this.keyAlgorithm = keyAlgorithm;
     }
 
-    BlockCipherSpi(OSSLCipher osslCipher, OSSLMode osslMode)
+    BlockCipherSpi(OSSLCipher osslCipher, OSSLMode osslMode, String keyAlgorithm)
     {
         mandatedCipher = osslCipher;
         mandatedMode = osslMode;
+        this.keyAlgorithm = keyAlgorithm;
     }
 
     @Override
@@ -133,6 +137,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
+        validateKeyAlg(key);
         try
         {
             ensureNativeReference();
@@ -160,6 +165,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        validateKeyAlg(key);
         try
         {
             ensureNativeReference();
@@ -209,7 +215,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-
+        validateKeyAlg(key);
         AlgorithmParameterSpec paramSpec = null;
 
         if (params != null)
@@ -243,6 +249,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineUpdateAAD(byte[] src, int offset, int len)
     {
+
         try
         {
             len = NISelector.BlockCipherNI.updateAAD(
@@ -513,6 +520,15 @@ class BlockCipherSpi extends CipherSpi
     protected boolean overlap(int inputOffset, int inputLen, int outputOffset, int outputLen)
     {
         return inputOffset == outputOffset || Math.max(inputOffset, outputOffset) <= Math.min(inputOffset + inputLen, outputOffset + outputLen);
+    }
+
+    protected void validateKeyAlg(Key key) throws InvalidKeyException
+    {
+        if (keyAlgorithm.equals(key.getAlgorithm()))
+        {
+            return;
+        }
+        throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
     }
 
 }

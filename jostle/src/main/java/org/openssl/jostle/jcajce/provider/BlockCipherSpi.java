@@ -27,6 +27,8 @@ class BlockCipherSpi extends CipherSpi
 {
     final OSSLCipher mandatedCipher;
     final OSSLMode mandatedMode;
+    final String keyAlgorithm;
+
     OSSLCipher osslCipher;
     OSSLMode osslMode;
     int padding;
@@ -41,22 +43,25 @@ class BlockCipherSpi extends CipherSpi
             GCMParameterSpec.class,
     };
 
-    BlockCipherSpi(Object params)
+    BlockCipherSpi(Object params, String expectedKeyAlgorithm)
     {
         mandatedCipher = null;
         mandatedMode = null;
+        this.keyAlgorithm = expectedKeyAlgorithm;
     }
 
-    BlockCipherSpi(OSSLCipher osslCipher)
+    BlockCipherSpi(OSSLCipher osslCipher, String expectedKeyAlgorithm)
     {
         mandatedCipher = osslCipher;
         mandatedMode = null;
+        this.keyAlgorithm = expectedKeyAlgorithm;
     }
 
-    BlockCipherSpi(OSSLCipher osslCipher, OSSLMode osslMode)
+    BlockCipherSpi(OSSLCipher osslCipher, OSSLMode osslMode, String expectedKeyAlgorithm)
     {
         mandatedCipher = osslCipher;
         mandatedMode = osslMode;
+        this.keyAlgorithm = expectedKeyAlgorithm;
     }
 
     @Override
@@ -126,6 +131,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
+        validateKeyAlg(key);
         synchronized (this)
         {
             ensureNativeReference();
@@ -150,6 +156,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        validateKeyAlg(key);
         synchronized (this)
         {
             ensureNativeReference();
@@ -197,6 +204,7 @@ class BlockCipherSpi extends CipherSpi
     protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
 
+        validateKeyAlg(key);
         AlgorithmParameterSpec paramSpec = null;
 
         if (params != null)
@@ -484,6 +492,15 @@ class BlockCipherSpi extends CipherSpi
     protected boolean overlap(int inputOffset, int inputLen, int outputOffset, int outputLen)
     {
         return inputOffset == outputOffset || Math.max(inputOffset, outputOffset) <= Math.min(inputOffset + inputLen, outputOffset + outputLen);
+    }
+
+    protected void validateKeyAlg(Key key) throws InvalidKeyException
+    {
+        if (keyAlgorithm.equals(key.getAlgorithm()))
+        {
+            return;
+        }
+        throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
     }
 
 }
