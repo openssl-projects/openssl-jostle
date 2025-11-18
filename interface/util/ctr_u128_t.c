@@ -28,7 +28,7 @@ void counter_init(ctr_u128_t *ctr, uint8_t *iv, size_t iv_len) {
     ctr->iv_len = iv_len;
 
     if (iv_len > 8 && iv_len < COUNTER_SIZE) {
-        ctr->limit = 1UL << (COUNTER_SIZE - iv_len) * 8;
+        ctr->limit = 1ULL << (COUNTER_SIZE - iv_len) * 8;
     }
 
     memcpy(ctr->original_counter, iv, iv_len);
