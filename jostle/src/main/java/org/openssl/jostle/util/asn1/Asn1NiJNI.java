@@ -22,7 +22,7 @@ public class Asn1NiJNI implements Asn1Ni
     public native int encodePublicKey(long ref, long keyRef);
 
     @Override
-    public native int encodePrivateKey(long ref, long keyRef);
+    public native int encodePrivateKey(long ref, long keyRef, String option);
 
     @Override
     public native int getData(long ref, byte[] out);

@@ -10,6 +10,7 @@ import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -55,7 +56,7 @@ public class Asn1LimitTest
 
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, 0));
+            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, 0, PrivateKeyOptions.DEFAULT.getValue()));
 
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
@@ -156,7 +157,7 @@ public class Asn1LimitTest
         long specRef = TestNISelector.SpecNI.allocate();
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef));
+            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef, PrivateKeyOptions.DEFAULT.getValue()));
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
@@ -175,7 +176,7 @@ public class Asn1LimitTest
         long specRef = TestNISelector.SpecNI.allocate();
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef));
+            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef, PrivateKeyOptions.DEFAULT.getValue()));
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
@@ -204,7 +205,7 @@ public class Asn1LimitTest
         {
             try
             { // Too long by one
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference()));
+                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue()));
                 byte[] out = new byte[(int) (len + 1)];
                 TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
                 Assertions.fail("Should have thrown exception");
@@ -215,7 +216,7 @@ public class Asn1LimitTest
 
             try
             { // Too small by one
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference()));
+                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue()));
                 byte[] out = new byte[(int) (len - 1)];
                 TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
                 Assertions.fail("Should have thrown exception");
@@ -224,6 +225,36 @@ public class Asn1LimitTest
                 Assertions.assertEquals("output is out of range", e.getMessage());
             }
 
+
+        } finally
+        {
+            TestNISelector.Asn1NI.dispose(asn1Ref);
+        }
+    }
+
+    @Test
+    public void encodePublicKey_unknown_encoding_option() throws Exception
+    {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        MLDSAPrivateKey privateKey = (MLDSAPrivateKey) keyPair.getPrivate();
+
+
+        long asn1Ref = TestNISelector.Asn1NI.allocate();
+        try
+        {
+            try
+            {
+                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), "unknown"));
+                byte[] out = new byte[(int) len];
+                TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+                Assertions.fail("Should have thrown exception");
+            } catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("invalid key encoding option", e.getMessage());
+            }
 
         } finally
         {

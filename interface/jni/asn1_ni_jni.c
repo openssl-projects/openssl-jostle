@@ -89,7 +89,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePublicK
  * Signature: (JJ)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePrivateKey
-(JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref) {
+(JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref, jstring _option) {
     UNUSED(env);
     UNUSED(jo);
 
@@ -97,25 +97,56 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePrivate
     assert(ctx != NULL);
 
     key_spec *key = (key_spec *) key_ref;
+    size_t ret_code = 0;
+    const char *option_string = NULL;
+    int encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
+
 
     if (key == NULL) {
-        return JO_KEY_IS_NULL;
+        ret_code = JO_KEY_IS_NULL;
+        goto exit;
     }
 
     if (key->key == NULL) {
-        return JO_KEY_SPEC_HAS_NULL_KEY;
+        ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
+        goto exit;
     }
 
-    size_t buf_len = 0;
-    if (!asn1_writer_encode_private_key(ctx, key, &buf_len)) {
-        return JO_OPENSSL_ERROR;
+
+    if (_option != NULL) {
+        option_string = (*env)->GetStringUTFChars(env, _option, NULL);
+        if (OPS_FAILED_ACCESS_1 option_string == NULL) {
+            ret_code = JO_FAILED_ACCESS_ENCODING_OPTION;
+            goto exit;
+        }
+
+        if (strcmp(PRIVATE_KEY_DEFAULT_ENCODING_OPTION, option_string) == 0) {
+            encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
+        } else if (strcmp(PRIVATE_KEY_SEED_ONLY_ENCODING_OPTION, option_string) == 0) {
+            encoding_option = PRIVATE_KEY_SEED_ONLY_ENCODING;
+        } else {
+            ret_code = JO_INVALID_KEY_ENCODING_OPTION;
+            goto exit;
+        }
     }
 
-    if (OPS_INT32_OVERFLOW_1 buf_len > INT_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+
+    if (!asn1_writer_encode_private_key(ctx, key, &ret_code, encoding_option)) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
     }
 
-    return (jint) buf_len;
+    if (OPS_INT32_OVERFLOW_1 ret_code > INT_MAX) {
+        ret_code = JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+
+exit:
+    if (option_string != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _option, option_string);
+    }
+
+    return (jint) ret_code;
 }
 
 /*

@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 public class ASNEncoder
 {
+
     /**
      * Encode PKEY as SubjectPublicKeyInfo
      *
@@ -37,12 +38,16 @@ public class ASNEncoder
         }
     }
 
-    public static byte[] asPrivateKeyInfo(PKEYKeySpec spec)
+    public static byte[] asPrivateKeyInfo(PKEYKeySpec spec, PrivateKeyOptions option)
     {
+        if (option == null) {
+            option = PrivateKeyOptions.DEFAULT;
+        }
+
         long ref = NISelector.Asn1NI.allocate();
         try
         {
-            long len = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference()));
+            long len = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue() ));
             byte[] out = new byte[(int) len];
             NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.getData(ref, out));
             return out;

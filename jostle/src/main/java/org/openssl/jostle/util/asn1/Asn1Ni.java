@@ -21,7 +21,7 @@ public interface Asn1Ni
 
     int encodePublicKey(long ref, long keyRef);
 
-    int encodePrivateKey(long ref, long keyRef);
+    int encodePrivateKey(long ref, long keyRef, String option);
 
     int getData(long ref, byte[] out);
 
@@ -69,6 +69,10 @@ public interface Asn1Ni
                 throw new AccessException("output is out of range");
             case JO_INPUT_TOO_LONG_INT32:
                 throw new OverflowException("input size int32 overflow");
+            case JO_INVALID_KEY_ENCODING_OPTION:
+                throw new IllegalArgumentException("invalid key encoding option");
+            case JO_FAILED_ACCESS_ENCODING_OPTION:
+                throw new AccessException("unable to access string with encoding option");
             default:
                 throw new IllegalStateException("unexpected error code: " + errorCode.name() + " " + code);
         }

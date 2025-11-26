@@ -1,6 +1,8 @@
 package org.openssl.jostle.test.mldsa;
 
 
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.util.ASN1Dump;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -74,6 +76,7 @@ public class MLDSATest
 
         }
     }
+
 
     @Test
     public void testIncorrectForcedType_KeyPairGenerator() throws Exception
@@ -693,8 +696,6 @@ public class MLDSATest
     @Test
     public void testKeyGen() throws Exception
     {
-
-
         for (MLDSAParameterSpec spec : joSpec)
         {
 
@@ -1253,10 +1254,75 @@ public class MLDSATest
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
             MLDSAPrivateKey privateKey = (MLDSAPrivateKey) keyPair.getPrivate();
-            MLDSAPrivateKey newPrivateKey1 = privateKey.getPrivateKey(true);
-            MLDSAPrivateKey newPrivateKey2 = privateKey.getPrivateKey(true);
 
-            Assertions.assertArrayEquals(newPrivateKey1.getEncoded(), newPrivateKey2.getEncoded());
+            MLDSAPrivateKey seedOnly1 = privateKey.getPrivateKey(true);
+            MLDSAPrivateKey fullEncoding2 = privateKey.getPrivateKey(false);
+
+            MLDSAPrivateKey fullEncodingFromSeedOnly3 = seedOnly1.getPrivateKey(false);
+            MLDSAPrivateKey seedOnltFromFullEncoding4 = fullEncoding2.getPrivateKey(true);
+
+            // Should be the full encoding
+            Assertions.assertArrayEquals(
+                    privateKey.getEncoded(),
+                    fullEncoding2.getEncoded());
+            Assertions.assertArrayEquals(
+                    privateKey.getEncoded(),
+                    fullEncodingFromSeedOnly3.getEncoded());
+
+            // Seed encoding
+            Assertions.assertArrayEquals(
+                    seedOnly1.getEncoded(),
+                    seedOnltFromFullEncoding4.getEncoded());
+
+            Assertions.assertEquals(54, seedOnly1.getEncoded().length);
+            Assertions.assertEquals(54, seedOnltFromFullEncoding4.getEncoded().length);
+
+            Assertions.assertNotEquals(54, privateKey.getEncoded().length);
+            Assertions.assertNotEquals(54, fullEncodingFromSeedOnly3.getEncoded().length);
+        }
+    }
+
+
+    @Test
+    public void testSeedOnlyKeyEncoding() throws Exception
+    {
+        for (int i = 0; i < joSpec.length; i++)
+        {
+            MLDSAParameterSpec spec = joSpec[i];
+            org.bouncycastle.jcajce.spec.MLDSAParameterSpec bcSpec = jostleToBc.get(spec);
+
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicKey = keyPair.getPublic().getEncoded();
+
+            MLDSAPrivateKey privKey = (MLDSAPrivateKey) keyPair.getPrivate();
+            byte[] privateKeySeedOnly = privKey.getPrivateKey(true).getEncoded();
+
+
+
+            //
+            // Verify encoded key can be handled by BC and is usable
+            //
+            KeyFactory factory = KeyFactory.getInstance(bcSpec.getName(), "BC");
+            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKeySeedOnly));
+            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+            byte[] msg = new byte[65];
+
+            random.nextBytes(msg);
+
+            Signature signatureBC = Signature.getInstance(bcSpec.getName(), "BC");
+            signatureBC.initSign(privKeyBC);
+            signatureBC.update(msg);
+            byte[] signature = signatureBC.sign();
+
+            Signature verifierBC = Signature.getInstance(bcSpec.getName(), "BC");
+            verifierBC.initVerify(pubKeyBC);
+            verifierBC.update(msg);
+
+            Assertions.assertTrue(verifierBC.verify(signature));
         }
     }
 

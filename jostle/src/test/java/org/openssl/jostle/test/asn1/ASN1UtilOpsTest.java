@@ -1,19 +1,23 @@
 package org.openssl.jostle.test.asn1;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.asn1.Asn1Ni;
+import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 import org.openssl.jostle.util.ops.OperationsTestNI;
+
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Security;
 
 public class ASN1UtilOpsTest
 {
@@ -28,6 +32,15 @@ public class ASN1UtilOpsTest
     SpecNI specNI = TestNISelector.getSpecNI();
     MLDSAServiceNI mldsaServiceNI = TestNISelector.getMLDSANI();
 
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @BeforeEach
     public void beforeEach()
@@ -141,7 +154,7 @@ public class ASN1UtilOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
-            asn1NI.handleErrors(asn1NI.encodePrivateKey(asn1Ref, keyRef));
+            asn1NI.handleErrors(asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue()));
             Assertions.fail();
 
         } catch (OverflowException e)
@@ -173,11 +186,50 @@ public class ASN1UtilOpsTest
         {
             Assertions.assertEquals("unable to access output array", e.getMessage());
         } finally
-        {asn1NI.dispose(asn1Ref);
+        {
+            asn1NI.dispose(asn1Ref);
             operationsTestNI.resetFlags();
         }
 
     }
+
+
+    @Test
+    public void opsTestEncodePrivateKey_accessOptionsString() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        MLDSAPrivateKey privateKey = (MLDSAPrivateKey) keyPair.getPrivate();
+
+
+        long asn1Ref = TestNISelector.Asn1NI.allocate();
+
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue()));
+            byte[] out = new byte[(int) len];
+            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+            Assertions.fail("Should have thrown exception");
+
+        } catch (AccessException e)
+        {
+            Assertions.assertEquals("unable to access string with encoding option", e.getMessage());
+        } finally
+        {
+            asn1NI.dispose(asn1Ref);
+            operationsTestNI.resetFlags();
+        }
+
+
+    }
+
 
     @Test
     public void opsTestGetData_Int32Overflow() throws Exception

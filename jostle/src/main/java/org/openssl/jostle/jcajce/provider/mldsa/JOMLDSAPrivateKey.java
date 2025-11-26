@@ -19,8 +19,9 @@ import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
-class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSSLKey
+class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OSSLKey
 {
     final boolean seedOnly;
 
@@ -51,7 +52,11 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSS
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asPrivateKeyInfo(spec);
+        if (seedOnly)
+        {
+            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+        }
+        return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getSeed()
@@ -88,7 +93,7 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey,OSS
                         new PKEYKeySpec(
                                 NISelector.MLDSAServiceNI.handleErrors(
                                         NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length)
-                                ), type)
+                                ), type), preferSeedOnly
                 );
             }
         }

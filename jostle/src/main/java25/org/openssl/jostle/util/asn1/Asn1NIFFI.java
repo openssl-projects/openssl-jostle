@@ -60,7 +60,9 @@ public class Asn1NIFFI implements Asn1Ni
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
         getDataFunc = lookup.find("ASN1_getData").orElseThrow();
@@ -150,11 +152,12 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public int encodePrivateKey(long ref, long keyRef)
+    public int encodePrivateKey(long ref, long keyRef, String option)
     {
-        try
+        try(Arena a = Arena.ofConfined())
         {
-            return (int) encodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef));
+            var opt = a.allocateFrom(option);
+            return (int) encodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef),opt,opt.byteSize());
         } catch (Throwable t)
         {
             L.log(

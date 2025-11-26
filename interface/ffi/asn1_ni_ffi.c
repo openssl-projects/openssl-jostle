@@ -7,6 +7,8 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "../util/asn1_util.h"
 #include "../util/bc_err_codes.h"
 #include "types.h"
@@ -48,8 +50,10 @@ int32_t ASN1_encodePublicKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
     return (int32_t) buf_len;
 }
 
-int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
+int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char *option_string,
+                              size_t option_string_len) {
     assert(asn1_ctx != NULL);
+
 
     if (key_spec == NULL) {
         return JO_KEY_IS_NULL;
@@ -59,8 +63,21 @@ int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
+    int encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
+
+    if (option_string != NULL) {
+        if (strncmp(PRIVATE_KEY_DEFAULT_ENCODING_OPTION, option_string, option_string_len) == 0) {
+            encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
+        } else if (strncmp(PRIVATE_KEY_SEED_ONLY_ENCODING_OPTION, option_string, option_string_len) == 0) {
+            encoding_option = PRIVATE_KEY_SEED_ONLY_ENCODING;
+        } else {
+            return JO_INVALID_KEY_ENCODING_OPTION;
+        }
+    }
+
+
     size_t buf_len = 0;
-    if (!asn1_writer_encode_private_key(asn1_ctx, key_spec, &buf_len)) {
+    if (!asn1_writer_encode_private_key(asn1_ctx, key_spec, &buf_len, encoding_option)) {
         return JO_OPENSSL_ERROR;
     }
 

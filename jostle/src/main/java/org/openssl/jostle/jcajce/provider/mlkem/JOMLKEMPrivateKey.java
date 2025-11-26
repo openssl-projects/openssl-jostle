@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
 {
@@ -50,7 +51,11 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asPrivateKeyInfo(spec);
+        if (seedOnly)
+        {
+            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+        }
+        return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getSeed()
@@ -75,7 +80,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
                         new PKEYKeySpec(
                                 NISelector.MLKEMServiceNI.handleErrors(
                                         NISelector.MLKEMServiceNI.generateKeyPair(type.getKsType(), seed, seed.length)
-                                ), type)
+                                ), type), preferSeedOnly
                 );
             }
         }

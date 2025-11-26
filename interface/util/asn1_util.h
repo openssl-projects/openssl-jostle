@@ -11,6 +11,11 @@
 
 #include "key_spec.h"
 
+#define PRIVATE_KEY_DEFAULT_ENCODING 0
+#define PRIVATE_KEY_SEED_ONLY_ENCODING 1
+
+#define PRIVATE_KEY_DEFAULT_ENCODING_OPTION "default"
+#define PRIVATE_KEY_SEED_ONLY_ENCODING_OPTION "seed_only"
 
 typedef struct asn1_ctx {
     BIO *buffer;
@@ -47,10 +52,11 @@ int32_t asn1_writer_encode_public_key(asn1_ctx *ctx, key_spec *key_spec, size_t 
  * @param ctx the ctx
  * @param key_spec the key spec
  * @param buf_len receiver for the length of data in the buffer
+ * @param encoding_option
  *
  * @return 1 = success, 0 = failure
  */
-int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t *buf_len);
+int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t *buf_len, int encoding_option);
 
 
 /**
