@@ -57,6 +57,13 @@ public class DumpInfo
         System.out.println("  Loader Message: " + Loader.getMessage());
         System.out.println("  Loader Interface Resolution Strategy: " + Loader.getInterfaceResolutionStrategy());
         System.out.println("  Loader Interface: " + Loader.getInterfaceTypeName());
+
+        if (Loader.isFixedInstallDir()) {
+            System.out.println("  Using Fixed Install Dir: "+Loader.getInstallDir());
+        } else {
+            System.out.println("  Using Install Dir: "+Loader.getInstallDir());
+        }
+        
         System.out.println("  Loaded Native Libraries:");
         Loader.getLoadedLibs().forEach(it -> {
             System.out.println("    " + it);

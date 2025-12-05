@@ -88,6 +88,7 @@ public class Loader
     private static List<String> loadedLibs = new ArrayList<>();
     private static boolean extractOpenSSL = true;
     private static boolean fixedInstallDir = false;
+    private static String installDir;
 
     public static void load()
     {
@@ -123,11 +124,11 @@ public class Loader
         extractOpenSSL = Properties.isOverrideSet(OPENSSL_EXTRACT, true);
         interfaceResolutionStrategy = Strings.toLowerCase(Properties.getPropertyValue(LOADER_INTERFACE, "auto"));
 
-        String libDir = Properties.getPropertyValue(LIB_INSTALL_DIR);
-        if (libDir == null)
+        installDir = Properties.getPropertyValue(LIB_INSTALL_DIR);
+        if (installDir == null)
         {
             L.fine(String.format("%s is not set so using java.io.tmpdir property", LIB_INSTALL_DIR));
-            libDir = Properties.getPropertyValue("java.io.tmpdir");
+            installDir = Properties.getPropertyValue("java.io.tmpdir");
         } else
         {
             fixedInstallDir = true;
@@ -136,7 +137,7 @@ public class Loader
         //
         // Unable to resolve a temporary directory root!
         //
-        if (libDir == null)
+        if (installDir == null)
         {
             throw new IOException("Unable to resolve a temporary directory");
         }
@@ -282,7 +283,7 @@ public class Loader
             {
                 String version = JostleProvider.INFO.substring(JostleProvider.INFO.lastIndexOf('v') + 1);
 
-                installRootDir = LoaderUtils.createVersionedTempDir(libDir, version);
+                installRootDir = LoaderUtils.createVersionedTempDir(installDir, version);
             } else
             {
                 installRootDir = LoaderUtils.createTempDir("jostle");
@@ -383,7 +384,8 @@ public class Loader
             throws Exception
     {
         String pathInJar = libRootInJar + "/" + extraction.name;
-        File libFile = LoaderUtils.extractFromClasspath(installRootDir, pathInJar, extraction.name);
+        String[] sources = new String[2];
+        File libFile = LoaderUtils.extractFromClasspath(installRootDir, pathInJar, extraction.name, sources);
         if (libFile == null)
         {
             throw new IOException(String.format("extraction file '%s' not found", pathInJar));
@@ -392,7 +394,16 @@ public class Loader
             L.fine(String.format("Wrote %s to %s, %d bytes", extraction.name, libFile.getAbsoluteFile(), libFile.length()));
         }
         System.load(libFile.getAbsolutePath());
-        loadedLibs.add("Extracted: " + pathInJar);
+
+
+        if (sources[0] != null && sources[1] != null)
+        {
+            loadedLibs.add("Loaded: " + sources[1]);
+            loadedLibs.add("  Compared to: " + sources[0]);
+        } else
+        {
+            loadedLibs.add("Extracted: " + sources[0]);
+        }
     }
 
     /**
@@ -461,6 +472,15 @@ public class Loader
     public static boolean isFFI()
     {
         return Extractions.Type.FFI == interfaceType;
+    }
+
+    public static String getInstallDir()
+    {
+        return installDir;
+    }
+
+    public static boolean isFixedInstallDir() {
+        return fixedInstallDir;
     }
 
     private static class Extractions

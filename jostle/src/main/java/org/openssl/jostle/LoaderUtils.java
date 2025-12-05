@@ -189,13 +189,14 @@ class LoaderUtils
         }
     }
 
-    static File extractFromClasspath(File tmpDir, String pathInJar, String name)
+    static File extractFromClasspath(File tmpDir, String pathInJar, String name, String[] sources)
         throws Exception
     {
         return AccessController.doPrivileged(new PrivilegedAction<File>()
         {
             public File run()
             {
+                sources[0] = pathInJar;
                 InputStream in = Loader.class.getResourceAsStream(pathInJar);
                 if (in == null)
                 {
@@ -218,6 +219,7 @@ class LoaderUtils
                     {
                         if (isContentSame(fin, in))
                         {
+                            sources[1] = savedFile.getAbsolutePath();
                             return savedFile;
                         }
 
