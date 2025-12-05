@@ -1,5 +1,8 @@
 # The OpenSSL JOSTLE Project
 
+[![.github/workflows/arm.yaml](https://github.com/openssl-projects/openssl-jostle/actions/workflows/arm.yaml/badge.svg)](https://github.com/openssl-projects/openssl-jostle/actions/workflows/arm.yaml)
+[![.github/workflows/intel.yaml](https://github.com/openssl-projects/openssl-jostle/actions/workflows/intel.yaml/badge.svg)](https://github.com/openssl-projects/openssl-jostle/actions/workflows/intel.yaml)
+
 OpenSSL Jostle is a Java provider that uses the [OpenSSL Library](https://openssl-library.org/) for the cryptographic implementation.
 
 This is a collaboration between the [OpenSSL Corporation](https://openssl-corporation.org/) and
