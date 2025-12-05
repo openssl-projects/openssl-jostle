@@ -100,6 +100,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
     target_link_libraries(interface_jni PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_jni PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
+        message("OPS Test Enabled")
         target_compile_definitions(interface_jni PUBLIC JOSTLE_OPS)
     endif ()
 
@@ -150,6 +151,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
     target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
+        message("OPS Test Enabled")
         target_compile_definitions(interface_ffi PUBLIC JOSTLE_OPS)
     endif ()
 
@@ -228,6 +230,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     target_link_libraries(interface_jni PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_jni PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
+        message("OPS Test Enabled")
         target_compile_definitions(interface_jni PUBLIC JOSTLE_OPS)
     endif ()
 
@@ -279,6 +282,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
+        message("OPS Test Enabled")
         target_compile_definitions(interface_ffi PUBLIC JOSTLE_OPS)
     endif ()
 

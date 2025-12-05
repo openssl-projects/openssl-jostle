@@ -4,10 +4,14 @@ import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
@@ -259,4 +263,129 @@ public class ASN1UtilOpsTest
         }
 
     }
+
+
+    @Test
+    public void ML_DSA_seedOnly() throws Exception
+    {
+        Security.addProvider(new JostleProvider());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        for (MLDSAParameterSpec spec : new MLDSAParameterSpec[]{MLDSAParameterSpec.ml_dsa_44, MLDSAParameterSpec.ml_dsa_65, MLDSAParameterSpec.ml_dsa_87})
+        {
+            long asn1Ref = 0;
+
+
+            try
+            {
+                //
+                // Get octet string param
+                //
+
+                KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+                keyGen.initialize(spec);
+                KeyPair key = keyGen.generateKeyPair();
+                MLDSAPrivateKey pk = (MLDSAPrivateKey) key.getPrivate();
+                pk = pk.getPrivateKey(true);
+                operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+                pk.getEncoded();
+                Assertions.fail("Should have thrown exception");
+
+            } catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            } finally
+            {
+                asn1NI.dispose(asn1Ref);
+                operationsTestNI.resetFlags();
+            }
+
+
+            try
+            {
+                //
+                // BIO Write
+                //
+                KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+                keyGen.initialize(spec);
+                KeyPair key = keyGen.generateKeyPair();
+                MLDSAPrivateKey pk = (MLDSAPrivateKey) key.getPrivate();
+                pk = pk.getPrivateKey(true);
+                operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+                pk.getEncoded();
+                Assertions.fail("Should have thrown exception");
+
+            } catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            } finally
+            {
+                asn1NI.dispose(asn1Ref);
+                operationsTestNI.resetFlags();
+            }
+        }
+    }
+
+
+    @Test
+    public void ML_KEM_seedOnly() throws Exception
+    {
+        Security.addProvider(new JostleProvider());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        for (MLKEMParameterSpec spec : MLKEMParameterSpec.getParameterSpecs())
+        {
+            long asn1Ref = 0;
+
+
+            try
+            {
+                //
+                // Get octet string param
+                //
+
+                KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLKEM", JostleProvider.PROVIDER_NAME);
+                keyGen.initialize(spec);
+                KeyPair key = keyGen.generateKeyPair();
+                MLKEMPrivateKey pk = (MLKEMPrivateKey) key.getPrivate();
+                pk = pk.getPrivateKey(true);
+                operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+                pk.getEncoded();
+                Assertions.fail("Should have thrown exception");
+
+            } catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            } finally
+            {
+                asn1NI.dispose(asn1Ref);
+                operationsTestNI.resetFlags();
+            }
+
+
+            try
+            {
+                //
+                // BIO Write
+                //
+                KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLKEM", JostleProvider.PROVIDER_NAME);
+                keyGen.initialize(spec);
+                KeyPair key = keyGen.generateKeyPair();
+                MLKEMPrivateKey pk = (MLKEMPrivateKey) key.getPrivate();
+                pk = pk.getPrivateKey(true);
+                operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+                pk.getEncoded();
+                Assertions.fail("Should have thrown exception");
+
+            } catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            } finally
+            {
+                asn1NI.dispose(asn1Ref);
+                operationsTestNI.resetFlags();
+            }
+        }
+    }
+
 }
