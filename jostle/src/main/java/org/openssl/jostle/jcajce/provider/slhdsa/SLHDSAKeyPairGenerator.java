@@ -61,6 +61,11 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalArgumentException("unknown algorithm: " + algorithm);
         }
+
+        if (forcedType != OSSLKeyType.NONE)
+        {
+            keyType = forcedType;
+        }
     }
 
     @Override
