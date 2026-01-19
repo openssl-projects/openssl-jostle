@@ -221,6 +221,10 @@ To build:
     # The following should work for the bulk of users
 
     ./interface/build.sh
+    
+    # To build on Windows
+    
+    ./interface/build.bat
 
 ```
 
