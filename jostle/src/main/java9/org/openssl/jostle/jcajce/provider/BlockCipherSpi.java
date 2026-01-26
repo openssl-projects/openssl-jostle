@@ -82,7 +82,7 @@ class BlockCipherSpi extends CipherSpi
         if (padding.equals("NOPADDING"))
         {
             this.padding = 0;
-        } else if (padding.equals("PKCS7PADDING") || padding.equals("PKCS5Padding"))
+        } else if (padding.equals("PKCS7PADDING") || padding.equals("PKCS5PADDING"))
         {
             this.padding = 1;
         }

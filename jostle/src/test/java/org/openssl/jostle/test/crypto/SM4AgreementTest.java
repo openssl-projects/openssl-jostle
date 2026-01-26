@@ -667,6 +667,7 @@ public class SM4AgreementTest
 
         exercise_simpleDoFinal("SM4/CBC/NoPadding", new int[]{16}, 5 * 16, 16, 16);
         exercise_simpleDoFinal("SM4/CBC/PKCS7Padding", new int[]{16}, (5 * 16) + 1, 1, 16);
+        exercise_simpleDoFinal("SM4/CBC/PKCS5Padding", new int[]{16}, (5 * 16) + 1, 1, 16);
         exercise_simpleDoFinal("SM4/CFB128/NoPadding", new int[]{16}, 5 * 16 + 1, 1, 16);
         exercise_simpleDoFinal("SM4/OFB/NoPadding", new int[]{16}, 5 * 16, 1, 16);
 
@@ -713,6 +714,7 @@ public class SM4AgreementTest
 
         exercise_complexUpdateDoFinal("SM4/CBC/NoPadding", new int[]{16}, 5 * 16, 16, 16);
         exercise_complexUpdateDoFinal("SM4/CBC/PKCS7Padding", new int[]{16}, (5 * 16) + 1, 1, 16);
+        exercise_complexUpdateDoFinal("SM4/CBC/PKCS5Padding", new int[]{16}, (5 * 16) + 1, 1, 16);
         exercise_complexUpdateDoFinal("SM4/CFB128/NoPadding", new int[]{16}, 5 * 16 + 1, 1, 16);
         exercise_complexUpdateDoFinal("SM4/OFB/NoPadding", new int[]{16}, 5 * 16, 1, 16);
 
@@ -736,6 +738,7 @@ public class SM4AgreementTest
 
         exercise_complexDoFinalSameArray("SM4/CBC/NoPadding", new int[]{16}, 16 * 17, 16, 16);
         exercise_complexDoFinalSameArray("SM4/CBC/PKCS7Padding", new int[]{16}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinalSameArray("SM4/CBC/PKCS5Padding", new int[]{16}, (5 * 16) + 1, 1, 16);
         exercise_complexDoFinalSameArray("SM4/CFB128/NoPadding", new int[]{16}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinalSameArray("SM4/OFB/NoPadding", new int[]{16}, 5 * 16, 1, 16);
 

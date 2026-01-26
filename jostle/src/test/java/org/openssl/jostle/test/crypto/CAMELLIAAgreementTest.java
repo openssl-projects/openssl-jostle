@@ -676,6 +676,7 @@ public class CAMELLIAAgreementTest
 
         exercise_simpleDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_simpleDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_simpleDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_simpleDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_simpleDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_simpleDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
@@ -701,6 +702,7 @@ public class CAMELLIAAgreementTest
 
         exercise_complexDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_complexDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_complexDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
@@ -724,6 +726,7 @@ public class CAMELLIAAgreementTest
 
         exercise_complexUpdateDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_complexUpdateDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexUpdateDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_complexUpdateDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexUpdateDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexUpdateDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
@@ -748,6 +751,7 @@ public class CAMELLIAAgreementTest
 
         exercise_complexDoFinalSameArray("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, 16);
         exercise_complexDoFinalSameArray("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinalSameArray("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_complexDoFinalSameArray("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinalSameArray("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinalSameArray("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);

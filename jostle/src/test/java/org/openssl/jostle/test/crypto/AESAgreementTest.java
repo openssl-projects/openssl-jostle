@@ -629,6 +629,7 @@ public class AESAgreementTest
 
         exercise_simpleDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_simpleDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_simpleDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_simpleDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_simpleDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_simpleDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
@@ -654,6 +655,7 @@ public class AESAgreementTest
 
         exercise_complexDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_complexDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_complexDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
@@ -677,6 +679,7 @@ public class AESAgreementTest
 
         exercise_complexUpdateDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_complexUpdateDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexUpdateDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_complexUpdateDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexUpdateDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexUpdateDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
@@ -701,6 +704,7 @@ public class AESAgreementTest
 
         exercise_complexDoFinalSameArray("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
         exercise_complexDoFinalSameArray("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
+        exercise_complexDoFinalSameArray("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
         exercise_complexDoFinalSameArray("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinalSameArray("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
         exercise_complexDoFinalSameArray("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
