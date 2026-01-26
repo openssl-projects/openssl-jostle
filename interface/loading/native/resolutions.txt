@@ -22,3 +22,10 @@
 # Linux System 390x
 #
 "^Linux.*" "^s390x" "/native/linux/s390x"
+
+#
+# Windows Intel / AMD
+#
+"^Windows.*" "(?i)^(amd64|x64)$" "/native/windows/amd64"
+"^Windows.*" "(?i)^(x86_64|x86-64)$" "/native/windows/x86_64"
+
