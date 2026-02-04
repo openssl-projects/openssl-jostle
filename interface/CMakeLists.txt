@@ -58,7 +58,7 @@ endif ()
 get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR ${BC_ARCH} STREQUAL "x86_64"))
 
 
     #
@@ -68,7 +68,11 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
 
     SET(OPTIONS "-O3")
     SET(OPEN_SSL_LIB "/lib/libcrypto.3.dylib")
-    SET(INSTALL_PATH "${JAVA_PRJ_HOME}/jostle/src/main/resources/native/osx/arm64/")
+    if (${BC_ARCH} STREQUAL "arm64")
+        SET(INSTALL_PATH "${JAVA_PRJ_HOME}/jostle/src/main/resources/native/osx/arm64/")
+    else ()
+        SET(INSTALL_PATH "${JAVA_PRJ_HOME}/jostle/src/main/resources/native/osx/x86_64/")
+    endif ()
     SET(JNI_INCLUDE "${JAVA_HOME}/include/" "${JAVA_HOME}/include/darwin" "${JAVA_PRJ_HOME}/jostle/build/generated/sources/headers/java/main")
 
     #
