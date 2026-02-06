@@ -465,7 +465,7 @@ exit:
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_update
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _input, jint in_off, jint in_len) {
-    UNUSED(env);
+
     UNUSED(jo);
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
     assert(mldsa);

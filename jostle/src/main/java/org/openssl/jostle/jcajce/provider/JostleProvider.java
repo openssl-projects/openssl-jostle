@@ -84,6 +84,7 @@ public class JostleProvider
         new ProvMLKEM().configure(this);
         new ProvPBEKDF().configure(this);
         new ProvScryptKDF().configure(this);
+        new ProvMD().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)
@@ -190,6 +191,20 @@ public class JostleProvider
             doPut("Alg.Alias." + type + "." + alias, name);
         }
     }
+
+    void addAlias(String type, String name, Collection<String> aliases)
+    {
+        if (!containsKey(type + "." + name))
+        {
+            throw new IllegalStateException("primary key (" + type + "." + name + ") not found");
+        }
+
+        for (String alias : aliases)
+        {
+            doPut("Alg.Alias." + type + "." + alias, name);
+        }
+    }
+
 
     void addAlias(String type, String name, ASN1ObjectIdentifier... oids)
     {

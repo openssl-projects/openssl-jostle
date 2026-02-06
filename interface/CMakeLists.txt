@@ -79,6 +79,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     # --- JNI Library
     #
     add_library(interface_jni SHARED
+            jni/md_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
@@ -114,7 +115,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/kdf_jni.c
             util/kdf.h
             util/kdf.c
-
+            util/md.c
+            util/md.h
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -167,6 +169,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/kdf_ffi.c
             util/kdf.h
             util/kdf.c
+            util/md.c
+            util/md.h
     )
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
@@ -210,6 +214,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     # --- JNI Library
     #
     add_library(interface_jni SHARED
+            jni/md_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
@@ -245,6 +250,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/kdf_jni.c
             util/kdf.h
             util/kdf.c
+            util/md.c
+            util/md.h
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -297,6 +304,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/kdf_ffi.c
             util/kdf.h
             util/kdf.c
+            util/md.c
+            util/md.h
     )
 
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
@@ -328,6 +337,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     SET(JNI_INCLUDE "${JAVA_HOME}/include/" "${JAVA_HOME}/include/win32" "${JAVA_PRJ_HOME}/jostle/build/generated/sources/headers/java/main")
 
     add_library(interface_jni SHARED
+            jni/md_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
@@ -363,6 +373,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/kdf_jni.c
             util/kdf.h
             util/kdf.c
+            util/md.c
+            util/md.h
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -408,6 +420,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/kdf_ffi.c
             util/kdf.h
             util/kdf.c
+            util/md.c
+            util/md.h
     )
 
     set_target_properties(interface_ffi PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
