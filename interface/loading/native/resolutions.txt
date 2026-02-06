@@ -5,8 +5,16 @@
 # deps.txt and any native libraries it lists as needed to be loaded
 #
 
+#
+# OSX ARM
+#
 "^Mac.*" "(?i)^(aarch64|arm64)$" "/native/osx/arm64"
+
+#
+# OSX Intel
+#
 "^Mac.*" "(?i)^(x86_64|amd64)$" "/native/osx/x86_64"
+
 #
 # Linux Intel / AMD
 #
@@ -27,6 +35,5 @@
 #
 # Windows Intel / AMD
 #
-"^Windows.*" "(?i)^(amd64|x64)$" "/native/windows/amd64"
-"^Windows.*" "(?i)^(x86_64|x86-64)$" "/native/windows/x86_64"
+"^Windows.*" "(?i)^(amd64|x64|x86_64|x86-64)$" "/native/windows/x86_64"
 
