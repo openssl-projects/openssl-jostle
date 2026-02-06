@@ -1,4 +1,0 @@
-OSSL:libcrypto-3-x64.dll
-
-JNI:interface_jni.dll
-FFI:interface_ffi.dll
