@@ -2,9 +2,7 @@ package org.openssl.jostle;
 
 import java.util.*;
 
-/**
- * Maps String -> Name in OpenSSL
- */
+
 public class OpenSSLNameUtil
 {
 

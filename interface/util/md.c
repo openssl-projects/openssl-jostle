@@ -50,8 +50,10 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
         }
     }
 
+
     md_ctx *ctx = calloc(1, sizeof(md_ctx));
     assert(ctx);
+    ctx->md_type = md;
     ctx->mdctx = mdctx;
 
     if (xof_len > 0) {
@@ -85,7 +87,7 @@ int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
     if (!EVP_DigestUpdate(ctx->mdctx, data, len)) {
         return JO_OPENSSL_ERROR;
     }
-    return JO_SUCCESS;
+    return (int32_t) len;
 }
 
 int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
@@ -116,8 +118,16 @@ int32_t md_ctx_reset(md_ctx *ctx) {
     assert(ctx != NULL);
     assert(ctx->mdctx != NULL);
 
-    if (!EVP_MD_CTX_reset(ctx->mdctx)) {
+    OSSL_PARAM params[] = {OSSL_PARAM_END,OSSL_PARAM_END};
+
+    if (ctx->xof > 0) {
+        params[0] = OSSL_PARAM_construct_int(OSSL_DIGEST_PARAM_XOFLEN, &ctx->digest_byte_length);
+    }
+
+    if (!EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params)) {
         return JO_OPENSSL_ERROR;
     }
+
+
     return JO_SUCCESS;
 }

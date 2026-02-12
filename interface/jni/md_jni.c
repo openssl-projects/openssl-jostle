@@ -124,7 +124,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     }
 
     uint8_t *in = input.critical + in_off;
-    md_ctx_update(ctx, in, in_len);
+    ret_code = md_ctx_update(ctx, in, in_len);
 
 exit:
     release_critical_ctx(&input);
@@ -216,10 +216,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
 
     uint32_t s = 0;
 
-    if (!EVP_DigestFinal_ex(ctx->mdctx, output_data, &s)) {
+    if (!EVP_DigestFinal(ctx->mdctx, output_data, &s)) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
+
 
     if (s > INT_MAX) {
         ret_code = JO_MD_DIGEST_LEN_INT_OVERFLOW;
@@ -245,5 +246,5 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     md_ctx *ctx = (md_ctx *) ref;
     assert(ctx != NULL);
 
-    EVP_MD_CTX_reset(ctx->mdctx);
+    md_ctx_reset(ctx);
 }

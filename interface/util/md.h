@@ -10,11 +10,13 @@
 #ifndef MD_H
 #define MD_H
 
+#include <openssl/params.h>
 #include <openssl/types.h>
 
     typedef struct md_ctx {
         EVP_MD_CTX *mdctx;
-        size_t digest_byte_length;
+        const EVP_MD *md_type;
+        int32_t digest_byte_length;
         int xof;
     } md_ctx;
 

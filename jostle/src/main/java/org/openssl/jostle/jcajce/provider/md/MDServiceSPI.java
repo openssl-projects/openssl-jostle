@@ -22,7 +22,7 @@ public class MDServiceSPI extends MessageDigestSpi
         this.ref = new MDReference(mdServiceNI.allocateDigest(algorithm, 0), algorithm);
     }
 
-    public MDServiceSPI(String algorithm,int xofLen)
+    public MDServiceSPI(String algorithm, int xofLen)
     {
         //
         // algoritm name must be something that OpenSSL can resolve
@@ -48,13 +48,14 @@ public class MDServiceSPI extends MessageDigestSpi
     {
         byte[] out = new byte[mdServiceNI.getDigestOutputLen(ref.getReference())];
         mdServiceNI.digest(ref.getReference(), out, 0, out.length);
+        mdServiceNI.reset(ref.getReference());
         return out;
     }
 
     @Override
     protected int engineDigest(byte[] buf, int offset, int len) throws DigestException
     {
-       return mdServiceNI.digest(ref.getReference(), buf, offset, len);
+        return mdServiceNI.digest(ref.getReference(), buf, offset, len);
     }
 
     @Override

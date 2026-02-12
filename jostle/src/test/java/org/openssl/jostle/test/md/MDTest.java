@@ -10,6 +10,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Arrays;
 
@@ -47,12 +48,11 @@ public class MDTest
                 {"SHAKE-256", "46b9dd2b0ba88d13233b3feb743eeb243fcd52ea62b81b82b50c27646ed5762fd75dc4ddd8c0f200cb05019d67b592f6fc821c49479ab48640292eacb3b7c4be"},
 
                 {"MD5", "d41d8cd98f00b204e9800998ecf8427e"},
+                {"MD5-SHA1", "d41d8cd98f00b204e9800998ecf8427eda39a3ee5e6b4b0d3255bfef95601890afd80709"},
                 {"SM3", "1ab21d8355cfa17f8e61194831e81a8f22bec8c728fefb747ed035eb5082aa2b"},
                 {"RIPEMD-160", "9c1185a5c5e9fc54612808977ee8f548b2258d31"},
-                {"BLAKE2B-512", "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce"},
                 {"BLAKE2S-256", "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9"},
-                {"MD5-SHA1", "d41d8cd98f00b204e9800998ecf8427eda39a3ee5e6b4b0d3255bfef95601890afd80709"},
-
+                {"BLAKE2B-512", "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce"}
         };
 
         for (String[] v : vectors)
@@ -61,18 +61,122 @@ public class MDTest
             byte[] expected = Hex.decode(v[1]);
 
             MessageDigest md = MessageDigest.getInstance(name, JostleProvider.PROVIDER_NAME);
-            byte[] digest = md.digest();
+            byte[] digest1 = md.digest();
+            byte[] digest2 = md.digest(); // taking the digest resets the state
 
-            if (!Arrays.equals(expected, digest))
+            if (!Arrays.equals(expected, digest1))
             {
                 System.out.println(name);
-                System.out.println("DIG: " + Hex.toHexString(digest));
+                System.out.println("DIG: " + Hex.toHexString(digest1));
                 System.out.println("Exp: " + Hex.toHexString(expected));
             }
 
-            Assertions.assertArrayEquals(Hex.decode(v[1]), digest, "Digest: " + name);
+            Assertions.assertArrayEquals(Hex.decode(v[1]), digest1, "Digest: " + name);
+
+            Assertions.assertArrayEquals(digest1, digest2, "Digest after auto reset : " + name);
         }
 
     }
+
+    @Test
+    public void testAgreesWithBC() throws Exception
+    {
+        SecureRandom random = new SecureRandom();
+        for (String digest : new String[]{
+                "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
+                "SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512", "SHAKE-128", "SHAKE-256", "MD5",
+                "SM3", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512"}) // Skipping "MD5-SHA1"
+        {
+
+            String bcName = digest;
+            if (bcName.startsWith("SHA2-"))
+            {
+                bcName = bcName.replace("SHA2-", "SHA-");
+            } else if (bcName.startsWith("SHAKE"))
+            {
+                bcName = bcName.replace("SHAKE-", "SHAKE");
+            } else if (bcName.startsWith("RIPEMD-"))
+            {
+                bcName = bcName.replace("RIPEMD-", "RIPEMD");
+            }
+
+            MessageDigest joDigest = MessageDigest.getInstance(digest, JostleProvider.PROVIDER_NAME);
+            MessageDigest joSplitDigest = MessageDigest.getInstance(digest, JostleProvider.PROVIDER_NAME);
+            MessageDigest bcDigest = MessageDigest.getInstance(bcName, BouncyCastleProvider.PROVIDER_NAME);
+
+            int fillCtr = 0;
+
+            byte[] buf = new byte[1024];
+            for (int t = 0; t < 50000; t++)
+            {
+                int sizeOfUpdate = random.nextInt(buf.length);
+
+                for (int i = 0; i < sizeOfUpdate; i++)
+                {
+                    buf[i] = (byte) fillCtr++;
+                }
+
+                joDigest.update(buf, 0, sizeOfUpdate);
+                bcDigest.update(buf, 0, sizeOfUpdate);
+
+
+                //
+                // Split update between bulk update and single byte update
+                //
+                if (sizeOfUpdate > 0)
+                {
+                    int split = random.nextInt(sizeOfUpdate);
+                    int p = 0;
+                    for (; p < split; p++)
+                    {
+                        joSplitDigest.update(buf[p]);
+                    }
+                    joSplitDigest.update(buf, p, sizeOfUpdate - p);
+                } else
+                {
+                    joSplitDigest.update(buf, 0, sizeOfUpdate);
+                }
+            }
+
+            byte[] expectedFromBC = bcDigest.digest();
+
+            Assertions.assertArrayEquals(expectedFromBC, joDigest.digest(), "Bulk Update: " + digest);
+            Assertions.assertArrayEquals(expectedFromBC, joSplitDigest.digest(), "Mixed Bytewise/Bulk Update" + digest);
+
+        }
+    }
+
+    @Test
+    public void testUseAfterTakingDigest() throws Exception
+    {
+
+        MessageDigest bcDigest = MessageDigest.getInstance("SHA-256", BouncyCastleProvider.PROVIDER_NAME);
+        bcDigest.update("Hello".getBytes());
+        byte[] bcDigest1 = bcDigest.digest(); // resets
+        byte[] bcDigest2 = bcDigest.digest(); // takes empty digest
+
+        MessageDigest joDigest = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
+        joDigest.update("Hello".getBytes());
+        byte[] joDigest1 = joDigest.digest();
+        byte[] joDigest2 = joDigest.digest();
+
+
+        Assertions.assertArrayEquals(bcDigest1, joDigest1);
+        Assertions.assertArrayEquals(bcDigest2, joDigest2);
+
+    }
+
+
+//    @Test
+//    public void testDigestMethods() throws Exception
+//    {
+//
+//        MessageDigest bcDigest = MessageDigest.getInstance("SHA-256", BouncyCastleProvider.PROVIDER_NAME);
+//        bcDigest.update("Hello".getBytes());
+//        byte[] expected = bcDigest.digest();
+//
+//
+//    }
+
 
 }
