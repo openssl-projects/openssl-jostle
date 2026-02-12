@@ -22,18 +22,13 @@ else ()
     message("using LS_CPU_ARCH ${BC_ARCH}")
 endif ()
 
-# Normalize architecture naming for resource folder layout.
-# (On Windows, CMAKE_SYSTEM_PROCESSOR is commonly "AMD64" but resources use "amd64".)
+# Normalize architecture naming for Windows resource folder layout.
 set(BC_ARCH_RESOURCE "${BC_ARCH}")
 string(TOLOWER "${BC_ARCH_RESOURCE}" BC_ARCH_RESOURCE)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     if (BC_ARCH_RESOURCE STREQUAL "x86_64")
-        # Keep as-is (some toolchains report x86_64).
-    elseif (BC_ARCH_RESOURCE STREQUAL "amd64")
-        # Keep as-is.
-    elseif (BC_ARCH_RESOURCE STREQUAL "x64")
-        set(BC_ARCH_RESOURCE "amd64")
-    elseif (BC_ARCH_RESOURCE STREQUAL "x86-64")
+        # Keep as-is
+    elseif (BC_ARCH_RESOURCE STREQUAL "amd64" OR BC_ARCH_RESOURCE STREQUAL "x64" OR BC_ARCH_RESOURCE STREQUAL "x86-64")
         set(BC_ARCH_RESOURCE "x86_64")
     endif ()
 endif ()
