@@ -26,7 +26,7 @@ public class OpenSSL
     {
         CryptoServicesRegistrar.assertNativeAvailable();
 
-        ErrorCode code = ErrorCode.forCode(() -> NISelector.OpenSSLNI.setOSSLProviderModule(provider));
+        ErrorCode code = ErrorCode.forCode(NISelector.OpenSSLNI.setOSSLProviderModule(provider));
         switch (code)
         {
             case JO_SUCCESS:

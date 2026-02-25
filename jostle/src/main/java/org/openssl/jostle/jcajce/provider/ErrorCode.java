@@ -114,7 +114,7 @@ public enum ErrorCode
     JO_MD_SET_PARAM_FAIL(-93),
     JO_UNKNOWN(Integer.MIN_VALUE);
 
-    private int code;
+    private final int code;
 
 
     ErrorCode(int code)
@@ -123,17 +123,7 @@ public enum ErrorCode
         this.code = code;
     }
 
-    public static ErrorCode forCode(Supplier supplier)
-    {
-        try
-        {
-            int code = supplier.invoke();
-            return ErrorCode.forCode(code);
-        } catch (Throwable t)
-        {
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
+
 
     public static ErrorCode forCode(long code)
     {

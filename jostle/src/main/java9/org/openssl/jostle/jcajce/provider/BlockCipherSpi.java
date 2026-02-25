@@ -146,10 +146,10 @@ class BlockCipherSpi extends CipherSpi
             this.opMode = opmode;
 
             byte[] keyBytes = key.getEncoded();
-            ErrorCode codes = ErrorCode.forCode(() -> NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, null, 0));
+            ErrorCode code = ErrorCode.forCode( NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, null, 0));
             try
             {
-                BlockCipherNI.handleInitErrorCodes(codes, keyBytes.length, 0);
+                BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, 0);
             } catch (InvalidAlgorithmParameterException e)
             {
                 throw new InvalidKeyException(e.getMessage());
@@ -170,7 +170,7 @@ class BlockCipherSpi extends CipherSpi
         {
             ensureNativeReference();
             byte[] keyBytes = key.getEncoded();
-            ErrorCode codes;
+            ErrorCode code;
             final byte[] ivBytes;
             int tagLen;
             blockSize = 0;
@@ -200,8 +200,8 @@ class BlockCipherSpi extends CipherSpi
                 throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
             }
 
-            codes = ErrorCode.forCode(() -> NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen));
-            BlockCipherNI.handleInitErrorCodes(codes, keyBytes.length, ivBytes == null ? 0 : ivBytes.length);
+            code = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen));
+            BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, ivBytes == null ? 0 : ivBytes.length);
 
 
             engineGetBlockSize();
