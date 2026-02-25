@@ -1,8 +1,10 @@
 package org.openssl.jostle.jcajce.provider.md;
 
+import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+
 
 public interface MDServiceNI
 {
@@ -75,23 +77,45 @@ public interface MDServiceNI
         {
             case JO_SUCCESS:
                 return code;
-
+            case JO_NOT_INITIALIZED:
+                throw new IllegalStateException("not initialized");
             case JO_NAME_IS_NULL:
                 throw new NullPointerException("name is null");
             case JO_NAME_NOT_FOUND:
-                throw new IllegalArgumentException("name not found: " + OpenSSL.getOpenSSLErrors());
+                throw new IllegalArgumentException("name not found");
             case JO_UNABLE_TO_ACCESS_NAME:
-                throw new IllegalArgumentException("unable to access name");
+                throw new IllegalStateException("unable to access name");
             case JO_MD_CREATE_FAILED:
-                throw new IllegalStateException("md create failed: " + OpenSSL.getOpenSSLErrors());
+                throw new IllegalStateException("md create failed");
             case JO_MD_INIT_FAILED:
-                throw new IllegalStateException("md init failed " + OpenSSL.getOpenSSLErrors());
+                throw new IllegalStateException("md init failed");
             case JO_MD_DIGEST_LEN_INT_OVERFLOW:
                 throw new IllegalStateException("digest len overflow");
+            case JO_MD_SET_PARAM_FAIL:
+                throw new IllegalStateException("md unable to set param");
+            case JO_INPUT_IS_NULL:
+                throw new NullPointerException("input is null");
+            case JO_INPUT_OFFSET_IS_NEGATIVE:
+                throw new IllegalArgumentException("input offset negative");
+            case JO_INPUT_LEN_IS_NEGATIVE:
+                throw new IllegalArgumentException("input len negative");
+            case JO_INPUT_OUT_OF_RANGE:
+                throw new IllegalArgumentException("input offset + length out of range");
+            case JO_FAILED_ACCESS_INPUT:
+                    throw new AccessException("unable to access input array");
+            case JO_FAILED_ACCESS_OUTPUT:
+                throw new AccessException("unable to access output array");
+            case JO_OUTPUT_LEN_IS_NEGATIVE:
+                throw new IllegalArgumentException("output len negative");
+            case JO_OUTPUT_OFFSET_IS_NEGATIVE:
+                throw new IllegalArgumentException("output offset negative");
+            case JO_OUTPUT_TOO_SMALL:
+                throw new IllegalArgumentException("output too small");
+            case JO_OUTPUT_OUT_OF_RANGE:
+                throw new IllegalArgumentException("output offset + length out of range");
             case JO_OPENSSL_ERROR:
                 throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
             default:
-
         }
 
         throw new IllegalStateException(String.format("Unhandled Error: %s", errorCode));

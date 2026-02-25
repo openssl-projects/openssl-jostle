@@ -111,7 +111,7 @@ public enum ErrorCode
     JO_MD_CREATE_FAILED(-90),
     JO_MD_INIT_FAILED(-91),
     JO_MD_DIGEST_LEN_INT_OVERFLOW(-92),
-
+    JO_MD_SET_PARAM_FAIL(-93),
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private int code;

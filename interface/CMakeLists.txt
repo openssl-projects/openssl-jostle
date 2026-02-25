@@ -129,6 +129,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     # -- FFI Library
     #
     add_library(interface_ffi SHARED
+            ffi/md_ffi.c
             ffi/ffi.h
             ffi/ffi.c
             ffi/types.h
@@ -264,6 +265,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     # -- FFI Library
     #
     add_library(interface_ffi SHARED
+            ffi/md_ffi.c
             ffi/ffi.h
             ffi/ffi.c
             ffi/types.h
@@ -393,6 +395,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/mlkem_ni_ffi.c
             ffi/slh_dsa_ni_ffi.c
             ffi/asn1_ni_ffi.c
+            ffi/md_ffi.c
             util/mldsa.h
             util/mldsa.c
             util/slhdsa.h

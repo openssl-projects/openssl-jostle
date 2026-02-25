@@ -55,7 +55,9 @@ public class MDServiceSPI extends MessageDigestSpi
     @Override
     protected int engineDigest(byte[] buf, int offset, int len) throws DigestException
     {
-        return mdServiceNI.digest(ref.getReference(), buf, offset, len);
+        int l = mdServiceNI.digest(ref.getReference(), buf, offset, len);
+        mdServiceNI.reset(ref.getReference());
+        return l;
     }
 
     @Override
@@ -64,6 +66,11 @@ public class MDServiceSPI extends MessageDigestSpi
         mdServiceNI.reset(ref.getReference());
     }
 
+    @Override
+    protected int engineGetDigestLength()
+    {
+        return mdServiceNI.getDigestOutputLen(ref.getReference());
+    }
 
     private static class Disposer extends NativeDisposer
     {

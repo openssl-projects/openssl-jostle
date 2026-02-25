@@ -7,7 +7,6 @@
 
 
 #include <assert.h>
-#include <openssl/core_names.h>
 #include <openssl/evp.h>
 
 #include "byte_array_critical.h"
@@ -16,6 +15,7 @@
 #include "../util/bc_err_codes.h"
 #include "../util/md.h"
 #include "../util/ops.h"
+
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_md_MDServiceJNI
@@ -43,7 +43,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     }
 
     name = (*env)->GetStringUTFChars(env, _digest, NULL);
-    if (name == NULL) {
+    if (OPS_FAILED_ACCESS_1 name == NULL) {
         err[0] = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
@@ -159,10 +159,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     assert(ctx != NULL);
 
     if (ctx->digest_byte_length == 0) {
-        return JO_FAIL;
+        return JO_NOT_INITIALIZED;
     }
 
-    if (ctx->digest_byte_length > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
@@ -198,6 +198,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
         goto exit;
     }
 
+    if (out_len < 0) {
+        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+
     /* out_off asserted as non-negative by this point */
 
     if (!check_critical_in_range(&output, out_off, out_len)) {
@@ -205,6 +211,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
         goto exit;
     }
 
+    if (out_len < ctx->digest_byte_length) {
+        ret_code = JO_OUTPUT_TOO_SMALL;
+        goto exit;
+    }
 
     if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&output)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
@@ -213,20 +223,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
 
     uint8_t *output_data = output.critical + (size_t) out_off;
 
-
-    uint32_t s = 0;
-
-    if (!EVP_DigestFinal(ctx->mdctx, output_data, &s)) {
-        ret_code = JO_OPENSSL_ERROR;
-        goto exit;
-    }
-
-
-    if (s > INT_MAX) {
-        ret_code = JO_MD_DIGEST_LEN_INT_OVERFLOW;
-    }
-
-    ret_code = (jint) s;
+    ret_code = md_ctx_finalize(ctx, output_data);
 
 exit:
     release_critical_ctx(&output);

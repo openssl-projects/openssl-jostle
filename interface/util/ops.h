@@ -36,7 +36,15 @@
 
 #define OPS_LEN_CHANGE_1 is_ops_set(14) ||
 
-#define OPS_MAX_TEST 15
+#define OPS_FAILED_CREATE_1 is_ops_set(15) ||
+#define OPS_FAILED_CREATE_2 is_ops_set(16) ||
+#define OPS_FAILED_INIT_1 is_ops_set(17) ||
+#define OPS_FAILED_INIT_2 is_ops_set(18) ||
+
+#define OPS_FAILED_SET_1 is_ops_set(19) ||
+#define OPS_FAILED_SET_2 is_ops_set(20) ||
+
+#define OPS_MAX_TEST 21
 
 // Offset the error code by fixed amount during ops testing
 #define OPS_OFFSET(x) - x
@@ -63,6 +71,14 @@ void set_ops_test(const uint32_t index, const uint32_t value);
 #define OPS_OPENSSL_ERROR_5
 #define OPS_OPENSSL_ERROR_6
 #define OPS_LEN_CHANGE_1
+
+#define OPS_FAILED_CREATE_1
+#define OPS_FAILED_CREATE_2
+#define OPS_FAILED_INIT_1
+#define OPS_FAILED_INIT_2
+
+#define OPS_FAILED_SET_1
+#define OPS_FAILED_SET_2
 #define OPS_OFFSET(x)
 #endif
 

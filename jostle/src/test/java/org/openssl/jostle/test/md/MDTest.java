@@ -2,17 +2,16 @@ package org.openssl.jostle.test.md;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.util.Arrays;
+
 
 public class MDTest
 {
@@ -28,7 +27,6 @@ public class MDTest
     @Test
     public void testEmptyMD() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI"); // TODO remove when FFI interface implemented
 
         String[][] vectors = new String[][]{
 
@@ -64,7 +62,7 @@ public class MDTest
             byte[] digest1 = md.digest();
             byte[] digest2 = md.digest(); // taking the digest resets the state
 
-            if (!Arrays.equals(expected, digest1))
+            if (!Arrays.areEqual(expected, digest1))
             {
                 System.out.println(name);
                 System.out.println("DIG: " + Hex.toHexString(digest1));
@@ -77,6 +75,58 @@ public class MDTest
         }
 
     }
+
+    @Test
+    public void testAgreeWithBCSlidingWindow() throws Exception
+    {
+
+        SecureRandom random = new SecureRandom();
+
+        for (String digest : new String[]{
+                "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
+                "SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512", "SHAKE-128", "SHAKE-256", "MD5",
+                "SM3", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512"}) // Skipping "MD5-SHA1"
+        {
+            String bcName = digest;
+            if (bcName.startsWith("SHA2-"))
+            {
+                bcName = bcName.replace("SHA2-", "SHA-");
+            } else if (bcName.startsWith("SHAKE"))
+            {
+                bcName = bcName.replace("SHAKE-", "SHAKE");
+            } else if (bcName.startsWith("RIPEMD-"))
+            {
+                bcName = bcName.replace("RIPEMD-", "RIPEMD");
+            }
+            // Test over the same array
+
+            byte[] joBuf = new byte[1024 * 4];
+            random.nextBytes(joBuf);
+
+            byte[] bcBuf = Arrays.clone(joBuf);
+
+            MessageDigest joDigest = MessageDigest.getInstance(digest, JostleProvider.PROVIDER_NAME);
+            MessageDigest bcDigest = MessageDigest.getInstance(bcName, BouncyCastleProvider.PROVIDER_NAME);
+
+            int joLen = joDigest.getDigestLength();
+            int bcLen = bcDigest.getDigestLength();
+
+
+            for (int t = 0; t < joBuf.length; t++)
+            {
+                joDigest.update(joBuf, t, joBuf.length - t);
+                bcDigest.update(bcBuf, t, bcBuf.length - t);
+
+                joDigest.digest(joBuf, Math.min(t, joBuf.length - joLen), bcLen);
+                bcDigest.digest(bcBuf, Math.min(t, bcBuf.length - bcLen), bcLen);
+
+                Assertions.assertArrayEquals(joBuf, bcBuf, "t: " + t + " " + digest);
+            }
+
+        }
+
+    }
+
 
     @Test
     public void testAgreesWithBC() throws Exception
@@ -105,11 +155,12 @@ public class MDTest
             MessageDigest bcDigest = MessageDigest.getInstance(bcName, BouncyCastleProvider.PROVIDER_NAME);
 
             int fillCtr = 0;
+            int len = 1 + (1024 * 4);
 
-            byte[] buf = new byte[1024];
-            for (int t = 0; t < 50000; t++)
+            for (int t = 0; t < len; t++)
             {
-                int sizeOfUpdate = random.nextInt(buf.length);
+                byte[] buf = new byte[len];
+                int sizeOfUpdate = t >> 1;
 
                 for (int i = 0; i < sizeOfUpdate; i++)
                 {

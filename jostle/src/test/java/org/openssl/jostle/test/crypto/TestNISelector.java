@@ -6,6 +6,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.provider.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
@@ -41,7 +42,6 @@ public class TestNISelector extends NISelector
         return MLKEMServiceNI;
     }
 
-
     public static SLHDSAServiceNI getSLHDSANI()
     {
         return SLHDSAServiceNI;
@@ -67,5 +67,8 @@ public class TestNISelector extends NISelector
         return OperationsTestNI;
     }
 
+    public static MDServiceNI getMDNI() {
+        return MDServiceNI;
+    }
 
 }

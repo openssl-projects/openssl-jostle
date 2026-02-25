@@ -74,8 +74,13 @@ public interface OperationsTestNI
         OPS_OPENSSL_ERROR_4,
         OPS_OPENSSL_ERROR_5,
         OPS_OPENSSL_ERROR_6,
-        OPS_LEN_CHANGE_1
-
+        OPS_LEN_CHANGE_1,
+        OPS_FAILED_CREATE_1,
+        OPS_FAILED_CREATE_2,
+        OPS_FAILED_INIT_1,
+        OPS_FAILED_INIT_2,
+        OPS_FAILED_SET_1,
+        OPS_FAILED_SET_2,
     }
 
 }
