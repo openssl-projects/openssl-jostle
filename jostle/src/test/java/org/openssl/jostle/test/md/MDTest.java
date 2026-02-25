@@ -217,17 +217,4 @@ public class MDTest
 
     }
 
-
-//    @Test
-//    public void testDigestMethods() throws Exception
-//    {
-//
-//        MessageDigest bcDigest = MessageDigest.getInstance("SHA-256", BouncyCastleProvider.PROVIDER_NAME);
-//        bcDigest.update("Hello".getBytes());
-//        byte[] expected = bcDigest.digest();
-//
-//
-//    }
-
-
 }
