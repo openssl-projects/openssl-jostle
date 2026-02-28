@@ -10,14 +10,7 @@
 
 package org.openssl.jostle;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.Security;
@@ -31,7 +24,12 @@ import java.util.logging.Logger;
  */
 class LoaderUtils
 {
-    private static final Logger LOG = Logger.getLogger(LoaderUtils.class.getName());
+    // NB:
+    // Before requesting we use some other logging framework, please consider that
+    // a provider is foundational code and should not force dependencies on its users.
+    //
+    private static final Logger L = Logger.getLogger("BC_OPENSSL_LOADER");
+
 
     /**
      * Returns a fresh temp dir base on prefix path.
@@ -41,7 +39,7 @@ class LoaderUtils
      * @throws IOException
      */
     static File createTempDir(String moduleName)
-        throws IOException
+            throws IOException
     {
         if (moduleName == null)
         {
@@ -80,14 +78,14 @@ class LoaderUtils
                     long now = System.nanoTime();
                     for (int t = 0; t < 10000; t++)
                     {
-                        File dir = new File(prefix, String.format("%s_%d", moduleName, now + t));
+                        File dir = LoaderUtils.makeFile(prefix, String.format("%s_%d", moduleName, now + t));
                         if (dir.exists() || !dir.mkdirs())
                         {
                             continue;
                         }
 
                         final File tmpDir = dir;
-                        
+
                         //
                         // Shutdown hook clean up installed libraries.
                         //
@@ -96,9 +94,9 @@ class LoaderUtils
                             @Override
                             public void run()
                             {
-                                if (LOG.isLoggable(Level.FINE))
+                                if (L.isLoggable(Level.FINE))
                                 {
-                                    LOG.fine("cleanup shutdown hook started");
+                                    L.fine("cleanup shutdown hook started");
                                 }
 
                                 if (!tmpDir.exists())
@@ -108,21 +106,17 @@ class LoaderUtils
                                 boolean isDeleted = true;
                                 if (tmpDir.isDirectory())
                                 {
-                                    for (File f : tmpDir.listFiles())
-                                    {
-                                        isDeleted &= f.delete();
-                                    }
+                                    delete(tmpDir);
                                 }
 
                                 isDeleted &= tmpDir.delete();
 
                                 if (!isDeleted)
                                 {
-                                    LOG.fine("failed to delete: " + tmpDir.getAbsolutePath());
-                                }
-                                else
+                                    L.fine("failed to delete: " + tmpDir.getAbsolutePath());
+                                } else
                                 {
-                                    LOG.fine("successfully cleaned up: " + tmpDir.getAbsolutePath());
+                                    L.fine("successfully cleaned up: " + tmpDir.getAbsolutePath());
                                 }
                             }
                         }));
@@ -134,8 +128,7 @@ class LoaderUtils
                 }
             });
 
-        }
-        catch (IllegalStateException e)
+        } catch (IllegalStateException e)
         {
             throw new IOException(e.getMessage(), e);
         }
@@ -150,7 +143,7 @@ class LoaderUtils
      * @throws IOException
      */
     static File createVersionedTempDir(String prefixPath, String version)
-        throws IOException
+            throws IOException
     {
         if (version == null)
         {
@@ -164,7 +157,7 @@ class LoaderUtils
                 @Override
                 public File run()
                 {
-                    File prefix = new File(new File(prefixPath), version);
+                    File prefix = makeFile(prefixPath, version);
 
                     if (prefix.isFile())
                     {
@@ -182,15 +175,14 @@ class LoaderUtils
                     return prefix;
                 }
             });
-        }
-        catch (IllegalStateException e)
+        } catch (IllegalStateException e)
         {
             throw new IOException(e.getMessage(), e);
         }
     }
 
     static File extractFromClasspath(File tmpDir, String pathInJar, String name, String[] sources)
-        throws Exception
+            throws Exception
     {
         return AccessController.doPrivileged(new PrivilegedAction<File>()
         {
@@ -202,8 +194,21 @@ class LoaderUtils
                 {
                     return null;
                 }
-                
-                File savedFile = new File(tmpDir, name);
+
+                File savedFile = makeFile(tmpDir, name);
+
+                try
+                {
+                    savedFile = savedFile.getCanonicalFile();
+                    if (!savedFile.getAbsolutePath().startsWith(tmpDir.getAbsolutePath()))
+                    {
+
+                    }
+                } catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+
 
                 if (savedFile.exists())
                 {
@@ -215,6 +220,7 @@ class LoaderUtils
                     //
                     // Compare content
                     //
+
                     try (FileInputStream fin = new FileInputStream(savedFile))
                     {
                         if (isContentSame(fin, in))
@@ -224,14 +230,21 @@ class LoaderUtils
                         }
 
                         throw new IllegalStateException("existing file name '" + savedFile.getAbsolutePath() + "' does not match expected file content");
-                    }
-                    catch (RuntimeException e)
+                    } catch (RuntimeException e)
                     {
                         throw e;
-                    }
-                    catch (Exception ex)
+                    } catch (Exception ex)
                     {
                         throw new IllegalStateException("unable to read exising extracted library" + savedFile.getAbsolutePath(), ex);
+                    } finally
+                    {
+                        try
+                        {
+                            in.close();
+                        } catch (IOException ignored)
+                        {
+
+                        }
                     }
                 }
 
@@ -245,10 +258,18 @@ class LoaderUtils
                         fos.write(buf, 0, len);
                     }
                     fos.flush();
-                }
-                catch (IOException e)
+                } catch (IOException e)
                 {
                     throw new RuntimeException(e);
+                } finally
+                {
+                    try
+                    {
+                        in.close();
+                    } catch (Exception ignored)
+                    {
+
+                    }
                 }
 
                 return savedFile;
@@ -257,7 +278,7 @@ class LoaderUtils
     }
 
     static List<String> readStreamToLines(InputStream inputStream)
-        throws IOException
+            throws IOException
     {
 
         if (inputStream == null)
@@ -282,7 +303,7 @@ class LoaderUtils
         return lines;
     }
 
-    private static boolean isContentSame(InputStream left, InputStream right)
+    static boolean isContentSame(InputStream left, InputStream right)
     {
         BufferedInputStream binLeft = null;
         BufferedInputStream binRight = null;
@@ -302,27 +323,23 @@ class LoaderUtils
                     return false;
                 }
             }
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             throw new RuntimeException(ex.getMessage(), ex);
-        }
-        finally
+        } finally
         {
-            // Force  close, ignore any exceptions
+            // Force close, ignore any exceptions
 
             try
             {
                 binLeft.close();
-            }
-            catch (Exception ignored)
+            } catch (Exception ignored)
             {
             }
             try
             {
                 binRight.close();
-            }
-            catch (Exception ignored)
+            } catch (Exception ignored)
             {
             }
         }
@@ -345,4 +362,63 @@ class LoaderUtils
             }
         });
     }
+
+    /**
+     * Recursively delete file or directory, if it is a directory, it will recurse into that directory
+     * endeavoring to delete all it can until ultimately trying to delete the passed in directory.
+     * <p>
+     * If it is a file, it will delete that.
+     *
+     * @param src the target to delete
+     */
+    private static void delete(File src)
+    {
+        L.fine("Cleaning up: " + src.getAbsolutePath());
+
+        if (src.isDirectory())
+        {
+            File[] files = src.listFiles();
+            if (files != null)
+            {
+                for (File file : files)
+                {
+                    delete(file);
+                }
+            }
+        }
+        if (!src.delete())
+        {
+            L.fine("Failed to delete " + src);
+        }
+    }
+
+    static File makeFile(String prefix, String name)
+    {
+        return makeFile(new File(prefix), name);
+    }
+
+    static File makeFile(File prefix, String name)
+    {
+
+        try
+        {
+            prefix = prefix.getCanonicalFile();
+            File candidate = new File(prefix, name).getCanonicalFile();
+
+            if (!candidate.getCanonicalPath().startsWith(prefix.getCanonicalPath()))
+            {
+                throw new IllegalStateException("extracted file name '" + candidate.getCanonicalPath() + "' is outside of prefix '" + prefix.getAbsolutePath() + "'");
+            }
+
+            return candidate;
+        } catch (IllegalStateException ise)
+        {
+            throw ise;
+        } catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+    }
+
 }

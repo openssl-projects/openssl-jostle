@@ -71,6 +71,11 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_get
     UNUSED(cl);
 
     BIO *bio = BIO_new(BIO_s_mem());
+
+    if (bio == NULL) {
+        return (*env)->NewStringUTF(env,"bio was null");
+    }
+
     ERR_print_errors(bio);
     char *buf = NULL;
     size_t len = BIO_get_mem_data(bio, &buf);

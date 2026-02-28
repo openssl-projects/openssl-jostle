@@ -6,6 +6,7 @@
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
 #include "ctr_u128_t.h"
+
 #include <assert.h>
 #include <memory.h>
 #include <stdio.h>
@@ -21,7 +22,9 @@ ctr_u128_t *ctr_u128_new(void) {
 
 void counter_init(ctr_u128_t *ctr, uint8_t *iv, size_t iv_len) {
     assert(ctr != NULL);
-    assert(iv_len <= COUNTER_SIZE);
+    if (iv_len > COUNTER_SIZE) {
+        iv_len = COUNTER_SIZE;
+    }
 
     ctr->mag[0] = 0U;
     ctr->mag[1] = 0U;

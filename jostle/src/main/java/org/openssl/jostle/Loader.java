@@ -36,7 +36,7 @@ public class Loader
 
     // NB:
     // Before requesting we use some other logging framework, please consider that
-    // a provider is foundational code, and should not force dependencies on its users.
+    // a provider is foundational code and should not force dependencies on its users.
     //
     private static final Logger L = Logger.getLogger("BC_OPENSSL_LOADER");
 
@@ -263,7 +263,7 @@ public class Loader
                     extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.FFI));
                 } else
                 {
-                    throw new IOException(String.format("deps file  entry '%s' is invalid", depfEntry));
+                    throw new IOException(String.format("deps file entry '%s' is invalid", depfEntry));
                 }
             }
 
@@ -276,7 +276,7 @@ public class Loader
             L.warning("No resolutions file found on classpath");
         }
 
-        if (!extractions.isEmpty() && (extractOpenSSL || interfaceResolutionStrategy != null))
+        if (!extractions.isEmpty() && (extractOpenSSL || !"auto".equals(interfaceResolutionStrategy)))
         {
             final File installRootDir;
             if (fixedInstallDir)
@@ -294,7 +294,7 @@ public class Loader
 
             try
             {
-                fos = new FileOutputStream(new File(installRootDir, "jostle.lock"));
+                fos = new FileOutputStream(LoaderUtils.makeFile(installRootDir, "jostle.lock"));
                 lock = fos.getChannel().lock();
 
                 //
@@ -406,34 +406,6 @@ public class Loader
         }
     }
 
-    /**
-     * Recursively delete file / directory, if it is a directory it will recurse into that directory
-     * endeavouring to delete all it can until ultimately trying to delete the passed in directory.
-     * <p>
-     * If it is a file it will delete that.
-     *
-     * @param src the target to delete
-     */
-    private static void delete(File src)
-    {
-        L.fine("Cleaning up: " + src.getAbsolutePath());
-        if (src.isDirectory())
-        {
-            File[] files = src.listFiles();
-            if (files != null)
-            {
-                for (File file : files)
-                {
-                    delete(file);
-                }
-            }
-        }
-        if (!src.delete())
-        {
-            L.fine("Failed to delete " + src);
-        }
-    }
-
     public static boolean isLoadAttempted()
     {
         return loadAttempted;
@@ -506,9 +478,9 @@ public class Loader
         final Type type;
 
 
-        public Extractions(String pathInJar, Type type)
+        public Extractions(String name, Type type)
         {
-            this.name = pathInJar;
+            this.name = name;
             this.type = type;
         }
     }

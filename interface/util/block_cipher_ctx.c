@@ -727,7 +727,7 @@ int32_t block_cipher_ctx_updateAAD(
             return JO_OPENSSL_ERROR;
         }
     } else if (ctx->op_mode == DECRYPT_MODE) {
-        if (1 != EVP_DecryptUpdate(ctx->evp, NULL, &written, input, (int)in_len)) {
+        if (1 != EVP_DecryptUpdate(ctx->evp, NULL, &written, input, (int) in_len)) {
             return JO_OPENSSL_ERROR;
         }
     } else {
@@ -1078,7 +1078,10 @@ exit:
 
 
 int32_t block_cipher_ctx_get_block_size(block_cipher_ctx *ctx) {
-    assert(ctx->cipher_block_size <= INT_MAX); // TODO error code instead
+    if (ctx->cipher_block_size > INT_MAX) {
+        return JO_VALUE_EXCEEDS_INT_MAX;
+    }
+
     return (int32_t) ctx->cipher_block_size;
 }
 
