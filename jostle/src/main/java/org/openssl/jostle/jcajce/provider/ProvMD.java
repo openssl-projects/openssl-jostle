@@ -14,10 +14,10 @@ public class ProvMD
 
     public void configure(final JostleProvider provider)
     {
-        configureMLDSA(provider);
+        configureMD(provider);
     }
 
-    private void configureMLDSA(final JostleProvider provider)
+    private void configureMD(final JostleProvider provider)
     {
 
         Map<String, String> aliasKeyMap = new HashMap<>();
