@@ -83,6 +83,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/slhdsa_ni_jni.c
             jni/mlkem_ni_jni.c
             jni/asn1_ni_jni.c
+            util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
             util/slhdsa.h
@@ -145,6 +146,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/mlkem_ni_ffi.c
             ffi/slh_dsa_ni_ffi.c
             ffi/asn1_ni_ffi.c
+            util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
             util/slhdsa.h
@@ -285,6 +287,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/slh_dsa_ni_ffi.c
             ffi/mlkem_ni_ffi.c
             ffi/asn1_ni_ffi.c
+            util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
             util/slhdsa.h
@@ -351,6 +354,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/slhdsa_ni_jni.c
             jni/mlkem_ni_jni.c
             jni/asn1_ni_jni.c
+            util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
             util/slhdsa.h
@@ -406,6 +410,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/slh_dsa_ni_ffi.c
             ffi/asn1_ni_ffi.c
             ffi/md_ffi.c
+            util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
             util/slhdsa.h
@@ -432,6 +437,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/md.h
             util/mac.h
             util/mac.c
+
     )
 
     set_target_properties(interface_ffi PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)

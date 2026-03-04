@@ -6,13 +6,14 @@
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
 #include "block_cipher_ctx.h"
-#include <assert.h>
+
 #include "bc_err_codes.h"
 #include <limits.h>
 #include <string.h>
 
 #include "ctr_u128_t.h"
 #include "ops.h"
+#include "jo_assert.h"
 
 
 #define Iv_len_test(a) if (iv_len != a) return JO_INVALID_IV_LEN;
@@ -583,7 +584,7 @@ int32_t block_cipher_ctx_init(
 
     /* We should have exited early by this point */
 
-    assert(evp_cipher != NULL);
+    jo_assert(evp_cipher != NULL);
 
 
     /*  Keep copies of the last key and iv for complete reset after do final */
@@ -667,7 +668,7 @@ int32_t block_cipher_ctx_updateAAD(
     block_cipher_ctx *ctx,
     uint8_t *input,
     size_t in_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     if (in_len == 0) {
         return 0;
@@ -744,7 +745,7 @@ int32_t block_cipher_ctx_update(
     size_t in_len,
     uint8_t *output,
     size_t out_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     if (in_len == 0) {
         return 0;
@@ -1087,14 +1088,14 @@ int32_t block_cipher_ctx_get_block_size(block_cipher_ctx *ctx) {
 
 
 int32_t block_cipher_get_final_size(block_cipher_ctx *ctx, size_t len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     len = final_size(ctx, len);
     return (int32_t) len;
 }
 
 int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     if (ctx->streaming) {
         return len;
     }

@@ -9,7 +9,7 @@
 #include "kdf.h"
 #include "openssl/kdf.h"
 
-#include <assert.h>
+
 #include <openssl/core_names.h>
 #include <openssl/err.h>
 #include <openssl/params.h>

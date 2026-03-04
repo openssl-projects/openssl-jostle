@@ -7,7 +7,7 @@
 
 #include "mldsa.h"
 
-#include <assert.h>
+
 #include <string.h>
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
@@ -16,6 +16,7 @@
 #include "bc_err_codes.h"
 #include "key_spec.h"
 #include "ops.h"
+#include "jo_assert.h"
 
 
 /**
@@ -172,7 +173,7 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
  * @return 1 = success, 0 = failed
  */
 int derive_mu(const mldsa_ctx *ctx, const uint8_t *mu, int32_t *ret_code) {
-    assert(mu != NULL);
+    jo_assert(mu != NULL);
 
     /* Assumption: passed in pointer *mu references an allocation that is Mu_BYTES long */
 
@@ -221,7 +222,7 @@ int derive_mu(const mldsa_ctx *ctx, const uint8_t *mu, int32_t *ret_code) {
 
 
 int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, size_t seed_len) {
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
 
 
     int32_t ret_code = JO_FAIL;
@@ -445,7 +446,7 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     size_t min_len = 0;
     const char *type;
 
-    assert(key_spec != NULL);
+    jo_assert(key_spec != NULL);
 
     /*
         * KeyFactory has not been initialized to expect a certain key type
@@ -521,7 +522,7 @@ int32_t mldsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
     size_t min_len = 0;
     const char *type = NULL;
 
-    assert(key_spec != NULL);
+    jo_assert(key_spec != NULL);
 
 
     /*
@@ -595,7 +596,7 @@ exit:
 
 mldsa_ctx *mldsa_ctx_create(void) {
     mldsa_ctx *ctx = (mldsa_ctx *) OPENSSL_zalloc(sizeof(mldsa_ctx));
-    assert(ctx);
+    jo_assert(ctx);
     return ctx;
 }
 
@@ -627,8 +628,8 @@ void mldsa_ctx_destroy(mldsa_ctx *ctx) {
 
 int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
                             int32_t mu_mode) {
-    assert(ctx != NULL);
-    assert(key_spec != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -769,8 +770,8 @@ int32_t mldsa_ctx_init_verify(
     int32_t sign_ctx_len,
     int32_t mu_mode
 ) {
-    assert(ctx != NULL);
-    assert(key_spec != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -917,7 +918,7 @@ exit:
 
 
 int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
@@ -1001,7 +1002,7 @@ exit:
 }
 
 int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
@@ -1050,7 +1051,7 @@ exit:
 }
 
 int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {

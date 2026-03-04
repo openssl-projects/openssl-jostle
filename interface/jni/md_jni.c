@@ -6,13 +6,14 @@
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
 
-#include <assert.h>
+
 #include <openssl/evp.h>
 
 #include "byte_array_critical.h"
 #include "org_openssl_jostle_jcajce_provider_md_MDServiceJNI.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
 #include "../util/md.h"
 #include "../util/ops.h"
 
@@ -33,9 +34,9 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     //
     // err needs to be defined and accessible
     //
-    assert(_err != NULL);
+    jo_assert(_err != NULL);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
-    assert(err != NULL);
+    jo_assert(err != NULL);
 
     if (_digest == NULL) {
         err[0] = JO_NAME_IS_NULL;
@@ -73,7 +74,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     int32_t ret_code = JO_FAIL;
 
     md_ctx *ctx = (md_ctx *) ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     ret_code = md_ctx_update(ctx, (uint8_t *) &data, 1);
 
@@ -90,7 +91,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -156,7 +157,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     if (ctx->digest_byte_length == 0) {
         return JO_NOT_INITIALIZED;
@@ -180,7 +181,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     if (_output == NULL) {
         /* Caller wants length */
@@ -241,7 +242,7 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     md_ctx_reset(ctx);
 }

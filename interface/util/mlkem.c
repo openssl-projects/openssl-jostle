@@ -7,7 +7,7 @@
 
 #include "mlkem.h"
 
-#include <assert.h>
+
 #include <string.h>
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
@@ -16,10 +16,11 @@
 #include "bc_err_codes.h"
 #include "key_spec.h"
 #include "ops.h"
+#include "jo_assert.h"
 
 
 int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, size_t seed_len) {
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
     // spec->type = type;
 
     int32_t ret_code = JO_FAIL;
@@ -212,7 +213,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *s
     int32_t ret_code = JO_FAIL;
     const char *type;
 
-    assert(key_spec != NULL);
+    jo_assert(key_spec != NULL);
 
     size_t min_len;
 
@@ -266,7 +267,7 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *sr
     int32_t ret_code = JO_FAIL;
     const char *type;
 
-    assert(key_spec != NULL);
+    jo_assert(key_spec != NULL);
 
     size_t min_len;
     switch (typeId) {

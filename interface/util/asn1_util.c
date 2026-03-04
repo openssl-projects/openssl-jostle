@@ -7,7 +7,7 @@
 
 #include "asn1_util.h"
 
-#include <assert.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/bio.h>
@@ -17,12 +17,13 @@
 #include "bc_err_codes.h"
 #include "key_spec.h"
 #include "ops.h"
+#include "jo_assert.h"
 
 asn1_ctx *asn1_writer_allocate(void) {
     asn1_ctx *ctx = OPENSSL_zalloc(sizeof(asn1_ctx));
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     ctx->buffer = BIO_new(BIO_s_mem());
-    assert(ctx->buffer != NULL);
+    jo_assert(ctx->buffer != NULL);
     return ctx;
 }
 
@@ -43,8 +44,8 @@ void asn1_writer_free(asn1_ctx *ctx) {
  * @return 1 = success, 0 = failure
  */
 int32_t asn1_writer_get_content(asn1_ctx *ctx, uint8_t *output, size_t *written, const size_t output_len) {
-    assert(ctx != NULL);
-    assert(ctx->buffer != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(ctx->buffer != NULL);
     uint8_t *buffer = NULL;
 
     *written = BIO_get_mem_data(ctx->buffer, &buffer);
@@ -62,9 +63,9 @@ int32_t asn1_writer_get_content(asn1_ctx *ctx, uint8_t *output, size_t *written,
 
 
 int32_t asn1_writer_encode_public_key(asn1_ctx *ctx, key_spec *key_spec, size_t *buf_len) {
-    assert(ctx != NULL);
-    assert(key_spec != NULL);
-    assert(key_spec->key != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
+    jo_assert(key_spec->key != NULL);
 
 
     if (1 != i2d_PUBKEY_bio(ctx->buffer, key_spec->key)) {
@@ -202,9 +203,9 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
 
 
 int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t *buf_len, int encoding_option) {
-    assert(ctx != NULL);
-    assert(key_spec != NULL);
-    assert(key_spec->key != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
+    jo_assert(key_spec->key != NULL);
 
 
     switch (encoding_option) {
@@ -264,7 +265,7 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
 
 
     key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
-    assert(key != NULL);
+    jo_assert(key != NULL);
 
     key->key = new_key;
 
@@ -310,7 +311,7 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
     }
 
     key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
-    assert(key != NULL);
+    jo_assert(key != NULL);
 
     // key->type = spec_type;
     key->key = new_key;

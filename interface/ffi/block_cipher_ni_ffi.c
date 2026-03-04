@@ -5,11 +5,12 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <stdbool.h>
 #include <openssl/evp.h>
 #include "types.h"
 #include "../util/block_cipher_ctx.h"
+#include "../util/jo_assert.h"
 
 /*
  * Check that nominates offset and len are within the "size" of the array we re accessing.
@@ -49,7 +50,7 @@ int32_t BlockCipherNI_init(
     size_t iv_size,
     int32_t tag_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    assert(ctx);
+    jo_assert(ctx);
 
     int32_t return_code = JO_FAIL;
 
@@ -84,7 +85,7 @@ exit:
  */
 int32_t BlockCipherNI_getBlockSize(uint64_t ref) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    assert(ctx);
+    jo_assert(ctx);
     return block_cipher_ctx_get_block_size(ctx);
 }
 
@@ -106,7 +107,7 @@ int32_t BlockCipherNI_updateAAD
     int32_t in_off,
     int32_t in_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    assert(ctx);
+    jo_assert(ctx);
     int32_t return_code = JO_FAIL;
 
     if (input == NULL) {
@@ -167,7 +168,7 @@ int32_t BlockCipherNI_update
     int32_t in_off,
     int32_t in_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    assert(ctx);
+    jo_assert(ctx);
     int32_t return_code = JO_FAIL;
 
     if (input == NULL) {
@@ -232,7 +233,7 @@ exit:
  * @return number of bytes written to output array
  */
 int32_t BlockCipherNI_doFinal(block_cipher_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off) {
-    assert(ctx);
+    jo_assert(ctx);
 
     int32_t return_code = JO_FAIL;
 
@@ -263,7 +264,7 @@ exit:
 }
 
 int32_t BlockCipherNI_getUpdateSize(block_cipher_ctx *ctx, int32_t len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int32_t return_code = JO_FAIL;
 
     if (len < 0) {
@@ -279,7 +280,7 @@ exit:
 
 
 int32_t BlockCipherNI_getFinalSize(block_cipher_ctx *ctx, int32_t len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int32_t return_code = JO_FAIL;
 
     if (len < 0) {

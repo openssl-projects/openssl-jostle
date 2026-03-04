@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <openssl/asn1.h>
 
 #include "bytearrays.h"

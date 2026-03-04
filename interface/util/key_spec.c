@@ -7,14 +7,16 @@
 
 #include "key_spec.h"
 
-#include <assert.h>
+
 #include <stdlib.h>
 #include <openssl/evp.h>
+
+#include "jo_assert.h"
 
 
 key_spec *create_spec(void) {
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
     return spec;
 }
 
@@ -22,7 +24,7 @@ key_spec *create_spec(void) {
  * free the underlying PKEY, this may be done at the exit of a try catch block for a key
  */
 void free_spec(key_spec *spec) {
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
     EVP_PKEY_free(spec->key);
     spec->key = NULL;
 }

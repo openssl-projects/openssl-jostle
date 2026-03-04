@@ -8,7 +8,7 @@
 
 #include "md.h"
 
-#include <assert.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/core_names.h>
@@ -18,6 +18,7 @@
 
 #include "bc_err_codes.h"
 #include "ops.h"
+#include "jo_assert.h"
 
 md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     const EVP_MD *md = EVP_get_digestbyname(name);
@@ -53,7 +54,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
 
 
     md_ctx *ctx = calloc(1, sizeof(md_ctx));
-    assert(ctx);
+    jo_assert(ctx);
     ctx->md_type = md;
     ctx->mdctx = mdctx;
 
@@ -83,8 +84,8 @@ void md_ctx_destroy(md_ctx *ctx) {
 }
 
 int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
-    assert(ctx != NULL);
-    assert(ctx->mdctx != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(ctx->mdctx != NULL);
     if (OPS_OPENSSL_ERROR_1 !EVP_DigestUpdate(ctx->mdctx, data, len)) {
         return JO_OPENSSL_ERROR;
     }
@@ -92,8 +93,8 @@ int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
 }
 
 int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
-    assert(ctx != NULL);
-    assert(ctx->mdctx != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(ctx->mdctx != NULL);
 
     uint32_t ret_len = 0;
 
@@ -116,8 +117,8 @@ int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
 }
 
 int32_t md_ctx_reset(md_ctx *ctx) {
-    assert(ctx != NULL);
-    assert(ctx->mdctx != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(ctx->mdctx != NULL);
 
     OSSL_PARAM params[] = {OSSL_PARAM_END,OSSL_PARAM_END};
 

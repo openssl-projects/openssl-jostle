@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <openssl/crypto.h>
@@ -13,6 +13,7 @@
 #include "../util/key_spec.h"
 #include "../util/mlkem.h"
 #include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
 #include "types.h"
 
 key_spec *MLKEM_generateKeyPair(int32_t type, int32_t *ret_val) {
@@ -20,7 +21,7 @@ key_spec *MLKEM_generateKeyPair(int32_t type, int32_t *ret_val) {
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
 
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
 
     *ret_val = mlkem_generate_key_pair(spec, type, NULL, 0);
 
@@ -38,7 +39,7 @@ key_spec *MLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
     *ret_val = JO_FAIL;
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
 
 
     if (seed == NULL) {

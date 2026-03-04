@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <openssl/asn1.h>
 
 #include "bytearrays.h"
@@ -16,6 +16,7 @@
 #include "../util/key_spec.h"
 #include "../util/mldsa.h"
 #include "../util/ops.h"
+#include "../util/jo_assert.h"
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI
@@ -374,7 +375,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(jo);
 
     mldsa_ctx *mldsa = (mldsa_ctx *) mldsa_ref;
-    assert(mldsa);
+    jo_assert(mldsa);
 
     int32_t ret_code = JO_FAIL;
 
@@ -425,7 +426,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(jo);
 
     mldsa_ctx *mldsa = (mldsa_ctx *) mldsa_ref;
-    assert(mldsa);
+    jo_assert(mldsa);
 
     int32_t ret_code = JO_FAIL;
 
@@ -468,7 +469,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
 
     UNUSED(jo);
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
-    assert(mldsa);
+    jo_assert(mldsa);
 
     int32_t ret_code = JO_FAIL;
 
@@ -521,7 +522,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(env);
     UNUSED(jo);
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
-    assert(mldsa);
+    jo_assert(mldsa);
 
     if (_output == NULL) {
         /* Caller wants length */

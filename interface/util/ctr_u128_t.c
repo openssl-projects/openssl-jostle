@@ -7,21 +7,22 @@
 
 #include "ctr_u128_t.h"
 
-#include <assert.h>
+
 #include <memory.h>
 #include <stdio.h>
 #include <openssl/crypto.h>
 
+#include "jo_assert.h"
 
 
 ctr_u128_t *ctr_u128_new(void) {
     ctr_u128_t *ctr = (ctr_u128_t *) OPENSSL_zalloc(sizeof(ctr_u128_t));
-    assert(ctr != NULL);
+    jo_assert(ctr != NULL);
     return ctr;
 }
 
 void counter_init(ctr_u128_t *ctr, uint8_t *iv, size_t iv_len) {
-    assert(ctr != NULL);
+    jo_assert(ctr != NULL);
     if (iv_len > COUNTER_SIZE) {
         iv_len = COUNTER_SIZE;
     }
@@ -38,7 +39,7 @@ void counter_init(ctr_u128_t *ctr, uint8_t *iv, size_t iv_len) {
 }
 
 void counter_add(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
-    assert(ctr);
+    jo_assert(ctr);
 
     uint64_t *mag = ctr->mag;
     const uint64_t h = ctr->mag[HIGH];
@@ -61,7 +62,7 @@ void counter_add(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
 }
 
 void counter_sub(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
-    assert(ctr);
+    jo_assert(ctr);
 
     const uint64_t h = ctr->mag[HIGH];
     const uint64_t l = ctr->mag[LOW];
@@ -114,14 +115,14 @@ uint32_t counter_valid(ctr_u128_t *ctr) {
 
 
 void counter_seek(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
-    assert(ctr);
+    jo_assert(ctr);
     ctr->mag[HIGH] = high;
     ctr->mag[LOW] = low;
     ctr->rolled = 0;
 }
 
 void counter_reset(ctr_u128_t *ctr) {
-    assert(ctr);
+    jo_assert(ctr);
     ctr->rolled = 0;
     ctr->mag[HIGH] = 0U;
     ctr->mag[LOW] = 0U;

@@ -7,13 +7,14 @@
 
 #include "openssl_ffi.h"
 
-#include <assert.h>
+
 #include <stddef.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/provider.h>
 #include <openssl/types.h>
 #include <string.h>
+#include "../util/jo_assert.h"
 
 
 /*
@@ -52,7 +53,7 @@ char *get_ossl_errors(uint64_t *len) {
     size_t size = BIO_get_mem_data(bio, &buf);
     *len = size + 1; // Overallocating by 1 to add trailing zero
     char *ret = calloc(*len, 1);
-    assert(ret != NULL);
+    jo_assert(ret != NULL);
     memcpy(ret, buf, size);
     BIO_free(bio);
     return ret; /* Now, Owned by Java side. */

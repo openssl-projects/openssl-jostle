@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <stdlib.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
@@ -14,6 +14,7 @@
 #include "org_openssl_jostle_util_asn1_Asn1NiJNI.h"
 #include "types.h"
 #include "../util/asn1_util.h"
+#include "../util/jo_assert.h"
 #include "../util/ops.h"
 
 /*
@@ -43,7 +44,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_allocate
     UNUSED(env);
     UNUSED(jo);
     asn1_ctx *ctx = asn1_writer_allocate();
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     return (jlong) ctx;
 }
 
@@ -58,7 +59,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePublicK
     UNUSED(jo);
 
     asn1_ctx *ctx = (asn1_ctx *) asn1_ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     key_spec *key = (key_spec *) key_ref;
 
@@ -94,7 +95,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePrivate
     UNUSED(jo);
 
     asn1_ctx *ctx = (asn1_ctx *) asn1_ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     key_spec *key = (key_spec *) key_ref;
     size_t ret_code = 0;
@@ -159,7 +160,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_getData
     UNUSED(jo);
 
     asn1_ctx *ctx = (asn1_ctx *) ref;
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
     java_bytearray_ctx output;

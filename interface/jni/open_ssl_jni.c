@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <jni.h>
 #include <openssl/bio.h>
 
@@ -16,6 +16,7 @@
 
 #include "types.h"
 #include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
 
 
 /*
@@ -80,7 +81,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_get
     char *buf = NULL;
     size_t len = BIO_get_mem_data(bio, &buf);
     char *ret = (char *) calloc(1, 1 + len); // Overallocating by 1 to add trailing zero
-    assert(ret != NULL);
+    jo_assert(ret != NULL);
     memcpy(ret, buf, len);
     BIO_free(bio);
 

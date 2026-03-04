@@ -7,7 +7,7 @@
 
 #include "slhdsa.h"
 
-#include <assert.h>
+
 #include <string.h>
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
@@ -16,6 +16,7 @@
 #include "bc_err_codes.h"
 #include "key_spec.h"
 #include "ops.h"
+#include "jo_assert.h"
 
 inline int32_t get_n(const int key_type) {
     switch (key_type) {
@@ -44,7 +45,7 @@ inline int32_t get_n(const int key_type) {
 
 
 int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, size_t seed_len) {
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
 
 
     int32_t ret_code = JO_FAIL;
@@ -280,7 +281,7 @@ int32_t slh_dsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *
     int32_t ret_code = JO_FAIL;
     const char *type;
 
-    assert(key_spec != NULL);
+    jo_assert(key_spec != NULL);
 
     const int slh_n = get_n(typeId);
     if (slh_n <= 0) {
@@ -365,7 +366,7 @@ int32_t slh_dsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *s
     int32_t ret_code = JO_FAIL;
     const char *type;
 
-    assert(key_spec != NULL);
+    jo_assert(key_spec != NULL);
 
     const int slh_n = get_n(typeId);
     if (slh_n <= 0) {
@@ -447,7 +448,7 @@ exit:
 
 slh_dsa_ctx *slh_dsa_ctx_create(void) {
     slh_dsa_ctx *ctx = (slh_dsa_ctx *) OPENSSL_zalloc(sizeof(slh_dsa_ctx));
-    assert(ctx);
+    jo_assert(ctx);
     return ctx;
 }
 
@@ -475,8 +476,8 @@ void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx) {
 
 int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
                               int32_t msg_encoding, int32_t deterministic) {
-    assert(ctx != NULL);
-    assert(key_spec != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -637,8 +638,8 @@ int32_t slh_dsa_ctx_init_verify(
     int32_t msg_encoding,
     int32_t deterministic
 ) {
-    assert(ctx != NULL);
-    assert(key_spec != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -793,7 +794,7 @@ exit:
 
 
 int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
     if (ctx->msg_buf == NULL) {
@@ -856,7 +857,7 @@ exit:
 }
 
 int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
     if (ctx->msg_buf == NULL) {
@@ -899,7 +900,7 @@ exit:
 
 
 int32_t slh_dsa_update(const slh_dsa_ctx *ctx, const uint8_t *in, const size_t in_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
     if (ctx->msg_buf == NULL) {

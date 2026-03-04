@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <string.h>
 #include <openssl/evp.h>
 #include <openssl/types.h>
@@ -16,6 +16,7 @@
 #include "../util/encapdecap.h"
 #include "../util/key_spec.h"
 #include "../util/ops.h"
+#include "../util/jo_assert.h"
 
 /*
  * Class:     org_openssl_jostle_jcajce_spec_SpecJNI
@@ -42,7 +43,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_allocate(JNI
     UNUSED(env);
     UNUSED(jo);
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
     return (jlong) spec;
 }
 

@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <string.h>
 #include <openssl/evp.h>
 
@@ -13,6 +13,7 @@
 #include "../util/key_spec.h"
 #include "../util/bc_err_codes.h"
 #include "../util/encapdecap.h"
+#include "../util/jo_assert.h"
 
 /*
   Clean up and free a PKEY
@@ -25,7 +26,7 @@ void SpecNI_disposeKeySpec(key_spec *ctx) {
 
 key_spec *SpecNI_allocateKeySpec(void) {
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
     return spec;
 }
 

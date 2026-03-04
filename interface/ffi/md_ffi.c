@@ -1,4 +1,4 @@
-#include <assert.h>
+
 
 #include "../util/md.h"
 #include <stdlib.h>
@@ -7,9 +7,10 @@
 #include "types.h"
 #include "../util/bc_err_codes.h"
 #include "../util/ops.h"
+#include "../util/jo_assert.h"
 
 md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
-    assert(err != NULL);
+    jo_assert(err != NULL);
     if (digest_name == NULL) {
         *err = JO_NAME_IS_NULL;
         return NULL;
@@ -25,12 +26,12 @@ void MD_Dispose(md_ctx *ctx) {
 }
 
 int32_t MB_UpdateByte(md_ctx *ctx, uint8_t data) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     return md_ctx_update(ctx, (uint8_t *) &data, 1);
 }
 
 int32_t MB_UpdateBytes(md_ctx *ctx, uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -62,7 +63,7 @@ exit:
 }
 
 int32_t MD_GetDigestLen(md_ctx *ctx) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     if (ctx->digest_byte_length <= 0) {
         return JO_NOT_INITIALIZED;
     }
@@ -75,7 +76,7 @@ int32_t MD_GetDigestLen(md_ctx *ctx) {
 }
 
 int32_t MB_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off, int32_t out_len) {
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     if (output == NULL) {
         return ctx->digest_byte_length;
@@ -114,7 +115,7 @@ int32_t MB_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_
 
 void MD_Reset(md_ctx *ctx) {
 
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     md_ctx_reset(ctx);
 }

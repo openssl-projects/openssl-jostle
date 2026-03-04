@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <openssl/crypto.h>
@@ -13,6 +13,7 @@
 #include "../util/key_spec.h"
 #include "../util/slhdsa.h"
 #include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
 #include "types.h"
 
 
@@ -21,7 +22,7 @@ key_spec *SLH_DSA_generateKeyPair(int32_t type, int32_t *ret_val) {
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
 
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
 
     *ret_val = slh_dsa_generate_key_pair(spec, type, NULL, 0);
 
@@ -39,7 +40,7 @@ key_spec *SLH_DSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *s
     *ret_val = JO_FAIL;
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    assert(spec != NULL);
+    jo_assert(spec != NULL);
 
 
     if (seed == NULL) {
@@ -253,7 +254,7 @@ int32_t SLH_DSA_initSign(slh_dsa_ctx *ctx,
                          int32_t message_encoding,
                          int32_t deterministic
 ) {
-    assert(ctx);
+    jo_assert(ctx);
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -277,7 +278,7 @@ exit:
 
 int32_t SLH_DSA_update(slh_dsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                        const int32_t in_len) {
-    assert(ctx);
+    jo_assert(ctx);
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -309,7 +310,7 @@ exit:
 
 
 int32_t SLH_DSA_sign(slh_dsa_ctx *ctx, const uint8_t *output, const size_t output_size, const int32_t out_off) {
-    assert(ctx);
+    jo_assert(ctx);
     int32_t ret_val = JO_FAIL;
     size_t out_len = 0;
 
@@ -339,7 +340,7 @@ int32_t SLH_DSA_verify(
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    assert(ctx);
+    jo_assert(ctx);
     int32_t ret_val = JO_FAIL;
 
 

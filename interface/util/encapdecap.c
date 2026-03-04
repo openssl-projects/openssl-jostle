@@ -7,7 +7,7 @@
 
 #include "encapdecap.h"
 
-#include <assert.h>
+
 #include <openssl/evp.h>
 
 #include "bc_err_codes.h"

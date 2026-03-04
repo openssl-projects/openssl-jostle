@@ -1,12 +1,13 @@
 #include "mac.h"
 
-#include <assert.h>
+
 #include <stddef.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 
 #include "bc_err_codes.h"
+#include "jo_assert.h"
 
 mac_ctx *mac_ctx_alloc(const char *type, int32_t *err) {
     if (type == NULL) {
@@ -28,7 +29,7 @@ mac_ctx *mac_ctx_alloc(const char *type, int32_t *err) {
 
 
     mac_ctx *ctx = calloc(1, sizeof(*ctx));
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
 
     ctx->type = mac;
     ctx->mac_ctx = mctx;
@@ -44,9 +45,13 @@ void mac_ctx_free(mac_ctx *ctx) {
 }
 
 int32_t mac_ctx_init(const mac_ctx *ctx, uint8_t *key, size_t key_len, const char *digest, const char *cipher) {
-    assert(ctx != NULL);
-    assert(key != NULL);
-    assert(digest != NULL || cipher != NULL);
+    jo_assert(ctx != NULL);
+
+
+    if (key == NULL) {
+        return JO_KEY_IS_NULL;
+    }
+
 
     OSSL_PARAM params[3] = {OSSL_PARAM_construct_end()};
     int index = 0;
@@ -65,8 +70,12 @@ int32_t mac_ctx_init(const mac_ctx *ctx, uint8_t *key, size_t key_len, const cha
 }
 
 int32_t mac_ctx_update(const mac_ctx *ctx, const uint8_t *data, size_t data_len) {
-    assert(ctx != NULL);
-    assert(data != NULL);
+    jo_assert(ctx != NULL);
+
+    if (data == NULL) {
+        return JO_INPUT_IS_NULL;
+    }
+
     if (!EVP_MAC_update(ctx->mac_ctx, data, data_len)) {
         return JO_OPENSSL_ERROR;
     }
@@ -74,8 +83,8 @@ int32_t mac_ctx_update(const mac_ctx *ctx, const uint8_t *data, size_t data_len)
 }
 
 int32_t mac_ctx_final(const mac_ctx *ctx, uint8_t *mac, size_t mac_len) {
-    assert(ctx != NULL);
-    assert(mac != NULL);
+    jo_assert(ctx != NULL);
+    jo_assert(mac != NULL);
     size_t out_len = 0;
     if (!EVP_MAC_final(ctx->mac_ctx,mac,&out_len,mac_len)) {
         return JO_OPENSSL_ERROR;
@@ -84,6 +93,6 @@ int32_t mac_ctx_final(const mac_ctx *ctx, uint8_t *mac, size_t mac_len) {
 }
 
 void mac_ctx_reset(mac_ctx *ctx) {
-    assert(ctx != NULL);
-
+    jo_assert(ctx != NULL);
+    // TODO not implemented yet
 }

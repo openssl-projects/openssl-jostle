@@ -5,7 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-#include <assert.h>
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,10 +13,11 @@
 #include "../util/bc_err_codes.h"
 #include "types.h"
 #include "../util/ops.h"
+#include "../util/jo_assert.h"
 
 asn1_ctx *ASN1_allocate(void) {
     asn1_ctx *ctx = asn1_writer_allocate();
-    assert(ctx != NULL);
+    jo_assert(ctx != NULL);
     return ctx;
 }
 
@@ -29,7 +30,7 @@ void ASN1_dispose(asn1_ctx *ctx) {
 }
 
 int32_t ASN1_encodePublicKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
-    assert(asn1_ctx != NULL);
+    jo_assert(asn1_ctx != NULL);
     if (key_spec == NULL) {
         return JO_KEY_IS_NULL;
     }
@@ -52,7 +53,7 @@ int32_t ASN1_encodePublicKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
 
 int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char *option_string,
                               size_t option_string_len) {
-    assert(asn1_ctx != NULL);
+    jo_assert(asn1_ctx != NULL);
 
 
     if (key_spec == NULL) {
@@ -89,7 +90,7 @@ int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char
 }
 
 int32_t ASN1_getData(asn1_ctx *asn1_ctx, uint8_t *output, size_t output_len) {
-    assert(asn1_ctx != NULL);
+    jo_assert(asn1_ctx != NULL);
     size_t buf_len = 0;
 
     const int32_t ret = asn1_writer_get_content(asn1_ctx, output, &buf_len, output_len);
