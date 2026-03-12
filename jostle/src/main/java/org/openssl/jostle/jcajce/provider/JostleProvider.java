@@ -277,8 +277,20 @@ public class JostleProvider
 
             bcServiceSet = new LinkedHashSet<Service>();
 
-            bcServiceSet.add(getService("SecureRandom", "DEFAULT"));
-            bcServiceSet.add(getService("SecureRandom", "NONCEANDIV"));
+            // Only add SecureRandom services if they are actually registered.
+            // Previous behavior unconditionally added the results of getService(...),
+            // which could be null and leak nulls into the returned Set, causing
+            // callers iterating over getServices() to hit NPEs.
+            Service srDefault = getService("SecureRandom", "DEFAULT");
+            if (srDefault != null)
+            {
+                bcServiceSet.add(srDefault);
+            }
+            Service srNonceAndIv = getService("SecureRandom", "NONCEANDIV");
+            if (srNonceAndIv != null)
+            {
+                bcServiceSet.add(srNonceAndIv);
+            }
 
             for (Service service : serviceSet)
             {
