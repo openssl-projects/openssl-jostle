@@ -20,3 +20,4 @@ Individuals
  * Dmitry Misharov <https://github.com/quarckster>
  * Ali Sayedsalehi <https://github.com/Ali-Sayedsalehi>
  * Shubham Kumar <https://github.com/chmodshubham>
+ * Gaurav Pruthi <https://github.com/pruthig>
