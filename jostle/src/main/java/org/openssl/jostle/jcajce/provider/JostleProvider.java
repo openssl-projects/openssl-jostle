@@ -84,6 +84,8 @@ public class JostleProvider
         new ProvMLKEM().configure(this);
         new ProvPBEKDF().configure(this);
         new ProvScryptKDF().configure(this);
+        new ProvDigest().configure(this);
+
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)
@@ -136,8 +138,14 @@ public class JostleProvider
             throw new IllegalStateException("duplicate provider key (" + key1 + ") found");
         }
 
+        // Apply provided attributes first. Some callers may already supply
+        // "ImplementedIn", so only add our default if it's absent to avoid
+        // duplicate provider attribute key errors during setup.
         addAttributes(type, name, attributes);
-        addAttribute(type, name, "ImplementedIn", "Software");
+        if (!attributes.containsKey("ImplementedIn"))
+        {
+            addAttribute(type, name, "ImplementedIn", "Software");
+        }
 
         put(key1, className);
         if (creatorMap.containsKey(className))
@@ -155,8 +163,13 @@ public class JostleProvider
             throw new IllegalStateException("duplicate provider key (" + key1 + ") found");
         }
 
+        // Apply provided attributes and only set a default ImplementedIn if
+        // the caller hasn't specified one already.
         addAttributes(type, name, attributes);
-        addAttribute(type, name, "ImplementedIn", "Software");
+        if (!attributes.containsKey("ImplementedIn"))
+        {
+            addAttribute(type, name, "ImplementedIn", "Software");
+        }
 
         put(key1, className);
         if (creatorMap.containsKey(className))

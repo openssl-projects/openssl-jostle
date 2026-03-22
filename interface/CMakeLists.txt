@@ -61,6 +61,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
+            jni/digest_ni_jni.c
+
             jni/spec_ni_jni.c
             jni/mldsa_ni_jni.c
             jni/slhdsa_ni_jni.c
@@ -117,6 +119,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND ${BC_ARCH} STREQUAL "arm64")
             ffi/native_info_ffi.c
             ffi/openssl_ffi.h
             ffi/openssl_ffi.c
+            ffi/digest_ni_ffi.c
+
             ffi/block_cipher_ni_ffi.c
             ffi/spec_ni_ffi.c
             ffi/mldsa_ni_ffi.c
@@ -190,6 +194,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
+            jni/digest_ni_jni.c
+
             jni/spec_ni_jni.c
             jni/mldsa_ni_jni.c
             jni/slhdsa_ni_jni.c
@@ -245,6 +251,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/native_info_ffi.c
             ffi/openssl_ffi.h
             ffi/openssl_ffi.c
+            ffi/digest_ni_ffi.c
+
             ffi/block_cipher_ni_ffi.c
             ffi/spec_ni_ffi.c
             ffi/mldsa_ni_ffi.c
