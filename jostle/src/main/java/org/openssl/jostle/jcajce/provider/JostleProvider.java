@@ -137,8 +137,14 @@ public class JostleProvider
             throw new IllegalStateException("duplicate provider key (" + key1 + ") found");
         }
 
+        // Apply provided attributes first. Some callers may already supply
+        // "ImplementedIn", so only add our default if it's absent to avoid
+        // duplicate provider attribute key errors during setup.
         addAttributes(type, name, attributes);
-        addAttribute(type, name, "ImplementedIn", "Software");
+        if (!attributes.containsKey("ImplementedIn"))
+        {
+            addAttribute(type, name, "ImplementedIn", "Software");
+        }
 
         put(key1, className);
         if (creatorMap.containsKey(className))
@@ -156,8 +162,13 @@ public class JostleProvider
             throw new IllegalStateException("duplicate provider key (" + key1 + ") found");
         }
 
+        // Apply provided attributes and only set a default ImplementedIn if
+        // the caller hasn't specified one already.
         addAttributes(type, name, attributes);
-        addAttribute(type, name, "ImplementedIn", "Software");
+        if (!attributes.containsKey("ImplementedIn"))
+        {
+            addAttribute(type, name, "ImplementedIn", "Software");
+        }
 
         put(key1, className);
         if (creatorMap.containsKey(className))
@@ -191,20 +202,6 @@ public class JostleProvider
             doPut("Alg.Alias." + type + "." + alias, name);
         }
     }
-
-    void addAlias(String type, String name, Collection<String> aliases)
-    {
-        if (!containsKey(type + "." + name))
-        {
-            throw new IllegalStateException("primary key (" + type + "." + name + ") not found");
-        }
-
-        for (String alias : aliases)
-        {
-            doPut("Alg.Alias." + type + "." + alias, name);
-        }
-    }
-
 
     void addAlias(String type, String name, ASN1ObjectIdentifier... oids)
     {
@@ -376,12 +373,10 @@ public class JostleProvider
                 }
 
                 return instance;
-            }
-            catch (NoSuchAlgorithmException e)
+            } catch (NoSuchAlgorithmException e)
             {
                 throw e;
-            }
-            catch (Exception e)
+            } catch (Exception e)
             {
                 throw new NoSuchAlgorithmException("Unable to invoke creator for " + getAlgorithm() + ": " + e.getMessage(), e);
             }
