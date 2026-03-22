@@ -19,6 +19,7 @@
 # else
 #include <printf.h>
 #include <stdlib.h>
+#include <stdio.h>
 static inline  void jo_assert_f(int expr, const char *exprstr,
                                               const char *file, int line)
 {
