@@ -1,9 +1,9 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.Loader;
-import org.openssl.jostle.NativeServiceFFI;
 import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherFFI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherJNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
@@ -18,6 +18,9 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceFFI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceFFI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceJNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecFFI;
 import org.openssl.jostle.jcajce.spec.SpecJNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;

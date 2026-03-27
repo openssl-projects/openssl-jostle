@@ -8,7 +8,9 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.slhdsa;
+
+import org.openssl.jostle.jcajce.provider.*;
 
 public interface SLHDSAServiceNI
 {

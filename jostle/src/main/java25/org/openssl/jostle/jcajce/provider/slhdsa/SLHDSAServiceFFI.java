@@ -1,11 +1,13 @@
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.slhdsa;
+
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-class SLHDSAServiceFFI implements SLHDSAServiceNI
+public class SLHDSAServiceFFI implements SLHDSAServiceNI
 {
 
     private static final Logger L = Logger.getLogger("SLH_DSA_NI_FFI");

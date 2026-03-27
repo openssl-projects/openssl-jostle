@@ -8,9 +8,9 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.slhdsa;
 
-class SLHDSAServiceJNI implements SLHDSAServiceNI
+public class SLHDSAServiceJNI implements SLHDSAServiceNI
 {
     @Override
     public native long generateKeyPair(int type);

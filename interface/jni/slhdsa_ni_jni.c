@@ -10,7 +10,7 @@
 
 #include "bytearrays.h"
 #include "byte_array_critical.h"
-#include "org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI.h"
+#include "org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
 #include "../util/key_spec.h"
@@ -20,11 +20,11 @@
 
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    generateKeyPair
  * Signature: (I)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_generateKeyPair__I
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair__I
 (JNIEnv *env, jobject jo, jint type) {
     UNUSED(jo);
     UNUSED(env);
@@ -43,11 +43,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    generateKeyPair
  * Signature: (I[BI)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_generateKeyPair__I_3BI
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair__I_3BI
 (JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len) {
     UNUSED(jo);
     UNUSED(env);
@@ -140,11 +140,11 @@ exit:
 
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    decode_publicKey
  * Signature: (JI[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_decode_1publicKey
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_decode_1publicKey
 (JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(env);
     UNUSED(jo);
@@ -198,11 +198,11 @@ exit:
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    decode_privateKey
  * Signature: (JI[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_decode_1privateKey
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_decode_1privateKey
 (JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(env);
     UNUSED(jo);
@@ -258,11 +258,11 @@ exit:
 
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    getPrivateKey
  * Signature: (J[B)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_getPrivateKey
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_getPrivateKey
 (JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
@@ -298,11 +298,11 @@ exit:
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    getPublicKey
  * Signature: (JLjava/lang/Object;)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_getPublicKey(
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_getPublicKey(
     JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
@@ -337,11 +337,11 @@ exit:
 
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    allocateSigner
  * Signature: ()J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_allocateSigner
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_allocateSigner
 (JNIEnv *env, jobject jo) {
     UNUSED(env);
     UNUSED(jo);
@@ -349,11 +349,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    initVerify
  * Signature: (JJ[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_initVerify
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_initVerify
 (JNIEnv *env, jobject jo, jlong slhdsa_ref, jlong key_ref,
  jbyteArray _context, jint context_len, jint message_encoding, jint deterministic) {
     UNUSED(env);
@@ -401,11 +401,11 @@ exit:
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    update
  * Signature: (J[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_update
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_update
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(env);
     UNUSED(jo);
@@ -454,11 +454,11 @@ exit:
 
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    sign
  * Signature: (J[BI)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_sign
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_sign
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _output, jint out_off) {
     UNUSED(env);
     UNUSED(jo);
@@ -509,11 +509,11 @@ exit:
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    verify
  * Signature: (J[BI)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_verify
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_verify
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _sig, jint sig_len) {
     UNUSED(jo);
 
@@ -558,11 +558,11 @@ exit:
 
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    initSign
  * Signature: (JJ[BII)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_initSign
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_initSign
 (JNIEnv *env, jobject jo, jlong slhdsa_ref, jlong key_ref,
     jbyteArray _context, jint context_len, jint message_encoding,jint deterministic) {
     UNUSED(env);
@@ -602,11 +602,11 @@ exit:
 }
 
 /*
- * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
+ * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    disposeSigner
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_disposeSigner
+JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_disposeSigner
 (JNIEnv *env, jobject o, jlong ref) {
     UNUSED(env);
     UNUSED(o);

@@ -4,6 +4,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 
+import java.lang.ref.Reference;
 import java.security.DigestException;
 import java.security.MessageDigestSpi;
 
@@ -34,59 +35,73 @@ public class MDServiceSPI extends MessageDigestSpi
     @Override
     protected void engineUpdate(byte input)
     {
-        synchronized (this)
+        try
         {
             mdServiceNI.engineUpdate(ref.getReference(), input);
+        } finally {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected void engineUpdate(byte[] input, int offset, int len)
     {
-        synchronized (this)
+        try
         {
             mdServiceNI.engineUpdate(ref.getReference(), input, offset, len);
+        } finally
+        {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected byte[] engineDigest()
     {
-        synchronized (this)
+
+        try
         {
             byte[] out = new byte[mdServiceNI.getDigestOutputLen(ref.getReference())];
             mdServiceNI.digest(ref.getReference(), out, 0, out.length);
             mdServiceNI.reset(ref.getReference());
             return out;
+        } finally {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected int engineDigest(byte[] buf, int offset, int len) throws DigestException
     {
-        synchronized (this)
+        try
         {
             int l = mdServiceNI.digest(ref.getReference(), buf, offset, len);
             mdServiceNI.reset(ref.getReference());
             return l;
+        } finally {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected void engineReset()
     {
-        synchronized (this)
+        try
         {
             mdServiceNI.reset(ref.getReference());
+        } finally {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected int engineGetDigestLength()
     {
-        synchronized (this)
+        try
         {
             return mdServiceNI.getDigestOutputLen(ref.getReference());
+        } finally {
+            Reference.reachabilityFence(this);
         }
     }
 

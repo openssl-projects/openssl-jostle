@@ -1,4 +1,7 @@
-package org.openssl.jostle;
+package org.openssl.jostle.jcajce.provider;
+
+import org.openssl.jostle.FFI;
+import org.openssl.jostle.NativeServiceNI;
 
 import java.lang.foreign.*;
 import java.nio.charset.StandardCharsets;
