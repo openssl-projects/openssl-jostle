@@ -53,7 +53,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     }
 
 
-    md_ctx *ctx = calloc(1, sizeof(md_ctx));
+    md_ctx *ctx = OPENSSL_zalloc(sizeof(md_ctx));
     jo_assert(ctx);
     ctx->md_type = md;
     ctx->mdctx = mdctx;
@@ -79,8 +79,7 @@ void md_ctx_destroy(md_ctx *ctx) {
     if (ctx->mdctx != NULL) {
         EVP_MD_CTX_free(ctx->mdctx);
     }
-    OPENSSL_cleanse(ctx, sizeof(*ctx));
-    free(ctx);
+    OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
 int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {

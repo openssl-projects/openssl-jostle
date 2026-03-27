@@ -28,7 +28,7 @@ mac_ctx *mac_ctx_alloc(const char *type, int32_t *err) {
     }
 
 
-    mac_ctx *ctx = calloc(1, sizeof(*ctx));
+    mac_ctx *ctx = OPENSSL_zalloc(sizeof(*ctx));
     jo_assert(ctx != NULL);
 
     ctx->type = mac;
@@ -40,8 +40,7 @@ void mac_ctx_free(mac_ctx *ctx) {
     if (ctx->mac_ctx != NULL) {
         EVP_MAC_CTX_free(ctx->mac_ctx);
     }
-    OPENSSL_cleanse(ctx, sizeof(*ctx));
-    free(ctx);
+    OPENSSL_clear_free(ctx,sizeof(*ctx));
 }
 
 int32_t mac_ctx_init(const mac_ctx *ctx, uint8_t *key, size_t key_len, const char *digest, const char *cipher) {
