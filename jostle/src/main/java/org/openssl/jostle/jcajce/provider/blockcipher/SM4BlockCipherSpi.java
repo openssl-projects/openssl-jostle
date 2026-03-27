@@ -8,27 +8,28 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
+
 
 import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
-class SM4BlockCipherSpi extends BlockCipherSpi
+public class SM4BlockCipherSpi extends BlockCipherSpi
 {
 
-    SM4BlockCipherSpi()
+    public SM4BlockCipherSpi()
     {
         super(null, "SM4");
     }
 
-    SM4BlockCipherSpi(OSSLCipher cipher)
+    public SM4BlockCipherSpi(OSSLCipher cipher)
     {
         super(cipher, "SM4");
     }
 
-    SM4BlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
+    public SM4BlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
         super(cipher, mode, "SM4");
     }
@@ -85,7 +86,8 @@ class SM4BlockCipherSpi extends BlockCipherSpi
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
-        } catch (InvalidParameterSpecException e)
+        }
+        catch (InvalidParameterSpecException e)
         {
             throw new InvalidAlgorithmParameterException(e.getMessage(), e);
         }

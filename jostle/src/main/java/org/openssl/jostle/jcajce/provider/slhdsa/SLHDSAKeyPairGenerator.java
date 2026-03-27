@@ -34,10 +34,11 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
     {
         {
             put("SLH-DSA", NONE);
-            SLHDSAParameterSpec.getParameterNames().forEach((key) -> {
+            SLHDSAParameterSpec.getParameterNames().forEach((key) ->
+            {
                 SLHDSAParameterSpec value = SLHDSAParameterSpec.fromName(key);
                 put(value.getName(), ((SLHDSAParameterSpec) value).getKeyType());
-                put(value,((SLHDSAParameterSpec) value).getKeyType());
+                put(value, ((SLHDSAParameterSpec) value).getKeyType());
             });
         }
     };
@@ -88,7 +89,8 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         if (forcedType == OSSLKeyType.NONE)
         {
             keyType = newType;
-        } else
+        }
+        else
         {
             if (forcedType != newType)
             {
@@ -105,9 +107,13 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         if (res < 0)
         {
             NISelector.SLHDSAServiceNI.handleErrors(res);
-        } else if (res == 0)
+        }
+        else
         {
-            throw new IllegalStateException("unexpected null pointer from native layer");
+            if (res == 0)
+            {
+                throw new IllegalStateException("unexpected null pointer from native layer");
+            }
         }
 
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);

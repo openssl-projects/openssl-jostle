@@ -16,16 +16,16 @@ package org.openssl.jostle.util.ops;
  * Some code paths are mostly impossible to verify during normal testing because we would
  * need to induce, for example, a failure within the JVM or some other circumstance that can only
  * occur under very adverse conditions or via directly modifying an opcode in a library during loading.
- *
+ * <p>
  * This interface gives us access to a series of flags that will induce execution of the same paths but without
  * the need to actually stage the error. It allows us to prove that our code will handle, in some way, those error
  * conditions if they were to occur.
- *
+ * <p>
  * Operations tests require the interface library to be built with the macro JOSTLE_OPS defined or define
  * the environmental variable JOSTLE_OPS_TEST when invoking cmake.
- *
+ * <p>
  * ie export JOSTLE_OPS_TEST=1
- *
+ * <p>
  * Cmake ignores the value of JOSTLE_OPS_TEST and only cares if it is set.
  */
 public interface OperationsTestNI
@@ -43,18 +43,20 @@ public interface OperationsTestNI
 
     /**
      * Set a ops test flag true
+     *
      * @param flag the flag
      */
-    default void setFlag(OpsTestFlag flag) {
+    default void setFlag(OpsTestFlag flag)
+    {
         assert opsTestAvailable();
-        setOpsTestFlag(flag.ordinal(),1);
+        setOpsTestFlag(flag.ordinal(), 1);
     }
 
     default void resetFlags()
     {
         for (OpsTestFlag value : OpsTestFlag.values())
         {
-            setOpsTestFlag(value.ordinal(),0);
+            setOpsTestFlag(value.ordinal(), 0);
         }
     }
 

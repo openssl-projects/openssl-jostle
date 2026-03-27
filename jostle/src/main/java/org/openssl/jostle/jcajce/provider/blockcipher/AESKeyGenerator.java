@@ -1,4 +1,7 @@
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
+
+
+import org.openssl.jostle.jcajce.provider.ProvSecretKeySpec;
 
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
@@ -8,7 +11,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
-class AESKeyGenerator extends KeyGeneratorSpi
+public class AESKeyGenerator extends KeyGeneratorSpi
 {
 
     private SecureRandom random;
@@ -16,13 +19,13 @@ class AESKeyGenerator extends KeyGeneratorSpi
     private int keySize;
     private int fixedKeySize = 0;
 
-    AESKeyGenerator()
+    public AESKeyGenerator()
     {
         random = new SecureRandom();
         keySize = 256;
     }
 
-    AESKeyGenerator(int fixedSize)
+    public AESKeyGenerator(int fixedSize)
     {
         this.fixedKeySize = fixedSize;
         this.keySize = fixedSize;
@@ -83,7 +86,8 @@ class AESKeyGenerator extends KeyGeneratorSpi
     }
 
 
-    static class AESSecretKey extends SecretKeySpec {
+    static class AESSecretKey extends SecretKeySpec
+    {
 
         public AESSecretKey(byte[] key, String algorithm)
         {

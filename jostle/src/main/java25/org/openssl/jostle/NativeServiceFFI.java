@@ -23,7 +23,8 @@ public class NativeServiceFFI implements NativeServiceNI
             var linker = Linker.nativeLinker();
             var dch = linker.downcallHandle(funcPtr, FunctionDescriptor.of(ValueLayout.JAVA_BYTE));
             return FFI.ffi_bool((byte) dch.invokeExact());
-        } catch (Throwable e)
+        }
+        catch (Throwable e)
         {
             L.warning("ffi access to isNativeAvailable: " + e.getMessage());
         }
@@ -42,7 +43,8 @@ public class NativeServiceFFI implements NativeServiceNI
             var content = (MemorySegment) dch.invokeExact(len);
             content = content.reinterpret(len.get(ValueLayout.OfLong.JAVA_LONG, 0));
             return content.getString(0, StandardCharsets.UTF_8);
-        } catch (Throwable e)
+        }
+        catch (Throwable e)
         {
             L.warning("ffi access to isNativeAvailable: " + e.getMessage());
         }

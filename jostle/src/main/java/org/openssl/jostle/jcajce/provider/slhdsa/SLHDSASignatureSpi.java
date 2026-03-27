@@ -185,7 +185,8 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 sig = new byte[(int) len];
                 NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0));
                 return sig;
-            } finally
+            }
+            finally
             {
                 reInit();
             }
@@ -209,7 +210,8 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 }
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
-            } finally
+            }
+            finally
             {
                 reInit();
             }
@@ -256,17 +258,26 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 if (lastKey instanceof JOSLHDSAPublicKey)
                 {
                     engineInitVerify((PublicKey) lastKey);
-                } else if (lastKey instanceof JOSLHDSAPrivateKey)
+                }
+                else
                 {
-                    engineInitSign((PrivateKey) lastKey);
-                } else if (lastKey != null)
-                {
-                    throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                    if (lastKey instanceof JOSLHDSAPrivateKey)
+                    {
+                        engineInitSign((PrivateKey) lastKey);
+                    }
+                    else
+                    {
+                        if (lastKey != null)
+                        {
+                            throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                        }
+                    }
                 }
 
                 // Intentional, does nothing if no key present.
 
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 throw new ProviderException("unable to reinitialize signature engine", e);
             }
@@ -311,7 +322,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
         }
     }
 
-    
+
     @Override
     public String toString()
     {

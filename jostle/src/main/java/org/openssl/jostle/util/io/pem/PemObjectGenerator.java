@@ -22,5 +22,5 @@ public interface PemObjectGenerator
      * @throws PemGenerationException on failure.
      */
     PemObject generate()
-        throws PemGenerationException;
+            throws PemGenerationException;
 }

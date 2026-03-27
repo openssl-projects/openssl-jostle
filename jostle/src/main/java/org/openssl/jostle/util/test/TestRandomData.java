@@ -16,7 +16,7 @@ import org.openssl.jostle.util.encoders.Hex;
  * A fixed secure random designed to return data for someone needing random bytes.
  */
 public class TestRandomData
-    extends FixedSecureRandom
+        extends FixedSecureRandom
 {
     /**
      * Constructor from a Hex encoding of the data.
@@ -25,7 +25,7 @@ public class TestRandomData
      */
     public TestRandomData(String encoding)
     {
-        super(new Source[] { new FixedSecureRandom.Data(Hex.decode(encoding)) });
+        super(new Source[]{new FixedSecureRandom.Data(Hex.decode(encoding))});
     }
 
     /**
@@ -35,6 +35,6 @@ public class TestRandomData
      */
     public TestRandomData(byte[] encoding)
     {
-        super(new Source[] { new FixedSecureRandom.Data(encoding) });
+        super(new Source[]{new FixedSecureRandom.Data(encoding)});
     }
 }

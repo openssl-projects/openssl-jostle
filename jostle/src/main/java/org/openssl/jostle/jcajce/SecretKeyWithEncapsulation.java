@@ -62,5 +62,5 @@ public class SecretKeyWithEncapsulation implements SecretKey
     {
         return secretKey.hashCode();
     }
-    
+
 }

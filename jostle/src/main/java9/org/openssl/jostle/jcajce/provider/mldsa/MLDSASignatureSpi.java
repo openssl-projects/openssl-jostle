@@ -74,7 +74,8 @@ public class MLDSASignatureSpi extends SignatureSpi
 
                 NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, muHandling.ordinal()));
                 return;
-            } finally
+            }
+            finally
             {
                 Reference.reachabilityFence(this);
             }
@@ -120,7 +121,8 @@ public class MLDSASignatureSpi extends SignatureSpi
                         key.getSpec().getReference(),
                         context, contextLen, muHandling.ordinal()));
                 return;
-            } finally
+            }
+            finally
             {
                 Reference.reachabilityFence(this);
             }
@@ -141,7 +143,8 @@ public class MLDSASignatureSpi extends SignatureSpi
         {
             updateCalled = true;
             NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len));
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -159,11 +162,13 @@ public class MLDSASignatureSpi extends SignatureSpi
                 sig = new byte[(int) len];
                 NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0));
                 return sig;
-            } finally
+            }
+            finally
             {
                 reInit();
             }
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -186,11 +191,13 @@ public class MLDSASignatureSpi extends SignatureSpi
                 }
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
-            } finally
+            }
+            finally
             {
                 reInit();
             }
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -245,17 +252,26 @@ public class MLDSASignatureSpi extends SignatureSpi
                 if (lastKey instanceof MLDSAPublicKey)
                 {
                     engineInitVerify((PublicKey) lastKey);
-                } else if (lastKey instanceof MLDSAPrivateKey)
+                }
+                else
                 {
-                    engineInitSign((PrivateKey) lastKey);
-                } else if (lastKey != null)
-                {
-                    throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                    if (lastKey instanceof MLDSAPrivateKey)
+                    {
+                        engineInitSign((PrivateKey) lastKey);
+                    }
+                    else
+                    {
+                        if (lastKey != null)
+                        {
+                            throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                        }
+                    }
                 }
 
                 // Intentional, does nothing if no key present.
 
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 throw new ProviderException("unable to reinitialize signature engine", e);
             }

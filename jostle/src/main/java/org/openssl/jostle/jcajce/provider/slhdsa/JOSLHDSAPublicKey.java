@@ -10,7 +10,6 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
-import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.SLHDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;

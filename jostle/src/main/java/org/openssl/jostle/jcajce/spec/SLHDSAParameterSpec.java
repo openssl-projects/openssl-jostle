@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.spec;
 
 import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.*;
@@ -80,7 +81,8 @@ public class SLHDSAParameterSpec implements AlgorithmParameterSpec
         osslTypeToSpec = Collections.unmodifiableMap(new HashMap<OSSLKeyType, SLHDSAParameterSpec>()
         {
             {
-                parameters.forEach((k, v) -> {
+                parameters.forEach((k, v) ->
+                {
                     put((OSSLKeyType) v.keyType, (SLHDSAParameterSpec) v);
                 });
             }
@@ -146,7 +148,10 @@ public class SLHDSAParameterSpec implements AlgorithmParameterSpec
     @Override
     public boolean equals(Object o)
     {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+        {
+            return false;
+        }
         SLHDSAParameterSpec that = (SLHDSAParameterSpec) o;
         return keyType == that.keyType && Objects.equals(name, that.name);
     }

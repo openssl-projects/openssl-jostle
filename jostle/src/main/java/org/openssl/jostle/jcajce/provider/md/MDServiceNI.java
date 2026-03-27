@@ -102,7 +102,7 @@ public interface MDServiceNI
             case JO_INPUT_OUT_OF_RANGE:
                 throw new IllegalArgumentException("input offset + length out of range");
             case JO_FAILED_ACCESS_INPUT:
-                    throw new AccessException("unable to access input array");
+                throw new AccessException("unable to access input array");
             case JO_FAILED_ACCESS_OUTPUT:
                 throw new AccessException("unable to access output array");
             case JO_OUTPUT_LEN_IS_NEGATIVE:

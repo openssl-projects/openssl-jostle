@@ -129,7 +129,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                 return retCode;
             }
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_generateKeyPair", t);
@@ -159,7 +160,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                 return retCode;
             }
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_generateKeyPair (seed)", t);
@@ -178,7 +180,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getPublicKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_getPublicKey", t);
@@ -197,7 +200,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getPrivateKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_getPrivateKey", t);
@@ -215,7 +219,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getSeedKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_getSeed", t);
@@ -231,7 +236,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             MemorySegment keySpec = MemorySegment.ofAddress(spec_ref);
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) decodePublicKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_decodePublicKey", t);
@@ -247,7 +253,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             MemorySegment keySpec = MemorySegment.ofAddress(spec_ref);
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLKEM_decodePrivateKey", t);

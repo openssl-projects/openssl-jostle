@@ -83,7 +83,8 @@ public class KdfNIFFI implements KdfNI
                     outLen
             );
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI KDF_SCRYPT", t);
@@ -113,7 +114,8 @@ public class KdfNIFFI implements KdfNI
                     outLen
             );
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI KDF_PBKDF2", t);

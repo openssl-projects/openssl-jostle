@@ -22,7 +22,8 @@ public class SpecUtil
                     Method m = paramSpec.getClass().getMethod("getName", NO_PARAMS);
 
                     return m.invoke(paramSpec, NO_ARGS);
-                } catch (Exception e)
+                }
+                catch (Exception e)
                 {
                     // ignore - maybe log?
                 }
@@ -43,7 +44,8 @@ public class SpecUtil
                     Method m = paramSpec.getClass().getMethod("getContext", NO_PARAMS);
 
                     return m.invoke(paramSpec, NO_ARGS);
-                } catch (Exception e)
+                }
+                catch (Exception e)
                 {
 
                     // ignore - maybe log?

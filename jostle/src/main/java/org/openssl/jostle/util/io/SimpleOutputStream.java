@@ -25,7 +25,7 @@ public abstract class SimpleOutputStream extends OutputStream
 
     public void write(int b) throws IOException
     {
-        byte[] buf = new byte[]{ (byte)b };
+        byte[] buf = new byte[]{(byte) b};
         write(buf, 0, 1);
     }
 }

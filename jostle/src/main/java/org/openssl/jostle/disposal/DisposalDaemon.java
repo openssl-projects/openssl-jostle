@@ -65,7 +65,8 @@ public class DisposalDaemon
                     return t;
                 }
             });
-        } else
+        }
+        else
         {
             cleanupExecutor = null;
         }
@@ -113,7 +114,8 @@ public class DisposalDaemon
 
                 }
             });
-        } catch (Throwable ex)
+        }
+        catch (Throwable ex)
         {
             LOG.log(Level.WARNING, "Adding shutdown hook failed.", ex);
         }
@@ -146,7 +148,8 @@ public class DisposalDaemon
                         LOG.fine("Disposed: " + item);
                     }
                     item.dispose();
-                } else
+                }
+                else
                 {
                     //
                     // Delay in order to avoid freeing a reference that the GC has
@@ -166,10 +169,12 @@ public class DisposalDaemon
                     }, cleanupDelay, TimeUnit.MILLISECONDS);
                 }
 
-            } catch (InterruptedException iex)
+            }
+            catch (InterruptedException iex)
             {
                 Thread.currentThread().interrupt();
-            } catch (Throwable e)
+            }
+            catch (Throwable e)
             {
                 LOG.warning("exception in disposal thread: " + e.getMessage());
             }

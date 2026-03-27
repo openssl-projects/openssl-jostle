@@ -80,7 +80,8 @@ public class SpecFFI implements SpecNI
         try
         {
             disposeFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -97,7 +98,8 @@ public class SpecFFI implements SpecNI
         {
             MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact();
             return addr.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -107,7 +109,6 @@ public class SpecFFI implements SpecNI
         }
 
     }
-
 
 
     @Override
@@ -124,12 +125,14 @@ public class SpecFFI implements SpecNI
             {
                 throw new IllegalArgumentException("returned name len is negative");
             }
-            memorySegment = memorySegment.reinterpret(size+1); // + null termination
+            memorySegment = memorySegment.reinterpret(size + 1); // + null termination
             return memorySegment.getString(0);
-        } catch (IllegalArgumentException ilex)
+        }
+        catch (IllegalArgumentException ilex)
         {
             throw ilex;
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -153,7 +156,8 @@ public class SpecFFI implements SpecNI
 
             return (int) encapFuncHandle.invokeExact(ref, optRef, inputRef, (long) inSize, inOff, inLen, outRef, (long) outSize, off, len);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -178,7 +182,8 @@ public class SpecFFI implements SpecNI
 
             return (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, (long) inSize, inOff, inLen, outRef, (long) outSize, off, len);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,

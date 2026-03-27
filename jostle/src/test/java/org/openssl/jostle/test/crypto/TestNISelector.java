@@ -1,7 +1,7 @@
 package org.openssl.jostle.test.crypto;
 
 import org.openssl.jostle.NativeServiceNI;
-import org.openssl.jostle.jcajce.provider.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.provider.SLHDSAServiceNI;

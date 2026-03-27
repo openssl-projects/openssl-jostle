@@ -43,7 +43,8 @@ public class Properties
         try
         {
             return isSetTrue(getPropertyValue(propertyName));
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             return false;
         }
@@ -63,11 +64,13 @@ public class Properties
             if (value == null)
             {
                 return defaultValue;
-            } else
+            }
+            else
             {
                 return isSetTrue(value);
             }
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             return false;
         }
@@ -90,7 +93,8 @@ public class Properties
                 return isSetTrue(propertyValue);
             }
             return isSetFalse(propertyValue);
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             return false;
         }

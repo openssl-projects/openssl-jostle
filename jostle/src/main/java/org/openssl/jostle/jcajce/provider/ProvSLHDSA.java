@@ -18,7 +18,6 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 
 class ProvSLHDSA
@@ -59,7 +58,8 @@ class ProvSLHDSA
         provider.addAlias("KeyFactory", "SLHDSA", "SLH-DSA");
 
 
-        SLHDSAParameterSpec.getParameterNames().forEach(name -> {
+        SLHDSAParameterSpec.getParameterNames().forEach(name ->
+        {
             provider.addAlgorithmImplementation("KeyPairGenerator", name, PREFIX + "SLHDSAKeyPairGeneratorSpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyPairGenerator(name));
             provider.addAlgorithmImplementation("KeyFactory", name, PREFIX + "SLHDSAKeyFactorySpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyFactorySpi(SLHDSAParameterSpec.fromName(name).getKeyType()));
         });
@@ -74,7 +74,6 @@ class ProvSLHDSA
 
         provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-PURE", PREFIX + "SLHDSASignatureSpi$SLHDSADetPure", slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
         provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-NONE", PREFIX + "SLHDSASignatureSpi$SLHDSADetNone", slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(SLHDSASignatureSpi.MessageEncoding.NONE, SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
-
 
 
         for (String algName : algNames)

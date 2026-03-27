@@ -21,7 +21,7 @@ public class MLDSAServiceJNI implements MLDSAServiceNI
     public native int getPublicKey(long ref, byte[] output);
 
     @Override
-    public native int  getPrivateKey(long ref, byte[] output);
+    public native int getPrivateKey(long ref, byte[] output);
 
     @Override
     public native int getSeed(long ref, byte[] output);

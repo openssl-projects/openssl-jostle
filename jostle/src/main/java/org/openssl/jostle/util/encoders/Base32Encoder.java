@@ -10,46 +10,46 @@
 
 package org.openssl.jostle.util.encoders;
 
-import java.io.IOException;
-import java.io.OutputStream;
-
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
+
+import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * A streaming Base32 encoder.
  */
 public class Base32Encoder
-    implements Encoder
+        implements Encoder
 {
     private static final byte[] DEAULT_ENCODING_TABLE =
-    {
-        (byte)'A', (byte)'B', (byte)'C', (byte)'D', (byte)'E', (byte)'F', (byte)'G',
-        (byte)'H', (byte)'I', (byte)'J', (byte)'K', (byte)'L', (byte)'M', (byte)'N',
-        (byte)'O', (byte)'P', (byte)'Q', (byte)'R', (byte)'S', (byte)'T', (byte)'U',
-        (byte)'V', (byte)'W', (byte)'X', (byte)'Y', (byte)'Z',
-        (byte)'2', (byte)'3', (byte)'4', (byte)'5', (byte)'6', (byte)'7'
-    };
+            {
+                    (byte) 'A', (byte) 'B', (byte) 'C', (byte) 'D', (byte) 'E', (byte) 'F', (byte) 'G',
+                    (byte) 'H', (byte) 'I', (byte) 'J', (byte) 'K', (byte) 'L', (byte) 'M', (byte) 'N',
+                    (byte) 'O', (byte) 'P', (byte) 'Q', (byte) 'R', (byte) 'S', (byte) 'T', (byte) 'U',
+                    (byte) 'V', (byte) 'W', (byte) 'X', (byte) 'Y', (byte) 'Z',
+                    (byte) '2', (byte) '3', (byte) '4', (byte) '5', (byte) '6', (byte) '7'
+            };
 
-    private static final byte DEFAULT_PADDING = (byte)'=';
+    private static final byte DEFAULT_PADDING = (byte) '=';
 
     /*
      * set up the decoding table.
      */
     private final byte[] encodingTable;
-    private final byte   padding;
+    private final byte padding;
     private final byte[] decodingTable = new byte[128];
 
     protected void initialiseDecodingTable()
     {
         for (int i = 0; i < decodingTable.length; i++)
         {
-            decodingTable[i] = (byte)0xff;
+            decodingTable[i] = (byte) 0xff;
         }
 
         for (int i = 0; i < encodingTable.length; i++)
         {
-            decodingTable[encodingTable[i]] = (byte)i;
+            decodingTable[encodingTable[i]] = (byte) i;
         }
     }
 
@@ -68,7 +68,7 @@ public class Base32Encoder
      * Constructor allowing the setting of an alternative alphabet.
      *
      * @param encodingTable a 32 entry encoding table to do the mapping.
-     * @param padding the padding value to use.
+     * @param padding       the padding value to use.
      */
     public Base32Encoder(byte[] encodingTable, byte padding)
     {
@@ -79,7 +79,7 @@ public class Base32Encoder
 
         this.encodingTable = Arrays.clone(encodingTable);
         this.padding = padding;
-        
+
         initialiseDecodingTable();
     }
 
@@ -91,9 +91,9 @@ public class Base32Encoder
 
         while (inPos < inEnd)
         {
-             encodeBlock(inBuf, inPos, outBuf, outPos);
-             inPos += 5;
-             outPos += 8;
+            encodeBlock(inBuf, inPos, outBuf, outPos);
+            inPos += 5;
+            outPos += 8;
         }
 
         int extra = inLen - (inPos - inOff);
@@ -104,28 +104,28 @@ public class Base32Encoder
             encodeBlock(in, 0, outBuf, outPos);
             switch (extra)
             {
-            case 1:
-                outBuf[outPos + 2] = padding;
-                outBuf[outPos + 3] = padding;
-                outBuf[outPos + 4] = padding;
-                outBuf[outPos + 5] = padding;
-                outBuf[outPos + 6] = padding;
-                outBuf[outPos + 7] = padding;
-                break;
-            case 2:
-                outBuf[outPos + 4] = padding;
-                outBuf[outPos + 5] = padding;
-                outBuf[outPos + 6] = padding;
-                outBuf[outPos + 7] = padding;
-                break;
-            case 3:
-                outBuf[outPos + 5] = padding;
-                outBuf[outPos + 6] = padding;
-                outBuf[outPos + 7] = padding;
-                break;
-            case 4:
-                outBuf[outPos + 7] = padding;
-                break;
+                case 1:
+                    outBuf[outPos + 2] = padding;
+                    outBuf[outPos + 3] = padding;
+                    outBuf[outPos + 4] = padding;
+                    outBuf[outPos + 5] = padding;
+                    outBuf[outPos + 6] = padding;
+                    outBuf[outPos + 7] = padding;
+                    break;
+                case 2:
+                    outBuf[outPos + 4] = padding;
+                    outBuf[outPos + 5] = padding;
+                    outBuf[outPos + 6] = padding;
+                    outBuf[outPos + 7] = padding;
+                    break;
+                case 3:
+                    outBuf[outPos + 5] = padding;
+                    outBuf[outPos + 6] = padding;
+                    outBuf[outPos + 7] = padding;
+                    break;
+                case 4:
+                    outBuf[outPos + 7] = padding;
+                    break;
             }
 
             outPos += 8;
@@ -167,8 +167,8 @@ public class Base32Encoder
      *
      * @return the number of bytes produced.
      */
-    public int encode(byte[] buf, int off, int len, OutputStream out) 
-        throws IOException
+    public int encode(byte[] buf, int off, int len, OutputStream out)
+            throws IOException
     {
         if (len < 0)
         {
@@ -189,11 +189,11 @@ public class Base32Encoder
     }
 
     private boolean ignore(
-        char    c)
+            char c)
     {
-        return (c == '\n' || c =='\r' || c == '\t' || c == ' ');
+        return (c == '\n' || c == '\r' || c == '\t' || c == ' ');
     }
-    
+
     /**
      * decode the base 32 encoded byte data writing it to the given output stream,
      * whitespace characters will be ignored.
@@ -201,26 +201,26 @@ public class Base32Encoder
      * @return the number of bytes produced.
      */
     public int decode(
-        byte[]          data,
-        int             off,
-        int             length,
-        OutputStream    out)
-        throws IOException
+            byte[] data,
+            int off,
+            int length,
+            OutputStream out)
+            throws IOException
     {
-        byte    b1, b2, b3, b4, b5, b6, b7, b8;
-        byte[]  outBuffer = new byte[55];
-        int     bufOff = 0;
-        int     outLen = 0;
-        
-        int     end = off + length;
-        
+        byte b1, b2, b3, b4, b5, b6, b7, b8;
+        byte[] outBuffer = new byte[55];
+        int bufOff = 0;
+        int outLen = 0;
+
+        int end = off + length;
+
         while (end > off)
         {
-            if (!ignore((char)data[end - 1]))
+            if (!ignore((char) data[end - 1]))
             {
                 break;
             }
-            
+
             end--;
         }
 
@@ -229,13 +229,13 @@ public class Base32Encoder
         {
             return 0;
         }
-        
-        int  i = 0;
-        int  finish = end;
+
+        int i = 0;
+        int finish = end;
 
         while (finish > off && i != 8)
         {
-            if (!ignore((char)data[finish - 1]))
+            if (!ignore((char) data[finish - 1]))
             {
                 i++;
             }
@@ -248,17 +248,17 @@ public class Base32Encoder
         while (i < finish)
         {
             b1 = decodingTable[data[i++]];
-            
+
             i = nextI(data, i, finish);
-            
+
             b2 = decodingTable[data[i++]];
-            
+
             i = nextI(data, i, finish);
-            
+
             b3 = decodingTable[data[i++]];
-            
+
             i = nextI(data, i, finish);
-            
+
             b4 = decodingTable[data[i++]];
 
             i = nextI(data, i, finish);
@@ -282,20 +282,20 @@ public class Base32Encoder
                 throw new IOException("invalid characters encountered in base32 data");
             }
 
-            outBuffer[bufOff++] = (byte)((b1 << 3) | (b2 >> 2));
-            outBuffer[bufOff++] = (byte)((b2 << 6) | (b3 << 1) | (b4 >> 4));
-            outBuffer[bufOff++] = (byte)((b4 << 4) | (b5 >> 1));
-            outBuffer[bufOff++] = (byte)((b5 << 7) | (b6 << 2) | (b7 >> 3));
-            outBuffer[bufOff++] = (byte)((b7 << 5) | b8);
+            outBuffer[bufOff++] = (byte) ((b1 << 3) | (b2 >> 2));
+            outBuffer[bufOff++] = (byte) ((b2 << 6) | (b3 << 1) | (b4 >> 4));
+            outBuffer[bufOff++] = (byte) ((b4 << 4) | (b5 >> 1));
+            outBuffer[bufOff++] = (byte) ((b5 << 7) | (b6 << 2) | (b7 >> 3));
+            outBuffer[bufOff++] = (byte) ((b7 << 5) | b8);
 
             if (bufOff == outBuffer.length)
             {
                 out.write(outBuffer);
                 bufOff = 0;
             }
-            
+
             outLen += 5;
-            
+
             i = nextI(data, i, finish);
         }
 
@@ -314,21 +314,21 @@ public class Base32Encoder
         int e7 = nextI(data, e6 + 1, end);
 
         outLen += decodeLastBlock(out,
-            (char)data[e0], (char)data[e1], (char)data[e2], (char)data[e3],
-            (char)data[e4], (char)data[e5], (char)data[e6], (char)data[e7]);
+                (char) data[e0], (char) data[e1], (char) data[e2], (char) data[e3],
+                (char) data[e4], (char) data[e5], (char) data[e6], (char) data[e7]);
 
         return outLen;
     }
 
     private int nextI(byte[] data, int i, int finish)
     {
-        while ((i < finish) && ignore((char)data[i]))
+        while ((i < finish) && ignore((char) data[i]))
         {
             i++;
         }
         return i;
     }
-    
+
     /**
      * decode the base 32 encoded String data writing it to the given output stream,
      * whitespace characters will be ignored.
@@ -336,9 +336,9 @@ public class Base32Encoder
      * @return the number of bytes produced.
      */
     public int decode(
-        String          data,
-        OutputStream    out)
-        throws IOException
+            String data,
+            OutputStream out)
+            throws IOException
     {
         byte[] bytes = Strings.toByteArray(data);
         return decode(bytes, 0, bytes.length, out);
@@ -347,10 +347,10 @@ public class Base32Encoder
     private int decodeLastBlock(OutputStream out,
                                 char c1, char c2, char c3, char c4,
                                 char c5, char c6, char c7, char c8)
-        throws IOException
+            throws IOException
     {
-        byte    b1, b2, b3, b4, b5, b6, b7, b8;
-        
+        byte b1, b2, b3, b4, b5, b6, b7, b8;
+
         if (c8 == padding)
         {
             if (c7 != padding)
@@ -417,7 +417,7 @@ public class Base32Encoder
 
                 return 2;
             }
-            
+
             if (c3 != padding)
             {
                 throw new IOException("invalid characters encountered at end of base32 data");
@@ -432,7 +432,7 @@ public class Base32Encoder
             }
 
             out.write((b1 << 3) | (b2 >> 2));
-            
+
             return 1;
         }
         else
@@ -450,14 +450,14 @@ public class Base32Encoder
             {
                 throw new IOException("invalid characters encountered at end of base32 data");
             }
-            
+
             out.write((b1 << 3) | (b2 >> 2));
             out.write((b2 << 6) | (b3 << 1) | (b4 >> 4));
             out.write((b4 << 4) | (b5 >> 1));
             out.write((b5 << 7) | (b6 << 2) | (b7 >> 3));
             out.write((b7 << 5) | b8);
-            
+
             return 5;
-        } 
+        }
     }
 }

@@ -8,31 +8,31 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
 
+
+import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
-import javax.crypto.spec.IvParameterSpec;
-
-class AESBlockCipherSpi extends BlockCipherSpi
+public class AESBlockCipherSpi extends BlockCipherSpi
 {
 
-    AESBlockCipherSpi()
+    public AESBlockCipherSpi()
     {
         this(null, null);
         osslMode = OSSLMode.ECB;
     }
 
-    AESBlockCipherSpi(OSSLCipher cipher)
+    public AESBlockCipherSpi(OSSLCipher cipher)
     {
-        super(cipher,"AES");
+        super(cipher, "AES");
     }
 
-    AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
+    public AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
-        super(cipher, mode,"AES");
+        super(cipher, mode, "AES");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
@@ -87,7 +87,8 @@ class AESBlockCipherSpi extends BlockCipherSpi
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
-        } catch (InvalidParameterSpecException e)
+        }
+        catch (InvalidParameterSpecException e)
         {
             throw new InvalidAlgorithmParameterException(e.getMessage(), e);
         }

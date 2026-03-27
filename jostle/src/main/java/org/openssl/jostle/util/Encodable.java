@@ -24,5 +24,5 @@ public interface Encodable
      * @throws java.io.IOException if an issue arises generation the encoding.
      */
     byte[] getEncoded()
-        throws IOException;
+            throws IOException;
 }

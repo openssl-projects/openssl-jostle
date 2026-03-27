@@ -114,7 +114,8 @@ class LoaderUtils
                                 if (!isDeleted)
                                 {
                                     L.fine("failed to delete: " + tmpDir.getAbsolutePath());
-                                } else
+                                }
+                                else
                                 {
                                     L.fine("successfully cleaned up: " + tmpDir.getAbsolutePath());
                                 }
@@ -128,7 +129,8 @@ class LoaderUtils
                 }
             });
 
-        } catch (IllegalStateException e)
+        }
+        catch (IllegalStateException e)
         {
             throw new IOException(e.getMessage(), e);
         }
@@ -175,7 +177,8 @@ class LoaderUtils
                     return prefix;
                 }
             });
-        } catch (IllegalStateException e)
+        }
+        catch (IllegalStateException e)
         {
             throw new IOException(e.getMessage(), e);
         }
@@ -204,7 +207,8 @@ class LoaderUtils
                     {
 
                     }
-                } catch (Exception e)
+                }
+                catch (Exception e)
                 {
                     throw new RuntimeException(e);
                 }
@@ -230,18 +234,22 @@ class LoaderUtils
                         }
 
                         throw new IllegalStateException("existing file name '" + savedFile.getAbsolutePath() + "' does not match expected file content");
-                    } catch (RuntimeException e)
+                    }
+                    catch (RuntimeException e)
                     {
                         throw e;
-                    } catch (Exception ex)
+                    }
+                    catch (Exception ex)
                     {
                         throw new IllegalStateException("unable to read exising extracted library" + savedFile.getAbsolutePath(), ex);
-                    } finally
+                    }
+                    finally
                     {
                         try
                         {
                             in.close();
-                        } catch (IOException ignored)
+                        }
+                        catch (IOException ignored)
                         {
 
                         }
@@ -258,15 +266,18 @@ class LoaderUtils
                         fos.write(buf, 0, len);
                     }
                     fos.flush();
-                } catch (IOException e)
+                }
+                catch (IOException e)
                 {
                     throw new RuntimeException(e);
-                } finally
+                }
+                finally
                 {
                     try
                     {
                         in.close();
-                    } catch (Exception ignored)
+                    }
+                    catch (Exception ignored)
                     {
 
                     }
@@ -323,23 +334,27 @@ class LoaderUtils
                     return false;
                 }
             }
-        } catch (Exception ex)
+        }
+        catch (Exception ex)
         {
             throw new RuntimeException(ex.getMessage(), ex);
-        } finally
+        }
+        finally
         {
             // Force close, ignore any exceptions
 
             try
             {
                 binLeft.close();
-            } catch (Exception ignored)
+            }
+            catch (Exception ignored)
             {
             }
             try
             {
                 binRight.close();
-            } catch (Exception ignored)
+            }
+            catch (Exception ignored)
             {
             }
         }
@@ -411,10 +426,12 @@ class LoaderUtils
             }
 
             return candidate;
-        } catch (IllegalStateException ise)
+        }
+        catch (IllegalStateException ise)
         {
             throw ise;
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             throw new RuntimeException(e);
         }

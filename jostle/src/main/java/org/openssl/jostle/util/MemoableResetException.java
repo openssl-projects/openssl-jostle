@@ -18,7 +18,7 @@ package org.openssl.jostle.util;
  * </p>
  */
 public class MemoableResetException
-    extends ClassCastException
+        extends ClassCastException
 {
     /**
      * Basic Constructor.

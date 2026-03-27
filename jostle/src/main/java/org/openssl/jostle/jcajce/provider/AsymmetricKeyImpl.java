@@ -22,11 +22,13 @@ public class AsymmetricKeyImpl
         this.spec = spec;
     }
 
-    public OSSLKeyType getType() {
-       return spec.getType();
+    public OSSLKeyType getType()
+    {
+        return spec.getType();
     }
 
-    public long getReference() {
+    public long getReference()
+    {
         return spec.getReference();
     }
 

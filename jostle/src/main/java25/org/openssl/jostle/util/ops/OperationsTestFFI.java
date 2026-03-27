@@ -49,7 +49,8 @@ public class OperationsTestFFI implements OperationsTestNI
         try
         {
             setOpsFuncHandler.invokeExact(flag, value);
-        } catch (Throwable e)
+        }
+        catch (Throwable e)
         {
             throw new RuntimeException(e);
         }

@@ -108,7 +108,8 @@ public class Asn1NIFFI implements Asn1Ni
         {
             MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact();
             return addr.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -125,7 +126,8 @@ public class Asn1NIFFI implements Asn1Ni
         try
         {
             disposeFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -141,7 +143,8 @@ public class Asn1NIFFI implements Asn1Ni
         try
         {
             return (int) encodePublicKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef));
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -154,11 +157,12 @@ public class Asn1NIFFI implements Asn1Ni
     @Override
     public int encodePrivateKey(long ref, long keyRef, String option)
     {
-        try(Arena a = Arena.ofConfined())
+        try (Arena a = Arena.ofConfined())
         {
             var opt = a.allocateFrom(option);
-            return (int) encodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef),opt,opt.byteSize());
-        } catch (Throwable t)
+            return (int) encodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef), opt, opt.byteSize());
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -175,7 +179,8 @@ public class Asn1NIFFI implements Asn1Ni
         {
             MemorySegment outSegment = out == null ? MemorySegment.NULL : MemorySegment.ofArray(out);
             return (int) getDataFuncHandle.invokeExact(MemorySegment.ofAddress(ref), outSegment, outSegment.byteSize());
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -209,7 +214,8 @@ public class Asn1NIFFI implements Asn1Ni
 
             return ptr.address();
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -245,7 +251,8 @@ public class Asn1NIFFI implements Asn1Ni
 
             return ptr.address();
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,

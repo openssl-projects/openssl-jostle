@@ -69,24 +69,29 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             }
             throw new InvalidAlgorithmParameterException("Only MLKEMPrivateKey is supported");
 
-        } else if (params instanceof KEMGenerateSpec)
+        }
+        else
         {
-            PublicKey key = ((KEMGenerateSpec) params).getPublicKey();
-            if (key instanceof MLKEMPublicKey)
+            if (params instanceof KEMGenerateSpec)
             {
-                extract = false;
-                MLKEMPublicKey kem = (MLKEMPublicKey) key;
-                if (forcedKeyType != OSSLKeyType.NONE && kem.getSpec().getType() != forcedKeyType)
+                PublicKey key = ((KEMGenerateSpec) params).getPublicKey();
+                if (key instanceof MLKEMPublicKey)
                 {
-                    throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
+                    extract = false;
+                    MLKEMPublicKey kem = (MLKEMPublicKey) key;
+                    if (forcedKeyType != OSSLKeyType.NONE && kem.getSpec().getType() != forcedKeyType)
+                    {
+                        throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
+                    }
+                    parameterSpec = params;
+                    return;
                 }
-                parameterSpec = params;
-                return;
+                throw new InvalidAlgorithmParameterException("Only MLKEMPublicKey is supported");
             }
-            throw new InvalidAlgorithmParameterException("Only MLKEMPublicKey is supported");
-        } else
-        {
-            throw new InvalidAlgorithmParameterException("unsupported parameters " + params.getClass().getName());
+            else
+            {
+                throw new InvalidAlgorithmParameterException("unsupported parameters " + params.getClass().getName());
+            }
         }
     }
 
@@ -116,7 +121,8 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
             return new SecretKeyWithEncapsulation(new SecretKeySpec(out, extractSpec.getAlgorithmName()), wrappedKey);
 
-        } else
+        }
+        else
         {
             KEMGenerateSpec generateSpec = (KEMGenerateSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) generateSpec.getPublicKey()).getSpec();

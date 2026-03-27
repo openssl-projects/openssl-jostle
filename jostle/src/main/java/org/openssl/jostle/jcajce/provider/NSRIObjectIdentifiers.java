@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.provider;
 
 
-
 public interface NSRIObjectIdentifiers
 {
     ASN1ObjectIdentifier nsri = new ASN1ObjectIdentifier("1.2.410.200046");

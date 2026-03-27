@@ -58,7 +58,6 @@ public interface MLKEMServiceNI
 
     int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
-   
 
     default long handleErrors(long code)
     {

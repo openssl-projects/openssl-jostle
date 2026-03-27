@@ -8,27 +8,30 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
+
 
 import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
-class CAMELLIABlockCipherSpi extends BlockCipherSpi
+public class ARIABlockCipherSpi extends BlockCipherSpi
 {
 
-     CAMELLIABlockCipherSpi()
+    public ARIABlockCipherSpi()
     {
-        super(null,"CAMELLIA");
+        super(null, "ARIA");
     }
 
-     CAMELLIABlockCipherSpi(OSSLCipher cipher) {
-        super(cipher,"CAMELLIA");
+    public ARIABlockCipherSpi(OSSLCipher cipher)
+    {
+        super(cipher, "ARIA");
     }
 
-     CAMELLIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode) {
-        super(cipher, mode,"CAMELLIA");
+    public ARIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
+    {
+        super(cipher, mode, "ARIA");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
@@ -37,13 +40,13 @@ class CAMELLIABlockCipherSpi extends BlockCipherSpi
         switch (keySize)
         {
             case 16:
-                osslCipher = OSSLCipher.CAMELLIA128;
+                osslCipher = OSSLCipher.ARIA128;
                 break;
             case 24:
-                osslCipher = OSSLCipher.CAMELLIA192;
+                osslCipher = OSSLCipher.ARIA192;
                 break;
             case 32:
-                this.osslCipher = OSSLCipher.CAMELLIA256;
+                this.osslCipher = OSSLCipher.ARIA256;
                 break;
             default:
                 throw new InvalidKeyException("unsupported key size, must be 16, 24 or 32 bytes");
@@ -77,7 +80,6 @@ class CAMELLIABlockCipherSpi extends BlockCipherSpi
     {
         determineOSSLCipher(key.getEncoded().length);
         // TODO: we should have a list of ParameterSpec to try here.
-
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);

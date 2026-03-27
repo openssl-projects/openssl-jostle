@@ -18,18 +18,18 @@ import java.util.List;
  * A generic PEM object - type, header properties, and byte content.
  */
 public class PemObject
-    implements PemObjectGenerator
+        implements PemObjectGenerator
 {
     private static final List EMPTY_LIST = Collections.unmodifiableList(new ArrayList());
 
     private final String type;
-    private final List   headers;
+    private final List headers;
     private final byte[] content;
 
     /**
      * Generic constructor for object without headers.
      *
-     * @param type pem object type.
+     * @param type    pem object type.
      * @param content the binary content of the object.
      */
     public PemObject(String type, byte[] content)
@@ -40,7 +40,7 @@ public class PemObject
     /**
      * Generic constructor for object with headers.
      *
-     * @param type pem object type.
+     * @param type    pem object type.
      * @param headers a list of PemHeader objects.
      * @param content the binary content of the object.
      */
@@ -67,7 +67,7 @@ public class PemObject
     }
 
     public PemObject generate()
-        throws PemGenerationException
+            throws PemGenerationException
     {
         return this;
     }

@@ -4,6 +4,8 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.NativeServiceFFI;
 import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherJNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIFFI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
@@ -29,12 +31,12 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 /**
  * Same class is implemented in src/main/java this version
  * will select an FFI version when the FFI interface is loaded.
- * NB: FFI will replace JNI eventually and later JVMs may not support it.
+ * NB: FFI will replace JNI eventually, and later JVMs may not support it.
  */
 public class NISelector
 {
-    protected static final BlockCipherNI BlockCipherNI;
-    protected static final OpenSSLNI OpenSSLNI;
+    public static final BlockCipherNI BlockCipherNI;
+    public static final OpenSSLNI OpenSSLNI;
     public static final NativeServiceNI NativeServiceNI;
     public static final MLDSAServiceNI MLDSAServiceNI;
     public static final SpecNI SpecNI;
@@ -61,7 +63,8 @@ public class NISelector
             KdfNI = new KdfNIFFI();
             MDServiceNI = new MDServiceFFI();
 
-        } else
+        }
+        else
         {
             BlockCipherNI = new BlockCipherJNI();
             OpenSSLNI = new OpenSSLJNI();

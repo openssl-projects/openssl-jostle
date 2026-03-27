@@ -92,7 +92,7 @@ public class MDServiceFFI implements MDServiceNI
                         ValueLayout.JAVA_LONG, // size_t output_size
                         ValueLayout.JAVA_INT, // out_off
                         ValueLayout.JAVA_INT // out_len
-                ),Linker.Option.critical(true));
+                ), Linker.Option.critical(true));
 
         resetFunc = lookup.find("MD_Reset").orElseThrow();
         resetFuncHandle = linker.downcallHandle(resetFunc,
@@ -107,11 +107,12 @@ public class MDServiceFFI implements MDServiceNI
     {
         try (var a = Arena.ofConfined())
         {
-            var nameSeg =  name == null?MemorySegment.NULL: a.allocateFrom(name);
+            var nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
             var errSeg = MemorySegment.ofArray(err);
             var ctxSeg = (MemorySegment) allocateDigestFuncHandle.invokeExact(nameSeg, xofLen, errSeg);
             return ctxSeg.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MD_Allocate", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -126,7 +127,8 @@ public class MDServiceFFI implements MDServiceNI
             return (int) updateByteFuncHandle.invokeExact(
                     MemorySegment.ofAddress(ref),
                     b);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MB_UpdateByte", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -147,7 +149,8 @@ public class MDServiceFFI implements MDServiceNI
                     inSeg.byteSize(),
                     offset,
                     len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MB_UpdateBytes", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -160,7 +163,8 @@ public class MDServiceFFI implements MDServiceNI
         try
         {
             disposeFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MD_Dispose", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -173,7 +177,8 @@ public class MDServiceFFI implements MDServiceNI
         try
         {
             return (int) digestLenFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MD_GetDigestLen", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -195,7 +200,8 @@ public class MDServiceFFI implements MDServiceNI
                     outSeg.byteSize(),
                     offset, length
             );
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MB_Digest", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -208,7 +214,8 @@ public class MDServiceFFI implements MDServiceNI
         try
         {
             resetFuncHandle.invokeExact(MemorySegment.ofAddress(ref));
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MD_Reset", t);
             throw new RuntimeException(t.getMessage(), t);

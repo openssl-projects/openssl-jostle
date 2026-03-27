@@ -91,7 +91,7 @@ public class UTF8
             int codePoint = i & firstUnitMasks[category];
             byte state = firstUnitTransitions[category];
 
-            firstUnitTable[i] = (short)((codePoint << 8) | state);
+            firstUnitTable[i] = (short) ((codePoint << 8) | state);
         }
     }
 
@@ -127,11 +127,11 @@ public class UTF8
      * be produced. An error will also result if {@code utf16} is found to be too small to store the
      * complete output.
      *
-     * @param utf8  A non-null array containing a well-formed UTF-8 encoding.
-     * @param utf8Off start position in the array for the well-formed encoding.
+     * @param utf8       A non-null array containing a well-formed UTF-8 encoding.
+     * @param utf8Off    start position in the array for the well-formed encoding.
      * @param utf8Length length in bytes of the well-formed encoding.
-     * @param utf16 A non-null array, at least as long as the {@code utf8} array in order to ensure
-     *              the output will fit.
+     * @param utf16      A non-null array, at least as long as the {@code utf8} array in order to ensure
+     *                   the output will fit.
      * @return The number of UTF-16 code units written to {@code utf16} (beginning from index 0), or
      * else -1 if the input was either malformed or encoded any unmappable characters, or if
      * the {@code utf16} is too small.
@@ -151,13 +151,13 @@ public class UTF8
                     return -1;
                 }
 
-                utf16[j++] = (char)codeUnit;
+                utf16[j++] = (char) codeUnit;
                 continue;
             }
 
             short first = firstUnitTable[codeUnit & 0x7F];
             int codePoint = first >>> 8;
-            byte state = (byte)first;
+            byte state = (byte) first;
 
             while (state >= 0)
             {
@@ -184,7 +184,7 @@ public class UTF8
                 }
 
                 // Code points from U+D800 to U+DFFF are caught by the DFA
-                utf16[j++] = (char)codePoint;
+                utf16[j++] = (char) codePoint;
             }
             else
             {
@@ -194,8 +194,8 @@ public class UTF8
                 }
 
                 // Code points above U+10FFFF are caught by the DFA
-                utf16[j++] = (char)(0xD7C0 + (codePoint >>> 10));
-                utf16[j++] = (char)(0xDC00 | (codePoint & 0x3FF));
+                utf16[j++] = (char) (0xD7C0 + (codePoint >>> 10));
+                utf16[j++] = (char) (0xDC00 | (codePoint & 0x3FF));
             }
         }
 

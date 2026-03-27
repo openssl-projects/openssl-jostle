@@ -42,50 +42,81 @@ public class DumpInfo
         }
 
 
+        // -DM System.out.println
         System.out.println("\n\n-------------------------------------------------------------------------------");
+        // -DM System.out.println
         System.out.println("DumpInfo\n\nProvider:");
+        // -DM System.out.println
         System.out.println("  Info: " + Security.getProvider(JostleProvider.PROVIDER_NAME).getInfo());
+        // -DM System.out.println
         System.out.println("  Name: " + JostleProvider.PROVIDER_NAME);
+        // -DM System.out.println
         System.out.println("  OS: " + System.getProperty("os.name"));
+        // -DM System.out.println
         System.out.println("  Version: " + System.getProperty("os.version"));
+        // -DM System.out.println
         System.out.println("  Arch: " + System.getProperty("os.arch"));
+        // -DM System.out.println
         System.out.println("  Java Version: " + System.getProperty("java.version"));
+        // -DM System.out.println
         System.out.println("  Java Vendor: " + System.getProperty("java.vendor"));
+        // -DM System.out.println
         System.out.println("\nLoader:");
+        // -DM System.out.println
         System.out.println("  Load Attempted: " + Loader.isLoadAttempted());
+        // -DM System.out.println
         System.out.println("  Load Successful: " + Loader.isLoadSuccessful());
+        // -DM System.out.println
         System.out.println("  Loader Message: " + Loader.getMessage());
+        // -DM System.out.println
         System.out.println("  Loader Interface Resolution Strategy: " + Loader.getInterfaceResolutionStrategy());
+        // -DM System.out.println
         System.out.println("  Loader Interface: " + Loader.getInterfaceTypeName());
 
-        if (Loader.isFixedInstallDir()) {
-            System.out.println("  Using Fixed Install Dir: "+Loader.getInstallDir());
-        } else {
-            System.out.println("  Using Install Dir: "+Loader.getInstallDir());
+
+        if (Loader.isFixedInstallDir())
+        {
+            // -DM System.out.println
+            System.out.println("  Using Fixed Install Dir: " + Loader.getInstallDir());
         }
-        
+        else
+        {
+            // -DM System.out.println
+            System.out.println("  Using Install Dir: " + Loader.getInstallDir());
+        }
+
+        // -DM System.out.println
         System.out.println("  Loaded Native Libraries:");
-        Loader.getLoadedLibs().forEach(it -> {
+        Loader.getLoadedLibs().forEach(it ->
+        {
+            // -DM System.out.println
             System.out.println("    " + it);
         });
 
-
+        // -DM System.out.println
         System.out.println("\nNative Status:");
+        // -DM System.out.println
         System.out.println("  Native Available: " + NISelector.NativeServiceNI.isNativeAvailable());
         if (NISelector.NativeServiceNI.isNativeAvailable())
         {
+            // -DM System.out.println
             System.out.println("  OpenSSL Version: " + NISelector.NativeServiceNI.getOpenSSLVersion());
-        } else
+        }
+        else
         {
+            // -DM System.out.println
             System.out.println("  OpenSSL Version: Not available");
         }
+        // -DM System.out.println
         System.out.println(".END");
-
+        // -DM System.out.println
         System.out.println("Use: -fine to emit FINE level logs");
 
+        // -DM System.out.println
         System.out.println("-------------------------------------------------------------------------------");
 
-        if (handler != null) {
+        if (handler != null)
+        {
             handler.flush();
         }
 

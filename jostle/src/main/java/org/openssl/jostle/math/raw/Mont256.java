@@ -39,7 +39,7 @@ public abstract class Mont256
             long prod1 = x_i * y_0;
             long carry = (prod1 & M) + z_0;
 
-            long t = ((int)carry * mInv32) & M;
+            long t = ((int) carry * mInv32) & M;
 
             long prod2 = t * (m[0] & M);
             carry += (prod2 & M);
@@ -52,13 +52,13 @@ public abstract class Mont256
                 prod2 = t * (m[j] & M);
 
                 carry += (prod1 & M) + (prod2 & M) + (z[j] & M);
-                z[j - 1] = (int)carry;
+                z[j - 1] = (int) carry;
                 carry = (carry >>> 32) + (prod1 >>> 32) + (prod2 >>> 32);
             }
 
             carry += (z_8 & M);
-            z[7] = (int)carry;
-            z_8 = (int)(carry >>> 32);
+            z[7] = (int) carry;
+            z_8 = (int) (carry >>> 32);
         }
 
         if (z_8 != 0 || Nat256.gte(z, m))
@@ -88,13 +88,13 @@ public abstract class Mont256
                 long prod2 = t * (m[j] & M);
 
                 carry += (prod1 & M) + (prod2 & M) + (z[j] & M);
-                z[j - 1] = (int)carry;
+                z[j - 1] = (int) carry;
                 carry = (carry >>> 32) + (prod1 >>> 32) + (prod2 >>> 32);
             }
 
             carry += (z_8 & M);
-            z[7] = (int)carry;
-            z_8 = (int)(carry >>> 32);
+            z[7] = (int) carry;
+            z_8 = (int) (carry >>> 32);
         }
 
         if (z_8 != 0 || Nat256.gte(z, m))
@@ -118,11 +118,11 @@ public abstract class Mont256
             for (int j = 1; j < 8; ++j)
             {
                 carry += t * (m[j] & M) + (z[j] & M);
-                z[j - 1] = (int)carry;
+                z[j - 1] = (int) carry;
                 carry >>>= 32;
             }
 
-            z[7] = (int)carry;
+            z[7] = (int) carry;
             // assert carry >>> 32 == 0;
         }
 
@@ -146,11 +146,11 @@ public abstract class Mont256
             for (int j = 1; j < 8; ++j)
             {
                 carry += t * (m[j] & M) + (z[j] & M);
-                z[j - 1] = (int)carry;
+                z[j - 1] = (int) carry;
                 carry >>>= 32;
             }
 
-            z[7] = (int)carry;
+            z[7] = (int) carry;
             // assert carry >>> 32 == 0;
         }
 

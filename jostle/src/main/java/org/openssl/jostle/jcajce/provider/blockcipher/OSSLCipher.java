@@ -8,7 +8,7 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
 
 
 import java.util.Arrays;
@@ -16,11 +16,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.openssl.jostle.jcajce.provider.OSSLCipherType.*;
-import static org.openssl.jostle.jcajce.provider.OSSLMode.*;
+import static org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipherType.*;
+import static org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.*;
 
 
-enum OSSLCipher
+public enum OSSLCipher
 {
     //
     // WARNING, these are passed by ordinal value, if you change the order

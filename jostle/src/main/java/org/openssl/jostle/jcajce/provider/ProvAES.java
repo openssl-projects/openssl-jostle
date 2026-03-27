@@ -10,6 +10,12 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+
+import org.openssl.jostle.jcajce.provider.blockcipher.AESBlockCipherSpi;
+import org.openssl.jostle.jcajce.provider.blockcipher.AESKeyGenerator;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
+
 import java.util.HashMap;
 import java.util.Map;
 

@@ -32,7 +32,8 @@ public class ASNEncoder
             NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.getData(ref, out));
 
             return out;
-        } finally
+        }
+        finally
         {
             NISelector.Asn1NI.dispose(ref);
         }
@@ -40,18 +41,20 @@ public class ASNEncoder
 
     public static byte[] asPrivateKeyInfo(PKEYKeySpec spec, PrivateKeyOptions option)
     {
-        if (option == null) {
+        if (option == null)
+        {
             option = PrivateKeyOptions.DEFAULT;
         }
 
         long ref = NISelector.Asn1NI.allocate();
         try
         {
-            long len = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue() ));
+            long len = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue()));
             byte[] out = new byte[(int) len];
             NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.getData(ref, out));
             return out;
-        } finally
+        }
+        finally
         {
             NISelector.Asn1NI.dispose(ref);
         }

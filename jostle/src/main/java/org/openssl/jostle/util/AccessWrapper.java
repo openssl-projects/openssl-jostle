@@ -31,7 +31,8 @@ public class AccessWrapper
                     return pa.run();
                 }
             });
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             throw new AccessException(t.getMessage(), t);
         }

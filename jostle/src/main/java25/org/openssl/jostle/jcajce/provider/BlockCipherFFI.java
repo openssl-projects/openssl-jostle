@@ -1,5 +1,9 @@
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
+
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
@@ -143,7 +147,8 @@ public class BlockCipherFFI implements BlockCipherNI
         try
         {
             ref = (long) makeInstanceFuncHandle.invokeExact(cipher, mode, padding);
-        } catch (Throwable e)
+        }
+        catch (Throwable e)
         {
             L.log(
                     Level.WARNING,
@@ -173,7 +178,8 @@ public class BlockCipherFFI implements BlockCipherNI
                     ivSegment,
                     ivSegment.byteSize(),
                     tag_len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -191,7 +197,8 @@ public class BlockCipherFFI implements BlockCipherNI
         try
         {
             code = (int) getBlockSizeFuncHandle.invokeExact(ref);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -220,7 +227,8 @@ public class BlockCipherFFI implements BlockCipherNI
                     inputSegment.byteSize(),
                     inputOffset,
                     inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -246,7 +254,8 @@ public class BlockCipherFFI implements BlockCipherNI
                     inputSegment.byteSize(),
                     inputOffset,
                     inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -270,7 +279,8 @@ public class BlockCipherFFI implements BlockCipherNI
                     outputSegment,
                     outputSegment.byteSize(),
                     outputOffset);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -289,7 +299,8 @@ public class BlockCipherFFI implements BlockCipherNI
         try
         {
             code = (int) finalSizeFuncHandle.invokeExact(ref, length);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -307,7 +318,8 @@ public class BlockCipherFFI implements BlockCipherNI
         try
         {
             code = (int) updateSizeFuncHandle.invokeExact(ref, length);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
@@ -324,7 +336,8 @@ public class BlockCipherFFI implements BlockCipherNI
         try
         {
             disposeFuncHandle.invokeExact(ref);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(
                     Level.WARNING,

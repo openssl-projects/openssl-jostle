@@ -18,7 +18,7 @@ import java.io.OutputStream;
  * An input stream which copies anything read through it to another stream.
  */
 public class TeeInputStream
-    extends InputStream
+        extends InputStream
 {
     private final InputStream input;
     private final OutputStream output;
@@ -26,7 +26,7 @@ public class TeeInputStream
     /**
      * Base constructor.
      *
-     * @param input input stream to be wrapped.
+     * @param input  input stream to be wrapped.
      * @param output output stream to copy any input read to.
      */
     public TeeInputStream(InputStream input, OutputStream output)
@@ -41,13 +41,13 @@ public class TeeInputStream
     }
 
     public int read(byte[] buf)
-        throws IOException
+            throws IOException
     {
         return read(buf, 0, buf.length);
     }
 
     public int read(byte[] buf, int off, int len)
-        throws IOException
+            throws IOException
     {
         int i = input.read(buf, off, len);
 
@@ -60,7 +60,7 @@ public class TeeInputStream
     }
 
     public int read()
-        throws IOException
+            throws IOException
     {
         int i = input.read();
 
@@ -73,7 +73,7 @@ public class TeeInputStream
     }
 
     public void close()
-        throws IOException
+            throws IOException
     {
         this.input.close();
         this.output.close();

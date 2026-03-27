@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
-import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;

@@ -29,7 +29,7 @@ public abstract class Nat512
         Nat256.mul(dx, dy, tt);
 
         c24 += neg ? Nat.addTo(16, tt, 0, zz, 8) : Nat.subFrom(16, tt, 0, zz, 8);
-        Nat.addWordAt(32, c24, zz, 24); 
+        Nat.addWordAt(32, c24, zz, 24);
     }
 
     public static void square(int[] x, int[] zz)
@@ -48,6 +48,6 @@ public abstract class Nat512
         Nat256.square(dx, tt);
 
         c24 += Nat.subFrom(16, tt, 0, zz, 8);
-        Nat.addWordAt(32, c24, zz, 24); 
+        Nat.addWordAt(32, c24, zz, 24);
     }
 }

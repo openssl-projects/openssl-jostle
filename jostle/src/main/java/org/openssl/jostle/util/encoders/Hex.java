@@ -10,11 +10,11 @@
 
 package org.openssl.jostle.util.encoders;
 
+import org.openssl.jostle.util.Strings;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-
-import org.openssl.jostle.util.Strings;
 
 /**
  * Utility class for converting hex data to bytes and back again.
@@ -24,15 +24,15 @@ public class Hex
     private static final HexEncoder encoder = new HexEncoder();
 
     public static String toHexString(
-        byte[] data)
+            byte[] data)
     {
         return toHexString(data, 0, data.length);
     }
 
     public static String toHexString(
-        byte[] data,
-        int    off,
-        int    length)
+            byte[] data,
+            int off,
+            int length)
     {
         byte[] encoded = encode(data, off, length);
         return Strings.fromByteArray(encoded);
@@ -44,7 +44,7 @@ public class Hex
      * @return a byte array containing the Hex encoded data.
      */
     public static byte[] encode(
-        byte[]    data)
+            byte[] data)
     {
         return encode(data, 0, data.length);
     }
@@ -55,11 +55,11 @@ public class Hex
      * @return a byte array containing the Hex encoded data.
      */
     public static byte[] encode(
-        byte[]    data,
-        int       off,
-        int       length)
+            byte[] data,
+            int off,
+            int length)
     {
-        ByteArrayOutputStream    bOut = new ByteArrayOutputStream();
+        ByteArrayOutputStream bOut = new ByteArrayOutputStream();
 
         try
         {
@@ -79,9 +79,9 @@ public class Hex
      * @return the number of bytes produced.
      */
     public static int encode(
-        byte[]         data,
-        OutputStream   out)
-        throws IOException
+            byte[] data,
+            OutputStream out)
+            throws IOException
     {
         return encoder.encode(data, 0, data.length, out);
     }
@@ -92,11 +92,11 @@ public class Hex
      * @return the number of bytes produced.
      */
     public static int encode(
-        byte[]         data,
-        int            off,
-        int            length,
-        OutputStream   out)
-        throws IOException
+            byte[] data,
+            int off,
+            int length,
+            OutputStream out)
+            throws IOException
     {
         return encoder.encode(data, off, length, out);
     }
@@ -107,9 +107,9 @@ public class Hex
      * @return a byte array representing the decoded data.
      */
     public static byte[] decode(
-        byte[]    data)
+            byte[] data)
     {
-        ByteArrayOutputStream    bOut = new ByteArrayOutputStream();
+        ByteArrayOutputStream bOut = new ByteArrayOutputStream();
 
         try
         {
@@ -119,7 +119,7 @@ public class Hex
         {
             throw new DecoderException("exception decoding Hex data: " + e.getMessage(), e);
         }
-        
+
         return bOut.toByteArray();
     }
 
@@ -129,9 +129,9 @@ public class Hex
      * @return a byte array representing the decoded data.
      */
     public static byte[] decode(
-        String    data)
+            String data)
     {
-        ByteArrayOutputStream    bOut = new ByteArrayOutputStream();
+        ByteArrayOutputStream bOut = new ByteArrayOutputStream();
 
         try
         {
@@ -152,9 +152,9 @@ public class Hex
      * @return the number of bytes produced.
      */
     public static int decode(
-        String          data,
-        OutputStream    out)
-        throws IOException
+            String data,
+            OutputStream out)
+            throws IOException
     {
         return encoder.decode(data, out);
     }

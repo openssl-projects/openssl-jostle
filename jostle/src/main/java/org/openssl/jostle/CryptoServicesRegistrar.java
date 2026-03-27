@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.provider.OpenSSL;
 
 public class CryptoServicesRegistrar
 {
-    
+
     static
     {
         Loader.load();
@@ -45,7 +45,8 @@ public class CryptoServicesRegistrar
         OpenSSL.setOSSLProvider(provider);
     }
 
-    public String getOpenSSLVersion() {
+    public String getOpenSSLVersion()
+    {
         return NISelector.NativeServiceNI.getOpenSSLVersion();
     }
 

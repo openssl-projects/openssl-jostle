@@ -8,27 +8,30 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
+
 
 import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
-class ARIABlockCipherSpi extends BlockCipherSpi
+public class CAMELLIABlockCipherSpi extends BlockCipherSpi
 {
 
-     ARIABlockCipherSpi()
+    public CAMELLIABlockCipherSpi()
     {
-        super(null,"ARIA");
+        super(null, "CAMELLIA");
     }
 
-     ARIABlockCipherSpi(OSSLCipher cipher) {
-        super(cipher,"ARIA");
+    public CAMELLIABlockCipherSpi(OSSLCipher cipher)
+    {
+        super(cipher, "CAMELLIA");
     }
 
-     ARIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode) {
-        super(cipher, mode,"ARIA");
+    public CAMELLIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
+    {
+        super(cipher, mode, "CAMELLIA");
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
@@ -37,13 +40,13 @@ class ARIABlockCipherSpi extends BlockCipherSpi
         switch (keySize)
         {
             case 16:
-                osslCipher = OSSLCipher.ARIA128;
+                osslCipher = OSSLCipher.CAMELLIA128;
                 break;
             case 24:
-                osslCipher = OSSLCipher.ARIA192;
+                osslCipher = OSSLCipher.CAMELLIA192;
                 break;
             case 32:
-                this.osslCipher = OSSLCipher.ARIA256;
+                this.osslCipher = OSSLCipher.CAMELLIA256;
                 break;
             default:
                 throw new InvalidKeyException("unsupported key size, must be 16, 24 or 32 bytes");
@@ -77,6 +80,7 @@ class ARIABlockCipherSpi extends BlockCipherSpi
     {
         determineOSSLCipher(key.getEncoded().length);
         // TODO: we should have a list of ParameterSpec to try here.
+
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);

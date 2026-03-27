@@ -9,7 +9,7 @@
 #include <openssl/evp.h>
 
 #include "byte_array_critical.h"
-#include "org_openssl_jostle_jcajce_provider_BlockCipherJNI.h"
+#include "org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI.h"
 #include "types.h"
 #include "../util/block_cipher_ctx.h"
 #include "bytearrays.h"
@@ -21,7 +21,7 @@
  * Method:    makeInstance
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_makeInstance
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_makeInstance
 (JNIEnv *env, jobject cl, jint cipherId, jint modeId, jint padding) {
     UNUSED(env);
     UNUSED(cl);
@@ -35,7 +35,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_m
  * Method:    init
  * Signature: (JI[B[B)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_init
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_init
 (JNIEnv *env, jobject cl, jlong ref, jint opp_mode, jbyteArray _key, jbyteArray _iv, jint tag_len) {
     UNUSED(cl);
 
@@ -86,7 +86,7 @@ exit:
  * Method:    getBlockSize
  * Signature: (J)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_getBlockSize
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_getBlockSize
 (JNIEnv *env, jobject cl, jlong ref) {
     UNUSED(env);
     UNUSED(cl);
@@ -101,7 +101,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_ge
  * Method:    updateAAD
  * Signature: (J[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_updateAAD
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_updateAAD
 (JNIEnv *env, jobject cl, jlong ref, jbyteArray _input,
  jint in_off,
  jint in_len) {
@@ -163,7 +163,7 @@ exit:
  * Method:    update
  * Signature: (J[BI[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_update
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_update
 (
     JNIEnv *env,
     jobject cl,
@@ -258,7 +258,7 @@ exit:
  * Method:    doFinal
  * Signature: (J[BI)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_doFinal
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_doFinal
 (JNIEnv *env, jobject cl, jlong ref, jbyteArray _output, jint out_off) {
     UNUSED(cl);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
@@ -306,7 +306,7 @@ exit:
  * Method:    getFinalSize
  * Signature: (JI)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_getFinalSize
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_getFinalSize
 (JNIEnv *env, jobject obj, jlong ref, jint len) {
     UNUSED(obj);
     UNUSED(env);
@@ -331,7 +331,7 @@ exit:
  * Method:    getUpdateSize
  * Signature: (JI)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_getUpdateSize
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_getUpdateSize
 (JNIEnv *env, jobject obj, jlong ref, jint len) {
     UNUSED(env);
     UNUSED(obj);
@@ -358,7 +358,7 @@ exit:
  * Method:    dispose
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_BlockCipherJNI_dispose
+JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_dispose
 (JNIEnv *env, jobject cl, jlong ref) {
     UNUSED(cl);
     UNUSED(env);

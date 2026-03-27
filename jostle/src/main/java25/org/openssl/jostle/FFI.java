@@ -41,10 +41,12 @@ public class FFI
                     FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
             );
             handle.invokeExact(addr);
-        } catch (RuntimeException e)
+        }
+        catch (RuntimeException e)
         {
             throw e;
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             throw new RuntimeException(t.getMessage(), t);
         }

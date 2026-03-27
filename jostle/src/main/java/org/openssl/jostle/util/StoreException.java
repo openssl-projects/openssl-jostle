@@ -14,14 +14,14 @@ package org.openssl.jostle.util;
  * Exception thrown if there's an issue doing a match in store.
  */
 public class StoreException
-    extends RuntimeException
+        extends RuntimeException
 {
     private final Throwable _e;
 
     /**
      * Basic Constructor.
      *
-     * @param msg message to be associated with this exception.
+     * @param msg   message to be associated with this exception.
      * @param cause the throwable that caused this exception to be raised.
      */
     public StoreException(String msg, Throwable cause)

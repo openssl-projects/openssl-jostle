@@ -10,13 +10,13 @@
 
 package org.openssl.jostle.util;
 
+import org.openssl.jostle.math.raw.Mod;
+import org.openssl.jostle.math.raw.Nat;
+
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.Map;
 import java.util.WeakHashMap;
-
-import org.openssl.jostle.math.raw.Mod;
-import org.openssl.jostle.math.raw.Nat;
 
 /**
  * BigInteger utilities.
@@ -38,7 +38,7 @@ public final class BigIntegers
      * @return a byte array without a leading zero byte if present in the signed encoding.
      */
     public static byte[] asUnsignedByteArray(
-        BigInteger value)
+            BigInteger value)
     {
         byte[] bytes = value.toByteArray();
 
@@ -110,7 +110,7 @@ public final class BigIntegers
         }
 
         int padLen = len - count;
-        Arrays.fill(buf, off, off + padLen, (byte)0x00);
+        Arrays.fill(buf, off, off + padLen, (byte) 0x00);
         System.arraycopy(bytes, start, buf, off + padLen, count);
     }
 
@@ -124,9 +124,9 @@ public final class BigIntegers
      * @return a random BigInteger value in the range [min,max]
      */
     public static BigInteger createRandomInRange(
-        BigInteger min,
-        BigInteger max,
-        SecureRandom random)
+            BigInteger min,
+            BigInteger max,
+            SecureRandom random)
     {
         int cmp = min.compareTo(max);
         if (cmp >= 0)
@@ -350,11 +350,11 @@ public final class BigIntegers
 
     // Hexadecimal value of the product of the 131 smallest odd primes from 3 to 743
     private static final BigInteger SMALL_PRIMES_PRODUCT = new BigInteger(
-        "8138e8a0fcf3a4e84a771d40fd305d7f4aa59306d7251de54d98af8fe95729a1f"
-            + "73d893fa424cd2edc8636a6c3285e022b0e3866a565ae8108eed8591cd4fe8d2"
-            + "ce86165a978d719ebf647f362d33fca29cd179fb42401cbaf3df0c614056f9c8"
-            + "f3cfd51e474afb6bc6974f78db8aba8e9e517fded658591ab7502bd41849462f",
-        16);
+            "8138e8a0fcf3a4e84a771d40fd305d7f4aa59306d7251de54d98af8fe95729a1f"
+                    + "73d893fa424cd2edc8636a6c3285e022b0e3866a565ae8108eed8591cd4fe8d2"
+                    + "ce86165a978d719ebf647f362d33fca29cd179fb42401cbaf3df0c614056f9c8"
+                    + "f3cfd51e474afb6bc6974f78db8aba8e9e517fded658591ab7502bd41849462f",
+            16);
     private static final int MAX_SMALL = BigInteger.valueOf(743).bitLength(); // bitlength of 743 * 743
 
     /**
@@ -383,7 +383,7 @@ public final class BigIntegers
             byte[] base = createRandom(bitLength, random);
 
             int xBits = 8 * base.length - bitLength;
-            byte lead = (byte)(1 << (7 - xBits));
+            byte lead = (byte) (1 << (7 - xBits));
 
             // ensure top and bottom bit set
             base[0] |= lead;
@@ -404,7 +404,7 @@ public final class BigIntegers
     }
 
     private static byte[] createRandom(int bitLength, SecureRandom random)
-        throws IllegalArgumentException
+            throws IllegalArgumentException
     {
         if (bitLength < 1)
         {
@@ -419,7 +419,7 @@ public final class BigIntegers
 
         // strip off any excess bits in the MSB
         int xBits = 8 * nBytes - bitLength;
-        rv[0] &= (byte)(255 >>> xBits);
+        rv[0] &= (byte) (255 >>> xBits);
 
         return rv;
     }

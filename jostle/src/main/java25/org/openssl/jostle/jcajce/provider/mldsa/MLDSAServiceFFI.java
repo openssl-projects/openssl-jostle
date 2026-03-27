@@ -77,7 +77,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT
-                ),Linker.Option.critical(true));
+                ), Linker.Option.critical(true));
 
 
         getPublicKeyFunc = lookup.find("MLDSA_getPublicKey").orElseThrow();
@@ -219,7 +219,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 return retCode;
             }
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_generateKeyPair", t);
@@ -249,7 +250,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 return retCode;
             }
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_generateKeyPair (seed)", t);
@@ -268,7 +270,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getPublicKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_getPublicKey", t);
@@ -287,7 +290,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getPrivateKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_getPrivateKey", t);
@@ -305,7 +309,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getSeedKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_getSeed", t);
@@ -321,7 +326,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment keySpec = MemorySegment.ofAddress(spec_ref);
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) decodePublicKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_decodePublicKey", t);
@@ -337,7 +343,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment keySpec = MemorySegment.ofAddress(spec_ref);
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_decodePrivateKey", t);
@@ -353,7 +360,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         {
             MemorySegment ref = MemorySegment.ofAddress(reference);
             disposeSignerFuncHandle.invokeExact(ref);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_disposeSigner", t);
@@ -368,7 +376,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         {
             MemorySegment segment = (MemorySegment) allocSignerFuncHandle.invokeExact();
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_allocateSigner", t);
@@ -386,7 +395,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment contextRef = context == null ? MemorySegment.NULL : MemorySegment.ofArray(context);
             return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_initVerifier", t);
@@ -404,7 +414,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment contextRef = context == null ? MemorySegment.NULL : MemorySegment.ofArray(context);
             return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_initSign", t);
@@ -421,7 +432,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) updateSignerFuncHandle.invokeExact(ctx, inputRef, inputRef.byteSize(), inputOffset, inputLen);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_update", t);
@@ -438,7 +450,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment outputSegment = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
             return (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_sign", t);
@@ -455,7 +468,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment sigSegment = sigBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(sigBytes);
             return (int) verifierFuncHandle.invokeExact(ctx, sigSegment, sigSegment.byteSize(), sigLen);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_verify", t);

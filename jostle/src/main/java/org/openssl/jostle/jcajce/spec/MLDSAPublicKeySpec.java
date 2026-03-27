@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.spec;
 
 
-
 import org.openssl.jostle.util.Arrays;
 
 import java.security.spec.KeySpec;
@@ -20,7 +19,7 @@ import java.security.spec.KeySpec;
  * PublicKeySpec for ML-DSA.
  */
 public class MLDSAPublicKeySpec
-    implements KeySpec
+        implements KeySpec
 {
     private final MLDSAParameterSpec params;
     private final byte[] publicData;
@@ -28,7 +27,7 @@ public class MLDSAPublicKeySpec
     /**
      * Base constructor.
      *
-     * @param params the parameters to use with the passed in encoding.
+     * @param params     the parameters to use with the passed in encoding.
      * @param publicData the long form encoding of the public key.
      */
     public MLDSAPublicKeySpec(MLDSAParameterSpec params, byte[] publicData)

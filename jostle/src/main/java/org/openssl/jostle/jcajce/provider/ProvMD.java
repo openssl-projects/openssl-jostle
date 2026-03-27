@@ -61,12 +61,17 @@ public class ProvMD
             if (name.startsWith("SHAKE-128"))
             {
                 xofLen = 32;
-            } else if (name.startsWith("SHAKE-256"))
+            }
+            else
             {
-                xofLen = 64;
-            } else
-            {
-                xofLen = 0;
+                if (name.startsWith("SHAKE-256"))
+                {
+                    xofLen = 64;
+                }
+                else
+                {
+                    xofLen = 0;
+                }
             }
             String clName = "MDServiceSPI$" + (name.replace("-", "_").replace("/", "_"));
             provider.addAlgorithmImplementation("MessageDigest", name, PREFIX + "MDServiceSPI$" + clName, attr, (arg) -> new MDServiceSPI(name, xofLen));

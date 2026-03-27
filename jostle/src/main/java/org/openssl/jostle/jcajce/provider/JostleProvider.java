@@ -376,10 +376,12 @@ public class JostleProvider
                 }
 
                 return instance;
-            } catch (NoSuchAlgorithmException e)
+            }
+            catch (NoSuchAlgorithmException e)
             {
                 throw e;
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 throw new NoSuchAlgorithmException("Unable to invoke creator for " + getAlgorithm() + ": " + e.getMessage(), e);
             }

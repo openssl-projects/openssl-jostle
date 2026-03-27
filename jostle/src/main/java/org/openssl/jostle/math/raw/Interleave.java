@@ -19,7 +19,7 @@ public class Interleave
     /*
      * This expands 8 bit indices into 16 bit contents (high bit 14), by inserting 0s between bits.
      * In a binary field, this operation is the same as squaring an 8 bit number.
-     * 
+     *
      * NOTE: All entries are positive so sign-extension is not an issue.
      */
 //    private static final short[] INTERLEAVE2_TABLE = new short[]
@@ -61,19 +61,19 @@ public class Interleave
     public static int expand8to16(int x)
     {
         x &= 0xFF;
-        x  = (x | (x << 4)) & 0x0F0F;
-        x  = (x | (x << 2)) & 0x3333;
-        x  = (x | (x << 1)) & 0x5555;
+        x = (x | (x << 4)) & 0x0F0F;
+        x = (x | (x << 2)) & 0x3333;
+        x = (x | (x << 1)) & 0x5555;
         return x;
     }
 
     public static int expand16to32(int x)
     {
         x &= 0xFFFF;
-        x  = (x | (x << 8)) & 0x00FF00FF;
-        x  = (x | (x << 4)) & 0x0F0F0F0F;
-        x  = (x | (x << 2)) & 0x33333333;
-        x  = (x | (x << 1)) & 0x55555555;
+        x = (x | (x << 8)) & 0x00FF00FF;
+        x = (x | (x << 4)) & 0x0F0F0F0F;
+        x = (x | (x << 2)) & 0x33333333;
+        x = (x | (x << 1)) & 0x55555555;
         return x;
     }
 
@@ -97,7 +97,7 @@ public class Interleave
         x = Bits.bitPermuteStep(x, 0x0C0C0C0C0C0C0C0CL, 2);
         x = Bits.bitPermuteStep(x, 0x2222222222222222L, 1);
 
-        z[zOff    ] = (x      ) & M64;
+        z[zOff] = (x) & M64;
         z[zOff + 1] = (x >>> 1) & M64;
     }
 
@@ -119,7 +119,7 @@ public class Interleave
         x = Bits.bitPermuteStep(x, 0x0C0C0C0C0C0C0C0CL, 2);
         x = Bits.bitPermuteStep(x, 0x2222222222222222L, 1);
 
-        z[zOff    ] = (x     ) & M64R;
+        z[zOff] = (x) & M64R;
         z[zOff + 1] = (x << 1) & M64R;
     }
 

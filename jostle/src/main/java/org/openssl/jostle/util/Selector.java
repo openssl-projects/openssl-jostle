@@ -16,7 +16,7 @@ package org.openssl.jostle.util;
  * @param <T> the type stored in the store.
  */
 public interface Selector<T>
-    extends Cloneable
+        extends Cloneable
 {
     /**
      * Match the passed in object, returning true if it would be selected by this selector, false otherwise.

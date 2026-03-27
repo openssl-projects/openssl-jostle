@@ -10,8 +10,8 @@
 
 package org.openssl.jostle.util;
 
-public class StreamParsingException 
-    extends Exception
+public class StreamParsingException
+        extends Exception
 {
     Throwable _e;
 

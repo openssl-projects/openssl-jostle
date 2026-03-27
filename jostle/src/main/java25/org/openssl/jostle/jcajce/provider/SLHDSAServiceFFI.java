@@ -219,7 +219,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
                 return retCode;
             }
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_generateKeyPair", t);
@@ -249,7 +250,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
                 return retCode;
             }
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_generateKeyPair (seed)", t);
@@ -286,7 +288,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getPrivateKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_getPrivateKey", t);
@@ -305,7 +308,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             long len = output == null ? 0L : refOutput.byteSize();
 
             return (int) getPublicKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_getPublicKey", t);
@@ -322,7 +326,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment keySpec = MemorySegment.ofAddress(specRef);
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) decodePublicKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_decodePublicKey", t);
@@ -338,7 +343,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment keySpec = MemorySegment.ofAddress(specRef);
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_decodePrivateKey", t);
@@ -354,7 +360,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
         {
             MemorySegment segment = (MemorySegment) allocSignerFuncHandle.invokeExact();
             return segment.address();
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_allocateSigner", t);
@@ -372,7 +379,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment contextRef = context == null ? MemorySegment.NULL : MemorySegment.ofArray(context);
             return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, messageEncoding, deterministic);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_initVerifier", t);
@@ -389,7 +397,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
             return (int) updateSignerFuncHandle.invokeExact(ctx, inputRef, inputRef.byteSize(), inputOffset, inputLen);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_update", t);
@@ -406,7 +415,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment outputSegment = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
             return (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_sign", t);
@@ -423,7 +433,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment sigSegment = sigBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(sigBytes);
             return (int) verifierFuncHandle.invokeExact(ctx, sigSegment, sigSegment.byteSize(), sigLen);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_verify", t);
@@ -441,7 +452,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment contextRef = context == null ? MemorySegment.NULL : MemorySegment.ofArray(context);
             return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, messageEncoding, deterministic);
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI SLH_DSA_initSign", t);
@@ -456,7 +468,8 @@ class SLHDSAServiceFFI implements SLHDSAServiceNI
         {
             MemorySegment ref = MemorySegment.ofAddress(reference);
             disposeSignerFuncHandle.invokeExact(ref);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING,
                     "FFI MLDSA_disposeSigner", t);

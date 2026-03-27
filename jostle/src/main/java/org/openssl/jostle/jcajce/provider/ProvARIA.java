@@ -10,6 +10,11 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+
+import org.openssl.jostle.jcajce.provider.blockcipher.ARIABlockCipherSpi;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,11 +35,11 @@ class ProvARIA
         provider.addAlgorithmImplementation("Cipher", "ARIA", PREFIX + "Base", generalAttributes, (arg) -> new ARIABlockCipherSpi());
 
         provider.addAlgorithmImplementation("Cipher", "ARIA128", PREFIX + "ARIA128", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA128, OSSLMode.ECB));
-        provider.addAlias("Cipher", "ARIA128", NSRIObjectIdentifiers.id_aria128_ecb    );
+        provider.addAlias("Cipher", "ARIA128", NSRIObjectIdentifiers.id_aria128_ecb);
         provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria128_cbc, PREFIX + "ARIA128CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA128, OSSLMode.ECB));
 
         provider.addAlgorithmImplementation("Cipher", "ARIA192", PREFIX + "ARIA192", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.AES192, OSSLMode.ECB));
-        provider.addAlias("Cipher", "ARIA192", NSRIObjectIdentifiers.id_aria192_ecb );
+        provider.addAlias("Cipher", "ARIA192", NSRIObjectIdentifiers.id_aria192_ecb);
         provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria192_cbc, PREFIX + "ARIA192CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA192, OSSLMode.CBC));
 
         provider.addAlgorithmImplementation("Cipher", "ARIA256", PREFIX + "ARIA256", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA256, OSSLMode.ECB));

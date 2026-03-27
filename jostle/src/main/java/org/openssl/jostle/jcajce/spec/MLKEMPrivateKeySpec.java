@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.spec;
 
 
-
 import org.openssl.jostle.util.Arrays;
 
 import java.security.spec.KeySpec;
@@ -20,7 +19,7 @@ import java.security.spec.KeySpec;
  * PrivateKeySpec for ML-KEM.
  */
 public class MLKEMPrivateKeySpec
-    implements KeySpec
+        implements KeySpec
 {
     private final byte[] data;
     private final byte[] publicData;
@@ -29,30 +28,30 @@ public class MLKEMPrivateKeySpec
 
     public MLKEMPrivateKeySpec(MLKEMParameterSpec params, byte[] seed)
     {
-       if (seed.length != 64)
-       {
+        if (seed.length != 64)
+        {
             throw new IllegalArgumentException("incorrect length for seed");
-       }
+        }
 
-       this.isSeed = true;
-       this.params = params;
-       this.data = Arrays.clone(seed);
-       this.publicData = null;
+        this.isSeed = true;
+        this.params = params;
+        this.data = Arrays.clone(seed);
+        this.publicData = null;
     }
 
     /**
      * Create a KeySpec using the long form private and public data.
      *
-     * @param params the parameter set to use with the encodings.
+     * @param params      the parameter set to use with the encodings.
      * @param privateData the long form private key.
-     * @param publicData the long form public key - may be null.
+     * @param publicData  the long form public key - may be null.
      */
     public MLKEMPrivateKeySpec(MLKEMParameterSpec params, byte[] privateData, byte[] publicData)
     {
-       this.isSeed = false;
-       this.params = params;
-       this.data = Arrays.clone(privateData);
-       this.publicData = Arrays.clone(publicData);
+        this.isSeed = false;
+        this.params = params;
+        this.data = Arrays.clone(privateData);
+        this.publicData = Arrays.clone(publicData);
     }
 
     public boolean isSeed()

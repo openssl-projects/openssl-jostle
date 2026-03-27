@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.util.io.pem;
 
+import org.openssl.jostle.util.encoders.Base64;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
@@ -18,13 +20,11 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.openssl.jostle.util.encoders.Base64;
-
 /**
  * A generic PEM reader, based on the format outlined in RFC 1421
  */
 public class PemReader
-    extends BufferedReader
+        extends BufferedReader
 {
     public static final String LAX_PEM_PARSING_SYSTEM_PROPERTY_NAME = "org.bouncycastle.pemreader.lax";
 
@@ -44,7 +44,7 @@ public class PemReader
      * @throws IOException in case of a parse error.
      */
     public PemObject readPemObject()
-        throws IOException
+            throws IOException
     {
         String line = readLine();
 
@@ -70,12 +70,12 @@ public class PemReader
     }
 
     private PemObject loadObject(String type)
-        throws IOException
+            throws IOException
     {
-        String          line;
-        String          endMarker = END + type + "-----";
-        StringBuffer    buf = new StringBuffer();
-        List            headers = new ArrayList();
+        String line;
+        String endMarker = END + type + "-----";
+        StringBuffer buf = new StringBuffer();
+        List headers = new ArrayList();
 
         while ((line = readLine()) != null)
         {
@@ -104,7 +104,7 @@ public class PemReader
             {
                 break;
             }
-            
+
             buf.append(line.trim());
         }
 

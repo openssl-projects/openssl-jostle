@@ -10,10 +10,10 @@
 
 package org.openssl.jostle.util.io;
 
+import org.openssl.jostle.util.Arrays;
+
 import java.io.IOException;
 import java.io.OutputStream;
-
-import org.openssl.jostle.util.Arrays;
 
 /**
  * An output stream that buffers data to be feed into an encapsulated output stream.
@@ -22,12 +22,12 @@ import org.openssl.jostle.util.Arrays;
  * </p>
  */
 public class BufferingOutputStream
-    extends OutputStream
+        extends OutputStream
 {
     private final OutputStream other;
     private final byte[] buf;
 
-    private int   bufOff;
+    private int bufOff;
 
     /**
      * Create a buffering stream with the default buffer size (4096).
@@ -43,7 +43,7 @@ public class BufferingOutputStream
     /**
      * Create a buffering stream with a specified buffer size.
      *
-     * @param other output stream to be wrapped.
+     * @param other      output stream to be wrapped.
      * @param bufferSize size in bytes for internal buffer.
      */
     public BufferingOutputStream(OutputStream other, int bufferSize)
@@ -53,7 +53,7 @@ public class BufferingOutputStream
     }
 
     public void write(byte[] bytes, int offset, int len)
-        throws IOException
+            throws IOException
     {
         if (len < buf.length - bufOff)
         {
@@ -87,9 +87,9 @@ public class BufferingOutputStream
     }
 
     public void write(int b)
-        throws IOException
+            throws IOException
     {
-        buf[bufOff++] = (byte)b;
+        buf[bufOff++] = (byte) b;
         if (bufOff == buf.length)
         {
             flush();
@@ -102,15 +102,15 @@ public class BufferingOutputStream
      * @throws IOException on error.
      */
     public void flush()
-        throws IOException
+            throws IOException
     {
         other.write(buf, 0, bufOff);
         bufOff = 0;
-        Arrays.fill(buf, (byte)0);
+        Arrays.fill(buf, (byte) 0);
     }
 
     public void close()
-        throws IOException
+            throws IOException
     {
         flush();
         other.close();

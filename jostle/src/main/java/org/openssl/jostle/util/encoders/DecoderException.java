@@ -14,7 +14,7 @@ package org.openssl.jostle.util.encoders;
  * Exception thrown if an attempt is made to decode invalid data, or some other failure occurs.
  */
 public class DecoderException
-    extends IllegalStateException
+        extends IllegalStateException
 {
     private final Throwable cause;
 

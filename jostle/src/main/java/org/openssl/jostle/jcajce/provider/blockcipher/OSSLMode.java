@@ -8,9 +8,14 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
 
-enum OSSLCipherType
+public enum OSSLMode
 {
-    BLOCK, STREAM, AEAD
+    //
+    // WARNING, these are passed by ordinal value, if you change the order
+    // then you MUST also ensure the underlying native interface reflects that
+    // change!!
+    //
+    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD;
 }

@@ -16,7 +16,6 @@ public class OperationsTestJNI implements OperationsTestNI
     private static Boolean opsTestAvailable;
 
 
-
     @Override
     public boolean opsTestAvailable()
     {
@@ -24,9 +23,10 @@ public class OperationsTestJNI implements OperationsTestNI
         {
             try
             {
-                setOpsTestFlag(0    , 0);
+                setOpsTestFlag(0, 0);
                 opsTestAvailable = true;
-            } catch (UnsatisfiedLinkError e)
+            }
+            catch (UnsatisfiedLinkError e)
             {
                 opsTestAvailable = false;
             }

@@ -8,10 +8,12 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -82,9 +84,13 @@ class BlockCipherSpi extends CipherSpi
         if (padding.equals("NOPADDING"))
         {
             this.padding = 0;
-        } else if (padding.equals("PKCS7PADDING") || padding.equals("PKCS5PADDING"))
+        }
+        else
         {
-            this.padding = 1;
+            if (padding.equals("PKCS7PADDING") || padding.equals("PKCS5PADDING"))
+            {
+                this.padding = 1;
+            }
         }
     }
 
@@ -104,7 +110,8 @@ class BlockCipherSpi extends CipherSpi
             }
 
             return blockSize;
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -116,7 +123,8 @@ class BlockCipherSpi extends CipherSpi
         try
         {
             return NISelector.BlockCipherNI.getFinalSize(refWrapper.getReference(), inputLen);
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -146,16 +154,18 @@ class BlockCipherSpi extends CipherSpi
             this.opMode = opmode;
 
             byte[] keyBytes = key.getEncoded();
-            ErrorCode code = ErrorCode.forCode( NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, null, 0));
+            ErrorCode code = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, null, 0));
             try
             {
                 BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, 0);
-            } catch (InvalidAlgorithmParameterException e)
+            }
+            catch (InvalidAlgorithmParameterException e)
             {
                 throw new InvalidKeyException(e.getMessage());
             }
             engineGetBlockSize();
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -180,24 +190,34 @@ class BlockCipherSpi extends CipherSpi
             {
                 ivBytes = null;
                 tagLen = 0;
-            } else if (params instanceof IvParameterSpec)
+            }
+            else
             {
-                ivBytes = ((IvParameterSpec) params).getIV();
-                if (osslMode == OSSLMode.GCM)
+                if (params instanceof IvParameterSpec)
                 {
-                    tagLen = 16;
-                } else
-                {
-                    tagLen = 0;
-                }
+                    ivBytes = ((IvParameterSpec) params).getIV();
+                    if (osslMode == OSSLMode.GCM)
+                    {
+                        tagLen = 16;
+                    }
+                    else
+                    {
+                        tagLen = 0;
+                    }
 
-            } else if (params instanceof GCMParameterSpec)
-            {
-                ivBytes = ((GCMParameterSpec) params).getIV();
-                tagLen = (((GCMParameterSpec) params).getTLen() + 7) / 8;
-            } else
-            {
-                throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
+                }
+                else
+                {
+                    if (params instanceof GCMParameterSpec)
+                    {
+                        ivBytes = ((GCMParameterSpec) params).getIV();
+                        tagLen = (((GCMParameterSpec) params).getTLen() + 7) / 8;
+                    }
+                    else
+                    {
+                        throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
+                    }
+                }
             }
 
             code = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen));
@@ -205,7 +225,8 @@ class BlockCipherSpi extends CipherSpi
 
 
             engineGetBlockSize();
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -226,7 +247,8 @@ class BlockCipherSpi extends CipherSpi
                 {
                     paramSpec = params.getParameterSpec(availableSpecs[i]);
                     break;
-                } catch (Exception e)
+                }
+                catch (Exception e)
                 {
                     // try next spec
                 }
@@ -259,12 +281,14 @@ class BlockCipherSpi extends CipherSpi
             try
             {
                 BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
-            } catch (IllegalBlockSizeException | ShortBufferException ibe)
+            }
+            catch (IllegalBlockSizeException | ShortBufferException ibe)
             {
                 throw new RuntimeException(ibe.getMessage(), ibe);
             }
 
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -277,28 +301,37 @@ class BlockCipherSpi extends CipherSpi
         if (remaining < 1)
         {
             // No data to update
-        } else if (src.hasArray())
+        }
+        else
         {
-            engineUpdateAAD(src.array(), src.arrayOffset() + src.position(), remaining);
-            src.position(src.limit());
-        } else if (remaining <= BUF_SIZE)
-        {
-            byte[] data = new byte[remaining];
-            src.get(data);
-            engineUpdateAAD(data, 0, data.length);
-            Arrays.fill(data, (byte) 0);
-        } else
-        {
-            byte[] data = new byte[BUF_SIZE];
-            do
+            if (src.hasArray())
             {
-                int length = Math.min(data.length, remaining);
-                src.get(data, 0, length);
-                engineUpdateAAD(data, 0, length);
-                remaining -= length;
+                engineUpdateAAD(src.array(), src.arrayOffset() + src.position(), remaining);
+                src.position(src.limit());
             }
-            while (remaining > 0);
-            Arrays.fill(data, (byte) 0);
+            else
+            {
+                if (remaining <= BUF_SIZE)
+                {
+                    byte[] data = new byte[remaining];
+                    src.get(data);
+                    engineUpdateAAD(data, 0, data.length);
+                    Arrays.fill(data, (byte) 0);
+                }
+                else
+                {
+                    byte[] data = new byte[BUF_SIZE];
+                    do
+                    {
+                        int length = Math.min(data.length, remaining);
+                        src.get(data, 0, length);
+                        engineUpdateAAD(data, 0, length);
+                        remaining -= length;
+                    }
+                    while (remaining > 0);
+                    Arrays.fill(data, (byte) 0);
+                }
+            }
         }
 
     }
@@ -322,14 +355,16 @@ class BlockCipherSpi extends CipherSpi
             try
             {
                 BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
-            } catch (IllegalBlockSizeException | ShortBufferException ibe)
+            }
+            catch (IllegalBlockSizeException | ShortBufferException ibe)
             {
                 throw new RuntimeException(ibe.getMessage(), ibe);
             }
 
 
             return output.length == len ? output : Arrays.copyOf(output, len);
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -372,14 +407,16 @@ class BlockCipherSpi extends CipherSpi
             try
             {
                 BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
-            } catch (IllegalBlockSizeException ibe)
+            }
+            catch (IllegalBlockSizeException ibe)
             {
                 throw new RuntimeException(ibe.getMessage(), ibe);
             }
 
             return len;
 
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -396,11 +433,13 @@ class BlockCipherSpi extends CipherSpi
             {
                 int written = engineDoFinal(input, inputOffset, inputLen, output, 0);
                 return written == output.length ? output : Arrays.copyOf(output, written);
-            } catch (ShortBufferException sbe)
+            }
+            catch (ShortBufferException sbe)
             {
                 throw new IllegalBlockSizeException(sbe.getMessage());
             }
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -444,7 +483,8 @@ class BlockCipherSpi extends CipherSpi
 
             written += code;
             return written;
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -467,7 +507,8 @@ class BlockCipherSpi extends CipherSpi
                 }
                 refWrapper = new OSSLBlockCipherRefWrapper(ref, osslCipher.name());
             }
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }

@@ -37,7 +37,8 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
         typeMap = Collections.unmodifiableMap(new HashMap<SLHDSAParameterSpec, OSSLKeyType>()
         {
             {
-                SLHDSAParameterSpec.getParameterSpecs().forEach(it -> {
+                SLHDSAParameterSpec.getParameterSpecs().forEach(it ->
+                {
                     put(it, it.getKeyType());
                 });
             }
@@ -77,23 +78,27 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
             }
 
             return new JOSLHDSAPublicKey(pkeySpec);
-        } else if (keySpec instanceof SLHDSAPublicKeySpec)
+        }
+        else
         {
-            SLHDSAPublicKeySpec pubSpec = (SLHDSAPublicKeySpec) keySpec;
-
-            OSSLKeyType osslKeyType = typeMap.get(pubSpec.getParameterSpec());
-
-            if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
+            if (keySpec instanceof SLHDSAPublicKeySpec)
             {
-                throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+                SLHDSAPublicKeySpec pubSpec = (SLHDSAPublicKeySpec) keySpec;
+
+                OSSLKeyType osslKeyType = typeMap.get(pubSpec.getParameterSpec());
+
+                if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
+                {
+                    throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+                }
+
+                byte[] encoed = ((SLHDSAPublicKeySpec) keySpec).getPublicData();
+                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+
+                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.decode_publicKey(
+                        pkeySpec.getReference(), osslKeyType.getKsType(), encoed, 0, encoed.length));
+                return new JOSLHDSAPublicKey(pkeySpec);
             }
-
-            byte[] encoed = ((SLHDSAPublicKeySpec) keySpec).getPublicData();
-            PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-
-            NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.decode_publicKey(
-                    pkeySpec.getReference(), osslKeyType.getKsType(), encoed, 0, encoed.length));
-            return new JOSLHDSAPublicKey(pkeySpec);
         }
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
     }
@@ -119,23 +124,27 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
             }
 
             return new JOSLHDSAPrivateKey(pkeySpec);
-        } else if (keySpec instanceof SLHDSAPrivateKeySpec)
+        }
+        else
         {
-            SLHDSAPrivateKeySpec spec = (SLHDSAPrivateKeySpec) keySpec;
-            OSSLKeyType osslKeyType = typeMap.get(spec.getParameterSpec());
-
-            if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
+            if (keySpec instanceof SLHDSAPrivateKeySpec)
             {
-                throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+                SLHDSAPrivateKeySpec spec = (SLHDSAPrivateKeySpec) keySpec;
+                OSSLKeyType osslKeyType = typeMap.get(spec.getParameterSpec());
+
+                if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
+                {
+                    throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+                }
+
+                byte[] encoded = spec.getPrivateData();
+
+                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.decode_privateKey(
+                        pkeySpec.getReference(), osslKeyType.getKsType(),
+                        encoded, 0, encoded.length));
+                return new JOSLHDSAPrivateKey(pkeySpec);
             }
-
-            byte[] encoded = spec.getPrivateData();
-
-            PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-            NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.decode_privateKey(
-                    pkeySpec.getReference(), osslKeyType.getKsType(),
-                    encoded, 0, encoded.length));
-            return new JOSLHDSAPrivateKey(pkeySpec);
         }
 
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -149,23 +158,35 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
             if (PKCS8EncodedKeySpec.class.isAssignableFrom(keySpec))
             {
                 return keySpec.cast(new PKCS8EncodedKeySpec(key.getEncoded()));
-            } else if (SLHDSAPrivateKeySpec.class.isAssignableFrom(keySpec))
+            }
+            else
             {
-                JOSLHDSAPrivateKey mKey = (JOSLHDSAPrivateKey) key;
-                return keySpec.cast(new SLHDSAPrivateKeySpec(mKey.getParameterSpec(), mKey.getDirectEncoding()));
+                if (SLHDSAPrivateKeySpec.class.isAssignableFrom(keySpec))
+                {
+                    JOSLHDSAPrivateKey mKey = (JOSLHDSAPrivateKey) key;
+                    return keySpec.cast(new SLHDSAPrivateKeySpec(mKey.getParameterSpec(), mKey.getDirectEncoding()));
+                }
             }
             throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
-        } else if (key instanceof JOSLHDSAPublicKey)
+        }
+        else
         {
-            if (X509EncodedKeySpec.class.isAssignableFrom(keySpec))
+            if (key instanceof JOSLHDSAPublicKey)
             {
-                return keySpec.cast(new X509EncodedKeySpec(key.getEncoded()));
-            } else if (SLHDSAPublicKeySpec.class.isAssignableFrom(keySpec))
-            {
-                JOSLHDSAPublicKey mKey = (JOSLHDSAPublicKey) key;
-                return keySpec.cast(new SLHDSAPublicKeySpec(mKey.getParameterSpec(), mKey.getPublicData()));
+                if (X509EncodedKeySpec.class.isAssignableFrom(keySpec))
+                {
+                    return keySpec.cast(new X509EncodedKeySpec(key.getEncoded()));
+                }
+                else
+                {
+                    if (SLHDSAPublicKeySpec.class.isAssignableFrom(keySpec))
+                    {
+                        JOSLHDSAPublicKey mKey = (JOSLHDSAPublicKey) key;
+                        return keySpec.cast(new SLHDSAPublicKeySpec(mKey.getParameterSpec(), mKey.getPublicData()));
+                    }
+                }
+                throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
             }
-            throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
         }
         throw new InvalidKeySpecException("Invalid Key: " + key);
     }
@@ -179,7 +200,6 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
         }
         throw new InvalidKeyException("Invalid Key: " + key);
     }
-
 
 
 }

@@ -8,12 +8,12 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
 
 /**
  * JNI version of this class
  */
-class BlockCipherJNI implements BlockCipherNI
+public class BlockCipherJNI implements BlockCipherNI
 {
 
     @Override

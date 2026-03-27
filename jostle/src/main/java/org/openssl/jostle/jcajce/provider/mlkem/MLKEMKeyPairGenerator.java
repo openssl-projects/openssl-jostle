@@ -11,10 +11,7 @@
 package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.mlkem.JOMLKEMPrivateKey;
-import org.openssl.jostle.jcajce.provider.mlkem.JOMLKEMPublicKey;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
-import org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
@@ -91,7 +88,7 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
 
         if (keyType != newType)
         {
-            throw new InvalidAlgorithmParameterException("expected " +  MLKEMParameterSpec.getSpecForOSSLType(keyType).getName() + " but was supplied " + MLKEMParameterSpec.getSpecForOSSLType(newType).getName());
+            throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(keyType).getName() + " but was supplied " + MLKEMParameterSpec.getSpecForOSSLType(newType).getName());
         }
 
         keyType = newType;
@@ -105,15 +102,18 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
         if (res < 0)
         {
             NISelector.MLKEMServiceNI.handleErrors(res);
-        } else if (res == 0)
+        }
+        else
         {
-            throw new IllegalStateException("unexpected null pointer from native layer");
+            if (res == 0)
+            {
+                throw new IllegalStateException("unexpected null pointer from native layer");
+            }
         }
 
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
         return new KeyPair(new JOMLKEMPublicKey(spec), new JOMLKEMPrivateKey(spec));
     }
-
 
 
 }

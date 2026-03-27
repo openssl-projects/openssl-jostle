@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.interfaces;
 
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
-import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 public interface MLKEMKey extends OSSLKey
 {

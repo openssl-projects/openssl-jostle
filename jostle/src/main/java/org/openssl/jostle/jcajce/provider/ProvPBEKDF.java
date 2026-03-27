@@ -45,8 +45,8 @@ class ProvPBEKDF
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-384", PREFIX + "BaseSHA3_384", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SHA3-384"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-512", PREFIX + "BaseSHA3_512", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SHA3-512"));
 
-        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACBLAKE2B-512",PREFIX+"BLAKE2B_512",generalKDFAttributes,(arg)->new PBEKDF2SecretKeyFactory("BLAKE2B-512"));
-        provider.addAlgorithmImplementation("SecretKeyFactory","PBKDF2WITHHMACBLAKE2S-256",PREFIX+"BLAKE2S_256",generalKDFAttributes,(arg)->new PBEKDF2SecretKeyFactory("BLAKE2s-256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACBLAKE2B-512", PREFIX + "BLAKE2B_512", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("BLAKE2B-512"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACBLAKE2S-256", PREFIX + "BLAKE2S_256", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("BLAKE2s-256"));
 
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSM3", PREFIX + "SM3", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("SM3"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACMD5", PREFIX + "MD5", generalKDFAttributes, (arg) -> new PBEKDF2SecretKeyFactory("MD5"));

@@ -103,7 +103,10 @@ public class MLKEMParameterSpec implements AlgorithmParameterSpec
     @Override
     public boolean equals(Object o)
     {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+        {
+            return false;
+        }
         MLKEMParameterSpec that = (MLKEMParameterSpec) o;
         return Objects.equals(name, that.name);
     }

@@ -19,7 +19,7 @@ import java.util.List;
  * A simple collection backed store.
  */
 public class CollectionStore<T>
-    implements Store<T>, Iterable<T>
+        implements Store<T>, Iterable<T>
 {
     private final Collection<T> _local;
 
@@ -29,7 +29,7 @@ public class CollectionStore<T>
      * @param collection - initial contents for the store, this is copied.
      */
     public CollectionStore(
-        Collection<T> collection)
+            Collection<T> collection)
     {
         _local = new ArrayList<T>(collection);
     }

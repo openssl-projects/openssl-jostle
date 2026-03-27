@@ -10,7 +10,7 @@ import java.security.spec.KeySpec;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-final class ProvSecretKeySpec
+public final class ProvSecretKeySpec
         implements KeySpec, SecretKey
 {
     private byte[] keyBytes;

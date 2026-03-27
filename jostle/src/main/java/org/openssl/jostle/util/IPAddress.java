@@ -19,7 +19,6 @@ public class IPAddress
      * Validate the given IPv4 or IPv6 address.
      *
      * @param address the IP address as a String.
-     *
      * @return true if a valid address, false otherwise
      */
     public static boolean isValid(String address)
@@ -31,7 +30,6 @@ public class IPAddress
      * Validate the given IPv4 or IPv6 address and netmask.
      *
      * @param address the IP address as a String.
-     *
      * @return true if a valid address with netmask, false otherwise
      */
     public static boolean isValidWithNetMask(String address)
@@ -41,9 +39,8 @@ public class IPAddress
 
     /**
      * Validate the given IPv4 address.
-     * 
-     * @param address the IP address as a String.
      *
+     * @param address the IP address as a String.
      * @return true if a valid IPv4 address, false otherwise
      */
     public static boolean isValidIPv4(String address)
@@ -88,7 +85,6 @@ public class IPAddress
      * Validate the given IPv6 address.
      *
      * @param address the IP address as a String.
-     *
      * @return true if a valid IPv6 address, false otherwise
      */
     public static boolean isValidIPv6(String address)
@@ -102,7 +98,7 @@ public class IPAddress
         if (firstChar != ':' && Character.digit(firstChar, 16) < 0)
         {
             return false;
-        }        
+        }
 
         int segmentCount = 0;
         String temp = address + ":";
@@ -132,9 +128,12 @@ public class IPAddress
                         return false;
                     }
                 }
-                else if (!isParseableIPv6Segment(temp, pos, end))
+                else
                 {
-                    return false;
+                    if (!isParseableIPv6Segment(temp, pos, end))
+                    {
+                        return false;
+                    }
                 }
             }
             else
@@ -188,7 +187,7 @@ public class IPAddress
     }
 
     private static boolean isParseable(String s, int pos, int end, int radix, int maxLength, boolean allowLeadingZero,
-        int minValue, int maxValue)
+                                       int minValue, int maxValue)
     {
         int length = end - pos;
         if (length < 1 | length > maxLength)
@@ -196,7 +195,7 @@ public class IPAddress
             return false;
         }
 
-        boolean checkLeadingZero = length > 1 & !allowLeadingZero; 
+        boolean checkLeadingZero = length > 1 & !allowLeadingZero;
         if (checkLeadingZero && Character.digit(s.charAt(pos), radix) <= 0)
         {
             return false;

@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.blockcipher.SM4BlockCipherSpi;
+
 import java.util.HashMap;
 import java.util.Map;
 

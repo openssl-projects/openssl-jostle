@@ -12,7 +12,7 @@ package org.openssl.jostle.jcajce.interfaces;
 
 import java.security.PublicKey;
 
-public interface MLDSAPublicKey extends PublicKey,MLDSAKey
+public interface MLDSAPublicKey extends PublicKey, MLDSAKey
 {
     /**
      * Return the raw encoded data representing the public key: t || rho.

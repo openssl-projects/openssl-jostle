@@ -10,19 +10,19 @@
 
 package org.openssl.jostle.util.test;
 
+import org.openssl.jostle.util.Pack;
+import org.openssl.jostle.util.encoders.Hex;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.Provider;
 import java.security.SecureRandom;
 
-import org.openssl.jostle.util.Pack;
-import org.openssl.jostle.util.encoders.Hex;
-
 /**
  * A secure random that returns pre-seeded data to calls of nextBytes() or generateSeed().
  */
 public class FixedSecureRandom
-    extends SecureRandom
+        extends SecureRandom
 {
     private static final java.math.BigInteger REGULAR = new java.math.BigInteger("01020304ffffffff0506070811111111", 16);
     private static final java.math.BigInteger ANDROID = new java.math.BigInteger("1111111105060708ffffffff01020304", 16);
@@ -42,8 +42,8 @@ public class FixedSecureRandom
         isClasspathStyle = check2.equals(CLASSPATH);
     }
 
-    private final byte[]       _data;
-    private int          _index;
+    private final byte[] _data;
+    private int _index;
 
     /**
      * Base class for sources of fixed "Randomness"
@@ -62,7 +62,7 @@ public class FixedSecureRandom
      * Data Source - in this case we just expect requests for byte arrays.
      */
     public static class Data
-        extends Source
+            extends Source
     {
         public Data(byte[] data)
         {
@@ -75,7 +75,7 @@ public class FixedSecureRandom
      * for BigIntegers. The FixedSecureRandom will attempt to compensate for platform differences here.
      */
     public static class BigInteger
-        extends Source
+            extends Source
     {
         public BigInteger(byte[] data)
         {
@@ -100,11 +100,11 @@ public class FixedSecureRandom
 
     public FixedSecureRandom(byte[] value)
     {
-        this(new Source[] { new Data(value) });
+        this(new Source[]{new Data(value)});
     }
 
     public FixedSecureRandom(
-        byte[][] values)
+            byte[][] values)
     {
         this(buildDataArray(values));
     }
@@ -122,7 +122,7 @@ public class FixedSecureRandom
     }
 
     public FixedSecureRandom(
-        Source[] sources)
+            Source[] sources)
     {
         super(null, new DummyProvider());   // to prevent recursion in provider creation
 
@@ -175,46 +175,49 @@ public class FixedSecureRandom
                 }
             }
         }
-        else if (isAndroidStyle)
-        {
-            for (int i = 0; i != sources.length; i++)
-            {
-                try
-                {
-                    if (sources[i] instanceof BigInteger)
-                    {
-                        byte[] data = sources[i].data;
-                        int len = data.length - (data.length % 4);
-                        for (int w = 0; w < len; w += 4)
-                        {
-                            bOut.write(data, data.length - (w + 4), 4);
-                        }
-                        if (data.length - len != 0)
-                        {
-                            for (int w = 0; w != 4 - (data.length - len); w++)
-                            {
-                                bOut.write(0);
-                            }
-                        }
-                        for (int w = 0; w != data.length - len; w++)
-                        {
-                            bOut.write(data[len + w]);
-                        }
-                    }
-                    else
-                    {
-                        bOut.write(sources[i].data);
-                    }
-                }
-                catch (IOException e)
-                {
-                    throw new IllegalArgumentException("can't save value source.");
-                }
-            }
-        }
         else
         {
-            throw new IllegalStateException("Unrecognized BigInteger implementation");
+            if (isAndroidStyle)
+            {
+                for (int i = 0; i != sources.length; i++)
+                {
+                    try
+                    {
+                        if (sources[i] instanceof BigInteger)
+                        {
+                            byte[] data = sources[i].data;
+                            int len = data.length - (data.length % 4);
+                            for (int w = 0; w < len; w += 4)
+                            {
+                                bOut.write(data, data.length - (w + 4), 4);
+                            }
+                            if (data.length - len != 0)
+                            {
+                                for (int w = 0; w != 4 - (data.length - len); w++)
+                                {
+                                    bOut.write(0);
+                                }
+                            }
+                            for (int w = 0; w != data.length - len; w++)
+                            {
+                                bOut.write(data[len + w]);
+                            }
+                        }
+                        else
+                        {
+                            bOut.write(sources[i].data);
+                        }
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IllegalArgumentException("can't save value source.");
+                    }
+                }
+            }
+            else
+            {
+                throw new IllegalStateException("Unrecognized BigInteger implementation");
+            }
         }
 
         _data = bOut.toByteArray();
@@ -243,7 +246,7 @@ public class FixedSecureRandom
     public int nextInt()
     {
         int val = 0;
-        
+
         val |= nextValue() << 24;
         val |= nextValue() << 16;
         val |= nextValue() << 8;
@@ -251,7 +254,7 @@ public class FixedSecureRandom
 
         return val;
     }
-    
+
     //
     // classpath's implementation of SecureRandom doesn't currently go back to nextBytes
     // when next is called. We can't override next as it's a final method.
@@ -259,16 +262,16 @@ public class FixedSecureRandom
     public long nextLong()
     {
         long val = 0;
-        
-        val |= (long)nextValue() << 56;
-        val |= (long)nextValue() << 48;
-        val |= (long)nextValue() << 40;
-        val |= (long)nextValue() << 32;
-        val |= (long)nextValue() << 24;
-        val |= (long)nextValue() << 16;
-        val |= (long)nextValue() << 8;
+
+        val |= (long) nextValue() << 56;
+        val |= (long) nextValue() << 48;
+        val |= (long) nextValue() << 40;
+        val |= (long) nextValue() << 32;
+        val |= (long) nextValue() << 24;
+        val |= (long) nextValue() << 16;
+        val |= (long) nextValue() << 8;
         val |= nextValue();
-        
+
         return val;
     }
 
@@ -283,7 +286,7 @@ public class FixedSecureRandom
     }
 
     private static class RandomChecker
-        extends SecureRandom
+            extends SecureRandom
     {
         RandomChecker()
         {
@@ -291,7 +294,7 @@ public class FixedSecureRandom
         }
 
         byte[] data = Hex.decode("01020304ffffffff0506070811111111");
-        int    index = 0;
+        int index = 0;
 
         public void nextBytes(byte[] bytes)
         {
@@ -335,7 +338,7 @@ public class FixedSecureRandom
     }
 
     private static class DummyProvider
-        extends Provider
+            extends Provider
     {
         DummyProvider()
         {

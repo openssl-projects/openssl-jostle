@@ -28,7 +28,8 @@ class OpenSSLFFI implements OpenSSLNI
             var provName = provider != null ? arena.allocateFrom(provider) : MemorySegment.ofAddress(0);
 
             return (int) handle.invokeExact(provName);
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             L.log(Level.WARNING, "ffi set_openssl_module", t);
             throw new RuntimeException(t.getMessage(), t);
@@ -53,13 +54,16 @@ class OpenSSLFFI implements OpenSSLNI
                 content = (MemorySegment) handle.invokeExact(len);
                 content = content.reinterpret(len.get(ValueLayout.JAVA_LONG, 0));
                 result = content.getString(0);
-            } catch (RuntimeException e)
+            }
+            catch (RuntimeException e)
             {
                 throw e;
-            } catch (Throwable t)
+            }
+            catch (Throwable t)
             {
                 throw new RuntimeException(t.getMessage(), t);
-            } finally
+            }
+            finally
             {
                 if (content != null)
                 {

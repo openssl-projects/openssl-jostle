@@ -12,6 +12,8 @@ package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherJNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceJNI;

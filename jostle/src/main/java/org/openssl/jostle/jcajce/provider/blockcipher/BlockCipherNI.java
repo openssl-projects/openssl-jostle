@@ -8,7 +8,11 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.jcajce.provider.blockcipher;
+
+import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.OpenSSL;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.BadPaddingException;

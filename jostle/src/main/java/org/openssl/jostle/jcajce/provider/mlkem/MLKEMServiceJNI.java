@@ -10,8 +10,6 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
-import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
-
 public class MLKEMServiceJNI implements MLKEMServiceNI
 {
 

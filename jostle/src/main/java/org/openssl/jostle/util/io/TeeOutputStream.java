@@ -18,7 +18,7 @@ import java.io.OutputStream;
  * An output stream which copies anything written into it to another stream.
  */
 public class TeeOutputStream
-    extends OutputStream
+        extends OutputStream
 {
     private final OutputStream output1;
     private final OutputStream output2;
@@ -36,35 +36,35 @@ public class TeeOutputStream
     }
 
     public void write(byte[] buf)
-        throws IOException
+            throws IOException
     {
         this.output1.write(buf);
         this.output2.write(buf);
     }
 
     public void write(byte[] buf, int off, int len)
-        throws IOException
+            throws IOException
     {
         this.output1.write(buf, off, len);
         this.output2.write(buf, off, len);
     }
 
     public void write(int b)
-        throws IOException
+            throws IOException
     {
         this.output1.write(b);
         this.output2.write(b);
     }
 
     public void flush()
-        throws IOException
+            throws IOException
     {
         this.output1.flush();
         this.output2.flush();
     }
 
     public void close()
-        throws IOException
+            throws IOException
     {
         this.output1.close();
         this.output2.close();

@@ -10,9 +10,9 @@
 
 package org.openssl.jostle.math.raw;
 
-import java.math.BigInteger;
-
 import org.openssl.jostle.util.Pack;
+
+import java.math.BigInteger;
 
 public abstract class Nat320
 {

@@ -16,9 +16,9 @@ public class SimpleTestResult implements TestResult
 {
     private static final String SEPARATOR = Strings.lineSeparator();
 
-    private final boolean             success;
-    private final String              message;
-    private Throwable           exception;
+    private final boolean success;
+    private final String message;
+    private Throwable exception;
 
     public SimpleTestResult(boolean success, String message)
     {
@@ -34,38 +34,38 @@ public class SimpleTestResult implements TestResult
     }
 
     public static TestResult successful(
-        Test test, 
-        String message)
+            Test test,
+            String message)
     {
         return new SimpleTestResult(true, test.getName() + ": " + message);
     }
 
     public static TestResult failed(
-        Test test, 
-        String message)
+            Test test,
+            String message)
     {
         return new SimpleTestResult(false, test.getName() + ": " + message);
     }
-    
+
     public static TestResult failed(
-        Test test, 
-        String message, 
-        Throwable t)
+            Test test,
+            String message,
+            Throwable t)
     {
         return new SimpleTestResult(false, test.getName() + ": " + message, t);
     }
-    
+
     public static TestResult failed(
-        Test test, 
-        String message, 
-        Object expected, 
-        Object found)
+            Test test,
+            String message,
+            Object expected,
+            Object found)
     {
         return failed(test, message + SEPARATOR + "Expected: " + expected + SEPARATOR + "Found   : " + found);
     }
-    
+
     public static String failedMessage(String algorithm, String testName, String expected,
-            String actual)
+                                       String actual)
     {
         String sb = algorithm + " failing " + testName +
                 SEPARATOR + "    expected: " + expected +

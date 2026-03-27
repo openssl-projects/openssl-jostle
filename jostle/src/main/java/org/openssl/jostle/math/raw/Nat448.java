@@ -10,9 +10,9 @@
 
 package org.openssl.jostle.math.raw;
 
-import java.math.BigInteger;
-
 import org.openssl.jostle.util.Pack;
+
+import java.math.BigInteger;
 
 public abstract class Nat448
 {
@@ -122,7 +122,7 @@ public abstract class Nat448
         Nat224.mul(dx, dy, tt);
 
         c21 += neg ? Nat.addTo(14, tt, 0, zz, 7) : Nat.subFrom(14, tt, 0, zz, 7);
-        Nat.addWordAt(28, c21, zz, 21); 
+        Nat.addWordAt(28, c21, zz, 21);
     }
 
     public static void square(int[] x, int[] zz)
@@ -141,7 +141,7 @@ public abstract class Nat448
         Nat224.square(dx, tt);
 
         c21 += Nat.subFrom(14, tt, 0, zz, 7);
-        Nat.addWordAt(28, c21, zz, 21); 
+        Nat.addWordAt(28, c21, zz, 21);
     }
 
     public static BigInteger toBigInteger64(long[] x)

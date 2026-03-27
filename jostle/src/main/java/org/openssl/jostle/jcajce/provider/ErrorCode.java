@@ -124,7 +124,6 @@ public enum ErrorCode
     }
 
 
-
     public static ErrorCode forCode(long code)
     {
         if (code >= 0)

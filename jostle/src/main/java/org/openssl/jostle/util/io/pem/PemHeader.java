@@ -21,7 +21,7 @@ public class PemHeader
     /**
      * Base constructor.
      *
-     * @param name name of the header property.
+     * @param name  name of the header property.
      * @param value value of the header property.
      */
     public PemHeader(String name, String value)
@@ -42,7 +42,7 @@ public class PemHeader
 
     public int hashCode()
     {
-        return getHashCode(this.name) + 31 * getHashCode(this.value);    
+        return getHashCode(this.name) + 31 * getHashCode(this.value);
     }
 
     public boolean equals(Object o)
@@ -52,7 +52,7 @@ public class PemHeader
             return false;
         }
 
-        PemHeader other = (PemHeader)o;
+        PemHeader other = (PemHeader) o;
 
         return other == this || (isEqual(this.name, other.name) && isEqual(this.value, other.value));
     }

@@ -99,9 +99,13 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         if (res < 0)
         {
             NISelector.MLDSAServiceNI.handleErrors(res);
-        } else if (res == 0)
+        }
+        else
         {
-            throw new IllegalStateException("unexpected null pointer from native layer");
+            if (res == 0)
+            {
+                throw new IllegalStateException("unexpected null pointer from native layer");
+            }
         }
 
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);

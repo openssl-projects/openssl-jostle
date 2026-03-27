@@ -44,7 +44,6 @@ public class PKEYKeySpec
     }
 
 
-
     protected static class Disposer
             extends NativeDisposer
     {

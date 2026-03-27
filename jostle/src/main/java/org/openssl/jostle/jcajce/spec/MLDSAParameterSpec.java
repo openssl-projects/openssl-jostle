@@ -28,7 +28,6 @@ public class MLDSAParameterSpec
     public static final MLDSAParameterSpec ml_dsa_87 = new MLDSAParameterSpec("ML-DSA-87", false);
 
 
-
     private static Map parameters = new HashMap();
 
     static
@@ -75,7 +74,10 @@ public class MLDSAParameterSpec
     @Override
     public boolean equals(Object o)
     {
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass())
+        {
+            return false;
+        }
         MLDSAParameterSpec that = (MLDSAParameterSpec) o;
         return Objects.equals(name, that.name);
     }

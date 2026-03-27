@@ -22,7 +22,7 @@ public class Bytes
     {
         for (int i = 0; i < len; ++i)
         {
-            z[i] = (byte)(x[i] ^ y[i]);
+            z[i] = (byte) (x[i] ^ y[i]);
         }
     }
 
@@ -30,7 +30,7 @@ public class Bytes
     {
         for (int i = 0; i < len; ++i)
         {
-            z[zOff++] = (byte)(x[xOff++] ^ y[i]);
+            z[zOff++] = (byte) (x[xOff++] ^ y[i]);
         }
     }
 
@@ -38,7 +38,7 @@ public class Bytes
     {
         for (int i = 0; i < len; ++i)
         {
-            z[zOff + i] = (byte)(x[xOff + i] ^ y[yOff + i]);
+            z[zOff + i] = (byte) (x[xOff + i] ^ y[yOff + i]);
         }
     }
 
@@ -46,7 +46,7 @@ public class Bytes
     {
         for (int i = 0; i < len; ++i)
         {
-            z[zOff++] = (byte)(x[i] ^ y[i]);
+            z[zOff++] = (byte) (x[i] ^ y[i]);
         }
     }
 
@@ -54,7 +54,7 @@ public class Bytes
     {
         for (int i = 0; i < len; ++i)
         {
-            z[zOff++] = (byte)(x[i] ^ y[yOff++]);
+            z[zOff++] = (byte) (x[i] ^ y[yOff++]);
         }
     }
 

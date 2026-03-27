@@ -10,9 +10,9 @@
 
 package org.openssl.jostle.math.raw;
 
-import java.util.Random;
-
 import org.openssl.jostle.util.Integers;
+
+import java.util.Random;
 
 /**
  * Modular inversion as implemented in this class is based on the paper "Fast constant-time gcd
@@ -52,7 +52,7 @@ public abstract class Mod
         x *= 2 - d * x;                     // d.x == 1 mod 2**24
         x *= 2 - d * x;                     // d.x == 1 mod 2**48
 //        assert d * x == 1;
-        return  x;
+        return x;
     }
 
     public static int modOddInverse(int[] m, int[] x, int[] z)
@@ -313,10 +313,12 @@ public abstract class Mod
         for (int i = 0; i < last; ++i)
         {
             c += D[i] + M[i];
-            D[i] = c & M30; c >>= 30;
+            D[i] = c & M30;
+            c >>= 30;
         }
         c += D[last] + M[last];
-        D[last] = c; c >>= 30;
+        D[last] = c;
+        c >>= 30;
         return c;
     }
 
@@ -329,7 +331,8 @@ public abstract class Mod
         for (int i = 0; i < last; ++i)
         {
             c += (D[i] ^ cond) - cond;
-            D[i] = c & M30; c >>= 30;
+            D[i] = c & M30;
+            c >>= 30;
         }
         c += (D[last] ^ cond) - cond;
         D[last] = c;
@@ -349,12 +352,15 @@ public abstract class Mod
             {
                 int di = D[i] + (M[i] & condAdd);
                 di = (di ^ condNegate) - condNegate;
-                c += di; D[i] = c & M30; c >>= 30;
+                c += di;
+                D[i] = c & M30;
+                c >>= 30;
             }
             {
                 int di = D[last] + (M[last] & condAdd);
                 di = (di ^ condNegate) - condNegate;
-                c += di; D[last] = c;
+                c += di;
+                D[last] = c;
             }
         }
 
@@ -363,11 +369,14 @@ public abstract class Mod
             for (int i = 0; i < last; ++i)
             {
                 int di = D[i] + (M[i] & condAdd);
-                c += di; D[i] = c & M30; c >>= 30;
+                c += di;
+                D[i] = c & M30;
+                c >>= 30;
             }
             {
                 int di = D[last] + (M[last] & condAdd);
-                c += di; D[last] = c;
+                c += di;
+                D[last] = c;
             }
 //            assert c >> 30 == 0;
         }
@@ -386,11 +395,12 @@ public abstract class Mod
         {
             while (avail < Math.min(32, bits))
             {
-                data |= (long)x[xOff++] << avail;
+                data |= (long) x[xOff++] << avail;
                 avail += 30;
             }
 
-            z[zOff++] = (int)data; data >>>= 32;
+            z[zOff++] = (int) data;
+            data >>>= 32;
             avail -= 32;
             bits -= 32;
         }
@@ -402,7 +412,7 @@ public abstract class Mod
         int f = f0, g = g0, m, w, x, y, z;
         int i = 30, limit, zeros;
 
-        for (;;)
+        for (; ; )
         {
             // Use a sentinel bit to count zeros only up to i.
             zeros = Integers.numberOfTrailingZeros(g | (-1 << i));
@@ -426,9 +436,15 @@ public abstract class Mod
             if (eta <= 0)
             {
                 eta = 2 - eta;
-                x = f; f = g; g = -x;
-                y = u; u = q; q = -y;
-                z = v; v = r; r = -z;
+                x = f;
+                f = g;
+                g = -x;
+                y = u;
+                u = q;
+                q = -y;
+                z = v;
+                v = r;
+                r = -z;
 
                 // Handle up to 6 divsteps at once, subject to eta and i.
                 limit = eta > i ? i : eta;
@@ -478,7 +494,8 @@ public abstract class Mod
                 avail += 32;
             }
 
-            z[zOff++] = (int)data & M30; data >>>= 30;
+            z[zOff++] = (int) data & M30;
+            data >>>= 30;
             avail -= 30;
             bits -= 30;
         }
@@ -499,7 +516,9 @@ public abstract class Mod
     {
         int d = x[0] ^ y;
         if (d != 0)
+        {
             return false;
+        }
 
         for (int i = 1; i < len; ++i)
         {
@@ -511,13 +530,13 @@ public abstract class Mod
     private static int getMaximumDivsteps(int bits)
     {
         //return (49 * bits + (bits < 46 ? 80 : 47)) / 17;
-        return (int)((188898L * bits + (bits < 46 ? 308405 : 181188)) >>> 16);
+        return (int) ((188898L * bits + (bits < 46 ? 308405 : 181188)) >>> 16);
     }
 
     private static int getMaximumHDDivsteps(int bits)
     {
         //return (int)((45907L * bits + 30179) / 19929);
-        return (int)((150964L * bits + 99243) >>> 16);
+        return (int) ((150964L * bits + 99243) >>> 16);
     }
 
     private static int hddivsteps30(int theta, int f0, int g0, int[] t)
@@ -571,10 +590,12 @@ public abstract class Mod
         for (int i = 0; i < last; ++i)
         {
             c -= D[i];
-            D[i] = c & M30; c >>= 30;
+            D[i] = c & M30;
+            c >>= 30;
         }
         c -= D[last];
-        D[last] = c; c >>= 30;
+        D[last] = c;
+        c >>= 30;
         return c;
     }
 
@@ -628,19 +649,19 @@ public abstract class Mod
         di = D[0];
         ei = E[0];
 
-        cd = (long)u * di + (long)v * ei;
-        ce = (long)q * di + (long)r * ei;
+        cd = (long) u * di + (long) v * ei;
+        ce = (long) q * di + (long) r * ei;
 
         /*
          * Subtract from md/me an extra term in the range [0, 2^30) such that the low 30 bits of the
          * intermediate D/E values will be 0, allowing clean division by 2^30. The final D/E are
          * thus in the range (-2.M, M), consistent with the input constraint.
          */
-        md -= (m0Inv32 * (int)cd + md) & M30;
-        me -= (m0Inv32 * (int)ce + me) & M30;
+        md -= (m0Inv32 * (int) cd + md) & M30;
+        me -= (m0Inv32 * (int) ce + me) & M30;
 
-        cd += (long)mi * md;
-        ce += (long)mi * me;
+        cd += (long) mi * md;
+        ce += (long) mi * me;
 
 //        assert ((int)cd & M30) == 0;
 //        assert ((int)ce & M30) == 0;
@@ -654,15 +675,17 @@ public abstract class Mod
             di = D[i];
             ei = E[i];
 
-            cd += (long)u * di + (long)v * ei + (long)mi * md;
-            ce += (long)q * di + (long)r * ei + (long)mi * me;
+            cd += (long) u * di + (long) v * ei + (long) mi * md;
+            ce += (long) q * di + (long) r * ei + (long) mi * me;
 
-            D[i - 1] = (int)cd & M30; cd >>= 30;
-            E[i - 1] = (int)ce & M30; ce >>= 30;
+            D[i - 1] = (int) cd & M30;
+            cd >>= 30;
+            E[i - 1] = (int) ce & M30;
+            ce >>= 30;
         }
 
-        D[len30 - 1] = (int)cd;
-        E[len30 - 1] = (int)ce;
+        D[len30 - 1] = (int) cd;
+        E[len30 - 1] = (int) ce;
     }
 
     private static void updateFG30(int len30, int[] F, int[] G, int[] t)
@@ -678,8 +701,8 @@ public abstract class Mod
         fi = F[0];
         gi = G[0];
 
-        cf = (long)u * fi + (long)v * gi;
-        cg = (long)q * fi + (long)r * gi;
+        cf = (long) u * fi + (long) v * gi;
+        cg = (long) q * fi + (long) r * gi;
 
 //        assert ((int)cf & M30) == 0;
 //        assert ((int)cg & M30) == 0;
@@ -692,14 +715,16 @@ public abstract class Mod
             fi = F[i];
             gi = G[i];
 
-            cf += (long)u * fi + (long)v * gi;
-            cg += (long)q * fi + (long)r * gi;
+            cf += (long) u * fi + (long) v * gi;
+            cg += (long) q * fi + (long) r * gi;
 
-            F[i - 1] = (int)cf & M30; cf >>= 30;
-            G[i - 1] = (int)cg & M30; cg >>= 30;
+            F[i - 1] = (int) cf & M30;
+            cf >>= 30;
+            G[i - 1] = (int) cg & M30;
+            cg >>= 30;
         }
 
-        F[len30 - 1] = (int)cf;
-        G[len30 - 1] = (int)cg;
+        F[len30 - 1] = (int) cf;
+        G[len30 - 1] = (int) cg;
     }
 }

@@ -30,7 +30,7 @@ public interface Memoable
      * Implementations of this method <em>should</em> try to avoid or minimise memory allocation to perform the reset.
      *
      * @param other an object originally {@link #copy() copied} from an object of the same type as this instance.
-     * @throws ClassCastException if the provided object is not of the correct type.
+     * @throws ClassCastException     if the provided object is not of the correct type.
      * @throws MemoableResetException if the <b>other</b> parameter is in some other way invalid.
      */
     void reset(Memoable other);

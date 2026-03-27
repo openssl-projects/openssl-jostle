@@ -22,7 +22,6 @@ class JOPBEKey implements PBEKey, KeySpec, SecretKey, Destroyable, Serializable
     private final int iterationCount;
 
 
-
     JOPBEKey(String algoName, char[] password, byte[] salt, int iterationCount, byte[] rawKey)
     {
         this.algoName = algoName;

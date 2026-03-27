@@ -28,5 +28,5 @@ public interface Store<T>
      * @throws StoreException if there is a failure during matching.
      */
     Collection<T> getMatches(Selector<T> selector)
-        throws StoreException;
+            throws StoreException;
 }

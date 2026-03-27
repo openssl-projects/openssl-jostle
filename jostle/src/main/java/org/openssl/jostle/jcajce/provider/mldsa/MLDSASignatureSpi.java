@@ -154,7 +154,8 @@ public class MLDSASignatureSpi extends SignatureSpi
             sig = new byte[(int) len];
             NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0));
             return sig;
-        } finally
+        }
+        finally
         {
             reInit();
         }
@@ -175,7 +176,8 @@ public class MLDSASignatureSpi extends SignatureSpi
             }
 
             return code == ErrorCode.JO_SUCCESS.getCode();
-        } finally
+        }
+        finally
         {
             reInit();
         }
@@ -230,17 +232,26 @@ public class MLDSASignatureSpi extends SignatureSpi
                 if (lastKey instanceof MLDSAPublicKey)
                 {
                     engineInitVerify((PublicKey) lastKey);
-                } else if (lastKey instanceof MLDSAPrivateKey)
+                }
+                else
                 {
-                    engineInitSign((PrivateKey) lastKey);
-                } else if (lastKey != null)
-                {
-                    throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                    if (lastKey instanceof MLDSAPrivateKey)
+                    {
+                        engineInitSign((PrivateKey) lastKey);
+                    }
+                    else
+                    {
+                        if (lastKey != null)
+                        {
+                            throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                        }
+                    }
                 }
 
                 // Intentional, does nothing if no key present.
 
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 throw new ProviderException("unable to reinitialize signature engine", e);
             }

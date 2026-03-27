@@ -42,15 +42,14 @@ class ProvMLDSA
         provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", PREFIX + "MLDSAKeyPairGenerator$MLDSA87", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl.MLDSA87());
 
 
-
         final Map<String, String> mldsaSigAttr = new HashMap<>();
 
         provider.addAlgorithmImplementation("Signature", "MLDSA", PREFIX + "MLDSASignatureSpi$MLDSA", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.INTERNAL));
         provider.addAlias("Signature", "MLDSA", "ML-DSA");
 
         provider.addAlgorithmImplementation("Signature", "ML-DSA-44", PREFIX + "MLDSASignatureSpi$MLDSA44", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_44, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_65,MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_87,MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_65, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_87, MLDSASignatureSpi.MuHandling.INTERNAL));
         provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
         provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
 
@@ -61,8 +60,6 @@ class ProvMLDSA
         provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_44));
         provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_65));
         provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_87));
-
-
 
 
     }

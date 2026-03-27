@@ -5,12 +5,11 @@ import org.openssl.jostle.util.Arrays;
 import java.security.spec.KeySpec;
 
 
-
 /**
  * Key spec for use with the scrypt SecretKeyFactory.
  */
 public class ScryptKeySpec
-    implements KeySpec
+        implements KeySpec
 {
     private final char[] password;
     private final byte[] salt;

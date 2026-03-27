@@ -3,7 +3,7 @@ package org.openssl.jostle.test.crypto;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
-import org.openssl.jostle.jcajce.provider.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 import javax.crypto.Cipher;

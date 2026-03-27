@@ -100,7 +100,8 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
                 NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, messageEncoding.ordinal(), deterministic.ordinal()));
                 return;
-            } finally
+            }
+            finally
             {
                 Reference.reachabilityFence(this);
             }
@@ -146,7 +147,9 @@ public class SLHDSASignatureSpi extends SignatureSpi
                         key.getSpec().getReference(),
                         context, contextLen, messageEncoding.ordinal(), deterministic.ordinal()));
                 return;
-            } finally {
+            }
+            finally
+            {
                 Reference.reachabilityFence(this);
             }
         }
@@ -166,7 +169,8 @@ public class SLHDSASignatureSpi extends SignatureSpi
         {
             updateCalled = true;
             NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.update(ref.getReference(), b, off, len));
-        } finally
+        }
+        finally
         {
             Reference.reachabilityFence(this);
         }
@@ -184,11 +188,14 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 sig = new byte[(int) len];
                 NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0));
                 return sig;
-            } finally
+            }
+            finally
             {
                 reInit();
             }
-        } finally {
+        }
+        finally
+        {
             Reference.reachabilityFence(this);
         }
     }
@@ -210,11 +217,14 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 }
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
-            } finally
+            }
+            finally
             {
                 reInit();
             }
-        } finally {
+        }
+        finally
+        {
             Reference.reachabilityFence(this);
         }
     }
@@ -252,31 +262,41 @@ public class SLHDSASignatureSpi extends SignatureSpi
     private void reInit()
     {
 
-       try
+        try
         {
             try
             {
                 if (lastKey instanceof JOSLHDSAPublicKey)
                 {
                     engineInitVerify((PublicKey) lastKey);
-                } else if (lastKey instanceof JOSLHDSAPrivateKey)
+                }
+                else
                 {
-                    engineInitSign((PrivateKey) lastKey);
-                } else if (lastKey != null)
-                {
-                    throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                    if (lastKey instanceof JOSLHDSAPrivateKey)
+                    {
+                        engineInitSign((PrivateKey) lastKey);
+                    }
+                    else
+                    {
+                        if (lastKey != null)
+                        {
+                            throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
+                        }
+                    }
                 }
 
                 // Intentional, does nothing if no key present.
 
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 throw new ProviderException("unable to reinitialize signature engine", e);
             }
-        } finally
-       {
-           Reference.reachabilityFence(this);
-       }
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
 
@@ -317,7 +337,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
         }
     }
 
-    
+
     @Override
     public String toString()
     {

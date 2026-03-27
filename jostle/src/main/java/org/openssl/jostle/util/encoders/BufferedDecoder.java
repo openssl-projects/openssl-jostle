@@ -17,18 +17,18 @@ package org.openssl.jostle.util.encoders;
  */
 public class BufferedDecoder
 {
-    protected byte[]        buf;
-    protected int           bufOff;
+    protected byte[] buf;
+    protected int bufOff;
 
-    protected Translator    translator;
+    protected Translator translator;
 
     /**
      * @param translator the translator to use.
-     * @param bufSize amount of input to buffer for each chunk.
+     * @param bufSize    amount of input to buffer for each chunk.
      */
     public BufferedDecoder(
-        Translator  translator,
-        int         bufSize)
+            Translator translator,
+            int bufSize)
     {
         this.translator = translator;
 
@@ -42,11 +42,11 @@ public class BufferedDecoder
     }
 
     public int processByte(
-        byte        in,
-        byte[]      out,
-        int         outOff)
+            byte in,
+            byte[] out,
+            int outOff)
     {
-        int         resultLen = 0;
+        int resultLen = 0;
 
         buf[bufOff++] = in;
 
@@ -60,11 +60,11 @@ public class BufferedDecoder
     }
 
     public int processBytes(
-        byte[]      in,
-        int         inOff,
-        int         len,
-        byte[]      out,
-        int         outOff)
+            byte[] in,
+            int inOff,
+            int len,
+            byte[] out,
+            int outOff)
     {
         if (len < 0)
         {

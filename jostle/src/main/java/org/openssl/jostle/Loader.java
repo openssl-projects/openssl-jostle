@@ -103,14 +103,16 @@ public class Loader
             try
             {
                 loadImpl();
-            } catch (Throwable t)
+            }
+            catch (Throwable t)
             {
                 L.log(Level.WARNING, t.getMessage(), t);
                 message = t.getMessage();
                 loadSuccessful = false;
 
 
-            } finally
+            }
+            finally
             {
                 loadedLibs = Collections.unmodifiableList(loadedLibs);
             }
@@ -129,7 +131,8 @@ public class Loader
         {
             L.fine(String.format("%s is not set so using java.io.tmpdir property", LIB_INSTALL_DIR));
             installDir = Properties.getPropertyValue("java.io.tmpdir");
-        } else
+        }
+        else
         {
             fixedInstallDir = true;
         }
@@ -154,7 +157,8 @@ public class Loader
                 break;
             }
 
-            AccessWrapper.doAction(() -> {
+            AccessWrapper.doAction(() ->
+            {
                 L.fine(String.format("Loading native library '%s'", loadByPath));
                 System.load(loadByPath);
                 loadedLibs.add("Path: " + loadByPath);
@@ -173,7 +177,8 @@ public class Loader
                 break;
             }
 
-            AccessWrapper.doAction(() -> {
+            AccessWrapper.doAction(() ->
+            {
                 L.fine(String.format("Loading native library '%s'", name));
                 System.loadLibrary(name);
                 loadedLibs.add("Name: " + name);
@@ -208,7 +213,8 @@ public class Loader
                     {
                         continue;
                     }
-                } else
+                }
+                else
                 {
                     throw new IOException(String.format("resolution file entry '%s' is invalid", resolverEntry));
                 }
@@ -219,7 +225,8 @@ public class Loader
                     {
                         continue;
                     }
-                } else
+                }
+                else
                 {
                     throw new IOException(String.format("resolution file entry '%s' is invalid", resolverEntry));
                 }
@@ -228,7 +235,8 @@ public class Loader
                 {
                     libRootInJar = matcher.group(1);
                     break;
-                } else
+                }
+                else
                 {
                     throw new IOException(String.format("resolution file entry '%s' is invalid", resolverEntry));
                 }
@@ -255,15 +263,24 @@ public class Loader
                 if (depfEntry.startsWith("OSSL:"))
                 {
                     extractions.add(new Extractions(depfEntry.substring(5).trim(), Extractions.Type.OSSL));
-                } else if (depfEntry.startsWith("JNI:"))
+                }
+                else
                 {
-                    extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.JNI));
-                } else if (depfEntry.startsWith("FFI:"))
-                {
-                    extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.FFI));
-                } else
-                {
-                    throw new IOException(String.format("deps file entry '%s' is invalid", depfEntry));
+                    if (depfEntry.startsWith("JNI:"))
+                    {
+                        extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.JNI));
+                    }
+                    else
+                    {
+                        if (depfEntry.startsWith("FFI:"))
+                        {
+                            extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.FFI));
+                        }
+                        else
+                        {
+                            throw new IOException(String.format("deps file entry '%s' is invalid", depfEntry));
+                        }
+                    }
                 }
             }
 
@@ -271,7 +288,8 @@ public class Loader
             {
                 throw new IOException("deps file was empty");
             }
-        } else
+        }
+        else
         {
             L.warning("No resolutions file found on classpath");
         }
@@ -284,7 +302,8 @@ public class Loader
                 String version = JostleProvider.INFO.substring(JostleProvider.INFO.lastIndexOf('v') + 1);
 
                 installRootDir = LoaderUtils.createVersionedTempDir(installDir, version);
-            } else
+            }
+            else
             {
                 installRootDir = LoaderUtils.createTempDir("jostle");
             }
@@ -318,30 +337,43 @@ public class Loader
                 {
                     interfaceType = Extractions.Type.JNI;
                     L.fine("JNI resolution strategy is JNI");
-                } else if ("ffi".equals(interfaceResolutionStrategy))
+                }
+                else
                 {
-                    interfaceType = Extractions.Type.FFI;
-                    L.fine("JNI resolution strategy is JNI");
-                } else if ("auto".equals(interfaceResolutionStrategy))
-                {
-                    L.fine("JNI resolution strategy is auto");
-                    try
+                    if ("ffi".equals(interfaceResolutionStrategy))
                     {
-                        //
-                        // This will only be available for Java 22 and above runtimes.
-                        //
-                        Class.forName("org.openssl.jostle.FFI");
                         interfaceType = Extractions.Type.FFI;
-                        L.fine("FFI is detected");
-                    } catch (Throwable t)
-                    {
-                        interfaceType = Extractions.Type.JNI;
-                        L.fine("JNI is detected");
+                        L.fine("JNI resolution strategy is JNI");
                     }
-                } else if (!"none".equals(interfaceResolutionStrategy))
-                {
-                    L.fine("Unknown resolution strategy detected: " + interfaceResolutionStrategy);
-                    throw new IOException(String.format("Unsupported interface resolution '%s'", interfaceResolutionStrategy));
+                    else
+                    {
+                        if ("auto".equals(interfaceResolutionStrategy))
+                        {
+                            L.fine("JNI resolution strategy is auto");
+                            try
+                            {
+                                //
+                                // This will only be available for Java 22 and above runtimes.
+                                //
+                                Class.forName("org.openssl.jostle.FFI");
+                                interfaceType = Extractions.Type.FFI;
+                                L.fine("FFI is detected");
+                            }
+                            catch (Throwable t)
+                            {
+                                interfaceType = Extractions.Type.JNI;
+                                L.fine("JNI is detected");
+                            }
+                        }
+                        else
+                        {
+                            if (!"none".equals(interfaceResolutionStrategy))
+                            {
+                                L.fine("Unknown resolution strategy detected: " + interfaceResolutionStrategy);
+                                throw new IOException(String.format("Unsupported interface resolution '%s'", interfaceResolutionStrategy));
+                            }
+                        }
+                    }
                 }
 
                 if (interfaceType != null)
@@ -353,24 +385,28 @@ public class Loader
                             extractAndLoad(installRootDir, libRootInJar, extraction);
                         }
                     }
-                } else
+                }
+                else
                 {
                     L.fine("Interface library not extracted");
                 }
 
-            } finally
+            }
+            finally
             {
                 try
                 {
                     lock.release();
-                } catch (Throwable ignored)
+                }
+                catch (Throwable ignored)
                 {
                 }
 
                 try
                 {
                     fos.close();
-                } catch (Throwable ignored)
+                }
+                catch (Throwable ignored)
                 {
                 }
             }
@@ -389,7 +425,8 @@ public class Loader
         if (libFile == null)
         {
             throw new IOException(String.format("extraction file '%s' not found", pathInJar));
-        } else
+        }
+        else
         {
             L.fine(String.format("Wrote %s to %s, %d bytes", extraction.name, libFile.getAbsoluteFile(), libFile.length()));
         }
@@ -400,7 +437,8 @@ public class Loader
         {
             loadedLibs.add("Loaded: " + sources[1]);
             loadedLibs.add("  Compared to: " + sources[0]);
-        } else
+        }
+        else
         {
             loadedLibs.add("Extracted: " + sources[0]);
         }
@@ -451,7 +489,8 @@ public class Loader
         return installDir;
     }
 
-    public static boolean isFixedInstallDir() {
+    public static boolean isFixedInstallDir()
+    {
         return fixedInstallDir;
     }
 
