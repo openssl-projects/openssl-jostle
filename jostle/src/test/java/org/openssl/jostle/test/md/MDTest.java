@@ -79,6 +79,9 @@ public class MDTest
     @Test
     public void testAgreeWithBCSlidingWindow() throws Exception
     {
+        //
+        // MD5-SHA1 is not supported by BC so it is skipped here
+        //
 
         SecureRandom random = new SecureRandom();
 
@@ -91,12 +94,20 @@ public class MDTest
             if (bcName.startsWith("SHA2-"))
             {
                 bcName = bcName.replace("SHA2-", "SHA-");
-            } else if (bcName.startsWith("SHAKE"))
+            }
+            else
             {
-                bcName = bcName.replace("SHAKE-", "SHAKE");
-            } else if (bcName.startsWith("RIPEMD-"))
-            {
-                bcName = bcName.replace("RIPEMD-", "RIPEMD");
+                if (bcName.startsWith("SHAKE"))
+                {
+                    bcName = bcName.replace("SHAKE-", "SHAKE");
+                }
+                else
+                {
+                    if (bcName.startsWith("RIPEMD-"))
+                    {
+                        bcName = bcName.replace("RIPEMD-", "RIPEMD");
+                    }
+                }
             }
             // Test over the same array
 
@@ -131,6 +142,11 @@ public class MDTest
     @Test
     public void testAgreesWithBC() throws Exception
     {
+
+        //
+        // MD5-SHA1 is not supported by BC so it is skipped here
+        //
+
         SecureRandom random = new SecureRandom();
         for (String digest : new String[]{
                 "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
@@ -142,12 +158,20 @@ public class MDTest
             if (bcName.startsWith("SHA2-"))
             {
                 bcName = bcName.replace("SHA2-", "SHA-");
-            } else if (bcName.startsWith("SHAKE"))
+            }
+            else
             {
-                bcName = bcName.replace("SHAKE-", "SHAKE");
-            } else if (bcName.startsWith("RIPEMD-"))
-            {
-                bcName = bcName.replace("RIPEMD-", "RIPEMD");
+                if (bcName.startsWith("SHAKE"))
+                {
+                    bcName = bcName.replace("SHAKE-", "SHAKE");
+                }
+                else
+                {
+                    if (bcName.startsWith("RIPEMD-"))
+                    {
+                        bcName = bcName.replace("RIPEMD-", "RIPEMD");
+                    }
+                }
             }
 
             MessageDigest joDigest = MessageDigest.getInstance(digest, JostleProvider.PROVIDER_NAME);
@@ -183,7 +207,8 @@ public class MDTest
                         joSplitDigest.update(buf[p]);
                     }
                     joSplitDigest.update(buf, p, sizeOfUpdate - p);
-                } else
+                }
+                else
                 {
                     joSplitDigest.update(buf, 0, sizeOfUpdate);
                 }
@@ -214,6 +239,8 @@ public class MDTest
 
         Assertions.assertArrayEquals(bcDigest1, joDigest1);
         Assertions.assertArrayEquals(bcDigest2, joDigest2);
+
+        Assertions.assertArrayEquals(joDigest2, Hex.decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
 
     }
 

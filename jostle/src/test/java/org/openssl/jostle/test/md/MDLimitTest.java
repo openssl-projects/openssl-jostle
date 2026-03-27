@@ -15,7 +15,6 @@ public class MDLimitTest
     }
 
     MDServiceNI mdNI = TestNISelector.getMDNI();
-    OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
 
 
     @Test
@@ -35,6 +34,7 @@ public class MDLimitTest
         try
         {
             mdNI.allocateDigest("SHA-255", 0);
+            Assertions.fail();
         } catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("name not found", e.getMessage());

@@ -24,7 +24,7 @@ public class MLDSAInternalLayerTest
 
     MLDSAServiceNI mldsaServiceNI = TestNISelector.getMLDSANI();
     SpecNI specNI = TestNISelector.getSpecNI();
-    OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
 
     private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();

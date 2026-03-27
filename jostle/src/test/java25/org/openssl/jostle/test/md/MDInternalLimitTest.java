@@ -1,19 +1,15 @@
 package org.openssl.jostle.test.md;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
-import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
-import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-public class MDInternalOpsTest
+public class MDInternalLimitTest
 {
     static
     {
@@ -21,11 +17,15 @@ public class MDInternalOpsTest
     }
 
     MDServiceNI mdNI = TestNISelector.getMDNI();
-    OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
 
     @Test
     public void testMDdigestLenZero() throws Exception
     {
+
+        // Verifies a fully zeroed out state is detected as not initialized
+        // if a call to getDigestOutputLen is made.
+
 
         try (var a = Arena.ofConfined())
         {
@@ -40,13 +40,15 @@ public class MDInternalOpsTest
             {
                 mdNI.getDigestOutputLen(seg.address());
                 Assertions.fail("expected exception");
-            } catch (IllegalStateException e)
+            }
+            catch (IllegalStateException e)
             {
                 Assertions.assertEquals("not initialized", e.getMessage());
             }
 
 
-        } catch (Throwable t)
+        }
+        catch (Throwable t)
         {
             throw new RuntimeException("Error in MD digest operation", t);
         }

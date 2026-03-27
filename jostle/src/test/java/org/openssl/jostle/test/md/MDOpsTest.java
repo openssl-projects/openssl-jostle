@@ -34,6 +34,8 @@ public class MDOpsTest
     @Test
     public void allocateDigest_mdFailCreate() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
@@ -51,7 +53,9 @@ public class MDOpsTest
     @Test
     public void allocateDigest_mdFailAccessName() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -70,6 +74,7 @@ public class MDOpsTest
     @Test
     public void allocateDigest_mdFailInit() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
@@ -87,6 +92,7 @@ public class MDOpsTest
     @Test
     public void allocateDigest_mdSetParamFailed() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
@@ -105,6 +111,7 @@ public class MDOpsTest
     @Test
     public void updateByte_openSSLErrorOnUpdateCall() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         long ref = 0;
         try
         {
@@ -128,6 +135,8 @@ public class MDOpsTest
 
     @Test
     public void updateBytes_array_access() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         long ref = mdNI.allocateDigest("SHA256", 0);
 
@@ -147,6 +156,7 @@ public class MDOpsTest
 
     @Test
     public void digest_array_access() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
 
         long ref = mdNI.allocateDigest("SHA256", 0);
@@ -167,6 +177,9 @@ public class MDOpsTest
 
     @Test
     public void digest_final_failed() throws Exception {
+
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+
         long ref = mdNI.allocateDigest("SHA256", 0);
 
         try {
@@ -184,6 +197,7 @@ public class MDOpsTest
 
     @Test
     public void digest_final_failed_xof() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         long ref = mdNI.allocateDigest("SHAKE-128", 0);
 
         try {
@@ -201,6 +215,7 @@ public class MDOpsTest
 
     @Test
     public void digest_final_intOverflow() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         long ref = mdNI.allocateDigest("SHA256", 0);
 
         try {
