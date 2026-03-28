@@ -18,6 +18,10 @@ OpenSSL Jostle supports running on Java 1.8 to Java 25, and requires [Java 25](h
 This section will be updated when there are published in maven central or equivalent.
 For the time being you will need to build OpenSSL Jostle before you can try it out.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
 ## Building
 
 In this example we are going to build OpenSSL Jostle on an Intel machine spun up in AWS EC2.
@@ -168,7 +172,7 @@ This step will compile and install the interface layer, both JNI and FFI that
 connects the Java side of OpenSSL Jostle to the OpenSSL Library libraries.
 
 #### CMAKE 
-You will  need CMAKE version of at least 3.31
+You will need CMAKE version of at least 3.31
 
 ```
 cmake -version
