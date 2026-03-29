@@ -278,7 +278,7 @@ All tests will be run on Java 8, 17, 21, 25.
 #### Unit tests
 
 These are regular unit tests they can safely be run in parallel.
-Units are any test file that does not end with ```LimitTest``` or ```OpsTest```.
+Units are any test file that does not end with ```LimitTest```, ```OpsTest``` or ```IntegrationTest```.
 
 Unit tests are used to verify consistent behavior between Jostle and Bouncy Castle providers and that
 products like encoded keys etc. are portable between both providers.
@@ -311,6 +311,8 @@ Limit tests are test files that end with ```LimitTest```.
 
 OPS tests or Operational tests are special tests that allow the verification of the correct failure handling when 
 calling OpenSSL or the JVM that are otherwise impossible to trigger without modifying either of them for each test.
+
+OPS tests are run sequentially.
 
 OPS tests only run when the code to support them is compiled in, OPS tests are disabled by default and can be enabled
 by defining the ```JOSTLE_OPS_TEST``` system property when running CMake, for example:
@@ -360,6 +362,27 @@ controlled from the java side, for example:
 Where ```operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);``` sets the flag to trigger 
 that code path that would otherwise require a code modification to the JVM itself to trigger (probably).
 
+OPS tests are test files that end with ```OpsTest```.
+
+### Integration tests
+
+Integration tests are run sequentially.
+
+Integration tests are test files that end with ```IntegrationTest```.
+
+Use integration for miscellaneous tests that need to run sequentially and are not Limit or OPS tests.
+
+### Gradle test targets
+
+Any test target "unitTestNNxxx" will run the unit tests for the java version NN.
+
+For Java 25, the target will start with "unitTest25" but will also have a suffix of "JNI/FFI" to force
+the use of the JNI / FFI interfaces exclusively.
+
+Likewise, any test target "integrationTestNNxxx" will run the Integraton, OPS and Limit tests
+for the java version NN.
+
+Test targets for JVMs prior to Java 25 do not have JNI/FFI suffixes.
 
 ### Leveraging FFI to test native code
 

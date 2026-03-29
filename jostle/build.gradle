@@ -262,7 +262,9 @@ tasks.register('unitTest8', Test) {
     jvmArgs = ['-Dtest.java.version.prefix=1.8', '-Dtest.java.interface_type=jni']
 
     filter {
+        excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
         includeTestsMatching "*Test*"
     }
 }
@@ -291,7 +293,9 @@ tasks.register('unitTest17', Test) {
     jvmArgs = ['-Dtest.java.version.prefix=17', '-Dtest.java.interface_type=jni']
 
     filter {
+        excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
         includeTestsMatching "*Test*"
     }
 }
@@ -320,7 +324,9 @@ tasks.register('unitTest21', Test) {
     jvmArgs = ['-Dtest.java.version.prefix=21', '-Dtest.java.interface_type=jni']
 
     filter {
+        excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
         includeTestsMatching "*Test*"
     }
 }
@@ -348,7 +354,9 @@ tasks.register('unitTest25FFI', Test) {
 
     jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
     filter {
+        excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
         includeTestsMatching "*Test*"
     }
 }
@@ -377,7 +385,9 @@ tasks.register('unitTest25JNI', Test) {
 
     jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
     filter {
+        excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
         includeTestsMatching "*Test*"
     }
 }
@@ -399,6 +409,7 @@ tasks.register('integrationTest', Test) {
     maxParallelForks = 1
 
     filter {
+        includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
         includeTestsMatching "*OpsTest*"
     }
@@ -429,6 +440,7 @@ tasks.register('integrationTest8', Test) {
     jvmArgs = ['-Dtest.java.version.prefix=1.8', '-Dtest.java.interface_type=jni']
 
     filter {
+        includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
         includeTestsMatching "*OpsTest*"
     }
@@ -457,6 +469,7 @@ tasks.register('integrationTest17', Test) {
 
     jvmArgs = ['-Dtest.java.version.prefix=17', '-Dtest.java.interface_type=jni']
     filter {
+        includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
         includeTestsMatching "*OpsTest*"
     }
@@ -483,8 +496,9 @@ tasks.register('integrationTest21', Test) {
     maxHeapSize = "1536m"
 
 
-    jvmArgs = ['-Dtest.java.version.prefix=21', '-Dorg.bouncycastle.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
+    jvmArgs = ['-Dtest.java.version.prefix=21', '-Dorg.openssl.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
     filter {
+        includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
         includeTestsMatching "*OpsTest*"
     }
@@ -511,8 +525,9 @@ tasks.register('integrationTest25FFI', Test) {
     maxHeapSize = "1536m"
 
 
-    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.bouncycastle.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
     filter {
+        includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
         includeTestsMatching "*OpsTest*"
     }
@@ -539,8 +554,9 @@ tasks.register('integrationTest25JNI', Test) {
     maxHeapSize = "1536m"
 
 
-    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.bouncycastle.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
     filter {
+        includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
         includeTestsMatching "*OpsTest*"
     }
