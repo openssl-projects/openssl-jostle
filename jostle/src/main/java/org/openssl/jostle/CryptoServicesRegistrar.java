@@ -11,10 +11,16 @@
 package org.openssl.jostle;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.OpenSSL;
+
+import java.security.SecureRandom;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class CryptoServicesRegistrar
 {
+
+    private static final SecureRandomProvider defaultRandomProviderImpl = new ThreadLocalSecureRandomProvider();
+    private static final AtomicReference<SecureRandomProvider> defaultSecureRandomProvider = new AtomicReference<SecureRandomProvider>();
+
 
     static
     {
@@ -35,19 +41,86 @@ public class CryptoServicesRegistrar
         }
     }
 
-    /**
-     * Set the openssl provider by name
-     *
-     * @param provider The provider.
-     */
-    public static void setOpenSSLProvider(String provider)
-    {
-        OpenSSL.setOSSLProvider(provider);
-    }
 
     public String getOpenSSLVersion()
     {
         return NISelector.NativeServiceNI.getOpenSSLVersion();
     }
 
+    /**
+     * Return the default source of randomness.
+     *
+     * @return the default SecureRandom
+     */
+    public static SecureRandom getSecureRandom()
+    {
+        defaultSecureRandomProvider.compareAndSet(null, defaultRandomProviderImpl);
+        return defaultSecureRandomProvider.get().get();
+    }
+
+    /**
+     * Return either the passed-in SecureRandom, or if it is null, then the default source of randomness.
+     *
+     * @param secureRandom the SecureRandom to use if it is not null.
+     * @return the SecureRandom parameter if it is not null, or else the default SecureRandom
+     */
+    public static SecureRandom getSecureRandom(SecureRandom secureRandom)
+    {
+        return null == secureRandom ? getSecureRandom() : secureRandom;
+    }
+
+
+    /**
+     * Set a default secure random provider to be used where none is otherwise provided.
+     *
+     * @param secureRandomProvider a provider SecureRandom to use when a default SecureRandom is requested.
+     */
+    public static void setSecureRandomProvider(SecureRandomProvider secureRandomProvider)
+    {
+        defaultSecureRandomProvider.set(secureRandomProvider);
+    }
+
+
+    /**
+     * Set a default secure random to be used where none is otherwise provided.
+     *
+     * @param secureRandom the SecureRandom to use as the default.
+     */
+    public static void setSecureRandom(final SecureRandom secureRandom)
+    {
+        if (secureRandom == null)
+        {
+            defaultSecureRandomProvider.set(defaultRandomProviderImpl);
+        }
+        else
+        {
+
+            SecureRandomProvider old = defaultSecureRandomProvider.getAndSet(new SecureRandomProvider()
+            {
+                public SecureRandom get()
+                {
+                    return secureRandom;
+                }
+            });
+
+        }
+    }
+
+
+    private static class ThreadLocalSecureRandomProvider
+            implements SecureRandomProvider
+    {
+        final ThreadLocal<SecureRandom> defaultRandoms = new ThreadLocal<SecureRandom>();
+
+        public SecureRandom get()
+        {
+            if (defaultRandoms.get() == null)
+            {
+                SecureRandom rand = new SecureRandom();
+                defaultRandoms.set(rand);
+            }
+
+            return defaultRandoms.get();
+        }
+    }
 }

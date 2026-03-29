@@ -13,22 +13,32 @@ package org.openssl.jostle.test.kdf;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.Security;
+
 public class PBKdf2LimitTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     KdfNI kdfNI = TestNISelector.getKDFNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @Test
     public void testPBEKDF2_null_password() throws Exception

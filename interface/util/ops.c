@@ -8,8 +8,11 @@
 #include <stdint.h>
 #include "ops.h"
 
+#include <openssl/rand.h>
+
 
 #include "jo_assert.h"
+#include "rand/jostle_lib_ctx.h"
 
 
 #ifdef JOSTLE_OPS
@@ -25,5 +28,15 @@ void set_ops_test(const uint32_t index, const uint32_t value) {
     jo_assert(index < OPS_MAX_TEST);
     OPS_ARR[index] = value;
 }
+
+int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred, void *rnd_src) {
+    // TODO work out how to pass up the need for prediction resistance
+    (void) (pred);
+
+
+    rand_set_java_srand_call(rnd_src);
+    return RAND_bytes_ex(get_jostle_ossl_lib_ctx(), buf, len, strength);
+}
+
 
 #endif

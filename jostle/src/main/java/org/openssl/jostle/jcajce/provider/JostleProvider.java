@@ -40,12 +40,13 @@ public class JostleProvider
 
     public JostleProvider()
     {
-        this(null);
+        this("default");
     }
 
-    public JostleProvider(String config)
+    public JostleProvider(String module)
     {
         super(PROVIDER_NAME, VERSION, INFO);
+
 
         synchronized (JostleProvider.class)
         {
@@ -54,12 +55,11 @@ public class JostleProvider
             //
             CryptoServicesRegistrar.assertNativeAvailable();
 
-            String nonDefaultOsslProvider = Properties.getPropertyValue(OPENSSL_PROVIDER_NAME, null);
-            if (nonDefaultOsslProvider != null)
-            {
-                // Will throw if there is an issue, this will break the loader
-                OpenSSL.setOSSLProvider(nonDefaultOsslProvider);
-            }
+            String nonDefaultOsslProvider = Properties.getPropertyValue(OPENSSL_PROVIDER_NAME, module);
+
+            // Will throw if there is an issue, this will break the loader
+            OpenSSL.setOSSLProvider(nonDefaultOsslProvider);
+
         }
 
         AccessWrapper.doAction(new AccessSupplier()

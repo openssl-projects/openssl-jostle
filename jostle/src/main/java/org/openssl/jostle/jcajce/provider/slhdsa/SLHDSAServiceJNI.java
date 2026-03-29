@@ -10,13 +10,15 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.rand.RandSource;
+
 public class SLHDSAServiceJNI implements SLHDSAServiceNI
 {
     @Override
-    public native long generateKeyPair(int type);
+    public native long generateKeyPair(int type, RandSource randSource);
 
     @Override
-    public native long generateKeyPair(int type, byte[] seed, int seedLen);
+    public native long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
 
 //    @Override
 //    public native int getSeed(long reference, byte[] output);
@@ -43,13 +45,13 @@ public class SLHDSAServiceJNI implements SLHDSAServiceNI
     public native int update(long reference, byte[] b, int off, int len);
 
     @Override
-    public native long sign(long ref, byte[] sig, int offset);
+    public native long sign(long ref, byte[] sig, int offset, RandSource randSource);
 
     @Override
     public native int verify(long reference, byte[] sigBytes, int len);
 
     @Override
-    public native long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
+    public native long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource);
 
     @Override
     public native void disposeSigner(long reference);

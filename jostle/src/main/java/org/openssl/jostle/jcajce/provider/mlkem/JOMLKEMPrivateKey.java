@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
@@ -17,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
@@ -79,7 +81,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
                 return new JOMLKEMPrivateKey(
                         new PKEYKeySpec(
                                 NISelector.MLKEMServiceNI.handleErrors(
-                                        NISelector.MLKEMServiceNI.generateKeyPair(type.getKsType(), seed, seed.length)
+                                        NISelector.MLKEMServiceNI.generateKeyPair(type.getKsType(), seed, seed.length, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()))
                                 ), type), preferSeedOnly
                 );
             }

@@ -12,8 +12,10 @@
 package org.openssl.jostle.test.crypto;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
@@ -22,6 +24,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.ShortBufferException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,13 +34,18 @@ import java.util.List;
 public class BlockCipherLimitTest
 {
 
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     BlockCipherNI blockCipherNI = TestNISelector.getBlockCipher();
 
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @Test
     public void BlockCipher_keyIsNull() throws Exception

@@ -10,22 +10,29 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 
 public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 {
-
+    Logger LOG = Logger.getLogger("MLDSAKeyPairGeneratorImpl(Java 8)");
     private OSSLKeyType keyType;
+    private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
     private static final Map<Object, OSSLKeyType> paramToTypeMap = new HashMap<Object, OSSLKeyType>()
     {
@@ -63,10 +70,15 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         }
     }
 
-
-    @Override
     public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
     {
+        initialize(params, null);
+    }
+
+    @Override
+    public void initialize(AlgorithmParameterSpec params, SecureRandom rand) throws InvalidAlgorithmParameterException
+    {
+        this.random = DefaultRandSource.replaceWith(this.random, rand);
         if (!(params instanceof MLDSAParameterSpec))
         {
             throw new InvalidAlgorithmParameterException("only MLDSAParameterSpec is supported");
@@ -95,7 +107,9 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
     @Override
     public KeyPair generateKeyPair()
     {
-        long res = NISelector.MLDSAServiceNI.generateKeyPair(keyType.getKsType());
+
+        long res = NISelector.MLDSAServiceNI.generateKeyPair(keyType.getKsType(), random);
+
         if (res < 0)
         {
             NISelector.MLDSAServiceNI.handleErrors(res);
@@ -111,6 +125,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
         return new KeyPair(new JOMLDSAPublicKey(spec), new JOMLDSAPrivateKey(spec));
     }
+
 
     public static class MLDSA44 extends MLDSAKeyPairGeneratorImpl
     {

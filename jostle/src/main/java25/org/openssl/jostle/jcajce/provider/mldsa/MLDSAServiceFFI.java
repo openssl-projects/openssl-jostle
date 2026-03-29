@@ -12,9 +12,12 @@
 package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,6 +71,10 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     private static final MemorySegment verifierFunc;
     private static final MethodHandle verifierFuncHandle;
 
+    private static final FunctionDescriptor entropyFd;
+    private static final MethodType entropyMt;
+
+
     static
     {
         generateKeyPairFunc = lookup.find("MLDSA_generateKeyPair").orElseThrow();
@@ -75,20 +82,21 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS // upcall
                 ));
 
         generateKeyPairWithSeedFunc = lookup.find("MLDSA_generateKeyPairSeed").orElseThrow();
         generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
-
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
 
         getPublicKeyFunc = lookup.find("MLDSA_getPublicKey").orElseThrow();
@@ -147,14 +155,14 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS
-                ), Linker.Option.critical(true));
+                ));
 
 
         disposeSignerFunc = lookup.find("MLDSA_disposeSigner").orElseThrow();
         disposeSignerFuncHandle = linker.downcallHandle(disposeSignerFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS
-                ), Linker.Option.critical(true));
+                ));
 
 
         initVerifyFunc = lookup.find("MLDSA_initVerifier").orElseThrow();
@@ -167,7 +175,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
                         ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                ));
 
         initSignerFunc = lookup.find("MLDSA_initSign").orElseThrow();
         initSignerFuncHandle = linker.downcallHandle(initSignerFunc,
@@ -178,8 +186,9 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
 
         updateSignerFunc = lookup.find("MLDSA_update").orElseThrow();
@@ -201,8 +210,9 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
         verifierFunc = lookup.find("MLDSA_verify").orElseThrow();
         verifierFuncHandle = linker.downcallHandle(verifierFunc,
@@ -214,15 +224,40 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
+
+        entropyFd = FunctionDescriptor.of(
+                ValueLayout.JAVA_INT, // return code
+                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
+                ValueLayout.JAVA_INT, // len
+                ValueLayout.JAVA_INT, // strength
+                ValueLayout.JAVA_BOOLEAN // pred resistance
+        );
+
+        entropyMt = MethodType.methodType(
+                int.class, // return type
+                MemorySegment.class, // out
+                int.class, // out_len
+                int.class, // strength
+                boolean.class // pred resistance
+        );
+
+
     }
 
+
     @Override
-    public long generateKeyPair(int type)
+    public long generateKeyPair(int type, RandSource rndId)
     {
         try (Arena a = Arena.ofConfined())
         {
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    rndId.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(rndId);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef);
+            MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef, getEntropySegment);
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
             if (retCode != ErrorCode.JO_SUCCESS.getCode())
@@ -240,19 +275,32 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public long generateKeyPair(int type, byte[] seed, int seedLen)
+    public long generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource)
     {
         try (Arena a = Arena.ofConfined())
         {
+
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    rndSource.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(rndSource);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
+
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment seedRef = seed == null ? MemorySegment.NULL : MemorySegment.ofArray(seed);
+            MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
+
+            if (seed != null) {
+                seedRef.asByteBuffer().put(seed);
+            }
 
             MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
                     type,
                     retCodeRef,
                     seedRef,
                     seedRef.byteSize(),
-                    seedLen
+                    seedLen,
+                    getEntropySegment
             );
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
@@ -399,11 +447,14 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     @Override
     public int initVerify(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment keyRef = MemorySegment.ofAddress(keyReference);
-            MemorySegment contextRef = context == null ? MemorySegment.NULL : MemorySegment.ofArray(context);
+            MemorySegment contextRef = context == null ? MemorySegment.NULL : a.allocate(context.length);
+            if (context != null) {
+                contextRef.asByteBuffer().put(context);
+            }
             return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal);
 
         }
@@ -416,14 +467,28 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int initSign(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal)
+    public int initSign(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal, RandSource randSource)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
+
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    randSource.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(randSource);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
+
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment keyRef = MemorySegment.ofAddress(keyReference);
-            MemorySegment contextRef = context == null ? MemorySegment.NULL : MemorySegment.ofArray(context);
-            return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal);
+            MemorySegment contextRef = context == null ? MemorySegment.NULL : a.allocate(context.length);
+
+            if (context != null)
+            {
+                contextRef.asByteBuffer().put(context);
+            }
+
+            return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal, getEntropySegment);
 
         }
         catch (Throwable t)
@@ -453,13 +518,27 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int sign(long ref, byte[] output, int offset)
+    public int sign(long ref, byte[] output, int offset, RandSource randSource)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
+
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    randSource.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(randSource);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
             MemorySegment ctx = MemorySegment.ofAddress(ref);
-            MemorySegment outputSegment = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
-            return (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset);
+
+            MemorySegment outputSegment = output == null ? MemorySegment.NULL : a.allocate(output.length);
+            int code = (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset, getEntropySegment);
+
+            if (output != null)
+            {
+                outputSegment.asByteBuffer().get(output);
+            }
+            return code;
 
         }
         catch (Throwable t)

@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.MLDSAKey;
@@ -20,13 +21,18 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.util.SpecUtil;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.logging.Logger;
 
 
 public class MLDSASignatureSpi extends SignatureSpi
 {
+
+    Logger LOG = Logger.getLogger("MLDSASignatureSpi(Java 8)");
 
     public enum MuHandling
     {
@@ -36,7 +42,7 @@ public class MLDSASignatureSpi extends SignatureSpi
     private final OSSLKeyType forcedType;
     private MLDSARef ref = null;
     private MLDSAKey lastKey = null;
-
+    private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
     private AlgorithmParameterSpec algorithmParameterSpec = null;
     private boolean updateCalled = false;
     private MuHandling muHandling = MuHandling.INTERNAL;
@@ -88,9 +94,16 @@ public class MLDSASignatureSpi extends SignatureSpi
         throw new InvalidKeyException("expected only MLDSAPublicKey");
     }
 
-    @Override
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
     {
+        engineInitSign(privateKey, null);
+    }
+
+    @Override
+    protected void engineInitSign(PrivateKey privateKey, SecureRandom rand) throws InvalidKeyException
+    {
+        this.randSource = DefaultRandSource.replaceWith(this.randSource, rand);
+
         if (privateKey instanceof MLDSAPrivateKey)
         {
             synchronized (this)
@@ -124,7 +137,7 @@ public class MLDSASignatureSpi extends SignatureSpi
                 NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
-                        context, contextLen, muHandling.ordinal()));
+                        context, contextLen, muHandling.ordinal(), randSource));
                 return;
             }
         }
@@ -150,9 +163,9 @@ public class MLDSASignatureSpi extends SignatureSpi
         byte[] sig = null;
         try
         {
-            long len = NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0));
+            long len = NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource));
             sig = new byte[(int) len];
-            NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0));
+            NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource));
             return sig;
         }
         finally
@@ -264,6 +277,8 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         throw new UnsupportedOperationException();
     }
+
+
 
 
     protected static class Disposer

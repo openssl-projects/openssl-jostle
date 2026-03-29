@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
@@ -18,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
@@ -92,7 +94,8 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
                 return new JOMLDSAPrivateKey(
                         new PKEYKeySpec(
                                 NISelector.MLDSAServiceNI.handleErrors(
-                                        NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length)
+                                        NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
+                                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()))
                                 ), type), preferSeedOnly
                 );
             }

@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
@@ -19,6 +20,8 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 
 import java.lang.ref.Reference;
 import java.security.*;
@@ -51,7 +54,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
     private boolean updateCalled = false;
     private MessageEncoding messageEncoding = MessageEncoding.PURE;
     private Deterministic deterministic = Deterministic.NON_DETERMINISTIC;
-
+    private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
     public SLHDSASignatureSpi(OSSLKeyType forcedType, MessageEncoding messageEncoding, Deterministic deterministic)
     {
@@ -123,6 +126,14 @@ public class SLHDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
     {
+        engineInitSign(privateKey, null);
+    }
+
+    @Override
+    protected void engineInitSign(PrivateKey privateKey, SecureRandom random) throws InvalidKeyException
+    {
+        this.randSource = DefaultRandSource.replaceWith(this.randSource, random);
+
         if (privateKey instanceof JOSLHDSAPrivateKey)
         {
             try
@@ -156,7 +167,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
-                        context, contextLen, messageEncoding.ordinal(), deterministic.ordinal()));
+                        context, contextLen, messageEncoding.ordinal(), deterministic.ordinal(), randSource));
                 return;
             }
             finally
@@ -195,9 +206,9 @@ public class SLHDSASignatureSpi extends SignatureSpi
             byte[] sig = null;
             try
             {
-                long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0));
+                long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0, randSource));
                 sig = new byte[(int) len];
-                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0));
+                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0, randSource));
                 return sig;
             }
             finally
@@ -285,7 +296,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 {
                     if (lastKey instanceof JOSLHDSAPrivateKey)
                     {
-                        engineInitSign((PrivateKey) lastKey);
+                        engineInitSign((PrivateKey) lastKey,randSource.getRandom());
                     }
                     else
                     {

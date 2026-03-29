@@ -14,9 +14,11 @@
 #include <openssl/err.h>
 #include <string.h>
 
+#include "rand_upcall_jni.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
 #include "../util/jo_assert.h"
+#include "../util/rand/jostle_lib_ctx.h"
 
 
 /*
@@ -30,7 +32,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
     UNUSED(cl);
 
     const char *prov_name = NULL;
-    OSSL_PROVIDER *loaded_provider = NULL;;
     int result = JO_FAIL;
 
 
@@ -46,13 +47,27 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
         goto exit;
     }
 
+
+    jostle_lib_ctx *rnd = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
+    jo_assert(rnd != NULL);
+
     prov_name = (*env)->GetStringUTFChars(env, _prov_name, NULL);
 
-    // Operate on default OSSL_LIB_CTX
-    loaded_provider = OSSL_PROVIDER_load(NULL, prov_name);
-    if (loaded_provider == NULL) {
-        result = JO_OPENSSL_ERROR;
+    result = jostle_ctx_init_new(&rnd, prov_name);
+    if (UNSUCCESSFUL(result)) {
+        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        goto exit;
     }
+
+    result = set_jostle_ctx(rnd);
+
+    if (UNSUCCESSFUL(result)) {
+        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        goto exit;
+    }
+
+    rand_up_call_init_jni(env);
+
 
 exit:
     if (prov_name != NULL) {
@@ -74,7 +89,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_get
     BIO *bio = BIO_new(BIO_s_mem());
 
     if (bio == NULL) {
-        return (*env)->NewStringUTF(env,"bio was null");
+        return (*env)->NewStringUTF(env, "bio was null");
     }
 
     ERR_print_errors(bio);

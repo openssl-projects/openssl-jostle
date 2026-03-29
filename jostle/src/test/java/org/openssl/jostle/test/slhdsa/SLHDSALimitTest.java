@@ -12,24 +12,35 @@
 package org.openssl.jostle.test.slhdsa;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
+
+import java.security.Security;
 
 public class SLHDSALimitTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     SLHDSAServiceNI slhdsaServiceNI = TestNISelector.getSLHDSANI();
     SpecNI specNI = TestNISelector.getSpecNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @Test
     public void testSLHDSAGenerateKeyPair_keyGenWrongType() throws Exception
@@ -38,7 +49,7 @@ public class SLHDSALimitTest
         {
             try
             {
-                slhdsaServiceNI.handleErrors(slhdsaServiceNI.generateKeyPair(type));
+                slhdsaServiceNI.handleErrors(slhdsaServiceNI.generateKeyPair(type, TestUtil.RNDSrc));
                 Assertions.fail();
             } catch (IllegalArgumentException e)
             {
@@ -58,7 +69,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -76,7 +87,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -94,7 +105,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -112,7 +123,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -131,7 +142,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -149,7 +160,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -169,7 +180,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -187,7 +198,7 @@ public class SLHDSALimitTest
         try
         {
             slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen)
+                    slhdsaServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -236,7 +247,7 @@ public class SLHDSALimitTest
             try
             {
                 slhdsaServiceNI.handleErrors(
-                        slhdsaServiceNI.generateKeyPair(keyType.ordinal(), seed, seedLen)
+                        slhdsaServiceNI.generateKeyPair(keyType.ordinal(), seed, seedLen, TestUtil.RNDSrc)
                 );
                 Assertions.fail();
             } catch (IllegalArgumentException e)
@@ -287,7 +298,7 @@ public class SLHDSALimitTest
     @Test
     public void SLHDSAServiceJNI_getPublicKey_outLen() throws Exception
     {
-        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType());
+        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType(), TestUtil.RNDSrc);
         try
         {
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPublicKey(ref, new byte[10]));
@@ -341,7 +352,7 @@ public class SLHDSALimitTest
     @Test
     public void SLHDSAServiceJNI_getPrivateKey_outLen() throws Exception
     {
-        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
         try
         {
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(ref, new byte[10]));
@@ -394,7 +405,7 @@ public class SLHDSALimitTest
     @Test
     public void SLHDSAServiceJNI_getSeed_outLen() throws Exception
     {
-        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
         try
         {
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(ref, new byte[10]));
@@ -903,7 +914,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, null, 0, 0, 0));
@@ -934,7 +945,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 1, 0, 0));
@@ -961,7 +972,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 2, 0, 0));
@@ -988,7 +999,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[256], 256, 0, 0));
@@ -1059,7 +1070,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 3, 0));
@@ -1083,7 +1094,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 3));
@@ -1112,7 +1123,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, null, 0, 0, 0));
@@ -1142,10 +1153,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 1, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 1, 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1169,10 +1180,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 2, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 2, 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1196,10 +1207,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1222,7 +1233,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1247,7 +1258,7 @@ public class SLHDSALimitTest
             keyRef = specNI.allocate();
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1269,10 +1280,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1294,10 +1305,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 3));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 3, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1319,7 +1330,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             //  slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3));
@@ -1347,10 +1358,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, null, 0, 0));
 
@@ -1375,10 +1386,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[0], -1, 0));
 
@@ -1402,10 +1413,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[0], 0, -1));
 
@@ -1435,10 +1446,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[10], 0, 11));
 
@@ -1468,10 +1479,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[10], 1, 10));
 
@@ -1499,12 +1510,12 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], -1));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], -1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1527,12 +1538,12 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 1));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1555,12 +1566,12 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             // slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0));
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -1584,12 +1595,12 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -1617,16 +1628,16 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
-            long len = slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, null, 0));
+            long len = slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len - 1];
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, sig, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, sig, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1654,16 +1665,16 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
-            long len = slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, null, 0));
+            long len = slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, sig, 1));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, sig, 1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1688,7 +1699,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
@@ -1716,7 +1727,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
@@ -1740,7 +1751,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
@@ -1768,7 +1779,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
@@ -1795,7 +1806,7 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
@@ -1822,10 +1833,10 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType());
+            keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal(), TestUtil.RNDSrc));
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, new byte[1], 1));
 

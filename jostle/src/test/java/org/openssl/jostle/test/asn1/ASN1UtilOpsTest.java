@@ -25,6 +25,7 @@ import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
@@ -37,10 +38,7 @@ import java.security.Security;
 public class ASN1UtilOpsTest
 {
 
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     Asn1Ni asn1NI = TestNISelector.getAsn1NI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
@@ -133,7 +131,7 @@ public class ASN1UtilOpsTest
             asn1Ref = asn1NI.allocate();
             keyRef = asn1NI.allocate();
 
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             asn1NI.handleErrors(asn1NI.encodePublicKey(asn1Ref, keyRef));
@@ -164,7 +162,7 @@ public class ASN1UtilOpsTest
             asn1Ref = asn1NI.allocate();
             keyRef = asn1NI.allocate();
 
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -279,7 +277,6 @@ public class ASN1UtilOpsTest
     @Test
     public void ML_DSA_seedOnly() throws Exception
     {
-        Security.addProvider(new JostleProvider());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         for (MLDSAParameterSpec spec : new MLDSAParameterSpec[]{MLDSAParameterSpec.ml_dsa_44, MLDSAParameterSpec.ml_dsa_65, MLDSAParameterSpec.ml_dsa_87})
@@ -341,7 +338,6 @@ public class ASN1UtilOpsTest
     @Test
     public void ML_KEM_seedOnly() throws Exception
     {
-        Security.addProvider(new JostleProvider());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         for (MLKEMParameterSpec spec : MLKEMParameterSpec.getParameterSpecs())

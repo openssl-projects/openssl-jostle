@@ -17,6 +17,7 @@
 
 #include "bc_err_codes.h"
 #include "ops.h"
+#include "rand/jostle_lib_ctx.h"
 
 int32_t scrypt(
     uint8_t *password, size_t password_len,
@@ -33,7 +34,7 @@ int32_t scrypt(
 
     OSSL_PARAM params[6] = {0};
 
-    kdf = EVP_KDF_fetch(NULL, "SCRYPT", NULL);
+    kdf = EVP_KDF_fetch(get_jostle_ossl_lib_ctx(), "SCRYPT", NULL);
     if (OPS_OPENSSL_ERROR_1  kdf == NULL) {
         ret = JO_OPENSSL_ERROR;
         goto exit;
@@ -85,7 +86,7 @@ int32_t pbkdf2(
 
     OSSL_PARAM params[5] = {0};
 
-    kdf = EVP_KDF_fetch(NULL, "PBKDF2", NULL);
+    kdf = EVP_KDF_fetch(get_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR;
         goto exit;
@@ -119,15 +120,3 @@ exit:
     return ret;
 }
 
-// int32_t pkcs12(
-//     uint8_t *password, size_t password_len,
-//     uint8_t *salt, size_t salt_len,
-//     uint32_t iter,
-//     uint8_t *digest,
-//     size_t digest_len,
-//     uint8_t *out,
-//     size_t out_len
-// ) {
-//    assert(0);
-//
-// }

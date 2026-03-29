@@ -10,14 +10,16 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.rand.RandSource;
+
 public class MLKEMServiceJNI implements MLKEMServiceNI
 {
 
     @Override
-    public native long generateKeyPair(int type);
+    public native long generateKeyPair(int type, RandSource randSource);
 
     @Override
-    public native long generateKeyPair(int type, byte[] seed, int seedLen);
+    public native long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
 
     @Override
     public native int getPublicKey(long ref, byte[] output);

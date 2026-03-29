@@ -11,20 +11,20 @@
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
 import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.rand.RandSource;
 
 public interface SLHDSAServiceNI
 {
     /**
      * Generate a SLH-DSA Key pair
      *
-     * @param type the type
+     * @param type       the type
+     * @param randSource
      * @return 0 for success, or less than 0 for failure
      */
-    long generateKeyPair(int type);
+    long generateKeyPair(int type, RandSource randSource);
 
-    long generateKeyPair(int type, byte[] seed, int seedLen);
-
-//    int getSeed(long reference, byte[] output);
+    long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
 
     int getPrivateKey(long reference, byte[] output);
 
@@ -40,11 +40,11 @@ public interface SLHDSAServiceNI
 
     int update(long ref, byte[] b, int off, int len);
 
-    long sign(long ref, byte[] sig, int offset);
+    long sign(long ref, byte[] sig, int offset, RandSource randSource);
 
     int verify(long reference, byte[] sigBytes, int len);
 
-    long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
+    long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource);
 
     void disposeSigner(long reference);
 

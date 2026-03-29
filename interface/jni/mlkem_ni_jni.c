@@ -23,15 +23,15 @@
  * Method:    generateKeyPair
  * Signature: (I)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_generateKeyPair__I
-(JNIEnv *env, jobject jo, jint type) {
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_generateKeyPair__ILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
 
     jint ret_val = JO_FAIL;
 
     key_spec *key_spec = create_spec();
-    ret_val = mlkem_generate_key_pair(key_spec, type, NULL, 0);
+    ret_val = mlkem_generate_key_pair(key_spec, type, NULL, 0, rnd_src);
 
     if (ret_val != JO_SUCCESS) {
         free_key_spec(key_spec);
@@ -46,8 +46,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServi
  * Method:    generateKeyPair
  * Signature: (I[BI)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_generateKeyPair__I_3BI
-(JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len) {
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_generateKeyPair__I_3BILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
 
@@ -79,7 +79,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServi
 
 
     key_spec *key_spec = create_spec();
-    ret_code = mlkem_generate_key_pair(key_spec, type, seed.bytearray, seed_len);
+    ret_code = mlkem_generate_key_pair(key_spec, type, seed.bytearray, seed_len, rnd_src);
 
     if (ret_code != JO_SUCCESS) {
         free_key_spec(key_spec);

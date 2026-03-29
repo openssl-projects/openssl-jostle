@@ -26,8 +26,6 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 
 public class TestNISelector extends NISelector
 {
-
-
     static BlockCipherNI getBlockCipher()
     {
         return BlockCipherNI;

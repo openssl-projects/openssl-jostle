@@ -35,7 +35,8 @@ int32_t SpecNI_Encap(
     key_spec *ks,
     const char *opp,
     uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len,
-    uint8_t *output, const size_t output_size, const int32_t out_off, const int32_t out_len
+    uint8_t *output, const size_t output_size, const int32_t out_off, const int32_t out_len,
+    void *rand_src
 ) {
     if (ks == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -83,7 +84,7 @@ int32_t SpecNI_Encap(
 
     uint8_t *in = input + (size_t) in_off;
 
-    ret = encap(ks, opp, in, in_len, out, out_len);
+    ret = encap(ks, opp, in, in_len, out, out_len, rand_src);
 
 exit:
     return ret;

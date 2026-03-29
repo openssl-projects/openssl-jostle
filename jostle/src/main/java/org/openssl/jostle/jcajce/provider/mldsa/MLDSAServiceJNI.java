@@ -10,12 +10,14 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
+import org.openssl.jostle.rand.RandSource;
+
 public class MLDSAServiceJNI implements MLDSAServiceNI
 {
-    public native long generateKeyPair(int type);
+    public native long generateKeyPair(int type, RandSource rndId);
 
     @Override
-    public native long generateKeyPair(int type, byte[] seed, int seedLen);
+    public native long generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource);
 
     @Override
     public native int getPublicKey(long ref, byte[] output);
@@ -36,13 +38,13 @@ public class MLDSAServiceJNI implements MLDSAServiceNI
     public native int initVerify(long ref, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal);
 
     @Override
-    public native int initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal);
+    public native int initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal, RandSource randSource);
 
     @Override
     public native int update(long reference, byte[] input, int inputOffset, int inputLen);
 
     @Override
-    public native int sign(long reference, byte[] output, int offset);
+    public native int sign(long reference, byte[] output, int offset, RandSource randSource);
 
     @Override
     public native int verify(long reference, byte[] sigBytes, int sigLen);

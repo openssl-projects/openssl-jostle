@@ -17,28 +17,48 @@ import org.openssl.jostle.CryptoServicesRegistrar;
  */
 public class OpenSSL
 {
+    private static String lastModuleName;
+
     /**
      * Set the OpenSSL Module by name
      *
-     * @param provider the name of the provider
+     * @param moduleName the name of the moduleName
      */
-    public static void setOSSLProvider(String provider)
+    synchronized static void setOSSLProvider(String moduleName)
     {
+        if (lastModuleName != null)
+        {
+
+            if (lastModuleName.equals(moduleName))
+            {
+                return;
+            }
+
+            throw new IllegalStateException("OpenSSL already initialized to " + lastModuleName);
+        }
+
+        if (moduleName == null)
+        {
+            throw new IllegalArgumentException("moduleName is null");
+        }
+
+        lastModuleName = moduleName;
+
         CryptoServicesRegistrar.assertNativeAvailable();
 
-        ErrorCode code = ErrorCode.forCode(NISelector.OpenSSLNI.setOSSLProviderModule(provider));
+        ErrorCode code = ErrorCode.forCode(NISelector.OpenSSLNI.setOSSLProviderModule(moduleName));
         switch (code)
         {
             case JO_SUCCESS:
                 break;
             case JO_FAIL:
-                throw new IllegalStateException("unable to set OpenSSL provider " + provider);
+                throw new IllegalStateException("unable to set OpenSSL moduleName " + moduleName);
             case JO_OPENSSL_ERROR:
                 throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
             case JO_PROV_NAME_NULL:
-                throw new IllegalArgumentException("provider name is null");
+                throw new IllegalArgumentException("moduleName name is null");
             case JO_PROV_NAME_EMPTY:
-                throw new IllegalArgumentException("provider name is empty");
+                throw new IllegalArgumentException("moduleName name is empty");
             default:
                 throw new IllegalArgumentException("unexpected return code: " + code);
         }
@@ -53,6 +73,7 @@ public class OpenSSL
      */
     public static String getOpenSSLErrors()
     {
+
         CryptoServicesRegistrar.assertNativeAvailable();
         String error = NISelector.OpenSSLNI.getOSSLErrors();
         if (error.isEmpty())

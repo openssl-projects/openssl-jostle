@@ -11,27 +11,33 @@
 
 package org.openssl.jostle.test.md;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.Security;
+
 public class MDOpsTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     MDServiceNI mdNI = TestNISelector.getMDNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @BeforeEach
     public void beforeEach()

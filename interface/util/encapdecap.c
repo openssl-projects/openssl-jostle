@@ -12,12 +12,21 @@
 
 #include "bc_err_codes.h"
 #include "ops.h"
+#include "rand/jostle_lib_ctx.h"
 
 int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t secret_len, uint8_t *out,
-              const size_t out_len) {
+              const size_t out_len, void *rand_src) {
     int32_t ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
-    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, key_spec->key, NULL);
+
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD;
+    }
+
+    rand_set_java_srand_call(rand_src);
+
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(101);
@@ -37,6 +46,7 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     }
 
     size_t min_len = 0;
+
     if (OPS_OPENSSL_ERROR_4 EVP_PKEY_encapsulate(ctx, NULL, &min_len, secret, &secret_len) <= 0) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(104);
         goto exit;
@@ -77,7 +87,7 @@ int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, c
               const size_t out_len) {
     int32_t ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
-    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, key_spec->key, NULL);
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_jostle_ossl_lib_ctx(), key_spec->key, NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(101);
         goto exit;

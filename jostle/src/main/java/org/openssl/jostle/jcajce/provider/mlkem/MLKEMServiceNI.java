@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.rand.RandSource;
 
 public interface MLKEMServiceNI
 {
@@ -19,12 +20,13 @@ public interface MLKEMServiceNI
     /**
      * Generate an ML-KEM Key pair
      *
-     * @param type the type
+     * @param type       the type
+     * @param randSource
      * @return 0 for success, or less than 0 for failure
      */
-    long generateKeyPair(int type);
+    long generateKeyPair(int type, RandSource randSource);
 
-    long generateKeyPair(int type, byte[] seed, int seedLen);
+    long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
 
     /**
      * Get the public key encoded

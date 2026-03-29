@@ -13,7 +13,7 @@ package org.openssl.jostle.test.md;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
@@ -27,11 +27,17 @@ import java.security.Security;
 public class MDTest
 {
 
-    @BeforeEach
-    public void before() throws Exception
+    @BeforeAll
+    public static void before() throws Exception
     {
-        Security.addProvider(new JostleProvider());
-        Security.addProvider(new BouncyCastleProvider());
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new BouncyCastleProvider());
+        }
     }
 
 

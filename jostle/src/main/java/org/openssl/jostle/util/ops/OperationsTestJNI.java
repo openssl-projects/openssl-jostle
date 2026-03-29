@@ -11,6 +11,8 @@
 package org.openssl.jostle.util.ops;
 
 
+import org.openssl.jostle.rand.RandSource;
+
 public class OperationsTestJNI implements OperationsTestNI
 {
     private static Boolean opsTestAvailable;
@@ -37,5 +39,7 @@ public class OperationsTestJNI implements OperationsTestNI
     @Override
     public native void setOpsTestFlag(int flag, int value);
 
+    @Override
+    public native int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource);
 
 }

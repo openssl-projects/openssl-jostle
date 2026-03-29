@@ -29,7 +29,8 @@ public class ProviderIntegrationTest
         System.setProperty(JostleProvider.OPENSSL_PROVIDER_NAME, "dsdffds");
         try
         {
-            Security.addProvider(new JostleProvider()); // Will trigger loading
+            Security.addProvider(new JostleProvider());
+            Assertions.fail("Should have thrown an exception");
         } catch (OpenSSLException t)
         {
             Assertions.assertTrue(t.getMessage().contains("name=dsdffds"));

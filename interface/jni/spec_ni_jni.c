@@ -17,6 +17,7 @@
 #include "../util/key_spec.h"
 #include "../util/ops.h"
 #include "../util/jo_assert.h"
+#include "../util/rand/jostle_lib_ctx.h"
 
 /*
  * Class:     org_openssl_jostle_jcajce_spec_SpecJNI
@@ -46,7 +47,6 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_allocate(JNI
     jo_assert(spec != NULL);
     return (jlong) spec;
 }
-
 
 
 /*
@@ -82,8 +82,14 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_getName
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_encap
 (JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint in_off, jint in_len, jbyteArray _output,
- jint out_off, jint out_len) {
+ jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD;
+    }
+
+    rand_set_java_srand_call(rand_src);
 
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
@@ -160,7 +166,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_encap
 
     uint8_t *in = input.bytearray + in_off;
 
-    ret = encap(ks, (const char *) opp, in, in_len, out, out_len);
+    ret = encap(ks, (const char *) opp, in, in_len, out, out_len, rand_src);
 
 exit:
     if (opp != NULL) {

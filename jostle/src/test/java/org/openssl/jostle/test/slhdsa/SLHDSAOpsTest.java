@@ -12,10 +12,7 @@
 package org.openssl.jostle.test.slhdsa;
 
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.interfaces.SLHDSAPublicKey;
@@ -25,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
@@ -36,14 +34,20 @@ import java.util.List;
 
 public class SLHDSAOpsTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     SLHDSAServiceNI slhDSAServiceNI = TestNISelector.getSLHDSANI();
     SpecNI specNI = TestNISelector.getSpecNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
 
     @BeforeEach
@@ -65,7 +69,7 @@ public class SLHDSAOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType()));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (OpenSSLException e)
@@ -90,7 +94,7 @@ public class SLHDSAOpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             slhDSAServiceNI.handleErrors(
-                    slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.ordinal(), new byte[32], 32)
+                    slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.ordinal(), new byte[32], 32, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (AccessException e)
@@ -109,7 +113,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -139,7 +143,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
@@ -168,7 +172,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
@@ -195,7 +199,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -223,7 +227,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -251,7 +255,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
@@ -277,7 +281,7 @@ public class SLHDSAOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -325,7 +329,6 @@ public class SLHDSAOpsTest
     @Test()
     public void SLHDSAServiceJNI_decode_1publicKey_openSSLErrorDecoding() throws Exception
     {
-        Security.addProvider(new JostleProvider());
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long keyRef = 0;
@@ -400,7 +403,6 @@ public class SLHDSAOpsTest
     @Test()
     public void SLHDSAServiceJNI_decode_1privateKey_openSSLErrorDecoding() throws Exception
     {
-        Security.addProvider(new JostleProvider());
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long keyRef = 0;
@@ -457,12 +459,12 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (AccessException e)
         {
@@ -486,13 +488,13 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
 
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            long code = slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0);
+            long code = slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
         } finally
         {
@@ -512,13 +514,13 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
 
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            long code = slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0);
+            long code = slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
         } finally
         {
@@ -541,7 +543,7 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -570,7 +572,7 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
 
@@ -596,7 +598,7 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
 
@@ -625,10 +627,10 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             slhDSAServiceNI.handleErrors(slhDSAServiceNI.update(slhdsaRef, new byte[10], 0, 10));
@@ -656,10 +658,10 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0, TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             slhDSAServiceNI.handleErrors(slhDSAServiceNI.update(slhdsaRef, new byte[10], 0, 10));
@@ -690,13 +692,13 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, new byte[1], 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, new byte[1], 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (AccessException e)
@@ -723,13 +725,13 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0, TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            long len = slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, null, 0));
+            long len = slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (OpenSSLException e)
@@ -754,17 +756,17 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0, TestUtil.RNDSrc));
 
-            long len = slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, null, 0));
+            long len = slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, sig, 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, sig, 0, TestUtil.RNDSrc));
 
 
             Assertions.fail();
@@ -790,17 +792,17 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0, TestUtil.RNDSrc));
 
-            long len = slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, null, 0));
+            long len = slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
-            slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, sig, 0));
+            slhDSAServiceNI.handleErrors(slhDSAServiceNI.sign(slhdsaRef, sig, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -827,7 +829,7 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhDSAServiceNI.handleErrors(slhDSAServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0));
@@ -859,7 +861,7 @@ public class SLHDSAOpsTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType());
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             slhDSAServiceNI.handleErrors(slhDSAServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0));

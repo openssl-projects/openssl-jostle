@@ -12,38 +12,48 @@
 package org.openssl.jostle.test.mldsa;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
+
+import java.security.Security;
 
 public class MLDSALimitTest
 {
 
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     MLDSAServiceNI mldsaServiceNI = TestNISelector.getMLDSANI();
     SpecNI specNI = TestNISelector.getSpecNI();
 
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @Test
     public void testMLDSAGenerateKeyPair_keyGenWrongType() throws Exception
     {
-
+       
         for (int type : new int[]{-1, 0, 7})
         {
 
             try
             {
-                mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(type));
+                mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(type, TestUtil.RNDSrc ));
                 Assertions.fail();
             } catch (IllegalArgumentException e)
             {
@@ -51,6 +61,7 @@ public class MLDSALimitTest
             }
 
         }
+       
     }
 
     @Test
@@ -62,7 +73,7 @@ public class MLDSALimitTest
         try
         {
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen)
+                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -80,7 +91,7 @@ public class MLDSALimitTest
         try
         {
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen)
+                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -99,7 +110,7 @@ public class MLDSALimitTest
         try
         {
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen)
+                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -117,7 +128,7 @@ public class MLDSALimitTest
         try
         {
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen)
+                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -136,7 +147,7 @@ public class MLDSALimitTest
         try
         {
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen)
+                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -154,7 +165,7 @@ public class MLDSALimitTest
         try
         {
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen)
+                    mldsaServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -204,7 +215,8 @@ public class MLDSALimitTest
     @Test
     public void MLDSAServiceJNI_getPublicKey_outLen() throws Exception
     {
-        long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+       
+        long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
         try
         {
             mldsaServiceNI.handleErrors(mldsaServiceNI.getPublicKey(ref, new byte[10]));
@@ -215,6 +227,7 @@ public class MLDSALimitTest
         } finally
         {
             specNI.dispose(ref);
+           
         }
     }
 
@@ -258,7 +271,8 @@ public class MLDSALimitTest
     @Test
     public void MLDSAServiceJNI_getPrivateKey_outLen() throws Exception
     {
-        long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+       
+        long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
         try
         {
             mldsaServiceNI.handleErrors(mldsaServiceNI.getPrivateKey(ref, new byte[10]));
@@ -269,6 +283,7 @@ public class MLDSALimitTest
         } finally
         {
             specNI.dispose(ref);
+           
         }
     }
 
@@ -311,7 +326,8 @@ public class MLDSALimitTest
     @Test
     public void MLDSAServiceJNI_getSeed_outLen() throws Exception
     {
-        long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+       
+        long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc );
         try
         {
             mldsaServiceNI.handleErrors(mldsaServiceNI.getPrivateKey(ref, new byte[10]));
@@ -322,6 +338,7 @@ public class MLDSALimitTest
         } finally
         {
             specNI.dispose(ref);
+           
         }
     }
 
@@ -806,11 +823,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, null, 0, 0));
@@ -836,11 +854,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 1, 0));
@@ -852,6 +871,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -863,11 +883,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[1], 2, 0));
@@ -879,6 +900,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -890,11 +912,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[256], 256, 0));
@@ -906,6 +929,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -962,11 +986,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[1], 1, 3));
@@ -978,6 +1003,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -987,11 +1013,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = mldsaServiceNI.allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(
                     mldsaRef,
@@ -1005,6 +1032,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1017,11 +1045,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, null, 0, 0));
@@ -1033,6 +1062,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1047,14 +1077,15 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 1, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 1, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1063,6 +1094,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1074,14 +1106,15 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 2, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 2, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1090,6 +1123,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1102,14 +1136,15 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[256], 256, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[256], 256, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1118,6 +1153,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1128,11 +1164,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1157,7 +1194,7 @@ public class MLDSALimitTest
             keyRef = specNI.allocate();
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1175,14 +1212,15 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 3));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 3, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
@@ -1200,11 +1238,12 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             //  mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1], 1, 3));
@@ -1228,14 +1267,15 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, null, 0, 0));
 
@@ -1247,6 +1287,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1256,14 +1297,15 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[0], -1, 0));
 
@@ -1275,6 +1317,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1283,14 +1326,15 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[0], 0, -1));
 
@@ -1302,6 +1346,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1316,14 +1361,15 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[10], 0, 11));
 
@@ -1335,6 +1381,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1349,14 +1396,15 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[10], 1, 10));
 
@@ -1368,6 +1416,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1380,16 +1429,17 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], -1));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], -1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1399,6 +1449,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1408,16 +1459,17 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], 1));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], 1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1427,6 +1479,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1436,16 +1489,17 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             // mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -1455,6 +1509,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1465,16 +1520,17 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, 0));
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[0], 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -1484,6 +1540,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1498,20 +1555,21 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len - 1];
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1521,6 +1579,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1535,20 +1594,21 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 1));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1558,6 +1618,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1568,21 +1629,22 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.CALCULATE_MU.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.CALCULATE_MU.ordinal(), TestUtil.RNDSrc));
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
             Assertions.assertEquals(64L, len);
 
             byte[] sig = new byte[(int) len - 1];
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1592,6 +1654,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1603,22 +1666,23 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.CALCULATE_MU.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.CALCULATE_MU.ordinal(), TestUtil.RNDSrc));
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             Assertions.assertEquals(64L, len);
 
             byte[] sig = new byte[(int) len];
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 1));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 1, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -1628,6 +1692,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1639,11 +1704,12 @@ public class MLDSALimitTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -1658,6 +1724,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1667,11 +1734,12 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -1683,6 +1751,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1691,11 +1760,12 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -1710,6 +1780,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1719,11 +1790,12 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -1738,6 +1810,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1746,11 +1819,12 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -1765,6 +1839,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 
@@ -1773,14 +1848,15 @@ public class MLDSALimitTest
     {
         long mldsaRef = 0;
         long keyRef = 0;
+       
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.verify(mldsaRef, new byte[1], 1));
 
@@ -1792,6 +1868,7 @@ public class MLDSALimitTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+           
         }
     }
 

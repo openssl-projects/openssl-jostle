@@ -10,12 +10,15 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
@@ -32,6 +35,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     private boolean extract;
     private final OSSLKeyType forcedKeyType;
     private AlgorithmParameterSpec parameterSpec;
+    private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
 
     public MLKEMKeyGenerator(MLKEMParameterSpec spec)
@@ -53,6 +57,8 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
+        randSource = DefaultRandSource.replaceWith(randSource, random);
+
         if (params instanceof KEMExtractSpec)
         {
             PrivateKey key = ((KEMExtractSpec) params).getPrivateKey();
@@ -127,9 +133,9 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMGenerateSpec generateSpec = (KEMGenerateSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) generateSpec.getPublicKey()).getSpec();
             byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
-            long len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0));
+            long len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource));
             byte[] wrappedKey = new byte[(int) len];
-            len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length));
+            len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource));
 
             if (len != wrappedKey.length)
             {

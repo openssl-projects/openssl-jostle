@@ -12,19 +12,26 @@
 package org.openssl.jostle.test.md;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
+import java.security.Security;
 
 public class MDInternalLimitTest
 {
-    static
+    @BeforeAll
+    public static void beforeAll()
     {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
     }
 
     MDServiceNI mdNI = TestNISelector.getMDNI();

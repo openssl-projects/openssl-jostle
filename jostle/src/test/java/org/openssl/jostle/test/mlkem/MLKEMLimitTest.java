@@ -12,18 +12,26 @@
 package org.openssl.jostle.test.mlkem;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
+
+import java.security.Security;
 
 public class MLKEMLimitTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
+
+    @BeforeAll
+    public static void beforeAll() {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new JostleProvider());
+        }
     }
 
     MLKEMServiceNI mlkemServiceNI = TestNISelector.getMLKEMNI();
@@ -38,7 +46,7 @@ public class MLKEMLimitTest
 
             try
             {
-                mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(type));
+                mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(type, TestUtil.RNDSrc));
                 Assertions.fail();
             } catch (IllegalArgumentException e)
             {
@@ -57,7 +65,7 @@ public class MLKEMLimitTest
         try
         {
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen)
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -75,7 +83,7 @@ public class MLKEMLimitTest
         try
         {
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_1024.getKsType(), seed, seedLen)
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_1024.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -93,7 +101,7 @@ public class MLKEMLimitTest
         try
         {
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen)
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -112,7 +120,7 @@ public class MLKEMLimitTest
         try
         {
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen)
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -131,7 +139,7 @@ public class MLKEMLimitTest
         try
         {
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen)
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -150,7 +158,7 @@ public class MLKEMLimitTest
         try
         {
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen)
+                    mlkemServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc)
             );
             Assertions.fail();
         } catch (IllegalArgumentException e)
@@ -200,7 +208,7 @@ public class MLKEMLimitTest
     @Test
     public void MLKEMServiceJNI_getPublicKey_outLen() throws Exception
     {
-        long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(ref, new byte[10]));
@@ -253,7 +261,7 @@ public class MLKEMLimitTest
     @Test
     public void MLKEMServiceJNI_getPrivateKey_outLen() throws Exception
     {
-        long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(ref, new byte[10]));
@@ -306,7 +314,7 @@ public class MLKEMLimitTest
     @Test
     public void MLKEMServiceJNI_getSeed_outLen() throws Exception
     {
-        long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(ref, new byte[10]));

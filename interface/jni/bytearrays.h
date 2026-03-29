@@ -29,6 +29,8 @@ typedef struct {
  */
 void init_bytearray_ctx(java_bytearray_ctx *ctx);
 
+int load_bytearray_new(java_bytearray_ctx *ctx, JNIEnv *env, jsize len);
+
 /**
  * Load a java byte array and claim it from the jvm
  * @param env

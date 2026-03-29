@@ -13,9 +13,11 @@ package org.openssl.jostle.test.crypto;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
@@ -23,6 +25,7 @@ import javax.crypto.ShortBufferException;
 import java.lang.foreign.*;
 import java.nio.ByteOrder;
 import java.security.InvalidKeyException;
+import java.security.Security;
 
 /**
  * Test using FFI the internal layer that actually drives OpenSSL.
@@ -31,9 +34,13 @@ import java.security.InvalidKeyException;
  */
 public class BlockCipherInternalLayerTest
 {
-    static
+    @BeforeAll
+    public static void beforeAll()
     {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
     }
 
     @Test

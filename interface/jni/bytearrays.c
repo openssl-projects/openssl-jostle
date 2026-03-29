@@ -18,6 +18,27 @@ void init_bytearray_ctx(java_bytearray_ctx *ctx) {
     ctx->env = NULL;
 }
 
+int load_bytearray_new(java_bytearray_ctx *ctx, JNIEnv *env, jsize len) {
+    ctx->env = env;
+    ctx->array = NULL;
+    ctx->size = 0;
+    ctx->bytearray = NULL;
+
+
+    jbyteArray array = (*env)->NewByteArray(env, len);
+    if (array != NULL) {
+        ctx->array = array;
+        ctx->size = (size_t) len;
+        ctx->bytearray = (uint8_t *) (*env)->GetByteArrayElements(env, array, NULL);
+        if (ctx->bytearray != NULL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+
 int load_bytearray_ctx(java_bytearray_ctx *ctx, JNIEnv *env, jbyteArray array) {
     ctx->env = env;
     ctx->array = array;

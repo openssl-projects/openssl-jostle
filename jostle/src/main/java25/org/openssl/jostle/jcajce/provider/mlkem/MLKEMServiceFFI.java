@@ -12,9 +12,12 @@
 package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -48,6 +51,10 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     private static final MemorySegment decodePrivateKeyFunc;
     private static final MethodHandle decodePrivateKeyFuncHandle;
 
+    private static final FunctionDescriptor entropyFd;
+    private static final MethodType entropyMt;
+
+
 
     static
     {
@@ -56,6 +63,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS
                 ));
 
@@ -63,13 +71,13 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
-
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
 
         getPublicKeyFunc = lookup.find("MLKEM_getPublicKey").orElseThrow();
@@ -123,16 +131,38 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
+        entropyFd = FunctionDescriptor.of(
+                ValueLayout.JAVA_INT, // return code
+                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
+                ValueLayout.JAVA_INT, // len
+                ValueLayout.JAVA_INT, // strength
+                ValueLayout.JAVA_BOOLEAN // pred resistance
+        );
+        entropyMt = MethodType.methodType(
+                int.class, // return type
+                MemorySegment.class, // out
+                int.class, // out_len
+                int.class, // strength
+                boolean.class // pred resistance
+        );
     }
 
 
     @Override
-    public long generateKeyPair(int type)
+    public long generateKeyPair(int type, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
+
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    randSource.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(randSource);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
+
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef);
+            MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef,getEntropySegment);
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
             if (retCode != ErrorCode.JO_SUCCESS.getCode())
@@ -150,19 +180,30 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public long generateKeyPair(int type, byte[] seed, int seedLen)
+    public long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment seedRef = seed == null ? MemorySegment.NULL : MemorySegment.ofArray(seed);
+            MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
+
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    randSource.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(randSource);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
+            if (seed != null) {
+                seedRef.asByteBuffer().put(seed);
+            }
 
             MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
                     type,
                     retCodeRef,
                     seedRef,
                     seedRef.byteSize(),
-                    seedLen
+                    seedLen,
+                    getEntropySegment
             );
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
@@ -185,7 +226,6 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     {
         try
         {
-
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment refOutput = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
             long len = output == null ? 0L : refOutput.byteSize();

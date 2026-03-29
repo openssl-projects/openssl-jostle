@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.spec;
 
 import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.rand.RandSource;
 
 public interface SpecNI
 {
@@ -31,7 +32,7 @@ public interface SpecNI
 
     String getName(long keyRef);
 
-    int encap(long keyRef, String opt, byte[] input, int intOff, int inLen, byte[] out, int off, int len);
+    int encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
 

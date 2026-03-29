@@ -11,33 +11,38 @@
 
 package org.openssl.jostle.test.mlkem;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.openssl.jostle.CryptoServicesRegistrar;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
+
+import java.security.Security;
 
 public class MLKEMOpsTest
 {
 
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
 
     MLKEMServiceNI mlkemServiceNI = TestNISelector.getMLKEMNI();
     SpecNI specNI = TestNISelector.getSpecNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
 
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
     @BeforeEach
     public void beforeEach()
@@ -58,16 +63,18 @@ public class MLKEMOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType()));
+            mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc));
 
             Assertions.fail();
-        } catch (OpenSSLException e)
+        }
+        catch (OpenSSLException e)
         {
             //
             // Asserting the code path would actually return if there was an error.
             // There isn't an error so the msg is null
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -83,10 +90,11 @@ public class MLKEMOpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.ordinal(), new byte[64], 64)
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.ordinal(), new byte[64], 64, TestUtil.RNDSrc)
             );
             Assertions.fail();
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             Assertions.assertEquals("unable to access seed array", e.getMessage());
         }
@@ -102,18 +110,20 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(keyRef, new byte[2048]));
             Assertions.fail();
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             Assertions.assertEquals("unable to access output array", e.getMessage());
 
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -130,18 +140,20 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]));
             Assertions.fail();
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             Assertions.assertEquals("unable to access output array", e.getMessage());
 
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -161,17 +173,19 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]));
             Assertions.fail();
-        } catch (OpenSSLException e)
+        }
+        catch (OpenSSLException e)
         {
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -190,7 +204,7 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
@@ -198,10 +212,12 @@ public class MLKEMOpsTest
             long code = mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
             Assertions.assertEquals(-1002, code);
 
-        } catch (OpenSSLException e)
+        }
+        catch (OpenSSLException e)
         {
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -217,17 +233,19 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]));
             Assertions.fail();
-        } catch (OverflowException e)
+        }
+        catch (OverflowException e)
         {
             Assertions.assertEquals("output size overflow", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -247,17 +265,19 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(keyRef, new byte[2048]));
             Assertions.fail();
-        } catch (OpenSSLException e)
+        }
+        catch (OpenSSLException e)
         {
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -277,7 +297,7 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
@@ -285,10 +305,12 @@ public class MLKEMOpsTest
             long code = mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
             Assertions.assertEquals(-1002, code);
 
-        } catch (OpenSSLException e)
+        }
+        catch (OpenSSLException e)
         {
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -304,17 +326,19 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(keyRef, new byte[2048]));
             Assertions.fail();
-        } catch (OverflowException e)
+        }
+        catch (OverflowException e)
         {
             Assertions.assertEquals("output size overflow", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -329,18 +353,20 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getSeed(keyRef, new byte[2048]));
             Assertions.fail();
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             Assertions.assertEquals("unable to access output array", e.getMessage());
 
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -357,17 +383,19 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getSeed(keyRef, new byte[2048]));
             Assertions.fail();
-        } catch (OpenSSLException e)
+        }
+        catch (OpenSSLException e)
         {
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -383,17 +411,19 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
-            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+            keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.getSeed(keyRef, new byte[2048]));
             Assertions.fail();
-        } catch (OverflowException e)
+        }
+        catch (OverflowException e)
         {
             Assertions.assertEquals("output size overflow", e.getMessage());
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -416,11 +446,13 @@ public class MLKEMOpsTest
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024));
             Assertions.fail();
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             Assertions.assertEquals("unable to access input array", e.getMessage());
 
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
@@ -462,10 +494,12 @@ public class MLKEMOpsTest
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length));
                 Assertions.fail();
-            } catch (OpenSSLException e)
+            }
+            catch (OpenSSLException e)
             {
                 Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
-            } finally
+            }
+            finally
             {
                 operationsTestNI.resetFlags();
                 specNI.dispose(keyRef);
@@ -490,11 +524,13 @@ public class MLKEMOpsTest
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024));
             Assertions.fail();
-        } catch (AccessException e)
+        }
+        catch (AccessException e)
         {
             Assertions.assertEquals("unable to access input array", e.getMessage());
 
-        } finally
+        }
+        finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);

@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.rand.RandSource;
+
 public class SpecJNI implements SpecNI
 {
     @Override
@@ -22,7 +24,7 @@ public class SpecJNI implements SpecNI
     public native String getName(long keyRef);
 
     @Override
-    public native int encap(long keyRef, String opt, byte[] input, int intOff, int inLen, byte[] out, int off, int len);
+    public native int encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     @Override
     public native int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);

@@ -53,6 +53,9 @@ bool is_ops_set(const uint32_t index);
 
 void set_ops_test(const uint32_t index, const uint32_t value);
 
+int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred, void * rnd_src);
+
+
 #endif
 
 #ifndef JOSTLE_OPS
@@ -80,6 +83,8 @@ void set_ops_test(const uint32_t index, const uint32_t value);
 #define OPS_FAILED_SET_1
 #define OPS_FAILED_SET_2
 #define OPS_OFFSET(x)
+
+
 #endif
 
 #endif //OPS_H

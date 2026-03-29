@@ -24,15 +24,20 @@
  * Method:    generateKeyPair
  * Signature: (I)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair__I
-(JNIEnv *env, jobject jo, jint type) {
+JNIEXPORT jlong JNICALL
+Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair__ILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD; // TODO use out param for errors
+    }
 
     jint ret_val = JO_FAIL;
 
     key_spec *key_spec = create_spec();
-    ret_val = slh_dsa_generate_key_pair(key_spec, type, NULL, 0);
+    ret_val = slh_dsa_generate_key_pair(key_spec, type, NULL, 0, rnd_src);
 
     if (ret_val != JO_SUCCESS) {
         free_key_spec(key_spec);
@@ -47,10 +52,16 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
  * Method:    generateKeyPair
  * Signature: (I[BI)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair__I_3BI
-(JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len) {
+JNIEXPORT jlong JNICALL
+Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair__I_3BILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD; // TODO use out param for errors
+    }
+
 
     java_bytearray_ctx seed; // Non critical access
     init_bytearray_ctx(&seed);
@@ -81,7 +92,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
 
 
     key_spec *key_spec = create_spec();
-    ret_code = slh_dsa_generate_key_pair(key_spec, type, seed.bytearray, seed_len);
+    ret_code = slh_dsa_generate_key_pair(key_spec, type, seed.bytearray, seed_len, rnd_src);
 
     if (ret_code != JO_SUCCESS) {
         free_key_spec(key_spec);
@@ -93,50 +104,6 @@ exit:
     release_bytearray_ctx(&seed);
     return ret_code;
 }
-
-// /*
-//  * Class:     org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI
-//  * Method:    getSeed
-//  * Signature: (J[B)I
-//  */
-// JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_SLHDSAServiceJNI_getSeed
-// (JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
-//     UNUSED(o);
-//     key_spec *key_spec = (void *) ref;
-//
-//
-//     java_bytearray_ctx output; // Non critical access
-//     init_bytearray_ctx(&output);
-//
-//     int32_t ret_code = JO_FAIL;
-//
-//     if (key_spec == NULL) {
-//         ret_code = JO_KEY_SPEC_IS_NULL;
-//         goto exit;
-//     }
-//
-//     if (key_spec->key == NULL) {
-//         ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
-//         goto exit;
-//     }
-//
-//     if (_output == NULL) {
-//         ret_code = slh_dsa_get_private_seed(key_spec,NULL, 0);
-//         goto exit;
-//     }
-//
-//
-//     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
-//         ret_code = JO_FAILED_ACCESS_OUTPUT;
-//         goto exit;
-//     }
-//
-//     ret_code = slh_dsa_get_private_seed(key_spec, output.bytearray, output.size);
-//
-// exit:
-//     release_bytearray_ctx(&output);
-//     return ret_code;
-// }
 
 
 /*
@@ -248,7 +215,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     // key_spec->type = key_type;
 
     uint8_t *start = input.bytearray + in_off;
-    ret_val = slh_dsa_decode_private_key(key_spec,key_type, start, in_len);
+    ret_val = slh_dsa_decode_private_key(key_spec, key_type, start, in_len);
 
 
 exit:
@@ -459,7 +426,7 @@ exit:
  * Signature: (J[BI)J
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_sign
-(JNIEnv *env, jobject jo, jlong ref, jbyteArray _output, jint out_off) {
+(JNIEnv *env, jobject jo, jlong ref, jbyteArray _output, jint out_off, jobject rand_src) {
     UNUSED(env);
     UNUSED(jo);
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) ref;
@@ -467,15 +434,15 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
 
     if (_output == NULL) {
         /* Caller wants length */
-        return slh_dsa_ctx_sign(slhdsa, NULL, 0);
+        return slh_dsa_ctx_sign(slhdsa, NULL, 0, rand_src);
     }
 
     int32_t ret_code = JO_FAIL;
     size_t out_len = 0;
 
 
-    critical_bytearray_ctx output;
-    init_critical_ctx(&output, env, _output);
+    java_bytearray_ctx output;
+    init_bytearray_ctx(&output);
 
 
     if (out_off < 0) {
@@ -485,25 +452,25 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
 
     /* out_off asserted as non-negative by this point */
 
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
     out_len = output.size - (size_t) out_off;
 
-    if (!check_critical_in_range(&output, out_off, out_len)) {
+    if (!check_bytearray_in_range(&output, out_off, out_len)) {
         ret_code = JO_OUTPUT_OUT_OF_RANGE;
         goto exit;
     }
 
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
-    }
+    uint8_t *output_data = output.bytearray + (size_t) out_off;
 
-    uint8_t *output_data = output.critical + (size_t) out_off;
-
-    ret_code = slh_dsa_ctx_sign(slhdsa, output_data, out_len);
+    ret_code = slh_dsa_ctx_sign(slhdsa, output_data, out_len, rand_src);
 
 exit:
-    release_critical_ctx(&output);
+    release_bytearray_ctx(&output);
 
     return ret_code;
 }
@@ -519,13 +486,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
 
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) ref;
 
-    critical_bytearray_ctx sig;
-    init_critical_ctx(&sig, env, _sig);
+    java_bytearray_ctx sig;
+    init_bytearray_ctx(&sig);
 
 
     int32_t ret_code = JO_FAIL;
 
-    if (sig.array == NULL) {
+    if (_sig == NULL) {
         ret_code = JO_SIG_IS_NULL;
         goto exit;
     }
@@ -535,23 +502,23 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
         goto exit;
     }
 
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&sig, env, _sig)) {
+        ret_code = JO_FAILED_ACCESS_SIG;
+        goto exit;
+    }
 
-    if (!check_critical_in_range(&sig, 0, sig_len)) {
+
+    if (!check_bytearray_in_range(&sig, 0, sig_len)) {
         ret_code = JO_SIG_OUT_OF_RANGE;
         goto exit;
     }
 
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&sig)) {
-        ret_code = JO_FAILED_ACCESS_SIG;
-        goto exit;
-    }
-
-    ret_code = slh_dsa_ctx_verify(slhdsa, sig.critical, sig_len);
+    ret_code = slh_dsa_ctx_verify(slhdsa, sig.bytearray, sig_len);
 
 
 exit:
-    release_critical_ctx(&sig);
+    release_bytearray_ctx(&sig);
 
     return ret_code;
 }
@@ -564,7 +531,8 @@ exit:
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_initSign
 (JNIEnv *env, jobject jo, jlong slhdsa_ref, jlong key_ref,
-    jbyteArray _context, jint context_len, jint message_encoding,jint deterministic) {
+ jbyteArray _context, jint context_len, jint message_encoding,
+ jint deterministic, jobject rand_src) {
     UNUSED(env);
     UNUSED(jo);
 
@@ -594,7 +562,14 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
         }
     }
 
-    ret_code = slh_dsa_ctx_init_sign(slhdsa, spec, context.bytearray, context_len, message_encoding, deterministic);
+    ret_code = slh_dsa_ctx_init_sign(
+        slhdsa,
+        spec,
+        context.bytearray,
+        context_len,
+        message_encoding,
+        deterministic,
+        rand_src);
 
 exit:
     release_bytearray_ctx(&context);

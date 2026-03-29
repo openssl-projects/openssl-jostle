@@ -19,9 +19,10 @@
 #include "bc_err_codes.h"
 #include "ops.h"
 #include "jo_assert.h"
+#include "rand/jostle_lib_ctx.h"
 
 md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
-    const EVP_MD *md = EVP_get_digestbyname(name);
+    const EVP_MD *md = EVP_MD_fetch(get_jostle_ossl_lib_ctx(), name,NULL);
     if (md == NULL) {
         *err = JO_NAME_NOT_FOUND;
         return NULL;
@@ -82,6 +83,8 @@ void md_ctx_destroy(md_ctx *ctx) {
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
+//     CRYPTO_THREAD_LOCAL local = CRYPTO_THREAD_get_current_id()
+
 int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
     jo_assert(ctx != NULL);
     jo_assert(ctx->mdctx != NULL);
@@ -112,7 +115,7 @@ int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
-    return  (int32_t)ret_len;
+    return (int32_t) ret_len;
 }
 
 int32_t md_ctx_reset(md_ctx *ctx) {

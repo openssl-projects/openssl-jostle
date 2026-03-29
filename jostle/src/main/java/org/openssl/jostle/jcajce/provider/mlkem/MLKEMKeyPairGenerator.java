@@ -10,14 +10,18 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,6 +30,7 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
 {
 
     private OSSLKeyType keyType;
+    private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
     private static final Map<Object, OSSLKeyType> paramToTypeMap = new HashMap<Object, OSSLKeyType>()
     {
@@ -65,8 +70,10 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
 
 
     @Override
-    public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
+    public void initialize(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
+        randSource = DefaultRandSource.replaceWith(randSource,random);
+
         if (!(params instanceof MLKEMParameterSpec))
         {
             throw new InvalidAlgorithmParameterException("only MLKEMParameterSpec is supported got " + params.getClass().getName());
@@ -98,7 +105,7 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
     @Override
     public KeyPair generateKeyPair()
     {
-        long res = NISelector.MLKEMServiceNI.generateKeyPair(keyType.getKsType());
+        long res = NISelector.MLKEMServiceNI.generateKeyPair(keyType.getKsType(), randSource);
         if (res < 0)
         {
             NISelector.MLKEMServiceNI.handleErrors(res);

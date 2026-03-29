@@ -11,34 +11,36 @@
 
 package org.openssl.jostle.test.mldsa;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
-import org.openssl.jostle.jcajce.provider.AccessException;
-import org.openssl.jostle.jcajce.provider.OpenSSL;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
-import org.openssl.jostle.jcajce.provider.OverflowException;
+import org.openssl.jostle.jcajce.provider.*;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
+
+import java.security.Security;
 
 public class MLDSOpsTest
 {
 
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
 
     MLDSAServiceNI mldsaServiceNI = TestNISelector.getMLDSANI();
     SpecNI specNI = TestNISelector.getSpecNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
 
     @BeforeEach
@@ -55,12 +57,13 @@ public class MLDSOpsTest
     public void testMLDSAGenerateKeyPair_openSSLError() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType()));
+
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc ));
 
             Assertions.fail();
         } catch (OpenSSLException e)
@@ -73,6 +76,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -81,11 +85,12 @@ public class MLDSOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         Assumptions.assumeFalse(Loader.isFFI());
+
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mldsaServiceNI.handleErrors(
-                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.ordinal(), new byte[32], 32)
+                    mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.ordinal(), new byte[32], 32, TestUtil.RNDSrc )
             );
             Assertions.fail();
         } catch (AccessException e)
@@ -102,9 +107,10 @@ public class MLDSOpsTest
         Assumptions.assumeFalse(Loader.isFFI());
 
         long keyRef = 0;
+        
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -119,6 +125,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -128,11 +135,11 @@ public class MLDSOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         Assumptions.assumeFalse(Loader.isFFI());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -147,6 +154,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -159,11 +167,11 @@ public class MLDSOpsTest
         //
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
@@ -177,6 +185,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -188,11 +197,11 @@ public class MLDSOpsTest
         //
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
@@ -207,6 +216,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -215,11 +225,11 @@ public class MLDSOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -233,6 +243,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -247,11 +258,11 @@ public class MLDSOpsTest
         //
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
@@ -265,6 +276,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -277,11 +289,11 @@ public class MLDSOpsTest
         //
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
@@ -296,6 +308,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -304,11 +317,11 @@ public class MLDSOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
+        
         long keyRef = 0;
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -322,6 +335,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -332,9 +346,10 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         Assumptions.assumeFalse(Loader.isFFI());
         long keyRef = 0;
+        
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -349,6 +364,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -360,9 +376,10 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;
+        
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
@@ -376,6 +393,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -386,9 +404,10 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;
+        
         try
         {
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -402,6 +421,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -411,6 +431,7 @@ public class MLDSOpsTest
     {
         Assumptions.assumeFalse(Loader.isFFI());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
 
         long keyRef = 0;
         try
@@ -429,6 +450,7 @@ public class MLDSOpsTest
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
+
         }
     }
 
@@ -515,16 +537,17 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (AccessException e)
         {
@@ -535,6 +558,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
+            
         }
     }
 
@@ -544,23 +568,25 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
 
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            long code = mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0);
+            long code = mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
         } finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
+            
         }
     }
 
@@ -570,23 +596,25 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
 
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            long code = mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0);
+            long code = mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
         } finally
         {
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
+            
         }
     }
 
@@ -599,11 +627,12 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -619,6 +648,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
+            
         }
     }
 
@@ -628,11 +658,12 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
 
@@ -645,6 +676,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
+            
         }
     }
 
@@ -654,11 +686,12 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
 
@@ -671,6 +704,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
+            
         }
     }
 
@@ -683,14 +717,15 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10));
@@ -704,6 +739,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -714,14 +750,15 @@ public class MLDSOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal(), TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10));
@@ -735,6 +772,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -747,14 +785,15 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10));
@@ -768,6 +807,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -780,17 +820,18 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[1], 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[1], 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (AccessException e)
@@ -801,6 +842,7 @@ public class MLDSOpsTest
             operationsTestNI.resetFlags();
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -813,18 +855,19 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             OpenSSL.getOpenSSLErrors(); // Purge any errors
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (OpenSSLException e)
@@ -834,6 +877,7 @@ public class MLDSOpsTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -845,23 +889,24 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
 
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc));
 
 
             Assertions.fail();
@@ -872,6 +917,7 @@ public class MLDSOpsTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -883,21 +929,22 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -907,6 +954,7 @@ public class MLDSOpsTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -920,11 +968,12 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -941,6 +990,7 @@ public class MLDSOpsTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 
@@ -953,11 +1003,12 @@ public class MLDSOpsTest
 
         long mldsaRef = 0;
         long keyRef = 0;
+        
         try
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -973,6 +1024,7 @@ public class MLDSOpsTest
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
+            
         }
     }
 }

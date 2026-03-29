@@ -14,7 +14,7 @@
 
 
 
-int32_t slh_dsa_generate_key_pair(key_spec *key_pair, int32_t type, uint8_t *seed, size_t seed_len);
+int32_t slh_dsa_generate_key_pair(key_spec *key_pair, int32_t type, uint8_t *seed, size_t seed_len, void *rand_src);
 
 int32_t slh_dsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len);
 
@@ -62,12 +62,12 @@ slh_dsa_ctx *slh_dsa_ctx_create(void);
 void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx);
 
 int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
-                              int32_t msg_encoding, int32_t deterministic);
+                              int32_t msg_encoding, int32_t deterministic, void *rand_src);
 
 int32_t slh_dsa_ctx_init_verify(slh_dsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
                                 int32_t msg_encoding, int32_t deterministic);
 
-int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len);
+int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rand_src);
 
 int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const size_t sig_len);
 

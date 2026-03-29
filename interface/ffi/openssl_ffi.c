@@ -15,6 +15,7 @@
 #include <openssl/types.h>
 #include <string.h>
 #include "../util/jo_assert.h"
+#include "../util/rand/jostle_lib_ctx.h"
 
 
 /*
@@ -22,7 +23,6 @@
 */
 int32_t set_openssl_module(const char *prov_name /* JVM */) {
     int32_t result = JO_FAIL;
-    OSSL_PROVIDER *loaded_provider = NULL;;
 
     if (prov_name == NULL) {
         result = JO_PROV_NAME_NULL;
@@ -34,10 +34,24 @@ int32_t set_openssl_module(const char *prov_name /* JVM */) {
         goto exit;
     }
 
-    loaded_provider = OSSL_PROVIDER_load(NULL, prov_name);
-    if (loaded_provider == NULL) {
-        result = JO_OPENSSL_ERROR;
+
+    jostle_lib_ctx *rnd = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
+    jo_assert(rnd != NULL);
+
+
+    result = jostle_ctx_init_new(&rnd, prov_name);
+    if (UNSUCCESSFUL(result)) {
+        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        goto exit;
     }
+
+    result = set_jostle_ctx(rnd);
+
+    if (UNSUCCESSFUL(result)) {
+        OPENSSL_clear_free(rnd, sizeof(*rnd));
+    }
+
+
 
 exit:
     return result;

@@ -14,7 +14,7 @@
 
 #define MLKEM_SEED_LEN 64
 
-int32_t mlkem_generate_key_pair(key_spec *key_pair, int32_t type, uint8_t *seed, size_t seed_len);
+int32_t mlkem_generate_key_pair(key_spec *key_pair, int32_t type, uint8_t *seed, size_t seed_len, void *rnd_src);
 
 int32_t mlkem_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len);
 

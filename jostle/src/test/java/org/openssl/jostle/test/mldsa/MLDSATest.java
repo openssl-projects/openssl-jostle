@@ -88,6 +88,14 @@ public class MLDSATest
         }
     }
 
+    @Test
+    public void testFoo() throws Exception {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+    }
+
+
 
     @Test
     public void testIncorrectForcedType_KeyPairGenerator() throws Exception

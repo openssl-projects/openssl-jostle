@@ -19,7 +19,7 @@ import java.security.Provider;
 import java.security.Security;
 import java.util.Set;
 
-public class ServiceTest
+public class ServiceIntegrationTest
 {
     @Test
     public void testBasicServiceIteration() throws Exception
@@ -37,4 +37,5 @@ public class ServiceTest
         });
 
     }
+
 }

@@ -11,35 +11,70 @@
 
 package org.openssl.jostle.test;
 
+import org.openssl.jostle.rand.RandSource;
+
+import java.security.SecureRandom;
+
 public class TestUtil
 {
+
+    public static final TestRandSource RNDSrc = new TestRandSource();
+
     public static int jvmVersion()
     {
         String env = System.getProperty("java.version");
         if (env.startsWith("1.8"))
         {
             return 8;
-        } else if (env.startsWith("9"))
+        }
+        else
         {
-            return 9;
-        } else if (env.startsWith("17"))
-        {
-            return 17;
-        } else if (env.startsWith("21"))
-        {
-            return 21;
-        } else if (env.startsWith("22"))
-        {
-            return 22;
-        } else if (env.startsWith("23"))
-        {
-            return 23;
-        } else if (env.startsWith("24"))
-        {
-            return 24;
-        } else if (env.startsWith("25"))
-        {
-            return 25;
+            if (env.startsWith("9"))
+            {
+                return 9;
+            }
+            else
+            {
+                if (env.startsWith("17"))
+                {
+                    return 17;
+                }
+                else
+                {
+                    if (env.startsWith("21"))
+                    {
+                        return 21;
+                    }
+                    else
+                    {
+                        if (env.startsWith("22"))
+                        {
+                            return 22;
+                        }
+                        else
+                        {
+                            if (env.startsWith("23"))
+                            {
+                                return 23;
+                            }
+                            else
+                            {
+                                if (env.startsWith("24"))
+                                {
+                                    return 24;
+                                }
+                                else
+                                {
+                                    if (env.startsWith("25"))
+                                    {
+                                        return 25;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         throw new RuntimeException("Unknown Java version: " + env);
     }
@@ -57,8 +92,34 @@ public class TestUtil
         return false;
     }
 
-    public static boolean versionIs(int notBefore, int notAfter) {
+    public static boolean versionIs(int notBefore, int notAfter)
+    {
         int v = jvmVersion();
         return v >= notBefore && v <= notAfter;
     }
+
+
+
+    public static class TestRandSource implements RandSource
+    {
+
+
+
+        private SecureRandom random = new SecureRandom();
+
+        @Override
+        public int getEntropy(byte[] out, int len, int strength, boolean predictionResistant)
+        {
+            random.nextBytes(out);
+            return len;
+        }
+
+        @Override
+        public SecureRandom getRandom()
+        {
+            return random;
+        }
+    }
+
+
 }

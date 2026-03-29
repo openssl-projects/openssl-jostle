@@ -16,14 +16,19 @@
 #include "types.h"
 #include "../util/jo_assert.h"
 
-key_spec *MLDSA_generateKeyPair(int32_t type, int32_t *ret_val) {
+key_spec *MLDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
     *ret_val = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        *ret_val = JO_RAND_NO_RAND_METHOD;
+        return NULL;
+    }
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
 
     jo_assert(spec != NULL);
 
-    *ret_val = mldsa_generate_key_pair(spec, type, NULL, 0);
+    *ret_val = mldsa_generate_key_pair(spec, type, NULL, 0, rnd_src);
 
     if (*ret_val != JO_SUCCESS) {
         free_key_spec(spec);
@@ -34,8 +39,14 @@ key_spec *MLDSA_generateKeyPair(int32_t type, int32_t *ret_val) {
 }
 
 
-key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size, int32_t seed_len) {
+key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size, int32_t seed_len,
+                                    void *rnd_src) {
     *ret_val = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        *ret_val = JO_RAND_NO_RAND_METHOD;
+        return NULL;
+    }
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
@@ -51,13 +62,14 @@ key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
         goto exit;
     }
 
-    if ((size_t)seed_len > seed_size) { // seed_len asserted non-negative by this point
+    if ((size_t) seed_len > seed_size) {
+        // seed_len asserted non-negative by this point
 
         *ret_val = JO_INVALID_SEED_LEN_OUT_OF_RANGE;
         goto exit;
     }
 
-    *ret_val = mldsa_generate_key_pair(spec, type, seed, seed_len);
+    *ret_val = mldsa_generate_key_pair(spec, type, seed, seed_len, rnd_src);
 
     if (*ret_val != JO_SUCCESS) {
         free_key_spec(spec);
@@ -149,10 +161,10 @@ int32_t MLDSA_decodePublicKey(key_spec *key_spec,
         goto exit;
     }
 
-  //  key_spec->type = key_type;
+    //  key_spec->type = key_type;
 
     uint8_t *start = input + in_off;
-    ret_val = mldsa_decode_public_key(key_spec,key_type, start, in_len);
+    ret_val = mldsa_decode_public_key(key_spec, key_type, start, in_len);
 
 
 exit:
@@ -248,10 +260,16 @@ int32_t MLDSA_initSign(mldsa_ctx *ctx,
                        const uint8_t *context,
                        const size_t context_size,
                        int32_t context_len,
-                       int32_t mu_mode
+                       int32_t mu_mode,
+                       void *rnd_src
 ) {
     jo_assert(ctx);
     int32_t ret_val = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD;
+    }
+
 
     if (kp == NULL) {
         ret_val = JO_KEY_SPEC_IS_NULL;
@@ -265,7 +283,7 @@ int32_t MLDSA_initSign(mldsa_ctx *ctx,
         }
     }
 
-    ret_val = mldsa_ctx_init_sign(ctx, kp, context, context_len, mu_mode);
+    ret_val = mldsa_ctx_init_sign(ctx, kp, context, context_len, mu_mode, rnd_src);
 
 exit:
     return ret_val;
@@ -304,8 +322,18 @@ exit:
 }
 
 
-int32_t MLDSA_sign(mldsa_ctx *ctx, const uint8_t *output, const size_t output_size, const int32_t out_off) {
+int32_t MLDSA_sign(
+        mldsa_ctx *ctx,
+        const uint8_t *output,
+        const size_t output_size,
+        const int32_t out_off,
+        void *rnd_src) {
+
     jo_assert(ctx);
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD;
+    }
+
     int32_t ret_val = JO_FAIL;
     size_t out_len = 0;
 
@@ -324,7 +352,7 @@ int32_t MLDSA_sign(mldsa_ctx *ctx, const uint8_t *output, const size_t output_si
 
     const uint8_t *output_data = output + (size_t) out_off;
 
-    ret_val = mldsa_ctx_sign(ctx, output_data, out_len);
+    ret_val = mldsa_ctx_sign(ctx, output_data, out_len, rnd_src);
 
 exit:
     return ret_val;

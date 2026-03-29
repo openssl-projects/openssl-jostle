@@ -12,25 +12,32 @@
 package org.openssl.jostle.test.crypto;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
-import org.openssl.jostle.util.ops.OperationsTestNI;
+import org.openssl.jostle.test.TestUtil;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.security.Security;
 
 /**
  * Test paths where that we cannot test using simple arguments
  */
 public class MLDSAInternalLayerTest
 {
-    static
+    @BeforeAll
+    public static void beforeAll()
     {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
     }
 
     MLDSAServiceNI mldsaServiceNI = TestNISelector.getMLDSANI();
@@ -54,10 +61,10 @@ public class MLDSAInternalLayerTest
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal(), TestUtil.RNDSrc));
 
             MemorySegment ms = lookup.find("mldsa_update").orElseThrow();
             MethodHandle mh = linker.downcallHandle(ms, FunctionDescriptor.of(
@@ -94,12 +101,12 @@ public class MLDSAInternalLayerTest
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0));
+            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int)len];
 
@@ -108,7 +115,7 @@ public class MLDSAInternalLayerTest
             ctx.set(ValueLayout.JAVA_BYTE, 364, (byte) 4);
 
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc));
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -131,7 +138,7 @@ public class MLDSAInternalLayerTest
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
@@ -163,7 +170,7 @@ public class MLDSAInternalLayerTest
         {
             mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
             Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType());
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));

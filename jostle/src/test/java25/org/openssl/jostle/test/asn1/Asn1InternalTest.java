@@ -37,10 +37,6 @@ public class Asn1InternalTest
                 Security.addProvider(new JostleProvider());
             }
 
-//            if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
-//            {
-//                Security.addProvider(new BouncyCastleProvider());
-//            }
         }
     }
 

@@ -881,6 +881,7 @@ public class SLHDSATest
 
             Signature signature = Signature.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
             signature.initSign(keyPair.getPrivate());
+
             signature.update(messageBytes, 0, messageBytes.length);
             byte[] signatureByte1 = signature.sign();
 

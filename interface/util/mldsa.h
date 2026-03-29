@@ -12,7 +12,7 @@
 
 #include "key_spec.h"
 
-int32_t mldsa_generate_key_pair(key_spec *key_pair, int32_t type, uint8_t *seed, size_t seed_len);
+int32_t mldsa_generate_key_pair(key_spec *key_pair, int32_t type, uint8_t *seed, size_t seed_len, void *rnd_src);
 
 int32_t mldsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len);
 
@@ -66,12 +66,12 @@ mldsa_ctx *mldsa_ctx_create(void);
 void mldsa_ctx_destroy(mldsa_ctx *ctx);
 
 int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
-                            int32_t mu_mode);
+                            int32_t mu_mode, void *rnd_src);
 
 int32_t mldsa_ctx_init_verify(mldsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
                               int32_t mu_mode);
 
-int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len);
+int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src);
 
 int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_len);
 

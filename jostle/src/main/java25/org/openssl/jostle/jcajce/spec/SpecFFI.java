@@ -11,8 +11,12 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.rand.RandSource;
+
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,6 +41,9 @@ public class SpecFFI implements SpecNI
     private static final MemorySegment getNameFunc;
     private static final MethodHandle getNameFuncHandle;
 
+    private static final FunctionDescriptor entropyFd;
+    private static final MethodType entropyMt;
+
     static
     {
 
@@ -60,8 +67,9 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
         decapFunc = lookup.find("SpecNI_Decap").orElseThrow();
         decapFuncHandle = linker.downcallHandle(decapFunc,
@@ -71,7 +79,7 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                ));
 
 
         getNameFunc = lookup.find("SpecNI_GetName").orElseThrow();
@@ -82,6 +90,20 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS // len
                 ));
 
+        entropyFd = FunctionDescriptor.of(
+                ValueLayout.JAVA_INT, // return code
+                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
+                ValueLayout.JAVA_INT, // len
+                ValueLayout.JAVA_INT, // strength
+                ValueLayout.JAVA_BOOLEAN // pred resistance
+        );
+        entropyMt = MethodType.methodType(
+                int.class, // return type
+                MemorySegment.class, // out
+                int.class, // out_len
+                int.class, // strength
+                boolean.class // pred resistance
+        );
     }
 
 
@@ -154,19 +176,36 @@ public class SpecFFI implements SpecNI
     }
 
     @Override
-    public int encap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
+    public int encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
             var ref = MemorySegment.ofAddress(keyRef);
             var optRef = opt != null ? a.allocateFrom(opt) : MemorySegment.NULL;
-            var inputRef = input != null ? MemorySegment.ofArray(input) : MemorySegment.NULL;
-            var inSize = input != null ? input.length : 0;
-            var outRef = out != null ? MemorySegment.ofArray(out) : MemorySegment.NULL;
-            var outSize = out != null ? out.length : 0;
+            var secretRef = secret != null ? a.allocate(secret.length) : MemorySegment.NULL;
+            var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            return (int) encapFuncHandle.invokeExact(ref, optRef, inputRef, (long) inSize, inOff, inLen, outRef, (long) outSize, off, len);
 
+            var gHandle = MethodHandles.lookup().findVirtual(
+                    randSource.getClass(),
+                    "getEntropySegment",
+                    entropyMt).bindTo(randSource);
+            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+
+
+            int r = (int) encapFuncHandle.invokeExact(ref, optRef, secretRef, secretRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
+
+            if (out != null)
+            {
+                outRef.asByteBuffer().get(out);
+            }
+
+            if (secret != null)
+            {
+                secretRef.asByteBuffer().get(secret);
+            }
+
+            return r;
         }
         catch (Throwable t)
         {
@@ -186,13 +225,22 @@ public class SpecFFI implements SpecNI
         {
             var ref = MemorySegment.ofAddress(keyRef);
             var optRef = opt != null ? a.allocateFrom(opt) : MemorySegment.NULL;
-            var inputRef = input != null ? MemorySegment.ofArray(input) : MemorySegment.NULL;
-            var inSize = input != null ? input.length : 0;
-            var outRef = out != null ? MemorySegment.ofArray(out) : MemorySegment.NULL;
-            var outSize = out != null ? out.length : 0;
+            var inputRef = input != null ? a.allocate(input.length) : MemorySegment.NULL;
+            var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            return (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, (long) inSize, inOff, inLen, outRef, (long) outSize, off, len);
+            if (input != null)
+            {
+                inputRef.asByteBuffer().put(input);
+            }
 
+            int r = (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len);
+
+            if (out != null)
+            {
+                outRef.asByteBuffer().get(out);
+            }
+
+            return r;
         }
         catch (Throwable t)
         {

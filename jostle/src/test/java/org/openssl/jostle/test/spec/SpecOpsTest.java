@@ -11,30 +11,37 @@
 
 package org.openssl.jostle.test.spec;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.Security;
+
 public class SpecOpsTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable(); // Trigger Loading
-    }
+
 
     MLKEMServiceNI mlkemServiceNI = TestNISelector.getMLKEMNI();
     SpecNI specNI = TestNISelector.getSpecNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
 
 
     @BeforeEach
@@ -51,12 +58,12 @@ public class SpecOpsTest
     {
         Assumptions.assumeFalse(Loader.isFFI()); // JNI
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            specNI.handleErrors(specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            specNI.handleErrors(specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (AccessException arex)
         {
@@ -74,11 +81,11 @@ public class SpecOpsTest
         Assumptions.assumeFalse(Loader.isFFI()); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
-            specNI.handleErrors(specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            specNI.handleErrors(specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (AccessException arex)
         {
@@ -96,11 +103,11 @@ public class SpecOpsTest
         Assumptions.assumeFalse(Loader.isFFI()); // JNI issue only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
-            specNI.handleErrors(specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024));
+            specNI.handleErrors(specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
             Assertions.fail();
         } catch (AccessException arex)
         {
@@ -118,11 +125,11 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            Assertions.assertEquals(-103, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(-103, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -135,11 +142,11 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            Assertions.assertEquals(-104, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(-104, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -155,11 +162,11 @@ public class SpecOpsTest
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
-            Assertions.assertEquals(-105, specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(-105, specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -172,11 +179,11 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
-            Assertions.assertEquals(-106, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(-106, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -190,11 +197,11 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
-            Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(), specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(), specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -207,11 +214,11 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
-            Assertions.assertEquals(-107, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(-107, specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -229,7 +236,7 @@ public class SpecOpsTest
         Assumptions.assumeFalse(Loader.isFFI());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
@@ -251,7 +258,7 @@ public class SpecOpsTest
         Assumptions.assumeFalse(Loader.isFFI());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
@@ -273,7 +280,7 @@ public class SpecOpsTest
         Assumptions.assumeFalse(Loader.isFFI()); // JNI issue only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
@@ -295,7 +302,7 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
@@ -312,7 +319,7 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
@@ -332,7 +339,7 @@ public class SpecOpsTest
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
@@ -349,7 +356,7 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
@@ -367,7 +374,7 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -386,7 +393,7 @@ public class SpecOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);

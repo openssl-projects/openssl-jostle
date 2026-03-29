@@ -17,6 +17,7 @@
 #include "key_spec.h"
 #include "ops.h"
 #include "jo_assert.h"
+#include "rand/jostle_lib_ctx.h"
 
 
 /**
@@ -74,7 +75,9 @@ int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
     }
 
     if (hash == MLDSA_HASH_NONE) {
-        if (1 != EVP_DigestInit_ex2(*ctx, EVP_shake256(), NULL)) {
+        EVP_MD *evp_md = EVP_MD_fetch(get_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
+        jo_assert(evp_md != NULL);
+        if (1 != EVP_DigestInit_ex2(*ctx, evp_md, NULL)) {
             *ret_code = JO_OPENSSL_ERROR;
             goto fail;
         }
@@ -135,7 +138,11 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
         return 0;
     }
 
-    if (1 != EVP_DigestInit_ex2(shake, EVP_shake256(), NULL)) {
+    EVP_MD *evp_md = EVP_MD_fetch(get_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
+
+    jo_assert(evp_md != NULL);
+
+    if (1 != EVP_DigestInit_ex2(shake, evp_md, NULL)) {
         EVP_MD_CTX_free(shake);
         *ret_code = JO_OPENSSL_ERROR;
         return 0;
@@ -221,10 +228,14 @@ int derive_mu(const mldsa_ctx *ctx, const uint8_t *mu, int32_t *ret_code) {
 }
 
 
-int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, size_t seed_len) {
+int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, size_t seed_len, void *rnd_src) {
     jo_assert(spec != NULL);
 
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_METHOD;
+    }
 
+    rand_set_java_srand_call(rnd_src);
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
@@ -241,18 +252,18 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         params[0] = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_ML_DSA_SEED, seed, seed_len);
     }
 
+
     switch (type) {
         case KS_MLDSA_44:
-            ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ML_DSA_44,NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-DSA-44", NULL);
             break;
 
         case KS_MLDSA_65:
-            ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ML_DSA_65,NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-DSA-65", NULL);
             break;
 
         case KS_MLDSA_87:
-            ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ML_DSA_87,NULL);
-
+            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-DSA-87", NULL);
             break;
         default:
             ret_code = JO_INCORRECT_KEY_TYPE;
@@ -496,7 +507,7 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     }
 
 
-    key_spec->key = EVP_PKEY_new_raw_private_key_ex(NULL, type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -570,7 +581,7 @@ int32_t mldsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
         goto exit;
     }
 
-    key_spec->key = EVP_PKEY_new_raw_public_key_ex(NULL, type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -627,7 +638,7 @@ void mldsa_ctx_destroy(mldsa_ctx *ctx) {
 
 
 int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
-                            int32_t mu_mode) {
+                            int32_t mu_mode, void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(key_spec != NULL);
 
@@ -689,14 +700,17 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 
     int32_t typeId = KS_NONE;
 
+    OSSL_LIB_CTX *libctx = get_jostle_ossl_lib_ctx();
+    rand_set_java_srand_call(rnd_src);
+
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
-        ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-44",NULL);
+        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-44",NULL);
         typeId = KS_MLDSA_44;
     } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-65")) {
-        ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-65",NULL);
+        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-65",NULL);
         typeId = KS_MLDSA_65;
     } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-87")) {
-        ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-87",NULL);
+        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-87",NULL);
         typeId = KS_MLDSA_87;
     } else {
         ret_code = JO_INCORRECT_KEY_TYPE;
@@ -744,7 +758,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
     };
 
 
-    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(NULL, key_spec->key, NULL);
+    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1000);
@@ -917,9 +931,10 @@ exit:
 }
 
 
-int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len) {
+int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
+
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
         ret_code = JO_NOT_INITIALIZED;
@@ -937,6 +952,7 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
     if (ctx->mu_mode == MLDSA_Mu_CALCULATE_ONLY) {
         sig_len = Mu_BYTES;
     } else {
+        rand_set_java_srand_call(rnd_src);
         /* Java API can query for length by passing null array */
         if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_sign(ctx->pctx, NULL, &sig_len,NULL, 0)) {
             ret_code = JO_OPENSSL_ERROR;
@@ -972,6 +988,7 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
 
                 const size_t sig_len_ = sig_len;
 
+                rand_set_java_srand_call(rnd_src);
                 if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_sign(ctx->pctx, (unsigned char *) out, &sig_len, mu,
                                                            Mu_BYTES)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -1016,7 +1033,7 @@ int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_le
     }
 
 
-    uint8_t mu[Mu_BYTES] ={0};
+    uint8_t mu[Mu_BYTES] = {0};
 
     if (!derive_mu(ctx, mu, &ret_code)) {
         goto exit;

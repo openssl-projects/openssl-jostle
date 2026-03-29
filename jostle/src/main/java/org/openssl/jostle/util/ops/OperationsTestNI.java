@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.util.ops;
 
+import org.openssl.jostle.rand.RandSource;
+
 /**
  * Operations tests:
  * <p>
@@ -41,8 +43,11 @@ public interface OperationsTestNI
 
     void setOpsTestFlag(int flag, int value);
 
+
+    int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource);
+
     /**
-     * Set a ops test flag true
+     * Set ops test flag true
      *
      * @param flag the flag
      */
@@ -58,6 +63,12 @@ public interface OperationsTestNI
         {
             setOpsTestFlag(value.ordinal(), 0);
         }
+    }
+
+    default int getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource)
+    {
+        assert opsTestAvailable();
+        return op_getEntropy(out, len, strength, predictionResistant, randSource);
     }
 
     enum OpsTestFlag

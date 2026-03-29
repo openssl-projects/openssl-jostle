@@ -10,14 +10,18 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +33,7 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
 
     private final OSSLKeyType forcedType;
     private OSSLKeyType keyType;
+    private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
     private static final Map<Object, OSSLKeyType> paramToTypeMap = new HashMap<Object, OSSLKeyType>()
     {
@@ -69,9 +74,16 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         }
     }
 
-    @Override
     public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
     {
+        initialize(params, null);
+    }
+
+    @Override
+    public void initialize(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
+    {
+        randSource = DefaultRandSource.replaceWith(randSource, random);
+
         if (!(params instanceof SLHDSAParameterSpec))
         {
             throw new InvalidAlgorithmParameterException("only SLHDSAParameterSpec is supported");
@@ -103,7 +115,7 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
 
     public KeyPair generateKeyPair()
     {
-        long res = NISelector.SLHDSAServiceNI.generateKeyPair(keyType.getKsType());
+        long res = NISelector.SLHDSAServiceNI.generateKeyPair(keyType.getKsType(), randSource);
         if (res < 0)
         {
             NISelector.SLHDSAServiceNI.handleErrors(res);

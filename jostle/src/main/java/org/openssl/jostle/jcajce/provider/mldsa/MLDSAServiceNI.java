@@ -11,18 +11,20 @@
 package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.rand.RandSource;
 
 public interface MLDSAServiceNI
 {
     /**
      * Generate a ML-DSA Key pair
      *
-     * @param type the type
+     * @param type  the type
+     * @param rndId
      * @return 0 for success, or less than 0 for failure
      */
-    long generateKeyPair(int type);
+    long generateKeyPair(int type, RandSource rndId);
 
-    long generateKeyPair(int type, byte[] seed, int seedLen);
+    long generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource);
 
     /**
      * Get the public key encoded
@@ -84,9 +86,10 @@ public interface MLDSAServiceNI
      * @param context           context bytes
      * @param contextLen        length, use -1 to prevent initial updating of Mu generating xof
      * @param muHandlingOrdinal
+     * @param randSource
      * @return response code
      */
-    int initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal);
+    int initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal, RandSource randSource);
 
 
     /**
@@ -193,7 +196,7 @@ public interface MLDSAServiceNI
     }
 
 
-    int sign(long reference, byte[] output, int offset);
+    int sign(long reference, byte[] output, int offset, RandSource randSource);
 
     int verify(long reference, byte[] sigBytes, int sigLen);
 
