@@ -252,7 +252,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         {
             var gHandle = MethodHandles.lookup().findVirtual(
                     rndId.getClass(),
-                    "getEntropySegment",
+                    "getRandomSegment",
                     entropyMt).bindTo(rndId);
             var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
 
@@ -282,7 +282,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
             var gHandle = MethodHandles.lookup().findVirtual(
                     rndSource.getClass(),
-                    "getEntropySegment",
+                    "getRandomSegment",
                     entropyMt).bindTo(rndSource);
             var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
 
@@ -474,7 +474,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
             var gHandle = MethodHandles.lookup().findVirtual(
                     randSource.getClass(),
-                    "getEntropySegment",
+                    "getRandomSegment",
                     entropyMt).bindTo(randSource);
             var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
 
@@ -525,7 +525,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
             var gHandle = MethodHandles.lookup().findVirtual(
                     randSource.getClass(),
-                    "getEntropySegment",
+                    "getRandomSegment",
                     entropyMt).bindTo(randSource);
             var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
 

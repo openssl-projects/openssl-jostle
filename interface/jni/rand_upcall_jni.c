@@ -17,6 +17,7 @@
 
 #include <string.h>
 #include "bytearrays.h"
+#include "types.h"
 #include "../util/jo_assert.h"
 #include "../util/bc_err_codes.h"
 #include "../util/rand/jostle_lib_ctx.h"
@@ -31,13 +32,15 @@ void rand_up_call_init_jni(JNIEnv *env) {
     target_class = (*env)->NewGlobalRef(env, clazz);
     jo_assert(target_class != NULL);
 
-    target_method = (*env)->GetMethodID(env, target_class, "getEntropy", "([BIIZ)I");
+    target_method = (*env)->GetMethodID(env, target_class, "getRandomBytes", "([BIIZ)I");
     jo_assert(target_method != NULL);
 }
 
 int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
                             unsigned int strength, int prediction_resistance,
                             const unsigned char *adin, size_t adin_len) {
+    UNUSED(adin);
+    UNUSED(adin_len);
     int rc = JO_FAIL;
 
     JNIEnv *env = NULL;

@@ -65,7 +65,7 @@ public interface OperationsTestNI
         }
     }
 
-    default int getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource)
+    default int getRandDataViaOpenSSL(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource)
     {
         assert opsTestAvailable();
         return op_getEntropy(out, len, strength, predictionResistant, randSource);

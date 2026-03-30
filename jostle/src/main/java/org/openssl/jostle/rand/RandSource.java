@@ -15,7 +15,7 @@ import java.security.SecureRandom;
 
 public interface RandSource
 {
-    int getEntropy( byte[] out, int len, int strength, boolean predictionResistant);
+    int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant);
 
     SecureRandom getRandom();
 }

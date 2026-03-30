@@ -88,21 +88,20 @@ public class CryptoServicesRegistrar
      */
     public static void setSecureRandom(final SecureRandom secureRandom)
     {
+
         if (secureRandom == null)
         {
             defaultSecureRandomProvider.set(defaultRandomProviderImpl);
         }
         else
         {
-
-            SecureRandomProvider old = defaultSecureRandomProvider.getAndSet(new SecureRandomProvider()
+            defaultSecureRandomProvider.set(new SecureRandomProvider()
             {
                 public SecureRandom get()
                 {
                     return secureRandom;
                 }
             });
-
         }
     }
 

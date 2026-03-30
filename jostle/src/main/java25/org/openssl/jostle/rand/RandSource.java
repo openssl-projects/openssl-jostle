@@ -15,17 +15,17 @@ import java.security.SecureRandom;
 
 public interface RandSource
 {
-    int getEntropy(byte[] out, int len, int strength, boolean predictionResistant);
+    int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant);
 
     SecureRandom getRandom();
 
-    default int getEntropySegment(MemorySegment memorySegment, int len, int strength, boolean predictionResistant)
+    default int getRandomSegment(MemorySegment memorySegment, int len, int strength, boolean predictionResistant)
     {
 
         byte[] buf = new byte[Integer.min(1024, len)];
         var ms = memorySegment.reinterpret(len).asByteBuffer();
 
-        int rc = this.getEntropy(buf, buf.length, strength, predictionResistant);
+        int rc = this.getRandomBytes(buf, buf.length, strength, predictionResistant);
         if (rc < 0)
         {
             return rc;
@@ -34,7 +34,7 @@ public interface RandSource
 
         while (ms.hasRemaining())
         {
-            rc = this.getEntropy(buf, Integer.min(buf.length, ms.remaining()), strength, predictionResistant);
+            rc = this.getRandomBytes(buf, Integer.min(buf.length, ms.remaining()), strength, predictionResistant);
             if (rc < 0)
             {
                 return rc;

@@ -108,7 +108,7 @@ public class TestUtil
         private SecureRandom random = new SecureRandom();
 
         @Override
-        public int getEntropy(byte[] out, int len, int strength, boolean predictionResistant)
+        public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
         {
             random.nextBytes(out);
             return len;

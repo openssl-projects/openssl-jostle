@@ -24,26 +24,32 @@ public class DefaultRandSource implements RandSource
 {
     Logger LOG = Logger.getLogger("DefaultEntropyProvider(Java 9+)");
     private final SecureRandom random;
-    private final boolean assertConditions;
-    private final int strength;
-    private final boolean predictionResistant;
+    protected final boolean assertConditions;
+    protected final int strength;
+    protected final boolean rngSupportsPredictionResistant;
+    protected final boolean rngSupportsReseed;
 
     public static DefaultRandSource wrap(SecureRandom random)
     {
         return new DefaultRandSource(random);
     }
 
-    public DefaultRandSource(SecureRandom secureRandom)
+    protected DefaultRandSource(SecureRandom secureRandom)
     {
-        this.random = secureRandom;
+        this(secureRandom, secureRandom.getParameters());
+    }
 
-        SecureRandomParameters params = random.getParameters();
+    protected DefaultRandSource(SecureRandom secureRandom, SecureRandomParameters params)
+    {
         if (params instanceof DrbgParameters.Instantiation)
         {
             DrbgParameters.Instantiation ins = (DrbgParameters.Instantiation) params;
+
             assertConditions = true;
-            this.strength = ins.getStrength();
-            this.predictionResistant = ins.getCapability().supportsPredictionResistance();
+            strength = ins.getStrength();
+            rngSupportsPredictionResistant = ins.getCapability().supportsPredictionResistance();
+            rngSupportsReseed = ins.getCapability().supportsReseeding();
+
             if (LOG.isLoggable(Level.FINE))
             {
                 LOG.fine("DefaultEntropyProvider will assert strength of prediction resistance");
@@ -53,12 +59,28 @@ public class DefaultRandSource implements RandSource
         {
             assertConditions = false;
             this.strength = 0;
-            this.predictionResistant = false;
+            this.rngSupportsPredictionResistant = false;
+            this.rngSupportsReseed = false;
             if (LOG.isLoggable(Level.FINE))
             {
                 LOG.fine("SecureRandom does not have DrbgParameters, DefaultEntropyProvider will not assert strength or prediction resistance");
             }
         }
+
+        this.random = secureRandom;
+
+    }
+
+
+    protected DefaultRandSource(SecureRandom secureRandom, boolean assertConditions, int strength, boolean rngSupportsPredictionResistant, boolean rngSupportsReseed)
+    {
+        this.random = secureRandom;
+        this.assertConditions = assertConditions;
+        this.strength = strength;
+        this.rngSupportsPredictionResistant = rngSupportsPredictionResistant;
+        this.rngSupportsReseed = rngSupportsReseed;
+
+
     }
 
     /**
@@ -104,7 +126,7 @@ public class DefaultRandSource implements RandSource
     }
 
     @Override
-    public int getEntropy(byte[] out, int len, int strength, boolean predictionResistant)
+    public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
     {
         if (assertConditions)
         {
@@ -114,11 +136,24 @@ public class DefaultRandSource implements RandSource
                 return ErrorCode.JO_RAND_INSUFFICIENT_STRENGTH.getCode();
             }
 
-            if (predictionResistant && !this.predictionResistant)
+            if (predictionResistant) // OpenSSL requested prediction resistance
             {
-                LOG.warning("Prediction resistance required but source is not prediction resistant");
-                return ErrorCode.JO_RAND_NO_PRED_RESISTANCE.getCode();
+                if (!this.rngSupportsPredictionResistant)
+                {
+                    // DRBG does not support prediction resistance
+                    if (!this.rngSupportsReseed)
+                    {
+                        //
+                        // DRBG does not support reseeding
+                        // So fail
+                        //
+                        LOG.warning("OpenSSL requested prediction resistance but DRBG does not support it or reseeding");
+                        return ErrorCode.JO_RAND_NO_RESEED.getCode();
+                    }
+                    random.reseed();
+                }
             }
+
         }
 
 

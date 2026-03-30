@@ -31,8 +31,6 @@ import java.security.SecureRandom;
 import java.security.Security;
 
 
-
-
 public class BridgeRandOpsTest
 {
     //
@@ -64,7 +62,7 @@ public class BridgeRandOpsTest
         DefaultRandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
         byte[] random = new byte[128];
-        int len = operationsTestNI.getEntropy(random, random.length, 1, false, randSource);
+        int len = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 1, false, randSource);
 
         Assertions.assertEquals(1, len); // Success code not length
         boolean isAllZero = true;
@@ -97,7 +95,7 @@ public class BridgeRandOpsTest
     public class FailingRandSource implements RandSource
     {
         @Override
-        public int getEntropy(byte[] out, int len, int strength, boolean predictionResistant)
+        public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
         {
             return -999;
         }

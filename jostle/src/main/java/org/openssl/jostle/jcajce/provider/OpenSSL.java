@@ -28,7 +28,6 @@ public class OpenSSL
     {
         if (lastModuleName != null)
         {
-
             if (lastModuleName.equals(moduleName))
             {
                 return;
@@ -37,10 +36,12 @@ public class OpenSSL
             throw new IllegalStateException("OpenSSL already initialized to " + lastModuleName);
         }
 
-        if (moduleName == null)
+        if (moduleName == null || moduleName.trim().isEmpty())
         {
-            throw new IllegalArgumentException("moduleName is null");
+            throw new IllegalArgumentException("moduleName is null or empty");
         }
+
+        moduleName = moduleName.trim();
 
         lastModuleName = moduleName;
 

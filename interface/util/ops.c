@@ -35,7 +35,9 @@ int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred,
 
 
     rand_set_java_srand_call(rnd_src);
-    return RAND_bytes_ex(get_jostle_ossl_lib_ctx(), buf, len, strength);
+
+    EVP_RAND_CTX *ctx = RAND_get0_public(get_jostle_ossl_lib_ctx());
+    return EVP_RAND_generate(ctx, buf, len, strength, pred,NULL, 0);
 }
 
 

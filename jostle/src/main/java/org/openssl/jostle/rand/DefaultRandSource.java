@@ -66,7 +66,7 @@ public class DefaultRandSource implements RandSource
 
 
     @Override
-    public int getEntropy(byte[] out, int len, int strength, boolean predictionResistant)
+    public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
     {
 
         try

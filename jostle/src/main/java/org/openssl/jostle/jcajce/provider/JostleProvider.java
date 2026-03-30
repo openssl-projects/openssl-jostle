@@ -47,6 +47,10 @@ public class JostleProvider
     {
         super(PROVIDER_NAME, VERSION, INFO);
 
+        if (module == null)
+        {
+            throw new NullPointerException("module name was null");
+        }
 
         synchronized (JostleProvider.class)
         {
@@ -71,6 +75,12 @@ public class JostleProvider
                 return null;
             }
         });
+    }
+
+
+    public Provider configure(String configArg)
+    {
+        return new JostleProvider(configArg);
     }
 
     private void setup()
