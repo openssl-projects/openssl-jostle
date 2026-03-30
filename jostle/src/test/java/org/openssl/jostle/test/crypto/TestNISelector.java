@@ -15,6 +15,8 @@ import org.openssl.jostle.NativeServiceNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
@@ -80,6 +82,11 @@ public class TestNISelector extends NISelector
 
     public static MDServiceNI getMDNI() {
         return MDServiceNI;
+    }
+
+    public static MacServiceNI getMacServiceNI()
+    {
+        return new MacServiceJNI();
     }
 
 }

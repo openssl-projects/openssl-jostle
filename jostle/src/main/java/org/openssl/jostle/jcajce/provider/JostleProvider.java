@@ -85,6 +85,7 @@ public class JostleProvider
         new ProvPBEKDF().configure(this);
         new ProvScryptKDF().configure(this);
         new ProvMD().configure(this);
+        new ProvMac().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)
@@ -191,6 +192,19 @@ public class JostleProvider
     }
 
     void addAlias(String type, String name, String... aliases)
+    {
+        if (!containsKey(type + "." + name))
+        {
+            throw new IllegalStateException("primary key (" + type + "." + name + ") not found");
+        }
+
+        for (String alias : aliases)
+        {
+            doPut("Alg.Alias." + type + "." + alias, name);
+        }
+    }
+
+    void addAlias(String type, String name, Collection<String> aliases)
     {
         if (!containsKey(type + "." + name))
         {
@@ -373,10 +387,12 @@ public class JostleProvider
                 }
 
                 return instance;
-            } catch (NoSuchAlgorithmException e)
+            }
+            catch (NoSuchAlgorithmException e)
             {
                 throw e;
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
                 throw new NoSuchAlgorithmException("Unable to invoke creator for " + getAlgorithm() + ": " + e.getMessage(), e);
             }
