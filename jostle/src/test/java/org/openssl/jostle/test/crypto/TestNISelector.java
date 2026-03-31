@@ -86,7 +86,7 @@ public class TestNISelector extends NISelector
 
     public static MacServiceNI getMacServiceNI()
     {
-        return new MacServiceJNI();
+        return MacServiceNI;
     }
 
 }

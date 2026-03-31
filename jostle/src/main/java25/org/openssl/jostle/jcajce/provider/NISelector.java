@@ -52,8 +52,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  */
 public class NISelector
 {
-    protected static final BlockCipherNI BlockCipherNI;
-    protected static final OpenSSLNI OpenSSLNI;
+    public static final BlockCipherNI BlockCipherNI;
+    public static final OpenSSLNI OpenSSLNI;
     public static final NativeServiceNI NativeServiceNI;
     public static final MLDSAServiceNI MLDSAServiceNI;
     public static final SpecNI SpecNI;
