@@ -20,7 +20,7 @@ key_spec *MLDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
-        *ret_val = JO_RAND_NO_RAND_METHOD;
+        *ret_val = JO_RAND_NO_RAND_UP_CALL;
         return NULL;
     }
 
@@ -44,7 +44,7 @@ key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
-        *ret_val = JO_RAND_NO_RAND_METHOD;
+        *ret_val = JO_RAND_NO_RAND_UP_CALL;
         return NULL;
     }
 
@@ -267,7 +267,7 @@ int32_t MLDSA_initSign(mldsa_ctx *ctx,
     int32_t ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
 
@@ -331,7 +331,7 @@ int32_t MLDSA_sign(
 
     jo_assert(ctx);
     if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     int32_t ret_val = JO_FAIL;

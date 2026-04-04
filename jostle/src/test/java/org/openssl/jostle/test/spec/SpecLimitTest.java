@@ -129,7 +129,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -150,7 +150,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -170,7 +170,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -214,7 +214,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output len is negative", e.getMessage());
+            Assertions.assertEquals("output len negative", e.getMessage());
         }
         finally
         {
@@ -235,7 +235,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -256,7 +256,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -276,7 +276,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -404,7 +404,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -425,7 +425,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -445,7 +445,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -489,7 +489,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output len is negative", e.getMessage());
+            Assertions.assertEquals("output len negative", e.getMessage());
         }
         finally
         {
@@ -510,7 +510,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -531,7 +531,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         }
         finally
         {
@@ -551,7 +551,7 @@ public class SpecLimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         }
         finally
         {

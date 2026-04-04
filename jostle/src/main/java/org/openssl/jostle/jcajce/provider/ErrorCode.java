@@ -69,7 +69,7 @@ public enum ErrorCode
     JO_ENCODED_PUBLIC_KEY_LEN(-54),
     JO_UNKNOWN_KEY_LEN(-55),
     JO_UNEXPECTED_POINTER_CHANGE(-56),
-    JO_UNKNOWN_OSSL_KEY_TYPE(-57),
+    @Deprecated JO_UNKNOWN_OSSL_KEY_TYPE(-57),
     JO_UNKNOWN_MU_MODE(-58),
     JO_INVALID_MU_MODE_FOR_VERIFY(-59),
     JO_INVALID_MU_MODE_FOR_SIGN(-60),
@@ -115,12 +115,17 @@ public enum ErrorCode
 
     JO_MAC_MODE_IS_NULL(-94),
 
+    //
+    // JO_RAND error codes may never be emitted because there is no mechanism in OpenSSL
+    // for a failing RAND to return anything other than 0 or 1.
+    // Failures in a RAND will be seen as OpenSSL errors with these codes in the ERR msg.
+    //
     JO_RAND_UP_SHORT_RESULT(-95),
     JO_RAND_INSUFFICIENT_STRENGTH(-96),
     JO_RAND_NO_RAND_METHOD(-97),
     JO_RAND_ERROR(-98),
     JO_RAND_NO_RESEED(-99),
-
+    JO_RAND_FAIL_ACCESS_BUFFER(-100),
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

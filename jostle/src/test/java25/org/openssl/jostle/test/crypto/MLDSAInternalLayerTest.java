@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -79,7 +80,7 @@ public class MLDSAInternalLayerTest
             int code = (int) mh.invoke(MemorySegment.ofAddress(mldsaRef), inputAddress, 1L + (long) Integer.MAX_VALUE);
             mldsaServiceNI.handleErrors(code);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (OverflowException e)
         {
             Assertions.assertEquals("input too long int32", e.getMessage());
         } finally

@@ -208,7 +208,7 @@ public class SLHDSAOpsTest
             Assertions.fail();
         } catch (OverflowException e)
         {
-            Assertions.assertEquals("output size overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
         } finally
         {
             operationsTestNI.resetFlags();
@@ -290,7 +290,7 @@ public class SLHDSAOpsTest
             Assertions.fail();
         } catch (OverflowException e)
         {
-            Assertions.assertEquals("output size overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
         } finally
         {
             operationsTestNI.resetFlags();

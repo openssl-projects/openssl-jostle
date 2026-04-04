@@ -13,8 +13,13 @@ package org.openssl.jostle.rand;
 import java.lang.foreign.MemorySegment;
 import java.security.SecureRandom;
 
+/**
+ * Consistent layout for access VIA JNI.
+ * If this interface is moved, the native code in rand_upcall_jni.c must be changed to reflect that.
+ */
 public interface RandSource
 {
+
     int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant);
 
     SecureRandom getRandom();

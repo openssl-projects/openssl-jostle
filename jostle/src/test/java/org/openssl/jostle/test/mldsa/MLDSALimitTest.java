@@ -372,7 +372,7 @@ public class MLDSALimitTest
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_DSA_44.getKsType(), null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -438,7 +438,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -461,7 +461,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -579,7 +579,7 @@ public class MLDSALimitTest
 
             mldsaServiceNI.handleErrors(mldsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_DSA_44.getKsType(), null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -645,7 +645,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -668,7 +668,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -1280,7 +1280,7 @@ public class MLDSALimitTest
             mldsaServiceNI.handleErrors(mldsaServiceNI.update(mldsaRef, null, 0, 0));
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -1376,7 +1376,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
@@ -1411,7 +1411,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
@@ -1474,7 +1474,7 @@ public class MLDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset is out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         } finally
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
@@ -1544,6 +1544,73 @@ public class MLDSALimitTest
         }
     }
 
+
+    @Test()
+    public void MLDSAServiceJNI_mldsa_sign_nullRand_1() throws Exception
+    {
+
+        //
+        // offset is zero
+        //
+
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
+
+            Assertions.assertTrue(keyRef > 0);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, null));
+            Assertions.fail();
+
+        } catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        } finally
+        {
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI_mldsa_sign_nullRand_2() throws Exception
+    {
+
+        //
+        // offset is zero
+        //
+
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(),TestUtil.RNDSrc );
+
+            Assertions.assertTrue(keyRef > 0);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, new byte[1024], 0, null));
+            Assertions.fail();
+
+        } catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        } finally
+        {
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+
+        }
+    }
 
     @Test()
     public void MLDSAServiceJNI_mldsa_sign_outputTooSmall_1() throws Exception
@@ -1842,6 +1909,8 @@ public class MLDSALimitTest
            
         }
     }
+
+
 
     @Test()
     public void MLDSAServiceJNI_mldsa_verify_initForSigning() throws Exception

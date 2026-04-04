@@ -45,7 +45,7 @@ int32_t set_openssl_module(const char *prov_name /* JVM */) {
         goto exit;
     }
 
-    result = set_jostle_ctx(rnd);
+    result = set_global_jostle_lib_ctx(rnd);
 
     if (UNSUCCESSFUL(result)) {
         OPENSSL_clear_free(rnd, sizeof(*rnd));

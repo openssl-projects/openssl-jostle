@@ -12,15 +12,13 @@
 package org.openssl.jostle.test.rand;
 
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -51,10 +49,16 @@ public class BridgeRandOpsTest
         }
     }
 
+    @BeforeEach
+    public void beforeEach()
+    {
+        operationsTestNI.resetFlags();
+    }
+
     @Test
     public void doesNotExplodeOrReturnAllZeros() throws Exception
     {
-        // Oh boy!
+        // Basically a sanity test.
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
 
@@ -77,6 +81,7 @@ public class BridgeRandOpsTest
     @Test
     public void testFailsIfRandFails() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         RandSource randSource = new FailingRandSource();
 
         //
@@ -91,6 +96,134 @@ public class BridgeRandOpsTest
         Assertions.assertTrue(err.contains("-999")); // Insufficient strength
 
     }
+
+    @Test
+    public void testThreadAttach() throws Exception
+    {
+        Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("handler fail, attach thread: -98"));
+        }
+    }
+
+
+    @Test
+    public void testFailCreate() throws Exception
+    {
+        Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("handler fail, create bytearray: -98"));
+        }
+    }
+
+    @Test
+    public void testOverflowOutLen() throws Exception
+    {
+        Assumptions.assumeTrue(Loader.isFFI(), "FFI only");
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("out_len > INT_MAX"));
+        }
+    }
+
+    @Test
+    public void testOverflowStrength() throws Exception
+    {
+        Assumptions.assumeTrue(Loader.isFFI(), "FFI only");
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("strength > INT_MAX"));
+        }
+    }
+
+
+    @Test
+    public void testFailShortSize() throws Exception
+    {
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -95"));
+        }
+    }
+
+    @Test
+    public void testAccessByteArray() throws Exception
+    {
+        Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("handler fail, access bytearray: -100"));
+        }
+    }
+
+
+    @Test
+    public void testNoRandUpcall() throws Exception
+    {
+        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
+            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            Assertions.fail();
+        }
+        catch (Exception t)
+        {
+            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
+            Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -97"));
+        }
+    }
+
 
     public class FailingRandSource implements RandSource
     {

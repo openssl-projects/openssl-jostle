@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
@@ -76,7 +77,7 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, 0, MemorySegment.NULL, 16L, MemorySegment.NULL, 0L);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 0);
+            TestNISelector.getBlockCipher().handleInitErrorCodes(ErrorCode.forCode(code), 16, 0);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -118,12 +119,12 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.NULL, 16L, MemorySegment.ofArray(new byte[16]), 16L);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass());
+            Assertions.assertSame(NullPointerException.class, e.getClass());
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
         {
@@ -160,12 +161,12 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.NULL, 16L);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass());
+            Assertions.assertSame(NullPointerException.class, e.getClass());
             Assertions.assertEquals("output is null", e.getMessage());
         } finally
         {
@@ -206,12 +207,12 @@ public class BlockCipherInternalLayerTest
             // Test May cause SEGFAULT if not correctly handled.
             //
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, input, 1L + Integer.MAX_VALUE, output, output.byteSize());
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass());
+            Assertions.assertSame(OverflowException.class, e.getClass());
             Assertions.assertEquals("input too long int32", e.getMessage());
         } finally
         {
@@ -251,12 +252,12 @@ public class BlockCipherInternalLayerTest
             // May cause SEGFAULT if check not correctly implemented.
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, input, input.byteSize(), output, 1L + Integer.MAX_VALUE);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass());
+            Assertions.assertSame(OverflowException.class, e.getClass());
             Assertions.assertEquals("output too long int32", e.getMessage());
         } finally
         {
@@ -292,12 +293,12 @@ public class BlockCipherInternalLayerTest
 
             // May cause SEGFAULT if check not correctly handled.
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, output, 1L + Integer.MAX_VALUE);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass());
+            Assertions.assertSame(OverflowException.class, e.getClass());
             Assertions.assertEquals("output too long int32", e.getMessage());
         } finally
         {
@@ -333,7 +334,7 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.ofArray(new byte[16]), 15L);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)
@@ -412,7 +413,7 @@ public class BlockCipherInternalLayerTest
             }
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.ofArray(new byte[16]), 16L);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail();
         } catch (Throwable e)

@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
@@ -24,67 +25,30 @@ import java.security.InvalidKeyException;
 /**
  * Implementation provide calls to native code.
  */
-public interface BlockCipherNI
+public interface BlockCipherNI extends DefaultServiceNI
 {
-    static void handleFinalErrorCodes(ErrorCode code) throws IllegalBlockSizeException, BadPaddingException
+    default long handleFinalErrorCodes(ErrorCode code) throws IllegalBlockSizeException, BadPaddingException
     {
         switch (code)
         {
-            case JO_SUCCESS:
-                break;
-            case JO_OUTPUT_IS_NULL:
-                throw new IllegalArgumentException("output is null");
-            case JO_OUTPUT_OFFSET_IS_NEGATIVE:
-                throw new IllegalArgumentException("output offset is negative");
-            case JO_OUTPUT_OUT_OF_RANGE:
-                throw new IllegalArgumentException("output out of range");
-            case JO_FAILED_ACCESS_OUTPUT:
-                throw new IllegalStateException("native layer unable to access output array");
-            case JO_OUTPUT_TOO_LONG_INT32: // need to use a special FFI call to test this
-                throw new IllegalArgumentException("output too long int32");
             case JO_OUTPUT_TOO_SMALL:
                 throw new IllegalBlockSizeException("output too small");
             case JO_INVALID_CIPHER_TEXT:
                 throw new BadPaddingException("invalid cipher text");
             case JO_TAG_INVALID:
                 throw new AEADBadTagException("bad tag");
-            case JO_OPENSSL_ERROR:
-                throw new OpenSSLException(OpenSSL.getOpenSSLErrors());
             default:
-                throw new RuntimeException("unexpected error code: " + code);
+
         }
+           return baseErrorHandler(code.getCode()); // TODO Refactor
     }
 
-    static void handleUpdateErrorCodes(ErrorCode code) throws ShortBufferException, IllegalBlockSizeException
+    default long handleUpdateErrorCodes(ErrorCode code) throws ShortBufferException, IllegalBlockSizeException
     {
         switch (code)
         {
-            case JO_SUCCESS:
-                break;
-            case JO_INPUT_IS_NULL:
-                throw new IllegalArgumentException("input is null");
-            case JO_OUTPUT_IS_NULL:
-                throw new IllegalArgumentException("output is null");
-            case JO_INPUT_OFFSET_IS_NEGATIVE:
-                throw new IllegalArgumentException("input offset is negative");
-            case JO_OUTPUT_OFFSET_IS_NEGATIVE:
-                throw new IllegalArgumentException("output offset is negative");
-            case JO_INPUT_LEN_IS_NEGATIVE:
-                throw new IllegalArgumentException("input length is negative");
-            case JO_OUTPUT_LEN_IS_NEGATIVE:
-                throw new IllegalArgumentException("output length is negative");
-            case JO_INPUT_TOO_LONG_INT32: // need to use a special FFI call to test this
-                throw new IllegalArgumentException("input too long int32");
-            case JO_OUTPUT_TOO_LONG_INT32: // need to use a special FFI call to test this
-                throw new IllegalArgumentException("output too long int32");
-            case JO_INPUT_OUT_OF_RANGE:
-                throw new IllegalArgumentException("input out of range");
             case JO_OUTPUT_OUT_OF_RANGE:
-                throw new ShortBufferException("output out of range");
-            case JO_FAILED_ACCESS_INPUT:
-                throw new IllegalStateException("native layer unable to access input array");
-            case JO_FAILED_ACCESS_OUTPUT:
-                throw new IllegalStateException("native layer unable to access output array");
+                throw new ShortBufferException("output offset + length is out of range");
             case JO_OUTPUT_TOO_SMALL:
                 throw new ShortBufferException("output too small");
             case JO_INVALID_OP_MODE:
@@ -93,14 +57,13 @@ public interface BlockCipherNI
                 throw new IllegalBlockSizeException("data not block size aligned");
             case JO_CTR_MODE_OVERFLOW:
                 throw new IllegalStateException("ctr mode overflow");
-            case JO_OPENSSL_ERROR:
-                throw new OpenSSLException(OpenSSL.getOpenSSLErrors());
             default:
-                throw new RuntimeException("unexpected error code: " + code);
+
         }
+        return baseErrorHandler(code.getCode());
     }
 
-    static void handleInitErrorCodes(ErrorCode codes, int keyLen, int ivLen) throws InvalidKeyException, InvalidAlgorithmParameterException
+    default long handleInitErrorCodes(ErrorCode codes, int keyLen, int ivLen) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
         switch (codes)
         {
@@ -126,15 +89,14 @@ public interface BlockCipherNI
                 throw new InvalidAlgorithmParameterException("mode not supported for cipher");
             case JO_INVALID_OP_MODE:
                 throw new IllegalStateException("opmode not supported for cipher");
-            case JO_OPENSSL_ERROR:
-                throw new OpenSSLException(OpenSSL.getOpenSSLErrors());
             case JO_INVALID_TAG_LEN:
                 throw new IllegalArgumentException("invalid tag len");
             case JO_TAG_IS_NULL:
                 throw new IllegalArgumentException("tag is null");
             default:
-                throw new RuntimeException("unexpected error code " + codes);
+
         }
+        return baseErrorHandler(codes.getCode());
     }
 
     long makeInstance(int cipher, int mode, int padding);

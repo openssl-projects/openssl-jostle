@@ -247,11 +247,19 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
         {
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef, getEntropySegment);
 
@@ -278,11 +286,19 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             if (seed != null)
             {
@@ -453,12 +469,19 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
         try (Arena a = Arena.ofConfined())
         {
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment outputSegment = output == null ? MemorySegment.NULL : a.allocate(output.length);
@@ -503,12 +526,19 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
         try (Arena a = Arena.ofConfined())
         {
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             MemorySegment ctx = MemorySegment.ofAddress(reference);
             MemorySegment keyRef = MemorySegment.ofAddress(keyReference);

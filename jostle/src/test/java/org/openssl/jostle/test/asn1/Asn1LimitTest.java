@@ -139,7 +139,7 @@ public class Asn1LimitTest
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
-                Assertions.assertEquals("output is out of range", e.getMessage());
+                Assertions.assertEquals("output offset + length is out of range", e.getMessage());
             }
 
             try
@@ -150,7 +150,7 @@ public class Asn1LimitTest
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
-                Assertions.assertEquals("output is out of range", e.getMessage());
+                Assertions.assertEquals("output offset + length is out of range", e.getMessage());
             }
 
 
@@ -222,7 +222,7 @@ public class Asn1LimitTest
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
-                Assertions.assertEquals("output is out of range", e.getMessage());
+                Assertions.assertEquals("output offset + length is out of range", e.getMessage());
             }
 
             try
@@ -233,7 +233,7 @@ public class Asn1LimitTest
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
-                Assertions.assertEquals("output is out of range", e.getMessage());
+                Assertions.assertEquals("output offset + length is out of range", e.getMessage());
             }
 
 
@@ -281,7 +281,7 @@ public class Asn1LimitTest
         {
             TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException ex)
+        } catch (NullPointerException ex)
         {
             Assertions.assertEquals("input is null", ex.getMessage());
         }
@@ -309,7 +309,7 @@ public class Asn1LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
-            Assertions.assertEquals("input length is negative", ex.getMessage());
+            Assertions.assertEquals("input len is negative", ex.getMessage());
         }
     }
 
@@ -323,7 +323,7 @@ public class Asn1LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
-            Assertions.assertEquals("input out of range", ex.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", ex.getMessage());
         }
 
         try
@@ -333,7 +333,7 @@ public class Asn1LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
-            Assertions.assertEquals("input out of range", ex.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", ex.getMessage());
         }
 
         byte[] validKey;
@@ -407,7 +407,7 @@ public class Asn1LimitTest
         {
             TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException ex)
+        } catch (NullPointerException ex)
         {
             Assertions.assertEquals("input is null", ex.getMessage());
         }
@@ -435,7 +435,7 @@ public class Asn1LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
-            Assertions.assertEquals("input length is negative", ex.getMessage());
+            Assertions.assertEquals("input len is negative", ex.getMessage());
         }
     }
 
@@ -449,7 +449,7 @@ public class Asn1LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
-            Assertions.assertEquals("input out of range", ex.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", ex.getMessage());
         }
 
         try
@@ -459,7 +459,7 @@ public class Asn1LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
-            Assertions.assertEquals("input out of range", ex.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", ex.getMessage());
         }
 
         byte[] validKey;

@@ -94,6 +94,10 @@ public interface OperationsTestNI
         OPS_FAILED_INIT_2,
         OPS_FAILED_SET_1,
         OPS_FAILED_SET_2,
+        OPS_THREAD_ATTACH_1,
+        OPS_JNI_FAIL_CREATE_1,
+        OPS_SHORT_SIZE_1,
+        OPS_RAND_UP_CALL_NULL
     }
 
 }

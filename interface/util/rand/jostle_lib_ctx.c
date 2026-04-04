@@ -35,16 +35,6 @@ static int instance(void *vdrbg, unsigned int strength, int prediction_resistanc
     UNUSED(vdrbg);
 
 
-    // if (params != NULL) {
-    //     if (params[0].key != NULL && strcmp(params[0].key, "upcall") == 0) {
-    //         ctx->src = params[0].data;
-    //     } else {
-    //         return 0;
-    //     }
-    // } else {
-    //     return 0;
-    // }
-
     return 1;
 }
 
@@ -61,42 +51,30 @@ static int free_rand(void *vdrbg) {
 }
 
 
-static int next_bytes_wrapper(jostle_lib_ctx *ctx, unsigned char *out, size_t outlen,
-                              unsigned int strength, int prediction_resistance,
-                              const unsigned char *adin, size_t adin_len) {
-    jo_assert(ctx != NULL);
-
-    void *rand_src = CRYPTO_THREAD_get_local(&java_srand_id);
-
-
-    if (rand_src == NULL) {
-        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "rand_src was null");
-        return 0;
-    }
-
-
-    int32_t rc = rand_up_call_next_bytes(rand_src, out, outlen, strength, prediction_resistance, adin, adin_len);
-
-    if (rc < 0) {
-        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "rand up-call failed with code %d", rc);
-        return 0;
-    }
-
-    return 1;
-}
-
 // OSSL_FUNC_RAND_GENERATE
 static int generate(void *vdrbg,
                     unsigned char *out, size_t outlen,
                     unsigned int strength, int prediction_resistance,
                     const unsigned char *adin, size_t adin_len) {
     jostle_lib_ctx *ctx = (jostle_lib_ctx *) vdrbg;
-    int rc = 0;
+
     if (out != NULL) {
-        rc = next_bytes_wrapper(ctx, out, outlen, strength, prediction_resistance, adin, adin_len);
+        jo_assert(ctx != NULL);
+        void *rand_src = CRYPTO_THREAD_get_local(&java_srand_id);
+
+        if (OPS_OPENSSL_ERROR_1 rand_src != NULL) {
+            int rc = rand_up_call_next_bytes(rand_src, out, outlen, strength, prediction_resistance, adin, adin_len);
+            if (OPS_OPENSSL_ERROR_2 rc < 0) {
+                ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "rand up-call failed with code %d", rc);
+                return 0;
+            }
+        } else {
+            ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "rand_src was null");
+            return 0;
+        }
     }
 
-    return rc;
+    return 1;
 }
 
 // OSSL_FUNC_RAND_NEWCTX
@@ -186,35 +164,16 @@ static int jrand(const OSSL_CORE_HANDLE *handle,
     return 1;
 }
 
-int32_t jostle_ctx_init_new(jostle_lib_ctx **ctx, const char *name) {
-    jostle_lib_ctx *new_ctx = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
 
-    jo_assert(new_ctx != NULL);
+static int32_t setup_bridge_prov_and_rand(jostle_lib_ctx *ctx, const char *name) {
+    //
+    // Any issues setting the java rand bridge up result in a hard failure.
+    // that will shut the VM down.
+    //
 
-    new_ctx->rc_lock = CRYPTO_THREAD_lock_new();
-    jo_assert(new_ctx->rc_lock != NULL);
-    new_ctx->rc = 0;
-
-    int32_t ret_code = jostle_ctx_init(new_ctx, name);
-
-    if (UNSUCCESSFUL(ret_code)) {
-        OPENSSL_free(*ctx);
-        *ctx = NULL;
-        return ret_code;
-    }
-
-    *ctx = new_ctx;
-
-
-    return JO_SUCCESS;
-}
-
-int32_t jostle_ctx_init(jostle_lib_ctx *ctx, const char *name) {
     OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
     jo_assert(libctx != NULL);
-    if (!OSSL_PROVIDER_add_builtin(libctx, "java_rand_bridge", jrand)) {
-        return JO_OPENSSL_ERROR;
-    }
+    jo_assert(0 != OSSL_PROVIDER_add_builtin(libctx, "java_rand_bridge", jrand));
 
     jo_assert(ctx != NULL);
     ctx->ossl_libctx = libctx;
@@ -249,27 +208,62 @@ int32_t jostle_ctx_init(jostle_lib_ctx *ctx, const char *name) {
 }
 
 
-int32_t set_jostle_ctx(jostle_lib_ctx *new_ctx) {
+int32_t jostle_ctx_init_new(jostle_lib_ctx **ctx, const char *name) {
+    jostle_lib_ctx *new_ctx = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
+
+    jo_assert(new_ctx != NULL);
+
+    new_ctx->rc_lock = CRYPTO_THREAD_lock_new();
+    jo_assert(new_ctx->rc_lock != NULL);
+    new_ctx->rc = 0;
+
+    int32_t ret_code = setup_bridge_prov_and_rand(new_ctx, name);
+
+    if (UNSUCCESSFUL(ret_code)) {
+        OPENSSL_free(*ctx);
+        *ctx = NULL;
+        return ret_code;
+    }
+
+    *ctx = new_ctx;
+
+    return JO_SUCCESS;
+}
+
+
+int32_t set_global_jostle_lib_ctx(jostle_lib_ctx *new_ctx) {
     if (1 != CRYPTO_THREAD_init_local(&java_srand_id, NULL)) {
         ERR_add_error_txt(":", "set_jostle_ctx");
         return JO_OPENSSL_ERROR;
     }
     global_rand_ctx = new_ctx;
-    return 1;
-}
-
-int32_t get_jostle_ctx(jostle_lib_ctx **ctx) {
-    *ctx = global_rand_ctx;
     return JO_SUCCESS;
 }
 
-OSSL_LIB_CTX *get_jostle_ossl_lib_ctx(void) {
+
+/**
+ * Getter for underlying OSSL_LIB_CTX with java rand bridge installed.
+ * Non-mutating, thread safe but no locks, expects set_global_jostle_lib_ctx to have
+ * been called with valid jostle_lib_ctx before use.
+ * @return an OSSL_LIB_CTX
+ */
+OSSL_LIB_CTX *get_global_jostle_ossl_lib_ctx(void) {
     jo_assert(global_rand_ctx != NULL);
     return global_rand_ctx->ossl_libctx;
 }
 
 
-int rand_set_java_srand_call(void *target) {
+/**
+ * Use to set the RandSource up-call receiver, FFI callers will pass pointer
+ * to FFI constructed function and JNI callers will pass jobject
+ *
+ * Function expects, to be able to set thread local value, will abort the
+ * process if it can not do so.
+ *
+ * @param target, FFI created function pointer, JNI pass jobject
+ *
+ */
+void rand_set_java_srand_call(void *target) {
     jo_assert(target != NULL);
-    return CRYPTO_THREAD_set_local(&java_srand_id, target);
+    jo_assert(CRYPTO_THREAD_set_local(&java_srand_id, target)!=0);
 }

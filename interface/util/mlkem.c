@@ -24,7 +24,7 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     jo_assert(spec != NULL);
 
     if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     rand_set_java_srand_call(rnd_src);
@@ -49,13 +49,13 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
     switch (type) {
         case KS_ML_KEM_512:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-KEM-512",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-KEM-512",NULL);
             break;
         case KS_ML_KEM_768:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-KEM-768",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-KEM-768",NULL);
             break;
         case KS_ML_KEM_1024:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-KEM-1024",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-KEM-1024",NULL);
             break;
         default:
             ret_code = JO_INCORRECT_KEY_TYPE;
@@ -248,7 +248,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *s
     }
 
 
-    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -299,7 +299,7 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *sr
     }
 
 
-    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {

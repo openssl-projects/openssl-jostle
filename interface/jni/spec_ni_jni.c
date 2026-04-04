@@ -86,7 +86,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_encap
     UNUSED(jo);
 
     if (rand_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     rand_set_java_srand_call(rand_src);

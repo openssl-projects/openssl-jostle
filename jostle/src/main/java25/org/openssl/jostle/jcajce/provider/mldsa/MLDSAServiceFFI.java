@@ -248,14 +248,23 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     @Override
     public long generateKeyPair(int type, RandSource rndId)
     {
+
+
         try (Arena a = Arena.ofConfined())
         {
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    rndId.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(rndId);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (rndId == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        rndId.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(rndId);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef, getEntropySegment);
 
@@ -280,17 +289,25 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         try (Arena a = Arena.ofConfined())
         {
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    rndSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(rndSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (rndSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        rndSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(rndSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
 
-            if (seed != null) {
+            if (seed != null)
+            {
                 seedRef.asByteBuffer().put(seed);
             }
 
@@ -452,7 +469,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment keyRef = MemorySegment.ofAddress(keyReference);
             MemorySegment contextRef = context == null ? MemorySegment.NULL : a.allocate(context.length);
-            if (context != null) {
+            if (context != null)
+            {
                 contextRef.asByteBuffer().put(context);
             }
             return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal);
@@ -472,12 +490,19 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         try (Arena a = Arena.ofConfined())
         {
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment keyRef = MemorySegment.ofAddress(keyReference);
@@ -523,12 +548,19 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         try (Arena a = Arena.ofConfined())
         {
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
             MemorySegment ctx = MemorySegment.ofAddress(ref);
 
             MemorySegment outputSegment = output == null ? MemorySegment.NULL : a.allocate(output.length);

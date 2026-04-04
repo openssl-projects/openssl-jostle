@@ -134,38 +134,38 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_AES) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CTR",NULL);
 
                     break;
                 case XTS:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-XTS",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-XTS",NULL);
                     break;
 
                 // case WRAP:
@@ -177,7 +177,7 @@ int32_t block_cipher_ctx_init(
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-128-GCM",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-GCM",NULL);
                     break;
                 default:
                     return JO_INVALID_MODE;
@@ -191,33 +191,33 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_AES) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CTR",NULL);
 
                     break;
                 // case WRAP:
@@ -229,7 +229,7 @@ int32_t block_cipher_ctx_init(
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-192-GCM",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-GCM",NULL);
                     break;
                 // case XTS: Not available
                 default:
@@ -244,38 +244,38 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_AES) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CTR",NULL);
 
                     break;
                 case XTS:
                     Iv_len_test(BLOCK_SIZE_AES)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-XTS",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-XTS",NULL);
                     break;
 
                 // case WRAP:
@@ -287,7 +287,7 @@ int32_t block_cipher_ctx_init(
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "AES-256-GCM",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-GCM",NULL);
                     break;
                 default:
                     return JO_INVALID_MODE;
@@ -301,33 +301,33 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-CFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_ARIA) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-CTR",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-128-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-OFB",NULL);
                     break;
 
                 // case CCM: Authenticated
@@ -344,34 +344,34 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-CFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_ARIA) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-CTR",NULL);
 
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-192-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-OFB",NULL);
                     break;
 
                 // case CCM: Authenticated
@@ -388,34 +388,34 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-CFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_ARIA) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-CTR",NULL);
 
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_ARIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "ARIA-256-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-OFB",NULL);
                     break;
 
                 // case CCM: Authenticated
@@ -432,33 +432,33 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_CAMELLIA) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-128-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-128-CTR",NULL);
 
                     break;
                 default:
@@ -473,33 +473,33 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-CFB8",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-CFB8",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_CAMELLIA) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-192-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-192-CTR",NULL);
 
                     break;
                 default:
@@ -514,33 +514,33 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-CBC",NULL);
                     break;
                 case CFB1:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-CFB1",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-CFB1",NULL);
                     break;
                 case CFB8:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-CFB8",NULL);;
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-CFB8",NULL);;
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_CAMELLIA)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_CAMELLIA) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "CAMELLIA-256-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "CAMELLIA-256-CTR",NULL);
 
                     break;
                 default:
@@ -554,25 +554,25 @@ int32_t block_cipher_ctx_init(
             }
             switch (ctx->mode_id) {
                 case ECB:
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "SM4-ECB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "SM4-ECB",NULL);
                     break;
                 case CBC:
                     Iv_len_test(BLOCK_SIZE_SM4)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "SM4-CBC",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "SM4-CBC",NULL);
                     break;
                 case CFB128:
                     Iv_len_test(BLOCK_SIZE_SM4)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "SM4-CFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "SM4-CFB",NULL);
                     break;
                 case OFB:
                     Iv_len_test(BLOCK_SIZE_SM4)
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "SM4-OFB",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "SM4-OFB",NULL);
                     break;
                 case CTR:
                     if (valid_for_ctr(iv_len, BLOCK_SIZE_SM4) < JO_SUCCESS) {
                         return JO_INVALID_IV_LEN;
                     }
-                    evp_cipher = EVP_CIPHER_fetch(get_jostle_ossl_lib_ctx(), "SM4-CTR",NULL);
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "SM4-CTR",NULL);
 
                     break;
                 default:

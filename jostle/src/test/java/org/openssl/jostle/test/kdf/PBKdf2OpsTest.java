@@ -111,7 +111,7 @@ public class PBKdf2OpsTest
             Assertions.fail();
         } catch (OpenSSLException e)
         {
-            Assertions.assertNull(e.getMessage());
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
         } finally
         {
             operationsTestNI.resetFlags();

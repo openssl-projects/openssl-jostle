@@ -30,9 +30,7 @@ Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair_
     UNUSED(jo);
     UNUSED(env);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD; // TODO use out param for errors
-    }
+
 
     jint ret_val = JO_FAIL;
 
@@ -57,11 +55,6 @@ Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_generateKeyPair_
 (JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
-
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD; // TODO use out param for errors
-    }
-
 
     java_bytearray_ctx seed; // Non critical access
     init_bytearray_ctx(&seed);

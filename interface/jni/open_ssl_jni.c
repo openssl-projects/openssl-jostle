@@ -59,7 +59,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
         goto exit;
     }
 
-    result = set_jostle_ctx(rnd);
+    result = set_global_jostle_lib_ctx(rnd);
 
     if (UNSUCCESSFUL(result)) {
         OPENSSL_clear_free(rnd, sizeof(*rnd));

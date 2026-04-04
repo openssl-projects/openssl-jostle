@@ -22,7 +22,7 @@
 #include "rand/jostle_lib_ctx.h"
 
 md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
-    const EVP_MD *md = EVP_MD_fetch(get_jostle_ossl_lib_ctx(), name,NULL);
+    const EVP_MD *md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), name,NULL);
     if (md == NULL) {
         *err = JO_NAME_NOT_FOUND;
         return NULL;

@@ -19,6 +19,7 @@
 #include <openssl/err.h>
 
 #include "../util/bc_err_codes.h"
+#include "../util/ops.h"
 
 int rand_up_call_next_bytes(void *rnd_up_call, unsigned char *out, size_t out_len,
                             unsigned int strength, int prediction_resistance,
@@ -27,29 +28,30 @@ int rand_up_call_next_bytes(void *rnd_up_call, unsigned char *out, size_t out_le
     (void) (adin_len); // unused
 
 
-    if (rnd_up_call == NULL) {
-        ERR_add_error_txt(":", "rnd_up_call was null in rand_up_call_next_bytes (FFI)");
+    if (OPS_RAND_UP_CALL_NULL rnd_up_call == NULL) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, rand up call is null: %d",
+                       JO_RAND_NO_RAND_UP_CALL);
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    if (OPS_INT32_OVERFLOW_1 out_len > INT_MAX) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "out_len > INT_MAX: %d", JO_OPENSSL_ERROR);
         return JO_OPENSSL_ERROR;
     }
 
-    if (out_len > INT_MAX) {
-        ERR_add_error_txt(":", "out_len > INT_MAX");
-        return JO_OPENSSL_ERROR;
-    }
-
-    if (strength > INT_MAX) {
-        ERR_add_error_txt(":", "strength > INT_MAX");
+    if (OPS_INT32_OVERFLOW_2 strength > INT_MAX) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "strength > INT_MAX: %d", JO_OPENSSL_ERROR);
         return JO_OPENSSL_ERROR;
     }
 
     int32_t len = (int32_t) out_len;
     int32_t strn = (int32_t) strength;
 
-    ffi_get_rand call = (ffi_get_rand) rnd_up_call;
 
-    int rc = call(out, len, strn, prediction_resistance);
-    if (rc >= 0 && rc < len) {
+    int rc = ((ffi_get_rand) rnd_up_call)(out, len, strn, prediction_resistance);
+    if (OPS_SHORT_SIZE_1 rc >= 0 && rc < len) {
         rc = JO_RAND_UP_SHORT_RESULT;
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, short output: %d", rc);
     }
 
 

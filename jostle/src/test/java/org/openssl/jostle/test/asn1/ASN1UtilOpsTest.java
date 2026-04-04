@@ -79,7 +79,7 @@ public class ASN1UtilOpsTest
             Assertions.fail();
         } catch (OverflowException e)
         {
-            Assertions.assertEquals("input size int32 overflow", e.getMessage());
+            Assertions.assertEquals("input too long int32", e.getMessage());
         } finally
         {
             if (keyRef > 0)
@@ -106,7 +106,7 @@ public class ASN1UtilOpsTest
             Assertions.fail();
         } catch (OverflowException e)
         {
-            Assertions.assertEquals("input size int32 overflow", e.getMessage());
+            Assertions.assertEquals("input too long int32", e.getMessage());
         } finally
         {
             if (keyRef > 0)
@@ -138,7 +138,7 @@ public class ASN1UtilOpsTest
             Assertions.fail();
         } catch (OverflowException e)
         {
-            Assertions.assertEquals("output size int32 overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
 
         } finally
         {
@@ -172,7 +172,7 @@ public class ASN1UtilOpsTest
 
         } catch (OverflowException e)
         {
-            Assertions.assertEquals("output size int32 overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
         } finally
         {
             asn1NI.dispose(asn1Ref);
@@ -263,7 +263,7 @@ public class ASN1UtilOpsTest
 
         } catch (OverflowException ex)
         {
-            Assertions.assertEquals("output size int32 overflow", ex.getMessage());
+            Assertions.assertEquals("output too long int32", ex.getMessage());
         } finally
         {
             asn1NI.dispose(asn1Ref);

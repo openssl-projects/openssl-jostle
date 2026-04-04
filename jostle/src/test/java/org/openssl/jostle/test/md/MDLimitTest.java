@@ -87,7 +87,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.engineUpdate(ref,new byte[0],-1,0);
             Assertions.fail("Expected NullPointerException");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("input offset negative", e.getMessage());
+            Assertions.assertEquals("input offset is negative", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -103,7 +103,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.engineUpdate(ref,new byte[0],0,-1);
             Assertions.fail("");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("input len negative", e.getMessage());
+            Assertions.assertEquals("input len is negative", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -119,7 +119,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.engineUpdate(ref,new byte[10],0,11);
             Assertions.fail("Expected NullPointerException");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("input offset + length out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -135,7 +135,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.engineUpdate(ref,new byte[10],1,10);
             Assertions.fail("Expected NullPointerException");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("input offset + length out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -151,7 +151,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.engineUpdate(ref,new byte[10],11,21);
             Assertions.fail("Expected NullPointerException");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("input offset + length out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -167,7 +167,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.digest(ref,new byte[0],-1,0);
             Assertions.fail("fail");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("output offset negative", e.getMessage());
+            Assertions.assertEquals("output offset is negative", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -215,7 +215,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.digest(ref,new byte[31],0,32);
             Assertions.fail("failed");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("output offset + length out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -231,7 +231,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.digest(ref,new byte[32],1,32);
             Assertions.fail("failed");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("output offset + length out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);
@@ -247,7 +247,7 @@ public void updateBytes_inputNull() throws Exception {
             mdNI.digest(ref,new byte[32],32,64);
             Assertions.fail("failed");
         } catch (IllegalArgumentException e) {
-            Assertions.assertEquals("output offset + length out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         } finally {
             if (ref >0) {
                 mdNI.dispose(ref);

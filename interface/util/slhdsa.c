@@ -48,6 +48,10 @@ inline int32_t get_n(const int key_type) {
 int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, size_t seed_len, void *rand_src) {
     jo_assert(spec != NULL);
 
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
     rand_set_java_srand_call(rand_src);
 
     int32_t ret_code = JO_FAIL;
@@ -76,40 +80,40 @@ int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, s
 
     switch (type) {
         case KS_SLH_DSA_SHA2_128f:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-128F",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-128F",NULL);
             break;
         case KS_SLH_DSA_SHA2_128s:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-128S",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-128S",NULL);
         break;
         case KS_SLH_DSA_SHA2_192f:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-192F",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-192F",NULL);
             break;
         case KS_SLH_DSA_SHA2_192s:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-192S",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-192S",NULL);
             break;
         case KS_SLH_DSA_SHA2_256f:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-256F",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-256F",NULL);
             break;
         case KS_SLH_DSA_SHA2_256s:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-256S",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHA2-256S",NULL);
             break;
         case KS_SLH_DSA_SHAKE_128f:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-128F",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-128F",NULL);
             break;
         case KS_SLH_DSA_SHAKE_128s:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-128S",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-128S",NULL);
             break;
         case KS_SLH_DSA_SHAKE_192f:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-192F",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-192F",NULL);
             break;
         case KS_SLH_DSA_SHAKE_192s:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-192S",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-192S",NULL);
             break;
         case KS_SLH_DSA_SHAKE_256f:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-256F",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-256F",NULL);
             break;
         case KS_SLH_DSA_SHAKE_256s:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-256S",NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "SLH-DSA-SHAKE-256S",NULL);
             break;
         default:
             ret_code = JO_INCORRECT_KEY_TYPE;
@@ -341,7 +345,7 @@ int32_t slh_dsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *
     }
 
 
-    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -424,7 +428,7 @@ int32_t slh_dsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *s
     }
 
 
-    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -480,7 +484,7 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
     jo_assert(key_spec != NULL);
 
     if (rand_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     rand_set_java_srand_call(rand_src);
@@ -557,7 +561,7 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
         goto exit;
     }
 
-    ctx->sig = EVP_SIGNATURE_fetch(get_jostle_ossl_lib_ctx(), algo,NULL);
+    ctx->sig = EVP_SIGNATURE_fetch(get_global_jostle_ossl_lib_ctx(), algo,NULL);
 
     const OSSL_PARAM params[] = {
         OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_CONTEXT_STRING, ctx->context, ctx->context_len),
@@ -567,7 +571,7 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
     };
 
 
-    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_jostle_ossl_lib_ctx(), key_spec->key, NULL);
+    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1000);
@@ -681,8 +685,8 @@ int32_t slh_dsa_ctx_init_verify(
         OSSL_PARAM_END
     };
 
-    ctx->sig = EVP_SIGNATURE_fetch(get_jostle_ossl_lib_ctx(), algo,NULL);
-    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_jostle_ossl_lib_ctx(), key_spec->key, NULL);
+    ctx->sig = EVP_SIGNATURE_fetch(get_global_jostle_ossl_lib_ctx(), algo,NULL);
+    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1003);
@@ -716,7 +720,7 @@ int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_
     int ret_code = JO_FAIL;
 
     if (rand_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     rand_set_java_srand_call(rand_src);

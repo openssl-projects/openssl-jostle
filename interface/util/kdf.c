@@ -34,7 +34,7 @@ int32_t scrypt(
 
     OSSL_PARAM params[6] = {0};
 
-    kdf = EVP_KDF_fetch(get_jostle_ossl_lib_ctx(), "SCRYPT", NULL);
+    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "SCRYPT", NULL);
     if (OPS_OPENSSL_ERROR_1  kdf == NULL) {
         ret = JO_OPENSSL_ERROR;
         goto exit;
@@ -86,7 +86,7 @@ int32_t pbkdf2(
 
     OSSL_PARAM params[5] = {0};
 
-    kdf = EVP_KDF_fetch(get_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
+    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR;
         goto exit;

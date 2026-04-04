@@ -77,6 +77,7 @@ public class BridgeRandValOpsTest
     @Test
     public void testStrengthAssertion_rngLess() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         SecureRandom secRand = SecureRandom.getInstance("DRBG",
                 DrbgParameters.instantiation(128, PR_AND_RESEED, null));
 
@@ -94,6 +95,7 @@ public class BridgeRandValOpsTest
     @Test
     public void testStrengthAssertion_rngExceedsRequired() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         SecureRandom secRand = SecureRandom.getInstance("DRBG",
                 DrbgParameters.instantiation(128, PR_AND_RESEED, null));
 
@@ -108,6 +110,7 @@ public class BridgeRandValOpsTest
     @Test
     public void testStrengthAssertion_rngSame() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         SecureRandom secRand = SecureRandom.getInstance("DRBG",
                 DrbgParameters.instantiation(128, PR_AND_RESEED, null));
 
@@ -128,7 +131,7 @@ public class BridgeRandValOpsTest
     @Test
     public void testFailsIfRandFails() throws Exception
     {
-
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         RandSource randSource = new FailingRandSource();
 
         //
@@ -148,6 +151,7 @@ public class BridgeRandValOpsTest
     @Test
     public void testReseedCalled() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         ReseedCountingSecureRandom random = new ReseedCountingSecureRandom(SecureRandom.getInstance("DRBG",
                 DrbgParameters.instantiation(128, DrbgParameters.Capability.RESEED_ONLY, null)));
 
@@ -165,6 +169,7 @@ public class BridgeRandValOpsTest
     @Test
     public void testNoPredNoRessedFails() throws Exception
     {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         ReseedCountingSecureRandom random = new ReseedCountingSecureRandom(new SecureRandom());
 
         DefaultRandSource randSource = new TestRandRandSource(random, DrbgParameters.instantiation(128, DrbgParameters.Capability.NONE, null));

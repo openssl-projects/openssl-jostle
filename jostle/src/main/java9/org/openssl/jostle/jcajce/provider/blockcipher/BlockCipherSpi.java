@@ -157,7 +157,7 @@ class BlockCipherSpi extends CipherSpi
             ErrorCode code = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, null, 0));
             try
             {
-                BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, 0);
+                NISelector.BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, 0);
             }
             catch (InvalidAlgorithmParameterException e)
             {
@@ -221,7 +221,7 @@ class BlockCipherSpi extends CipherSpi
             }
 
             code = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen));
-            BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, ivBytes == null ? 0 : ivBytes.length);
+            NISelector.BlockCipherNI.handleInitErrorCodes(code, keyBytes.length, ivBytes == null ? 0 : ivBytes.length);
 
 
             engineGetBlockSize();
@@ -280,7 +280,7 @@ class BlockCipherSpi extends CipherSpi
 
             try
             {
-                BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
+                NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
             }
             catch (IllegalBlockSizeException | ShortBufferException ibe)
             {
@@ -354,7 +354,7 @@ class BlockCipherSpi extends CipherSpi
 
             try
             {
-                BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
+                NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
             }
             catch (IllegalBlockSizeException | ShortBufferException ibe)
             {
@@ -406,7 +406,7 @@ class BlockCipherSpi extends CipherSpi
 
             try
             {
-                BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
+                NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
             }
             catch (IllegalBlockSizeException ibe)
             {
@@ -475,11 +475,11 @@ class BlockCipherSpi extends CipherSpi
 
             int written = 0;
             int code = NISelector.BlockCipherNI.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
             written += code;
 
             code = NISelector.BlockCipherNI.doFinal(refWrapper.getReference(), output, outputOffset + written);
-            BlockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            NISelector.BlockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
 
             written += code;
             return written;

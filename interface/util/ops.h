@@ -44,7 +44,12 @@
 #define OPS_FAILED_SET_1 is_ops_set(19) ||
 #define OPS_FAILED_SET_2 is_ops_set(20) ||
 
-#define OPS_MAX_TEST 21
+#define OPS_THREAD_ATTACH_1 is_ops_set(21) ||
+#define OPS_JNI_FAIL_CREATE_1  is_ops_set(22) ||
+#define OPS_SHORT_SIZE_1 is_ops_set(23) ||
+#define OPS_RAND_UP_CALL_NULL is_ops_set(24) ||
+
+#define OPS_MAX_TEST 25
 
 // Offset the error code by fixed amount during ops testing
 #define OPS_OFFSET(x) - x
@@ -84,6 +89,10 @@ int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred,
 #define OPS_FAILED_SET_2
 #define OPS_OFFSET(x)
 
+#define OPS_THREAD_ATTACH_1
+#define OPS_JNI_FAIL_CREATE_1
+#define OPS_SHORT_SIZE_1
+#define OPS_RAND_UP_CALL_NULL
 
 #endif
 

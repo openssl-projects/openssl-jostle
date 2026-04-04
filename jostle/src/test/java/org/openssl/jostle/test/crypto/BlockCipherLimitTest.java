@@ -14,7 +14,7 @@ package org.openssl.jostle.test.crypto;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.CryptoServicesRegistrar;
+
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
@@ -55,7 +55,7 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, null, new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
         } catch (Exception e)
         {
@@ -75,7 +75,7 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 0, 1); // AES128, ECB, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
         } catch (Exception e)
         {
@@ -95,7 +95,7 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], null, 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
         } catch (Exception e)
         {
@@ -115,7 +115,7 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[0], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
         } catch (Exception e)
         {
@@ -135,7 +135,7 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(7, 0, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[0], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
         } catch (Exception e)
         {
@@ -248,7 +248,7 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
 
                 if (!test.passing)
                 {
@@ -362,7 +362,7 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
 
                 if (!test.passing)
                 {
@@ -479,7 +479,7 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
 
                 if (!test.passing)
                 {
@@ -558,7 +558,7 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
 
                 if (!test.passing)
                 {
@@ -595,16 +595,16 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
+            Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input is null", e.getMessage(), "unexpected exception message");
         } finally
         {
@@ -628,16 +628,16 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
+            Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output is null", e.getMessage(), "unexpected exception message");
         } finally
         {
@@ -662,10 +662,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -696,10 +696,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -730,17 +730,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("input length is negative", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("input len is negative", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -762,17 +762,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("input out of range", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -795,17 +795,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("input out of range", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -828,17 +828,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(ShortBufferException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("output out of range", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -862,10 +862,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 0);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -896,10 +896,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -929,10 +929,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -962,10 +962,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -994,16 +994,16 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.doFinal(ref, output, outOff);
-            BlockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        } catch (Throwable e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
+            Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output is null", e.getMessage(), "unexpected exception message");
         } finally
         {
@@ -1025,10 +1025,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.doFinal(ref, output, outOff);
-            BlockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -1055,17 +1055,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.doFinal(ref, output, outOff);
-            BlockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("output out of range", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -1087,24 +1087,24 @@ public class BlockCipherLimitTest
             // 15 byte IV, so can only handle 256 blocks.
             //
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[15], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             // We can process [0,254] blocks of data successfully.
             code = blockCipherNI.update(ref, new byte[255 * 16], 0, new byte[254 * 16], 0, 254 * 16);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
             Assertions.assertEquals(254 * 16, code);
 
             // Next 15 bytes would be ok, and leave one byte in the last available block, asserts [0,255]
             code = blockCipherNI.update(ref, new byte[15], 0, new byte[15], 0, 15);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             // Next 1 byte would be ok, and leave 0 in the last available block, asserts [0,255]
             code = blockCipherNI.update(ref, new byte[1], 0, new byte[1], 0, 1);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             // Next 1 byte would exceed the 8 bit block counter as [0,256) is asserted
             code = blockCipherNI.update(ref, new byte[1], 0, new byte[1], 0, 1);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
         } catch (Exception e)
@@ -1132,16 +1132,16 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
-            Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
+            Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input is null", e.getMessage(), "unexpected exception message");
         } finally
         {
@@ -1163,10 +1163,10 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
@@ -1194,17 +1194,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("input length is negative", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("input len is negative", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -1224,17 +1224,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("input out of range", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
@@ -1254,17 +1254,17 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            BlockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
         } catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("input out of range", e.getMessage(), "unexpected exception message");
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);

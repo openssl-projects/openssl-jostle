@@ -154,12 +154,19 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         try (Arena a = Arena.ofConfined())
         {
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef,getEntropySegment);
@@ -187,12 +194,19 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
 
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
             if (seed != null) {
                 seedRef.asByteBuffer().put(seed);
             }

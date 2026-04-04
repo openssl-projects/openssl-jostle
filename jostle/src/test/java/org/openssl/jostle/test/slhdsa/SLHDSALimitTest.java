@@ -61,6 +61,24 @@ public class SLHDSALimitTest
 
 
     @Test
+    public void SLHDSAServiceJNI_generateKeyPair_nullRand() throws Exception
+    {
+        byte[] seed = new byte[64];
+        int seedLen = 64;
+
+        try
+        {
+            slhdsaServiceNI.handleErrors(
+                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen, null)
+            );
+            Assertions.fail();
+        } catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
+    }
+
+    @Test
     public void SLHDSAServiceJNI_generateKeyPair_seedIsNull() throws Exception
     {
         byte[] seed = null;
@@ -449,7 +467,7 @@ public class SLHDSALimitTest
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -515,7 +533,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -538,7 +556,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -695,7 +713,7 @@ public class SLHDSALimitTest
 
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -761,7 +779,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -784,7 +802,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -1111,7 +1129,71 @@ public class SLHDSALimitTest
 
 
 
+
+
+
+
     // init Signer
+
+
+    @Test()
+    public void SLHDSAServiceJNI_initSign_nullRand_1() throws Exception
+    {
+
+        // array length of 1  but declared len of 2
+
+        long slhdsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
+            Assertions.assertTrue(slhdsaRef > 0);
+            TestNISelector.getSLHDSANI().handleErrors( TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null));
+            Assertions.fail();
+        } catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        } finally
+        {
+            slhdsaServiceNI.disposeSigner(slhdsaRef);
+            if (keyRef != 0)
+            {
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+    @Test()
+    public void SLHDSAServiceJNI_sign_nullRand() throws Exception
+    {
+
+        // array length of 1  but declared len of 2
+
+        long slhdsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
+            Assertions.assertTrue(slhdsaRef > 0);
+            keyRef = TestNISelector.getSLHDSANI().handleErrors( TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc));
+
+            Assertions.assertTrue(keyRef > 0);
+            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0, null));
+            Assertions.fail();
+        } catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        } finally
+        {
+            slhdsaServiceNI.disposeSigner(slhdsaRef);
+            if (keyRef != 0)
+            {
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+
 
     @Test()
     public void SLHDSAServiceJNI_initSign_nullContextArray() throws Exception
@@ -1366,7 +1448,7 @@ public class SLHDSALimitTest
             slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, null, 0, 0));
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -1456,7 +1538,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
@@ -1489,7 +1571,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
@@ -1548,7 +1630,7 @@ public class SLHDSALimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("output offset is out of range", e.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", e.getMessage());
         } finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);

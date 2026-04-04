@@ -56,6 +56,44 @@ public class MLKEMLimitTest
         }
     }
 
+
+    @Test
+    public void testMLKEMGenerateKeyPair_noRand() throws Exception
+    {
+
+
+
+            try
+            {
+                mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), null));
+                Assertions.fail();
+            } catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("supplied random source was null", e.getMessage());
+            }
+
+
+    }
+
+    @Test
+    public void MLKEMServiceJNI_generateKeyPairSeed_noRand() throws Exception
+    {
+        byte[] seed = new byte[32];
+        int seedLen = 32;
+
+        try
+        {
+            mlkemServiceNI.handleErrors(
+                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, null)
+            );
+            Assertions.fail();
+        } catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null",e.getMessage());
+        }
+    }
+
+
     @Test
     public void MLKEMServiceJNI_generateKeyPair_seedIsNull() throws Exception
     {
@@ -358,7 +396,7 @@ public class MLKEMLimitTest
 
             mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_768.getKsType(), null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        } catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
         } finally
@@ -424,7 +462,7 @@ public class MLKEMLimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);
@@ -447,7 +485,7 @@ public class MLKEMLimitTest
             Assertions.fail();
         } catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("input offset + length are out of range", e.getMessage());
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
         } finally
         {
             specNI.dispose(keyRef);

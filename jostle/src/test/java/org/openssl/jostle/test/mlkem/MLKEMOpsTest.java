@@ -243,7 +243,7 @@ public class MLKEMOpsTest
         }
         catch (OverflowException e)
         {
-            Assertions.assertEquals("output size overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
         }
         finally
         {
@@ -336,7 +336,7 @@ public class MLKEMOpsTest
         }
         catch (OverflowException e)
         {
-            Assertions.assertEquals("output size overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
         }
         finally
         {
@@ -421,7 +421,7 @@ public class MLKEMOpsTest
         }
         catch (OverflowException e)
         {
-            Assertions.assertEquals("output size overflow", e.getMessage());
+            Assertions.assertEquals("output too long int32", e.getMessage());
         }
         finally
         {

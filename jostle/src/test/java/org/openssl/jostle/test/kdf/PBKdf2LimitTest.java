@@ -103,7 +103,7 @@ public class PBKdf2LimitTest
         {
             kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[1], new byte[1], 100, "SHA-1", null, 0, 0));
             Assertions.fail();
-        } catch (IllegalArgumentException iae)
+        } catch (NullPointerException iae)
         {
             Assertions.assertEquals("output is null", iae.getMessage());
         }
@@ -132,7 +132,7 @@ public class PBKdf2LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException iae)
         {
-            Assertions.assertEquals("output length is negative", iae.getMessage());
+            Assertions.assertEquals("output len negative", iae.getMessage());
         }
     }
 
@@ -145,7 +145,7 @@ public class PBKdf2LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException iae)
         {
-            Assertions.assertEquals("output offset and length out of range", iae.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", iae.getMessage());
         }
     }
 
@@ -158,7 +158,7 @@ public class PBKdf2LimitTest
             Assertions.fail();
         } catch (IllegalArgumentException iae)
         {
-            Assertions.assertEquals("output offset and length out of range", iae.getMessage());
+            Assertions.assertEquals("output offset + length is out of range", iae.getMessage());
         }
     }
 

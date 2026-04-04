@@ -75,7 +75,7 @@ int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
     }
 
     if (hash == MLDSA_HASH_NONE) {
-        EVP_MD *evp_md = EVP_MD_fetch(get_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
+        EVP_MD *evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
         jo_assert(evp_md != NULL);
         if (1 != EVP_DigestInit_ex2(*ctx, evp_md, NULL)) {
             *ret_code = JO_OPENSSL_ERROR;
@@ -138,7 +138,7 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
         return 0;
     }
 
-    EVP_MD *evp_md = EVP_MD_fetch(get_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
+    EVP_MD *evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
 
     jo_assert(evp_md != NULL);
 
@@ -232,7 +232,7 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     jo_assert(spec != NULL);
 
     if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_METHOD;
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     rand_set_java_srand_call(rnd_src);
@@ -255,15 +255,15 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
     switch (type) {
         case KS_MLDSA_44:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-DSA-44", NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-DSA-44", NULL);
             break;
 
         case KS_MLDSA_65:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-DSA-65", NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-DSA-65", NULL);
             break;
 
         case KS_MLDSA_87:
-            ctx = EVP_PKEY_CTX_new_from_name(get_jostle_ossl_lib_ctx(), "ML-DSA-87", NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-DSA-87", NULL);
             break;
         default:
             ret_code = JO_INCORRECT_KEY_TYPE;
@@ -507,7 +507,7 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     }
 
 
-    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -581,7 +581,7 @@ int32_t mldsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
         goto exit;
     }
 
-    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -644,6 +644,11 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 
     int32_t ret_code = JO_FAIL;
 
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+
     if (key_spec->key == NULL) {
         ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
         goto exit;
@@ -700,7 +705,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 
     int32_t typeId = KS_NONE;
 
-    OSSL_LIB_CTX *libctx = get_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
 
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
@@ -935,6 +940,9 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
         ret_code = JO_NOT_INITIALIZED;
