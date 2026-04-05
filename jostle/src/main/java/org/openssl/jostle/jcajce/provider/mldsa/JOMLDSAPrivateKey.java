@@ -63,9 +63,9 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
 
     public byte[] getSeed()
     {
-        long len = NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.getSeed(spec.getReference(), null));
+        long len = NISelector.MLDSAServiceNI.getSeed(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.getSeed(spec.getReference(), out));
+        NISelector.MLDSAServiceNI.getSeed(spec.getReference(), out);
 
         return out;
     }
@@ -76,9 +76,9 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
         //
         // Raw bytes
         //
-        long len = NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), null));
+        long len = NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), out));
+        NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), out);
 
         return out;
     }
@@ -93,9 +93,9 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
                 OSSLKeyType type = getType();
                 return new JOMLDSAPrivateKey(
                         new PKEYKeySpec(
-                                NISelector.MLDSAServiceNI.handleErrors(
+
                                         NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
-                                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()))
+                                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
                                 ), type), preferSeedOnly
                 );
             }

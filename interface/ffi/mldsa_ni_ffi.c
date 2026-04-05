@@ -218,8 +218,8 @@ void MLDSA_disposeSigner(mldsa_ctx *ctx) {
 }
 
 
-mldsa_ctx *MLDSA_allocateSigner(void) {
-    return mldsa_ctx_create();
+mldsa_ctx *MLDSA_allocateSigner(int *err) {
+    return mldsa_ctx_create(err);
 }
 
 
@@ -323,12 +323,11 @@ exit:
 
 
 int32_t MLDSA_sign(
-        mldsa_ctx *ctx,
-        const uint8_t *output,
-        const size_t output_size,
-        const int32_t out_off,
-        void *rnd_src) {
-
+    mldsa_ctx *ctx,
+    const uint8_t *output,
+    const size_t output_size,
+    const int32_t out_off,
+    void *rnd_src) {
     jo_assert(ctx);
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;

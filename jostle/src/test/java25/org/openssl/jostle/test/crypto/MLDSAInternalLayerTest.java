@@ -65,7 +65,7 @@ public class MLDSAInternalLayerTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal(), TestUtil.RNDSrc));
+           mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal(), TestUtil.RNDSrc);
 
             MemorySegment ms = lookup.find("mldsa_update").orElseThrow();
             MethodHandle mh = linker.downcallHandle(ms, FunctionDescriptor.of(
@@ -105,9 +105,9 @@ public class MLDSAInternalLayerTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc));
+            mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
 
-            long len = mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
+            long len = mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc);
 
             byte[] sig = new byte[(int)len];
 
@@ -116,7 +116,7 @@ public class MLDSAInternalLayerTest
             ctx.set(ValueLayout.JAVA_BYTE, 364, (byte) 4);
 
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc));
+            mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc);
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -142,13 +142,13 @@ public class MLDSAInternalLayerTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal());
 
             MemorySegment ctx = MemorySegment.ofAddress(mldsaRef).reinterpret(376);
 
             ctx.set(ValueLayout.JAVA_BYTE, 28, (byte) 0x7f);
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.verify(mldsaRef, new byte[1024], 1024));
+           mldsaServiceNI.verify(mldsaRef, new byte[1024], 1024);
 
             Assertions.fail();
         } catch (IllegalStateException e)
@@ -174,13 +174,13 @@ public class MLDSAInternalLayerTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal()));
+            mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal());
 
             MemorySegment ctx = MemorySegment.ofAddress(mldsaRef).reinterpret(376);
 
             ctx.set(ValueLayout.JAVA_BYTE, 28, (byte) 0x7f);
 
-            mldsaServiceNI.handleErrors(mldsaServiceNI.verify(mldsaRef, new byte[1024], 1024));
+           mldsaServiceNI.verify(mldsaRef, new byte[1024], 1024);
 
             Assertions.fail();
         } catch (IllegalStateException e)

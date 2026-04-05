@@ -61,7 +61,7 @@ typedef struct mldsa_ctx {
 } mldsa_ctx;
 
 
-mldsa_ctx *mldsa_ctx_create(void);
+mldsa_ctx *mldsa_ctx_create(int *err);
 
 void mldsa_ctx_destroy(mldsa_ctx *ctx);
 

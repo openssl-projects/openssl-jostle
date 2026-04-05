@@ -92,8 +92,8 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                 byte[] encoed = ((MLDSAPublicKeySpec) keySpec).getPublicData();
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
-                NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoed, 0, encoed.length));
+                NISelector.MLDSAServiceNI.decode_publicKey(
+                        pkeySpec.getReference(), osslKeyType.getKsType(), encoed, 0, encoed.length);
                 return new JOMLDSAPublicKey(pkeySpec);
             }
         }
@@ -149,9 +149,9 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                     encoded = spec.getPrivateData();
                 }
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.decode_privateKey(
+                NISelector.MLDSAServiceNI.decode_privateKey(
                         pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length));
+                        encoded, 0, encoded.length);
                 return new JOMLDSAPrivateKey(pkeySpec, spec.isSeed());
             }
         }

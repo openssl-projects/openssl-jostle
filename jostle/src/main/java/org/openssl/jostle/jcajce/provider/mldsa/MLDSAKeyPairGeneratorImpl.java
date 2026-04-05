@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -110,17 +109,12 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 
         long res = NISelector.MLDSAServiceNI.generateKeyPair(keyType.getKsType(), random);
 
-        if (res < 0)
+
+        if (res == 0)
         {
-            NISelector.MLDSAServiceNI.handleErrors(res);
+            throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        else
-        {
-            if (res == 0)
-            {
-                throw new IllegalStateException("unexpected null pointer from native layer");
-            }
-        }
+
 
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
         return new KeyPair(new JOMLDSAPublicKey(spec), new JOMLDSAPrivateKey(spec));

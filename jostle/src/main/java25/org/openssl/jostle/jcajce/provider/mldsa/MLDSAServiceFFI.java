@@ -154,7 +154,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
         allocSignerFunc = lookup.find("MLDSA_allocateSigner").orElseThrow();
         allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.ADDRESS
+                        ValueLayout.ADDRESS, ValueLayout.ADDRESS
                 ));
 
 
@@ -246,7 +246,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
 
     @Override
-    public long generateKeyPair(int type, RandSource rndId)
+    public long ni_generateKeyPair(int type, RandSource rndId)
     {
 
 
@@ -284,7 +284,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public long generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource)
+    public long ni_generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -336,7 +336,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int getPublicKey(long ref, byte[] output)
+    public int ni_getPublicKey(long ref, byte[] output)
     {
         try
         {
@@ -356,7 +356,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int getPrivateKey(long ref, byte[] output)
+    public int ni_getPrivateKey(long ref, byte[] output)
     {
         try
         {
@@ -376,7 +376,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int getSeed(long ref, byte[] output)
+    public int ni_getSeed(long ref, byte[] output)
     {
         try
         {
@@ -395,7 +395,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -412,7 +412,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -430,7 +430,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
 
     @Override
-    public void disposeSigner(long reference)
+    public void ni_disposeSigner(long reference)
     {
         try
         {
@@ -446,11 +446,13 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public long allocateSigner()
+    public long ni_allocateSigner(int[] err)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment segment = (MemorySegment) allocSignerFuncHandle.invokeExact();
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            MemorySegment segment = (MemorySegment) allocSignerFuncHandle.invokeExact(errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
             return segment.address();
         }
         catch (Throwable t)
@@ -462,7 +464,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int initVerify(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal)
+    public int ni_initVerify(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -485,7 +487,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int initSign(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal, RandSource randSource)
+    public int ni_initSign(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -525,7 +527,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int update(long ref, byte[] input, int inputOffset, int inputLen)
+    public int ni_update(long ref, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -543,7 +545,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int sign(long ref, byte[] output, int offset, RandSource randSource)
+    public int ni_sign(long ref, byte[] output, int offset, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -582,7 +584,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public int verify(long ref, byte[] sigBytes, int sigLen)
+    public int ni_verify(long ref, byte[] sigBytes, int sigLen)
     {
         try
         {

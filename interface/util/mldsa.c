@@ -605,9 +605,10 @@ exit:
 }
 
 
-mldsa_ctx *mldsa_ctx_create(void) {
+mldsa_ctx *mldsa_ctx_create(int *err) {
     mldsa_ctx *ctx = (mldsa_ctx *) OPENSSL_zalloc(sizeof(mldsa_ctx));
     jo_assert(ctx);
+    *err = JO_SUCCESS;
     return ctx;
 }
 

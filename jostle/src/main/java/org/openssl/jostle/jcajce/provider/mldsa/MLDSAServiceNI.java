@@ -16,6 +16,36 @@ import org.openssl.jostle.rand.RandSource;
 
 public interface MLDSAServiceNI extends DefaultServiceNI
 {
+
+    long ni_generateKeyPair(int type, RandSource rndId);
+
+    long ni_generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource);
+
+    int ni_getPublicKey(long ref, byte[] output);
+
+    int ni_getPrivateKey(long ref, byte[] output);
+
+    int ni_getSeed(long ref, byte[] output);
+
+    void ni_disposeSigner(long reference);
+
+    long ni_allocateSigner(int[] err);
+
+    int ni_initVerify(long ref, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal);
+
+    int ni_initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal, RandSource randSource);
+
+    int ni_update(long reference, byte[] input, int inputOffset, int inputLen);
+
+    int ni_sign(long reference, byte[] output, int offset, RandSource randSource);
+
+    int ni_verify(long reference, byte[] sigBytes, int sigLen);
+
+    int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+
     /**
      * Generate a ML-DSA Key pair
      *
@@ -23,9 +53,15 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param rndId
      * @return 0 for success, or less than 0 for failure
      */
-    long generateKeyPair(int type, RandSource rndId);
+    default long generateKeyPair(int type, RandSource rndId)
+    {
+        return handleErrors(ni_generateKeyPair(type, rndId));
+    }
 
-    long generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource);
+    default long generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource)
+    {
+        return handleErrors(ni_generateKeyPair(type, seed, seedLen, rndSource));
+    }
 
     /**
      * Get the public key encoded
@@ -34,7 +70,10 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param output the output array, use null to return length.
      * @return the length or an error code.
      */
-    int getPublicKey(long ref, byte[] output);
+    default int getPublicKey(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getPublicKey(ref, output));
+    }
 
     /**
      * Get the private key encoded.
@@ -43,7 +82,10 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param output the output array, use null to return length
      * @return the length or an error code.
      */
-    int getPrivateKey(long ref, byte[] output);
+    default int getPrivateKey(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getPrivateKey(ref, output));
+    }
 
     /**
      * Get the seed.
@@ -52,21 +94,33 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param output the output array, use null to get return length
      * @return the length or an error code
      */
-    int getSeed(long ref, byte[] output);
+    default int getSeed(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getSeed(ref, output));
+    }
 
     /**
      * Dispose of a signer
      *
      * @param reference the reference
      */
-    void disposeSigner(long reference);
+    default void disposeSigner(long reference)
+    {
+        ni_disposeSigner(reference);
+    }
 
     /**
      * Allocate a signer
      *
      * @return
      */
-    long allocateSigner();
+    default long allocateSigner()
+    {
+        int[] err = new int[1];
+        long ref = ni_allocateSigner(err);
+        handleErrors(err[0]);
+        return ref;
+    }
 
 
     /**
@@ -77,7 +131,10 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param muHandlingOrdinal
      * @return response code
      */
-    int initVerify(long ref, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal);
+    default int initVerify(long ref, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal)
+    {
+        return (int) handleErrors(ni_initVerify(ref, keyReference, context, contextLen, muHandlingOrdinal));
+    }
 
     /**
      * Init signing
@@ -90,7 +147,10 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param randSource
      * @return response code
      */
-    int initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal, RandSource randSource);
+    default int initSign(long reference, long keyReference, byte[] context, int contextLen, int muHandlingOrdinal, RandSource randSource)
+    {
+        return (int) handleErrors(ni_initSign(reference, keyReference, context, contextLen, muHandlingOrdinal, randSource));
+    }
 
 
     /**
@@ -102,7 +162,35 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param inputLen
      * @return
      */
-    int update(long reference, byte[] input, int inputOffset, int inputLen);
+    default int update(long reference, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_update(reference, input, inputOffset, inputLen));
+    }
+
+    default int sign(long reference, byte[] output, int offset, RandSource randSource)
+    {
+        return (int) handleErrors(ni_sign(reference, output, offset, randSource));
+    }
+
+    default int verify(long reference, byte[] sigBytes, int sigLen)
+    {
+        long code = ni_verify(reference, sigBytes, sigLen);
+        if (code == ErrorCode.JO_FAIL.getCode())
+        { // Fail used for invalid signature
+            return (int) code;
+        }
+        return (int) handleErrors(code);
+    }
+
+    default int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_publicKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
+
+    default int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_privateKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
 
 
     default long handleErrors(long code)
@@ -117,8 +205,6 @@ public interface MLDSAServiceNI extends DefaultServiceNI
 
         switch (errorCode)
         {
-            case JO_FAIL:
-                return code;
             case JO_UNKNOWN_MU_MODE:
                 throw new IllegalArgumentException("unknown Mu mode");
             case JO_INVALID_MU_MODE_FOR_VERIFY:
@@ -135,11 +221,5 @@ public interface MLDSAServiceNI extends DefaultServiceNI
 
     }
 
-    int sign(long reference, byte[] output, int offset, RandSource randSource);
 
-    int verify(long reference, byte[] sigBytes, int sigLen);
-
-    int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
-
-    int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 }

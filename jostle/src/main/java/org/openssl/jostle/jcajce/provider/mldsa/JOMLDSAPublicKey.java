@@ -50,9 +50,9 @@ class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
         //
         // Raw bytes
         //
-        long len = NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), null));
+        long len = NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), out));
+       NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), out);
 
         return out;
     }

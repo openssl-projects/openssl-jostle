@@ -28,7 +28,6 @@ import org.openssl.jostle.rand.RandSource;
 import java.lang.ref.Reference;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
@@ -82,8 +81,8 @@ public class MLDSASignatureSpi extends SignatureSpi
                 if (ref == null)
                 {
                     ref = new MLDSARef(
-                            NISelector.MLDSAServiceNI.handleErrors(
-                                    NISelector.MLDSAServiceNI.allocateSigner()), publicKey.getAlgorithm());
+
+                            NISelector.MLDSAServiceNI.allocateSigner(), publicKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -95,7 +94,7 @@ public class MLDSASignatureSpi extends SignatureSpi
                     contextLen = context.length;
                 }
 
-                NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, muHandling.ordinal()));
+                NISelector.MLDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, muHandling.ordinal());
                 return;
             }
             finally
@@ -132,9 +131,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new MLDSARef(
-                            NISelector.MLDSAServiceNI.handleErrors(
-                                    NISelector.MLDSAServiceNI.allocateSigner()), privateKey.getAlgorithm());
+                    ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), privateKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -146,10 +143,10 @@ public class MLDSASignatureSpi extends SignatureSpi
                     contextLen = context.length;
                 }
 
-                NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.initSign(
+                NISelector.MLDSAServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
-                        context, contextLen, muHandling.ordinal(), randSource));
+                        context, contextLen, muHandling.ordinal(), randSource);
 
                 return;
             }
@@ -173,7 +170,7 @@ public class MLDSASignatureSpi extends SignatureSpi
         try
         {
             updateCalled = true;
-            NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len));
+            NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len);
         }
         finally
         {
@@ -189,9 +186,9 @@ public class MLDSASignatureSpi extends SignatureSpi
             byte[] sig = null;
             try
             {
-                long len = NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource));
+                long len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
                 sig = new byte[(int) len];
-                NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource));
+                NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
                 return sig;
             }
             finally
@@ -215,11 +212,11 @@ public class MLDSASignatureSpi extends SignatureSpi
             {
                 int code = NISelector.MLDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
 
-                if (code < ErrorCode.JO_FAIL.getCode())
-                {
-                    // Some other issue
-                    NISelector.MLDSAServiceNI.handleErrors(code);
-                }
+//                if (code < ErrorCode.JO_FAIL.getCode())
+//                {
+//                    // Some other issue
+//                    NISelector.MLDSAServiceNI.handleErrors(code);
+//                }
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
             }
@@ -315,7 +312,6 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         throw new UnsupportedOperationException();
     }
-
 
 
     protected static class Disposer
