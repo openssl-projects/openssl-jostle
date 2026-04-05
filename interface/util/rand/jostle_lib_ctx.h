@@ -9,9 +9,6 @@
 typedef struct jostle_lib_ctx {
     OSSL_LIB_CTX *ossl_libctx;
     EVP_RAND_CTX *rand_ctx;
-    uint64_t rc;
-    CRYPTO_RWLOCK *rc_lock;
-    int64_t up_call_id;
 } jostle_lib_ctx;
 
 //
@@ -46,12 +43,8 @@ OSSL_LIB_CTX *get_global_jostle_ossl_lib_ctx(void);
  * Set the source of entropy for this call.
  *
  * @param target the target to get entropy from
- * @return
  */
 void rand_set_java_srand_call(void *target);
 
-#ifdef JOSTLE_OPS
-static int last_rand_rc = 0;
-#endif
 
 #endif //RAND_PROV_H

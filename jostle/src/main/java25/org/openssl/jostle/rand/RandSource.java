@@ -14,8 +14,8 @@ import java.lang.foreign.MemorySegment;
 import java.security.SecureRandom;
 
 /**
- * Consistent layout for access VIA JNI.
- * If this interface is moved, the native code in rand_upcall_jni.c must be changed to reflect that.
+ * Consistent layout for access VIA FFI.
+ * This version adds an accessible method for upcalls via FFI.
  */
 public interface RandSource
 {
@@ -31,18 +31,21 @@ public interface RandSource
         var ms = memorySegment.reinterpret(len).asByteBuffer();
 
         int rc = this.getRandomBytes(buf, buf.length, strength, predictionResistant);
-        if (rc < 0)
+        if (rc != len)
         {
-            return rc;
+            return rc; // will trigger short size in native up call handler
         }
+
+
         ms.put(buf);
 
         while (ms.hasRemaining())
         {
-            rc = this.getRandomBytes(buf, Integer.min(buf.length, ms.remaining()), strength, predictionResistant);
-            if (rc < 0)
+            int fetchSize = Integer.min(buf.length, ms.remaining());
+            rc = this.getRandomBytes(buf, fetchSize, strength, predictionResistant);
+            if (rc != fetchSize)
             {
-                return rc;
+                return rc; // will trigger short size in native up call handler
             }
             ms.put(buf, 0, rc);
         }

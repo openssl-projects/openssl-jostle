@@ -182,10 +182,6 @@ static int32_t setup_bridge_prov_and_rand(jostle_lib_ctx *ctx, const char *name)
     jo_assert(jrandProv != NULL);
 
 
-    //
-    // Iterate a list of provider and load those.
-    //
-
     OSSL_PROVIDER *provider = OSSL_PROVIDER_load(libctx, name);
     if (provider == NULL) {
         return JO_OPENSSL_ERROR;
@@ -196,7 +192,7 @@ static int32_t setup_bridge_prov_and_rand(jostle_lib_ctx *ctx, const char *name)
     jo_assert(rand != NULL);
 
     ctx->rand_ctx = EVP_RAND_CTX_new(rand,NULL);
-    jo_assert(rand != NULL);
+    jo_assert(ctx->rand_ctx != NULL);
 
 
     jo_assert(1 == EVP_RAND_instantiate(ctx->rand_ctx, 0, 0, NULL, 0, NULL));
@@ -213,9 +209,6 @@ int32_t jostle_ctx_init_new(jostle_lib_ctx **ctx, const char *name) {
 
     jo_assert(new_ctx != NULL);
 
-    new_ctx->rc_lock = CRYPTO_THREAD_lock_new();
-    jo_assert(new_ctx->rc_lock != NULL);
-    new_ctx->rc = 0;
 
     int32_t ret_code = setup_bridge_prov_and_rand(new_ctx, name);
 

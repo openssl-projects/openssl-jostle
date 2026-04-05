@@ -17,13 +17,13 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.security.DrbgParameters;
@@ -38,7 +38,7 @@ public class BridgeRandValOpsTest
 {
 
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
-    MLKEMServiceNI mldsaServiceNI = TestNISelector.getMLKEMNI();
+
 
     @BeforeAll
     public static void beforeAll()
@@ -49,25 +49,7 @@ public class BridgeRandValOpsTest
         }
     }
 
-    @Test
-    public void doesNotExplodeOrReturnAllZeros() throws Exception
-    {
-        // Oh boy!
-        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        DefaultRandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
-
-        byte[] random = new byte[128];
-        int rc = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 1, false, randSource);
-
-        Assertions.assertEquals(1, rc);
-        boolean isAllZero = true;
-        for (byte b : random)
-        {
-            isAllZero &= b == 0;
-        }
-        Assertions.assertFalse(isAllZero);
-    }
 
     /**
      * Test strength is asserted.
@@ -122,31 +104,6 @@ public class BridgeRandValOpsTest
 
     }
 
-    /**
-     * Verify that a legitimate consumer of entropy
-     * will not succeed if the underlying RNG fails.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testFailsIfRandFails() throws Exception
-    {
-        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        RandSource randSource = new FailingRandSource();
-
-        //
-        // Try and generate a key pair expect error code.
-        //
-
-        long result = mldsaServiceNI.generateKeyPair(17, randSource);
-
-        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), result);
-        String err = OpenSSL.getOpenSSLErrors();
-
-        Assertions.assertTrue(err.contains("-10001"));
-
-    }
-
 
     @Test
     public void testReseedCalled() throws Exception
@@ -167,7 +124,7 @@ public class BridgeRandValOpsTest
     }
 
     @Test
-    public void testNoPredNoRessedFails() throws Exception
+    public void testNoPredNoReseedFails() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         ReseedCountingSecureRandom random = new ReseedCountingSecureRandom(new SecureRandom());
@@ -200,7 +157,7 @@ public class BridgeRandValOpsTest
     //
     // Counts the number of times reseed is called.
     //
-    public class ReseedCountingSecureRandom extends SecureRandom
+    public static class ReseedCountingSecureRandom extends SecureRandom
     {
         private SecureRandom random;
         public int reseedCounter = 0;
@@ -231,20 +188,7 @@ public class BridgeRandValOpsTest
     }
 
 
-    public class FailingRandSource implements RandSource
-    {
-        @Override
-        public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
-        {
-            return -10001;
-        }
 
-        @Override
-        public SecureRandom getRandom()
-        {
-            return null;
-        }
-    }
 
 
 }

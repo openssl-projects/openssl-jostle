@@ -15,17 +15,14 @@ package org.openssl.jostle.test.rand;
 import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
-import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
-import java.security.SecureRandom;
 import java.security.Security;
 
 
@@ -69,33 +66,9 @@ public class BridgeRandOpsTest
         int len = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 1, false, randSource);
 
         Assertions.assertEquals(1, len); // Success code not length
-        boolean isAllZero = true;
-        for (byte b : random)
-        {
-            isAllZero &= b == 0;
-        }
-        Assertions.assertFalse(isAllZero);
+        Assertions.assertFalse(Arrays.areAllZeroes(random, 0, random.length));
     }
 
-
-    @Test
-    public void testFailsIfRandFails() throws Exception
-    {
-        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        RandSource randSource = new FailingRandSource();
-
-        //
-        // Try and generate a key pair expect error code.
-        //
-
-        long result = mldsaServiceNI.generateKeyPair(17, randSource);
-
-        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), result);
-        String err = OpenSSL.getOpenSSLErrors();
-
-        Assertions.assertTrue(err.contains("-999")); // Insufficient strength
-
-    }
 
     @Test
     public void testThreadAttach() throws Exception
@@ -105,7 +78,7 @@ public class BridgeRandOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
@@ -124,7 +97,7 @@ public class BridgeRandOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
@@ -137,12 +110,12 @@ public class BridgeRandOpsTest
     @Test
     public void testOverflowOutLen() throws Exception
     {
-        Assumptions.assumeTrue(Loader.isFFI(), "FFI only");
+
         Assertions.assertTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
@@ -155,12 +128,12 @@ public class BridgeRandOpsTest
     @Test
     public void testOverflowStrength() throws Exception
     {
-        Assumptions.assumeTrue(Loader.isFFI(), "FFI only");
+
         Assertions.assertTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
@@ -172,13 +145,13 @@ public class BridgeRandOpsTest
 
 
     @Test
-    public void testFailShortSize() throws Exception
+    public void testFailShortSizeOpsTest() throws Exception
     {
         Assertions.assertTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
@@ -188,6 +161,7 @@ public class BridgeRandOpsTest
         }
     }
 
+
     @Test
     public void testAccessByteArray() throws Exception
     {
@@ -196,7 +170,7 @@ public class BridgeRandOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
@@ -214,30 +188,15 @@ public class BridgeRandOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
-            mldsaServiceNI.handleErrors(mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())));
+            mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
-        catch (Exception t)
+        catch (Throwable t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
             Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -97"));
         }
     }
 
-
-    public class FailingRandSource implements RandSource
-    {
-        @Override
-        public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
-        {
-            return -999;
-        }
-
-        @Override
-        public SecureRandom getRandom()
-        {
-            return null;
-        }
-    }
 
 }

@@ -61,6 +61,15 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         return rc;
     }
 
+    if (OPS_INT32_OVERFLOW_1 out_len > INT_MAX) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "out_len > INT_MAX: %d", JO_OPENSSL_ERROR);
+        return JO_OPENSSL_ERROR;
+    }
+
+    if (OPS_INT32_OVERFLOW_2 strength > INT_MAX) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "strength > INT_MAX: %d", JO_OPENSSL_ERROR);
+        return JO_OPENSSL_ERROR;
+    }
 
     //
     // OpenSSL might call this from non JVM thread.
@@ -84,9 +93,6 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
     const int pr = prediction_resistance == 0 ? JNI_FALSE : JNI_TRUE;
 
 
-
-    jo_assert(target_method != NULL);
-
     //
     // Request random data.
     //
@@ -98,8 +104,8 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         bytes,
         (jint) out_len,
         strength,
-        pr,
-        0);
+        pr);
+
 
     if (OPS_SHORT_SIZE_1 rc >= 0 && rc < (int) out_len) {
         rc = JO_RAND_UP_SHORT_RESULT;
