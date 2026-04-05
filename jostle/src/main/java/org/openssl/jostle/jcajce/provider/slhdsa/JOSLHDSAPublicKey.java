@@ -67,9 +67,9 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
         //
         // Raw bytes
         //
-        long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null));
+        long len = NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out));
+        NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out);
 
         return out;
     }

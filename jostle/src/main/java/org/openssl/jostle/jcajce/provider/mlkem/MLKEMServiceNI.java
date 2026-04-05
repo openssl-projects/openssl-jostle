@@ -10,13 +10,29 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
-import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
 
 import java.util.Objects;
 
 public interface MLKEMServiceNI extends DefaultServiceNI
 {
+
+
+    long ni_generateKeyPair(int type, int[] err, RandSource randSource);
+
+    long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource);
+
+    int ni_getPublicKey(long ref, byte[] output);
+
+    int ni_getPrivateKey(long ref, byte[] output);
+
+    int ni_getSeed(long ref, byte[] output);
+
+    int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
 
     /**
@@ -26,9 +42,21 @@ public interface MLKEMServiceNI extends DefaultServiceNI
      * @param randSource
      * @return 0 for success, or less than 0 for failure
      */
-    long generateKeyPair(int type, RandSource randSource);
+    default long generateKeyPair(int type, RandSource randSource)
+    {
+        int[] err = new int[1];
+        long ref = ni_generateKeyPair(type, err, randSource);
+        handleErrors(err[0]);
+        return ref;
+    }
 
-    long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
+    default long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource)
+    {
+        int[] err = new int[1];
+        long ref = ni_generateKeyPair(type, err, seed, seedLen, randSource);
+        handleErrors(err[0]);
+        return ref;
+    }
 
     /**
      * Get the public key encoded
@@ -37,7 +65,10 @@ public interface MLKEMServiceNI extends DefaultServiceNI
      * @param output the output array, use null to return length.
      * @return the length or an error code.
      */
-    int getPublicKey(long ref, byte[] output);
+    default int getPublicKey(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getPublicKey(ref, output));
+    }
 
     /**
      * Get the private key encoded.
@@ -46,7 +77,10 @@ public interface MLKEMServiceNI extends DefaultServiceNI
      * @param output the output array, use null to return length
      * @return the length or an error code.
      */
-    int getPrivateKey(long ref, byte[] output);
+    default int getPrivateKey(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getPrivateKey(ref, output));
+    }
 
     /**
      * Get the seed.
@@ -55,12 +89,21 @@ public interface MLKEMServiceNI extends DefaultServiceNI
      * @param output the output array, use null to get return length
      * @return the length or an error code
      */
-    int getSeed(long ref, byte[] output);
+    default int getSeed(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getSeed(ref, output));
+    }
 
 
-    int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    default int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_publicKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
 
-    int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    default int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_privateKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
 
 
     default long handleErrors(long code)

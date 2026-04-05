@@ -12,26 +12,18 @@ package org.openssl.jostle.util.asn1;
 
 public class Asn1NiJNI implements Asn1Ni
 {
-    @Override
-    public native void dispose(long reference);
+    public native void ni_dispose(long reference);
 
-    @Override
-    public native long allocate();
+    public native long ni_allocate(int[] err);
 
-    @Override
-    public native int encodePublicKey(long ref, long keyRef);
+    public native int ni_encodePublicKey(long ref, long keyRef);
 
-    @Override
-    public native int encodePrivateKey(long ref, long keyRef, String option);
+    public native int ni_encodePrivateKey(long ref, long keyRef, String option);
 
-    @Override
-    public native int getData(long ref, byte[] out);
+    public native int ni_getData(long ref, byte[] out);
 
-    @Override
-    public native long fromPrivateKeyInfo(byte[] data, int start, int len);
+    public native long ni_fromPrivateKeyInfo(byte[] data, int start, int len);
 
-    @Override
-    public native long fromPublicKeyInfo(byte[] data, int start, int len);
-
+    public native long ni_fromPublicKeyInfo(byte[] data, int start, int len);
 
 }

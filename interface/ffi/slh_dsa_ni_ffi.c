@@ -218,8 +218,8 @@ void SLH_DSA_disposeSigner(slh_dsa_ctx *ctx) {
 }
 
 
-slh_dsa_ctx *SLH_DSA_allocateSigner(void) {
-    return slh_dsa_ctx_create();
+slh_dsa_ctx *SLH_DSA_allocateSigner(int32_t *err) {
+    return slh_dsa_ctx_create(err);
 }
 
 int32_t SLH_DSA_initVerifier(slh_dsa_ctx *ctx,

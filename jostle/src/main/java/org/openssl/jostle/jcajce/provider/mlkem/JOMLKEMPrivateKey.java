@@ -62,9 +62,9 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
 
     public byte[] getSeed()
     {
-        long len = NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getSeed(spec.getReference(), null));
+        long len = NISelector.MLKEMServiceNI.getSeed(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getSeed(spec.getReference(), out));
+        NISelector.MLKEMServiceNI.getSeed(spec.getReference(), out);
 
         return out;
     }
@@ -80,9 +80,13 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
                 OSSLKeyType type = getType();
                 return new JOMLKEMPrivateKey(
                         new PKEYKeySpec(
-                                NISelector.MLKEMServiceNI.handleErrors(
-                                        NISelector.MLKEMServiceNI.generateKeyPair(type.getKsType(), seed, seed.length, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()))
-                                ), type), preferSeedOnly
+                                NISelector.MLKEMServiceNI.generateKeyPair(
+                                        type.getKsType(),
+                                        seed,
+                                        seed.length,
+                                        DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
+                                ), type),
+                        preferSeedOnly
                 );
             }
         }
@@ -95,9 +99,9 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
         //
         // Raw bytes
         //
-        long len = NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPrivateKey(spec.getReference(), null));
+        long len = NISelector.MLKEMServiceNI.getPrivateKey(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPrivateKey(spec.getReference(), out));
+        NISelector.MLKEMServiceNI.getPrivateKey(spec.getReference(), out);
 
         return out;
     }

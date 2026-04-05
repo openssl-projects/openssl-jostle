@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -53,7 +52,6 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
 
     private static final FunctionDescriptor entropyFd;
     private static final MethodType entropyMt;
-
 
 
     static
@@ -149,7 +147,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
 
 
     @Override
-    public long generateKeyPair(int type, RandSource randSource)
+    public long ni_generateKeyPair(int type, int[] err, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -168,14 +166,12 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
             }
 
+
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef,getEntropySegment);
+            MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef, getEntropySegment);
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-            if (retCode != ErrorCode.JO_SUCCESS.getCode())
-            {
-                return retCode;
-            }
+            err[0] = retCode;
             return segment.address();
         }
         catch (Throwable t)
@@ -187,7 +183,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource)
+    public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -207,7 +203,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
             }
-            if (seed != null) {
+            if (seed != null)
+            {
                 seedRef.asByteBuffer().put(seed);
             }
 
@@ -221,10 +218,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             );
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-            if (retCode != ErrorCode.JO_SUCCESS.getCode())
-            {
-                return retCode;
-            }
+            err[0] = retCode;
             return segment.address();
         }
         catch (Throwable t)
@@ -236,7 +230,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int getPublicKey(long ref, byte[] output)
+    public int ni_getPublicKey(long ref, byte[] output)
     {
         try
         {
@@ -255,7 +249,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int getPrivateKey(long ref, byte[] output)
+    public int ni_getPrivateKey(long ref, byte[] output)
     {
         try
         {
@@ -275,7 +269,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int getSeed(long ref, byte[] output)
+    public int ni_getSeed(long ref, byte[] output)
     {
         try
         {
@@ -294,7 +288,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -311,7 +305,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
     {
         try
         {

@@ -50,7 +50,8 @@ public class SpecFFI implements SpecNI
         allocateFunc = lookup.find("SpecNI_allocateKeySpec").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.ADDRESS // Return ptr
+                        ValueLayout.ADDRESS, // return prt
+                        ValueLayout.ADDRESS // err out
                 ));
 
         disposeFunc = lookup.find("SpecNI_disposeKeySpec").orElseThrow();
@@ -108,7 +109,7 @@ public class SpecFFI implements SpecNI
 
 
     @Override
-    public void dispose(long reference)
+    public void ni_dispose(long reference)
     {
         try
         {
@@ -125,11 +126,13 @@ public class SpecFFI implements SpecNI
     }
 
     @Override
-    public long allocate()
+    public long ni_allocate(int[] err)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact();
+            MemorySegment retCode = a.allocate(ValueLayout.JAVA_INT);
+            MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact(retCode);
+            handleErrors(retCode.get(ValueLayout.JAVA_INT,0));
             return addr.address();
         }
         catch (Throwable t)
@@ -145,7 +148,7 @@ public class SpecFFI implements SpecNI
 
 
     @Override
-    public String getName(long keyRef)
+    public String ni_getName(long keyRef)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -176,7 +179,7 @@ public class SpecFFI implements SpecNI
     }
 
     @Override
-    public int encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
+    public int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -219,7 +222,7 @@ public class SpecFFI implements SpecNI
     }
 
     @Override
-    public int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
+    public int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
     {
         try (Arena a = Arena.ofConfined())
         {

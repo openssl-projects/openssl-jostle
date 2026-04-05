@@ -15,18 +15,17 @@ import org.openssl.jostle.rand.RandSource;
 public class SpecJNI implements SpecNI
 {
     @Override
-    public native void dispose(long reference);
+    public native void ni_dispose(long reference);
 
     @Override
-    public native long allocate();
+    public native long ni_allocate(int[] err);
 
     @Override
-    public native String getName(long keyRef);
+    public native String ni_getName(long keyRef);
 
     @Override
-    public native int encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
+    public native int ni_encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     @Override
-    public native int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
-
+    public native int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
 }

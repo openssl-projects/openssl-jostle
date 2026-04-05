@@ -10,31 +10,52 @@
 
 package org.openssl.jostle.jcajce.spec;
 
-import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
 
 public interface SpecNI extends DefaultServiceNI
 {
-    /**
-     * Dispose of a OpenSSL PKEY
-     *
-     * @param reference the reference
-     */
-    void dispose(long reference);
 
-    /**
-     * Allocate a key spec
-     *
-     * @return reference to allocated key spec
-     */
-    long allocate();
+    void ni_dispose(long reference);
+
+    long ni_allocate(int[] err);
+
+    String ni_getName(long keyRef);
+
+    int ni_encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
+
+    int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
 
 
-    String getName(long keyRef);
+    default void dispose(long reference)
+    {
+        ni_dispose(reference);
+    }
 
-    int encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
+    default long allocate()
+    {
+        int[] err = new int[1];
+        long ref = ni_allocate(err);
+        handleErrors(err[0]);
+        return ref;
+    }
 
-    int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
+    default String getName(long keyRef)
+    {
+        return ni_getName(keyRef);
+    }
+
+    default int encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource)
+    {
+        return (int)handleErrors(ni_encap(keyRef, opt, secret, intOff, inLen, out, off, len, randSource));
+    }
+
+    default int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
+    {
+        return (int)handleErrors( ni_decap(keyRef, opt, input, inOff, inLen, out, off, len));
+    }
 
     default long handleErrors(long code)
     {
@@ -47,54 +68,6 @@ public interface SpecNI extends DefaultServiceNI
         {
             case JO_FAIL:
                 return code;
-//            case JO_OPENSSL_ERROR:
-//                throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
-//            case JO_INCORRECT_KEY_TYPE:
-//                throw new IllegalArgumentException("invalid key type");
-//            case JO_SPEC_HAS_NULL_KEY:
-//                throw new IllegalArgumentException("key spec is null");
-//            case JO_KEY_SPEC_HAS_NULL_KEY:
-//                throw new IllegalArgumentException("key spec has null key");
-//            case JO_FAILED_ACCESS_OUTPUT:
-//                throw new AccessException("unable to access output array");
-//            case JO_FAILED_ACCESS_INPUT:
-//                throw new AccessException("unable to access input array");
-//            case JO_OUTPUT_SIZE_INT_OVERFLOW:
-//                throw new OverflowException("output size overflow");
-//            case JO_OUTPUT_TOO_SMALL:
-//                throw new IllegalArgumentException("output too small");
-//            case JO_INPUT_IS_NULL:
-//                throw new IllegalArgumentException("input is null");
-//            case JO_INPUT_LEN_IS_NEGATIVE:
-//                throw new IllegalArgumentException("input len is negative");
-//            case JO_OUTPUT_LEN_IS_NEGATIVE:
-//                throw new IllegalArgumentException("output len is negative");
-//            case JO_INPUT_OFFSET_IS_NEGATIVE:
-//                throw new IllegalArgumentException("input offset is negative");
-//            case JO_INPUT_OUT_OF_RANGE:
-////                throw new IllegalArgumentException("input offset + length are out of range");
-//            case JO_UNKNOWN_KEY_LEN:
-//                throw new IllegalArgumentException("unknown key length");
-//            case JO_ENCODED_PUBLIC_KEY_LEN:
-//                throw new IllegalArgumentException("incorrect public key length");
-//            case JO_ENCODED_PRIVATE_KEY_LEN:
-//                throw new IllegalArgumentException("incorrect private key length");
-//            case JO_FAILED_ACCESS_CONTEXT:
-//                throw new AccessException("unable to access context array");
-//            case JO_CONTEXT_BYTES_NULL:
-//                throw new IllegalArgumentException("context array is null but length >=0");
-//            case JO_CONTEXT_LEN_PAST_END:
-//                throw new IllegalArgumentException("context length is past end of context");
-//            case JO_CONTEXT_BYTES_TOO_LONG:
-//                throw new IllegalArgumentException("context length is too long");
-//            case JO_NOT_INITIALIZED:
-//                throw new IllegalStateException("not initialized");
-//            case JO_INPUT_TOO_LONG_INT32:
-//                throw new IllegalArgumentException("input too long int32");
-//            case JO_OUTPUT_OFFSET_IS_NEGATIVE:
-//                throw new IllegalArgumentException("output offset is negative");
-//            case JO_OUTPUT_OUT_OF_RANGE:
-//                throw new IllegalArgumentException("output offset + length are out of range");
             case JO_FAILED_ACCESS_ENCAP_OPP:
                 throw new AccessException("unable to access operation string");
 

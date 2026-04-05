@@ -115,10 +115,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) extractSpec.getPrivateKey()).getSpec();
             byte[] wrappedKey = extractSpec.getEncapsulation();
-            long len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0));
+            long len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0);
 
             byte[] out = new byte[(int) len];
-            len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length));
+            len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length);
 
             if (len != out.length)
             {
@@ -133,9 +133,9 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMGenerateSpec generateSpec = (KEMGenerateSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) generateSpec.getPublicKey()).getSpec();
             byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
-            long len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource));
+            long len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
             byte[] wrappedKey = new byte[(int) len];
-            len = NISelector.SpecNI.handleErrors(NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource));
+            len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
 
             if (len != wrappedKey.length)
             {

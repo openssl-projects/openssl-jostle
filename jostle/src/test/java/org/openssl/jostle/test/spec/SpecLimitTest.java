@@ -14,7 +14,6 @@ package org.openssl.jostle.test.spec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -26,7 +25,6 @@ import java.security.Security;
 
 public class SpecLimitTest
 {
-
 
 
     SpecNI specNI = TestNISelector.getSpecNI();
@@ -46,8 +44,8 @@ public class SpecLimitTest
     {
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(0, null, new byte[0], 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(0, null, new byte[0], 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -63,8 +61,8 @@ public class SpecLimitTest
         try
         {
 
-            specNI.handleErrors(
-                    specNI.encap(req, null, new byte[0], 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(req, null, new byte[0], 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -83,8 +81,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[0], -1, 0, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[0], -1, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -103,8 +101,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[0], 0, -1, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[0], 0, -1, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -123,8 +121,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[10], 1, 10, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[10], 1, 10, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -144,8 +142,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[10], 0, 11, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[10], 0, 11, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -164,8 +162,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[10], 10, 1, new byte[0], 0, 0, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[10], 10, 1, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -187,8 +185,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[0], 0, 0, new byte[0], -1, 0, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[0], 0, 0, new byte[0], -1, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -208,8 +206,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[0], 0, 0, new byte[0], 0, -1, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[0], 0, 0, new byte[0], 0, -1, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -229,8 +227,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[10], 0, 10, new byte[10], 1, 10, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[10], 0, 10, new byte[10], 1, 10, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -250,8 +248,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[10], 0, 10, new byte[10], 0, 11, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[10], 0, 10, new byte[10], 0, 11, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -270,8 +268,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[10], 0, 10, new byte[10], 10, 1, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[10], 0, 10, new byte[10], 10, 1, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -291,8 +289,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.encap(spec, null, new byte[32], 0, 10, new byte[700], 0, 700, TestUtil.RNDSrc));
+
+            specNI.encap(spec, null, new byte[32], 0, 10, new byte[700], 0, 700, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -321,8 +319,8 @@ public class SpecLimitTest
     {
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(0, null, new byte[0], 0, 0, new byte[0], 0, 0));
+
+            specNI.decap(0, null, new byte[0], 0, 0, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -338,8 +336,8 @@ public class SpecLimitTest
         try
         {
 
-            specNI.handleErrors(
-                    specNI.decap(req, null, new byte[0], 0, 0, new byte[0], 0, 0));
+
+            specNI.decap(req, null, new byte[0], 0, 0, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -358,8 +356,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[0], -1, 0, new byte[0], 0, 0));
+
+            specNI.decap(spec, null, new byte[0], -1, 0, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -378,8 +376,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[0], 0, -1, new byte[0], 0, 0));
+
+            specNI.decap(spec, null, new byte[0], 0, -1, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -398,8 +396,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[10], 1, 10, new byte[0], 0, 0));
+
+            specNI.decap(spec, null, new byte[10], 1, 10, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -419,8 +417,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[10], 0, 11, new byte[0], 0, 0));
+
+            specNI.decap(spec, null, new byte[10], 0, 11, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -439,8 +437,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[10], 10, 1, new byte[0], 0, 0));
+
+            specNI.decap(spec, null, new byte[10], 10, 1, new byte[0], 0, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -462,8 +460,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], -1, 0));
+
+            specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], -1, 0);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -483,8 +481,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], 0, -1));
+
+            specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], 0, -1);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -504,8 +502,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 1, 10));
+
+            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 1, 10);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -525,8 +523,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 0, 11));
+
+            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 0, 11);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -545,8 +543,8 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 10, 1));
+
+            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 10, 1);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -578,8 +576,8 @@ public class SpecLimitTest
 
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[32], 0, 31));
+
+            specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[32], 0, 31);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -589,8 +587,8 @@ public class SpecLimitTest
 
         try
         {
-            specNI.handleErrors(
-                    specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[33], 1, 31));
+
+            specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[33], 1, 3);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)

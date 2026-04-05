@@ -22,7 +22,7 @@
  * Method:    dispose
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_dispose
+JNIEXPORT void JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1dispose
 (JNIEnv *env, jobject jo, jlong ref) {
     UNUSED(env);
     UNUSED(jo);
@@ -39,12 +39,14 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_dispose
  * Method:    allocate
  * Signature: ()J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_allocate
-(JNIEnv *env, jobject jo) {
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1allocate
+(JNIEnv *env, jobject jo, jintArray _err) {
     UNUSED(env);
     UNUSED(jo);
-    asn1_ctx *ctx = asn1_writer_allocate();
+    int32_t err = JO_FAIL;
+    asn1_ctx *ctx = asn1_writer_allocate(&err);
     jo_assert(ctx != NULL);
+    (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
     return (jlong) ctx;
 }
 
@@ -53,7 +55,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_allocate
  * Method:    encodePublicKey
  * Signature: (JJ)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePublicKey
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePublicKey
 (JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref) {
     UNUSED(env);
     UNUSED(jo);
@@ -89,7 +91,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePublicK
  * Method:    encodePrivateKey
  * Signature: (JJ)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_encodePrivateKey
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePrivateKey
 (JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref, jstring _option) {
     UNUSED(env);
     UNUSED(jo);
@@ -155,7 +157,7 @@ exit:
  * Method:    getData
  * Signature: (J[B)J
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_getData
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _output) {
     UNUSED(jo);
 
@@ -197,7 +199,7 @@ exit:
  * Method:    fromPrivateKeyInfo
  * Signature: ([BII)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_fromPrivateKeyInfo
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPrivateKeyInfo
 (JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(env);
     UNUSED(jo);
@@ -255,7 +257,7 @@ exit:
  * Method:    fromPublicKeyInfo
  * Signature: ([BII)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_fromPublicKeyInfo
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPublicKeyInfo
 (JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(env);
     UNUSED(jo);

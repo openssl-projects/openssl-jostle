@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -246,10 +245,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
 
     @Override
-    public long ni_generateKeyPair(int type, RandSource rndId)
+    public long ni_generateKeyPair(int type, int[] err, RandSource rndId)
     {
-
-
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment getEntropySegment;
@@ -268,11 +265,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef, getEntropySegment);
 
-            int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-            if (retCode != ErrorCode.JO_SUCCESS.getCode())
-            {
-                return retCode;
-            }
+            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
             return segment.address();
         }
         catch (Throwable t)
@@ -284,7 +277,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     }
 
     @Override
-    public long ni_generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource)
+    public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource rndSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -320,11 +313,8 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                     getEntropySegment
             );
 
-            int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-            if (retCode != ErrorCode.JO_SUCCESS.getCode())
-            {
-                return retCode;
-            }
+            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
+
             return segment.address();
         }
         catch (Throwable t)

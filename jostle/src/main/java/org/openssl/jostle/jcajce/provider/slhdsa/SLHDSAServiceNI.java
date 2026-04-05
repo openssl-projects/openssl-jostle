@@ -16,38 +16,108 @@ import org.openssl.jostle.rand.RandSource;
 
 public interface SLHDSAServiceNI extends DefaultServiceNI
 {
-    /**
-     * Generate a SLH-DSA Key pair
-     *
-     * @param type       the type
-     * @param randSource
-     * @return 0 for success, or less than 0 for failure
-     */
-    long generateKeyPair(int type, RandSource randSource);
 
-    long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
+    long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
-    int getPrivateKey(long reference, byte[] output);
+    long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource);
 
-    long getPublicKey(long reference, byte[] output);
+    int ni_getPrivateKey(long reference, byte[] output);
 
-    int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    int ni_getPublicKey(long reference, byte[] output);
 
-    int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
-    long allocateSigner();
+    int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
-    int initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
+    long ni_allocateSigner(int[] err);
 
-    int update(long ref, byte[] b, int off, int len);
+    int ni_initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
 
-    long sign(long ref, byte[] sig, int offset, RandSource randSource);
+    int ni_update(long ref, byte[] b, int off, int len);
 
-    int verify(long reference, byte[] sigBytes, int len);
+    long ni_sign(long ref, byte[] sig, int offset, RandSource randSource);
 
-    long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource);
+    int ni_verify(long reference, byte[] sigBytes, int len);
 
-    void disposeSigner(long reference);
+    int ni_initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource);
+
+    void ni_disposeSigner(long reference);
+
+
+    default long generateKeyPair(int type, RandSource randSource)
+    {
+        int[] err = new int[1];
+        long r = ni_generateKeyPair(type, err, randSource);
+        handleErrors(err[0]);
+        return r;
+    }
+
+    default long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource)
+    {
+        int[] err = new int[1];
+        long r = ni_generateKeyPair(type, err, seed, seedLen, randSource);
+        handleErrors(err[0]);
+        return r;
+    }
+
+    default int getPrivateKey(long reference, byte[] output)
+    {
+        return (int) handleErrors(ni_getPrivateKey(reference, output));
+    }
+
+
+    default int getPublicKey(long reference, byte[] output)
+    {
+        return (int) handleErrors(ni_getPublicKey(reference, output));
+    }
+
+    default int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_publicKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
+
+    default int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_privateKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
+
+    default long allocateSigner()
+    {
+        int[] err = new int[1];
+        long r = ni_allocateSigner(err);
+        handleErrors(err[0]);
+        return r;
+    }
+
+    default int initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic)
+    {
+        return (int) handleErrors(ni_initVerify(ref, keyRef, context, contextLen, messageEncoding, deterministic));
+    }
+
+    default int update(long ref, byte[] b, int off, int len)
+    {
+        return (int) handleErrors(ni_update(ref, b, off, len));
+    }
+
+    default long sign(long ref, byte[] sig, int offset, RandSource randSource)
+    {
+        return (long) handleErrors(ni_sign(ref, sig, offset, randSource));
+    }
+
+    default int verify(long reference, byte[] sigBytes, int len)
+    {
+        return (int) handleErrors(ni_verify(reference, sigBytes, len));
+    }
+
+    default int initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource)
+    {
+        return (int) handleErrors(ni_initSign(reference, keyRef, context, contextLen, messageEncoding, deterministic, randSource));
+    }
+
+    default void disposeSigner(long reference)
+    {
+        ni_disposeSigner(reference);
+    }
 
     default long handleErrors(long code)
     {

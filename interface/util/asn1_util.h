@@ -22,7 +22,7 @@ typedef struct asn1_ctx {
 } asn1_ctx;
 
 
-asn1_ctx *asn1_writer_allocate(void);
+asn1_ctx *asn1_writer_allocate(int32_t *err);
 
 void asn1_writer_free(asn1_ctx *ctx);
 

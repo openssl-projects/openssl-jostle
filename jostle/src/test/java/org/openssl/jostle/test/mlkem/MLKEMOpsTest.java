@@ -63,7 +63,7 @@ public class MLKEMOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc));
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -89,9 +89,7 @@ public class MLKEMOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.ordinal(), new byte[64], 64, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.ordinal(), new byte[64], 64, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -115,7 +113,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(keyRef, new byte[2048]));
+            mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -145,7 +143,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]));
+            mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -178,7 +176,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]));
+            mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
             Assertions.fail();
         }
         catch (OpenSSLException e)
@@ -204,19 +202,21 @@ public class MLKEMOpsTest
         long keyRef = 0;
         try
         {
+
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
-            long code = mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
-            Assertions.assertEquals(-1002, code);
+            mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
+            Assertions.fail();
 
         }
-        catch (OpenSSLException e)
+        catch (IllegalStateException ise)
         {
-            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+            Assertions.assertEquals("unexpected error code JO_UNKNOWN: -1002", ise.getMessage());
         }
+
         finally
         {
             operationsTestNI.resetFlags();
@@ -238,7 +238,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]));
+            mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
             Assertions.fail();
         }
         catch (OverflowException e)
@@ -270,7 +270,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(keyRef, new byte[2048]));
+            mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
             Assertions.fail();
         }
         catch (OpenSSLException e)
@@ -301,14 +301,13 @@ public class MLKEMOpsTest
             Assertions.assertTrue(keyRef > 0);
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-
-            long code = mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
-            Assertions.assertEquals(-1002, code);
+            mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
+            Assertions.fail();
 
         }
-        catch (OpenSSLException e)
+        catch (IllegalStateException ise)
         {
-            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+            Assertions.assertEquals("unexpected error code JO_UNKNOWN: -1002", ise.getMessage());
         }
         finally
         {
@@ -331,7 +330,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(keyRef, new byte[2048]));
+            mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
             Assertions.fail();
         }
         catch (OverflowException e)
@@ -358,7 +357,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getSeed(keyRef, new byte[2048]));
+            mlkemServiceNI.getSeed(keyRef, new byte[2048]);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -388,7 +387,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getSeed(keyRef, new byte[2048]));
+            mlkemServiceNI.getSeed(keyRef, new byte[2048]);
             Assertions.fail();
         }
         catch (OpenSSLException e)
@@ -416,7 +415,7 @@ public class MLKEMOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getSeed(keyRef, new byte[2048]));
+            mlkemServiceNI.getSeed(keyRef, new byte[2048]);
             Assertions.fail();
         }
         catch (OverflowException e)
@@ -444,7 +443,7 @@ public class MLKEMOpsTest
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024));
+            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -492,7 +491,7 @@ public class MLKEMOpsTest
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-                mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length));
+                mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length);
                 Assertions.fail();
             }
             catch (OpenSSLException e)
@@ -522,7 +521,7 @@ public class MLKEMOpsTest
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024));
+            mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024);
             Assertions.fail();
         }
         catch (AccessException e)

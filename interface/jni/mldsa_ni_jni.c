@@ -24,8 +24,8 @@
  * Signature: (I)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__ILorg_openssl_jostle_rand_RandSource_2
-(JNIEnv *env, jobject jo, jint type, jobject rnd_src) {
+Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__I_3ILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jintArray _err, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
 
@@ -36,9 +36,10 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
 
     if (ret_val != JO_SUCCESS) {
         free_key_spec(key_spec);
-        return ret_val;
+        key_spec = NULL;
     }
 
+    (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_val);
     return (jlong) key_spec;
 }
 
@@ -48,15 +49,17 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
  * Signature: (I[BI)J
  */
 JNIEXPORT jlong JNICALL
-Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__I_3BILorg_openssl_jostle_rand_RandSource_2
-(JNIEnv *env, jobject jo, jint type, jbyteArray _seed, jint seed_len, jobject rnd_src) {
+Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__I_3I_3BILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jintArray _err, jbyteArray _seed, jint seed_len, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
+
+    key_spec *key_spec = NULL;
 
     java_bytearray_ctx seed; // Non critical access
     init_bytearray_ctx(&seed);
 
-    int64_t ret_code = JO_FAIL;
+    int32_t ret_code = JO_FAIL;
 
     if (_seed == NULL) {
         ret_code = JO_SEED_IS_NULL;
@@ -75,24 +78,23 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
     }
 
     if ((size_t) seed_len > seed.size) {
-        // seed_len asserted non-negative by this point
         ret_code = JO_INVALID_SEED_LEN_OUT_OF_RANGE;
         goto exit;
     }
 
 
-    key_spec *key_spec = create_spec();
+    key_spec = create_spec();
     ret_code = mldsa_generate_key_pair(key_spec, type, seed.bytearray, seed_len, rnd_src);
 
     if (ret_code != JO_SUCCESS) {
         free_key_spec(key_spec);
-    } else {
-        ret_code = (jlong) key_spec;
+        key_spec = NULL;
     }
 
 exit:
+    (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_code);
     release_bytearray_ctx(&seed);
-    return ret_code;
+    return (jlong) key_spec;
 }
 
 

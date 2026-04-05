@@ -14,10 +14,10 @@ import org.openssl.jostle.rand.RandSource;
 
 public class MLDSAServiceJNI implements MLDSAServiceNI
 {
-    public native long ni_generateKeyPair(int type, RandSource rndId);
+    public native long ni_generateKeyPair(int type, int[] err, RandSource rndId);
 
     @Override
-    public native long ni_generateKeyPair(int type, byte[] seed, int seedLen, RandSource rndSource);
+    public native long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource rndSource);
 
     @Override
     public native int ni_getPublicKey(long ref, byte[] output);

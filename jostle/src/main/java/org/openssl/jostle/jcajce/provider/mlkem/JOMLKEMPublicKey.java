@@ -68,9 +68,9 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
         //
         // Raw bytes
         //
-        long len = NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), null));
+        long len = NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), out));
+        NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), out);
 
         return out;
     }

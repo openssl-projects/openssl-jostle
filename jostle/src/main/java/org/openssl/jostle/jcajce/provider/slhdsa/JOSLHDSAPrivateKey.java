@@ -54,9 +54,9 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
         //
         // Raw bytes
         //
-        long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPrivateKey(spec.getReference(), null));
+        long len = NISelector.SLHDSAServiceNI.getPrivateKey(spec.getReference(), null);
         byte[] out = new byte[(int) len];
-        NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.getPrivateKey(spec.getReference(), out));
+        NISelector.SLHDSAServiceNI.getPrivateKey(spec.getReference(), out);
 
         return out;
     }

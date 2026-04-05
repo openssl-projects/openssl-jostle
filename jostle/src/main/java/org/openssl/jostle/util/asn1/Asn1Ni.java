@@ -10,24 +10,65 @@
 
 package org.openssl.jostle.util.asn1;
 
-import org.openssl.jostle.jcajce.provider.*;
+import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 public interface Asn1Ni extends DefaultServiceNI
 {
 
-    void dispose(long reference);
+    void ni_dispose(long reference);
 
-    long allocate();
+    long ni_allocate(int[] err);
 
-    int encodePublicKey(long ref, long keyRef);
+    int ni_encodePublicKey(long ref, long keyRef);
 
-    int encodePrivateKey(long ref, long keyRef, String option);
+    int ni_encodePrivateKey(long ref, long keyRef, String option);
 
-    int getData(long ref, byte[] out);
+    int ni_getData(long ref, byte[] out);
 
-    long fromPrivateKeyInfo(byte[] data, int start, int len);
+    long ni_fromPrivateKeyInfo(byte[] data, int start, int len);
 
-    long fromPublicKeyInfo(byte[] data, int start, int len);
+    long ni_fromPublicKeyInfo(byte[] data, int start, int len);
+
+
+    default void dispose(long reference)
+    {
+        ni_dispose(reference);
+    }
+
+    default long allocate()
+    {
+        int[] err = new int[1];
+        long ref = ni_allocate(err);
+        handleErrors(ref);
+        return ref;
+    }
+
+    default int encodePublicKey(long ref, long keyRef)
+    {
+        return (int) handleErrors(ni_encodePublicKey(ref, keyRef));
+    }
+
+    default int encodePrivateKey(long ref, long keyRef, String option)
+    {
+        return (int) handleErrors(ni_encodePrivateKey(ref, keyRef, option));
+    }
+
+    default int getData(long ref, byte[] out)
+    {
+        return (int) handleErrors(ni_getData(ref, out));
+    }
+
+    default long fromPrivateKeyInfo(byte[] data, int start, int len)
+    {
+        return handleErrors(ni_fromPrivateKeyInfo(data, start, len));
+    }
+
+    default long fromPublicKeyInfo(byte[] data, int start, int len)
+    {
+        return handleErrors(ni_fromPublicKeyInfo(data, start, len));
+    }
 
     default long handleErrors(long code)
     {
@@ -39,36 +80,6 @@ public interface Asn1Ni extends DefaultServiceNI
         ErrorCode errorCode = ErrorCode.forCode(code);
         switch (errorCode)
         {
-//            case JO_OPENSSL_ERROR:
-//                throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
-//            case JO_KEY_IS_NULL:
-//                throw new IllegalArgumentException("key reference is null");
-//            case JO_KEY_SPEC_HAS_NULL_KEY:
-//                throw new IllegalArgumentException("key spec has null key");
-//            case JO_INVALID_KEY_LEN:
-//                throw new IllegalArgumentException("key length is invalid");
-//            case JO_UNEXPECTED_POINTER_CHANGE:
-//                throw new UnexpectedPointerChangeException("a returned pointer changed unexpectedly");
-//            case JO_UNEXPECTED_STATE:
-//                throw new IllegalStateException("unexpected state"); // Basically native layer is set up differently to expected
-//            case JO_SPEC_HAS_NULL_KEY:
-//                throw new NullPointerException("key spec is null");
-//            case JO_INPUT_IS_NULL:
-//                throw new IllegalArgumentException("input is null");
-//            case JO_INPUT_OFFSET_IS_NEGATIVE:
-//                throw new IllegalArgumentException("input offset is negative");
-//            case JO_INPUT_LEN_IS_NEGATIVE:
-//                throw new IllegalArgumentException("input length is negative");
-//            case JO_INPUT_OUT_OF_RANGE:
-//                throw new IllegalArgumentException("input out of range");
-//            case JO_OUTPUT_SIZE_INT_OVERFLOW:
-//                throw new OverflowException("output size int32 overflow");
-//            case JO_FAILED_ACCESS_OUTPUT:
-//                throw new AccessException("unable to access output array");
-//            case JO_OUTPUT_OUT_OF_RANGE:
-//                throw new AccessException("output is out of range");
-//            case JO_INPUT_TOO_LONG_INT32:
-//                throw new OverflowException("input size int32 overflow");
             case JO_INVALID_KEY_ENCODING_OPTION:
                 throw new IllegalArgumentException("invalid key encoding option");
             case JO_FAILED_ACCESS_ENCODING_OPTION:

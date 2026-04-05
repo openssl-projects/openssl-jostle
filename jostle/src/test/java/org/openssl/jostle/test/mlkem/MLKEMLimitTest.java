@@ -14,7 +14,6 @@ package org.openssl.jostle.test.mlkem;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -28,8 +27,10 @@ public class MLKEMLimitTest
 {
 
     @BeforeAll
-    public static void beforeAll() {
-        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null) {
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
             Security.addProvider(new JostleProvider());
         }
     }
@@ -46,9 +47,10 @@ public class MLKEMLimitTest
 
             try
             {
-                mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(type, TestUtil.RNDSrc));
+                mlkemServiceNI.generateKeyPair(type, TestUtil.RNDSrc);
                 Assertions.fail();
-            } catch (IllegalArgumentException e)
+            }
+            catch (IllegalArgumentException e)
             {
                 Assertions.assertEquals("invalid key type for ML-KEM", e.getMessage());
             }
@@ -62,15 +64,15 @@ public class MLKEMLimitTest
     {
 
 
-
-            try
-            {
-                mlkemServiceNI.handleErrors(mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), null));
-                Assertions.fail();
-            } catch (IllegalArgumentException e)
-            {
-                Assertions.assertEquals("supplied random source was null", e.getMessage());
-            }
+        try
+        {
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
 
 
     }
@@ -83,13 +85,14 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, null)
-            );
+
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, null);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("supplied random source was null",e.getMessage());
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
         }
     }
 
@@ -102,11 +105,10 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed is null", e.getMessage());
         }
@@ -120,11 +122,10 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_1024.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_1024.getKsType(), seed, seedLen, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed len is negative", e.getMessage());
         }
@@ -138,11 +139,10 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed length is out of range", e.getMessage());
         }
@@ -157,11 +157,10 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid seed length", e.getMessage());
         }
@@ -176,11 +175,10 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), seed, seedLen, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed is null", e.getMessage());
         }
@@ -195,11 +193,10 @@ public class MLKEMLimitTest
 
         try
         {
-            mlkemServiceNI.handleErrors(
-                    mlkemServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc)
-            );
+            mlkemServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid key type for ML-KEM", e.getMessage());
         }
@@ -213,12 +210,14 @@ public class MLKEMLimitTest
         long ref = 0;
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(0, new byte[0]));
+            mlkemServiceNI.getPublicKey(0, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -231,12 +230,14 @@ public class MLKEMLimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(ref, new byte[0]));
+            mlkemServiceNI.getPublicKey(ref, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -249,12 +250,14 @@ public class MLKEMLimitTest
         long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPublicKey(ref, new byte[10]));
+            mlkemServiceNI.getPublicKey(ref, new byte[10]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -267,12 +270,14 @@ public class MLKEMLimitTest
         long ref = 0;
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(0, new byte[0]));
+            mlkemServiceNI.getPrivateKey(0, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -285,12 +290,14 @@ public class MLKEMLimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(ref, new byte[0]));
+            mlkemServiceNI.getPrivateKey(ref, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -302,12 +309,14 @@ public class MLKEMLimitTest
         long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(ref, new byte[10]));
+            mlkemServiceNI.getPrivateKey(ref, new byte[10]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -320,12 +329,14 @@ public class MLKEMLimitTest
         long ref = 0;
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(0, new byte[0]));
+            mlkemServiceNI.getPrivateKey(0, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -338,12 +349,14 @@ public class MLKEMLimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(ref, new byte[0]));
+            mlkemServiceNI.getPrivateKey(ref, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -355,12 +368,14 @@ public class MLKEMLimitTest
         long ref = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.getPrivateKey(ref, new byte[10]));
+            mlkemServiceNI.getPrivateKey(ref, new byte[10]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -374,12 +389,14 @@ public class MLKEMLimitTest
         long keyRef = 0;
         try
         {
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024));
+            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
         }
     }
@@ -394,12 +411,14 @@ public class MLKEMLimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_768.getKsType(), null, 0, 0));
+           mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_768.getKsType(), null, 0, 0);
             Assertions.fail();
-        } catch (NullPointerException e)
+        }
+        catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -415,12 +434,14 @@ public class MLKEMLimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[0], -1, 0));
+            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[0], -1, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -436,12 +457,14 @@ public class MLKEMLimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[0], 0, -1));
+           mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[0], 0, -1);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input len is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -458,12 +481,14 @@ public class MLKEMLimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[10], 1, 10));
+            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[10], 1, 10);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -481,17 +506,18 @@ public class MLKEMLimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            mlkemServiceNI.handleErrors(mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[10], 0, 11));
+            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[10], 0, 11);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
     }
-
 
 
 }

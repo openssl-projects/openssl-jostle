@@ -67,7 +67,7 @@ public class Asn1LimitTest
 
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, 0, PrivateKeyOptions.DEFAULT.getValue()));
+            TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, 0, PrivateKeyOptions.DEFAULT.getValue());
 
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
@@ -86,7 +86,7 @@ public class Asn1LimitTest
         long specRef = TestNISelector.SpecNI.allocate();
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePublicKey(asn1Ref, specRef));
+            TestNISelector.Asn1NI.encodePublicKey(asn1Ref, specRef);
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
@@ -105,7 +105,7 @@ public class Asn1LimitTest
         long specRef = TestNISelector.SpecNI.allocate();
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePublicKey(asn1Ref, specRef));
+            TestNISelector.Asn1NI.encodePublicKey(asn1Ref, specRef);
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
@@ -133,9 +133,9 @@ public class Asn1LimitTest
         {
             try
             { // Too long by one
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePublicKey(asn1Ref, publicKey.getSpec().getReference()));
+                long len = TestNISelector.Asn1NI.encodePublicKey(asn1Ref, publicKey.getSpec().getReference());
                 byte[] out = new byte[(int) (len + 1)];
-                TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+                TestNISelector.Asn1NI.getData(asn1Ref, out);
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
@@ -144,9 +144,9 @@ public class Asn1LimitTest
 
             try
             { // Too small by one
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePublicKey(asn1Ref, publicKey.getSpec().getReference()));
+                long len = TestNISelector.Asn1NI.encodePublicKey(asn1Ref, publicKey.getSpec().getReference());
                 byte[] out = new byte[(int) (len - 1)];
-                TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+                TestNISelector.Asn1NI.getData(asn1Ref, out);
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
@@ -168,7 +168,7 @@ public class Asn1LimitTest
         long specRef = TestNISelector.SpecNI.allocate();
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef, PrivateKeyOptions.DEFAULT.getValue()));
+            TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef, PrivateKeyOptions.DEFAULT.getValue());
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
@@ -187,7 +187,7 @@ public class Asn1LimitTest
         long specRef = TestNISelector.SpecNI.allocate();
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef, PrivateKeyOptions.DEFAULT.getValue()));
+            TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, specRef, PrivateKeyOptions.DEFAULT.getValue());
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
@@ -216,9 +216,9 @@ public class Asn1LimitTest
         {
             try
             { // Too long by one
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue()));
+                long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
                 byte[] out = new byte[(int) (len + 1)];
-                TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+                TestNISelector.Asn1NI.getData(asn1Ref, out);
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
@@ -227,9 +227,9 @@ public class Asn1LimitTest
 
             try
             { // Too small by one
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue()));
+                long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
                 byte[] out = new byte[(int) (len - 1)];
-                TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+                TestNISelector.Asn1NI.getData(asn1Ref, out);
                 Assertions.fail("Should have thrown exception");
             } catch (Exception e)
             {
@@ -258,9 +258,9 @@ public class Asn1LimitTest
         {
             try
             {
-                long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), "unknown"));
+                long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), "unknown");
                 byte[] out = new byte[(int) len];
-                TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+                TestNISelector.Asn1NI.getData(asn1Ref, out);
                 Assertions.fail("Should have thrown exception");
             } catch (IllegalArgumentException e)
             {
@@ -279,7 +279,7 @@ public class Asn1LimitTest
     {
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(null, 0, 0));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(null, 0, 0);
             Assertions.fail();
         } catch (NullPointerException ex)
         {
@@ -292,7 +292,7 @@ public class Asn1LimitTest
     {
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[0], -1, 0));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[0], -1, 0);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -305,7 +305,7 @@ public class Asn1LimitTest
     {
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[0], 0, -1));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[0], 0, -1);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -319,7 +319,7 @@ public class Asn1LimitTest
         try
         {
             // Offset causes overflow
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[16], 1, 16));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[16], 1, 16);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -329,7 +329,7 @@ public class Asn1LimitTest
         try
         {
             // too long
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[16], 0, 17));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(new byte[16], 0, 17);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -344,10 +344,10 @@ public class Asn1LimitTest
         }
 
         // OK
-        TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length));
+        TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length);
         byte[] offset = new byte[validKey.length + 1];
         System.arraycopy(validKey, 0, offset, 1, validKey.length);
-        TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(offset, 1, validKey.length));
+        TestNISelector.Asn1NI.fromPrivateKeyInfo(offset, 1, validKey.length);
     }
 
     @Test
@@ -364,7 +364,7 @@ public class Asn1LimitTest
 
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length);
             Assertions.fail();
         } catch (OpenSSLException ex)
         {
@@ -390,7 +390,7 @@ public class Asn1LimitTest
 
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length - 10));
+            TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length - 10);
             Assertions.fail();
         } catch (OpenSSLException ex)
         {
@@ -405,7 +405,7 @@ public class Asn1LimitTest
     {
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(null, 0, 0));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(null, 0, 0);
             Assertions.fail();
         } catch (NullPointerException ex)
         {
@@ -418,7 +418,7 @@ public class Asn1LimitTest
     {
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[0], -1, 0));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[0], -1, 0);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -431,7 +431,7 @@ public class Asn1LimitTest
     {
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[0], 0, -1));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[0], 0, -1);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -445,7 +445,7 @@ public class Asn1LimitTest
         try
         {
             // Offset causes overflow
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[16], 1, 16));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[16], 1, 16);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -455,7 +455,7 @@ public class Asn1LimitTest
         try
         {
             // too long
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[16], 0, 17));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(new byte[16], 0, 17);
             Assertions.fail();
         } catch (IllegalArgumentException ex)
         {
@@ -470,10 +470,10 @@ public class Asn1LimitTest
         }
 
         // OK
-        TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length));
+        TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length);
         byte[] offset = new byte[validKey.length + 1];
         System.arraycopy(validKey, 0, offset, 1, validKey.length);
-        TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(offset, 1, validKey.length));
+        TestNISelector.Asn1NI.fromPublicKeyInfo(offset, 1, validKey.length);
     }
 
 
@@ -491,7 +491,7 @@ public class Asn1LimitTest
 
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length);
             Assertions.fail();
         } catch (OpenSSLException ex)
         {
@@ -516,7 +516,7 @@ public class Asn1LimitTest
 
         try
         {
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length - 10));
+            TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length - 10);
             Assertions.fail();
         } catch (OpenSSLException ex)
         {

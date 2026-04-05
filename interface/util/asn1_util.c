@@ -19,11 +19,12 @@
 #include "ops.h"
 #include "jo_assert.h"
 
-asn1_ctx *asn1_writer_allocate(void) {
+asn1_ctx *asn1_writer_allocate(int32_t *err) {
     asn1_ctx *ctx = OPENSSL_zalloc(sizeof(asn1_ctx));
     jo_assert(ctx != NULL);
     ctx->buffer = BIO_new(BIO_s_mem());
     jo_assert(ctx->buffer != NULL);
+    *err = JO_SUCCESS;
     return ctx;
 }
 

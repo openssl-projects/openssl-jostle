@@ -92,8 +92,8 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = ((MLKEMPublicKeySpec) keySpec).getPublicData();
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
-                NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length));
+                NISelector.MLKEMServiceNI.decode_publicKey(
+                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
                 return new JOMLKEMPublicKey(pkeySpec);
             }
         }
@@ -149,9 +149,9 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                     encoded = spec.getPrivateData();
                 }
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.decode_privateKey(
+                NISelector.MLKEMServiceNI.decode_privateKey(
                         pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length));
+                        encoded, 0, encoded.length);
                 return new JOMLKEMPrivateKey(pkeySpec, spec.isSeed());
             }
         }

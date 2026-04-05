@@ -57,7 +57,7 @@ typedef struct slh_dsa_ctx {
 
 
 
-slh_dsa_ctx *slh_dsa_ctx_create(void);
+slh_dsa_ctx *slh_dsa_ctx_create(int32_t *err);
 
 void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx);
 

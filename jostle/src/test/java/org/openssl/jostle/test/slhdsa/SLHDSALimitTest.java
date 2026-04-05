@@ -14,7 +14,6 @@ package org.openssl.jostle.test.slhdsa;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
@@ -49,9 +48,10 @@ public class SLHDSALimitTest
         {
             try
             {
-                slhdsaServiceNI.handleErrors(slhdsaServiceNI.generateKeyPair(type, TestUtil.RNDSrc));
+                slhdsaServiceNI.generateKeyPair(type, TestUtil.RNDSrc);
                 Assertions.fail();
-            } catch (IllegalArgumentException e)
+            }
+            catch (IllegalArgumentException e)
             {
                 Assertions.assertEquals("invalid key type for SLH-DSA", e.getMessage());
             }
@@ -68,11 +68,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen, null)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen, null);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("supplied random source was null", e.getMessage());
         }
@@ -86,11 +87,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192s.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed is null", e.getMessage());
         }
@@ -104,11 +106,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed len is negative", e.getMessage());
         }
@@ -122,11 +125,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed length is out of range", e.getMessage());
         }
@@ -140,11 +144,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid seed length", e.getMessage());
         }
@@ -159,11 +164,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_192f.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid seed length", e.getMessage());
         }
@@ -177,11 +183,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid seed length", e.getMessage());
         }
@@ -197,11 +204,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("seed is null", e.getMessage());
         }
@@ -215,11 +223,12 @@ public class SLHDSALimitTest
 
         try
         {
-            slhdsaServiceNI.handleErrors(
-                    slhdsaServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc)
-            );
+
+            slhdsaServiceNI.generateKeyPair(Integer.MAX_VALUE, seed, seedLen, TestUtil.RNDSrc);
+
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid key type for SLH-DSA", e.getMessage());
         }
@@ -248,15 +257,24 @@ public class SLHDSALimitTest
             if (keyType.name().contains("128"))
             {
                 base = 16;
-            } else if (keyType.name().contains("192"))
+            }
+            else
             {
-                base = 24;
-            } else if (keyType.name().contains("256"))
-            {
-                base = 32;
-            } else
-            {
-                Assertions.fail();
+                if (keyType.name().contains("192"))
+                {
+                    base = 24;
+                }
+                else
+                {
+                    if (keyType.name().contains("256"))
+                    {
+                        base = 32;
+                    }
+                    else
+                    {
+                        Assertions.fail();
+                    }
+                }
             }
 
             byte[] seed = new byte[base * 3];
@@ -264,11 +282,12 @@ public class SLHDSALimitTest
 
             try
             {
-                slhdsaServiceNI.handleErrors(
-                        slhdsaServiceNI.generateKeyPair(keyType.ordinal(), seed, seedLen, TestUtil.RNDSrc)
-                );
+               
+               slhdsaServiceNI.generateKeyPair(keyType.ordinal(), seed, seedLen, TestUtil.RNDSrc);
+               
                 Assertions.fail();
-            } catch (IllegalArgumentException e)
+            }
+            catch (IllegalArgumentException e)
             {
                 Assertions.assertEquals("invalid seed length", e.getMessage());
             }
@@ -283,12 +302,14 @@ public class SLHDSALimitTest
         long ref = 0;
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPublicKey(0, new byte[0]));
+            slhdsaServiceNI.getPublicKey(0, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -301,12 +322,14 @@ public class SLHDSALimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPublicKey(ref, new byte[0]));
+            slhdsaServiceNI.getPublicKey(ref, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -319,12 +342,14 @@ public class SLHDSALimitTest
         long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_256f.getKsType(), TestUtil.RNDSrc);
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPublicKey(ref, new byte[10]));
+            slhdsaServiceNI.getPublicKey(ref, new byte[10]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -337,12 +362,14 @@ public class SLHDSALimitTest
         long ref = 0;
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(0, new byte[0]));
+            slhdsaServiceNI.getPrivateKey(0, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -355,12 +382,14 @@ public class SLHDSALimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(ref, new byte[0]));
+            slhdsaServiceNI.getPrivateKey(ref, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -373,12 +402,14 @@ public class SLHDSALimitTest
         long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(ref, new byte[10]));
+            slhdsaServiceNI.getPrivateKey(ref, new byte[10]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -391,12 +422,14 @@ public class SLHDSALimitTest
         long ref = 0;
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(0, new byte[0]));
+            slhdsaServiceNI.getPrivateKey(0, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -409,12 +442,14 @@ public class SLHDSALimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(ref, new byte[0]));
+            slhdsaServiceNI.getPrivateKey(ref, new byte[0]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -426,12 +461,14 @@ public class SLHDSALimitTest
         long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.getPrivateKey(ref, new byte[10]));
+            slhdsaServiceNI.getPrivateKey(ref, new byte[10]);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(ref);
         }
@@ -445,12 +482,14 @@ public class SLHDSALimitTest
         long keyRef = 0;
         try
         {
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[1024], 0, 1024));
+            slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[1024], 0, 1024);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
         }
     }
@@ -465,12 +504,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null, 0, 0));
+            slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null, 0, 0);
             Assertions.fail();
-        } catch (NullPointerException e)
+        }
+        catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -486,12 +527,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], -1, 0));
+            slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], -1, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -507,12 +550,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], 0, -1));
+            slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], 0, -1);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input len is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -529,12 +574,14 @@ public class SLHDSALimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 1, 10));
+            slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 1, 10);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -552,12 +599,14 @@ public class SLHDSALimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 0, 11));
+           slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 0, 11);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -574,12 +623,14 @@ public class SLHDSALimitTest
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.NONE.getKsType(), new byte[len], 0, len));
+                slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.NONE.getKsType(), new byte[len], 0, len);
                 Assertions.fail();
-            } catch (IllegalArgumentException e)
+            }
+            catch (IllegalArgumentException e)
             {
                 Assertions.assertEquals("unknown key length", e.getMessage());
-            } finally
+            }
+            finally
             {
                 specNI.dispose(keyRef);
             }
@@ -594,12 +645,14 @@ public class SLHDSALimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, 99, new byte[10], 0, 10));
+            slhdsaServiceNI.decode_publicKey(keyRef, 99, new byte[10], 0, 10);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid key type for SLH-DSA", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -630,15 +683,24 @@ public class SLHDSALimitTest
             if (keyType.name().contains("128"))
             {
                 base = 16;
-            } else if (keyType.name().contains("192"))
+            }
+            else
             {
-                base = 24;
-            } else if (keyType.name().contains("256"))
-            {
-                base = 32;
-            } else
-            {
-                Assertions.fail();
+                if (keyType.name().contains("192"))
+                {
+                    base = 24;
+                }
+                else
+                {
+                    if (keyType.name().contains("256"))
+                    {
+                        base = 32;
+                    }
+                    else
+                    {
+                        Assertions.fail();
+                    }
+                }
             }
 
 
@@ -649,12 +711,14 @@ public class SLHDSALimitTest
                 {
                     keyRef = TestNISelector.getSpecNI().allocate();
                     Assertions.assertTrue(keyRef > 0);
-                    slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, keyType.ordinal(), key, 0, key.length));
+                    slhdsaServiceNI.decode_publicKey(keyRef, keyType.ordinal(), key, 0, key.length);
                     Assertions.fail();
-                } catch (IllegalArgumentException e)
+                }
+                catch (IllegalArgumentException e)
                 {
                     Assertions.assertEquals("incorrect public key length", e.getMessage());
-                } finally
+                }
+                finally
                 {
                     specNI.dispose(keyRef);
                 }
@@ -668,8 +732,9 @@ public class SLHDSALimitTest
                 {
                     keyRef = TestNISelector.getSpecNI().allocate();
                     Assertions.assertTrue(keyRef > 0);
-                    slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, keyType.ordinal(), key, 0, key.length));
-                } finally
+                    slhdsaServiceNI.decode_publicKey(keyRef, keyType.ordinal(), key, 0, key.length);
+                }
+                finally
                 {
                     specNI.dispose(keyRef);
                 }
@@ -683,12 +748,14 @@ public class SLHDSALimitTest
                 {
                     keyRef = TestNISelector.getSpecNI().allocate();
                     Assertions.assertTrue(keyRef > 0);
-                    slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_publicKey(keyRef, keyType.ordinal(), key, 0, key.length));
+                    slhdsaServiceNI.decode_publicKey(keyRef, keyType.ordinal(), key, 0, key.length);
                     Assertions.fail();
-                } catch (IllegalArgumentException e)
+                }
+                catch (IllegalArgumentException e)
                 {
                     Assertions.assertEquals("incorrect public key length", e.getMessage());
-                } finally
+                }
+                finally
                 {
                     specNI.dispose(keyRef);
                 }
@@ -711,12 +778,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null, 0, 0));
+           slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null, 0, 0);
             Assertions.fail();
-        } catch (NullPointerException e)
+        }
+        catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -732,12 +801,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], -1, 0));
+            slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], -1, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -753,12 +824,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], 0, -1));
+            slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[0], 0, -1);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input len is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -775,12 +848,14 @@ public class SLHDSALimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 1, 10));
+            slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 1, 10);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -798,12 +873,14 @@ public class SLHDSALimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 0, 11));
+            slhdsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[10], 0, 11);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -834,15 +911,24 @@ public class SLHDSALimitTest
             if (keyType.name().contains("128"))
             {
                 base = 16;
-            } else if (keyType.name().contains("192"))
+            }
+            else
             {
-                base = 24;
-            } else if (keyType.name().contains("256"))
-            {
-                base = 32;
-            } else
-            {
-                Assertions.fail();
+                if (keyType.name().contains("192"))
+                {
+                    base = 24;
+                }
+                else
+                {
+                    if (keyType.name().contains("256"))
+                    {
+                        base = 32;
+                    }
+                    else
+                    {
+                        Assertions.fail();
+                    }
+                }
             }
 
 
@@ -853,12 +939,14 @@ public class SLHDSALimitTest
                 {
                     keyRef = TestNISelector.getSpecNI().allocate();
                     Assertions.assertTrue(keyRef > 0);
-                    slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, keyType.ordinal(), key, 0, key.length));
+                    slhdsaServiceNI.decode_privateKey(keyRef, keyType.ordinal(), key, 0, key.length);
                     Assertions.fail();
-                } catch (IllegalArgumentException e)
+                }
+                catch (IllegalArgumentException e)
                 {
                     Assertions.assertEquals("incorrect private key length", e.getMessage());
-                } finally
+                }
+                finally
                 {
                     specNI.dispose(keyRef);
                 }
@@ -872,8 +960,9 @@ public class SLHDSALimitTest
                 {
                     keyRef = TestNISelector.getSpecNI().allocate();
                     Assertions.assertTrue(keyRef > 0);
-                    slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, keyType.ordinal(), key, 0, key.length));
-                } finally
+                    slhdsaServiceNI.decode_privateKey(keyRef, keyType.ordinal(), key, 0, key.length);
+                }
+                finally
                 {
                     specNI.dispose(keyRef);
                 }
@@ -887,12 +976,14 @@ public class SLHDSALimitTest
                 {
                     keyRef = TestNISelector.getSpecNI().allocate();
                     Assertions.assertTrue(keyRef > 0);
-                    slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, keyType.ordinal(), key, 0, key.length));
+                    slhdsaServiceNI.decode_privateKey(keyRef, keyType.ordinal(), key, 0, key.length);
                     Assertions.fail();
-                } catch (IllegalArgumentException e)
+                }
+                catch (IllegalArgumentException e)
                 {
                     Assertions.assertEquals("incorrect private key length", e.getMessage());
-                } finally
+                }
+                finally
                 {
                     specNI.dispose(keyRef);
                 }
@@ -909,12 +1000,14 @@ public class SLHDSALimitTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.decode_privateKey(keyRef, 99, new byte[10], 0, 10));
+           slhdsaServiceNI.decode_privateKey(keyRef, 99, new byte[10], 0, 10);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid key type for SLH-DSA", e.getMessage());
-        } finally
+        }
+        finally
         {
             specNI.dispose(keyRef);
         }
@@ -935,12 +1028,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, null, 0, 0, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, null, 0, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context array is null but length >=0", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -966,12 +1061,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 1, 0, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 1, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context length is past end of context", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -993,12 +1090,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 2, 0, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 2, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context length is past end of context", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1020,12 +1119,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[256], 256, 0, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[256], 256, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context length is too long", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1042,12 +1143,14 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1067,12 +1170,14 @@ public class SLHDSALimitTest
             keyRef = specNI.allocate();
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 0));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1091,12 +1196,14 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 3, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 3, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid message encoding param", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1115,22 +1222,19 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 3));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[1], 1, 0, 3);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid deterministic param", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
         }
     }
-
-
-
-
-
 
 
     // init Signer
@@ -1148,12 +1252,14 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            TestNISelector.getSLHDSANI().handleErrors( TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null));
+            TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), null);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("supplied random source was null", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             if (keyRef != 0)
@@ -1175,15 +1281,17 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            keyRef = TestNISelector.getSLHDSANI().handleErrors( TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc));
+            keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0, null));
+            slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0, null);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("supplied random source was null", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             if (keyRef != 0)
@@ -1192,7 +1300,6 @@ public class SLHDSALimitTest
             }
         }
     }
-
 
 
     @Test()
@@ -1208,12 +1315,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, null, 0, 0, 0));
+            slhdsaServiceNI.initVerify(slhdsaRef, keyRef, null, 0, 0, 0);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context array is null but length >=0", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1238,12 +1347,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 1, 0, 0, TestUtil.RNDSrc));
+            slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 1, 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context length is past end of context", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1265,12 +1376,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 2, 0, 0, TestUtil.RNDSrc));
+            slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 2, 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context length is past end of context", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1292,12 +1405,14 @@ public class SLHDSALimitTest
             keyRef = TestNISelector.getSLHDSANI().generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0, TestUtil.RNDSrc));
+            slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[256], 256, 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("context length is too long", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1315,12 +1430,14 @@ public class SLHDSALimitTest
         {
             slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
             Assertions.assertTrue(slhdsaRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1340,12 +1457,14 @@ public class SLHDSALimitTest
             keyRef = specNI.allocate();
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("key spec has null key", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1365,12 +1484,14 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3, 0, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid message encoding param", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1390,12 +1511,14 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 3, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 0, 3, TestUtil.RNDSrc);
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("invalid deterministic param", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1415,15 +1538,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            //  slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3));
+            // slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[1], 1, 3));
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[0], 0, 0));
+           slhdsaServiceNI.update(slhdsaRef, new byte[0], 0, 0);
 
             Assertions.fail();
-        } catch (IllegalStateException e)
+        }
+        catch (IllegalStateException e)
         {
             Assertions.assertEquals("not initialized", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1443,15 +1568,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, null, 0, 0));
+           slhdsaServiceNI.update(slhdsaRef, null, 0, 0);
 
             Assertions.fail();
-        } catch (NullPointerException e)
+        }
+        catch (NullPointerException e)
         {
             Assertions.assertEquals("input is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1471,15 +1598,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[0], -1, 0));
+           slhdsaServiceNI.update(slhdsaRef, new byte[0], -1, 0);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1498,15 +1627,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[0], 0, -1));
+           slhdsaServiceNI.update(slhdsaRef, new byte[0], 0, -1);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input len is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1531,15 +1662,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[10], 0, 11));
+           slhdsaServiceNI.update(slhdsaRef, new byte[10], 0, 11);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1564,15 +1697,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.update(slhdsaRef, new byte[10], 1, 10));
+           slhdsaServiceNI.update(slhdsaRef, new byte[10], 1, 10);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("input offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1595,15 +1730,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], -1, TestUtil.RNDSrc));
+           slhdsaServiceNI.sign(slhdsaRef, new byte[0], -1, TestUtil.RNDSrc);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output offset is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1623,15 +1760,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 1, TestUtil.RNDSrc));
+           slhdsaServiceNI.sign(slhdsaRef, new byte[0], 1, TestUtil.RNDSrc);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output offset + length is out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1651,15 +1790,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            // slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0));
+            //slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0));
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0, TestUtil.RNDSrc);
 
             Assertions.fail();
-        } catch (IllegalStateException e)
+        }
+        catch (IllegalStateException e)
         {
             Assertions.assertEquals("not initialized", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1680,15 +1821,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, 0, 0));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, 0, 0);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.sign(slhdsaRef, new byte[0], 0, TestUtil.RNDSrc);
 
             Assertions.fail();
-        } catch (IllegalStateException e)
+        }
+        catch (IllegalStateException e)
         {
             Assertions.assertEquals("unexpected state", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1713,19 +1856,21 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            long len = slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
+            long len =slhdsaServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc);
 
             byte[] sig = new byte[(int) len - 1];
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, sig, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.sign(slhdsaRef, sig, 0, TestUtil.RNDSrc);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1750,19 +1895,21 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
 
-            long len = slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc));
+            long len =slhdsaServiceNI.sign(slhdsaRef, null, 0, TestUtil.RNDSrc);
 
             byte[] sig = new byte[(int) len];
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.sign(slhdsaRef, sig, 1, TestUtil.RNDSrc));
+           slhdsaServiceNI.sign(slhdsaRef, sig, 1, TestUtil.RNDSrc);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1784,15 +1931,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal());
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, null, 0));
+           slhdsaServiceNI.verify(slhdsaRef, null, 0);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("sig is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1812,12 +1961,13 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal());
 
-            long code = slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, new byte[1], 0));
+            long code =slhdsaServiceNI.verify(slhdsaRef, new byte[1], 0);
             Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), code);
 
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1836,15 +1986,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal());
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, new byte[1], -1));
+           slhdsaServiceNI.verify(slhdsaRef, new byte[1], -1);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("sig length is negative", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1864,15 +2016,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal());
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, new byte[10], 11));
+           slhdsaServiceNI.verify(slhdsaRef, new byte[10], 11);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("sig out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1891,15 +2045,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal()));
+           slhdsaServiceNI.initVerify(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal());
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, new byte[0], 1));
+           slhdsaServiceNI.verify(slhdsaRef, new byte[0], 1);
 
             Assertions.fail();
-        } catch (IllegalArgumentException e)
+        }
+        catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("sig out of range", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);
@@ -1918,15 +2074,17 @@ public class SLHDSALimitTest
             keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal(), TestUtil.RNDSrc));
+           slhdsaServiceNI.initSign(slhdsaRef, keyRef, new byte[0], 0, SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), SLHDSASignatureSpi.Deterministic.DETERMINISTIC.ordinal(), TestUtil.RNDSrc);
 
-            slhdsaServiceNI.handleErrors(slhdsaServiceNI.verify(slhdsaRef, new byte[1], 1));
+           slhdsaServiceNI.verify(slhdsaRef, new byte[1], 1);
 
             Assertions.fail();
-        } catch (IllegalStateException e)
+        }
+        catch (IllegalStateException e)
         {
             Assertions.assertEquals("unexpected state", e.getMessage());
-        } finally
+        }
+        finally
         {
             slhdsaServiceNI.disposeSigner(slhdsaRef);
             specNI.dispose(keyRef);

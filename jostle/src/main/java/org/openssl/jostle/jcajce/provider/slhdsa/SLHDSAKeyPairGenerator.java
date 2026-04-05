@@ -116,17 +116,6 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
     public KeyPair generateKeyPair()
     {
         long res = NISelector.SLHDSAServiceNI.generateKeyPair(keyType.getKsType(), randSource);
-        if (res < 0)
-        {
-            NISelector.SLHDSAServiceNI.handleErrors(res);
-        }
-        else
-        {
-            if (res == 0)
-            {
-                throw new IllegalStateException("unexpected null pointer from native layer");
-            }
-        }
 
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
         return new KeyPair(new JOSLHDSAPublicKey(spec), new JOSLHDSAPrivateKey(spec));

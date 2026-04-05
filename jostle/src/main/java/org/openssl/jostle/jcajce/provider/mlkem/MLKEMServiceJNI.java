@@ -14,27 +14,24 @@ import org.openssl.jostle.rand.RandSource;
 
 public class MLKEMServiceJNI implements MLKEMServiceNI
 {
+    @Override
+    public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
     @Override
-    public native long generateKeyPair(int type, RandSource randSource);
+    public native long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource);
 
     @Override
-    public native long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
+    public native int ni_getPublicKey(long ref, byte[] output);
 
     @Override
-    public native int getPublicKey(long ref, byte[] output);
+    public native int ni_getPrivateKey(long ref, byte[] output);
 
     @Override
-    public native int getPrivateKey(long ref, byte[] output);
+    public native int ni_getSeed(long ref, byte[] output);
 
     @Override
-    public native int getSeed(long ref, byte[] output);
+    public native int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
     @Override
-    public native int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
-
-    @Override
-    public native int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
-
-
+    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 }

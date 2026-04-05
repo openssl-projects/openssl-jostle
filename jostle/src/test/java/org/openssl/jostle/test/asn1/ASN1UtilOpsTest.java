@@ -75,7 +75,7 @@ public class ASN1UtilOpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
-            asn1NI.handleErrors(keyRef);
+
             Assertions.fail();
         } catch (OverflowException e)
         {
@@ -102,7 +102,6 @@ public class ASN1UtilOpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPrivateKeyInfo(new byte[10], 0, 10);
-            asn1NI.handleErrors(keyRef);
             Assertions.fail();
         } catch (OverflowException e)
         {
@@ -134,7 +133,7 @@ public class ASN1UtilOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
-            asn1NI.handleErrors(asn1NI.encodePublicKey(asn1Ref, keyRef));
+            asn1NI.encodePublicKey(asn1Ref, keyRef);
             Assertions.fail();
         } catch (OverflowException e)
         {
@@ -167,7 +166,7 @@ public class ASN1UtilOpsTest
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
-            asn1NI.handleErrors(asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue()));
+            asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
             Assertions.fail();
 
         } catch (OverflowException e)
@@ -193,7 +192,7 @@ public class ASN1UtilOpsTest
         {
             asn1Ref = asn1NI.allocate();
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            asn1NI.handleErrors(asn1NI.getData(asn1Ref, new byte[1024]));
+            asn1NI.getData(asn1Ref, new byte[1024]);
             Assertions.fail();
         } catch (AccessException e)
         {
@@ -226,9 +225,9 @@ public class ASN1UtilOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            long len = TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue()));
+            long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
             byte[] out = new byte[(int) len];
-            TestNISelector.Asn1NI.handleErrors(TestNISelector.Asn1NI.getData(asn1Ref, out));
+           TestNISelector.Asn1NI.getData(asn1Ref, out);
             Assertions.fail("Should have thrown exception");
 
         } catch (AccessException e)
@@ -257,7 +256,7 @@ public class ASN1UtilOpsTest
             asn1Ref = asn1NI.allocate();
 
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
-            asn1NI.handleErrors(asn1NI.getData(asn1Ref, null));
+            asn1NI.getData(asn1Ref, null);
 
             Assertions.fail();
 

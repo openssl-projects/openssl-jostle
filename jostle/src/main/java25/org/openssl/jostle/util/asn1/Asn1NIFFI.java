@@ -49,7 +49,8 @@ public class Asn1NIFFI implements Asn1Ni
         allocateFunc = lookup.find("ASN1_allocate").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.ADDRESS // Return ptr
+                        ValueLayout.ADDRESS,// Return ptr
+                        ValueLayout.ADDRESS // err
                 ));
 
         disposeFunc = lookup.find("ASN1_dispose").orElseThrow();
@@ -113,11 +114,13 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public long allocate()
+    public long ni_allocate(int[] err)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact();
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact(errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
             return addr.address();
         }
         catch (Throwable t)
@@ -132,7 +135,7 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public void dispose(long reference)
+    public void ni_dispose(long reference)
     {
         try
         {
@@ -149,7 +152,7 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public int encodePublicKey(long ref, long keyRef)
+    public int ni_encodePublicKey(long ref, long keyRef)
     {
         try
         {
@@ -166,7 +169,7 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public int encodePrivateKey(long ref, long keyRef, String option)
+    public int ni_encodePrivateKey(long ref, long keyRef, String option)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -184,7 +187,7 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public int getData(long ref, byte[] out)
+    public int ni_getData(long ref, byte[] out)
     {
         try
         {
@@ -203,7 +206,7 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public long fromPrivateKeyInfo(byte[] data, int start, int len)
+    public long ni_fromPrivateKeyInfo(byte[] data, int start, int len)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -238,7 +241,7 @@ public class Asn1NIFFI implements Asn1Ni
     }
 
     @Override
-    public long fromPublicKeyInfo(byte[] data, int start, int len)
+    public long ni_fromPublicKeyInfo(byte[] data, int start, int len)
     {
 
         try (Arena a = Arena.ofConfined())

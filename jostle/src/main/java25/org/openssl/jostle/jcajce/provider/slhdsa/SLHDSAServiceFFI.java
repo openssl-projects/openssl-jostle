@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -33,7 +32,6 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
     private static final MemorySegment generateKeyPairWithSeedFunc;
     private static final MethodHandle generateKeyPairWithSeedFuncHandle;
-
 
     private static final MemorySegment getPublicKeyFunc;
     private static final MethodHandle getPublicKeyFuncHandle;
@@ -114,14 +112,6 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-//        getSeedKeyFunc = lookup.find("SLH_DSA_getSeed").orElseThrow();
-//        getSeedKeyFuncHandle = linker.downcallHandle(getSeedKeyFunc,
-//                FunctionDescriptor.of(
-//                        ValueLayout.JAVA_INT,
-//                        ValueLayout.ADDRESS,
-//                        ValueLayout.ADDRESS,
-//                        ValueLayout.JAVA_LONG
-//                ), Linker.Option.critical(true));
 
         decodePublicKeyFunc = lookup.find("SLH_DSA_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
@@ -151,6 +141,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
         allocSignerFunc = lookup.find("SLH_DSA_allocateSigner").orElseThrow();
         allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
                 FunctionDescriptor.of(
+                        ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS
                 ));
 
@@ -241,7 +232,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public long generateKeyPair(int type, RandSource randSource)
+    public long ni_generateKeyPair(int type, int[] err, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -263,11 +254,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
             MemorySegment segment = (MemorySegment) generateKeyPairFuncHandle.invokeExact(type, retCodeRef, getEntropySegment);
 
-            int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-            if (retCode != ErrorCode.JO_SUCCESS.getCode())
-            {
-                return retCode;
-            }
+            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
             return segment.address();
         }
         catch (Throwable t)
@@ -279,7 +266,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource)
+    public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -314,11 +301,8 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                     getEntropySegment
             );
 
-            int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-            if (retCode != ErrorCode.JO_SUCCESS.getCode())
-            {
-                return retCode;
-            }
+            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
+
             return segment.address();
         }
         catch (Throwable t)
@@ -331,7 +315,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
 
     @Override
-    public int getPrivateKey(long ref, byte[] output)
+    public int ni_getPrivateKey(long ref, byte[] output)
     {
         try
         {
@@ -351,7 +335,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public long getPublicKey(long ref, byte[] output)
+    public int ni_getPublicKey(long ref, byte[] output)
     {
         try
         {
@@ -372,7 +356,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
 
     @Override
-    public int decode_publicKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_publicKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -389,7 +373,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public int decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -407,11 +391,13 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
 
     @Override
-    public long allocateSigner()
+    public long ni_allocateSigner(int[] err)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment segment = (MemorySegment) allocSignerFuncHandle.invokeExact();
+            MemorySegment retCode = a.allocate(ValueLayout.JAVA_INT);
+            MemorySegment segment = (MemorySegment) allocSignerFuncHandle.invokeExact(retCode);
+            err[0] = retCode.get(ValueLayout.JAVA_INT, 0);
             return segment.address();
         }
         catch (Throwable t)
@@ -423,7 +409,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public int initVerify(long ref, long keyReference, byte[] context, int contextLen, int messageEncoding, int deterministic)
+    public int ni_initVerify(long ref, long keyReference, byte[] context, int contextLen, int messageEncoding, int deterministic)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -446,7 +432,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public int update(long ref, byte[] input, int inputOffset, int inputLen)
+    public int ni_update(long ref, byte[] input, int inputOffset, int inputLen)
     {
         try
         {
@@ -464,7 +450,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public long sign(long ref, byte[] output, int offset, RandSource randSource)
+    public long ni_sign(long ref, byte[] output, int offset, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -485,7 +471,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment outputSegment = output == null ? MemorySegment.NULL : a.allocate(output.length);
-            int r = (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset,getEntropySegment);
+            int r = (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset, getEntropySegment);
 
             if (output != null)
             {
@@ -503,7 +489,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public int verify(long ref, byte[] sigBytes, int sigLen)
+    public int ni_verify(long ref, byte[] sigBytes, int sigLen)
     {
         try
         {
@@ -521,7 +507,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public long initSign(long reference, long keyReference, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource)
+    public int ni_initSign(long reference, long keyReference, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -561,7 +547,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
     }
 
     @Override
-    public void disposeSigner(long reference)
+    public void ni_disposeSigner(long reference)
     {
         try
         {

@@ -96,9 +96,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new SLHDSARef(
-                            NISelector.SLHDSAServiceNI.handleErrors(
-                                    NISelector.SLHDSAServiceNI.allocateSigner()), publicKey.getAlgorithm());
+                    ref = new SLHDSARef(NISelector.SLHDSAServiceNI.allocateSigner(), publicKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -110,7 +108,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                     contextLen = context.length;
                 }
 
-                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, messageEncoding.ordinal(), deterministic.ordinal()));
+                NISelector.SLHDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, messageEncoding.ordinal(), deterministic.ordinal());
                 return;
             }
         }
@@ -142,9 +140,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new SLHDSARef(
-                            NISelector.SLHDSAServiceNI.handleErrors(
-                                    NISelector.SLHDSAServiceNI.allocateSigner()), privateKey.getAlgorithm());
+                    ref = new SLHDSARef(NISelector.SLHDSAServiceNI.allocateSigner(), privateKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -156,11 +152,11 @@ public class SLHDSASignatureSpi extends SignatureSpi
                     contextLen = context.length;
                 }
 
-                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.initSign(
+                NISelector.SLHDSAServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
                         context, contextLen, messageEncoding.ordinal(), deterministic.ordinal(),
-                        randSource));
+                        randSource);
                 return;
             }
         }
@@ -179,7 +175,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
         synchronized (this)
         {
             updateCalled = true;
-            NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.update(ref.getReference(), b, off, len));
+            NISelector.SLHDSAServiceNI.update(ref.getReference(), b, off, len);
         }
     }
 
@@ -191,9 +187,9 @@ public class SLHDSASignatureSpi extends SignatureSpi
             byte[] sig = null;
             try
             {
-                long len = NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0, randSource));
+                long len = NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
                 sig = new byte[(int) len];
-                NISelector.SLHDSAServiceNI.handleErrors(NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0, randSource));
+                NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
                 return sig;
             }
             finally
@@ -212,12 +208,6 @@ public class SLHDSASignatureSpi extends SignatureSpi
             try
             {
                 int code = NISelector.SLHDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
-
-                if (code < ErrorCode.JO_FAIL.getCode())
-                {
-                    // Some other issue
-                    NISelector.SLHDSAServiceNI.handleErrors(code);
-                }
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
             }

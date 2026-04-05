@@ -106,17 +106,6 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
     public KeyPair generateKeyPair()
     {
         long res = NISelector.MLKEMServiceNI.generateKeyPair(keyType.getKsType(), randSource);
-        if (res < 0)
-        {
-            NISelector.MLKEMServiceNI.handleErrors(res);
-        }
-        else
-        {
-            if (res == 0)
-            {
-                throw new IllegalStateException("unexpected null pointer from native layer");
-            }
-        }
 
         PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
         return new KeyPair(new JOMLKEMPublicKey(spec), new JOMLKEMPrivateKey(spec));

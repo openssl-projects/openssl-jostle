@@ -24,9 +24,10 @@ void SpecNI_disposeKeySpec(key_spec *ctx) {
     }
 }
 
-key_spec *SpecNI_allocateKeySpec(void) {
+key_spec *SpecNI_allocateKeySpec(int32_t *err) {
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
+    *err = JO_SUCCESS;
     return spec;
 }
 

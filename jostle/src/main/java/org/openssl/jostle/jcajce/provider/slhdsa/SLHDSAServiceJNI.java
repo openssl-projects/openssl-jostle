@@ -14,46 +14,45 @@ import org.openssl.jostle.rand.RandSource;
 
 public class SLHDSAServiceJNI implements SLHDSAServiceNI
 {
-    @Override
-    public native long generateKeyPair(int type, RandSource randSource);
+
 
     @Override
-    public native long generateKeyPair(int type, byte[] seed, int seedLen, RandSource randSource);
-
-//    @Override
-//    public native int getSeed(long reference, byte[] output);
+    public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
     @Override
-    public native int getPrivateKey(long reference, byte[] output);
+    public native long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource);
 
     @Override
-    public native long getPublicKey(long reference, byte[] output);
+    public native int ni_getPrivateKey(long reference, byte[] output);
 
     @Override
-    public native int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    public native int ni_getPublicKey(long reference, byte[] output);
 
     @Override
-    public native int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    public native int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
     @Override
-    public native long allocateSigner();
+    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
     @Override
-    public native int initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
+    public native long ni_allocateSigner(int[] err);
 
     @Override
-    public native int update(long reference, byte[] b, int off, int len);
+    public native int ni_initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic);
 
     @Override
-    public native long sign(long ref, byte[] sig, int offset, RandSource randSource);
+    public native int ni_update(long ref, byte[] b, int off, int len);
+
 
     @Override
-    public native int verify(long reference, byte[] sigBytes, int len);
+    public native long ni_sign(long ref, byte[] sig, int offset, RandSource randSource);
 
     @Override
-    public native long initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource);
+    public native int ni_verify(long reference, byte[] sigBytes, int len);
 
     @Override
-    public native void disposeSigner(long reference);
+    public native int ni_initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource);
 
+    @Override
+    public native void ni_disposeSigner(long reference);
 }

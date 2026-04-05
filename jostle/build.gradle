@@ -363,7 +363,6 @@ tasks.register('unitTest25FFI', Test) {
     }
 }
 
-
 tasks.register('unitTest25JNI', Test) {
     onlyIf { System.getenv("BC_JDK25") != null }
 

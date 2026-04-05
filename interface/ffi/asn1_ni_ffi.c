@@ -15,8 +15,8 @@
 #include "../util/ops.h"
 #include "../util/jo_assert.h"
 
-asn1_ctx *ASN1_allocate(void) {
-    asn1_ctx *ctx = asn1_writer_allocate();
+asn1_ctx *ASN1_allocate(int32_t *err) {
+    asn1_ctx *ctx = asn1_writer_allocate(err);
     jo_assert(ctx != NULL);
     return ctx;
 }

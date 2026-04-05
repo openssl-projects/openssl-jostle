@@ -27,9 +27,9 @@ public class ASNEncoder
         long ref = NISelector.Asn1NI.allocate();
         try
         {
-            long len = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.encodePublicKey(ref, spec.getReference()));
+            long len = NISelector.Asn1NI.encodePublicKey(ref, spec.getReference());
             byte[] out = new byte[(int) len];
-            NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.getData(ref, out));
+            NISelector.Asn1NI.getData(ref, out);
 
             return out;
         }
@@ -49,9 +49,9 @@ public class ASNEncoder
         long ref = NISelector.Asn1NI.allocate();
         try
         {
-            long len = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue()));
+            long len = NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue());
             byte[] out = new byte[(int) len];
-            NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.getData(ref, out));
+            NISelector.Asn1NI.getData(ref, out);
             return out;
         }
         finally
@@ -62,13 +62,13 @@ public class ASNEncoder
 
     public static PKEYKeySpec fromPrivateKeyInfo(byte[] data, int start, int len)
     {
-        long ref = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.fromPrivateKeyInfo(data, start, len));
+        long ref = NISelector.Asn1NI.fromPrivateKeyInfo(data, start, len);
         return new PKEYKeySpec(ref);
     }
 
     public static PKEYKeySpec fromSubjectPublicKeyInfo(byte[] data, int start, int len)
     {
-        long ref = NISelector.Asn1NI.handleErrors(NISelector.Asn1NI.fromPublicKeyInfo(data, start, len));
+        long ref = NISelector.Asn1NI.fromPublicKeyInfo(data, start, len);
         return new PKEYKeySpec(ref);
     }
 

@@ -24,7 +24,7 @@
  * Method:    disposePkey
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_dispose
+JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1dispose
 (JNIEnv *env, jobject jo, jlong ref) {
     UNUSED(env);
     UNUSED(jo);
@@ -40,11 +40,17 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_dispose
  * Method:    allocateKeySpec
  * Signature: ()J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_allocate(JNIEnv *env, jobject jo) {
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1allocate(
+    JNIEnv *env, jobject jo, jintArray _err) {
     UNUSED(env);
     UNUSED(jo);
+
+
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
+
+    const int32_t err = JO_SUCCESS;
+    (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
     return (jlong) spec;
 }
 
@@ -54,7 +60,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_allocate(JNI
  * Method:    getName
  * Signature: ()Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_getName
+JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getName
 (JNIEnv *env, jobject jo, jlong ref) {
     UNUSED(jo);
 
@@ -80,7 +86,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_getName
  * Method:    encap
  * Signature: (JLjava/lang/String;[BII[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_encap
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
 (JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint in_off, jint in_len, jbyteArray _output,
  jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
@@ -185,7 +191,7 @@ exit:
  * Method:    decap
  * Signature: (JLjava/lang/String;[BII[BII)I
  */
-JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_decap
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
 (JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint int_off, jint in_len, jbyteArray _output,
  jint out_off, jint out_len) {
     UNUSED(jo);
