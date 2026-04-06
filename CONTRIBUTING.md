@@ -80,7 +80,7 @@ to Java 22 calls to native code were done via JNI.
 Contributions to Jostle must support both JNI and FFI.
 
 This split is hidden behind a utility class called ```NISelector``` and each transformation is required to implement
-an interface defining the native calls and seperate implementations of that interface for JNI and FFI. With the FFI
+an interface defining the native calls and separate implementations of that interface for JNI and FFI. With the FFI
 implementation being in the java 25 source path.
 
 For example:
@@ -99,8 +99,8 @@ Contributors are required to implement the JNI / FFI split in the relevant sourc
 New implementations are required to follow what has been done in MDServiceNI where default methods in the interface
 are used to handle return codes and generate error messages. 
 
-As of 27-Mar-2026 there are existing implementations that follow an older pattern where the error codes are handled in 
-the SPI class, and they will be refactored in the future.
+As of 6-APR-2026 there may be some implementations following an older pattern where the error handling was done within
+the SPI class, this as largely been refactored out. 
 
 ### Native References
 
@@ -255,6 +255,103 @@ This should only be used in cases this issue it is asserting is:
 
 ```jo_assert``` MUST NOT be used to validate input that passed in from users of the provider.
 
+
+## Jostle OSSL_LIB_CTX
+
+To support fetching of random data from SecureRandom an internal custom provider has been implemented that supplies
+a bridging RAND implementation. This OSSL_LIB_CTX is available by calling:
+
+```
+get_global_jostle_ossl_lib_ctx()
+
+For example:
+
+ctx = EVP_PKEY_CTX_new_from_name(
+   get_global_jostle_ossl_lib_ctx(), "ML-DSA-44", NULL);
+
+```
+
+Contributors are required to use EVP_xx functions that accept an OSSL_LIB_CTX when creating contexts.
+
+
+## SecureRandom
+
+In cases where entropy is required, like generating some signatures or key generation, etc. Contributors will need to 
+pass down an implementation RandSource. There is a default implementation called DefaultRandSource that exists in both 
+main (java8) and java9 code paths.
+
+The version in java9 will examine DRBG parameters and assert they are suitable each time an up-call for random data
+is made.
+
+There is a version of the RandSource interface in java25 that supplies an FFI targetable method.
+
+In 99% of cases using DefaultRandSource to wrap a SecureRandom instance will be suitable.
+
+On the native side contributors will need accept the RandSource as a parameter:
+
+For example from MLDSAServiceNI:
+```
+long ni_generateKeyPair(int type, int[] err, RandSource randSource);
+```
+
+This translates to:
+
+JNI:
+```
+Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__I_3I_3BILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jintArray _err, jbyteArray _seed, jint seed_len, jobject rnd_src) { ... }
+```
+
+FFI:
+
+```
+key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size, int32_t seed_len,
+                                    void *rnd_src) 
+```
+
+FFI implementations must create an up-call stub and pass that pointer to the downcall.
+
+Contributors are invited, examine:
+
+```
+org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceFFI.ni_generateKeyPair(int, int[], org.openssl.jostle.rand.RandSource)
+
+```
+
+Be aware that up-calls cannot be made during critical access, under FFI the JVM will catch it and report an
+issue with an incorrect thread state, under JNI undetermined behavior will occur.
+
+### What to do with the RandSource on the native side
+
+To ensure the RandSource is available to the java rand bridge. On a per-call basis contributors need only do a simple
+null check and then call the ```rand_set_java_srand_call( ... )```
+
+```
+ if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    rand_set_java_srand_call(rnd_src);
+```
+
+Do this for both FFI / JNI, if contributors do the null check early enough before anything is allocated
+it should be a simple case of either setting an error code in an out parameter or returning the error code.
+
+The function ```rand_set_java_srand_call(src)``` sets a thread local that is accessed by the java random bridge.
+It also asserts that src is not null.
+
+If the source is not set then behavior will be indeterminate and probably bad.
+
+#### Supplying the RandSource on every call that needs it!
+
+Contributors must supply a source for every call that is likely to need random data, this may include initialization 
+methods and, for example, signature generation methods like Signature.sign(...). The easiest thing to do is to keep 
+a reference java side when passed in during initialization and pass it down during the call to sign.
+
+Contributors should examine, MLDSASignatureSpi and how the randSource field is used.
+
+You cannot cache the rand_src * on the native side, it can only be considered valid for the lifetime of the call, ie 
+between function entry and return.
 
 
 ## Testing

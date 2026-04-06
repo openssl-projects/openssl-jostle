@@ -539,33 +539,22 @@ jostle: Adding test21 as dependency for test task because BC_JDK21 is defined
 jostle: Adding test25 as dependency for test task because BC_JDK25 is defined
 ```
 
-#### Notes
+## Secure Random
 
-There is a unit test class dedicated to asserting the JVM version and which interface
-library have been loaded. In normal testing they accept anything however for more
-specific testing they will assert.
+From 6-Apr-2026 Jostle will honor any passed in SecureRandom. It does this by implementing an internal OpenSSL 
+provider that supplies RAND implementation that can draw its source of random data via upcalls to the JVM.
 
-For example in ```integrationTest25JNI``` task.
+If no SecureRandom is supplied the default from CryptoServicesRegistrar will be used.
 
-```
-jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.bouncycastle.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
-```
+The handling of SecureRandom in CryptoServicesRegistrar is exactly the same as Bouncy Castle's handling.
 
-These options are stipulating:
-1. JVM version must start with '25' 
-2. Loader must use the JNI interface
-3. The test is expecting the 'jni' interface to be loaded.
+## Provider startup
 
-See ```org.openssl.jostle.test.ExpectedJVMTest```
+During the construction, ```new JostleProvider(...)``` an optional provider can be named.
 
-To build test:
-
-```
-./gradlew clean build
-```
-
-Note that it will take about four times longer to complete.
-
+The constructor will trigger the creation of a global OSSL_LIB_CTX with an internal provider that supplies
+the java rand bridge and then the named provider will loaded second. While you are free to call new 
+JostleProvider(...) with the same module you will be unable to change module after the first call.
 
 ## Options
 

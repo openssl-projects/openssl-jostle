@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 public interface MLDSAServiceNI extends DefaultServiceNI
 {
 
-    long ni_generateKeyPair(int type, int[] err, RandSource rndId);
+    long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
     long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource rndSource);
 

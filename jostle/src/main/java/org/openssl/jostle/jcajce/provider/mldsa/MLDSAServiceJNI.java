@@ -14,7 +14,7 @@ import org.openssl.jostle.rand.RandSource;
 
 public class MLDSAServiceJNI implements MLDSAServiceNI
 {
-    public native long ni_generateKeyPair(int type, int[] err, RandSource rndId);
+    public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
     @Override
     public native long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource rndSource);

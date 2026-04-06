@@ -245,21 +245,21 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
 
     @Override
-    public long ni_generateKeyPair(int type, int[] err, RandSource rndId)
+    public long ni_generateKeyPair(int type, int[] err, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment getEntropySegment;
-            if (rndId == null)
+            if (randSource == null)
             {
                 getEntropySegment = MemorySegment.NULL;
             }
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        rndId.getClass(),
+                        randSource.getClass(),
                         "getRandomSegment",
-                        entropyMt).bindTo(rndId);
+                        entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
             }
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);

@@ -33,8 +33,6 @@ import java.util.logging.Logger;
 
 public class MLDSASignatureSpi extends SignatureSpi
 {
-
-
     Logger LOG = Logger.getLogger("MLDSASignatureSpi(Java 8)");
 
     public enum MuHandling
