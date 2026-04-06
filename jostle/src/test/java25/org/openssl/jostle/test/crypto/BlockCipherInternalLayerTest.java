@@ -77,7 +77,7 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, 0, MemorySegment.NULL, 16L, MemorySegment.NULL, 0L);
-            TestNISelector.getBlockCipher().handleInitErrorCodes(ErrorCode.forCode(code), 16, 0);
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -119,7 +119,7 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.NULL, 16L, MemorySegment.ofArray(new byte[16]), 16L);
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -161,7 +161,7 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.NULL, 16L);
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -207,7 +207,7 @@ public class BlockCipherInternalLayerTest
             // Test May cause SEGFAULT if not correctly handled.
             //
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, input, 1L + Integer.MAX_VALUE, output, output.byteSize());
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -252,7 +252,7 @@ public class BlockCipherInternalLayerTest
             // May cause SEGFAULT if check not correctly implemented.
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, input, input.byteSize(), output, 1L + Integer.MAX_VALUE);
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -293,7 +293,7 @@ public class BlockCipherInternalLayerTest
 
             // May cause SEGFAULT if check not correctly handled.
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, output, 1L + Integer.MAX_VALUE);
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -334,7 +334,7 @@ public class BlockCipherInternalLayerTest
             ref = TestNISelector.getBlockCipher().makeInstance(14, 0, 1);
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.ofArray(new byte[16]), 15L);
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)
@@ -413,7 +413,7 @@ public class BlockCipherInternalLayerTest
             }
 
             int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.ofArray(new byte[16]), 16L);
-            TestNISelector.getBlockCipher().handleUpdateErrorCodes(ErrorCode.forCode(code));
+            TestNISelector.BlockCipherNI.handleError(code);
 
             Assertions.fail();
         } catch (Throwable e)

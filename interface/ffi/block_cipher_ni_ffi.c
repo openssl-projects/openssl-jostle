@@ -26,8 +26,8 @@ inline bool range_check(const size_t size, const size_t len, const size_t offset
  * @param padding >0 is padded
  * @return NULL if failed or a pointer to a block_cipher_ctx
  */
-uint64_t BlockCipherNI_make_instance(int32_t cipherId, int32_t modeId, int32_t padding) {
-    block_cipher_ctx *ctx = block_cipher_ctx_create(cipherId, modeId, padding);
+uint64_t BlockCipherNI_make_instance(int32_t cipherId, int32_t modeId, int32_t padding, int32_t *err) {
+    block_cipher_ctx *ctx = block_cipher_ctx_create(cipherId, modeId, padding, err);
     return (uint64_t) ctx;
 }
 

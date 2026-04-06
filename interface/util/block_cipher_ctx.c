@@ -30,7 +30,7 @@ inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 }
 
 
-block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint8_t padding) {
+block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint8_t padding, int32_t *err) {
     block_cipher_ctx *ctx = NULL;
 
 
@@ -56,10 +56,11 @@ block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, 
             goto failed;
         }
     }
-
+    *err = JO_SUCCESS;
     return ctx;
 
 failed:
+    *err = JO_FAIL;
     block_cipher_ctx_destroy(ctx);
     ctx = NULL;
     return ctx;
@@ -903,11 +904,16 @@ size_t final_size(block_cipher_ctx *ctx, size_t len) {
     if (ctx->streaming == 1) {
         switch (ctx->mode_id) {
             case GCM:
+
                 if (ctx->tag_len > 0) {
                     if (ctx->op_mode == ENCRYPT_MODE) {
                         len = len + ctx->tag_len;
                     } else if (ctx->op_mode == DECRYPT_MODE) {
-                        len = len - ctx->tag_len;
+                        if (ctx->tag_len > len) {
+                            len = 0;
+                        } else {
+                            len = len - ctx->tag_len;
+                        }
                     } else {
                         return JO_INVALID_OP_MODE; // Unexpected state
                     }

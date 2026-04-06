@@ -65,6 +65,7 @@ public enum OSSLCipher
         modes = Collections.unmodifiableSet(new HashSet<OSSLMode>(Arrays.asList(m)));
     }
 
+
     public Set<OSSLMode> getModes()
     {
         return modes;

@@ -40,6 +40,8 @@ class BlockCipherSpi extends CipherSpi
 
     private static int BUF_SIZE = 1024;
 
+    private static final BlockCipherNI blockCipherNi = NISelector.BlockCipherNI;
+
     Class[] availableSpecs = new Class[]{
             IvParameterSpec.class,
             GCMParameterSpec.class,
@@ -106,7 +108,7 @@ class BlockCipherSpi extends CipherSpi
 
             if (blockSize == 0)
             {
-                blockSize = NISelector.BlockCipherNI.getBlockSize(refWrapper.getReference());
+                blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
             }
 
             return blockSize;
@@ -118,7 +120,7 @@ class BlockCipherSpi extends CipherSpi
     {
         synchronized (this)
         {
-            return NISelector.BlockCipherNI.getFinalSize(refWrapper.getReference(), inputLen);
+            return blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
         }
     }
 
@@ -146,14 +148,13 @@ class BlockCipherSpi extends CipherSpi
             this.opMode = opmode;
 
             byte[] keyBytes = key.getEncoded();
-            ErrorCode codes = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, null, 0));
             try
             {
-                NISelector.BlockCipherNI.handleInitErrorCodes(codes, keyBytes.length, 0);
+                blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, null, 0);
             }
             catch (InvalidAlgorithmParameterException e)
             {
-                throw new InvalidKeyException(e.getMessage());
+                throw new RuntimeException(e);
             }
             engineGetBlockSize();
         }
@@ -208,9 +209,7 @@ class BlockCipherSpi extends CipherSpi
                 }
             }
 
-            codes = ErrorCode.forCode(NISelector.BlockCipherNI.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen));
-            NISelector.BlockCipherNI.handleInitErrorCodes(codes, keyBytes.length, ivBytes == null ? 0 : ivBytes.length);
-
+            blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen);
 
             engineGetBlockSize();
         }
@@ -256,20 +255,7 @@ class BlockCipherSpi extends CipherSpi
     {
         synchronized (this)
         {
-
-            len = NISelector.BlockCipherNI.updateAAD(
-                    refWrapper.getReference(),
-                    src, offset, len);
-
-            try
-            {
-                NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
-            }
-            catch (IllegalBlockSizeException | ShortBufferException ibe)
-            {
-                throw new RuntimeException(ibe.getMessage(), ibe);
-            }
-
+            blockCipherNi.updateAAD(refWrapper.getReference(), src, offset, len);
         }
     }
 
@@ -320,23 +306,21 @@ class BlockCipherSpi extends CipherSpi
     {
         synchronized (this)
         {
-            int len = NISelector.BlockCipherNI.getUpdateSize(refWrapper.getReference(), inputLen);
+            int len = blockCipherNi.getUpdateSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
-
-            len = NISelector.BlockCipherNI.update(
-                    refWrapper.getReference(),
-                    output,
-                    0,
-                    input,
-                    inputOffset, inputLen);
 
             try
             {
-                NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
+                len = blockCipherNi.update(
+                        refWrapper.getReference(),
+                        output,
+                        0,
+                        input,
+                        inputOffset, inputLen);
             }
-            catch (IllegalBlockSizeException | ShortBufferException ibe)
+            catch (Exception ex)
             {
-                throw new RuntimeException(ibe.getMessage(), ibe);
+                throw new RuntimeException(ex.getMessage(), ex);
             }
 
 
@@ -370,24 +354,20 @@ class BlockCipherSpi extends CipherSpi
             }
 
 
-            int len = NISelector.BlockCipherNI.update(
-                    refWrapper.getReference(),
-                    output,
-                    outputOffset,
-                    workingInput,
-                    inputOffset,
-                    inputLen);
-
             try
             {
-                NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(len));
+                return blockCipherNi.update(
+                        refWrapper.getReference(),
+                        output,
+                        outputOffset,
+                        workingInput,
+                        inputOffset,
+                        inputLen);
             }
-            catch (IllegalBlockSizeException ibe)
+            catch (IllegalBlockSizeException ibsx)
             {
-                throw new RuntimeException(ibe.getMessage(), ibe);
+                throw new RuntimeException(ibsx.getMessage(), ibsx);
             }
-
-            return len;
 
         }
     }
@@ -397,7 +377,7 @@ class BlockCipherSpi extends CipherSpi
     {
         synchronized (this)
         {
-            int len = NISelector.BlockCipherNI.getFinalSize(refWrapper.getReference(), inputLen);
+            int len = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
             try
             {
@@ -417,7 +397,7 @@ class BlockCipherSpi extends CipherSpi
 
         synchronized (this)
         {
-            int k = NISelector.BlockCipherNI.getFinalSize(refWrapper.getReference(), inputLen);
+            int k = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
 
             if (outputOffset + k > output.length)
             {
@@ -440,12 +420,11 @@ class BlockCipherSpi extends CipherSpi
 
 
             int written = 0;
-            int code = NISelector.BlockCipherNI.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
-            NISelector.BlockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            int code = blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
+
             written += code;
 
-            code = NISelector.BlockCipherNI.doFinal(refWrapper.getReference(), output, outputOffset + written);
-            NISelector.BlockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
 
             written += code;
             return written;
@@ -462,11 +441,7 @@ class BlockCipherSpi extends CipherSpi
         {
             if (refWrapper == null)
             {
-                long ref = NISelector.BlockCipherNI.makeInstance(osslCipher.ordinal(), osslMode.ordinal(), padding);
-                if (ref == 0)
-                {
-                    throw new IllegalStateException("Unable to create: " + osslCipher.name() + " " + osslMode.name());
-                }
+                long ref = blockCipherNi.makeInstance(osslCipher.ordinal(), osslMode.ordinal(), padding);
                 refWrapper = new OSSLBlockCipherRefWrapper(ref, osslCipher.name());
             }
         }
@@ -484,7 +459,7 @@ class BlockCipherSpi extends CipherSpi
         @Override
         protected void dispose(long reference)
         {
-            NISelector.BlockCipherNI.dispose(reference);
+            blockCipherNi.dispose(reference);
         }
     }
 

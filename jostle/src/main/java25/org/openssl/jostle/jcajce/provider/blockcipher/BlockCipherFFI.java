@@ -46,10 +46,8 @@ public class BlockCipherFFI implements BlockCipherNI
     private static final MemorySegment finalSizeFunc;
     private static final MethodHandle finalSizeFuncHandle;
 
-
     private static final MemorySegment updateSizeFunc;
     private static final MethodHandle updateSizeFuncHandle;
-
 
     private static final MemorySegment disposeFunc;
     private static final MethodHandle disposeFuncHandle;
@@ -62,7 +60,8 @@ public class BlockCipherFFI implements BlockCipherNI
                         ValueLayout.JAVA_LONG, // Return ptr
                         ValueLayout.JAVA_INT, // cipher id
                         ValueLayout.JAVA_INT, // mode id
-                        ValueLayout.JAVA_INT // padding
+                        ValueLayout.JAVA_INT, // padding
+                        ValueLayout.ADDRESS
                 ));
 
         initFunc = lookup.find("BlockCipherNI_init").orElseThrow();
@@ -148,12 +147,14 @@ public class BlockCipherFFI implements BlockCipherNI
 
 
     @Override
-    public long makeInstance(int cipher, int mode, int padding)
+    public long ni_makeInstance(int cipher, int mode, int padding, int[] err)
     {
         long ref = 0;
-        try
+        try (Arena a = Arena.ofConfined())
         {
-            ref = (long) makeInstanceFuncHandle.invokeExact(cipher, mode, padding);
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            ref = (long) makeInstanceFuncHandle.invokeExact(cipher, mode, padding, errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
         }
         catch (Throwable e)
         {
@@ -169,7 +170,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public int init(long ref, int oppmode, byte[] keyBytes, byte[] iv, int tag_len)
+    public int ni_init(long ref, int oppmode, byte[] keyBytes, byte[] iv, int tag_len)
     {
         int code = 0;
         try
@@ -198,7 +199,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public int getBlockSize(long ref)
+    public int ni_getBlockSize(long ref)
     {
         int code = 0;
         try
@@ -217,7 +218,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public int update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen)
+    public int ni_update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen)
     {
         int code = 0;
         try
@@ -247,7 +248,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public int updateAAD(long ref, byte[] input, int inputOffset, int inputLen)
+    public int ni_updateAAD(long ref, byte[] input, int inputOffset, int inputLen)
     {
         int code = 0;
         try
@@ -274,7 +275,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public int doFinal(long ref, byte[] output, int outputOffset)
+    public int ni_doFinal(long ref, byte[] output, int outputOffset)
     {
         int code = 0;
         try
@@ -300,7 +301,7 @@ public class BlockCipherFFI implements BlockCipherNI
 
 
     @Override
-    public int getFinalSize(long ref, int length)
+    public int ni_getFinalSize(long ref, int length)
     {
         int code = 0;
         try
@@ -319,7 +320,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public int getUpdateSize(long ref, int length)
+    public int ni_getUpdateSize(long ref, int length)
     {
         int code = 0;
         try
@@ -338,7 +339,7 @@ public class BlockCipherFFI implements BlockCipherNI
     }
 
     @Override
-    public void dispose(long ref)
+    public void ni_dispose(long ref)
     {
         try
         {

@@ -41,7 +41,7 @@ typedef struct block_cipher_ctx {
 /*
  * Creates an empty context
  */
-block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint8_t padding);
+block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint8_t padding, int32_t *err);
 
 /*
  * Destroy the block_cipher_context releasing any internal state.

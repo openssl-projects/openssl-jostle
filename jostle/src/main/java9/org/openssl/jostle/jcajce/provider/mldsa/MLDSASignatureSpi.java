@@ -212,11 +212,6 @@ public class MLDSASignatureSpi extends SignatureSpi
             {
                 int code = NISelector.MLDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
 
-//                if (code < ErrorCode.JO_FAIL.getCode())
-//                {
-//                    // Some other issue
-//                    NISelector.MLDSAServiceNI.handleErrors(code);
-//                }
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
             }

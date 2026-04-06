@@ -14,10 +14,8 @@ package org.openssl.jostle.test.crypto;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -33,7 +31,6 @@ import java.util.List;
  */
 public class BlockCipherLimitTest
 {
-
 
 
     BlockCipherNI blockCipherNI = TestNISelector.getBlockCipher();
@@ -55,13 +52,14 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, null, new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertTrue(e instanceof InvalidKeyException);
             Assertions.assertEquals("key is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -75,13 +73,14 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 0, 1); // AES128, ECB, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertTrue(e instanceof InvalidAlgorithmParameterException);
             Assertions.assertEquals("mode takes no iv", e.getMessage());
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -95,13 +94,14 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], null, 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
             Assertions.fail("expected exception");
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertTrue(e instanceof InvalidAlgorithmParameterException);
             Assertions.assertEquals("iv is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -115,13 +115,15 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[0], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+
             Assertions.fail("expected exception");
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertTrue(e instanceof InvalidAlgorithmParameterException);
             Assertions.assertEquals("iv is null", e.getMessage());
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -135,13 +137,15 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(7, 0, 1); // AES128, CBC, 1
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[0], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 0, 16);
+
             Assertions.fail("expected exception");
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertTrue(e instanceof IllegalStateException);
             Assertions.assertEquals("cipher not supported", e.getMessage());
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -154,17 +158,17 @@ public class BlockCipherLimitTest
         {
             {
                 // AES ECB Key Lengths
-                add(new InitParamTestVector("AES128 incorrect key short", 8, 0, 1, new byte[15], null, InvalidKeyException.class, "key length 15 is invalid"));
+                add(new InitParamTestVector("AES128 incorrect key short", 8, 0, 1, new byte[15], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("AES128 correct key", 8, 0, 1, new byte[16], null));
-                add(new InitParamTestVector("AES128 incorrect key long", 8, 0, 1, new byte[17], null, InvalidKeyException.class, "key length 17 is invalid"));
+                add(new InitParamTestVector("AES128 incorrect key long", 8, 0, 1, new byte[17], null, InvalidKeyException.class, "invalid key length"));
 
-                add(new InitParamTestVector("AES192 incorrect key short", 9, 0, 1, new byte[23], null, InvalidKeyException.class, "key length 23 is invalid"));
+                add(new InitParamTestVector("AES192 incorrect key short", 9, 0, 1, new byte[23], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("AES192 correct key", 9, 0, 1, new byte[24], null));
-                add(new InitParamTestVector("AES192 incorrect key long", 9, 0, 1, new byte[25], null, InvalidKeyException.class, "key length 25 is invalid"));
+                add(new InitParamTestVector("AES192 incorrect key long", 9, 0, 1, new byte[25], null, InvalidKeyException.class, "invalid key length"));
 
-                add(new InitParamTestVector("AES256 incorrect key short", 10, 0, 1, new byte[31], null, InvalidKeyException.class, "key length 31 is invalid"));
+                add(new InitParamTestVector("AES256 incorrect key short", 10, 0, 1, new byte[31], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("AES256 correct key", 10, 0, 1, new byte[32], null));
-                add(new InitParamTestVector("AES256 incorrect key long", 10, 0, 1, new byte[33], null, InvalidKeyException.class, "key length 33 is invalid"));
+                add(new InitParamTestVector("AES256 incorrect key long", 10, 0, 1, new byte[33], null, InvalidKeyException.class, "invalid key length"));
 
                 for (int cipher : new int[]{8, 9, 10})
                 {
@@ -190,34 +194,34 @@ public class BlockCipherLimitTest
 
                     // CBC
                     add(new InitParamTestVector(String.format("AES %d null IV CBC", key.length * 8), cipher, 1, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("AES %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("AES %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("AES %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("AES %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("AES %d okay IV CBC", key.length * 8), cipher, 1, 1, key, new byte[16]));
 
                     // CFB1
                     add(new InitParamTestVector(String.format("AES %d null IV CFB1", key.length * 8), cipher, 2, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("AES %d short IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("AES %d long IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("AES %d short IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("AES %d long IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("AES %d okay IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[16]));
 
                     // CFB8
                     add(new InitParamTestVector(String.format("AES %d null IV CFB8", key.length * 8), cipher, 3, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("AES %d short IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("AES %d long IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("AES %d short IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("AES %d long IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("AES %d okay IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[16]));
 
 
                     // CFB128
                     add(new InitParamTestVector(String.format("AES %d null IV CFB128", key.length * 8), cipher, 5, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("AES %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("AES %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("AES %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("AES %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("AES %d okay IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[16]));
 
 
                     // OFB
                     add(new InitParamTestVector(String.format("AES %d null IV OFB", key.length * 8), cipher, 9, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("AES %d short IV OFB", key.length * 8), cipher, 9, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("AES %d long IV OFB", key.length * 8), cipher, 9, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("AES %d short IV OFB", key.length * 8), cipher, 9, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("AES %d long IV OFB", key.length * 8), cipher, 9, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("AES %d okay IV OFB", key.length * 8), cipher, 9, 1, key, new byte[16]));
 
 
@@ -227,8 +231,9 @@ public class BlockCipherLimitTest
                     {
                         if (ivLen < 8 || ivLen > 16)
                         {
-                            add(new InitParamTestVector(String.format("AES %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "iv len is invalid: " + ivLen));
-                        } else
+                            add(new InitParamTestVector(String.format("AES %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                        }
+                        else
                         {
                             add(new InitParamTestVector(String.format("AES %d okay IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen]));
                         }
@@ -248,17 +253,19 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+
 
                 if (!test.passing)
                 {
                     Assertions.fail(test.name + " failed");
                 }
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
-                Assertions.assertSame(test.expectedExceptionClass, e.getClass(), test.name + ": Expected '" + test.expectedExceptionClass + "' but got '" + e.getClass().getName() + "'");
-                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage(), test.name + ": Expected '" + test.expectedExceptionMessage + "' but got '" + e.getMessage() + "'");
-            } finally
+                Assertions.assertEquals(test.expectedExceptionClass, e.getClass());
+                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage());
+            }
+            finally
             {
                 TestNISelector.getBlockCipher().dispose(ref);
             }
@@ -275,17 +282,17 @@ public class BlockCipherLimitTest
         {
             {
                 // AES ECB Key Lengths
-                add(new InitParamTestVector("ARIA128 incorrect key short", 11, 0, 1, new byte[15], null, InvalidKeyException.class, "key length 15 is invalid"));
+                add(new InitParamTestVector("ARIA128 incorrect key short", 11, 0, 1, new byte[15], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("ARIA128 correct key", 11, 0, 1, new byte[16], null));
-                add(new InitParamTestVector("ARIA128 incorrect key long", 11, 0, 1, new byte[17], null, InvalidKeyException.class, "key length 17 is invalid"));
+                add(new InitParamTestVector("ARIA128 incorrect key long", 11, 0, 1, new byte[17], null, InvalidKeyException.class, "invalid key length"));
 
-                add(new InitParamTestVector("ARIA192 incorrect key short", 12, 0, 1, new byte[23], null, InvalidKeyException.class, "key length 23 is invalid"));
+                add(new InitParamTestVector("ARIA192 incorrect key short", 12, 0, 1, new byte[23], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("ARIA192 correct key", 12, 0, 1, new byte[24], null));
-                add(new InitParamTestVector("ARIA192 incorrect key long", 12, 0, 1, new byte[25], null, InvalidKeyException.class, "key length 25 is invalid"));
+                add(new InitParamTestVector("ARIA192 incorrect key long", 12, 0, 1, new byte[25], null, InvalidKeyException.class, "invalid key length"));
 
-                add(new InitParamTestVector("ARIA256 incorrect key short", 13, 0, 1, new byte[31], null, InvalidKeyException.class, "key length 31 is invalid"));
+                add(new InitParamTestVector("ARIA256 incorrect key short", 13, 0, 1, new byte[31], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("ARIA256 correct key", 13, 0, 1, new byte[32], null));
-                add(new InitParamTestVector("ARIA256 incorrect key long", 13, 0, 1, new byte[33], null, InvalidKeyException.class, "key length 33 is invalid"));
+                add(new InitParamTestVector("ARIA256 incorrect key long", 13, 0, 1, new byte[33], null, InvalidKeyException.class, "invalid key length"));
 
                 for (int cipher : new int[]{11, 12, 13})
                 {
@@ -311,28 +318,28 @@ public class BlockCipherLimitTest
 
                     // CBC
                     add(new InitParamTestVector(String.format("ARIA %d null IV CBC", key.length * 8), cipher, 1, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("ARIA %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("ARIA %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("ARIA %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("ARIA %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("ARIA %d okay IV CBC", key.length * 8), cipher, 1, 1, key, new byte[16]));
 
                     // CFB1
 
                     add(new InitParamTestVector(String.format("ARIA %d null IV CFB1", key.length * 8), cipher, 2, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("ARIA %d short IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("ARIA %d long IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("ARIA %d short IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("ARIA %d long IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("ARIA %d okay IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[16]));
 
                     // CFB8
                     add(new InitParamTestVector(String.format("ARIA %d null IV CFB8", key.length * 8), cipher, 3, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("ARIA %d short IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("ARIA %d long IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("ARIA %d short IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("ARIA %d long IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("ARIA %d okay IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[16]));
 
 
                     // CFB128
                     add(new InitParamTestVector(String.format("ARIA %d null IV CFB128", key.length * 8), cipher, 5, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("ARIA %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("ARIA %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("ARIA %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("ARIA %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("ARIA %d okay IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[16]));
 
                     // CTR Valid
@@ -341,8 +348,9 @@ public class BlockCipherLimitTest
                     {
                         if (ivLen < 8 || ivLen > 16)
                         {
-                            add(new InitParamTestVector(String.format("ARIA %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "iv len is invalid: " + ivLen));
-                        } else
+                            add(new InitParamTestVector(String.format("ARIA %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                        }
+                        else
                         {
                             add(new InitParamTestVector(String.format("ARIA %d okay IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen]));
                         }
@@ -362,17 +370,19 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+
 
                 if (!test.passing)
                 {
                     Assertions.fail(test.name + " failed");
                 }
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
-                Assertions.assertSame(test.expectedExceptionClass, e.getClass(), test.name + ": Expected '" + test.expectedExceptionClass + "' but got '" + e.getClass().getName() + "'");
-                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage(), test.name + ": Expected '" + test.expectedExceptionMessage + "' but got '" + e.getMessage() + "'");
-            } finally
+                Assertions.assertEquals(test.expectedExceptionClass, e.getClass());
+                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage());
+            }
+            finally
             {
                 TestNISelector.getBlockCipher().dispose(ref);
             }
@@ -389,17 +399,17 @@ public class BlockCipherLimitTest
         {
             {
                 // AES ECB Key Lengths
-                add(new InitParamTestVector("CAMELLIA128 incorrect key short", 14, 0, 1, new byte[15], null, InvalidKeyException.class, "key length 15 is invalid"));
+                add(new InitParamTestVector("CAMELLIA128 incorrect key short", 14, 0, 1, new byte[15], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("CAMELLIA128 correct key", 14, 0, 1, new byte[16], null));
-                add(new InitParamTestVector("CAMELLIA128 incorrect key long", 14, 0, 1, new byte[17], null, InvalidKeyException.class, "key length 17 is invalid"));
+                add(new InitParamTestVector("CAMELLIA128 incorrect key long", 14, 0, 1, new byte[17], null, InvalidKeyException.class, "invalid key length"));
 
-                add(new InitParamTestVector("CAMELLIA192 incorrect key short", 15, 0, 1, new byte[23], null, InvalidKeyException.class, "key length 23 is invalid"));
+                add(new InitParamTestVector("CAMELLIA192 incorrect key short", 15, 0, 1, new byte[23], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("CAMELLIA192 correct key", 15, 0, 1, new byte[24], null));
-                add(new InitParamTestVector("CAMELLIA192 incorrect key long", 15, 0, 1, new byte[25], null, InvalidKeyException.class, "key length 25 is invalid"));
+                add(new InitParamTestVector("CAMELLIA192 incorrect key long", 15, 0, 1, new byte[25], null, InvalidKeyException.class, "invalid key length"));
 
-                add(new InitParamTestVector("CAMELLIA256 incorrect key short", 16, 0, 1, new byte[31], null, InvalidKeyException.class, "key length 31 is invalid"));
+                add(new InitParamTestVector("CAMELLIA256 incorrect key short", 16, 0, 1, new byte[31], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("CAMELLIA256 correct key", 16, 0, 1, new byte[32], null));
-                add(new InitParamTestVector("CAMELLIA256 incorrect key long", 16, 0, 1, new byte[33], null, InvalidKeyException.class, "key length 33 is invalid"));
+                add(new InitParamTestVector("CAMELLIA256 incorrect key long", 16, 0, 1, new byte[33], null, InvalidKeyException.class, "invalid key length"));
 
                 for (int cipher : new int[]{14, 15, 16})
                 {
@@ -425,34 +435,34 @@ public class BlockCipherLimitTest
 
                     // CBC
                     add(new InitParamTestVector(String.format("CAMELLIA %d null IV CBC", key.length * 8), cipher, 1, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("CAMELLIA %d okay IV CBC", key.length * 8), cipher, 1, 1, key, new byte[16]));
 
                     // CFB1
                     add(new InitParamTestVector(String.format("CAMELLIA %d null IV CFB1", key.length * 8), cipher, 2, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("CAMELLIA %d okay IV CFB1", key.length * 8), cipher, 2, 1, key, new byte[16]));
 
 
                     // CFB8
                     add(new InitParamTestVector(String.format("CAMELLIA %d null IV CFB8", key.length * 8), cipher, 3, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("CAMELLIA %d okay IV CFB8", key.length * 8), cipher, 3, 1, key, new byte[16]));
 
 
                     // CFB128
                     add(new InitParamTestVector(String.format("CAMELLIA %d null IV CFB128", key.length * 8), cipher, 5, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("CAMELLIA %d okay IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[16]));
 
                     // OFB
                     add(new InitParamTestVector(String.format("CAMELLIA %d null IV OFB", key.length * 8), cipher, 9, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV OFB", key.length * 8), cipher, 9, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV OFB", key.length * 8), cipher, 9, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d short IV OFB", key.length * 8), cipher, 9, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("CAMELLIA %d long IV OFB", key.length * 8), cipher, 9, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("CAMELLIA %d okay IV OFB", key.length * 8), cipher, 9, 1, key, new byte[16]));
 
 
@@ -462,8 +472,9 @@ public class BlockCipherLimitTest
                     {
                         if (ivLen < 8 || ivLen > 16)
                         {
-                            add(new InitParamTestVector(String.format("CAMELLIA %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "iv len is invalid: " + ivLen));
-                        } else
+                            add(new InitParamTestVector(String.format("CAMELLIA %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                        }
+                        else
                         {
                             add(new InitParamTestVector(String.format("CAMELLIA %d okay IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen]));
                         }
@@ -478,18 +489,19 @@ public class BlockCipherLimitTest
             try
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
-                int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
 
                 if (!test.passing)
                 {
                     Assertions.fail(test.name + " failed");
                 }
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
-                Assertions.assertSame(test.expectedExceptionClass, e.getClass(), test.name + ": Expected '" + test.expectedExceptionClass + "' but got '" + e.getClass().getName() + "'");
-                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage(), test.name + ": Expected '" + test.expectedExceptionMessage + "' but got '" + e.getMessage() + "'");
-            } finally
+                Assertions.assertEquals(test.expectedExceptionClass, e.getClass());
+                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage());
+            }
+            finally
             {
                 TestNISelector.getBlockCipher().dispose(ref);
             }
@@ -506,9 +518,9 @@ public class BlockCipherLimitTest
         {
             {
                 // SM4 ECB Key Lengths
-                add(new InitParamTestVector("SM4 incorrect key short", 20, 0, 1, new byte[15], null, InvalidKeyException.class, "key length 15 is invalid"));
+                add(new InitParamTestVector("SM4 incorrect key short", 20, 0, 1, new byte[15], null, InvalidKeyException.class, "invalid key length"));
                 add(new InitParamTestVector("SM4 correct key", 20, 0, 1, new byte[16], null));
-                add(new InitParamTestVector("SM4 incorrect key long", 20, 0, 1, new byte[17], null, InvalidKeyException.class, "key length 17 is invalid"));
+                add(new InitParamTestVector("SM4 incorrect key long", 20, 0, 1, new byte[17], null, InvalidKeyException.class, "invalid key length"));
 
                 for (int cipher : new int[]{20})
                 {
@@ -519,20 +531,20 @@ public class BlockCipherLimitTest
 
                     // CBC
                     add(new InitParamTestVector(String.format("SM4 %d null IV CBC", key.length * 8), cipher, 1, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("SM4 %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("SM4 %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("SM4 %d short IV CBC", key.length * 8), cipher, 1, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("SM4 %d long IV CBC", key.length * 8), cipher, 1, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("SM4 %d okay IV CBC", key.length * 8), cipher, 1, 1, key, new byte[16]));
 
                     // CFB128
                     add(new InitParamTestVector(String.format("SM4 %d null IV CFB128", key.length * 8), cipher, 5, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("SM4 %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("SM4 %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("SM4 %d short IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("SM4 %d long IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("SM4 %d okay IV CFB128", key.length * 8), cipher, 5, 1, key, new byte[16]));
 
                     // OFB
                     add(new InitParamTestVector(String.format("SM4 %d null IV OFB", key.length * 8), cipher, 9, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
-                    add(new InitParamTestVector(String.format("SM4 %d short IV OFB", key.length * 8), cipher, 9, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "iv len is invalid: 15"));
-                    add(new InitParamTestVector(String.format("SM4 %d long IV OFB", key.length * 8), cipher, 9, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "iv len is invalid: 17"));
+                    add(new InitParamTestVector(String.format("SM4 %d short IV OFB", key.length * 8), cipher, 9, 1, key, new byte[15], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                    add(new InitParamTestVector(String.format("SM4 %d long IV OFB", key.length * 8), cipher, 9, 1, key, new byte[17], InvalidAlgorithmParameterException.class, "invalid iv length"));
                     add(new InitParamTestVector(String.format("SM4 %d okay IV OFB", key.length * 8), cipher, 9, 1, key, new byte[16]));
 
                     add(new InitParamTestVector(String.format("SM4 %d long IV (null) CTR", key.length * 8), cipher, 6, 1, key, null, InvalidAlgorithmParameterException.class, "iv is null"));
@@ -540,8 +552,9 @@ public class BlockCipherLimitTest
                     {
                         if (ivLen < 8 || ivLen > 16)
                         {
-                            add(new InitParamTestVector(String.format("SM4 %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "iv len is invalid: " + ivLen));
-                        } else
+                            add(new InitParamTestVector(String.format("SM4 %d long IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen], InvalidAlgorithmParameterException.class, "invalid iv length"));
+                        }
+                        else
                         {
                             add(new InitParamTestVector(String.format("SM4 %d okay IV (%d) CTR", key.length * 8, ivLen), cipher, 6, 1, key, new byte[ivLen]));
                         }
@@ -558,17 +571,19 @@ public class BlockCipherLimitTest
             {
                 ref = blockCipherNI.makeInstance(test.cipher, test.mode, test.padding);
                 int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, test.key, test.iv, 0);
-                blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), test.key != null ? test.key.length : 0, test.iv != null ? test.iv.length : 0);
+
 
                 if (!test.passing)
                 {
                     Assertions.fail(test.name + " failed");
                 }
-            } catch (Exception e)
+            }
+            catch (Exception e)
             {
-                Assertions.assertSame(e.getClass(), test.expectedExceptionClass, test.name + ": Expected '" + test.expectedExceptionClass + "' but got '" + e.getClass().getName() + "' " + e.getMessage());
-                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage(), test.name + ": Expected '" + test.expectedExceptionMessage + "' but got '" + e.getMessage() + "'");
-            } finally
+                Assertions.assertEquals(test.expectedExceptionClass, e.getClass());
+                Assertions.assertEquals(test.expectedExceptionMessage, e.getMessage());
+            }
+            finally
             {
                 TestNISelector.getBlockCipher().dispose(ref);
             }
@@ -595,18 +610,20 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input is null", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -628,18 +645,20 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output is null", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -662,18 +681,19 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output offset is negative", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -696,18 +716,19 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input offset is negative", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -730,18 +751,19 @@ public class BlockCipherLimitTest
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+
 
             code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input len is negative", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -761,19 +783,18 @@ public class BlockCipherLimitTest
             int outOff = 0;
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
-
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -794,19 +815,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -827,19 +848,18 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
-
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
-            Assertions.assertSame(ShortBufferException.class, e.getClass(), "unexpected exception class");
+            Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output offset + length is out of range", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -861,19 +881,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 0);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalBlockSizeException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("data not block size aligned", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -895,19 +915,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(ShortBufferException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output too small", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -928,19 +948,17 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
-
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
-
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(ShortBufferException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output too small", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -961,19 +979,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
-            code = blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(ShortBufferException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output too small", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -993,19 +1011,17 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
-
-            code = blockCipherNI.doFinal(ref, output, outOff);
-            blockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
-
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.doFinal(ref, output, outOff);
             Assertions.fail("expected exception");
 
-        } catch (Throwable e)
+        }
+        catch (Throwable e)
         {
             Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output is null", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1024,19 +1040,18 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
-
-            code = blockCipherNI.doFinal(ref, output, outOff);
-            blockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.doFinal(ref, output, outOff);
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output offset is negative", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1054,19 +1069,18 @@ public class BlockCipherLimitTest
             int outOff = 17;
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
-
-            code = blockCipherNI.doFinal(ref, output, outOff);
-            blockCipherNI.handleFinalErrorCodes(ErrorCode.forCode(code));
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.doFinal(ref, output, outOff);
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("output offset + length is out of range", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1087,31 +1101,30 @@ public class BlockCipherLimitTest
             // 15 byte IV, so can only handle 256 blocks.
             //
             int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[15], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
 
             // We can process [0,254] blocks of data successfully.
             code = blockCipherNI.update(ref, new byte[255 * 16], 0, new byte[254 * 16], 0, 254 * 16);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+
             Assertions.assertEquals(254 * 16, code);
 
             // Next 15 bytes would be ok, and leave one byte in the last available block, asserts [0,255]
             code = blockCipherNI.update(ref, new byte[15], 0, new byte[15], 0, 15);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             // Next 1 byte would be ok, and leave 0 in the last available block, asserts [0,255]
             code = blockCipherNI.update(ref, new byte[1], 0, new byte[1], 0, 1);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
+
 
             // Next 1 byte would exceed the 8 bit block counter as [0,256) is asserted
             code = blockCipherNI.update(ref, new byte[1], 0, new byte[1], 0, 1);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalStateException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("ctr mode overflow", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1131,19 +1144,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.updateAAD(ref, input, inOff, inLen);
 
-            code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(NullPointerException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input is null", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1162,19 +1175,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.updateAAD(ref, input, inOff, inLen);
 
-            code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input offset is negative", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1193,19 +1206,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.updateAAD(ref, input, inOff, inLen);
 
-            code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input len is negative", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1223,19 +1236,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.updateAAD(ref, input, inOff, inLen);
 
-            code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
@@ -1253,19 +1266,19 @@ public class BlockCipherLimitTest
 
 
             ref = blockCipherNI.makeInstance(8, 1, 1);
-            int code = blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.handleInitErrorCodes(ErrorCode.forCode(code), 16, 16);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.updateAAD(ref, input, inOff, inLen);
 
-            code = blockCipherNI.updateAAD(ref, input, inOff, inLen);
-            blockCipherNI.handleUpdateErrorCodes(ErrorCode.forCode(code));
 
             Assertions.fail("expected exception");
 
-        } catch (Exception e)
+        }
+        catch (Exception e)
         {
             Assertions.assertSame(IllegalArgumentException.class, e.getClass(), "unexpected exception class");
             Assertions.assertEquals("input offset + length is out of range", e.getMessage(), "unexpected exception message");
-        } finally
+        }
+        finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
