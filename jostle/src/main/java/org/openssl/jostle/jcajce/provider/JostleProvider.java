@@ -95,6 +95,7 @@ public class JostleProvider
         new ProvPBEKDF().configure(this);
         new ProvScryptKDF().configure(this);
         new ProvMD().configure(this);
+        new ProvED().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)

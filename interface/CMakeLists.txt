@@ -118,6 +118,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rand/jostle_lib_ctx.c
             jni/rand_upcall_jni.h
             jni/rand_upcall_jni.c
+            jni/ed_jni.c
+            util/edec.h
+            util/edec.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -179,6 +182,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rand/jostle_lib_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
+            util/edec.h
+            util/edec.c
 
     )
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
@@ -268,6 +273,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rand/jostle_lib_ctx.c
             jni/rand_upcall_jni.h
             jni/rand_upcall_jni.c
+            jni/ed_jni.c
+            util/edec.h
+            util/edec.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -329,6 +337,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rand/jostle_lib_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
+            util/edec.h
+            util/edec.c
     )
 
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
@@ -404,6 +414,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rand/jostle_lib_ctx.c
             jni/rand_upcall_jni.h
             jni/rand_upcall_jni.c
+            jni/ed_jni.c
+            util/edec.h
+            util/edec.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -458,6 +471,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rand/jostle_lib_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
+            util/edec.h
+            util/edec.c
 
     )
 

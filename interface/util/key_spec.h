@@ -38,7 +38,8 @@
 #define KS_ML_KEM_768 18
 #define KS_ML_KEM_1024 19
 
-
+#define KS_ED25519 20
+#define KS_ED448 21
 
 
 typedef struct key_spec {

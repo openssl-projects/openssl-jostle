@@ -38,7 +38,9 @@ public enum OSSLKeyType
     SLH_DSA_SHAKE_256s(16, "SLH-DSA-SHAKE-256s", "id-slh-dsa-shake-256s", "2.16.840.1.101.3.4.3.30"),
     ML_KEM_512(17, "ML-KEM-512", "MLKEM512", "id-alg-ml-kem-512", "2.16.840.1.101.3.4.4.1"),
     ML_KEM_768(18, "ML-KEM-768", "MLKEM768", "id-alg-ml-kem-768", "2.16.840.1.101.3.4.4.2"),
-    ML_KEM_1024(19, "ML-KEM-1024", "MLKEM1024", "id-alg-ml-kem-1024", "2.16.840.1.101.3.4.4.3");
+    ML_KEM_1024(19, "ML-KEM-1024", "MLKEM1024", "id-alg-ml-kem-1024", "2.16.840.1.101.3.4.4.3"),
+    ED25519(20, "ED25519"),
+    ED448(21, "ED448");
 
     private final String[] aliases;
     int ksType;
@@ -95,4 +97,4 @@ public enum OSSLKeyType
     }
 
 
-}
+    }

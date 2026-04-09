@@ -10,7 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider;
 
-class ASN1ObjectIdentifier
+public class ASN1ObjectIdentifier
 {
     private final String id;
 
@@ -44,4 +44,5 @@ class ASN1ObjectIdentifier
     {
         return getId();
     }
+
 }
