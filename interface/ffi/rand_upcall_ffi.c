@@ -7,9 +7,7 @@
 //   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 //
 
-//
-// Created by MEGAN WOODS on 28/3/2026.
-//
+
 
 #include "rand_upcall_ffi.h"
 

@@ -5,9 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
-//
-// Created by MEGAN WOODS on 16/3/2025.
-//
+
 
 #ifndef OPENSSL_FFI_H
 #define OPENSSL_FFI_H
