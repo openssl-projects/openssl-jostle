@@ -11,9 +11,12 @@
 
 package org.openssl.jostle.jcajce.interfaces;
 
+import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+
 import java.security.PrivateKey;
 
 public interface EdDSAPrivateKey extends PrivateKey, EdDSAKey
 {
     EdDSAPublicKey getPublicKey();
+
 }

@@ -89,11 +89,11 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
-                byte[] encoed = ((MLDSAPublicKeySpec) keySpec).getPublicData();
+                byte[] encoded = ((MLDSAPublicKeySpec) keySpec).getPublicData();
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
                 NISelector.MLDSAServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoed, 0, encoed.length);
+                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
                 return new JOMLDSAPublicKey(pkeySpec);
             }
         }

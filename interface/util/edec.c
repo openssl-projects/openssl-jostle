@@ -11,6 +11,7 @@
 #include "edec.h"
 
 #include <openssl/core_names.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 
 #include "bc_err_codes.h"
@@ -76,3 +77,304 @@ exit:
     return ret_code;
 }
 
+
+edec_ctx *edec_ctx_create(int32_t *err) {
+    jo_assert(err != NULL);
+
+    edec_ctx *ctx = (edec_ctx *) OPENSSL_zalloc(sizeof(edec_ctx));
+    jo_assert(ctx != NULL);
+
+    ctx->message = BIO_new(BIO_s_mem());
+    if (OPS_OPENSSL_ERROR_1 ctx->message == NULL) {
+        *err = JO_OPENSSL_ERROR;
+        OPENSSL_clear_free(ctx, sizeof(*ctx));
+        return NULL;
+    }
+
+    jo_assert(ctx->message != NULL);
+
+    *err = JO_SUCCESS;
+    return ctx;
+}
+
+void edec_ctx_destroy(edec_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+
+    if (ctx->message != NULL) {
+        BIO_reset(ctx->message);
+        BIO_free_all(ctx->message);
+    }
+
+    if (ctx->dig_sign_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->dig_sign_ctx);
+    }
+}
+
+int32_t edec_ctx_init_sign(
+    edec_ctx *ctx,
+    const key_spec *key_spec,
+    const uint8_t *context,
+    int32_t context_len,
+    void *rnd_src) {
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    rand_set_java_srand_call(rnd_src);
+
+    int32_t ret_code = JO_FAIL;
+
+    if (key_spec->key == NULL) {
+        ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
+        goto exit;
+    }
+
+    const char *name = NULL;
+    int name_len = 0;
+    if (EVP_PKEY_is_a(key_spec->key, "ED25519")) {
+        name = "Ed25519";
+        name_len = 7;
+    } else if (EVP_PKEY_is_a(key_spec->key, "ED448")) {
+        name = "Ed448";
+        name_len = 8;
+    } else {
+        ret_code = JO_INCORRECT_KEY_TYPE;
+        goto exit;
+    }
+
+
+    BIO_reset(ctx->message);
+    if (ctx->dig_sign_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->dig_sign_ctx);
+    }
+
+    ctx->dig_sign_ctx = EVP_MD_CTX_new();
+
+    if (context == NULL) {
+        context_len = 0;
+    }
+
+    const OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("instance", name, name_len),
+        OSSL_PARAM_octet_string("context-string", context, context_len),
+        OSSL_PARAM_END
+    };
+
+
+    if (1 != EVP_DigestSignInit_ex(ctx->dig_sign_ctx, NULL, NULL, libctx, NULL, key_spec->key, params)) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+    ctx->opp = EDEC_SIGN;
+
+    ret_code = JO_SUCCESS;
+
+exit:
+    return ret_code;
+}
+
+
+int32_t edec_ctx_init_verify(
+    edec_ctx *ctx,
+    const key_spec *key_spec,
+    const uint8_t *context,
+    int32_t context_len) {
+    jo_assert(ctx != NULL);
+    jo_assert(key_spec != NULL);
+
+
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+
+
+    int32_t ret_code = JO_FAIL;
+
+    if (key_spec->key == NULL) {
+        ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
+        goto exit;
+    }
+
+    const char *name = NULL;
+    int name_len = 0;
+    if (EVP_PKEY_is_a(key_spec->key, "ED25519")) {
+        name = "Ed25519";
+        name_len = 7;
+    } else if (EVP_PKEY_is_a(key_spec->key, "ED448")) {
+        name = "Ed448";
+        name_len = 5;
+    } else {
+        ret_code = JO_INCORRECT_KEY_TYPE;
+        goto exit;
+    }
+
+
+    BIO_reset(ctx->message);
+    if (ctx->dig_sign_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->dig_sign_ctx);
+    }
+
+    ctx->dig_sign_ctx = EVP_MD_CTX_new();
+
+    if (context == NULL) {
+        context_len = 0;
+    }
+
+    const OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("instance", name, name_len),
+        OSSL_PARAM_octet_string("context-string", context, context_len),
+        OSSL_PARAM_END
+    };
+
+
+    if (1 != EVP_DigestVerifyInit_ex(ctx->dig_sign_ctx, NULL, NULL, libctx, NULL, key_spec->key, params)) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+    ctx->opp = EDEC_VERIFY;
+
+    ret_code = JO_SUCCESS;
+
+exit:
+    return ret_code;
+}
+
+
+int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
+    jo_assert(ctx != NULL);
+    jo_assert(in != NULL);
+
+
+    if (BIO_write(ctx->message, in, (int) in_len) < 0) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    return JO_SUCCESS;
+}
+
+
+int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src) {
+    jo_assert(ctx != NULL);
+    int ret_code = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    if (ctx->dig_sign_ctx == NULL) {
+        ret_code = JO_NOT_INITIALIZED;
+        goto exit;
+    }
+
+    if (ctx->opp != EDEC_SIGN) {
+        ret_code = JO_UNEXPECTED_STATE;
+        goto exit;
+    }
+
+    uint8_t *msg = NULL;
+    const size_t msg_len = BIO_get_mem_data(ctx->message, &msg);
+
+    size_t sig_len = 0;
+    rand_set_java_srand_call(rnd_src);
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestSign(ctx->dig_sign_ctx, NULL, &sig_len, msg, msg_len)) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+
+    if (OPS_INT32_OVERFLOW_1 sig_len > INT32_MAX) {
+        ret_code = JO_OUTPUT_TOO_LONG_INT32;
+        goto exit;
+    }
+
+    if (out != NULL) {
+        if (sig_len > out_len) {
+            ret_code = JO_OUTPUT_TOO_SMALL;
+            goto exit;
+        }
+
+
+        const size_t sig_len_ = sig_len;
+
+        rand_set_java_srand_call(rnd_src);
+        int code = EVP_DigestSign(ctx->dig_sign_ctx, (unsigned char *) out, &sig_len, msg, msg_len);
+        if (OPS_OPENSSL_ERROR_2 1 != code) {
+            ret_code = JO_OPENSSL_ERROR;
+            goto exit;
+        }
+
+
+        if (OPS_LEN_CHANGE_1 sig_len_ != sig_len) {
+            ret_code = JO_UNEXPECTED_SIG_LEN_CHANGE;
+            goto exit;
+        }
+
+        BIO_reset(ctx->message);
+    }
+
+    ret_code = (int32_t) sig_len;
+
+exit:
+    return ret_code;
+}
+
+int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
+
+    printf("Got here %s, %d",__FILE__,__LINE__);
+
+    jo_assert(ctx != NULL);
+    int ret_code = JO_FAIL;
+
+    if (ctx->dig_sign_ctx == NULL) {
+        ret_code = JO_NOT_INITIALIZED;
+        goto exit;
+    }
+
+    if (ctx->opp != EDEC_VERIFY) {
+        ret_code = JO_UNEXPECTED_STATE;
+        goto exit;
+    }
+
+
+    // OpenSSL may emit an error message about an invalid signature which we don't care about.
+    ERR_set_mark();
+
+    printf("Got here %s, %d\n",__FILE__,__LINE__);
+
+    uint8_t *msg = NULL;
+    const size_t msg_len = BIO_get_mem_data(ctx->message, &msg);
+    int ret = EVP_DigestVerify(ctx->dig_sign_ctx, (unsigned char *) sig, sig_len, msg, msg_len);
+    ERR_pop_to_mark();
+    BIO_reset(ctx->message);
+
+    if (OPS_OPENSSL_ERROR_1 0) {
+        ERR_pop_to_mark();
+        ret = -1;
+    }
+
+    printf("sig ret code %d\n", ret);
+
+    if (ret == 1) {
+        printf("Got here %s, %d\n",__FILE__,__LINE__);
+        ERR_clear_last_mark();
+        ret_code = JO_SUCCESS;
+    } else {
+        if (ret < 0) {
+            printf("Got here %s, %d\n",__FILE__,__LINE__);
+            ret_code = JO_OPENSSL_ERROR;
+        } else {
+            printf("Got here %s, %d\n",__FILE__,__LINE__);
+            ERR_pop_to_mark();
+            ret_code = JO_FAIL;
+        }
+    }
+
+exit:
+    return ret_code;
+}

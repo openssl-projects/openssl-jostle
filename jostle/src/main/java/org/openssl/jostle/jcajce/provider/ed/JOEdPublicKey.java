@@ -40,4 +40,9 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
     {
         return ASNEncoder.asSubjectPublicKeyInfo(spec);
     }
+
+    public PKEYKeySpec getSpec()
+    {
+        return spec;
+    }
 }

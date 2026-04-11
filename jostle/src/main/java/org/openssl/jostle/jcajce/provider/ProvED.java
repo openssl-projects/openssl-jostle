@@ -11,7 +11,10 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.ed.EdDSAKeyPairGenerator;
+import org.openssl.jostle.jcajce.provider.ed.EdKeyFactorySpi;
+import org.openssl.jostle.jcajce.provider.ed.EdSignatureSpi;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,31 +37,29 @@ class ProvED
         final Map<String, String> attr = new HashMap<String, String>();
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "ED", PREFIX + "EdDSAKeyPairGenerator", attr, (arg) -> new EdDSAKeyPairGenerator("EDDSA"));
-        provider.addAlias("KeyPairGenerator", "ED", "EDDSA","EdDSA");
+        provider.addAlias("KeyPairGenerator", "ED", "EDDSA", "EdDSA");
         provider.addAlgorithmImplementation("KeyPairGenerator", "ED25519", PREFIX + "EdDSAKeyPairGenerator$ED25519", attr, (arg) -> new EdDSAKeyPairGenerator(EdDSAParameterSpec.ED25519));
         provider.addAlias("KeyPairGenerator", "ED25519", "Ed25519");
         provider.addAlgorithmImplementation("KeyPairGenerator", "ED448", PREFIX + "EdDSAKeyPairGenerator$ED448", attr, (arg) -> new EdDSAKeyPairGenerator(EdDSAParameterSpec.ED448));
         provider.addAlias("KeyPairGenerator", "ED448", "Ed448");
 
-        final Map<String, String> mldsaSigAttr = new HashMap<>();
+        final Map<String, String> sigAttr = new HashMap<>();
 
-//        provider.addAlgorithmImplementation("Signature", "MLDSA", PREFIX + "MLDSASignatureSpi$MLDSA", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.INTERNAL));
-//        provider.addAlias("Signature", "MLDSA", "ML-DSA");
-//
-//        provider.addAlgorithmImplementation("Signature", "ML-DSA-44", PREFIX + "MLDSASignatureSpi$MLDSA44", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_44, MLDSASignatureSpi.MuHandling.INTERNAL));
-//        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_65, MLDSASignatureSpi.MuHandling.INTERNAL));
-//        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_87, MLDSASignatureSpi.MuHandling.INTERNAL));
-//        provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
-//        provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
-//
-//
-//        final Map<String, String> mldsaKfAttr = new HashMap<>();
-//        provider.addAlgorithmImplementation("KeyFactory", "MLDSA", PREFIX + "MLDSAKeyFactorySpi", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl());
-//        provider.addAlias("KeyFactory", "MLDSA", "ML-DSA");
-//        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_44));
-//        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_65));
-//        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_87));
+        provider.addAlgorithmImplementation("Signature", "EDDSA", PREFIX + "EdSignatureSpi", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.NONE));
+        provider.addAlias("Signature", "EDDSA", "EdDSA");
 
+        provider.addAlgorithmImplementation("Signature", "ED25519", PREFIX + "EdSignatureSpi$ED25519", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED25519));
+        provider.addAlias("Signature", "ED25519", "Ed25519");
+        provider.addAlgorithmImplementation("Signature", "ED448", PREFIX + "EdSignatureSpi$ED448", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED448));
+        provider.addAlias("Signature", "ED448", "Ed448");
+
+        final Map<String, String> kfAttr = new HashMap<>();
+        provider.addAlgorithmImplementation("KeyFactory", "ED", PREFIX + "MLDSAKeyFactorySpi", kfAttr, (arg) -> new EdKeyFactorySpi());
+        provider.addAlias("KeyFactory", "ED", "EDDSA", "EdDSA");
+        provider.addAlgorithmImplementation("KeyFactory", "ED25519", PREFIX + "EdKeyFactorySpiSpi$ED25519", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED25519));
+        provider.addAlias("KeyFactory", "ED25519", "Ed25519");
+        provider.addAlgorithmImplementation("KeyFactory", "ED448", PREFIX + "EdKeyFactorySpi$ED448", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED448));
+        provider.addAlias("KeyFactory", "ED448", "Ed448");
 
     }
 

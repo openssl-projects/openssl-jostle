@@ -27,7 +27,6 @@ JNIEXPORT jlong JNICALL
 Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__I_3ILorg_openssl_jostle_rand_RandSource_2
 (JNIEnv *env, jobject jo, jint type, jintArray _err, jobject rnd_src) {
     UNUSED(jo);
-    UNUSED(env);
 
     jint ret_val = JO_FAIL;
 
@@ -382,7 +381,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServi
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1initVerify
 (JNIEnv *env, jobject jo, jlong mldsa_ref, jlong key_ref, jbyteArray _context, jint context_len, jint mu_mode) {
-    UNUSED(env);
+
     UNUSED(jo);
 
     mldsa_ctx *mldsa = (mldsa_ctx *) mldsa_ref;
