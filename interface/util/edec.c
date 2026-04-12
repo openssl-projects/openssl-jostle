@@ -107,8 +107,8 @@ void edec_ctx_destroy(edec_ctx *ctx) {
         BIO_free_all(ctx->message);
     }
 
-    if (ctx->dig_sign_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->dig_sign_ctx);
+    if (ctx->digest_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
     }
 }
 
@@ -150,11 +150,11 @@ int32_t edec_ctx_init_sign(
 
 
     BIO_reset(ctx->message);
-    if (ctx->dig_sign_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->dig_sign_ctx);
+    if (ctx->digest_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
     }
 
-    ctx->dig_sign_ctx = EVP_MD_CTX_new();
+    ctx->digest_ctx = EVP_MD_CTX_new();
 
     if (context == NULL) {
         context_len = 0;
@@ -167,7 +167,7 @@ int32_t edec_ctx_init_sign(
     };
 
 
-    if (1 != EVP_DigestSignInit_ex(ctx->dig_sign_ctx, NULL, NULL, libctx, NULL, key_spec->key, params)) {
+    if (1 != EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key, params)) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
@@ -202,6 +202,7 @@ int32_t edec_ctx_init_verify(
 
     const char *name = NULL;
     int name_len = 0;
+
     if (EVP_PKEY_is_a(key_spec->key, "ED25519")) {
         name = "Ed25519";
         name_len = 7;
@@ -215,11 +216,11 @@ int32_t edec_ctx_init_verify(
 
 
     BIO_reset(ctx->message);
-    if (ctx->dig_sign_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->dig_sign_ctx);
+    if (ctx->digest_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
     }
 
-    ctx->dig_sign_ctx = EVP_MD_CTX_new();
+    ctx->digest_ctx = EVP_MD_CTX_new();
 
     if (context == NULL) {
         context_len = 0;
@@ -232,7 +233,13 @@ int32_t edec_ctx_init_verify(
     };
 
 
-    if (1 != EVP_DigestVerifyInit_ex(ctx->dig_sign_ctx, NULL, NULL, libctx, NULL, key_spec->key, params)) {
+    if (1 != EVP_DigestVerifyInit_ex(
+            ctx->digest_ctx,
+            NULL,
+            NULL,
+            libctx,
+            NULL,
+            key_spec->key, params)) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
@@ -267,7 +274,7 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
         return JO_RAND_NO_RAND_UP_CALL;
     }
 
-    if (ctx->dig_sign_ctx == NULL) {
+    if (ctx->digest_ctx == NULL) {
         ret_code = JO_NOT_INITIALIZED;
         goto exit;
     }
@@ -282,7 +289,7 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
 
     size_t sig_len = 0;
     rand_set_java_srand_call(rnd_src);
-    if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestSign(ctx->dig_sign_ctx, NULL, &sig_len, msg, msg_len)) {
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestSign(ctx->digest_ctx, NULL, &sig_len, msg, msg_len)) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
@@ -303,7 +310,7 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
         const size_t sig_len_ = sig_len;
 
         rand_set_java_srand_call(rnd_src);
-        int code = EVP_DigestSign(ctx->dig_sign_ctx, (unsigned char *) out, &sig_len, msg, msg_len);
+        int code = EVP_DigestSign(ctx->digest_ctx, (unsigned char *) out, &sig_len, msg, msg_len);
         if (OPS_OPENSSL_ERROR_2 1 != code) {
             ret_code = JO_OPENSSL_ERROR;
             goto exit;
@@ -325,13 +332,10 @@ exit:
 }
 
 int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
-
-    printf("Got here %s, %d",__FILE__,__LINE__);
-
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
-    if (ctx->dig_sign_ctx == NULL) {
+    if (ctx->digest_ctx == NULL) {
         ret_code = JO_NOT_INITIALIZED;
         goto exit;
     }
@@ -345,11 +349,9 @@ int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len)
     // OpenSSL may emit an error message about an invalid signature which we don't care about.
     ERR_set_mark();
 
-    printf("Got here %s, %d\n",__FILE__,__LINE__);
-
     uint8_t *msg = NULL;
     const size_t msg_len = BIO_get_mem_data(ctx->message, &msg);
-    int ret = EVP_DigestVerify(ctx->dig_sign_ctx, (unsigned char *) sig, sig_len, msg, msg_len);
+    int ret = EVP_DigestVerify(ctx->digest_ctx, (unsigned char *) sig, sig_len, msg, msg_len);
     ERR_pop_to_mark();
     BIO_reset(ctx->message);
 
@@ -358,18 +360,13 @@ int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len)
         ret = -1;
     }
 
-    printf("sig ret code %d\n", ret);
-
     if (ret == 1) {
-        printf("Got here %s, %d\n",__FILE__,__LINE__);
         ERR_clear_last_mark();
         ret_code = JO_SUCCESS;
     } else {
         if (ret < 0) {
-            printf("Got here %s, %d\n",__FILE__,__LINE__);
             ret_code = JO_OPENSSL_ERROR;
         } else {
-            printf("Got here %s, %d\n",__FILE__,__LINE__);
             ERR_pop_to_mark();
             ret_code = JO_FAIL;
         }

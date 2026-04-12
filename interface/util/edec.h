@@ -18,7 +18,7 @@
 #define EDEC_VERIFY 2
 
 typedef struct edec_ctx {
-    EVP_MD_CTX *dig_sign_ctx;
+    EVP_MD_CTX *digest_ctx;
     BIO *message;
     int opp;
 } edec_ctx;

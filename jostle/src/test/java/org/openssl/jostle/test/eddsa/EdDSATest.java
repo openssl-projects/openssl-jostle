@@ -13,14 +13,14 @@ package org.openssl.jostle.test.eddsa;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
-import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 public class EdDSATest
@@ -45,6 +45,11 @@ public class EdDSATest
     @Test
     public void testJoToBC() throws Throwable
     {
+        //
+        // Basic round tripping Jostle to BC
+        //
+
+        Assumptions.assumeFalse(Loader.isFFI());
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         keyPairGenerator.initialize(EdDSAParameterSpec.ED25519, secRand);
         KeyPair keyPair = keyPairGenerator.generateKeyPair();
@@ -71,9 +76,14 @@ public class EdDSATest
 
     }
 
-   // @Test
+    @Test
     public void testBCtoJo() throws Throwable
     {
+        //
+        // Basic round tripping from BC to Jostle
+        //
+
+        Assumptions.assumeFalse(Loader.isFFI());
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
         keyPairGenerator.initialize(EdDSAParameterSpec.ED25519, secRand);
         KeyPair keyPair = keyPairGenerator.generateKeyPair();
@@ -85,8 +95,6 @@ public class EdDSATest
         signature.initSign(keyPair.getPrivate());
         signature.update(msg);
         byte[] bcSigBytes = signature.sign();
-
-
 
         KeyFactory keyFactory = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         PublicKey joPub = keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));

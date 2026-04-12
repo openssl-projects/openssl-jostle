@@ -62,7 +62,7 @@ public interface EDServiceNI extends DefaultServiceNI
         long code = ni_verify(reference, sigBytes, len);
         if (code != ErrorCode.JO_FAIL.getCode())
         {
-            return (int) handleErrors(ni_verify(reference, sigBytes, len));
+            return (int) handleErrors(code);
         }
         return (int) code;
     }
