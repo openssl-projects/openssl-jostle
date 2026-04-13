@@ -50,8 +50,16 @@ class ProvED
 
         provider.addAlgorithmImplementation("Signature", "ED25519", PREFIX + "EdSignatureSpi$ED25519", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED25519));
         provider.addAlias("Signature", "ED25519", "Ed25519");
+        provider.addAlgorithmImplementation("Signature", "ED25519PH", PREFIX + "EdSignatureSpi$ED25519ph", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.Ed25519ph));
+        provider.addAlias("Signature", "ED25519PH", "Ed25519ph");
+        provider.addAlgorithmImplementation("Signature", "ED25519CTX", PREFIX + "EdSignatureSpi$ED25519ctx", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.Ed25519ctx));
+        provider.addAlias("Signature", "ED25519CTX", "Ed25519ctx");
+
         provider.addAlgorithmImplementation("Signature", "ED448", PREFIX + "EdSignatureSpi$ED448", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED448));
         provider.addAlias("Signature", "ED448", "Ed448");
+        provider.addAlgorithmImplementation("Signature", "ED448PH", PREFIX + "EdSignatureSpi$ED448ph", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED448ph));
+        provider.addAlias("Signature", "ED448PH", "Ed448ph");
+
 
         final Map<String, String> kfAttr = new HashMap<>();
         provider.addAlgorithmImplementation("KeyFactory", "ED", PREFIX + "MLDSAKeyFactorySpi", kfAttr, (arg) -> new EdKeyFactorySpi());

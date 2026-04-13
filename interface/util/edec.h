@@ -30,9 +30,9 @@ edec_ctx *edec_ctx_create(int32_t *err);
 
 void edec_ctx_destroy(edec_ctx *edec_ctx);
 
-int32_t edec_ctx_init_sign(edec_ctx *ctx, const key_spec *key_spec, const uint8_t *context, int32_t context_len, void *rnd_src);
+int32_t edec_ctx_init_sign(edec_ctx *ctx, const key_spec *key_spec, const char *name, int name_len, const uint8_t *context, int32_t context_len, void *rnd_src);
 
-int32_t edec_ctx_init_verify(edec_ctx *ctx, const key_spec *key_spec, const uint8_t *context, int32_t context_len);
+int32_t edec_ctx_init_verify(edec_ctx *ctx, const key_spec *key_spec, const char *name, int name_len, const uint8_t *context, int32_t context_len);
 
 int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len);
 

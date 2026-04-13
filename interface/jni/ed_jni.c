@@ -8,6 +8,8 @@
 //
 
 
+#include <string.h>
+
 #include "bytearrays.h"
 #include "byte_array_critical.h"
 #include "org_openssl_jostle_jcajce_provider_ed_EDServiceJNI.h"
@@ -85,15 +87,20 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_
  * Signature: (JJLorg/openssl/jostle/rand/RandSource;)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1initSign
-(JNIEnv *env, jobject jo, jlong edec_ref, jlong key_ref, jbyteArray _context, jint context_len, jobject rnd_src) {
+(JNIEnv *env, jobject jo, jlong edec_ref, jlong key_ref, jstring _name, jbyteArray _context, jint context_len,
+ jobject rnd_src) {
     UNUSED(jo);
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
-    jo_assert(eddsa);
+    jo_assert(eddsa !=NULL);
+    jo_assert(_name != NULL); // jostle control this
 
     int32_t ret_code = JO_FAIL;
 
     java_bytearray_ctx context;
     init_bytearray_ctx(&context);
+
+    const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
+    const int name_len = (*env)->GetStringLength(env, _name);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)) {
         ret_code = JO_FAILED_ACCESS_CONTEXT;
@@ -113,9 +120,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         }
     }
 
-    ret_code = edec_ctx_init_sign(eddsa, spec, context.bytearray, context_len, rnd_src);
+    ret_code = edec_ctx_init_sign(eddsa, spec, name, name_len, context.bytearray, context_len, rnd_src);
 
 exit:
+    (*env)->ReleaseStringUTFChars(env, _name, name);
     release_bytearray_ctx(&context);
     return ret_code;
 }
@@ -169,8 +177,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_
 
     ret_code = edec_ctx_sign(edec, output_data, out_len, rnd_src);
 
-    exit:
-        release_bytearray_ctx(&output);
+exit:
+    release_bytearray_ctx(&output);
 
     return ret_code;
 }
@@ -181,22 +189,28 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_
  * Signature: (JJLorg/openssl/jostle/rand/RandSource;)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1initVerify
-(JNIEnv *env, jobject jo, jlong edec_ref, jlong key_ref, jbyteArray _context, jint context_len) {
+(JNIEnv *env, jobject jo, jlong edec_ref, jlong key_ref, jstring _name, jbyteArray _context, jint context_len) {
     UNUSED(jo);
 
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
-    jo_assert(eddsa);
+    jo_assert(eddsa !=NULL);
+    jo_assert(_name != NULL); // jostle control this
 
     int32_t ret_code = JO_FAIL;
 
     java_bytearray_ctx context;
     init_bytearray_ctx(&context);
 
+    const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
+    const int name_len = (*env)->GetStringLength(env, _name);
+
+
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)
     ) {
         ret_code = JO_FAILED_ACCESS_CONTEXT;
         goto exit;
     }
+
 
     key_spec *spec = (key_spec *) key_ref;
 
@@ -218,9 +232,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         }
     }
 
-    ret_code = edec_ctx_init_verify(eddsa, spec, context.bytearray, context_len);
+    ret_code = edec_ctx_init_verify(eddsa, spec, name, name_len, context.bytearray, context_len);
 
 exit:
+    (*env)->ReleaseStringUTFChars(env, _name, name);
     release_bytearray_ctx(&context);
     return ret_code;
 }
@@ -267,8 +282,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     ret_code = edec_ctx_verify(ctx, sig.bytearray, sig_len);
 
 
-    exit:
-        release_bytearray_ctx(&sig);
+exit:
+    release_bytearray_ctx(&sig);
 
     return ret_code;
 }

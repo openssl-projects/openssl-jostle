@@ -40,6 +40,9 @@ public class EdSignatureSpi extends SignatureSpi
     private EdDSAKey lastKey = null;
     private boolean updateCalled = false;
 
+    public static final int PH = 1;
+    public static final int CTX = 2;
+
 
     public EdSignatureSpi(OSSLKeyType forcedType)
     {
@@ -48,35 +51,72 @@ public class EdSignatureSpi extends SignatureSpi
     }
 
 
+    private boolean matchForcedType(OSSLKeyType keyType)
+    {
+        if (forcedType == OSSLKeyType.NONE)
+        {
+            return true;
+        }
+        switch (forcedType)
+        {
+            case Ed25519ph:
+            case Ed25519ctx:
+            case ED25519:
+                return keyType == OSSLKeyType.ED25519;
+            case ED448ph:
+            case ED448:
+                return keyType == OSSLKeyType.ED448;
+            default:
+
+        }
+        return false;
+    }
+
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
+
         synchronized (this)
         {
-            updateCalled = false;
-            JOEdPublicKey key = (JOEdPublicKey) publicKey;
-            lastKey = key;
-
-            if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
+            if ((publicKey instanceof EdDSAPublicKey))
             {
-                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
+
+                updateCalled = false;
+
+
+                JOEdPublicKey key = (JOEdPublicKey) publicKey;
+                lastKey = key;
+
+                if (!matchForcedType(key.getType()))
+                {
+                    throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
+                }
+
+                if (ref == null)
+                {
+                    ref = new EdDsaRef(edServiceNI.allocateSigner(), publicKey.getAlgorithm());
+                }
+
+                byte[] context = null;
+                int contextLen = 0;
+
+                if (algorithmParameterSpec instanceof ContextParameterSpec)
+                {
+                    if (forcedType != OSSLKeyType.Ed25519ctx)
+                    {
+                        throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
+                    }
+
+                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                    contextLen = context.length;
+                }
+
+                String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
+
+                edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), name, context, contextLen);
+                return;
             }
-
-            if (ref == null)
-            {
-                ref = new EdDsaRef(edServiceNI.allocateSigner(), publicKey.getAlgorithm());
-            }
-
-            byte[] context = null;
-            int contextLen = 0;
-
-            if (algorithmParameterSpec instanceof ContextParameterSpec)
-            {
-                context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                contextLen = context.length;
-            }
-
-            edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen);
+            throw new InvalidKeyException("expected only EdDSAPublicKey");
         }
     }
 
@@ -100,7 +140,7 @@ public class EdSignatureSpi extends SignatureSpi
                 lastKey = key;
                 updateCalled = false;
 
-                if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
+                if (!matchForcedType(key.getType()))
                 {
                     throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
                 }
@@ -115,13 +155,20 @@ public class EdSignatureSpi extends SignatureSpi
 
                 if (algorithmParameterSpec instanceof ContextParameterSpec)
                 {
+                    if (forcedType != OSSLKeyType.Ed25519ctx)
+                    {
+                        throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
+                    }
+
                     context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
                     contextLen = context.length;
                 }
 
+                String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
+
                 edServiceNI.initSign(
                         ref.getReference(),
-                        key.getSpec().getReference(), context, contextLen, randSource);
+                        key.getSpec().getReference(), name, context, contextLen, randSource);
                 return;
             }
         }
@@ -292,4 +339,6 @@ public class EdSignatureSpi extends SignatureSpi
     {
         return "EdDSASignature(" + ref.getReference() + ")" + (lastKey != null ? "[" + lastKey.toString() + "]" : "[]");
     }
+
+
 }

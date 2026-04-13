@@ -62,7 +62,7 @@ public interface DefaultServiceNI
             case JO_FAILED_ACCESS_CONTEXT:
                 throw new AccessException("unable to access context array");
             case JO_CONTEXT_BYTES_NULL:
-                throw new IllegalArgumentException("context array is null but length >=0");
+                throw new IllegalArgumentException("context array is null");
             case JO_CONTEXT_LEN_PAST_END:
                 throw new IllegalArgumentException("context length is past end of context");
             case JO_CONTEXT_BYTES_TOO_LONG:

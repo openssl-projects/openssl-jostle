@@ -1033,7 +1033,7 @@ public class SLHDSALimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("context array is null but length >=0", e.getMessage());
+            Assertions.assertEquals("context array is null", e.getMessage());
         }
         finally
         {
@@ -1320,7 +1320,7 @@ public class SLHDSALimitTest
         }
         catch (IllegalArgumentException e)
         {
-            Assertions.assertEquals("context array is null but length >=0", e.getMessage());
+            Assertions.assertEquals("context array is null", e.getMessage());
         }
         finally
         {

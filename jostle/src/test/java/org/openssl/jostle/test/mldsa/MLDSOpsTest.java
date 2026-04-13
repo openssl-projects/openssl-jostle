@@ -715,7 +715,7 @@ public class MLDSOpsTest
     }
 
     @Test()
-    public void MLDSAServiceJNI__initVerify_EVP_PKEY_sign_message_init() throws Exception
+    public void MLDSAServiceJNI__initVerify_EVP_PKEY_init() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;

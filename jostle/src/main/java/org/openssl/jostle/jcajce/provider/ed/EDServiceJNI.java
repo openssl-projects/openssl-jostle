@@ -25,13 +25,13 @@ public class EDServiceJNI implements EDServiceNI
     public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
     @Override
-    public native int ni_initSign(long reference, long keyRef, byte[] context, int contextLen, RandSource randSource);
+    public native int ni_initSign(long reference, long keyRef, String name, byte[] context, int contextLen, RandSource randSource);
 
     @Override
     public native long ni_sign(long reference, byte[] sig, int i, RandSource randSource);
 
     @Override
-    public native int ni_initVerify(long reference, long keyRef, byte[] context, int contextLen);
+    public native int ni_initVerify(long reference, long keyRef, String name, byte[] context, int contextLen);
 
     @Override
     public native int ni_verify(long reference, byte[] sigBytes, int len);

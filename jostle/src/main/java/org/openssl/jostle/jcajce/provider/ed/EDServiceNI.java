@@ -24,11 +24,11 @@ public interface EDServiceNI extends DefaultServiceNI
 
     long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
-    int ni_initSign(long reference, long keyRef, byte[] context, int contextLen, RandSource randSource);
+    int ni_initSign(long reference, long keyRef, String name, byte[] context, int contextLen, RandSource randSource);
 
     long ni_sign(long reference, byte[] sig, int i, RandSource randSource);
 
-    int ni_initVerify(long reference, long keyRef, byte[] context, int contextLen);
+    int ni_initVerify(long reference, long keyRef, String name, byte[] context, int contextLen);
 
     int ni_verify(long reference, byte[] sigBytes, int len);
 
@@ -78,14 +78,14 @@ public interface EDServiceNI extends DefaultServiceNI
         return (int) handleErrors(ni_update(reference, b, off, len));
     }
 
-    default void initSign(long reference, long keyRef, byte[] context, int contextLen, RandSource randSource)
+    default void initSign(long reference, long keyRef, String name, byte[] context, int contextLen, RandSource randSource)
     {
-        handleErrors(ni_initSign(reference, keyRef, context, contextLen, randSource));
+        handleErrors(ni_initSign(reference, keyRef,name , context, contextLen, randSource));
     }
 
-    default void initVerify(long reference, long keyRef, byte[] context, int contextLen)
+    default void initVerify(long reference, long keyRef, String name, byte[] context, int contextLen)
     {
-        handleErrors(ni_initVerify(reference, keyRef, context, contextLen));
+        handleErrors(ni_initVerify(reference, keyRef,name, context, contextLen));
     }
 
 
@@ -97,12 +97,16 @@ public interface EDServiceNI extends DefaultServiceNI
             return code;
         }
 
-//        ErrorCode errorCode = ErrorCode.forCode(code);
 
-//        switch (errorCode)
-//        {
-//            default:
-//        }
+
+       ErrorCode errorCode = ErrorCode.forCode(code);
+
+        switch (errorCode)
+        {
+            case JO_INCORRECT_KEY_TYPE:
+                throw new IllegalArgumentException("invalid key type for EDDSA");
+            default:
+        }
 
         return baseErrorHandler(code);
 

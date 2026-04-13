@@ -10,6 +10,7 @@
 
 #include "edec.h"
 
+#include <_string.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -115,11 +116,13 @@ void edec_ctx_destroy(edec_ctx *ctx) {
 int32_t edec_ctx_init_sign(
     edec_ctx *ctx,
     const key_spec *key_spec,
-    const uint8_t *context,
-    int32_t context_len,
-    void *rnd_src) {
+    const char *name,
+    int name_len,
+    const uint8_t *context, int32_t context_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(key_spec != NULL);
+    jo_assert(name != NULL);
+    jo_assert(name_len > 0);
 
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -135,19 +138,6 @@ int32_t edec_ctx_init_sign(
         goto exit;
     }
 
-    const char *name = NULL;
-    int name_len = 0;
-    if (EVP_PKEY_is_a(key_spec->key, "ED25519")) {
-        name = "Ed25519";
-        name_len = 7;
-    } else if (EVP_PKEY_is_a(key_spec->key, "ED448")) {
-        name = "Ed448";
-        name_len = 8;
-    } else {
-        ret_code = JO_INCORRECT_KEY_TYPE;
-        goto exit;
-    }
-
 
     BIO_reset(ctx->message);
     if (ctx->digest_ctx != NULL) {
@@ -156,9 +146,15 @@ int32_t edec_ctx_init_sign(
 
     ctx->digest_ctx = EVP_MD_CTX_new();
 
+    if (OPS_OPENSSL_ERROR_1 ctx->digest_ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        goto exit;
+    }
+
     if (context == NULL) {
         context_len = 0;
     }
+
 
     const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string("instance", name, name_len),
@@ -167,8 +163,9 @@ int32_t edec_ctx_init_sign(
     };
 
 
-    if (1 != EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key, params)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key,
+                                                       params)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1001);
         goto exit;
     }
 
@@ -184,10 +181,13 @@ exit:
 int32_t edec_ctx_init_verify(
     edec_ctx *ctx,
     const key_spec *key_spec,
-    const uint8_t *context,
-    int32_t context_len) {
+    const char *name,
+    int name_len,
+    const uint8_t *context, int32_t context_len) {
     jo_assert(ctx != NULL);
     jo_assert(key_spec != NULL);
+    jo_assert(name_len >0);
+    jo_assert(name != NULL);
 
 
     OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
@@ -200,21 +200,6 @@ int32_t edec_ctx_init_verify(
         goto exit;
     }
 
-    const char *name = NULL;
-    int name_len = 0;
-
-    if (EVP_PKEY_is_a(key_spec->key, "ED25519")) {
-        name = "Ed25519";
-        name_len = 7;
-    } else if (EVP_PKEY_is_a(key_spec->key, "ED448")) {
-        name = "Ed448";
-        name_len = 5;
-    } else {
-        ret_code = JO_INCORRECT_KEY_TYPE;
-        goto exit;
-    }
-
-
     BIO_reset(ctx->message);
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);
@@ -222,25 +207,30 @@ int32_t edec_ctx_init_verify(
 
     ctx->digest_ctx = EVP_MD_CTX_new();
 
+    if (OPS_OPENSSL_ERROR_1 ctx->digest_ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1003);
+        goto exit;
+    }
+
     if (context == NULL) {
         context_len = 0;
     }
 
     const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string("instance", name, name_len),
-        OSSL_PARAM_octet_string("context-string", context, context_len),
+        OSSL_PARAM_octet_string("context-string", (unsigned char *)context, context_len),
         OSSL_PARAM_END
     };
 
 
-    if (1 != EVP_DigestVerifyInit_ex(
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestVerifyInit_ex(
             ctx->digest_ctx,
             NULL,
             NULL,
             libctx,
             NULL,
             key_spec->key, params)) {
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1004);
         goto exit;
     }
 
@@ -256,6 +246,10 @@ exit:
 int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
     jo_assert(ctx != NULL);
     jo_assert(in != NULL);
+
+    if (ctx->digest_ctx == NULL) {
+        return JO_NOT_INITIALIZED;
+    }
 
 
     if (BIO_write(ctx->message, in, (int) in_len) < 0) {
