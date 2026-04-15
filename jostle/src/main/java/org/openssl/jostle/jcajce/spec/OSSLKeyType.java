@@ -39,11 +39,11 @@ public enum OSSLKeyType
     ML_KEM_512(17, "ML-KEM-512", "MLKEM512", "id-alg-ml-kem-512", "2.16.840.1.101.3.4.4.1"),
     ML_KEM_768(18, "ML-KEM-768", "MLKEM768", "id-alg-ml-kem-768", "2.16.840.1.101.3.4.4.2"),
     ML_KEM_1024(19, "ML-KEM-1024", "MLKEM1024", "id-alg-ml-kem-1024", "2.16.840.1.101.3.4.4.3"),
-    ED25519(20, "Ed25519"),
+    ED25519(20, "Ed25519","ED25519"),
     Ed25519ctx(21,"Ed25519ctx","ED25519CTX"),
     Ed25519ph(22,"Ed25519ph","ED25519PH"),
-    ED448ph(23,  "Ed448ph"),
-    ED448(24, "Ed448", "Ed448");
+    ED448ph(23,  "Ed448ph","ED448PH"),
+    ED448(24, "Ed448", "ED448");
 
     private final String[] aliases;
     int ksType;

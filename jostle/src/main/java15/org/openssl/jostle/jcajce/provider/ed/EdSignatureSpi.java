@@ -25,6 +25,7 @@ import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
+import java.lang.ref.Reference;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -72,7 +73,7 @@ public class EdSignatureSpi extends SignatureSpi
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
 
-        synchronized (this)
+        try
         {
             if ((publicKey instanceof EdDSAPublicKey))
             {
@@ -118,6 +119,10 @@ public class EdSignatureSpi extends SignatureSpi
             }
             throw new InvalidKeyException("expected only EdDSAPublicKey");
         }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     @Override
@@ -133,7 +138,7 @@ public class EdSignatureSpi extends SignatureSpi
 
         if (privateKey instanceof EdDSAPrivateKey)
         {
-            synchronized (this)
+            try
             {
 
                 JOEdPrivateKey key = (JOEdPrivateKey) privateKey;
@@ -175,6 +180,10 @@ public class EdSignatureSpi extends SignatureSpi
                         key.getSpec().getReference(), name, context, contextLen, randSource);
                 return;
             }
+            finally
+            {
+                Reference.reachabilityFence(this);
+            }
         }
         throw new InvalidKeyException("expected only EdDSAPrivateKey");
     }
@@ -188,47 +197,47 @@ public class EdSignatureSpi extends SignatureSpi
     @Override
     protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
     {
-        synchronized (this)
+        try
         {
             updateCalled = true;
             edServiceNI.update(ref.getReference(), b, off, len);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected byte[] engineSign() throws SignatureException
     {
-        synchronized (this)
+        byte[] sig = null;
+        try
         {
-            byte[] sig = null;
-            try
-            {
-                long len = edServiceNI.sign(ref.getReference(), null, 0, randSource);
-                sig = new byte[(int) len];
-                edServiceNI.sign(ref.getReference(), sig, 0, randSource);
-                return sig;
-            }
-            finally
-            {
-                reInit();
-            }
+            long len = edServiceNI.sign(ref.getReference(), null, 0, randSource);
+            sig = new byte[(int) len];
+            edServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            return sig;
+        }
+        finally
+        {
+            reInit();
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected boolean engineVerify(byte[] sigBytes) throws SignatureException
     {
-        synchronized (this)
+        try
         {
-            try
-            {
-                int code = edServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
-                return code == ErrorCode.JO_SUCCESS.getCode();
-            }
-            finally
-            {
-                reInit();
-            }
+            int code = edServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
+            return code == ErrorCode.JO_SUCCESS.getCode();
+        }
+        finally
+        {
+            reInit();
+            Reference.reachabilityFence(this);
         }
     }
 
@@ -275,8 +284,7 @@ public class EdSignatureSpi extends SignatureSpi
 
     private void reInit()
     {
-
-        synchronized (this)
+        try
         {
             try
             {
@@ -307,6 +315,10 @@ public class EdSignatureSpi extends SignatureSpi
                 throw new ProviderException("unable to reinitialize signature engine", e);
             }
         }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     @Override
@@ -333,6 +345,7 @@ public class EdSignatureSpi extends SignatureSpi
 
     protected static class EdDsaRef extends NativeReference
     {
+
         protected EdDsaRef(long reference, String name)
         {
             super(reference, name);
@@ -341,7 +354,7 @@ public class EdSignatureSpi extends SignatureSpi
         @Override
         protected Runnable createAction()
         {
-            return new EdSignatureSpi.Disposer(reference);
+            return new Disposer(reference);
         }
     }
 

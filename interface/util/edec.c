@@ -156,11 +156,15 @@ int32_t edec_ctx_init_sign(
     }
 
 
-    const OSSL_PARAM params[] = {
-        OSSL_PARAM_utf8_string("instance", name, name_len),
-        OSSL_PARAM_octet_string("context-string", context, context_len),
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("instance", (void*)name, name_len),
+        OSSL_PARAM_END,
         OSSL_PARAM_END
     };
+
+    if (context != NULL) {
+        params[1] = OSSL_PARAM_construct_octet_string("context-string", (void *) context, context_len);
+    }
 
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key,
@@ -216,12 +220,15 @@ int32_t edec_ctx_init_verify(
         context_len = 0;
     }
 
-    const OSSL_PARAM params[] = {
-        OSSL_PARAM_utf8_string("instance", name, name_len),
-        OSSL_PARAM_octet_string("context-string", (unsigned char *)context, context_len),
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("instance", (void*)name, name_len),
+        OSSL_PARAM_END,
         OSSL_PARAM_END
     };
 
+    if (context != NULL) {
+        params[1] = OSSL_PARAM_construct_octet_string("context-string", (void *) context, context_len);
+    }
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestVerifyInit_ex(
             ctx->digest_ctx,

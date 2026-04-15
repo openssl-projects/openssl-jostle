@@ -65,6 +65,7 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1generateKeyPair
 (JNIEnv *env, jobject jo, jint type, jintArray err_out, jobject rnd_src) {
+    UNUSED(jo);
     jo_assert(err_out != NULL);
 
     jint ret_val = JO_FAIL;
@@ -92,7 +93,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(jo);
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
     jo_assert(eddsa !=NULL);
-    jo_assert(_name != NULL); // jostle control this
+    jo_assert(_name != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -100,6 +101,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     init_bytearray_ctx(&context);
 
     const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
+    jo_assert(name != NULL);
     const int name_len = (*env)->GetStringLength(env, _name);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)) {
@@ -113,12 +115,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         goto exit;
     }
 
-    if (context_len >= 0) {
+    if (context.bytearray != NULL) {
         if ((size_t) context_len > context.size) {
             ret_code = JO_CONTEXT_LEN_PAST_END;
             goto exit;
         }
     }
+
 
     ret_code = edec_ctx_init_sign(eddsa, spec, name, name_len, context.bytearray, context_len, rnd_src);
 
@@ -202,6 +205,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     init_bytearray_ctx(&context);
 
     const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
+    jo_assert(name != NULL);
     const int name_len = (*env)->GetStringLength(env, _name);
 
 
@@ -219,13 +223,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         goto exit;
     }
 
-    if (context_len >= 0) {
-        if (context.bytearray == NULL) {
-            ret_code = JO_CONTEXT_BYTES_NULL;
-            goto exit;
-        }
 
-
+    if (context.bytearray != NULL) {
         if ((size_t) context_len > context.size) {
             ret_code = JO_CONTEXT_LEN_PAST_END;
             goto exit;
