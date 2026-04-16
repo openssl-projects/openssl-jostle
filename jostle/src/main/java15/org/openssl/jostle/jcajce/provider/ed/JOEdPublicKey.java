@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.ed;
 
 import org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
@@ -60,6 +62,29 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey, 
     @Override
     public NamedParameterSpec getParams()
     {
-        return EdECPublicKey.super.getParams();
+
+        if (spec.getType() == OSSLKeyType.ED25519)
+        {
+            return NamedParameterSpec.ED25519;
+        }
+        else if (spec.getType() == OSSLKeyType.ED448)
+        {
+            return NamedParameterSpec.ED448;
+        }
+        throw new IllegalArgumentException("Unknown OSSLKeyType: " + spec.getType().name());
+    }
+
+    public EdDSAParameterSpec getParameterSpec()
+    {
+        switch (spec.getType())
+        {
+            case ED448:
+                return EdDSAParameterSpec.ED448;
+            case ED25519:
+                return EdDSAParameterSpec.ED25519;
+            default:
+                throw new IllegalArgumentException("unknown parameter type: " + spec.getType().name());
+
+        }
     }
 }

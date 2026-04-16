@@ -314,7 +314,6 @@ exit:
     return ret_code;
 }
 
-
 int32_t mldsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
     size_t min_len;
 

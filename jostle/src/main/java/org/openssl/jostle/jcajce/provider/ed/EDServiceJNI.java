@@ -38,4 +38,16 @@ public class EDServiceJNI implements EDServiceNI
 
     @Override
     public native int ni_update(long reference, byte[] b, int off, int len);
+
+    @Override
+    public native int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    @Override
+    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    @Override
+    public native int ni_getPublicKey(long ref, byte[] output);
+    
+    @Override
+    public native int ni_getPrivateKey(long ref, byte[] output);
 }

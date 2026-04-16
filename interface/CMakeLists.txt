@@ -182,9 +182,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rand/jostle_lib_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
+            ffi/ed_ni_ffi.c
             util/edec.h
             util/edec.c
-
     )
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
@@ -339,6 +339,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/rand_upcall_ffi.c
             util/edec.h
             util/edec.c
+            ffi/ed_ni_ffi.c
     )
 
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
@@ -473,6 +474,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/rand_upcall_ffi.c
             util/edec.h
             util/edec.c
+            ffi/ed_ni_ffi.c
 
     )
 

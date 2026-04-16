@@ -26,6 +26,14 @@ typedef struct edec_ctx {
 
 int32_t edec_generate_key(key_spec *spec, int32_t type, void *rnd_src);
 
+int32_t edec_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len);
+
+int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_len);
+
+int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len);
+
+int32_t edec_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len);
+
 edec_ctx *edec_ctx_create(int32_t *err);
 
 void edec_ctx_destroy(edec_ctx *edec_ctx);

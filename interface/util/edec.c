@@ -78,6 +78,245 @@ exit:
     return ret_code;
 }
 
+int32_t edec_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    size_t min_len;
+
+    EVP_PKEY *pkey = key_spec->key;
+
+    if (pkey == NULL) {
+        return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+
+    const char *algo = EVP_PKEY_get0_type_name(key_spec->key);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    if (0 != strncmp(algo, "MD", 2)) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, NULL, 0,
+                                                                 &min_len)) {
+        return JO_OPENSSL_ERROR;
+    }
+
+
+    if (out == NULL) {
+        return (int32_t) min_len;
+    }
+
+
+    if (out_len < min_len) {
+        return JO_OUTPUT_TOO_SMALL;
+    }
+
+    size_t written = 0;
+
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len,
+                                                                 &written)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+    }
+
+    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    return (int32_t) written;
+}
+
+int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    size_t min_len;
+
+    EVP_PKEY *pkey = key_spec->key;
+
+    if (pkey == NULL) {
+        return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+    const char *algo = EVP_PKEY_get0_type_name(key_spec->key);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+
+
+    if (0 != strncmp(algo, "Ed", 2)) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0,
+                                                                 &min_len)) {
+        return JO_OPENSSL_ERROR;
+    }
+
+
+    if (out == NULL) {
+        return (int32_t) min_len;
+    }
+
+    if (out_len < min_len) {
+        return JO_OUTPUT_TOO_SMALL;
+    }
+
+    size_t written = 0;
+
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
+                                                                 &written)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+    }
+
+    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    return (int32_t) written;
+}
+
+int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len) {
+    int32_t ret_code = JO_FAIL;
+    size_t min_len = 0;
+    const char *type;
+
+    jo_assert(key_spec != NULL);
+
+    /*
+        * KeyFactory has not been initialized to expect a certain key type
+        * so attempt to use length to determine ED private key type
+        */
+
+    if (typeId == KS_NONE) {
+        switch (src_len) {
+            case 32:
+                typeId = KS_ED25519;
+            break;
+            case 57:
+                typeId = KS_ED448;
+            break;
+            default:
+                ret_code = JO_UNKNOWN_KEY_LEN;
+            goto exit;
+        }
+    }
+
+
+    switch (typeId) {
+        case KS_ED25519:
+            min_len = 32;
+        type = "Ed25519";
+        break;
+        case KS_ED448:
+            min_len = 57;
+        type = "Ed448";
+        break;
+
+        default:
+            ret_code = JO_INCORRECT_KEY_TYPE;
+        goto exit;
+    }
+
+
+    if (src_len != 32 && min_len != src_len) {
+        ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
+        goto exit;
+    }
+
+
+    key_spec->key = EVP_PKEY_new_raw_private_key_ex(
+        get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+
+#ifdef JOSTLE_OPS
+    if (OPS_OPENSSL_ERROR_1 0) {
+        EVP_PKEY_free(key_spec->key);
+        key_spec->key = NULL;
+        // trigger the openssl error pathway below
+    }
+#endif
+
+    if (key_spec->key == NULL) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+    ret_code = JO_SUCCESS;
+
+exit:
+    return ret_code;
+}
+
+int32_t edec_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len) {
+    int32_t ret_code = JO_FAIL;
+    size_t min_len = 0;
+    const char *type = NULL;
+
+    jo_assert(key_spec != NULL);
+
+
+    /*
+     * KeyFactory has not been initialized to expect a certain key type
+     * so attempt to use length to determine ML-DSA public key type
+     */
+    if (typeId == KS_NONE) {
+        switch (src_len) {
+            case 32:
+                typeId = KS_ED25519;
+                break;
+            case 57:
+                typeId = KS_ED448;
+                break;
+            default:
+                ret_code = JO_UNKNOWN_KEY_LEN;
+                goto exit;
+        }
+    }
+
+
+    switch (typeId) {
+        case KS_ED25519:
+            min_len = 32;
+            type = "Ed25519";
+            break;
+        case KS_ED448:
+            min_len = 57;
+            type = "Ed448";
+            break;
+
+        default:
+            ret_code = JO_INCORRECT_KEY_TYPE;
+            goto exit;
+    }
+
+    if (min_len != src_len) {
+        ret_code = JO_ENCODED_PUBLIC_KEY_LEN;
+        goto exit;
+    }
+
+    key_spec->key = EVP_PKEY_new_raw_public_key_ex(
+        get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+
+#ifdef JOSTLE_OPS
+    if (OPS_OPENSSL_ERROR_1 0) {
+        EVP_PKEY_free(key_spec->key);
+        key_spec->key = NULL;
+        // trigger the openssl error pathway below
+    }
+
+#endif
+
+
+    if (key_spec->key == NULL) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+    ret_code = JO_SUCCESS;
+
+exit:
+    return ret_code;
+}
+
 
 edec_ctx *edec_ctx_create(int32_t *err) {
     jo_assert(err != NULL);

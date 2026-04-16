@@ -11,9 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.ed;
 
-import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
-import org.openssl.jostle.jcajce.spec.OSSLKeyType;
-import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
 import java.security.*;
@@ -72,6 +71,27 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
             return new JOEdPublicKey(pkeySpec);
         }
+        else
+        {
+            if (keySpec instanceof EdDSAPublicKeySpec)
+            {
+                EdDSAPublicKeySpec pubSpec = (EdDSAPublicKeySpec) keySpec;
+
+                OSSLKeyType osslKeyType = typeMap.get(pubSpec.getParameterSpec());
+
+                if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
+                {
+                    throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+                }
+
+                byte[] encoded = ((EdDSAPublicKeySpec) keySpec).getPublicData();
+                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+
+                NISelector.EDServiceNI.decode_publicKey(
+                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
+                return new JOEdPublicKey(pkeySpec);
+            }
+        }
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
     }
 
@@ -101,6 +121,27 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
             return new JOEdPrivateKey(pkeySpec);
         }
+        else
+        {
+            if (keySpec instanceof EdDSAPrivateKeySpec)
+            {
+                EdDSAPrivateKeySpec spec = (EdDSAPrivateKeySpec) keySpec;
+                OSSLKeyType osslKeyType = typeMap.get(spec.getParameterSpec());
+
+                if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
+                {
+                    throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+                }
+
+                byte[] encoded = spec.getPrivateData();
+
+                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                NISelector.MLDSAServiceNI.decode_privateKey(
+                        pkeySpec.getReference(), osslKeyType.getKsType(),
+                        encoded, 0, encoded.length);
+                return new JOEdPrivateKey(pkeySpec);
+            }
+        }
 
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
     }
@@ -114,13 +155,33 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             {
                 return keySpec.cast(new PKCS8EncodedKeySpec(key.getEncoded()));
             }
-
+            else
+            {
+                if (EdDSAPrivateKeySpec.class.isAssignableFrom(keySpec))
+                {
+                    JOEdPrivateKey mKey = (JOEdPrivateKey) key;
+                    return keySpec.cast(new EdDSAPrivateKeySpec(
+                             mKey.getParameterSpec(),
+                            mKey.getEncoded(),
+                            mKey.getPublicKey().getEncoded()));
+                }
+            }
         }
         else if (key instanceof JOEdPublicKey)
         {
             if (X509EncodedKeySpec.class.isAssignableFrom(keySpec))
             {
                 return keySpec.cast(new X509EncodedKeySpec(key.getEncoded()));
+            }
+            else
+            {
+                if (EdDSAPublicKeySpec.class.isAssignableFrom(keySpec))
+                {
+                    JOEdPublicKey mKey = (JOEdPublicKey) key;
+                    return keySpec.cast(new EdDSAPublicKeySpec(
+                            mKey.getParameterSpec(), mKey.getEncoded())
+                    );
+                }
             }
         }
 

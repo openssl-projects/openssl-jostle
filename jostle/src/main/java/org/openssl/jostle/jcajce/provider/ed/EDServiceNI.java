@@ -34,6 +34,13 @@ public interface EDServiceNI extends DefaultServiceNI
 
     int ni_update(long reference, byte[] b, int off, int len);
 
+    int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+
+    int ni_getPublicKey(long ref, byte[] output);
+
+    int ni_getPrivateKey(long ref, byte[] output);
 
     default long allocateSigner()
     {
@@ -86,6 +93,41 @@ public interface EDServiceNI extends DefaultServiceNI
     default void initVerify(long reference, long keyRef, String name, byte[] context, int contextLen)
     {
         handleErrors(ni_initVerify(reference, keyRef,name, context, contextLen));
+    }
+
+    /**
+     * Get the public key encoded
+     *
+     * @param ref    the reference
+     * @param output the output array, use null to return length.
+     * @return the length or an error code.
+     */
+    default int getPublicKey(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getPublicKey(ref, output));
+    }
+
+    /**
+     * Get the private key encoded.
+     *
+     * @param ref    the reference
+     * @param output the output array, use null to return length
+     * @return the length or an error code.
+     */
+    default int getPrivateKey(long ref, byte[] output)
+    {
+        return (int) handleErrors(ni_getPrivateKey(ref, output));
+    }
+
+
+    default int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_publicKey(spec_ref, keyType, input, inputOffset, inputLen));
+    }
+
+    default int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    {
+        return (int) handleErrors(ni_decode_privateKey(spec_ref, keyType, input, inputOffset, inputLen));
     }
 
 

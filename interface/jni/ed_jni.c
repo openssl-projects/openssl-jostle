@@ -82,6 +82,201 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_
     return (jlong) key_spec;
 }
 
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ed_EDServiceJNI
+ * Method:    ni_decode_publicKey
+ * Signature: (JI[BII)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1decode_1publicKey
+(JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    key_spec *key_spec = (void *) ref;
+
+
+    jint ret_val = JO_FAIL;
+    java_bytearray_ctx input; // Non critical access
+    init_bytearray_ctx(&input);
+
+    if (key_spec == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (_input == NULL) {
+        ret_val = JO_INPUT_IS_NULL;;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+        ret_val = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+
+    if (in_off < 0) {
+        ret_val = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+        ret_val = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+
+    uint8_t *start = input.bytearray + in_off;
+    ret_val = edec_decode_public_key(key_spec, key_type, start, in_len);
+
+
+exit:
+    release_bytearray_ctx(&input);
+    return ret_val;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ed_EDServiceJNI
+ * Method:    ni_decode_privateKey
+ * Signature: (JI[BII)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1decode_1privateKey
+(JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    key_spec *key_spec = (void *) ref;
+
+
+    jint ret_val = JO_FAIL;
+    java_bytearray_ctx input; // Non critical access
+    init_bytearray_ctx(&input);
+
+    if (key_spec == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (_input == NULL) {
+        ret_val = JO_INPUT_IS_NULL;;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+        ret_val = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (in_off < 0) {
+        ret_val = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+        ret_val = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+
+    uint8_t *start = input.bytearray + in_off;
+    ret_val = edec_decode_private_key(key_spec, key_type, start, in_len);
+
+
+exit:
+    release_bytearray_ctx(&input);
+    return ret_val;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ed_EDServiceJNI
+ * Method:    ni_getPublicKey
+ * Signature: (J[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1getPublicKey
+(JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
+    UNUSED(o);
+    key_spec *key_spec = (void *) ref;
+
+    if (key_spec == NULL) {
+        return JO_KEY_SPEC_IS_NULL;
+    }
+
+
+    java_bytearray_ctx output; // Non critical access
+    init_bytearray_ctx(&output);
+
+    int32_t ret_code = JO_FAIL;
+
+    if (_output == NULL) {
+        ret_code = edec_get_public_encoded(key_spec,NULL, 0);
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    ret_code = edec_get_public_encoded(key_spec, output.bytearray, output.size);
+
+exit:
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ed_EDServiceJNI
+ * Method:    ni_getPrivateKey
+ * Signature: (J[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1getPrivateKey
+(JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
+    UNUSED(o);
+    key_spec *key_spec = (void *) ref;
+
+    java_bytearray_ctx output; // Non critical access
+    init_bytearray_ctx(&output);
+
+    int32_t ret_code = JO_FAIL;
+
+
+    if (key_spec == NULL) {
+        ret_code = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+
+    if (_output == NULL) {
+        ret_code = edec_get_private_encoded(key_spec,NULL, 0);
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    ret_code = edec_get_private_encoded(key_spec, output.bytearray, output.size);
+
+exit:
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+
 /*
  * Class:     org_openssl_jostle_jcajce_provider_ed_EDServiceJNI
  * Method:    ni_initSign

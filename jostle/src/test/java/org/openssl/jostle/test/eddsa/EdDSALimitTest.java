@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
@@ -37,6 +38,449 @@ public class EdDSALimitTest
             Security.addProvider(new JostleProvider());
         }
     }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_nullKeySpec() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            edServiceNI.decode_publicKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[1024], 0, 1024);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("key spec is null", e.getMessage());
+        }
+        finally
+        {
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_inputNull() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+
+            edServiceNI.decode_publicKey(keyRef, OSSLKeyType.ED25519.getKsType(), null, 0, 0);
+            Assertions.fail();
+        }
+        catch (NullPointerException e)
+        {
+            Assertions.assertEquals("input is null", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_inputOffsetNegative() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+
+            edServiceNI.decode_publicKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[0], -1, 0);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input offset is negative", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_inputLenNegative() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+
+            edServiceNI.decode_publicKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[0], 0, -1);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input len is negative", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_inputOutOfRange_1() throws Exception
+    {
+
+        // offset + len > size
+        // 1 + 10 > 10
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.decode_publicKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[10], 1, 10);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_inputOutOfRange_2() throws Exception
+    {
+
+        // offset + len > size
+        // 0 + 11 > 10
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.decode_publicKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[10], 0, 11);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_keyLength() throws Exception
+    {
+        // Either side of each valid key len
+        for (int len : new int[]{1311, 1313, 1951, 1953, 2951, 2953})
+        {
+            long keyRef = 0;
+            try
+            {
+                keyRef = TestNISelector.getSpecNI().allocate();
+                Assertions.assertTrue(keyRef > 0);
+                edServiceNI.decode_publicKey(keyRef, OSSLKeyType.NONE.getKsType(), new byte[len], 0, len);
+                Assertions.fail();
+            }
+            catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("unknown key length", e.getMessage());
+            }
+            finally
+            {
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_keyType() throws Exception
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.decode_publicKey(keyRef, 99, new byte[10], 0, 10);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("invalid key type for EDDSA", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1publicKey_inputWrongSize4KeyType() throws Exception
+    {
+        long keyRef = 0;
+
+        final Object[][] tuples = new Object[][]{
+                {
+                        OSSLKeyType.ED25519.getKsType(),
+                        new byte[1311]
+                },
+                {
+                        OSSLKeyType.ED25519.getKsType(),
+                        new byte[1313]
+                },
+
+
+        };
+
+        for (Object[] tuple : tuples)
+        {
+
+            int keyType = (Integer) tuple[0];
+            byte[] key = (byte[]) tuple[1];
+
+            try
+            {
+                keyRef = TestNISelector.getSpecNI().allocate();
+                Assertions.assertTrue(keyRef > 0);
+                edServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length);
+                Assertions.fail();
+            }
+            catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("incorrect public key length", e.getMessage());
+            }
+            finally
+            {
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+    // Boken input for public key is an OpsTest see EdDSAOpsTest class
+
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_inputNull() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+
+            edServiceNI.decode_privateKey(keyRef, OSSLKeyType.ED25519.getKsType(), null, 0, 0);
+            Assertions.fail();
+        }
+        catch (NullPointerException e)
+        {
+            Assertions.assertEquals("input is null", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_inputOffsetNegative() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+
+            edServiceNI.decode_privateKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[0], -1, 0);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input offset is negative", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_inputLenNegative() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+
+            edServiceNI.decode_privateKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[0], 0, -1);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input len is negative", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_inputOutOfRange_1() throws Exception
+    {
+
+        // offset + len > size
+        // 1 + 10 > 10
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.decode_privateKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[10], 1, 10);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_inputOutOfRange_2() throws Exception
+    {
+
+        // offset + len > size
+        // 0 + 11 > 10
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.decode_privateKey(keyRef, OSSLKeyType.ED25519.getKsType(), new byte[10], 0, 11);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input offset + length is out of range", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_keyLength() throws Exception
+    {
+        // Either side of each valid key len
+        for (int len : new int[]{2559, 2561, 4031, 4033, 4895, 4897})
+        {
+            long keyRef = 0;
+            try
+            {
+                keyRef = TestNISelector.getSpecNI().allocate();
+                Assertions.assertTrue(keyRef > 0);
+                edServiceNI.decode_privateKey(keyRef, OSSLKeyType.NONE.getKsType(), new byte[len], 0, len);
+                Assertions.fail();
+            }
+            catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("unknown key length", e.getMessage());
+            }
+            finally
+            {
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_keyType() throws Exception
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = TestNISelector.getSpecNI().allocate();
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.decode_privateKey(keyRef, 99, new byte[10], 0, 10);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("invalid key type for EDDSA", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void EdDSAServiceJNI_decode_1privateKey_inputWrongSize4KeyType() throws Exception
+    {
+        long keyRef = 0;
+
+        final Object[][] tuples = new Object[][]{
+                {
+                        OSSLKeyType.ED25519.getKsType(),
+                        new byte[31]
+                },
+                {
+                        OSSLKeyType.ED25519.getKsType(),
+                        new byte[33]
+                },
+                {
+                        OSSLKeyType.ED448.getKsType(),
+                        new byte[56]
+                },
+                {
+                        OSSLKeyType.ED448.getKsType(),
+                        new byte[58]
+                },
+        };
+
+        for (Object[] tuple : tuples)
+        {
+
+            int keyType = (Integer) tuple[0];
+            byte[] key = (byte[]) tuple[1];
+
+            try
+            {
+                keyRef = TestNISelector.getSpecNI().allocate();
+                Assertions.assertTrue(keyRef > 0);
+                edServiceNI.decode_privateKey(keyRef, keyType, key, 0, key.length);
+                Assertions.fail();
+            }
+            catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("incorrect private key length", e.getMessage());
+            }
+            finally
+            {
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+
+
 
     @Test
     public void testEDDSAGenerateKeyPair_keyGenWrongType() throws Exception
@@ -60,33 +504,7 @@ public class EdDSALimitTest
     }
 
 
-    @Test()
-    public void EDDSAServiceJNI_initVerify_nullContextArray() throws Exception
-    {
 
-        long ref = 0;
-        long keyRef = 0;
-
-        try
-        {
-            ref = TestNISelector.getEdNi().allocateSigner();
-            Assertions.assertTrue(ref > 0);
-            keyRef = TestNISelector.getEdNi().generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
-
-            Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(ref, keyRef,"ED25519ctx" , null, 0);
-            Assertions.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("context array is null", e.getMessage());
-        }
-        finally
-        {
-            edServiceNI.disposeSigner(ref);
-            specNI.dispose(keyRef);
-        }
-    }
 
 
     @Test()
@@ -136,7 +554,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(EDDSARef, keyRef,"ED25519ctx" , new byte[1], 2);
+            edServiceNI.initVerify(EDDSARef, keyRef, "ED25519ctx", new byte[1], 2);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -192,7 +610,7 @@ public class EdDSALimitTest
         {
             eddsaRef = edServiceNI.allocateSigner();
             Assertions.assertTrue(eddsaRef > 0);
-            edServiceNI.initVerify(eddsaRef, keyRef,"ED25519ctx" , new byte[64], 64);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[64], 64);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -219,7 +637,7 @@ public class EdDSALimitTest
             keyRef = specNI.allocate();
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(eddsaRef, keyRef,"ED25519ctx" , new byte[1], 1);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1], 1);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -278,7 +696,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(eddsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.update(eddsaRef, null, 0, 0);
 
@@ -309,7 +727,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(eddsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.update(eddsaRef, new byte[0], -1, 0);
 
@@ -340,7 +758,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.update(eddsaRef, new byte[0], 0, -1);
 
@@ -377,7 +795,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(eddsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.update(eddsaRef, new byte[10], 0, 11);
 
@@ -414,7 +832,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(eddsaRef, keyRef,"ED25519ctx" , new byte[0], 0, TestUtil.RNDSrc );
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.update(eddsaRef, new byte[10], 1, 10);
 
@@ -433,7 +851,6 @@ public class EdDSALimitTest
     }
 
 
-
     @Test()
     public void EDDSAServiceJNI_mldsa_sign_outOffsetNegative() throws Exception
     {
@@ -448,7 +865,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.sign(mldsaRef, new byte[0], -1, TestUtil.RNDSrc);
 
@@ -480,7 +897,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.sign(mldsaRef, new byte[0], 1, TestUtil.RNDSrc);
 
@@ -545,7 +962,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0);
+            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             edServiceNI.sign(mldsaRef, new byte[0], 0, TestUtil.RNDSrc);
 
@@ -582,7 +999,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  null );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, null);
             Assertions.fail();
 
         }
@@ -617,7 +1034,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.sign(mldsaRef, new byte[1024], 0, null);
             Assertions.fail();
@@ -653,7 +1070,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             long len = (edServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
@@ -694,7 +1111,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0,  TestUtil.RNDSrc );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             long len = (edServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
 
@@ -763,7 +1180,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0);
+            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             long code = (edServiceNI.verify(mldsaRef, new byte[1], 0));
             Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), code);
@@ -790,7 +1207,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0);
+            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             edServiceNI.verify(mldsaRef, new byte[1], -1);
 
@@ -822,7 +1239,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0);
+            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             edServiceNI.verify(mldsaRef, new byte[10], 11);
 
@@ -853,7 +1270,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0);
+            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             edServiceNI.verify(mldsaRef, new byte[0], 1);
 
@@ -885,7 +1302,7 @@ public class EdDSALimitTest
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef,"ED25519ctx" , new byte[0], 0, TestUtil.RNDSrc );
+            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
             edServiceNI.verify(mldsaRef, new byte[1], 1);
 
