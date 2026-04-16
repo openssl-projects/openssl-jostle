@@ -29,9 +29,7 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1dispose
     UNUSED(env);
     UNUSED(jo);
     key_spec *ks = (key_spec *) ((void *) ref);
-    if (ks != NULL) {
-        free_key_spec(ks);
-    }
+    free_key_spec(ks);
 }
 
 

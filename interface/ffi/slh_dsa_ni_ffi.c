@@ -212,9 +212,7 @@ exit:
 }
 
 void SLH_DSA_disposeSigner(slh_dsa_ctx *ctx) {
-    if (ctx == NULL) {
         slh_dsa_ctx_destroy(ctx);
-    }
 }
 
 
