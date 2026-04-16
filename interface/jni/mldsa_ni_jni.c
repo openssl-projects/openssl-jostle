@@ -349,9 +349,6 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(o);
 
     mldsa_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        return;
-    }
 
     mldsa_ctx_destroy(ctx);
 }

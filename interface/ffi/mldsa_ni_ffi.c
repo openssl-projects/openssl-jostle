@@ -212,9 +212,7 @@ exit:
 
 
 void MLDSA_disposeSigner(mldsa_ctx *ctx) {
-    if (ctx == NULL) {
-        mldsa_ctx_destroy(ctx);
-    }
+    mldsa_ctx_destroy(ctx);
 }
 
 

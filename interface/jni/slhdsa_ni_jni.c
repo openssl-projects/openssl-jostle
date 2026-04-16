@@ -587,9 +587,5 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     UNUSED(o);
 
     slh_dsa_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        return;
-    }
-
     slh_dsa_ctx_destroy(ctx);
 }
