@@ -39,7 +39,6 @@ key_spec *EDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
 }
 
 
-
 int32_t EDDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
@@ -166,11 +165,11 @@ edec_ctx *EDDSA_allocateSigner(int *err) {
 
 int32_t EDDSA_initVerifier(edec_ctx *ctx,
                            key_spec *kp,
-                          
+                           const char *name,
+                           int name_len,
                            const uint8_t *context,
                            const size_t context_size,
-                           int32_t context_len,
-                           int32_t mu_mode) {
+                           int32_t context_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -190,7 +189,7 @@ int32_t EDDSA_initVerifier(edec_ctx *ctx,
         }
     }
 
-    ret_val = edec_ctx_init_verify(ctx, kp, context, context_len);
+    ret_val = edec_ctx_init_verify(ctx, kp, name, name_len, context, context_len);
 
 
 exit:
@@ -199,6 +198,8 @@ exit:
 
 int32_t EDDSA_initSign(edec_ctx *ctx,
                        key_spec *kp,
+                       const char *name,
+                       int name_len,
                        const uint8_t *context,
                        const size_t context_size,
                        int32_t context_len,
@@ -225,7 +226,7 @@ int32_t EDDSA_initSign(edec_ctx *ctx,
         }
     }
 
-    ret_val = edec_ctx_init_sign(ctx, kp, context, context_len, mu_mode, rnd_src);
+    ret_val = edec_ctx_init_sign(ctx, kp, name, name_len, context, context_len, rnd_src);
 
 exit:
     return ret_val;
@@ -257,7 +258,7 @@ int32_t EDDSA_update(edec_ctx *ctx, const uint8_t *input, const size_t input_siz
     }
 
     const uint8_t *in = input + in_off;
-    ret_code = edec_update(ctx, in, in_len);
+    ret_code = edec_ctx_update(ctx, in, in_len);
 
 exit:
     return ret_code;
