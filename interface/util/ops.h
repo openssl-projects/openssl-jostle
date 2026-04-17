@@ -26,6 +26,7 @@
 #define OPS_FAILED_ACCESS_2 is_ops_set(4) ||
 #define OPS_FAILED_ACCESS_3 is_ops_set(5) ||
 #define OPS_FAILED_ACCESS_4 is_ops_set(6) ||
+
 #define OPS_POINTER_CHANGE is_ops_set(7) ||
 #define OPS_OPENSSL_ERROR_1 is_ops_set(8) ||
 #define OPS_OPENSSL_ERROR_2 is_ops_set(9) ||
@@ -38,6 +39,7 @@
 
 #define OPS_FAILED_CREATE_1 is_ops_set(15) ||
 #define OPS_FAILED_CREATE_2 is_ops_set(16) ||
+
 #define OPS_FAILED_INIT_1 is_ops_set(17) ||
 #define OPS_FAILED_INIT_2 is_ops_set(18) ||
 
@@ -54,12 +56,13 @@
 // Offset the error code by fixed amount during ops testing
 #define OPS_OFFSET(x) - x
 
-bool is_ops_set(const uint32_t index);
+int is_ops_set(const uint32_t index);
 
 void set_ops_test(const uint32_t index, const uint32_t value);
 
 int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred, void * rnd_src);
 
+int get_ops_test(const uint32_t index);
 
 #endif
 

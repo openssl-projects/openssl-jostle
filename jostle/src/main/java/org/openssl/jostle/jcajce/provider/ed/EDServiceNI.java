@@ -26,7 +26,7 @@ public interface EDServiceNI extends DefaultServiceNI
 
     int ni_initSign(long reference, long keyRef, String name, byte[] context, int contextLen, RandSource randSource);
 
-    long ni_sign(long reference, byte[] sig, int i, RandSource randSource);
+    int ni_sign(long reference, byte[] sig, int i, RandSource randSource);
 
     int ni_initVerify(long reference, long keyRef, String name, byte[] context, int contextLen);
 

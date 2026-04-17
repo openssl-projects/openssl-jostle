@@ -852,22 +852,22 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_outOffsetNegative() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_outOffsetNegative() throws Exception
     {
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            edServiceNI.sign(mldsaRef, new byte[0], -1, TestUtil.RNDSrc);
+            edServiceNI.sign(eddsaRef, new byte[0], -1, TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -877,29 +877,29 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
     }
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_outputRange() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_outputRange() throws Exception
     {
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            edServiceNI.sign(mldsaRef, new byte[0], 1, TestUtil.RNDSrc);
+            edServiceNI.sign(eddsaRef, new byte[0], 1, TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -909,29 +909,29 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
     }
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_notInitialized() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_notInitialized() throws Exception
     {
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            //(edServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0));
+            //(edServiceNI.initSign(eddsaRef, keyRef, new byte[0], 0, 0));
 
-            edServiceNI.sign(mldsaRef, new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.sign(eddsaRef, new byte[0], 0, TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -941,7 +941,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -949,22 +949,22 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_initVerify() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_initVerify() throws Exception
     {
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            edServiceNI.sign(mldsaRef, new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.sign(eddsaRef, new byte[0], 0, TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -974,7 +974,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -982,24 +982,24 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_nullRand_1() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_nullRand_1() throws Exception
     {
 
         //
         // offset is zero
         //
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, null);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, null);
             Assertions.fail();
 
         }
@@ -1009,7 +1009,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -1017,26 +1017,26 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_nullRand_2() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_nullRand_2() throws Exception
     {
 
         //
         // offset is zero
         //
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            edServiceNI.sign(mldsaRef, new byte[1024], 0, null);
+            edServiceNI.sign(eddsaRef, new byte[1024], 0, null);
             Assertions.fail();
 
         }
@@ -1046,37 +1046,37 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
     }
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_outputTooSmall_1() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_outputTooSmall_1() throws Exception
     {
 
         //
         // offset is zero
         //
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            long len = (edServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
+            long len = (edServiceNI.sign(eddsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len - 1];
 
-            edServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc);
+            edServiceNI.sign(eddsaRef, sig, 0, TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -1086,7 +1086,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -1094,30 +1094,30 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_sign_outputTooSmall_2() throws Exception
+    public void EDDSAServiceJNI_eddsa_sign_outputTooSmall_2() throws Exception
     {
 
         //
         // offset is 1
         //
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            long len = (edServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc));
+            long len = (edServiceNI.sign(eddsaRef, null, 0, TestUtil.RNDSrc));
 
             byte[] sig = new byte[(int) len];
 
-            edServiceNI.sign(mldsaRef, sig, 1, TestUtil.RNDSrc);
+            edServiceNI.sign(eddsaRef, sig, 1, TestUtil.RNDSrc);
 
             Assertions.fail();
         }
@@ -1127,30 +1127,30 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
     }
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_verify_nullSig() throws Exception
+    public void EDDSAServiceJNI_eddsa_verify_nullSig() throws Exception
     {
 
 
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            edServiceNI.verify(mldsaRef, null, 0);
+            edServiceNI.verify(eddsaRef, null, 0);
 
             Assertions.fail();
         }
@@ -1160,7 +1160,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -1168,48 +1168,48 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_verify_sigLenZero() throws Exception
+    public void EDDSAServiceJNI_eddsa_verify_sigLenZero() throws Exception
     {
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            long code = (edServiceNI.verify(mldsaRef, new byte[1], 0));
+            long code = (edServiceNI.verify(eddsaRef, new byte[1], 0));
             Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), code);
 
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
     }
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_verify_sigLenNegative() throws Exception
+    public void EDDSAServiceJNI_eddsa_verify_sigLenNegative() throws Exception
     {
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            edServiceNI.verify(mldsaRef, new byte[1], -1);
+            edServiceNI.verify(eddsaRef, new byte[1], -1);
 
             Assertions.fail();
         }
@@ -1219,7 +1219,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -1227,21 +1227,21 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_verify_sigLenOutOfRange_1() throws Exception
+    public void EDDSAServiceJNI_eddsa_verify_sigLenOutOfRange_1() throws Exception
     {
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            edServiceNI.verify(mldsaRef, new byte[10], 11);
+            edServiceNI.verify(eddsaRef, new byte[10], 11);
 
             Assertions.fail();
         }
@@ -1251,28 +1251,28 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
     }
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_verify_sigLenOutOfRange_2() throws Exception
+    public void EDDSAServiceJNI_eddsa_verify_sigLenOutOfRange_2() throws Exception
     {
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initVerify(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0);
+            edServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            edServiceNI.verify(mldsaRef, new byte[0], 1);
+            edServiceNI.verify(eddsaRef, new byte[0], 1);
 
             Assertions.fail();
         }
@@ -1282,7 +1282,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }
@@ -1290,21 +1290,21 @@ public class EdDSALimitTest
 
 
     @Test()
-    public void EDDSAServiceJNI_mldsa_verify_initForSigning() throws Exception
+    public void EDDSAServiceJNI_eddsa_verify_initForSigning() throws Exception
     {
-        long mldsaRef = 0;
+        long eddsaRef = 0;
         long keyRef = 0;
 
         try
         {
-            mldsaRef = edServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
             keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            edServiceNI.initSign(mldsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            edServiceNI.verify(mldsaRef, new byte[1], 1);
+            edServiceNI.verify(eddsaRef, new byte[1], 1);
 
             Assertions.fail();
         }
@@ -1314,7 +1314,7 @@ public class EdDSALimitTest
         }
         finally
         {
-            edServiceNI.disposeSigner(mldsaRef);
+            edServiceNI.disposeSigner(eddsaRef);
             specNI.dispose(keyRef);
 
         }

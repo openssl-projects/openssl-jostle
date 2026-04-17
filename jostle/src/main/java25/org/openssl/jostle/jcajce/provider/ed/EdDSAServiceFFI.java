@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.ed;
 
-import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -31,18 +30,11 @@ public class EdDSAServiceFFI implements EDServiceNI
     private static final MemorySegment generateKeyPairFunc;
     private static final MethodHandle generateKeyPairFuncHandle;
 
-    private static final MemorySegment generateKeyPairWithSeedFunc;
-    private static final MethodHandle generateKeyPairWithSeedFuncHandle;
-
-
     private static final MemorySegment getPublicKeyFunc;
     private static final MethodHandle getPublicKeyFuncHandle;
 
     private static final MemorySegment getPrivateKeyFunc;
     private static final MethodHandle getPrivateKeyFuncHandle;
-
-    private static final MemorySegment getSeedKeyFunc;
-    private static final MethodHandle getSeedKeyFuncHandle;
 
     private static final MemorySegment decodePublicKeyFunc;
     private static final MethodHandle decodePublicKeyFuncHandle;
@@ -86,18 +78,6 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.ADDRESS // upcall
                 ));
 
-        generateKeyPairWithSeedFunc = lookup.find("EDDSA_generateKeyPairSeed").orElseThrow();
-        generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
-                FunctionDescriptor.of(
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS
-                ));
-
 
         getPublicKeyFunc = lookup.find("EDDSA_getPublicKey").orElseThrow();
         getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
@@ -117,14 +97,6 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getSeedKeyFunc = lookup.find("EDDSA_getSeed").orElseThrow();
-        getSeedKeyFuncHandle = linker.downcallHandle(getSeedKeyFunc,
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG
-                ), Linker.Option.critical(true));
 
         decodePublicKeyFunc = lookup.find("EDDSA_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
@@ -168,25 +140,27 @@ public class EdDSAServiceFFI implements EDServiceNI
         initVerifyFunc = lookup.find("EDDSA_initVerifier").orElseThrow();
         initVerifyFuncHandle = linker.downcallHandle(initVerifyFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT
+                        ValueLayout.JAVA_INT, // return code
+                        ValueLayout.ADDRESS, // ctx
+                        ValueLayout.ADDRESS, // kp
+                        ValueLayout.ADDRESS, // name
+                        ValueLayout.JAVA_INT, // name_len
+                        ValueLayout.ADDRESS, // context
+                        ValueLayout.JAVA_LONG,  // context size
+                        ValueLayout.JAVA_INT // context_len
                 ));
 
         initSignerFunc = lookup.find("EDDSA_initSign").orElseThrow();
         initSignerFuncHandle = linker.downcallHandle(initSignerFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT, // return code
+                        ValueLayout.ADDRESS, // ctx
+                        ValueLayout.ADDRESS, // kp
+                        ValueLayout.ADDRESS, // name
+                        ValueLayout.JAVA_INT, // name_len
+                        ValueLayout.ADDRESS, // context
+                        ValueLayout.JAVA_LONG,  // context size
+                        ValueLayout.JAVA_INT, // context_len
                         ValueLayout.ADDRESS
                 ));
 
@@ -277,54 +251,6 @@ public class EdDSAServiceFFI implements EDServiceNI
         }
     }
 
-    @Override
-    public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource rndSource)
-    {
-        try (Arena a = Arena.ofConfined())
-        {
-
-            MemorySegment getEntropySegment;
-            if (rndSource == null)
-            {
-                getEntropySegment = MemorySegment.NULL;
-            }
-            else
-            {
-                var gHandle = MethodHandles.lookup().findVirtual(
-                        rndSource.getClass(),
-                        "getRandomSegment",
-                        entropyMt).bindTo(rndSource);
-                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-            }
-
-            MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
-
-            if (seed != null)
-            {
-                seedRef.asByteBuffer().put(seed);
-            }
-
-            MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
-                    type,
-                    retCodeRef,
-                    seedRef,
-                    seedRef.byteSize(),
-                    seedLen,
-                    getEntropySegment
-            );
-
-            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-
-            return segment.address();
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING,
-                    "FFI EDDSA_generateKeyPair (seed)", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
 
     @Override
     public int ni_getPublicKey(long ref, byte[] output)
@@ -366,24 +292,6 @@ public class EdDSAServiceFFI implements EDServiceNI
         }
     }
 
-    @Override
-    public int ni_getSeed(long ref, byte[] output)
-    {
-        try
-        {
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            MemorySegment refOutput = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
-            long len = output == null ? 0L : refOutput.byteSize();
-
-            return (int) getSeedKeyFuncHandle.invokeExact(ctx, refOutput, len);
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING,
-                    "FFI EDDSA_getSeed", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
 
     @Override
     public int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
@@ -455,7 +363,7 @@ public class EdDSAServiceFFI implements EDServiceNI
     }
 
     @Override
-    public int ni_initVerify(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal)
+    public int ni_initVerify(long ref, long keyReference, String name, byte[] context, int contextLen)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -466,7 +374,9 @@ public class EdDSAServiceFFI implements EDServiceNI
             {
                 contextRef.asByteBuffer().put(context);
             }
-            return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal);
+            MemorySegment nameSeg = a.allocateFrom(name);
+
+            return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, nameSeg, (int) nameSeg.byteSize(), contextRef, contextRef.byteSize(), contextLen);
 
         }
         catch (Throwable t)
@@ -478,7 +388,7 @@ public class EdDSAServiceFFI implements EDServiceNI
     }
 
     @Override
-    public int ni_initSign(long ref, long keyReference, byte[] context, int contextLen, int muOrdinal, RandSource randSource)
+    public int ni_initSign(long ref, long keyReference, String name, byte[] context, int contextLen, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {
@@ -506,7 +416,10 @@ public class EdDSAServiceFFI implements EDServiceNI
                 contextRef.asByteBuffer().put(context);
             }
 
-            return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, contextRef, contextRef.byteSize(), contextLen, muOrdinal, getEntropySegment);
+
+            MemorySegment nameSeg = a.allocateFrom(name);
+
+            return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, nameSeg, (int) nameSeg.byteSize() - 1, contextRef, contextRef.byteSize(), contextLen, getEntropySegment);
 
         }
         catch (Throwable t)

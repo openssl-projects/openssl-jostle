@@ -331,7 +331,7 @@ exit:
  * Method:    ni_sign
  * Signature: (J[BILorg/openssl/jostle/rand/RandSource;)J
  */
-JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1sign
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_ni_1sign
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _output, jint out_off, jobject rnd_src) {
     UNUSED(env);
     UNUSED(jo);

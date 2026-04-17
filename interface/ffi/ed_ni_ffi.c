@@ -152,9 +152,7 @@ exit:
 
 
 void EDDSA_disposeSigner(edec_ctx *ctx) {
-    if (ctx != NULL) {
-        edec_ctx_destroy(ctx);
-    }
+    edec_ctx_destroy(ctx);
 }
 
 
@@ -177,12 +175,7 @@ int32_t EDDSA_initVerifier(edec_ctx *ctx,
         goto exit;
     }
 
-    if (context_len >= 0) {
-        if (context == NULL) {
-            ret_val = JO_CONTEXT_BYTES_NULL;
-            goto exit;
-        }
-
+    if (context != NULL) {
         if ((size_t) context_len > context_size) {
             ret_val = JO_CONTEXT_LEN_PAST_END;
             goto exit;
@@ -203,26 +196,22 @@ int32_t EDDSA_initSign(edec_ctx *ctx,
                        const uint8_t *context,
                        const size_t context_size,
                        int32_t context_len,
-                       int32_t mu_mode,
                        void *rnd_src
 ) {
     jo_assert(ctx);
     int32_t ret_val = JO_FAIL;
-
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
-
 
     if (kp == NULL) {
         ret_val = JO_KEY_SPEC_IS_NULL;
         goto exit;
     }
 
-    if (context_len >= 0) {
-        if ((size_t) context_len > context_size) {
-            ret_val = JO_CONTEXT_LEN_PAST_END;
-            goto exit;
+    if (context != NULL) {
+        if (context_len >= 0) {
+            if ((size_t) context_len > context_size) {
+                ret_val = JO_CONTEXT_LEN_PAST_END;
+                goto exit;
+            }
         }
     }
 

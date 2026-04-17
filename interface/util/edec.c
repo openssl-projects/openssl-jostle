@@ -10,7 +10,8 @@
 
 #include "edec.h"
 
-#include <_string.h>
+
+#include <string.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -142,7 +143,6 @@ int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
     }
 
 
-
     if (0 != strncmp(algo, "Ed", 2)) {
         return JO_INCORRECT_KEY_TYPE;
     }
@@ -191,13 +191,13 @@ int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src
         switch (src_len) {
             case 32:
                 typeId = KS_ED25519;
-            break;
+                break;
             case 57:
                 typeId = KS_ED448;
-            break;
+                break;
             default:
                 ret_code = JO_UNKNOWN_KEY_LEN;
-            goto exit;
+                goto exit;
         }
     }
 
@@ -205,16 +205,16 @@ int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src
     switch (typeId) {
         case KS_ED25519:
             min_len = 32;
-        type = "Ed25519";
-        break;
+            type = "Ed25519";
+            break;
         case KS_ED448:
             min_len = 57;
-        type = "Ed448";
-        break;
+            type = "Ed448";
+            break;
 
         default:
             ret_code = JO_INCORRECT_KEY_TYPE;
-        goto exit;
+            goto exit;
     }
 
 
@@ -406,8 +406,8 @@ int32_t edec_ctx_init_sign(
     }
 
 
-    if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key,
-                                                       params)) {
+    if (OPS_OPENSSL_ERROR_2 EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key,
+                                                  params) != 1) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1001);
         goto exit;
     }
@@ -529,6 +529,8 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
 
     size_t sig_len = 0;
     rand_set_java_srand_call(rnd_src);
+
+
     if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestSign(ctx->digest_ctx, NULL, &sig_len, msg, msg_len)) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
@@ -550,8 +552,8 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
         const size_t sig_len_ = sig_len;
 
         rand_set_java_srand_call(rnd_src);
-        int code = EVP_DigestSign(ctx->digest_ctx, (unsigned char *) out, &sig_len, msg, msg_len);
-        if (OPS_OPENSSL_ERROR_2 1 != code) {
+
+        if (OPS_OPENSSL_ERROR_2 EVP_DigestSign(ctx->digest_ctx, (unsigned char *) out, &sig_len, msg, msg_len) != 1) {
             ret_code = JO_OPENSSL_ERROR;
             goto exit;
         }

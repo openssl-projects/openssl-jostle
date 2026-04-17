@@ -473,7 +473,7 @@ public class EdDSATest
 
         KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
         bcKeyGen.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed25519"));
-        KeyPair bcKeyPair = joKeyGen.generateKeyPair();
+        KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
 
 
         Signature joSigner = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
@@ -529,7 +529,7 @@ public class EdDSATest
 
         KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
         bcKeyGen.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed448"));
-        KeyPair bcKeyPair = joKeyGen.generateKeyPair();
+        KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
 
 
         Signature joSigner = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
