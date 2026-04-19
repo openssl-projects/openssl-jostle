@@ -40,17 +40,12 @@ public class JostleProvider
 
     public JostleProvider()
     {
-        this("default");
+        this(null);
     }
 
-    public JostleProvider(String module)
+    public JostleProvider(String config)
     {
         super(PROVIDER_NAME, VERSION, INFO);
-
-        if (module == null)
-        {
-            throw new NullPointerException("module name was null");
-        }
 
         synchronized (JostleProvider.class)
         {
@@ -59,11 +54,12 @@ public class JostleProvider
             //
             CryptoServicesRegistrar.assertNativeAvailable();
 
-            String nonDefaultOsslProvider = Properties.getPropertyValue(OPENSSL_PROVIDER_NAME, module);
-
-            // Will throw if there is an issue, this will break the loader
-            OpenSSL.setOSSLProvider(nonDefaultOsslProvider);
-
+            String nonDefaultOsslProvider = Properties.getPropertyValue(OPENSSL_PROVIDER_NAME, null);
+            if (nonDefaultOsslProvider != null)
+            {
+                // Will throw if there is an issue, this will break the loader
+                OpenSSL.setOSSLProvider(nonDefaultOsslProvider);
+            }
         }
 
         AccessWrapper.doAction(new AccessSupplier()
@@ -96,6 +92,7 @@ public class JostleProvider
         new ProvScryptKDF().configure(this);
         new ProvMD().configure(this);
         new ProvED().configure(this);
+        new ProvMac().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)
@@ -148,8 +145,17 @@ public class JostleProvider
             throw new IllegalStateException("duplicate provider key (" + key1 + ") found");
         }
 
+        // Apply provided attributes first. Some callers may already supply
+        // "ImplementedIn", so only add our default if it's absent to avoid
+        // duplicate provider attribute key errors during setup.
         addAttributes(type, name, attributes);
-        addAttribute(type, name, "ImplementedIn", "Software");
+        if (!attributes.containsKey("ImplementedIn"))
+        {
+            addAttribute(type, name, "ImplementedIn", "Software");
+        }
+
+//        addAttributes(type, name, attributes);
+//        addAttribute(type, name, "ImplementedIn", "Software");
 
         put(key1, className);
         if (creatorMap.containsKey(className))
@@ -167,8 +173,16 @@ public class JostleProvider
             throw new IllegalStateException("duplicate provider key (" + key1 + ") found");
         }
 
+        // Apply provided attributes and only set a default ImplementedIn if
+        // the caller hasn't specified one already.
         addAttributes(type, name, attributes);
-        addAttribute(type, name, "ImplementedIn", "Software");
+        if (!attributes.containsKey("ImplementedIn"))
+        {
+            addAttribute(type, name, "ImplementedIn", "Software");
+        }
+
+//        addAttributes(type, name, attributes);
+//        addAttribute(type, name, "ImplementedIn", "Software");
 
         put(key1, className);
         if (creatorMap.containsKey(className))

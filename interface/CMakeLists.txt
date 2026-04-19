@@ -75,6 +75,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     #
     add_library(interface_jni SHARED
             jni/md_jni.c
+            jni/mac_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
@@ -111,6 +112,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/kdf_jni.c
             util/kdf.h
             util/kdf.c
+            util/mac.h
+            util/mac.c
             util/md.c
             util/md.h
             util/rand/rand_upcall.h
@@ -139,6 +142,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     #
     add_library(interface_ffi SHARED
             ffi/md_ffi.c
+            ffi/mac_ffi.c
             ffi/ffi.h
             ffi/ffi.c
             ffi/types.h
@@ -175,6 +179,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/kdf_ffi.c
             util/kdf.h
             util/kdf.c
+            util/mac.h
+            util/mac.c
             util/md.c
             util/md.h
             util/rand/rand_upcall.h
@@ -231,6 +237,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     #
     add_library(interface_jni SHARED
             jni/md_jni.c
+            jni/mac_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
@@ -266,6 +273,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/kdf_jni.c
             util/kdf.h
             util/kdf.c
+            util/mac.h
+            util/mac.c
             util/md.c
             util/md.h
             util/rand/rand_upcall.h
@@ -294,6 +303,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     #
     add_library(interface_ffi SHARED
             ffi/md_ffi.c
+            ffi/mac_ffi.c
             ffi/ffi.h
             ffi/ffi.c
             ffi/types.h
@@ -330,6 +340,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/kdf_ffi.c
             util/kdf.h
             util/kdf.c
+            util/mac.h
+            util/mac.c
             util/md.c
             util/md.h
             util/rand/rand_upcall.h
@@ -372,6 +384,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 
     add_library(interface_jni SHARED
             jni/md_jni.c
+            jni/mac_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
@@ -408,6 +421,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/kdf_jni.c
             util/kdf.h
             util/kdf.c
+            util/mac.h
+            util/mac.c
             util/md.c
             util/md.h
             util/rand/rand_upcall.h
@@ -442,6 +457,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/slh_dsa_ni_ffi.c
             ffi/asn1_ni_ffi.c
             ffi/md_ffi.c
+            ffi/mac_ffi.c
             util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
@@ -465,6 +481,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/kdf_ffi.c
             util/kdf.h
             util/kdf.c
+            util/mac.h
+            util/mac.c
             util/md.c
             util/md.h
             util/rand/rand_upcall.h

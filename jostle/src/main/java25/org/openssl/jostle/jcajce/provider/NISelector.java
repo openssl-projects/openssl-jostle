@@ -23,6 +23,9 @@ import org.openssl.jostle.jcajce.provider.ed.EdDSAServiceFFI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIFFI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceFFI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceFFI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceJNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
@@ -48,7 +51,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 /**
  * Same class is implemented in src/main/java this version
  * will select an FFI version when the FFI interface is loaded.
- * NB: FFI will replace JNI eventually, and later JVMs may not support it.
+ * NB: FFI will replace JNI eventually and later JVMs may not support it.
  */
 public class NISelector
 {
@@ -64,6 +67,7 @@ public class NISelector
     public static final KdfNI KdfNI;
     public static final MDServiceNI MDServiceNI;
     public static final EDServiceNI EDServiceNI;
+    public static final MacServiceNI MacServiceNI;
 
     static
     {
@@ -81,6 +85,7 @@ public class NISelector
             KdfNI = new KdfNIFFI();
             MDServiceNI = new MDServiceFFI();
             EDServiceNI = new EdDSAServiceFFI();
+            MacServiceNI = new MacServiceFFI();
 
         }
         else
@@ -97,6 +102,7 @@ public class NISelector
             KdfNI = new KdfNIJNI();
             MDServiceNI = new MDServiceJNI();
             EDServiceNI = new EDServiceJNI();
+            MacServiceNI = new MacServiceJNI();
         }
     }
 }

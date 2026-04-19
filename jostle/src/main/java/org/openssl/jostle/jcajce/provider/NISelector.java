@@ -18,6 +18,8 @@ import org.openssl.jostle.jcajce.provider.ed.EDServiceJNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceJNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceJNI;
@@ -52,6 +54,7 @@ public class NISelector
     public static final KdfNI KdfNI;
     public static final MDServiceNI MDServiceNI;
     public static final EDServiceNI EDServiceNI;
+    public static final MacServiceNI MacServiceNI;
 
     static
     {
@@ -67,5 +70,6 @@ public class NISelector
         KdfNI = new KdfNIJNI();
         MDServiceNI = new MDServiceJNI();
         EDServiceNI = new EDServiceJNI();
+        MacServiceNI = new MacServiceJNI();
     }
 }
