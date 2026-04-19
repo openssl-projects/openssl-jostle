@@ -51,7 +51,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 /**
  * Same class is implemented in src/main/java this version
  * will select an FFI version when the FFI interface is loaded.
- * NB: FFI will replace JNI eventually and later JVMs may not support it.
+ * NB: FFI will replace JNI eventually, and later JVMs may not support it.
  */
 public class NISelector
 {

@@ -212,6 +212,9 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
 {
     UNUSED(env);
     UNUSED(self);
+
+
+
     jo_mac_free((uintptr_t)ref);
 }
 

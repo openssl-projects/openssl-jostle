@@ -1,19 +1,31 @@
 package org.openssl.jostle.test.mac;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.Security;
+
 public class MacLimitTest
 {
-    static
-    {
-        CryptoServicesRegistrar.isNativeAvailable();
-    }
+
+
 
     private final MacServiceNI macNI = TestNISelector.getMacServiceNI();
+
+    @BeforeAll
+    public static void beforeAll()
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+    }
+
 
     @Test
     public void makeInstance_digestNameNull()

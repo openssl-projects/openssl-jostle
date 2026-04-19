@@ -40,12 +40,17 @@ public class JostleProvider
 
     public JostleProvider()
     {
-        this(null);
+        this("default");
     }
 
-    public JostleProvider(String config)
+    public JostleProvider(String module)
     {
         super(PROVIDER_NAME, VERSION, INFO);
+
+        if (module == null)
+        {
+            throw new NullPointerException("module name was null");
+        }
 
         synchronized (JostleProvider.class)
         {
@@ -54,12 +59,11 @@ public class JostleProvider
             //
             CryptoServicesRegistrar.assertNativeAvailable();
 
-            String nonDefaultOsslProvider = Properties.getPropertyValue(OPENSSL_PROVIDER_NAME, null);
-            if (nonDefaultOsslProvider != null)
-            {
-                // Will throw if there is an issue, this will break the loader
-                OpenSSL.setOSSLProvider(nonDefaultOsslProvider);
-            }
+            String nonDefaultOsslProvider = Properties.getPropertyValue(OPENSSL_PROVIDER_NAME, module);
+
+            // Will throw if there is an issue, this will break the loader
+            OpenSSL.setOSSLProvider(nonDefaultOsslProvider);
+
         }
 
         AccessWrapper.doAction(new AccessSupplier()
@@ -154,8 +158,6 @@ public class JostleProvider
             addAttribute(type, name, "ImplementedIn", "Software");
         }
 
-//        addAttributes(type, name, attributes);
-//        addAttribute(type, name, "ImplementedIn", "Software");
 
         put(key1, className);
         if (creatorMap.containsKey(className))
@@ -181,8 +183,7 @@ public class JostleProvider
             addAttribute(type, name, "ImplementedIn", "Software");
         }
 
-//        addAttributes(type, name, attributes);
-//        addAttribute(type, name, "ImplementedIn", "Software");
+
 
         put(key1, className);
         if (creatorMap.containsKey(className))
