@@ -13,7 +13,6 @@ package org.openssl.jostle.jcajce.provider.mac;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.util.DigestUtil;
 
 import javax.crypto.MacSpi;
 import javax.crypto.SecretKey;
@@ -23,29 +22,15 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.spec.AlgorithmParameterSpec;
 
-public class MacServiceSPI extends MacSpi implements Cloneable
+public class MacServiceSPI extends MacSpi
 {
     private static final MacServiceNI macServiceNI = NISelector.MacServiceNI;
 
-    private final String macName;
-    private final String canonicalDigestName;
     private final MacReference ref;
 
-    public MacServiceSPI(String macName, String digestName)
+    public MacServiceSPI(String macName, String function)
     {
-        this(macName, DigestUtil.getCanonicalDigestName(digestName), true);
-    }
-
-    private MacServiceSPI(String macName, String canonicalDigestName, boolean allocate)
-    {
-        this(macName, canonicalDigestName, allocate ? macServiceNI.allocateMac(macName, canonicalDigestName) : 0L);
-    }
-
-    private MacServiceSPI(String macName, String canonicalDigestName, long reference)
-    {
-        this.macName = macName;
-        this.canonicalDigestName = canonicalDigestName;
-        this.ref = new MacReference(reference, canonicalDigestName);
+        this.ref = new MacReference(macServiceNI.allocateMac(macName, function), function);
     }
 
     @Override
@@ -74,7 +59,17 @@ public class MacServiceSPI extends MacSpi implements Cloneable
             throw new InvalidKeyException("key is null");
         }
 
-        byte[] keyBytes = extractKeyBytes(key);
+        if (!(key instanceof SecretKey))
+        {
+            throw new InvalidKeyException("unsupported key type: " + key.getClass().getName());
+        }
+
+        byte[] keyBytes = key.getEncoded();
+        if (keyBytes == null)
+        {
+            throw new InvalidKeyException("key encoding is null");
+        }
+
         try
         {
             macServiceNI.engineInit(ref.getReference(), keyBytes);
@@ -147,38 +142,6 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         }
     }
 
-    @Override
-    public Object clone() throws CloneNotSupportedException
-    {
-        try
-        {
-            long newRef = macServiceNI.copy(ref.getReference());
-            if (newRef == 0)
-            {
-                throw new CloneNotSupportedException("native copy failed");
-            }
-            return new MacServiceSPI(macName, canonicalDigestName, newRef);
-        } finally
-        {
-            Reference.reachabilityFence(this);
-        }
-    }
-
-    private byte[] extractKeyBytes(Key key) throws InvalidKeyException
-    {
-        if (!(key instanceof SecretKey))
-        {
-            throw new InvalidKeyException("unsupported key type: " + key.getClass().getName());
-        }
-
-        byte[] encoded = key.getEncoded();
-        if (encoded == null)
-        {
-            throw new InvalidKeyException("key encoding is null");
-        }
-
-        return encoded;
-    }
 
     private static class Disposer extends NativeDisposer
     {

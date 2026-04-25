@@ -51,7 +51,11 @@
 #define OPS_SHORT_SIZE_1 is_ops_set(23) ||
 #define OPS_RAND_UP_CALL_NULL is_ops_set(24) ||
 
-#define OPS_MAX_TEST 25
+#define OPS_ALTERNATE_1 !is_ops_set(25) &&
+#define OPS_ALTERNATE_2 !is_ops_set(26) &&
+#define OPS_ALTERNATE_3 !is_ops_set(27) &&
+
+#define OPS_MAX_TEST 28
 
 // Offset the error code by fixed amount during ops testing
 #define OPS_OFFSET(x) - x
@@ -96,6 +100,10 @@ int get_ops_test(const uint32_t index);
 #define OPS_JNI_FAIL_CREATE_1
 #define OPS_SHORT_SIZE_1
 #define OPS_RAND_UP_CALL_NULL
+
+#define OPS_ALTERNATE_1
+#define OPS_ALTERNATE_2
+#define OPS_ALTERNATE_3
 
 #endif
 

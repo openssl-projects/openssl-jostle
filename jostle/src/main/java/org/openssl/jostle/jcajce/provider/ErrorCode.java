@@ -113,19 +113,20 @@ public enum ErrorCode
     JO_MD_DIGEST_LEN_INT_OVERFLOW(-92),
     JO_MD_SET_PARAM_FAIL(-93),
 
-    JO_MAC_MODE_IS_NULL(-94),
+    JO_MAC_FUNCTION_IS_NULL(-94),
+    JO_UNABLE_TO_ACCESS_FUNCTION(-95),
 
     //
     // JO_RAND error codes may never be emitted because there is no mechanism in OpenSSL
     // for a failing RAND to return anything other than 0 or 1.
     // Failures in a RAND will be seen as OpenSSL errors with these codes in the ERR msg.
     //
-    JO_RAND_UP_SHORT_RESULT(-95),
-    JO_RAND_INSUFFICIENT_STRENGTH(-96),
-    JO_RAND_NO_RAND_METHOD(-97),
-    JO_RAND_ERROR(-98),
-    JO_RAND_NO_RESEED(-99),
-    JO_RAND_FAIL_ACCESS_BUFFER(-100),
+    JO_RAND_UP_SHORT_RESULT(-96),
+    JO_RAND_INSUFFICIENT_STRENGTH(-97),
+    JO_RAND_NO_RAND_METHOD(-98),
+    JO_RAND_ERROR(-99),
+    JO_RAND_NO_RESEED(-100),
+    JO_RAND_FAIL_ACCESS_BUFFER(-101),
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

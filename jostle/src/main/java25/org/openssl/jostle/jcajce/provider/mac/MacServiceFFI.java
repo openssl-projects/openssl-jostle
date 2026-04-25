@@ -1,11 +1,6 @@
 package org.openssl.jostle.jcajce.provider.mac;
 
-import java.lang.foreign.Arena;
-import java.lang.foreign.FunctionDescriptor;
-import java.lang.foreign.Linker;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SymbolLookup;
-import java.lang.foreign.ValueLayout;
+import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -23,33 +18,33 @@ public class MacServiceFFI implements MacServiceNI
     private static final MethodHandle MH_len;
     private static final MethodHandle MH_reset;
     private static final MethodHandle MH_free;
-    private static final MethodHandle MH_copy;
+
 
     static
     {
         MH_new = LINKER.downcallHandle(
-                LOOKUP.find("MAC_new").orElseThrow(),
+                LOOKUP.find("MAC_allocate").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS
-                ), Linker.Option.critical(true));
+                ));
 
         MH_init = LINKER.downcallHandle(
                 LOOKUP.find("MAC_init").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG
+                        ValueLayout.ADDRESS, // *ctx
+                        ValueLayout.ADDRESS, // *key
+                        ValueLayout.JAVA_LONG // key len
                 ), Linker.Option.critical(true));
 
         MH_update = LINKER.downcallHandle(
                 LOOKUP.find("MAC_update").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
@@ -60,7 +55,7 @@ public class MacServiceFFI implements MacServiceNI
                 LOOKUP.find("MAC_final").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT
@@ -70,37 +65,32 @@ public class MacServiceFFI implements MacServiceNI
                 LOOKUP.find("MAC_len").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_LONG
-                ), Linker.Option.critical(true));
+                        ValueLayout.ADDRESS
+                ));
 
         MH_reset = LINKER.downcallHandle(
                 LOOKUP.find("MAC_reset").orElseThrow(),
-                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG),
-                Linker.Option.critical(true));
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS)
+        );
 
         MH_free = LINKER.downcallHandle(
                 LOOKUP.find("MAC_free").orElseThrow(),
-                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG),
-                Linker.Option.critical(true));
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
-        MH_copy = LINKER.downcallHandle(
-                LOOKUP.find("MAC_copy").orElseThrow(),
-                FunctionDescriptor.of(
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS
-                ), Linker.Option.critical(true));
     }
 
     @Override
-    public long ni_allocateMac(String macName, String canonicalDigestName, int[] err)
+    public long ni_allocateMac(String macName, String functionName, int[] err)
     {
         try (Arena arena = Arena.ofConfined())
         {
-            MemorySegment macNameSeg = macName == null ? MemorySegment.NULL : arena.allocateFrom(macName);
-            MemorySegment name = canonicalDigestName == null ? MemorySegment.NULL : arena.allocateFrom(canonicalDigestName);
-            MemorySegment errSeg = MemorySegment.ofArray(err);
-            MemorySegment outPtr = (MemorySegment)MH_new.invokeExact(macNameSeg, name, errSeg);
+            MemorySegment typeSeg = macName == null ? MemorySegment.NULL : arena.allocateFrom(macName);
+            MemorySegment functionSeg = functionName == null ? MemorySegment.NULL : arena.allocateFrom(functionName);
+            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment outPtr = (MemorySegment) MH_new.invokeExact(typeSeg, functionSeg, errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
             return outPtr.address();
         }
         catch (Throwable t)
@@ -116,7 +106,7 @@ public class MacServiceFFI implements MacServiceNI
         try
         {
             MemorySegment key = keyBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(keyBytes);
-            return (int) MH_init.invokeExact(ref, key, key.byteSize());
+            return (int) MH_init.invokeExact(MemorySegment.ofAddress(ref), key, key.byteSize());
         }
         catch (Throwable t)
         {
@@ -137,7 +127,7 @@ public class MacServiceFFI implements MacServiceNI
         try
         {
             MemorySegment input = in == null ? MemorySegment.NULL : MemorySegment.ofArray(in);
-            return (int) MH_update.invokeExact(ref, input, input.byteSize(), inOff, inLen);
+            return (int) MH_update.invokeExact(MemorySegment.ofAddress(ref), input, input.byteSize(), inOff, inLen);
         }
         catch (Throwable t)
         {
@@ -152,7 +142,7 @@ public class MacServiceFFI implements MacServiceNI
         try
         {
             MemorySegment output = out == null ? MemorySegment.NULL : MemorySegment.ofArray(out);
-            return (int) MH_final.invokeExact(ref, output, output.byteSize(), outOff);
+            return (int) MH_final.invokeExact(MemorySegment.ofAddress(ref), output, output.byteSize(), outOff);
         }
         catch (Throwable t)
         {
@@ -166,7 +156,7 @@ public class MacServiceFFI implements MacServiceNI
     {
         try
         {
-            return (int) MH_len.invokeExact(ref);
+            return (int) MH_len.invokeExact(MemorySegment.ofAddress(ref));
         }
         catch (Throwable t)
         {
@@ -176,11 +166,11 @@ public class MacServiceFFI implements MacServiceNI
     }
 
     @Override
-    public void ni_reset(long ref)
+    public int ni_reset(long ref)
     {
         try
         {
-            MH_reset.invokeExact(ref);
+            return (int) MH_reset.invokeExact(MemorySegment.ofAddress(ref));
         }
         catch (Throwable t)
         {
@@ -194,27 +184,11 @@ public class MacServiceFFI implements MacServiceNI
     {
         try
         {
-            MH_free.invokeExact(ref);
+            MH_free.invokeExact(MemorySegment.ofAddress(ref));
         }
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MAC_free", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
-
-    @Override
-    public long ni_copy(long ref, int[] err)
-    {
-        try (Arena arena = Arena.ofConfined())
-        {
-            MemorySegment errSeg = MemorySegment.ofArray(err);
-            MemorySegment outPtr = (MemorySegment)MH_copy.invokeExact(ref, errSeg);
-            return outPtr.address();
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING, "FFI MAC_copy", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

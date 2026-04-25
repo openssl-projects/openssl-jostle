@@ -10,16 +10,27 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <openssl/types.h>
 
-typedef struct jo_mac_ctx_st jo_mac_ctx;
+typedef struct jo_mac_ctx
+{
+    EVP_MAC *mac;
+    EVP_MAC_CTX *ctx;
+    char *mac_name;
+    char *function_name;
+    uint8_t *key;
+    size_t key_len;
+    int initialized;
+} mac_ctx;
 
-int32_t jo_mac_new(const char *mac_name, const char *canonical_name, uintptr_t *out_ctx);
-int32_t jo_mac_init(uintptr_t ctx, const uint8_t *key, size_t key_len);
-int32_t jo_mac_update(uintptr_t ctx, const uint8_t *in, int32_t off, int32_t len);
-int32_t jo_mac_final(uintptr_t ctx, uint8_t *out, int32_t off, int32_t out_len);
-int32_t jo_mac_len(uintptr_t ctx);
-void jo_mac_reset(uintptr_t ctx);
-void jo_mac_free(uintptr_t ctx);
-int32_t jo_mac_copy(uintptr_t ctx, uintptr_t *out_ctx);
+
+mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err);
+int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len);
+int32_t mac_update(mac_ctx *ctx, const uint8_t *in, int32_t off, int32_t len);
+int32_t mac_final(mac_ctx *ctx, uint8_t *out, int32_t off, int32_t out_len);
+int32_t mac_len(mac_ctx *ctx);
+
+int32_t mac_reset(mac_ctx *ctx);
+void mac_free(mac_ctx *ctx);
 
 #endif

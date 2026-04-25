@@ -71,7 +71,7 @@ public class BridgeRandValOpsTest
 
         String err = OpenSSL.getOpenSSLErrors();
 
-        Assertions.assertTrue(err.contains("-96")); // JO_RAND_INSUFFICIENT_STRENGTH
+        Assertions.assertTrue(err.contains("-97")); // JO_RAND_INSUFFICIENT_STRENGTH
     }
 
     @Test
@@ -138,7 +138,7 @@ public class BridgeRandValOpsTest
         Assertions.assertEquals(0, random.reseedCounter); // reseed was called!
 
         String err = OpenSSL.getOpenSSLErrors();
-        Assertions.assertTrue(err.contains("-99")); // JO_RAND_NO_RESEED
+        Assertions.assertTrue(err.contains("-100")); // JO_RAND_NO_RESEED
     }
 
     //

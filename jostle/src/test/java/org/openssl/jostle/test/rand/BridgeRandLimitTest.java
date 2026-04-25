@@ -51,7 +51,7 @@ public class BridgeRandLimitTest
         catch (Exception t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -95"));
+            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -96"));
         }
     }
 

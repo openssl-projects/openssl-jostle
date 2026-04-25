@@ -10,14 +10,12 @@
 
 package org.openssl.jostle.jcajce.provider.mac;
 
+import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
-import org.openssl.jostle.jcajce.provider.AccessException;
-import org.openssl.jostle.jcajce.provider.OpenSSL;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 
 import java.security.InvalidKeyException;
 
-public interface MacServiceNI
+public interface MacServiceNI extends DefaultServiceNI
 {
     long ni_allocateMac(String macName, String canonicalDigestName, int[] err);
 
@@ -31,23 +29,22 @@ public interface MacServiceNI
 
     int ni_getMacLength(long ref);
 
-    void ni_reset(long ref);
+    int ni_reset(long ref);
 
     void ni_dispose(long ref);
 
-    long ni_copy(long ref, int[] err);
 
 
-    default long allocateMac(String macName, String canonicalDigestName)
+    default long allocateMac(String macName, String functionName)
     {
         int[] err = new int[1];
-        long v = ni_allocateMac(macName, canonicalDigestName, err);
+        long v = ni_allocateMac(macName, functionName, err);
         handleErrors(err[0]);
         return v;
     }
 
     default void engineInit(long ref, byte[] keyBytes)
-        throws InvalidKeyException
+            throws InvalidKeyException
     {
         handleInitErrors(ni_init(ref, keyBytes));
     }
@@ -64,17 +61,17 @@ public interface MacServiceNI
 
     default int doFinal(long ref, byte[] out, int outOff)
     {
-        return (int)handleErrors(ni_doFinal(ref, out, outOff));
+        return (int) handleErrors(ni_doFinal(ref, out, outOff));
     }
 
     default int getMacLength(long ref)
     {
-        return (int)handleErrors(ni_getMacLength(ref));
+        return (int) handleErrors(ni_getMacLength(ref));
     }
 
     default void reset(long ref)
     {
-        ni_reset(ref);
+        handleErrors( ni_reset(ref));
     }
 
     default void dispose(long ref)
@@ -82,21 +79,15 @@ public interface MacServiceNI
         ni_dispose(ref);
     }
 
-    default long copy(long ref)
-    {
-        int[] err = new int[1];
-        long v = ni_copy(ref, err);
-        handleErrors(err[0]);
-        return v;
-    }
 
 
-    static void handleInitErrors(int code)
-        throws InvalidKeyException
+
+    default long handleInitErrors(int code)
+            throws InvalidKeyException
     {
         if (code >= 0)
         {
-            return;
+            return code;
         }
 
         ErrorCode ec = ErrorCode.forCode(code);
@@ -106,14 +97,16 @@ public interface MacServiceNI
                 throw new InvalidKeyException("key is null");
             case JO_FAILED_ACCESS_KEY:
                 throw new InvalidKeyException("unable to access key bytes");
-            case JO_OPENSSL_ERROR:
-                throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
+            case JO_UNKNOWN_KEY_LEN:
+                throw new InvalidKeyException("invalid key length for mac type");
+
             default:
-                handleErrors(code);
+
         }
+        return baseErrorHandler(code);
     }
 
-    static long handleErrors(long code)
+    default long handleErrors(long code)
     {
         if (code >= 0)
         {
@@ -123,44 +116,15 @@ public interface MacServiceNI
         ErrorCode errorCode = ErrorCode.forCode(code);
         switch (errorCode)
         {
-            case JO_SUCCESS:
-                return code;
-            case JO_NAME_IS_NULL:
-            case JO_PROV_NAME_NULL:
-                throw new NullPointerException("name is null");
-            case JO_NAME_NOT_FOUND:
-            case JO_PROV_NAME_EMPTY:
-                throw new IllegalArgumentException("name not found");
-            case JO_UNABLE_TO_ACCESS_NAME:
-                throw new IllegalStateException("unable to access name");
-            case JO_FAIL:
-                throw new IllegalStateException("mac operation failed");
-            case JO_INPUT_IS_NULL:
-                throw new IllegalArgumentException("input is null");
-            case JO_INPUT_OFFSET_IS_NEGATIVE:
-                throw new IllegalArgumentException("input offset is negative");
-            case JO_INPUT_LEN_IS_NEGATIVE:
-                throw new IllegalArgumentException("input length is negative");
-            case JO_INPUT_OUT_OF_RANGE:
-                throw new IllegalArgumentException("input out of range");
-            case JO_FAILED_ACCESS_INPUT:
-                throw new AccessException("unable to access input array");
-            case JO_OUTPUT_IS_NULL:
-                throw new IllegalArgumentException("output is null");
-            case JO_OUTPUT_OFFSET_IS_NEGATIVE:
-                throw new IllegalArgumentException("output offset is negative");
+            case JO_MAC_FUNCTION_IS_NULL:
+                throw new NullPointerException("mac function name is null");
+            case JO_UNABLE_TO_ACCESS_FUNCTION:
+                throw new IllegalStateException("unable to access function");
             case JO_OUTPUT_OUT_OF_RANGE:
-                throw new IllegalArgumentException("output out of range");
-            case JO_OUTPUT_TOO_SMALL:
-                throw new IllegalArgumentException("output too small");
-            case JO_FAILED_ACCESS_OUTPUT:
-                throw new AccessException("unable to access output array");
-            case JO_NOT_INITIALIZED:
-                throw new IllegalStateException("mac not initialized");
-            case JO_OPENSSL_ERROR:
-                throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
+                throw new IllegalArgumentException("output offset + mac len is out of range");
             default:
-                throw new IllegalStateException(String.format("Unhandled Error: %s", errorCode));
+
         }
+        return baseErrorHandler(code);
     }
 }

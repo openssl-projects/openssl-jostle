@@ -106,7 +106,11 @@ public interface OperationsTestNI
         OPS_JNI_FAIL_CREATE_1,
 
         OPS_SHORT_SIZE_1,
-        OPS_RAND_UP_CALL_NULL
+        OPS_RAND_UP_CALL_NULL,
+
+        OPS_ALTERNATE_1,
+        OPS_ALTERNATE_2,
+        OPS_ALTERNATE_3,
     }
 
 }

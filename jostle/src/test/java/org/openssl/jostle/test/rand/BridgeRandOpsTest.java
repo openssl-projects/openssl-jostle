@@ -84,7 +84,7 @@ public class BridgeRandOpsTest
         catch (Exception t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, attach thread: -98"));
+            Assertions.assertTrue(t.getMessage().contains("handler fail, attach thread: -99"));
         }
     }
 
@@ -103,7 +103,7 @@ public class BridgeRandOpsTest
         catch (Exception t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, create bytearray: -98"));
+            Assertions.assertTrue(t.getMessage().contains("handler fail, create bytearray: -99"));
         }
     }
 
@@ -157,7 +157,7 @@ public class BridgeRandOpsTest
         catch (Exception t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -95"));
+            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -96"));
         }
     }
 
@@ -176,7 +176,7 @@ public class BridgeRandOpsTest
         catch (Exception t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, access bytearray: -100"));
+            Assertions.assertTrue(t.getMessage().contains("handler fail, access bytearray: -101"));
         }
     }
 
@@ -194,7 +194,7 @@ public class BridgeRandOpsTest
         catch (Throwable t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -97"));
+            Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -98"));
         }
     }
 
