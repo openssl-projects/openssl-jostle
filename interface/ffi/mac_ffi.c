@@ -111,6 +111,9 @@ int32_t MAC_reset(mac_ctx *ctx) {
 }
 
 void MAC_free(mac_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
     mac_free(ctx);
 }
 

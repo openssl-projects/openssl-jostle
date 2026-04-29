@@ -41,7 +41,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     jint return_code = JO_FAIL;
     java_bytearray_ctx key;
     java_bytearray_ctx iv;
@@ -93,7 +93,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     return block_cipher_ctx_get_block_size(ctx);
 }
 
@@ -110,7 +110,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     jint return_code = JO_FAIL;
 
     critical_bytearray_ctx input;
@@ -177,7 +177,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     jint return_code = JO_FAIL;
     size_t out_len;
 
@@ -263,7 +263,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
 (JNIEnv *env, jobject cl, jlong ref, jbyteArray _output, jint out_off) {
     UNUSED(cl);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
 
     jint return_code = JO_FAIL;
     size_t out_len;
@@ -312,7 +312,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(obj);
     UNUSED(env);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
 
     int32_t return_code = JO_FAIL;
 
@@ -338,7 +338,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(obj);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
 
     int32_t return_code = JO_FAIL;
 
@@ -364,5 +364,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
     UNUSED(env);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ref;
+    if (ctx == NULL) {
+        return;
+    }
     block_cipher_ctx_destroy(ctx);
 }

@@ -152,6 +152,9 @@ exit:
 
 
 void EDDSA_disposeSigner(edec_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
     edec_ctx_destroy(ctx);
 }
 
@@ -198,7 +201,7 @@ int32_t EDDSA_initSign(edec_ctx *ctx,
                        int32_t context_len,
                        void *rnd_src
 ) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -223,7 +226,7 @@ exit:
 
 int32_t EDDSA_update(edec_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                      const int32_t in_len) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -260,7 +263,7 @@ int32_t EDDSA_sign(
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -294,7 +297,7 @@ int32_t EDDSA_verify(
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
 
 

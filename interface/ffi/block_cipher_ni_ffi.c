@@ -50,7 +50,7 @@ int32_t BlockCipherNI_init(
     size_t iv_size,
     int32_t tag_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
 
     int32_t return_code = JO_FAIL;
 
@@ -85,7 +85,7 @@ exit:
  */
 int32_t BlockCipherNI_getBlockSize(uint64_t ref) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     return block_cipher_ctx_get_block_size(ctx);
 }
 
@@ -107,7 +107,7 @@ int32_t BlockCipherNI_updateAAD
     int32_t in_off,
     int32_t in_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t return_code = JO_FAIL;
 
     if (input == NULL) {
@@ -168,7 +168,7 @@ int32_t BlockCipherNI_update
     int32_t in_off,
     int32_t in_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t return_code = JO_FAIL;
 
     if (input == NULL) {
@@ -233,7 +233,7 @@ exit:
  * @return number of bytes written to output array
  */
 int32_t BlockCipherNI_doFinal(block_cipher_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
 
     int32_t return_code = JO_FAIL;
 
@@ -301,5 +301,8 @@ exit:
  */
 void BlockCipherNI_dispose
 (block_cipher_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
     block_cipher_ctx_destroy(ctx);
 }

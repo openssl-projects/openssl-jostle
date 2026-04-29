@@ -23,27 +23,21 @@
 #  define jo_unlikely(x)   x
 # endif
 
-# ifdef NDEBUG
-#  define jo_assert(x) jo_likely((x) != 0)
-# else
-#include <printf.h>
+// jo_assert always aborts on failure, including under NDEBUG.
 #include <stdlib.h>
 #include <stdio.h>
-static inline  void jo_assert_f(int expr, const char *exprstr,
-                                              const char *file, int line)
+static inline void jo_assert_f(int expr, const char *exprstr,
+                               const char *file, int line)
 {
-    if (!expr) {
-        fprintf(stderr,exprstr,file,line);
+    if (jo_unlikely(!expr)) {
+        fprintf(stderr, "Assertion failed: %s, file %s, line %d\n",
+                exprstr, file, line);
         fflush(stderr);
         abort();
     }
-
 }
 
-#  define jo_assert(x) jo_assert_f((x) != 0, "Assertion failed: "#x, \
-__FILE__, __LINE__)
-
-# endif
+#define jo_assert(x) jo_assert_f((x) != 0, #x, __FILE__, __LINE__)
 
 
 #endif //HARD_ASSERT_H

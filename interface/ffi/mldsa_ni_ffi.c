@@ -212,6 +212,9 @@ exit:
 
 
 void MLDSA_disposeSigner(mldsa_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
     mldsa_ctx_destroy(ctx);
 }
 
@@ -261,7 +264,7 @@ int32_t MLDSA_initSign(mldsa_ctx *ctx,
                        int32_t mu_mode,
                        void *rnd_src
 ) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -289,7 +292,7 @@ exit:
 
 int32_t MLDSA_update(mldsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                      const int32_t in_len) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -326,7 +329,7 @@ int32_t MLDSA_sign(
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -360,7 +363,7 @@ int32_t MLDSA_verify(
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
 
 

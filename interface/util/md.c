@@ -55,7 +55,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
 
 
     md_ctx *ctx = OPENSSL_zalloc(sizeof(md_ctx));
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     ctx->md_type = md;
     ctx->mdctx = mdctx;
 

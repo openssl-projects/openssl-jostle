@@ -39,7 +39,7 @@ void counter_init(ctr_u128_t *ctr, uint8_t *iv, size_t iv_len) {
 }
 
 void counter_add(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
-    jo_assert(ctr);
+    jo_assert(ctr != NULL);
 
     uint64_t *mag = ctr->mag;
     const uint64_t h = ctr->mag[HIGH];
@@ -62,7 +62,7 @@ void counter_add(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
 }
 
 void counter_sub(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
-    jo_assert(ctr);
+    jo_assert(ctr != NULL);
 
     const uint64_t h = ctr->mag[HIGH];
     const uint64_t l = ctr->mag[LOW];
@@ -115,14 +115,14 @@ uint32_t counter_valid(ctr_u128_t *ctr) {
 
 
 void counter_seek(ctr_u128_t *ctr, uint64_t high, uint64_t low) {
-    jo_assert(ctr);
+    jo_assert(ctr != NULL);
     ctr->mag[HIGH] = high;
     ctr->mag[LOW] = low;
     ctr->rolled = 0;
 }
 
 void counter_reset(ctr_u128_t *ctr) {
-    jo_assert(ctr);
+    jo_assert(ctr != NULL);
     ctr->rolled = 0;
     ctr->mag[HIGH] = 0U;
     ctr->mag[LOW] = 0U;

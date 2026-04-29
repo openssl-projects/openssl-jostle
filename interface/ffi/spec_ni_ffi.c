@@ -19,7 +19,10 @@
   Clean up and free a PKEY
  */
 void SpecNI_disposeKeySpec(key_spec *ctx) {
-        free_key_spec(ctx);
+    if (ctx == NULL) {
+        return;
+    }
+    free_key_spec(ctx);
 }
 
 key_spec *SpecNI_allocateKeySpec(int32_t *err) {

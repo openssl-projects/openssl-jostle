@@ -327,7 +327,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     UNUSED(jo);
 
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) slhdsa_ref;
-    jo_assert(slhdsa);
+    jo_assert(slhdsa != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -377,7 +377,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     UNUSED(env);
     UNUSED(jo);
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) ref;
-    jo_assert(slhdsa);
+    jo_assert(slhdsa != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -430,7 +430,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
     UNUSED(env);
     UNUSED(jo);
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) ref;
-    jo_assert(slhdsa);
+    jo_assert(slhdsa != NULL);
 
     if (_output == NULL) {
         /* Caller wants length */
@@ -485,6 +485,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     UNUSED(jo);
 
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) ref;
+    jo_assert(slhdsa != NULL);
 
     java_bytearray_ctx sig;
     init_bytearray_ctx(&sig);
@@ -537,7 +538,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     UNUSED(jo);
 
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) slhdsa_ref;
-    jo_assert(slhdsa);
+    jo_assert(slhdsa != NULL);
 
     int32_t ret_code = JO_FAIL;
 
@@ -587,5 +588,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     UNUSED(o);
 
     slh_dsa_ctx *ctx = (void *) ref;
+    if (ctx == NULL) {
+        return;
+    }
     slh_dsa_ctx_destroy(ctx);
 }

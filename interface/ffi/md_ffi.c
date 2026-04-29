@@ -29,6 +29,9 @@ md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
 }
 
 void MD_Dispose(md_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
     md_ctx_destroy(ctx);
 }
 
@@ -121,8 +124,10 @@ int32_t MB_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_
 
 
 void MD_Reset(md_ctx *ctx) {
-
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        // Observed spurious resets from within the JVMs provider logic in the past.
+        return;
+    }
 
     md_ctx_reset(ctx);
 }

@@ -82,11 +82,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    critical_bytearray_ctx key;
-    int32_t ret;
-
     jo_assert(mac_ctx != NULL);
 
+    critical_bytearray_ctx key;
+    int32_t ret;
 
     init_critical_ctx(&key, env, keyBytes);
     if (key.array == NULL) {
@@ -112,10 +111,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
+    jo_assert(mac_ctx != NULL);
+
     int32_t ret;
     uint8_t b;
-
-    jo_assert(mac_ctx != NULL);
 
     if (!mac_ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -131,6 +130,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
+    jo_assert(mac_ctx != NULL);
+
     critical_bytearray_ctx input;
     int32_t ret;
 
@@ -253,6 +254,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *ctx = (void *) ref;
-
+    if (ctx == NULL) {
+        return;
+    }
     mac_free(ctx);
 }

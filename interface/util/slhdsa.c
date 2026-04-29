@@ -452,7 +452,7 @@ exit:
 
 slh_dsa_ctx *slh_dsa_ctx_create(int32_t *err) {
     slh_dsa_ctx *ctx = (slh_dsa_ctx *) OPENSSL_zalloc(sizeof(slh_dsa_ctx));
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
     *err = JO_SUCCESS;
     return ctx;
 }

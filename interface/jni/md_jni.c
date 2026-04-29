@@ -71,12 +71,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(env);
     UNUSED(jo);
 
-    int32_t ret_code = JO_FAIL;
-
     md_ctx *ctx = (md_ctx *) ref;
     jo_assert(ctx != NULL);
 
-    ret_code = md_ctx_update(ctx, (uint8_t *) &data, 1);
+    int32_t ret_code = md_ctx_update(ctx, (uint8_t *) &data, 1);
 
     return ret_code;
 }
@@ -143,6 +141,9 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(o);
 
     md_ctx *ctx = (md_ctx *) ref;
+    if (ctx == NULL) {
+        return;
+    }
     md_ctx_destroy(ctx);
 }
 
@@ -242,7 +243,10 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        // Observed spurious resets from within the JVMs provider logic in the past.
+        return;
+    }
 
     md_ctx_reset(ctx);
 }

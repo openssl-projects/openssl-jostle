@@ -287,7 +287,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
  jobject rnd_src) {
     UNUSED(jo);
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
-    jo_assert(eddsa !=NULL);
+    jo_assert(eddsa != NULL);
     jo_assert(_name != NULL);
 
     int32_t ret_code = JO_FAIL;
@@ -336,7 +336,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(env);
     UNUSED(jo);
     edec_ctx *edec = (edec_ctx *) ref;
-    jo_assert(edec);
+    jo_assert(edec != NULL);
 
     if (_output == NULL) {
         /* Caller wants length */
@@ -391,7 +391,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(jo);
 
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
-    jo_assert(eddsa !=NULL);
+    jo_assert(eddsa != NULL);
     jo_assert(_name != NULL); // jostle control this
 
     int32_t ret_code = JO_FAIL;
@@ -445,6 +445,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(jo);
 
     edec_ctx *ctx = (edec_ctx *) ref;
+    jo_assert(ctx != NULL);
 
     java_bytearray_ctx sig;
     init_bytearray_ctx(&sig);
@@ -491,7 +492,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(jo);
     edec_ctx *ctx = (edec_ctx *) ref;
-    jo_assert(ctx);
+    jo_assert(ctx != NULL);
 
     int32_t ret_code = JO_FAIL;
 
