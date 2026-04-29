@@ -1,6 +1,7 @@
 package org.openssl.jostle.test.mac;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -13,7 +14,9 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.stream.Stream;
@@ -22,7 +25,12 @@ public class MacTest
 {
     private static Stream<String> newHmacAlgorithms()
     {
+        // HmacMD5SHA1 is registered in ProvMac (legacy TLS-PRF combined hash) but
+        // BouncyCastle does not expose a JCE Mac under this name, so it cannot be
+        // included in agreement-with-BC parameterised tests.
         return Stream.of(
+                "HmacSHA224",
+                "HmacSHA384",
                 "HmacSHA512/224",
                 "HmacSHA512/256",
                 "HmacSHA3-224",
@@ -214,5 +222,133 @@ public class MacTest
         Mac jo = Mac.getInstance(algorithm, JostleProvider.PROVIDER_NAME);
         InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class, () -> jo.init(null));
         Assertions.assertEquals("key is null", ex.getMessage());
+    }
+
+
+    @Test
+    public void testHmacReInitDifferentKey() throws Exception
+    {
+        byte[] key1 = new byte[32];
+        byte[] key2 = new byte[64];
+        secureRandom.nextBytes(key1);
+        secureRandom.nextBytes(key2);
+        byte[] msg = new byte[1025];
+        secureRandom.nextBytes(msg);
+
+        Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
+        jo.init(new SecretKeySpec(key1, "HmacSHA256"));
+        byte[] m1 = jo.doFinal(msg);
+
+        jo.init(new SecretKeySpec(key2, "HmacSHA256"));
+        byte[] m2 = jo.doFinal(msg);
+
+        Assertions.assertFalse(Arrays.areEqual(m1, m2));
+
+        Mac bc = Mac.getInstance("HmacSHA256", BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(new SecretKeySpec(key1, "HmacSHA256"));
+        Assertions.assertArrayEquals(bc.doFinal(msg), m1);
+        bc.init(new SecretKeySpec(key2, "HmacSHA256"));
+        Assertions.assertArrayEquals(bc.doFinal(msg), m2);
+    }
+
+
+    @Test
+    public void testCMACReInitDifferentKeySize() throws Exception
+    {
+        byte[] msg = new byte[1025];
+        secureRandom.nextBytes(msg);
+
+        Mac jo = Mac.getInstance("AESCMAC", JostleProvider.PROVIDER_NAME);
+        Mac bc = Mac.getInstance("AESCMAC", BouncyCastleProvider.PROVIDER_NAME);
+
+        for (int ks: new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[ks];
+            secureRandom.nextBytes(key);
+
+            jo.init(new SecretKeySpec(key, "AES"));
+            byte[] joOut = jo.doFinal(msg);
+
+            bc.init(new SecretKeySpec(key, "AES"));
+            byte[] bcOut = bc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcOut, joOut, "key size " + ks);
+        }
+    }
+
+
+    @Test
+    public void testExplicitReset() throws Exception
+    {
+        byte[] key = new byte[32];
+        secureRandom.nextBytes(key);
+        byte[] msg = new byte[1025];
+        secureRandom.nextBytes(msg);
+
+        Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
+        jo.init(new SecretKeySpec(key, "HmacSHA256"));
+
+        // accumulate then explicitly reset, then compute MAC of msg
+        jo.update(msg);
+        jo.reset();
+        byte[] afterReset = jo.doFinal(msg);
+
+        Mac fresh = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
+        fresh.init(new SecretKeySpec(key, "HmacSHA256"));
+        Assertions.assertArrayEquals(fresh.doFinal(msg), afterReset);
+    }
+
+
+    @Test
+    public void testHmacDirectByteBuffer() throws Exception
+    {
+        byte[] key = new byte[32];
+        secureRandom.nextBytes(key);
+        byte[] msg = new byte[1025];
+        secureRandom.nextBytes(msg);
+
+        Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
+        jo.init(new SecretKeySpec(key, "HmacSHA256"));
+
+        ByteBuffer direct = ByteBuffer.allocateDirect(msg.length);
+        direct.put(msg).flip();
+        jo.update(direct);
+        byte[] joOut = jo.doFinal();
+
+        Mac bc = Mac.getInstance("HmacSHA256", BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(new SecretKeySpec(key, "HmacSHA256"));
+        byte[] bcOut = bc.doFinal(msg);
+
+        Assertions.assertArrayEquals(bcOut, joOut);
+    }
+
+
+    @Test
+    public void testUnknownAlgorithm()
+    {
+        Assertions.assertThrows(NoSuchAlgorithmException.class,
+                () -> Mac.getInstance("HmacUNKNOWN_FOOBAR", JostleProvider.PROVIDER_NAME));
+    }
+
+
+    @Test
+    public void testHmacMD5SHA1KnownVector() throws Exception
+    {
+        // BouncyCastle does not expose HMAC over MD5-SHA1 via the JCE Mac interface,
+        // so we anchor against an OpenSSL-CLI-computed vector instead. Vector generated with:
+        //   echo -n "abc" | openssl mac -macopt hexkey:6b6579 -digest md5-sha1 HMAC
+        // Output is 36 bytes (MD5 16 + SHA1 20). MD5-SHA1 is the legacy TLS 1.0 PRF
+        // combined hash; HMAC over it is the proper HMAC of the combined digest, not a
+        // concatenation of HMAC-MD5 || HMAC-SHA1.
+        byte[] key = "key".getBytes(StandardCharsets.UTF_8);
+        byte[] msg = "abc".getBytes(StandardCharsets.UTF_8);
+        byte[] expected = Hex.decode("a76e5cc4bdaa99b87cc7de69e0606e7d74fd2771909f120bb3b9a4649bb99bea2b4cec32");
+
+        Mac jo = Mac.getInstance("HmacMD5SHA1", JostleProvider.PROVIDER_NAME);
+        jo.init(new SecretKeySpec(key, "HmacMD5SHA1"));
+        byte[] actual = jo.doFinal(msg);
+
+        Assertions.assertEquals(36, actual.length);
+        Assertions.assertArrayEquals(expected, actual);
     }
 }

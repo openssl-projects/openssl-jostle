@@ -5,6 +5,7 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
@@ -324,6 +325,56 @@ public class MacOpsTest
         catch (OpenSSLException e)
         {
             Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void final_macLenOverflow() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            MacServiceNI.engineInit(ref, new byte[16]);
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            MacServiceNI.getMacLength(ref);
+            Assertions.fail();
+        }
+        catch (OverflowException e)
+        {
+            Assertions.assertEquals("output too long int32", e.getMessage());
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void final_outputSizeOverflow() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            MacServiceNI.engineInit(ref, new byte[16]);
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
+            MacServiceNI.doFinal(ref, new byte[32], 0);
+            Assertions.fail();
+        }
+        catch (OverflowException e)
+        {
+            Assertions.assertEquals("output too long int32", e.getMessage());
         }
         finally
         {

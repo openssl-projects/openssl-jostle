@@ -12,6 +12,7 @@
 #include "../util/mac.h"
 #include "../util/bc_err_codes.h"
 #include "../util/jo_assert.h"
+#include "../util/ops.h"
 
 mac_ctx *MAC_allocate(const char *mac_name, const char *function_name, int32_t *err) {
     mac_ctx *out_ctx = NULL;
@@ -40,6 +41,17 @@ int32_t MAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
         return JO_KEY_IS_NULL;
     }
     return mac_init(ctx, key, key_len);
+}
+
+int32_t MAC_updateByte(mac_ctx *ctx, uint8_t b) {
+
+    jo_assert(ctx != NULL);
+
+    if (!ctx->initialized) {
+        return JO_NOT_INITIALIZED;
+    }
+
+    return mac_update(ctx, &b, 0, 1);
 }
 
 int32_t MAC_update(mac_ctx *ctx, uint8_t *input, size_t input_size, int32_t input_offset, int32_t input_len) {
@@ -84,6 +96,10 @@ int32_t MAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t out
         return JO_OUTPUT_OFFSET_IS_NEGATIVE;
     }
 
+    if (OPS_INT32_OVERFLOW_2 output_size > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
     int32_t m_len = mac_len(ctx);
     if (UNSUCCESSFUL(m_len)) {
         return m_len;
@@ -99,6 +115,11 @@ int32_t MAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t out
 
 int32_t MAC_len(mac_ctx *ctx) {
     jo_assert(ctx != NULL);
+
+    if (!ctx->initialized) {
+        return JO_NOT_INITIALIZED;
+    }
+
     return mac_len(ctx);
 }
 

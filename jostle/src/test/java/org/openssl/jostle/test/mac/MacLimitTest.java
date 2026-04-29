@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
@@ -303,6 +304,153 @@ public class MacLimitTest
         catch (IllegalStateException e)
         {
             Assertions.assertEquals("not initialized", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void getMacLength_notInitialised()
+    {
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.getMacLength(ref);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("not initialized", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void reset_notInitialised()
+    {
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.reset(ref);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("not initialized", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void reset_nullRef()
+    {
+        // Both backends silently return JO_SUCCESS for the spurious-reset case;
+        // no exception expected.
+        macNI.reset(0L);
+    }
+
+
+    @Test
+    public void makeInstance_unknownAlgorithm()
+    {
+        try
+        {
+            macNI.allocateMac("ZZZZZZZ", "SHA-256");
+            Assertions.fail();
+        }
+        catch (OpenSSLException ignored)
+        {
+            // EVP_MAC_fetch fails -> JO_OPENSSL_ERROR -> OpenSSLException.
+            // Message text is OpenSSL-version-dependent so we don't assert on it.
+        }
+    }
+
+
+    @Test
+    public void cmac_unknownCipher() throws Exception
+    {
+        long ref = macNI.allocateMac("CMAC", "des-cbc");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.engineInit(ref, new byte[16]);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("unexpected state", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void cmac_invalidKeyLen()
+    {
+        long ref = macNI.allocateMac("CMAC", "aes-cbc");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.engineInit(ref, new byte[17]);
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("invalid key length for mac type", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void init_reInitDifferentKey() throws Exception
+    {
+        // Exercises mac_init's alias-safe re-init: free-old then alloc-new used to be
+        // the order, which would corrupt the key if the caller happened to alias mctx->key.
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.engineInit(ref, new byte[16]);
+            macNI.engineInit(ref, new byte[32]);
+            macNI.engineInit(ref, new byte[64]);
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void init_emptyKey() throws Exception
+    {
+        // Native layer can accept zero len keys, SecretKeySpec will not,
+        // however.
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.engineInit(ref, new byte[0]);
         }
         finally
         {

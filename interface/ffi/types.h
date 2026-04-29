@@ -18,7 +18,7 @@
 #define FFI_TRUE 1
 #define FFI_FALSE 0
 
-inline bool check_in_range(size_t size, size_t offset, size_t len) {
+static inline bool check_in_range(size_t size, size_t offset, size_t len) {
     return (len <= size) && (offset <= size - len);
 }
 

@@ -11,13 +11,6 @@ typedef struct jostle_lib_ctx {
     EVP_RAND_CTX *rand_ctx;
 } jostle_lib_ctx;
 
-//
-// Global Rand Ctx
-//
-
-static jostle_lib_ctx *global_rand_ctx = NULL;
-static CRYPTO_THREAD_LOCAL java_srand_id;
-
 /**
  * Create a new jostle_lib_ctx and set **rnd_ctx.
  * @param rnd_ctx receiver of the new context.

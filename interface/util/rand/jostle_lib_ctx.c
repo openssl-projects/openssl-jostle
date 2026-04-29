@@ -19,6 +19,10 @@
 #include "../ops.h"
 
 
+static jostle_lib_ctx *global_rand_ctx = NULL;
+static CRYPTO_THREAD_LOCAL java_srand_id;
+
+
 // OSSL_FUNC_PROVIDER_TEARDOWN
 static void jrand_prov_teardown(void *provctx) {
     OPENSSL_free(provctx);

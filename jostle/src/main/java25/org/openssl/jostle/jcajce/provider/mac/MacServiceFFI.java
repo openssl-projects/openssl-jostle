@@ -13,6 +13,7 @@ public class MacServiceFFI implements MacServiceNI
 
     private static final MethodHandle MH_new;
     private static final MethodHandle MH_init;
+    private static final MethodHandle MH_updateByte;
     private static final MethodHandle MH_update;
     private static final MethodHandle MH_final;
     private static final MethodHandle MH_len;
@@ -39,6 +40,14 @@ public class MacServiceFFI implements MacServiceNI
                         ValueLayout.ADDRESS, // *key
                         ValueLayout.JAVA_LONG // key len
                 ), Linker.Option.critical(true));
+
+        MH_updateByte = LINKER.downcallHandle(
+                LOOKUP.find("MAC_updateByte").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, // *ctx
+                        ValueLayout.JAVA_BYTE
+                ));
 
         MH_update = LINKER.downcallHandle(
                 LOOKUP.find("MAC_update").orElseThrow(),
@@ -118,7 +127,15 @@ public class MacServiceFFI implements MacServiceNI
     @Override
     public int ni_updateByte(long ref, byte b)
     {
-        return ni_updateBytes(ref, new byte[]{b}, 0, 1);
+        try
+        {
+            return (int) MH_updateByte.invokeExact(MemorySegment.ofAddress(ref), b);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI MAC_updateByte", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
     }
 
     @Override

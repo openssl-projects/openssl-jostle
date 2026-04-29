@@ -198,6 +198,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     int32_t ret;
     init_critical_ctx(&output, env, _out);
 
+    if (OPS_INT32_OVERFLOW_2 output.size > INT32_MAX) {
+        ret = JO_OUTPUT_SIZE_INT_OVERFLOW;
+        goto exit;
+    }
+
     if (!check_critical_in_range(&output, outOff, m_len)) {
         ret = JO_OUTPUT_OUT_OF_RANGE;
         goto exit;
