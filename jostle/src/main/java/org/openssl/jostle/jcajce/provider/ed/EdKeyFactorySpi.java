@@ -116,7 +116,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 case ED448:
                     break;
                 default:
-                    throw new InvalidKeySpecException("expected M key but got " + pkeySpec.getType());
+                    throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
             }
 
             return new JOEdPrivateKey(pkeySpec);
@@ -136,7 +136,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = spec.getPrivateData();
 
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.MLDSAServiceNI.decode_privateKey(
+                NISelector.EDServiceNI.decode_privateKey(
                         pkeySpec.getReference(), osslKeyType.getKsType(),
                         encoded, 0, encoded.length);
                 return new JOEdPrivateKey(pkeySpec);
@@ -161,9 +161,9 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 {
                     JOEdPrivateKey mKey = (JOEdPrivateKey) key;
                     return keySpec.cast(new EdDSAPrivateKeySpec(
-                             mKey.getParameterSpec(),
-                            mKey.getEncoded(),
-                            mKey.getPublicKey().getEncoded()));
+                            mKey.getParameterSpec(),
+                            mKey.getRawScalar(),
+                            mKey.getRawPublic()));
                 }
             }
         }
@@ -179,7 +179,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 {
                     JOEdPublicKey mKey = (JOEdPublicKey) key;
                     return keySpec.cast(new EdDSAPublicKeySpec(
-                            mKey.getParameterSpec(), mKey.getEncoded())
+                            mKey.getParameterSpec(), mKey.getRawPublic())
                     );
                 }
             }

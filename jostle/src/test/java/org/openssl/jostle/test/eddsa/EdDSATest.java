@@ -11,6 +11,10 @@
 
 package org.openssl.jostle.test.eddsa;
 
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
+import org.bouncycastle.crypto.params.Ed448PrivateKeyParameters;
+import org.bouncycastle.crypto.params.Ed448PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519ctxSigner;
 import org.bouncycastle.crypto.signers.Ed25519phSigner;
 import org.bouncycastle.crypto.signers.Ed448phSigner;
@@ -21,21 +25,32 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.ed.EdDSAKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.EdDSAPrivateKeySpec;
+import org.openssl.jostle.jcajce.spec.EdDSAPublicKeySpec;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Pack;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 public class EdDSATest
 {
 
     private static SecureRandom random = new SecureRandom();
+
+    private final EDServiceNI edServiceNI = TestNISelector.getEdNi();
+    private final SpecNI specNI = TestNISelector.getSpecNI();
 
 
     @BeforeAll
@@ -800,6 +815,669 @@ public class EdDSATest
 
     }
 
+
+
+    //
+    // (1) Forced-type / key-type mismatch on Signature.
+    //
+    @Test
+    public void testForcedType_ED25519_RejectsED448_initSign() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            sig.initSign(kp.getPrivate());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("required ED25519 key type but got ED448", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testForcedType_ED25519_RejectsED448_initVerify() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            sig.initVerify(kp.getPublic());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("required ED25519 key type but got ED448", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testForcedType_ED448_RejectsED25519_initSign() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            sig.initSign(kp.getPrivate());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("required ED448 key type but got ED25519", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testForcedType_Ed25519ph_RejectsED448_initSign() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("Ed25519ph", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            sig.initSign(kp.getPrivate());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("required Ed25519ph key type but got ED448", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testForcedType_Ed448ph_RejectsED25519_initVerify() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("Ed448ph", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            sig.initVerify(kp.getPublic());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("required ED448ph key type but got ED25519", e.getMessage());
+        }
+    }
+
+
+    //
+    // (2) Context spec on a forced type that does not accept context.
+    //
+    @Test
+    public void testContextOnED25519_RejectsAtInitSign() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        sig.setParameter(new ContextParameterSpec(new byte[]{1, 2, 3}));
+
+        try
+        {
+            sig.initSign(kp.getPrivate());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("ED25519 does not accept a context parameter", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testContextOnED448_RejectsAtInitVerify() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        sig.setParameter(new ContextParameterSpec(new byte[]{1, 2, 3}));
+
+        try
+        {
+            sig.initVerify(kp.getPublic());
+            Assertions.fail();
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertEquals("ED448 does not accept a context parameter", e.getMessage());
+        }
+    }
+
+
+    //
+    // (3) setParameter is rejected after update has been called.
+    //
+    @Test
+    public void testSetParameterAfterUpdate_Throws() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature sig = Signature.getInstance("Ed25519ctx", JostleProvider.PROVIDER_NAME);
+        sig.initSign(kp.getPrivate());
+        sig.setParameter(new ContextParameterSpec(new byte[]{1}));
+        sig.update(new byte[]{42});
+
+        try
+        {
+            sig.setParameter(new ContextParameterSpec(new byte[]{2}));
+            Assertions.fail();
+        }
+        catch (ProviderException e)
+        {
+            Assertions.assertEquals("cannot call setParameter in the middle of update", e.getMessage());
+        }
+    }
+
+
+    //
+    // (4) Round-trip via EdDSAPublicKeySpec / EdDSAPrivateKeySpec (raw byte form).
+    //
+    @Test
+    public void testKeyFactory_PublicSpec_RawRoundTrip_ED25519() throws Exception
+    {
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcKpg.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed25519"));
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        Ed25519PublicKeyParameters bcPub = (Ed25519PublicKeyParameters) PublicKeyFactory.createKey(bcKp.getPublic().getEncoded());
+        byte[] rawPub = bcPub.getEncoded();
+        Assertions.assertEquals(32, rawPub.length);
+
+        Ed25519PrivateKeyParameters bcPriv = (Ed25519PrivateKeyParameters) PrivateKeyFactory.createKey(bcKp.getPrivate().getEncoded());
+        byte[] rawPriv = bcPriv.getEncoded();
+        Assertions.assertEquals(32, rawPriv.length);
+
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        PublicKey joPub = kf.generatePublic(new EdDSAPublicKeySpec(EdDSAParameterSpec.ED25519, rawPub));
+        PrivateKey joPriv = kf.generatePrivate(new EdDSAPrivateKeySpec(EdDSAParameterSpec.ED25519, rawPriv, rawPub));
+
+        byte[] message = new byte[1025];
+        random.nextBytes(message);
+
+        Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(joPriv);
+        signer.update(message);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(joPub);
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+    @Test
+    public void testKeyFactory_PublicSpec_RawRoundTrip_ED448() throws Exception
+    {
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcKpg.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed448"));
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        Ed448PublicKeyParameters bcPub = (Ed448PublicKeyParameters) PublicKeyFactory.createKey(bcKp.getPublic().getEncoded());
+        byte[] rawPub = bcPub.getEncoded();
+        Assertions.assertEquals(57, rawPub.length);
+
+        Ed448PrivateKeyParameters bcPriv = (Ed448PrivateKeyParameters) PrivateKeyFactory.createKey(bcKp.getPrivate().getEncoded());
+        byte[] rawPriv = bcPriv.getEncoded();
+        Assertions.assertEquals(57, rawPriv.length);
+
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        PublicKey joPub = kf.generatePublic(new EdDSAPublicKeySpec(EdDSAParameterSpec.ED448, rawPub));
+        PrivateKey joPriv = kf.generatePrivate(new EdDSAPrivateKeySpec(EdDSAParameterSpec.ED448, rawPriv, rawPub));
+
+        byte[] message = new byte[1025];
+        random.nextBytes(message);
+
+        Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(joPriv);
+        signer.update(message);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(joPub);
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+
+    //
+    // (5) Fixed-type KeyFactory rejects wrong-typed encoded spec.
+    //
+    @Test
+    public void testKeyFactory_FixedED25519_RejectsED448PKCS8() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+        byte[] pkcs8 = kp.getPrivate().getEncoded();
+
+        KeyFactory kf = KeyFactory.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+            Assertions.fail();
+        }
+        catch (java.security.spec.InvalidKeySpecException e)
+        {
+            // engine-level message bubbles up as cause; assert main and cause where useful
+            Assertions.assertTrue(e.getMessage() != null && e.getMessage().contains("ED25519"));
+        }
+    }
+
+    @Test
+    public void testKeyFactory_FixedED448_RejectsED25519X509() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        KeyPair kp = kpg.generateKeyPair();
+        byte[] x509 = kp.getPublic().getEncoded();
+
+        KeyFactory kf = KeyFactory.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            kf.generatePublic(new X509EncodedKeySpec(x509));
+            Assertions.fail();
+        }
+        catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertTrue(e.getMessage() != null && e.getMessage().contains("ED448"));
+        }
+    }
+
+    @Test
+    public void testKeyFactory_FixedED25519_RejectsED448RawSpec() throws Exception
+    {
+        // Raw-bytes path: a fixed-type ED25519 KeyFactory must reject a spec
+        // whose EdDSAParameterSpec says ED448.
+        byte[] raw = new byte[57];
+        random.nextBytes(raw);
+
+        KeyFactory kf = KeyFactory.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            kf.generatePublic(new EdDSAPublicKeySpec(EdDSAParameterSpec.ED448, raw));
+            Assertions.fail();
+        }
+        catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertNotNull(e.getMessage());
+        }
+    }
+
+
+    //
+    // (6) engineGetKeySpec for all four supported KeySpec classes.
+    //
+    @Test
+    public void testKeyFactory_GetKeySpec_X509() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        X509EncodedKeySpec spec = kf.getKeySpec(kp.getPublic(), X509EncodedKeySpec.class);
+        Assertions.assertArrayEquals(kp.getPublic().getEncoded(), spec.getEncoded());
+
+        // Round-trip back through generatePublic to confirm.
+        PublicKey roundTripped = kf.generatePublic(spec);
+        Assertions.assertArrayEquals(kp.getPublic().getEncoded(), roundTripped.getEncoded());
+    }
+
+    @Test
+    public void testKeyFactory_GetKeySpec_PKCS8() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        PKCS8EncodedKeySpec spec = kf.getKeySpec(kp.getPrivate(), PKCS8EncodedKeySpec.class);
+        Assertions.assertArrayEquals(kp.getPrivate().getEncoded(), spec.getEncoded());
+
+        PrivateKey roundTripped = kf.generatePrivate(spec);
+        Assertions.assertArrayEquals(kp.getPrivate().getEncoded(), roundTripped.getEncoded());
+    }
+
+    @Test
+    public void testKeyFactory_GetKeySpec_EdDSAPublicSpec() throws Exception
+    {
+        // Generate a Jostle ED25519 keypair, retrieve EdDSAPublicKeySpec, then
+        // construct a fresh public key from those raw bytes and confirm it
+        // verifies signatures made by the original private key.
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        EdDSAPublicKeySpec spec = kf.getKeySpec(kp.getPublic(), EdDSAPublicKeySpec.class);
+        Assertions.assertEquals(EdDSAParameterSpec.ED25519, spec.getParameterSpec());
+        Assertions.assertEquals(32, spec.getPublicData().length);
+
+        PublicKey rebuilt = kf.generatePublic(spec);
+
+        byte[] message = new byte[1025];
+        random.nextBytes(message);
+
+        Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.update(message);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(rebuilt);
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+    @Test
+    public void testKeyFactory_GetKeySpec_EdDSAPrivateSpec() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        EdDSAPrivateKeySpec spec = kf.getKeySpec(kp.getPrivate(), EdDSAPrivateKeySpec.class);
+        Assertions.assertEquals(EdDSAParameterSpec.ED25519, spec.getParameterSpec());
+        Assertions.assertEquals(32, spec.getPrivateData().length);
+        Assertions.assertEquals(32, spec.getPublicData().length);
+
+        PrivateKey rebuilt = kf.generatePrivate(spec);
+
+        byte[] message = new byte[1025];
+        random.nextBytes(message);
+
+        Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(rebuilt);
+        signer.update(message);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+
+    //
+    // (7) Single-byte engineUpdate and empty-message sign/verify.
+    //
+    @Test
+    public void testEngineUpdateByte() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        byte[] message = new byte[64];
+        random.nextBytes(message);
+
+        Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        for (byte b : message)
+        {
+            signer.update(b);
+        }
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        for (byte b : message)
+        {
+            verifier.update(b);
+        }
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+    @Test
+    public void testEmptyMessage_SignAndVerify_ED25519() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        // No update calls — sign over empty message.
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+
+    //
+    // (8) setParameter(null) must clear context state and re-initialise.
+    // Use Ed25519ph because RFC 8032 allows an empty context for *ph variants;
+    // Ed25519ctx requires a non-empty context.
+    //
+    @Test
+    public void testSetParameterNull() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair kp = kpg.generateKeyPair();
+
+        byte[] ctx = new byte[16];
+        random.nextBytes(ctx);
+        byte[] message = new byte[64];
+        random.nextBytes(message);
+
+        Signature signer = Signature.getInstance("Ed25519ph", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.setParameter(new ContextParameterSpec(ctx));
+        // Override back to empty context.
+        signer.setParameter(null);
+        signer.update(message);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("Ed25519ph", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.setParameter(null);
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig));
+
+        // Re-verify the same signature under the original (non-empty) ctx — must fail.
+        Signature verifier2 = Signature.getInstance("Ed25519ph", JostleProvider.PROVIDER_NAME);
+        verifier2.initVerify(kp.getPublic());
+        verifier2.setParameter(new ContextParameterSpec(ctx));
+        verifier2.update(message);
+        Assertions.assertFalse(verifier2.verify(sig));
+    }
+
+
+    //
+    // (9) Re-init with a different key type on a generic "EdDSA" Signature instance.
+    //
+    @Test
+    public void testReInit_DifferentKeyType_GenericEdDSA() throws Exception
+    {
+        KeyPairGenerator kpg25519 = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
+        KeyPair kp25519 = kpg25519.generateKeyPair();
+
+        KeyPairGenerator kpg448 = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        KeyPair kp448 = kpg448.generateKeyPair();
+
+        byte[] message = new byte[256];
+        random.nextBytes(message);
+
+        Signature sig = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+
+        // First init with ED25519 — sign and verify.
+        sig.initSign(kp25519.getPrivate());
+        sig.update(message);
+        byte[] s25519 = sig.sign();
+
+        sig.initVerify(kp25519.getPublic());
+        sig.update(message);
+        Assertions.assertTrue(sig.verify(s25519));
+
+        // Re-init the same instance with ED448 — sign and verify under the new key.
+        sig.initSign(kp448.getPrivate());
+        sig.update(message);
+        byte[] s448 = sig.sign();
+
+        sig.initVerify(kp448.getPublic());
+        sig.update(message);
+        Assertions.assertTrue(sig.verify(s448));
+
+        // ED448 verifier must reject the ED25519 signature.
+        sig.initVerify(kp448.getPublic());
+        sig.update(message);
+        Assertions.assertFalse(sig.verify(s25519));
+    }
+
+
+    //
+    // Native-layer round-trip / length-query surface tests for getPublicKey / getPrivateKey.
+    // (Moved from EdDSALimitTest — these are happy-path surface checks, not error-path.)
+    //
+    @Test
+    public void EDDSAServiceNI_getPublicKey_lengthQuery_ed25519() throws Exception
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            // null output array → returns the size needed.
+            int len = edServiceNI.getPublicKey(keyRef, null);
+            Assertions.assertEquals(32, len);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test
+    public void EDDSAServiceNI_getPublicKey_lengthQuery_ed448() throws Exception
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED448.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            int len = edServiceNI.getPublicKey(keyRef, null);
+            Assertions.assertEquals(57, len);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test
+    public void EDDSAServiceNI_getPublicKey_roundTrip_ed25519() throws Exception
+    {
+        long keyRef = 0;
+        long roundTripRef = 0;
+        try
+        {
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            byte[] raw = new byte[32];
+            int written = edServiceNI.getPublicKey(keyRef, raw);
+            Assertions.assertEquals(32, written);
+
+            // round-trip via decode_publicKey
+            roundTripRef = specNI.allocate();
+            Assertions.assertTrue(roundTripRef > 0);
+            int decoded = edServiceNI.decode_publicKey(roundTripRef, OSSLKeyType.ED25519.getKsType(), raw, 0, raw.length);
+            Assertions.assertEquals(0, decoded);
+
+            byte[] raw2 = new byte[32];
+            edServiceNI.getPublicKey(roundTripRef, raw2);
+            Assertions.assertArrayEquals(raw, raw2);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+            specNI.dispose(roundTripRef);
+        }
+    }
+
+
+    @Test
+    public void EDDSAServiceNI_getPrivateKey_lengthQuery_ed25519() throws Exception
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            int len = edServiceNI.getPrivateKey(keyRef, null);
+            Assertions.assertEquals(32, len);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test
+    public void EDDSAServiceNI_getPrivateKey_lengthQuery_ed448() throws Exception
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED448.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            int len = edServiceNI.getPrivateKey(keyRef, null);
+            Assertions.assertEquals(57, len);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test
+    public void EDDSAServiceNI_getPrivateKey_roundTrip_ed25519() throws Exception
+    {
+        long keyRef = 0;
+        long roundTripRef = 0;
+        try
+        {
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            byte[] raw = new byte[32];
+            int written = edServiceNI.getPrivateKey(keyRef, raw);
+            Assertions.assertEquals(32, written);
+
+            // round-trip via decode_privateKey
+            roundTripRef = specNI.allocate();
+            Assertions.assertTrue(roundTripRef > 0);
+            int decoded = edServiceNI.decode_privateKey(roundTripRef, OSSLKeyType.ED25519.getKsType(), raw, 0, raw.length);
+            Assertions.assertEquals(0, decoded);
+
+            byte[] raw2 = new byte[32];
+            edServiceNI.getPrivateKey(roundTripRef, raw2);
+            Assertions.assertArrayEquals(raw, raw2);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+            specNI.dispose(roundTripRef);
+        }
+    }
 
 
     public static class TestAlgorithmParameterSpec implements AlgorithmParameterSpec

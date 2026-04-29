@@ -484,7 +484,14 @@ public class EdDSAOpsTest
         }
         catch (OpenSSLException e)
         {
-            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+            // Real OpenSSL errors (e.g., the EVP_DigestVerify "provider signature failure"
+            // raised here by the deliberately-too-short 1-byte signature) are preserved on
+            // the error queue and surface through the JO_OPENSSL_ERROR path. The exact text
+            // varies across OpenSSL versions; assert the prefix and the failing function.
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"),
+                    "expected OpenSSL Error prefix, got: " + e.getMessage());
+            Assertions.assertTrue(e.getMessage().contains("EVP_DigestVerify"),
+                    "expected EVP_DigestVerify reference, got: " + e.getMessage());
         }
         finally
         {
@@ -493,5 +500,5 @@ public class EdDSAOpsTest
 
         }
     }
-    
+
 }

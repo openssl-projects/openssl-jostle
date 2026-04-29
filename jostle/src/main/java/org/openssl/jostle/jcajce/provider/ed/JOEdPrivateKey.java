@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.EdDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
@@ -50,13 +51,46 @@ public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        synchronized (this)
+        {
+            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        }
     }
 
     @Override
     public PKEYKeySpec getSpec()
     {
         return spec;
+    }
+
+    /**
+     * Raw RFC 8032 private scalar bytes (32 for Ed25519, 57 for Ed448) read
+     * from the underlying EVP_PKEY. Synchronized to keep the native ref alive.
+     */
+    public byte[] getRawScalar()
+    {
+        synchronized (this)
+        {
+            int len = NISelector.EDServiceNI.getPrivateKey(spec.getReference(), null);
+            byte[] raw = new byte[len];
+            NISelector.EDServiceNI.getPrivateKey(spec.getReference(), raw);
+            return raw;
+        }
+    }
+
+    /**
+     * Raw RFC 8032 public-key bytes corresponding to this private key, read
+     * from the underlying EVP_PKEY. Synchronized to keep the native ref alive.
+     */
+    public byte[] getRawPublic()
+    {
+        synchronized (this)
+        {
+            int len = NISelector.EDServiceNI.getPublicKey(spec.getReference(), null);
+            byte[] raw = new byte[len];
+            NISelector.EDServiceNI.getPublicKey(spec.getReference(), raw);
+            return raw;
+        }
     }
 
     public EdDSAParameterSpec getParameterSpec()

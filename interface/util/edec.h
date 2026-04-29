@@ -44,7 +44,7 @@ int32_t edec_ctx_init_verify(edec_ctx *ctx, const key_spec *key_spec, const char
 
 int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len);
 
-int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src);
+int32_t edec_ctx_sign(edec_ctx *ctx, uint8_t *out, const size_t out_len, void *rnd_src);
 
 int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len);
 

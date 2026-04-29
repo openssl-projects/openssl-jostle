@@ -62,9 +62,9 @@ class ProvED
 
 
         final Map<String, String> kfAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("KeyFactory", "ED", PREFIX + "MLDSAKeyFactorySpi", kfAttr, (arg) -> new EdKeyFactorySpi());
+        provider.addAlgorithmImplementation("KeyFactory", "ED", PREFIX + "EdKeyFactorySpi", kfAttr, (arg) -> new EdKeyFactorySpi());
         provider.addAlias("KeyFactory", "ED", "EDDSA", "EdDSA");
-        provider.addAlgorithmImplementation("KeyFactory", "ED25519", PREFIX + "EdKeyFactorySpiSpi$ED25519", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED25519));
+        provider.addAlgorithmImplementation("KeyFactory", "ED25519", PREFIX + "EdKeyFactorySpi$ED25519", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED25519));
         provider.addAlias("KeyFactory", "ED25519", "Ed25519");
         provider.addAlgorithmImplementation("KeyFactory", "ED448", PREFIX + "EdKeyFactorySpi$ED448", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED448));
         provider.addAlias("KeyFactory", "ED448", "Ed448");

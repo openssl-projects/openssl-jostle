@@ -171,7 +171,13 @@ int32_t EDDSA_initVerifier(edec_ctx *ctx,
                            const uint8_t *context,
                            const size_t context_size,
                            int32_t context_len) {
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
+
+    if (name == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
 
     if (kp == NULL) {
         ret_val = JO_KEY_SPEC_IS_NULL;
@@ -203,6 +209,11 @@ int32_t EDDSA_initSign(edec_ctx *ctx,
 ) {
     jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
+
+    if (name == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
 
     if (kp == NULL) {
         ret_val = JO_KEY_SPEC_IS_NULL;
@@ -259,7 +270,7 @@ exit:
 
 int32_t EDDSA_sign(
     edec_ctx *ctx,
-    const uint8_t *output,
+    uint8_t *output,
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
@@ -284,7 +295,7 @@ int32_t EDDSA_sign(
         goto exit;
     }
 
-    const uint8_t *output_data = output + (size_t) out_off;
+    uint8_t *output_data = output + (size_t) out_off;
 
     ret_val = edec_ctx_sign(ctx, output_data, out_len, rnd_src);
 

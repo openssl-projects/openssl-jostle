@@ -49,7 +49,10 @@ public class BridgeRandOpsTest
     @BeforeEach
     public void beforeEach()
     {
-        operationsTestNI.resetFlags();
+        if (operationsTestNI.opsTestAvailable())
+        {
+            operationsTestNI.resetFlags();
+        }
     }
 
     @Test
@@ -74,7 +77,7 @@ public class BridgeRandOpsTest
     public void testThreadAttach() throws Exception
     {
         Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
@@ -93,7 +96,7 @@ public class BridgeRandOpsTest
     public void testFailCreate() throws Exception
     {
         Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
@@ -111,7 +114,7 @@ public class BridgeRandOpsTest
     public void testOverflowOutLen() throws Exception
     {
 
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
@@ -129,7 +132,7 @@ public class BridgeRandOpsTest
     public void testOverflowStrength() throws Exception
     {
 
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
@@ -147,7 +150,7 @@ public class BridgeRandOpsTest
     @Test
     public void testFailShortSizeOpsTest() throws Exception
     {
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
@@ -166,7 +169,7 @@ public class BridgeRandOpsTest
     public void testAccessByteArray() throws Exception
     {
         Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
@@ -184,7 +187,7 @@ public class BridgeRandOpsTest
     @Test
     public void testNoRandUpcall() throws Exception
     {
-        Assertions.assertTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);

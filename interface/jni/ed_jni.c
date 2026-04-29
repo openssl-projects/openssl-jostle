@@ -288,7 +288,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(jo);
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
     jo_assert(eddsa != NULL);
-    jo_assert(_name != NULL);
+
+    if (_name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
 
     int32_t ret_code = JO_FAIL;
 
@@ -297,7 +300,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 
     const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
     jo_assert(name != NULL);
-    const int name_len = (*env)->GetStringLength(env, _name);
+    // GetStringUTFLength returns the byte length of the UTF-8 encoding (modified UTF-8).
+    // OSSL_PARAM_utf8_string in edec_ctx_init_sign expects byte length, not UTF-16 char count.
+    const int name_len = (*env)->GetStringUTFLength(env, _name);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)) {
         ret_code = JO_FAILED_ACCESS_CONTEXT;
@@ -392,7 +397,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
     jo_assert(eddsa != NULL);
-    jo_assert(_name != NULL); // jostle control this
+
+    if (_name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
 
     int32_t ret_code = JO_FAIL;
 
@@ -401,7 +409,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 
     const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
     jo_assert(name != NULL);
-    const int name_len = (*env)->GetStringLength(env, _name);
+    // GetStringUTFLength returns the byte length of the UTF-8 encoding (modified UTF-8).
+    // OSSL_PARAM_utf8_string in edec_ctx_init_verify expects byte length, not UTF-16 char count.
+    const int name_len = (*env)->GetStringUTFLength(env, _name);
 
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)

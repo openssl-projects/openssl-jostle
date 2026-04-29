@@ -13,7 +13,9 @@ package org.openssl.jostle.jcajce.spec;
 
 import org.openssl.jostle.util.Arrays;
 
-public class EdDSAPrivateKeySpec
+import java.security.spec.KeySpec;
+
+public class EdDSAPrivateKeySpec implements KeySpec
 {
     private final byte[] data;
     private final byte[] publicData;

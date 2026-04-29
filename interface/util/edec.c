@@ -30,6 +30,7 @@ int32_t edec_generate_key(key_spec *spec, int32_t type, void *rnd_src) {
     }
 
     rand_set_java_srand_call(rnd_src);
+    ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
@@ -76,6 +77,7 @@ int32_t edec_generate_key(key_spec *spec, int32_t type, void *rnd_src) {
     ret_code = JO_SUCCESS;
 
 exit:
+    EVP_PKEY_CTX_free(ctx);
     return ret_code;
 }
 
@@ -88,13 +90,15 @@ int32_t edec_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
+    ERR_clear_error();
 
     const char *algo = EVP_PKEY_get0_type_name(key_spec->key);
     if (algo == NULL) {
         return JO_INCORRECT_KEY_TYPE;
     }
 
-    if (0 != strncmp(algo, "MD", 2)) {
+    // OpenSSL returns "ED25519" / "ED448" (uppercase) from EVP_PKEY_get0_type_name.
+    if (strcmp(algo, "ED25519") != 0 && strcmp(algo, "ED448") != 0) {
         return JO_INCORRECT_KEY_TYPE;
     }
 
@@ -137,13 +141,15 @@ int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
+    ERR_clear_error();
+
     const char *algo = EVP_PKEY_get0_type_name(key_spec->key);
     if (algo == NULL) {
         return JO_INCORRECT_KEY_TYPE;
     }
 
-
-    if (0 != strncmp(algo, "Ed", 2)) {
+    // OpenSSL returns "ED25519" / "ED448" (uppercase) from EVP_PKEY_get0_type_name.
+    if (strcmp(algo, "ED25519") != 0 && strcmp(algo, "ED448") != 0) {
         return JO_INCORRECT_KEY_TYPE;
     }
 
@@ -218,11 +224,12 @@ int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src
     }
 
 
-    if (src_len != 32 && min_len != src_len) {
+    if (min_len != src_len) {
         ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
         goto exit;
     }
 
+    ERR_clear_error();
 
     key_spec->key = EVP_PKEY_new_raw_private_key_ex(
         get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
@@ -293,6 +300,8 @@ int32_t edec_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src,
         goto exit;
     }
 
+    ERR_clear_error();
+
     key_spec->key = EVP_PKEY_new_raw_public_key_ex(
         get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
@@ -324,10 +333,11 @@ edec_ctx *edec_ctx_create(int32_t *err) {
     edec_ctx *ctx = (edec_ctx *) OPENSSL_zalloc(sizeof(edec_ctx));
     jo_assert(ctx != NULL);
 
+    ERR_clear_error();
     ctx->message = BIO_new(BIO_s_mem());
     if (OPS_OPENSSL_ERROR_1 ctx->message == NULL) {
         *err = JO_OPENSSL_ERROR;
-        OPENSSL_clear_free(ctx, sizeof(*ctx));
+        OPENSSL_free(ctx);
         return NULL;
     }
 
@@ -350,6 +360,8 @@ void edec_ctx_destroy(edec_ctx *ctx) {
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);
     }
+
+    OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
 int32_t edec_ctx_init_sign(
@@ -369,6 +381,7 @@ int32_t edec_ctx_init_sign(
 
     OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
+    ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;
 
@@ -434,7 +447,7 @@ int32_t edec_ctx_init_verify(
 
 
     OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
-
+    ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;
 
@@ -497,8 +510,12 @@ int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
         return JO_NOT_INITIALIZED;
     }
 
+    if (in_len > (size_t) INT_MAX) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
 
-    if (BIO_write(ctx->message, in, (int) in_len) < 0) {
+    ERR_clear_error();
+    if (BIO_write(ctx->message, in, (int) in_len) != (int) in_len) {
         return JO_OPENSSL_ERROR;
     }
 
@@ -506,9 +523,10 @@ int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
 }
 
 
-int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src) {
+int32_t edec_ctx_sign(edec_ctx *ctx, uint8_t *out, const size_t out_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
+    int sign_attempted = 0;
 
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -525,11 +543,16 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
     }
 
     uint8_t *msg = NULL;
-    const size_t msg_len = BIO_get_mem_data(ctx->message, &msg);
+    const long raw_msg_len = BIO_get_mem_data(ctx->message, &msg);
+    if (raw_msg_len < 0) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+    const size_t msg_len = (size_t) raw_msg_len;
 
     size_t sig_len = 0;
     rand_set_java_srand_call(rnd_src);
-
+    ERR_clear_error();
 
     if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestSign(ctx->digest_ctx, NULL, &sig_len, msg, msg_len)) {
         ret_code = JO_OPENSSL_ERROR;
@@ -544,6 +567,7 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
 
     if (out != NULL) {
         if (sig_len > out_len) {
+            // recoverable — caller may retry with a larger buffer; do not reset BIO
             ret_code = JO_OUTPUT_TOO_SMALL;
             goto exit;
         }
@@ -552,8 +576,9 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
         const size_t sig_len_ = sig_len;
 
         rand_set_java_srand_call(rnd_src);
+        sign_attempted = 1;
 
-        if (OPS_OPENSSL_ERROR_2 EVP_DigestSign(ctx->digest_ctx, (unsigned char *) out, &sig_len, msg, msg_len) != 1) {
+        if (OPS_OPENSSL_ERROR_2 EVP_DigestSign(ctx->digest_ctx, out, &sig_len, msg, msg_len) != 1) {
             ret_code = JO_OPENSSL_ERROR;
             goto exit;
         }
@@ -563,13 +588,17 @@ int32_t edec_ctx_sign(const edec_ctx *ctx, const uint8_t *out, const size_t out_
             ret_code = JO_UNEXPECTED_SIG_LEN_CHANGE;
             goto exit;
         }
-
-        BIO_reset(ctx->message);
     }
 
     ret_code = (int32_t) sig_len;
 
 exit:
+    // BIO holds the buffered message. Once the actual signature write has been attempted
+    // (success or failure), the operation is complete and the message must not leak into
+    // the next sign call. Caller must re-initialise to retry after a sign failure.
+    if (sign_attempted) {
+        BIO_reset(ctx->message);
+    }
     return ret_code;
 }
 
@@ -587,31 +616,37 @@ int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len)
         goto exit;
     }
 
+    ERR_clear_error();
 
-    // OpenSSL may emit an error message about an invalid signature which we don't care about.
+    // OpenSSL emits an "invalid signature" error on verify-fail which we don't care about.
+    // Set a mark so we can selectively discard that noise without losing genuine errors
+    // (real OpenSSL failures need to remain queued for the caller to format).
     ERR_set_mark();
 
     uint8_t *msg = NULL;
-    const size_t msg_len = BIO_get_mem_data(ctx->message, &msg);
-    int ret = EVP_DigestVerify(ctx->digest_ctx, (unsigned char *) sig, sig_len, msg, msg_len);
-    ERR_pop_to_mark();
+    const long raw_msg_len = BIO_get_mem_data(ctx->message, &msg);
+    if (raw_msg_len < 0) {
+        ERR_clear_last_mark();
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+    const size_t msg_len = (size_t) raw_msg_len;
+    int ret = EVP_DigestVerify(ctx->digest_ctx, sig, sig_len, msg, msg_len);
     BIO_reset(ctx->message);
 
     if (OPS_OPENSSL_ERROR_1 0) {
-        ERR_pop_to_mark();
         ret = -1;
     }
 
     if (ret == 1) {
-        ERR_clear_last_mark();
+        ERR_pop_to_mark();         // success — drop any spurious errors above the mark
         ret_code = JO_SUCCESS;
+    } else if (ret == 0) {
+        ERR_pop_to_mark();         // bad signature — drop the "invalid signature" noise
+        ret_code = JO_FAIL;
     } else {
-        if (ret < 0) {
-            ret_code = JO_OPENSSL_ERROR;
-        } else {
-            ERR_pop_to_mark();
-            ret_code = JO_FAIL;
-        }
+        ERR_clear_last_mark();     // real OpenSSL error — keep queue, just drop the mark
+        ret_code = JO_OPENSSL_ERROR;
     }
 
 exit:

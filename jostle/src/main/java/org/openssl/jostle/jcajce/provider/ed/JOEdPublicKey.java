@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.ed;
 
 import org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
@@ -39,12 +40,30 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asSubjectPublicKeyInfo(spec);
+        synchronized (this)
+        {
+            return ASNEncoder.asSubjectPublicKeyInfo(spec);
+        }
     }
 
     public PKEYKeySpec getSpec()
     {
         return spec;
+    }
+
+    /**
+     * Raw RFC 8032 public key bytes (32 for Ed25519, 57 for Ed448) read from
+     * the underlying EVP_PKEY. Synchronized to keep the native ref alive.
+     */
+    public byte[] getRawPublic()
+    {
+        synchronized (this)
+        {
+            int len = NISelector.EDServiceNI.getPublicKey(spec.getReference(), null);
+            byte[] raw = new byte[len];
+            NISelector.EDServiceNI.getPublicKey(spec.getReference(), raw);
+            return raw;
+        }
     }
 
     public EdDSAParameterSpec getParameterSpec()
