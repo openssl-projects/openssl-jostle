@@ -109,25 +109,6 @@ exit:
     return ret_val;
 }
 
-// int32_t SLH_DSA_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
-//     int32_t ret_val = JO_FAIL;
-//
-//     if (kp == NULL) {
-//         ret_val = JO_KEY_SPEC_IS_NULL;
-//         goto exit;
-//     }
-//
-//     if (kp->key == NULL) {
-//         ret_val = JO_KEY_SPEC_HAS_NULL_KEY;
-//         goto exit;
-//     }
-//
-//     ret_val = slh_dsa_get_private_seed(kp, output, output_len);
-//
-//     exit:
-//         return ret_val;
-// }
-
 int32_t SLH_DSA_decodePublicKey(key_spec *key_spec,
                                 int32_t key_type,
                                 uint8_t *input,
@@ -220,6 +201,7 @@ void SLH_DSA_disposeSigner(slh_dsa_ctx *ctx) {
 
 
 slh_dsa_ctx *SLH_DSA_allocateSigner(int32_t *err) {
+    jo_assert(err != NULL);
     return slh_dsa_ctx_create(err);
 }
 
@@ -231,6 +213,7 @@ int32_t SLH_DSA_initVerifier(slh_dsa_ctx *ctx,
                              int32_t message_encoding,
                              int32_t deterministic
 ) {
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -275,6 +258,11 @@ int32_t SLH_DSA_initSign(slh_dsa_ctx *ctx,
     }
 
     if (context_len >= 0) {
+        if (context == NULL) {
+            ret_val = JO_CONTEXT_BYTES_NULL;
+            goto exit;
+        }
+
         if ((size_t) context_len > context_size) {
             ret_val = JO_CONTEXT_LEN_PAST_END;
             goto exit;

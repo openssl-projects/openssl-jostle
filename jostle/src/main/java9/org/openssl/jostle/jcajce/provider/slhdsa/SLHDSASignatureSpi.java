@@ -1,11 +1,10 @@
 /*
+ *  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
  *
- *   Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
- *
- *   Licensed under the Apache License 2.0 (the "License"). You may not use
- *   this file except in compliance with the License.  You can obtain a copy
- *   in the file LICENSE in the source distribution or at
- *   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *  Licensed under the Apache License 2.0 (the "License"). You may not use
+ *  this file except in compliance with the License.  You can obtain a copy
+ *  in the file LICENSE in the source distribution or at
+ *  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
  *
  */
 
@@ -121,7 +120,6 @@ public class SLHDSASignatureSpi extends SignatureSpi
         throw new InvalidKeyException("expected only SLHDSAPublicKey");
     }
 
-    @Override
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
     {
         engineInitSign(privateKey, null);
@@ -131,7 +129,6 @@ public class SLHDSASignatureSpi extends SignatureSpi
     protected void engineInitSign(PrivateKey privateKey, SecureRandom random) throws InvalidKeyException
     {
         this.randSource = DefaultRandSource.replaceWith(this.randSource, random);
-
         if (privateKey instanceof JOSLHDSAPrivateKey)
         {
             try
@@ -148,8 +145,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new SLHDSARef(
-                            NISelector.SLHDSAServiceNI.allocateSigner(), privateKey.getAlgorithm());
+                    ref = new SLHDSARef(NISelector.SLHDSAServiceNI.allocateSigner(), privateKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -164,7 +160,8 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 NISelector.SLHDSAServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
-                        context, contextLen, messageEncoding.ordinal(), deterministic.ordinal(), randSource);
+                        context, contextLen, messageEncoding.ordinal(), deterministic.ordinal(),
+                        randSource);
                 return;
             }
             finally
@@ -287,7 +284,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 {
                     if (lastKey instanceof JOSLHDSAPrivateKey)
                     {
-                        engineInitSign((PrivateKey) lastKey, randSource.getRandom());
+                        engineInitSign((PrivateKey) lastKey);
                     }
                     else
                     {
@@ -346,7 +343,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new SLHDSASignatureSpi.Disposer(reference);
         }
     }
 

@@ -2091,4 +2091,49 @@ public class SLHDSALimitTest
         }
     }
 
+
+    // -------------------------------------------------------------------------
+    // The encoded getters reject non-SLH-DSA keys with JO_INCORRECT_KEY_TYPE
+    // (Wave 4). Generate a non-SLH-DSA key (Ed25519) via the EDEC service and
+    // pass its spec ref to each getter.
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void SLHDSAServiceJNI_getPublicKey_wrongKeyType() throws Exception
+    {
+        long keyRef = TestNISelector.getEdNi().generateKeyPair(
+                OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            Assertions.assertTrue(keyRef > 0);
+            long code = slhdsaServiceNI.ni_getPublicKey(keyRef, new byte[2048]);
+            Assertions.assertEquals(ErrorCode.JO_INCORRECT_KEY_TYPE.getCode(), code);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void SLHDSAServiceJNI_getPrivateKey_wrongKeyType() throws Exception
+    {
+        long keyRef = TestNISelector.getEdNi().generateKeyPair(
+                OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            Assertions.assertTrue(keyRef > 0);
+            long code = slhdsaServiceNI.ni_getPrivateKey(keyRef, new byte[4096]);
+            Assertions.assertEquals(ErrorCode.JO_INCORRECT_KEY_TYPE.getCode(), code);
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
+    // (slh_dsa_get_private_seed has the same JO_INCORRECT_KEY_TYPE check, but
+    // the JNI bridge doesn't expose getSeed to Java — that path is reachable
+    // only via direct-FFI internal-layer testing.)
+
 }

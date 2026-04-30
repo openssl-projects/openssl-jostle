@@ -879,4 +879,171 @@ public class SLHDSAOpsTest
             specNI.dispose(keyRef);
         }
     }
+
+
+    // -------------------------------------------------------------------------
+    // Wave 7 OPS coverage: keygen EVP failure paths + BIO_new in init paths.
+    // Each path has a distinct OPS cookie AND a distinct OPS_OFFSET so the
+    // raw return code uniquely identifies the branch that fired.
+    // -------------------------------------------------------------------------
+
+    private static final long JO_OPENSSL_ERROR = ErrorCode.JO_OPENSSL_ERROR.getCode();
+
+    private void assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag flag, long expectedCode) throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+        try
+        {
+            int[] err = new int[1];
+            operationsTestNI.setFlag(flag);
+            keyRef = slhDSAServiceNI.ni_generateKeyPair(
+                    OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, keyRef);
+            Assertions.assertEquals(expectedCode, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void SLHDSA_generateKeyPair_ctxNew_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, JO_OPENSSL_ERROR - 2100);
+    }
+
+    @Test()
+    public void SLHDSA_generateKeyPair_keygenInit_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, JO_OPENSSL_ERROR - 2101);
+    }
+
+    @Test()
+    public void SLHDSA_generateKeyPair_setParams_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, JO_OPENSSL_ERROR - 2102);
+    }
+
+    @Test()
+    public void SLHDSA_generateKeyPair_keygen_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6, JO_OPENSSL_ERROR - 2103);
+    }
+
+
+    @Test()
+    public void SLHDSA_initSign_bioNew_fail() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long slhdsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
+            Assertions.assertTrue(slhdsaRef > 0);
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2);
+            long code = slhDSAServiceNI.ni_initSign(slhdsaRef, keyRef, new byte[0], 0,
+                    SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0, TestUtil.RNDSrc);
+            // BIO_new failure path returns JO_OPENSSL_ERROR with offset 1002.
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 1002, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            slhDSAServiceNI.disposeSigner(slhdsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void SLHDSA_initVerify_bioNew_fail() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long slhdsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
+            Assertions.assertTrue(slhdsaRef > 0);
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2);
+            long code = slhDSAServiceNI.ni_initVerify(slhdsaRef, keyRef, new byte[0], 0,
+                    SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0);
+            // BIO_new failure path returns JO_OPENSSL_ERROR with offset 1005.
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 1005, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            slhDSAServiceNI.disposeSigner(slhdsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    // -------------------------------------------------------------------------
+    // EVP_SIGNATURE_fetch NULL short-circuit in init_sign / init_verify.
+    // OPS_FAILED_CREATE_1 forces ctx->sig == NULL post-fetch; the function
+    // exits with plain JO_OPENSSL_ERROR (no offset).
+    // -------------------------------------------------------------------------
+
+    @Test()
+    public void SLHDSA_initSign_signatureFetchNull() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long slhdsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
+            Assertions.assertTrue(slhdsaRef > 0);
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
+            long code = slhDSAServiceNI.ni_initSign(slhdsaRef, keyRef, new byte[0], 0,
+                    SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(JO_OPENSSL_ERROR, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            slhDSAServiceNI.disposeSigner(slhdsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test()
+    public void SLHDSA_initVerify_signatureFetchNull() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long slhdsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            slhdsaRef = TestNISelector.getSLHDSANI().allocateSigner();
+            Assertions.assertTrue(slhdsaRef > 0);
+            keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
+            long code = slhDSAServiceNI.ni_initVerify(slhdsaRef, keyRef, new byte[0], 0,
+                    SLHDSASignatureSpi.MessageEncoding.PURE.ordinal(), 0);
+            Assertions.assertEquals(JO_OPENSSL_ERROR, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            slhDSAServiceNI.disposeSigner(slhdsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
 }

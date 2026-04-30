@@ -557,6 +557,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     }
 
     if (context_len >= 0) {
+        if (context.bytearray == NULL) {
+            ret_code = JO_CONTEXT_BYTES_NULL;
+            goto exit;
+        }
+
         if ((size_t) context_len > context.size) {
             ret_code = JO_CONTEXT_LEN_PAST_END;
             goto exit;
