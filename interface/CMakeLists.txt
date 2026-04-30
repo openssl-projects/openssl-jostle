@@ -133,6 +133,11 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
         message("OPS Test Enabled")
         target_compile_definitions(interface_jni PUBLIC JOSTLE_OPS)
     endif ()
+    if (DEFINED ENV{JOSTLE_COVERAGE})
+        message("Coverage instrumentation enabled (JNI)")
+        target_compile_options(interface_jni PRIVATE --coverage -g)
+        target_link_options(interface_jni PRIVATE --coverage)
+    endif ()
 
     # ---
 
@@ -198,6 +203,11 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     if (DEFINED ENV{JOSTLE_OPS_TEST})
         message("OPS Test Enabled")
         target_compile_definitions(interface_ffi PUBLIC JOSTLE_OPS)
+    endif ()
+    if (DEFINED ENV{JOSTLE_COVERAGE})
+        message("Coverage instrumentation enabled (FFI)")
+        target_compile_options(interface_ffi PRIVATE --coverage -g)
+        target_link_options(interface_ffi PRIVATE --coverage)
     endif ()
 
     #

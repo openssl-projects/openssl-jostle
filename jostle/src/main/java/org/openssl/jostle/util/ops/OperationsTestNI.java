@@ -111,6 +111,13 @@ public interface OperationsTestNI
         OPS_ALTERNATE_1,
         OPS_ALTERNATE_2,
         OPS_ALTERNATE_3,
+
+        OPS_OPENSSL_ERROR_7,
+        OPS_OPENSSL_ERROR_8,
+        OPS_OPENSSL_ERROR_9,
+        OPS_OPENSSL_ERROR_10,
+        OPS_OPENSSL_ERROR_11,
+        OPS_OPENSSL_ERROR_12,
     }
 
 }

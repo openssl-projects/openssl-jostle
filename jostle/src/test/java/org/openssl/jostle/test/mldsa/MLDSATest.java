@@ -1389,6 +1389,195 @@ public class MLDSATest
     }
 
 
+    @Test
+    public void testEmptyMessageSignVerify() throws Exception
+    {
+        // Sign with no preceding update — valid usage that exercises the
+        // SHAKE-256 finalisation with no message bytes accumulated. Cross-checks
+        // against BC ensure the empty-input encoding is interop-compatible.
+        for (MLDSAParameterSpec spec : joSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            // Roundtrip the keys through BC so we can sign/verify on the BC side.
+            KeyFactory bcFactory = KeyFactory.getInstance("MLDSA", BouncyCastleProvider.PROVIDER_NAME);
+            PrivateKey privKeyBC = bcFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+            PublicKey pubKeyBC = bcFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
+
+            // Jostle sign empty.
+            Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            signature.initSign(keyPair.getPrivate());
+            byte[] jostleSig = signature.sign();
+            Assertions.assertNotNull(jostleSig);
+            Assertions.assertTrue(jostleSig.length > 0);
+
+            // Jostle verifies its own empty-message signature.
+            Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            verifier.initVerify(keyPair.getPublic());
+            Assertions.assertTrue(verifier.verify(jostleSig));
+
+            // BC verifies Jostle's empty-message signature.
+            Signature bcVerifier = Signature.getInstance("MLDSA", BouncyCastleProvider.PROVIDER_NAME);
+            bcVerifier.initVerify(pubKeyBC);
+            Assertions.assertTrue(bcVerifier.verify(jostleSig));
+
+            // BC signs empty, Jostle verifies — confirms the reverse interop.
+            Signature bcSigner = Signature.getInstance("MLDSA", BouncyCastleProvider.PROVIDER_NAME);
+            bcSigner.initSign(privKeyBC);
+            byte[] bcSig = bcSigner.sign();
+
+            verifier.initVerify(keyPair.getPublic());
+            Assertions.assertTrue(verifier.verify(bcSig));
+
+            // Sanity: a verifier fed a non-empty message must reject the
+            // empty-message signature, so the previous accepts aren't trivial.
+            verifier.initVerify(keyPair.getPublic());
+            verifier.update((byte) 0x01);
+            Assertions.assertFalse(verifier.verify(jostleSig));
+        }
+    }
+
+
+    @Test
+    public void testUpdateSliceVariant() throws Exception
+    {
+        // The 3-arg update(buf, off, len) flows through a different JNI path
+        // than update(buf). Confirms the slice indexing matches the contiguous
+        // form for both signer and verifier.
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] message = new byte[513];
+        random.nextBytes(message);
+
+        // Embed the message inside a larger buffer with leading + trailing pad.
+        byte[] padded = new byte[message.length + 64];
+        random.nextBytes(padded);
+        System.arraycopy(message, 0, padded, 32, message.length);
+
+        Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        signature.initSign(keyPair.getPrivate());
+        signature.update(padded, 32, message.length);
+        byte[] sig = signature.sign();
+
+        // Verify using the contiguous form to confirm the slice was equivalent.
+        Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig));
+
+        // And verify in slice form too.
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(padded, 32, message.length);
+        Assertions.assertTrue(verifier.verify(sig));
+
+        // Wrong slice (off-by-one) must fail.
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(padded, 33, message.length);
+        Assertions.assertFalse(verifier.verify(sig));
+    }
+
+
+    @Test
+    public void testExternalMuZeroLengthUpdate() throws Exception
+    {
+        // Regression: a zero-length update in EXTERNAL_MU mode must be a
+        // no-op, not a JO_OPENSSL_ERROR. The native BIO_write(...,0) returns
+        // 0, which an earlier truthy-check incorrectly treated as failure.
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] mu = new byte[64];
+        random.nextBytes(mu);
+
+        Signature signature = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
+        signature.initSign(keyPair.getPrivate());
+
+        // Empty updates either side of the real Mu must not error.
+        signature.update(new byte[0]);
+        signature.update(mu);
+        signature.update(new byte[0]);
+        byte[] sig = signature.sign();
+
+        // Verify with EXTERNAL_MU using the same Mu — confirms the empty
+        // updates didn't perturb the buffered bytes.
+        Signature verifier = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(new byte[0]);
+        verifier.update(mu);
+        verifier.update(new byte[0]);
+        Assertions.assertTrue(verifier.verify(sig));
+    }
+
+
+    @Test
+    public void testExternalMuWrongLength() throws Exception
+    {
+        // EXTERNAL_MU mode requires exactly 64 bytes accumulated before sign().
+        // The native JO_EXTERNAL_MU_INVALID_LEN must surface to the JCE caller
+        // as IllegalArgumentException.
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        Signature signature = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
+        signature.initSign(keyPair.getPrivate());
+        signature.update(new byte[63]); // one byte short
+
+        try
+        {
+            signature.sign();
+            Assertions.fail();
+        }
+        catch (Exception e)
+        {
+            Throwable cause = e instanceof SignatureException && e.getCause() != null ? e.getCause() : e;
+            Assertions.assertEquals("external Mu invalid length", cause.getMessage());
+        }
+    }
+
+
+    @Test
+    public void testReinitFlipsDirection() throws Exception
+    {
+        // Re-initialising an existing Signature must reset the underlying ctx
+        // cleanly — no stale hash/mu_buf leaking from the previous direction.
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] message = new byte[256];
+        random.nextBytes(message);
+
+        Signature instance = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+
+        // Sign first.
+        instance.initSign(keyPair.getPrivate());
+        instance.update(message);
+        byte[] sig = instance.sign();
+
+        // Same instance, flip to verify.
+        instance.initVerify(keyPair.getPublic());
+        instance.update(message);
+        Assertions.assertTrue(instance.verify(sig));
+
+        // Flip back to sign and produce a fresh signature.
+        instance.initSign(keyPair.getPrivate());
+        instance.update(message);
+        byte[] sig2 = instance.sign();
+
+        // Independent verifier confirms the new signature.
+        Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(sig2));
+    }
+
+
     public static class TestAlgorithmParameterSpec implements AlgorithmParameterSpec
     {
         private final byte[] ctx;

@@ -557,6 +557,55 @@ public class MLDSOpsTest
 
 
     @Test()
+    public void MLDSAServiceJNI_decode_1privateKey_openSSLErrorDecoding() throws Exception
+    {
+        // Use a freshly-generated, validly-encoded private key so the
+        // EVP_PKEY_new_raw_private_key_ex call would succeed on its own.
+        // This isolates JO_OPENSSL_ERROR to the OPS cookie that forces the
+        // resulting EVP_PKEY back to NULL.
+
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        final OSSLKeyType[] keyTypes = new OSSLKeyType[]{
+                OSSLKeyType.ML_DSA_44,
+                OSSLKeyType.ML_DSA_65,
+                OSSLKeyType.ML_DSA_87
+        };
+
+        for (OSSLKeyType keyType : keyTypes)
+        {
+            long generatedRef = 0;
+            long decodeRef = 0;
+            try
+            {
+                generatedRef = mldsaServiceNI.generateKeyPair(keyType.getKsType(), TestUtil.RNDSrc);
+                Assertions.assertTrue(generatedRef > 0);
+                int len = mldsaServiceNI.getPrivateKey(generatedRef, null);
+                Assertions.assertTrue(len > 0);
+                byte[] privateKey = new byte[len];
+                Assertions.assertEquals(len, mldsaServiceNI.getPrivateKey(generatedRef, privateKey));
+
+                decodeRef = TestNISelector.getSpecNI().allocate();
+                Assertions.assertTrue(decodeRef > 0);
+                operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+                mldsaServiceNI.decode_privateKey(decodeRef, keyType.getKsType(), privateKey, 0, privateKey.length);
+                Assertions.fail();
+            }
+            catch (OpenSSLException e)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+            }
+            finally
+            {
+                operationsTestNI.resetFlags();
+                specNI.dispose(decodeRef);
+                specNI.dispose(generatedRef);
+            }
+        }
+    }
+
+
+    @Test()
     public void MLDSAServiceJNI__initSign_accessContextArray() throws Exception
     {
 
@@ -646,6 +695,159 @@ public class MLDSOpsTest
             specNI.dispose(keyRef);
             mldsaServiceNI.disposeSigner(mldsaRef);
 
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI__initSign_signatureFetchNull() throws Exception
+    {
+        // Forces the EVP_SIGNATURE_fetch NULL short-circuit so the diagnostic
+        // surfaces immediately, not after extract_tr / pctx setup masks it.
+
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
+            mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI__initVerify_signatureFetchNull() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
+            mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, 0);
+            Assertions.fail();
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI__initSign_failureLeavesNotInitialised() throws Exception
+    {
+        // Regression: a failed init must roll back partial state so the next
+        // update/sign reports JO_NOT_INITIALIZED rather than allowing the
+        // half-configured ctx to surface a confusing OpenSSL error.
+
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            // Trigger init failure at EVP_PKEY_sign_message_init — leaves
+            // sig + pctx + hash all live without the rollback fix.
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            long code = mldsaServiceNI.ni_initSign(mldsaRef, keyRef, new byte[0], 0,
+                    MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
+            Assertions.assertEquals(-1003, code);
+
+            operationsTestNI.resetFlags();
+
+            try
+            {
+                mldsaServiceNI.update(mldsaRef, new byte[1], 0, 1);
+                Assertions.fail();
+            }
+            catch (IllegalStateException e)
+            {
+                Assertions.assertEquals("not initialized", e.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI__initVerify_failureLeavesNotInitialised() throws Exception
+    {
+        // Regression: verify-side analog of the rollback regression.
+
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            long code = mldsaServiceNI.ni_initVerify(mldsaRef, keyRef, new byte[0], 0,
+                    MLDSASignatureSpi.MuHandling.INTERNAL.ordinal());
+            Assertions.assertEquals(-1006, code);
+
+            operationsTestNI.resetFlags();
+
+            try
+            {
+                mldsaServiceNI.verify(mldsaRef, new byte[1], 1);
+                Assertions.fail();
+            }
+            catch (IllegalStateException e)
+            {
+                Assertions.assertEquals("not initialized", e.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
         }
     }
 
@@ -969,6 +1171,46 @@ public class MLDSOpsTest
     }
 
     @Test()
+    public void MLDSAServiceJNI_mldsa_sign_outputInt32Overflow() throws Exception
+    {
+        // Validates the sig_len > INT32_MAX guard in mldsa_ctx_sign — fires
+        // immediately after the EVP_PKEY_sign size query returns, before the
+        // signature is actually produced.
+
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+
+            Assertions.assertTrue(keyRef > 0);
+            mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc);
+
+            Assertions.fail();
+        }
+        catch (OverflowException e)
+        {
+            Assertions.assertEquals("output too long int32", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+
+        }
+    }
+
+
+    @Test()
     public void MLDSAServiceJNI_mldsa_sign_unexpectedSigLenChange() throws Exception
     {
 
@@ -1079,6 +1321,115 @@ public class MLDSOpsTest
             specNI.dispose(keyRef);
 
         }
+    }
+
+
+    // -------------------------------------------------------------------------
+    // Helper-function fault injection: extract_tr / setup_hash /
+    // setup_hash_with_tr_and_context. All three run under init_sign with
+    // INTERNAL mu_mode. Each path is wrapped with a distinct OPS cookie AND
+    // a distinct OPS_OFFSET so the raw return code uniquely identifies which
+    // branch fired.
+    // -------------------------------------------------------------------------
+
+    private void assertInitSignReturns(OperationsTestNI.OpsTestFlag flag, long expectedCode) throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            operationsTestNI.setFlag(flag);
+            long code = mldsaServiceNI.ni_initSign(mldsaRef, keyRef, new byte[0], 0,
+                    MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
+            Assertions.assertEquals(expectedCode, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    private static final long JO_OPENSSL_ERROR              = ErrorCode.JO_OPENSSL_ERROR.getCode();
+    private static final long JO_EXTRACTED_KEY_UNEXPECTED_LEN = ErrorCode.JO_EXTRACTED_KEY_UNEXPECTED_LEN.getCode();
+
+    @Test()
+    public void MLDSA_extract_tr_getOctetFail() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, JO_OPENSSL_ERROR - 2000);
+    }
+
+    @Test()
+    public void MLDSA_extract_tr_unexpectedKeyLen() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1, JO_EXTRACTED_KEY_UNEXPECTED_LEN - 2001);
+    }
+
+    @Test()
+    public void MLDSA_extract_tr_shakeCtxNew() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2, JO_OPENSSL_ERROR - 2002);
+    }
+
+    @Test()
+    public void MLDSA_extract_tr_shakeInit() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1, JO_OPENSSL_ERROR - 2003);
+    }
+
+    @Test()
+    public void MLDSA_extract_tr_shakeUpdate() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, JO_OPENSSL_ERROR - 2004);
+    }
+
+    @Test()
+    public void MLDSA_extract_tr_shakeFinalXOF() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, JO_OPENSSL_ERROR - 2005);
+    }
+
+    @Test()
+    public void MLDSA_setup_hash_evpMdCtxNew() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7, JO_OPENSSL_ERROR - 2010);
+    }
+
+    @Test()
+    public void MLDSA_setup_hash_digestInit() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8, JO_OPENSSL_ERROR - 2011);
+    }
+
+    @Test()
+    public void MLDSA_setup_hash_with_tr_and_context_trUpdate() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9, JO_OPENSSL_ERROR - 2020);
+    }
+
+    @Test()
+    public void MLDSA_setup_hash_with_tr_and_context_preHashByte() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10, JO_OPENSSL_ERROR - 2021);
+    }
+
+    @Test()
+    public void MLDSA_setup_hash_with_tr_and_context_lenByte() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11, JO_OPENSSL_ERROR - 2022);
+    }
+
+    @Test()
+    public void MLDSA_setup_hash_with_tr_and_context_ctxBytes() throws Exception
+    {
+        assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12, JO_OPENSSL_ERROR - 2023);
     }
 }
 

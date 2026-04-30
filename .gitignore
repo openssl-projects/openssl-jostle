@@ -6,3 +6,6 @@ build
 /interface/cmake-build-debug/
 /interface/.idea/
 .idea/
+
+# Local-only coverage helper (not committed)
+/coverage_mldsa.sh

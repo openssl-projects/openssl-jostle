@@ -31,27 +31,27 @@
  * @return 1 = success, 0 = failure
  */
 int setup_hash_with_tr_and_context(const mldsa_ctx *ctx, EVP_MD_CTX *md, int32_t *ret_code) {
-    if (1 != EVP_DigestUpdate(md, ctx->tr, 64)) {
-        *ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_9 1 != EVP_DigestUpdate(md, ctx->tr, 64)) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2020);
         return 0;
     }
 
     if (ctx->context_len >= 0) {
         const uint8_t pre_hash = (ctx->hash_type == MLDSA_HASH_NONE) ? 0 : 1;
-        if (1 != EVP_DigestUpdate(md, &pre_hash, 1)) {
-            *ret_code = JO_OPENSSL_ERROR;
+        if (OPS_OPENSSL_ERROR_10 1 != EVP_DigestUpdate(md, &pre_hash, 1)) {
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2021);
             return 0;
         }
 
         const uint8_t len = (uint8_t) ctx->context_len & 0xFFl;
 
-        if (1 != EVP_DigestUpdate(md, &len, 1)) {
-            *ret_code = JO_OPENSSL_ERROR;
+        if (OPS_OPENSSL_ERROR_11 1 != EVP_DigestUpdate(md, &len, 1)) {
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2022);
             return 0;
         }
 
-        if (1 != EVP_DigestUpdate(md, ctx->context, len)) {
-            *ret_code = JO_OPENSSL_ERROR;
+        if (OPS_OPENSSL_ERROR_12 1 != EVP_DigestUpdate(md, ctx->context, len)) {
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2023);
             return 0;
         }
     }
@@ -69,16 +69,18 @@ int setup_hash_with_tr_and_context(const mldsa_ctx *ctx, EVP_MD_CTX *md, int32_t
  */
 int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
     *ctx = EVP_MD_CTX_new();
-    if (*ctx == NULL) {
-        *ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_7 *ctx == NULL) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2010);
         goto fail;
     }
 
     if (hash == MLDSA_HASH_NONE) {
         EVP_MD *evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
         jo_assert(evp_md != NULL);
-        if (1 != EVP_DigestInit_ex2(*ctx, evp_md, NULL)) {
-            *ret_code = JO_OPENSSL_ERROR;
+        const int init_ok = EVP_DigestInit_ex2(*ctx, evp_md, NULL);
+        EVP_MD_free(evp_md);
+        if (OPS_OPENSSL_ERROR_8 1 != init_ok) {
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2011);
             goto fail;
         }
         return 1;
@@ -86,7 +88,10 @@ int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
 
     *ret_code = JO_UNEXPECTED_STATE;
 fail:
+    // Null out the caller's slot after free so a later destroy / re-init
+    // cleanup pass can't double-free a dangling pointer.
     EVP_MD_CTX_free(*ctx);
+    *ctx = NULL;
     return 0;
 }
 
@@ -99,6 +104,10 @@ fail:
  * @return 0 = fail, 1 = success
  */
 int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret_code) {
+    // Fixed-size buffer covering the largest ML-DSA public key (ML-DSA-87 =
+    // 2592 bytes). VLAs would be portable to C99 but MSVC doesn't accept
+    // them, and this codebase targets Windows.
+    enum { KEY_ENC_MAX = 2592 };
     size_t min_len;
 
     switch (type) {
@@ -114,57 +123,64 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
             min_len = 2592;
             break;
         default:
-            return JO_INCORRECT_KEY_TYPE;
+            *ret_code = JO_INCORRECT_KEY_TYPE;
+            return 0;
     }
 
-    uint8_t key_enc[min_len];
-
+    int ok = 0;
+    uint8_t key_enc[KEY_ENC_MAX];
+    EVP_MD_CTX *shake = NULL;
+    EVP_MD *evp_md = NULL;
     size_t written = 0;
 
-    if (1 != EVP_PKEY_get_octet_string_param(key_spec->key, OSSL_PKEY_PARAM_PUB_KEY, key_enc, min_len, &written)) {
-        *ret_code = JO_OPENSSL_ERROR;
-        return 0;
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_get_octet_string_param(key_spec->key, OSSL_PKEY_PARAM_PUB_KEY, key_enc, min_len, &written)) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2000);
+        goto exit;
     }
 
-    if (written != min_len) {
-        *ret_code = JO_EXTRACTED_KEY_UNEXPECTED_LEN;
-        return 0;
+    if (OPS_SHORT_SIZE_1 written != min_len) {
+        *ret_code = JO_EXTRACTED_KEY_UNEXPECTED_LEN OPS_OFFSET(2001);
+        goto exit;
     }
 
-
-    EVP_MD_CTX *shake = EVP_MD_CTX_new();
-    if (shake == NULL) {
-        *ret_code = JO_OPENSSL_ERROR;
-        return 0;
+    shake = EVP_MD_CTX_new();
+    if (OPS_FAILED_CREATE_2 shake == NULL) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2002);
+        goto exit;
     }
 
-    EVP_MD *evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
-
+    evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
     jo_assert(evp_md != NULL);
 
-    if (1 != EVP_DigestInit_ex2(shake, evp_md, NULL)) {
-        EVP_MD_CTX_free(shake);
-        *ret_code = JO_OPENSSL_ERROR;
-        return 0;
+    if (OPS_FAILED_INIT_1 1 != EVP_DigestInit_ex2(shake, evp_md, NULL)) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2003);
+        goto exit;
     }
 
     // Rho + T1
-    if (1 != EVP_DigestUpdate(shake, key_enc, written)) {
-        EVP_MD_CTX_free(shake);
-        *ret_code = JO_OPENSSL_ERROR;
-        return 0;
+    if (OPS_OPENSSL_ERROR_4 1 != EVP_DigestUpdate(shake, key_enc, written)) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2004);
+        goto exit;
     }
 
-    if (1 != EVP_DigestFinalXOF(shake, (unsigned char *) tr, TR_LEN)) {
-        EVP_MD_CTX_free(shake);
-        *ret_code = JO_OPENSSL_ERROR;
-        return 0;
+    if (OPS_OPENSSL_ERROR_5 1 != EVP_DigestFinalXOF(shake, tr, TR_LEN)) {
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2005);
+        goto exit;
     }
 
-    EVP_MD_CTX_free(shake);
+    ok = 1;
+
+exit:
+    // The encoded public key is not strictly secret, but the cleanse keeps the
+    // function consistent regardless of which path it left through.
     OPENSSL_cleanse(key_enc, min_len);
-
-    return 1;
+    if (evp_md != NULL) {
+        EVP_MD_free(evp_md);
+    }
+    if (shake != NULL) {
+        EVP_MD_CTX_free(shake);
+    }
+    return ok;
 }
 
 
@@ -179,7 +195,7 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
  * @param ret_code pointer to error code receiver
  * @return 1 = success, 0 = failed
  */
-int derive_mu(const mldsa_ctx *ctx, const uint8_t *mu, int32_t *ret_code) {
+int derive_mu(const mldsa_ctx *ctx, uint8_t *mu, int32_t *ret_code) {
     jo_assert(mu != NULL);
 
     /* Assumption: passed in pointer *mu references an allocation that is Mu_BYTES long */
@@ -196,7 +212,7 @@ int derive_mu(const mldsa_ctx *ctx, const uint8_t *mu, int32_t *ret_code) {
             *ret_code = JO_EXTERNAL_MU_INVALID_LEN;
             return 0;
         }
-        memcpy((void *)mu, externalMu, Mu_BYTES);
+        memcpy(mu, externalMu, Mu_BYTES);
         BIO_reset(ctx->mu_buf);
         return 1;
     }
@@ -210,7 +226,7 @@ int derive_mu(const mldsa_ctx *ctx, const uint8_t *mu, int32_t *ret_code) {
          * The shake instance is then used as the target of the update function.
          */
 
-        if (1 != EVP_DigestFinalXOF(ctx->hash, (unsigned char *) mu, Mu_BYTES)) {
+        if (1 != EVP_DigestFinalXOF(ctx->hash, mu, Mu_BYTES)) {
             *ret_code = JO_OPENSSL_ERROR;
             return 0;
         }
@@ -236,6 +252,8 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     }
 
     rand_set_java_srand_call(rnd_src);
+
+    ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
@@ -287,6 +305,14 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         goto exit;
     }
 
+    // Defensive: caller is expected to pass a fresh spec, but if the spec
+    // already holds a key, EVP_PKEY_keygen would overwrite it without freeing
+    // and leak the EVP_PKEY. Mirrors the same guard in decode_*_key.
+    if (spec->key != NULL) {
+        EVP_PKEY_free(spec->key);
+        spec->key = NULL;
+    }
+
     if (1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
@@ -315,6 +341,7 @@ exit:
 }
 
 int32_t mldsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    jo_assert(key_spec != NULL);
     size_t min_len;
 
     EVP_PKEY *pkey = key_spec->key;
@@ -333,12 +360,18 @@ int32_t mldsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
         return JO_INCORRECT_KEY_TYPE;
     }
 
+    ERR_clear_error();
 
     if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, NULL, 0,
                                                                  &min_len)) {
         return JO_OPENSSL_ERROR;
     }
 
+    // Guard the size-query cast: every later return casts min_len (or written,
+    // which is bounded by min_len) to int32_t.
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
 
     if (out == NULL) {
         return (int32_t) min_len;
@@ -356,14 +389,11 @@ int32_t mldsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
         return JO_OPENSSL_ERROR OPS_OFFSET(1000);
     }
 
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
-    }
-
     return (int32_t) written;
 }
 
 int32_t mldsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    jo_assert(key_spec != NULL);
     size_t min_len;
 
     EVP_PKEY *pkey = key_spec->key;
@@ -381,11 +411,18 @@ int32_t mldsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
         return JO_INCORRECT_KEY_TYPE;
     }
 
+    ERR_clear_error();
+
     if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0,
                                                                  &min_len)) {
         return JO_OPENSSL_ERROR;
     }
 
+    // Guard the size-query cast: every later return casts min_len (or written,
+    // which is bounded by min_len) to int32_t.
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
 
     if (out == NULL) {
         return (int32_t) min_len;
@@ -402,14 +439,11 @@ int32_t mldsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
         return JO_OPENSSL_ERROR OPS_OFFSET(1000);
     }
 
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
-    }
-
     return (int32_t) written;
 }
 
 int32_t mldsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    jo_assert(key_spec != NULL);
     const size_t min_len = 32;
 
     EVP_PKEY *pkey = key_spec->key;
@@ -440,12 +474,14 @@ int32_t mldsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
 
     size_t written = 0;
 
+    ERR_clear_error();
+
     if (OPS_OPENSSL_ERROR_1
         1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_DSA_SEED, out, min_len, &written)) {
         return JO_OPENSSL_ERROR;
     }
 
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 written > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -506,6 +542,14 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
         goto exit;
     }
 
+    ERR_clear_error();
+
+    // Defensive: caller is expected to pass a fresh spec, but if the spec
+    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    if (key_spec->key != NULL) {
+        EVP_PKEY_free(key_spec->key);
+        key_spec->key = NULL;
+    }
 
     key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
@@ -579,6 +623,15 @@ int32_t mldsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
     if (min_len != src_len) {
         ret_code = JO_ENCODED_PUBLIC_KEY_LEN;
         goto exit;
+    }
+
+    ERR_clear_error();
+
+    // Defensive: caller is expected to pass a fresh spec, but if the spec
+    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    if (key_spec->key != NULL) {
+        EVP_PKEY_free(key_spec->key);
+        key_spec->key = NULL;
     }
 
     key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
@@ -660,10 +713,17 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         goto exit;
     }
 
+    // No EVP / OSSL calls have run yet, so the queue clear belongs after the
+    // soft-error checks above (which preserve prior state) and before any of
+    // the resource-allocating work below.
+    ERR_clear_error();
+
     OPENSSL_cleanse(ctx->context, MAX_CTX_LEN);
     OPENSSL_cleanse(ctx->tr, TR_LEN);
 
-    if (sign_ctx != NULL) {
+    // sign_ctx_len < 0 is a valid sentinel ("no preHash/context bytes"); skip
+    // the memcpy so we don't reinterpret a negative length as size_t.
+    if (sign_ctx != NULL && sign_ctx_len > 0) {
         memcpy(ctx->context, sign_ctx, sign_ctx_len);
     }
     ctx->context_len = sign_ctx_len;
@@ -698,6 +758,10 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
             break;
         case MLDSA_Mu_EXTERNAL:
             ctx->mu_buf = BIO_new(BIO_s_mem());
+            if (ctx->mu_buf == NULL) {
+                ret_code = JO_OPENSSL_ERROR;
+                goto exit;
+            }
             break;
         default:
             ret_code = JO_UNKNOWN_MU_MODE;
@@ -723,22 +787,13 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         goto exit;
     }
 
-    // switch (key_spec->type) {
-    //     case KS_MLDSA_44:
-    //         ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-44",NULL);
-    //         break;
-    //
-    //     case KS_MLDSA_65:
-    //         ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-65",NULL);
-    //         break;
-    //
-    //     case KS_MLDSA_87:
-    //         ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-87",NULL);
-    //         break;
-    //     default:
-    //         ret_code = JO_INCORRECT_KEY_TYPE;
-    //         goto exit;
-    // }
+    // Short-circuit on fetch failure rather than letting NULL flow through
+    // extract_tr / pctx setup and eventually surface as a sign_message_init
+    // error — that would mask the real diagnostic in the queue.
+    if (OPS_FAILED_CREATE_1 ctx->sig == NULL) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
 
 
     if (ctx->mu_mode == MLDSA_Mu_INTERNAL || ctx->mu_mode == MLDSA_Mu_CALCULATE_ONLY) {
@@ -757,9 +812,9 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         }
     }
 
-    const int one = 1; // TODO look for constant
+    int one = 1; // TODO look for constant
     const OSSL_PARAM params[] = {
-        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_MU, (void *)&one),
+        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_MU, &one),
         OSSL_PARAM_END
     };
 
@@ -779,6 +834,27 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
     ret_code = JO_SUCCESS;
 
 exit:
+    if (ret_code != JO_SUCCESS) {
+        // Roll back any partial state on failure so a subsequent update/sign
+        // call sees a "not initialized" context rather than a half-configured
+        // one that would leak through and surface confusing OpenSSL errors.
+        if (ctx->sig != NULL) {
+            EVP_SIGNATURE_free(ctx->sig);
+            ctx->sig = NULL;
+        }
+        if (ctx->pctx != NULL) {
+            EVP_PKEY_CTX_free(ctx->pctx);
+            ctx->pctx = NULL;
+        }
+        if (ctx->hash != NULL) {
+            EVP_MD_CTX_free(ctx->hash);
+            ctx->hash = NULL;
+        }
+        if (ctx->mu_buf != NULL) {
+            BIO_free_all(ctx->mu_buf);
+            ctx->mu_buf = NULL;
+        }
+    }
     return ret_code;
 }
 
@@ -805,11 +881,17 @@ int32_t mldsa_ctx_init_verify(
         goto exit;
     }
 
+    // No EVP / OSSL calls have run yet, so the queue clear belongs after the
+    // soft-error checks above (which preserve prior state) and before any of
+    // the resource-allocating work below.
+    ERR_clear_error();
+
     OPENSSL_cleanse(ctx->context, MAX_CTX_LEN);
     OPENSSL_cleanse(ctx->tr, TR_LEN);
 
-    if (sign_ctx != NULL) {
-        OPENSSL_cleanse(ctx->context, sizeof(ctx->context));
+    // sign_ctx_len < 0 is a valid sentinel ("no preHash/context bytes"); skip
+    // the memcpy so we don't reinterpret a negative length as size_t.
+    if (sign_ctx != NULL && sign_ctx_len > 0) {
         memcpy(ctx->context, sign_ctx, sign_ctx_len);
     }
 
@@ -845,6 +927,11 @@ int32_t mldsa_ctx_init_verify(
     switch (ctx->mu_mode) {
         case MLDSA_Mu_EXTERNAL:
             ctx->mu_buf = BIO_new(BIO_s_mem());
+            if (ctx->mu_buf == NULL) {
+                ret_code = JO_OPENSSL_ERROR;
+                goto exit;
+            }
+            break;
         case MLDSA_Mu_INTERNAL:
             break;
 
@@ -857,37 +944,30 @@ int32_t mldsa_ctx_init_verify(
     }
 
 
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+
     int32_t typeId = KS_NONE;
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
-        ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-44",NULL);
+        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-44",NULL);
         typeId = KS_MLDSA_44;
     } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-65")) {
-        ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-65",NULL);
+        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-65",NULL);
         typeId = KS_MLDSA_65;
     } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-87")) {
-        ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-87",NULL);
+        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-87",NULL);
         typeId = KS_MLDSA_87;
     } else {
         ret_code = JO_INCORRECT_KEY_TYPE;
         goto exit;
     }
 
-    // switch (key_spec->type) {
-    //     case KS_MLDSA_44:
-    //         ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-44",NULL);
-    //         break;
-    //
-    //     case KS_MLDSA_65:
-    //         ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-65",NULL);
-    //         break;
-    //
-    //     case KS_MLDSA_87:
-    //         ctx->sig = EVP_SIGNATURE_fetch(NULL, "ML-DSA-87",NULL);
-    //         break;
-    //     default:
-    //         ret_code = JO_INCORRECT_KEY_TYPE;
-    //         goto exit;
-    // }
+    // Short-circuit on fetch failure rather than letting NULL flow through
+    // extract_tr / pctx setup and eventually surface as a verify_message_init
+    // error — that would mask the real diagnostic in the queue.
+    if (OPS_FAILED_CREATE_1 ctx->sig == NULL) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
 
 
     if (ctx->mu_mode == MLDSA_Mu_INTERNAL) {
@@ -906,15 +986,15 @@ int32_t mldsa_ctx_init_verify(
         }
     }
 
-    const int one = 1;
+    int one = 1;
 
     const OSSL_PARAM params[] = {
-        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_MU, (void *)&one),
+        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_MU, &one),
         OSSL_PARAM_END
     };
 
 
-    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(NULL, key_spec->key, NULL);
+    ctx->pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1003);
@@ -932,18 +1012,45 @@ int32_t mldsa_ctx_init_verify(
 
 
 exit:
-
+    if (ret_code != JO_SUCCESS) {
+        // Roll back any partial state on failure so a subsequent verify call
+        // sees a "not initialized" context rather than a half-configured one
+        // that would leak through and surface confusing OpenSSL errors.
+        if (ctx->sig != NULL) {
+            EVP_SIGNATURE_free(ctx->sig);
+            ctx->sig = NULL;
+        }
+        if (ctx->pctx != NULL) {
+            EVP_PKEY_CTX_free(ctx->pctx);
+            ctx->pctx = NULL;
+        }
+        if (ctx->hash != NULL) {
+            EVP_MD_CTX_free(ctx->hash);
+            ctx->hash = NULL;
+        }
+        if (ctx->mu_buf != NULL) {
+            BIO_free_all(ctx->mu_buf);
+            ctx->mu_buf = NULL;
+        }
+    }
     return ret_code;
 }
 
 
-int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src) {
+int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, uint8_t *out, const size_t out_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
+
+    // Zero-init so a partial write from derive_mu (e.g. EVP_DigestFinalXOF
+    // failing mid-stream) can't leave real Mu bytes on the stack, and so the
+    // unified cleanse at exit always touches a known buffer.
+    uint8_t mu[Mu_BYTES] = {0};
 
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
+
+    ERR_clear_error();
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
         ret_code = JO_NOT_INITIALIZED;
@@ -981,7 +1088,6 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
             ret_code = JO_OUTPUT_TOO_SMALL;
             goto exit;
         }
-        uint8_t mu[Mu_BYTES];
 
         switch (ctx->mu_mode) {
             case MLDSA_Mu_CALCULATE_ONLY:
@@ -998,7 +1104,7 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
                 const size_t sig_len_ = sig_len;
 
                 rand_set_java_srand_call(rnd_src);
-                if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_sign(ctx->pctx, (unsigned char *) out, &sig_len, mu,
+                if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_sign(ctx->pctx, out, &sig_len, mu,
                                                            Mu_BYTES)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;;
@@ -1008,9 +1114,6 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
                     ret_code = JO_UNEXPECTED_SIG_LEN_CHANGE;
                     goto exit;
                 }
-
-
-                OPENSSL_cleanse(mu, Mu_BYTES);
                 break;
             default:
                 // Mu mode should have been asserted during init
@@ -1024,11 +1127,13 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t ou
 
 
 exit:
+    OPENSSL_cleanse(mu, Mu_BYTES);
     return ret_code;
 }
 
 int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
     jo_assert(ctx != NULL);
+    jo_assert(sig != NULL);
     int ret_code = JO_FAIL;
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
@@ -1048,7 +1153,10 @@ int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_le
         goto exit;
     }
 
-
+    // Clear any stale errors from the thread's queue before marking, so the
+    // mark sits at an empty state and ERR_pop_to_mark on a verify-false path
+    // can't surface unrelated prior errors.
+    ERR_clear_error();
     ERR_set_mark();
     int ret = EVP_PKEY_verify(ctx->pctx, sig, sig_len, mu, Mu_BYTES);
 
@@ -1064,8 +1172,13 @@ int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_le
         ret_code = JO_SUCCESS;
     } else {
         if (ret < 0) {
+            // Real OpenSSL error — keep the queued errors for diagnosis,
+            // but drop the mark so it doesn't accumulate across calls.
+            ERR_clear_last_mark();
             ret_code = JO_OPENSSL_ERROR;
         } else {
+            // Plain verification failure — discard any noise EVP_PKEY_verify
+            // pushed onto the queue.
             ERR_pop_to_mark();
             ret_code = JO_FAIL;
         }
@@ -1078,6 +1191,7 @@ exit:
 
 int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_len) {
     jo_assert(ctx != NULL);
+    jo_assert(in != NULL);
     int32_t ret_code = JO_FAIL;
 
     if (ctx->hash == NULL && ctx->mu_buf == NULL) {
@@ -1085,6 +1199,7 @@ int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_le
         goto exit;
     }
 
+    ERR_clear_error();
 
     if (ctx->mu_buf != NULL) {
         if (in_len > INT32_MAX) {
@@ -1093,9 +1208,14 @@ int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_le
             goto exit;
         }
 
-        if (OPS_OPENSSL_ERROR_1 !BIO_write(ctx->mu_buf, in, (int) in_len)) {
-            ret_code = JO_OPENSSL_ERROR;
-            goto exit;
+        // BIO_write returns the number of bytes written, so a zero-length
+        // request returns 0 — which the truthy check below would mistake for
+        // an error. Skip the call entirely; an empty update is a no-op.
+        if (in_len > 0) {
+            if (OPS_OPENSSL_ERROR_1 !BIO_write(ctx->mu_buf, in, (int) in_len)) {
+                ret_code = JO_OPENSSL_ERROR;
+                goto exit;
+            }
         }
     } else {
         if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestUpdate(ctx->hash, in, in_len)) {

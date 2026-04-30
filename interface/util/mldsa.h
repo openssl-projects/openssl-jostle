@@ -71,7 +71,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 int32_t mldsa_ctx_init_verify(mldsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
                               int32_t mu_mode);
 
-int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rnd_src);
+int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, uint8_t *out, size_t out_len, void *rnd_src);
 
 int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_len);
 

@@ -220,6 +220,7 @@ void MLDSA_disposeSigner(mldsa_ctx *ctx) {
 
 
 mldsa_ctx *MLDSA_allocateSigner(int *err) {
+    jo_assert(err != NULL);
     return mldsa_ctx_create(err);
 }
 
@@ -230,6 +231,7 @@ int32_t MLDSA_initVerifier(mldsa_ctx *ctx,
                            const size_t context_size,
                            int32_t context_len,
                            int32_t mu_mode) {
+    jo_assert(ctx != NULL);
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -278,6 +280,11 @@ int32_t MLDSA_initSign(mldsa_ctx *ctx,
     }
 
     if (context_len >= 0) {
+        if (context == NULL) {
+            ret_val = JO_CONTEXT_BYTES_NULL;
+            goto exit;
+        }
+
         if ((size_t) context_len > context_size) {
             ret_val = JO_CONTEXT_LEN_PAST_END;
             goto exit;
@@ -325,7 +332,7 @@ exit:
 
 int32_t MLDSA_sign(
     mldsa_ctx *ctx,
-    const uint8_t *output,
+    uint8_t *output,
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
@@ -350,7 +357,7 @@ int32_t MLDSA_sign(
         goto exit;
     }
 
-    const uint8_t *output_data = output + (size_t) out_off;
+    uint8_t *output_data = output + (size_t) out_off;
 
     ret_val = mldsa_ctx_sign(ctx, output_data, out_len, rnd_src);
 

@@ -161,6 +161,36 @@ public class MLDSALimitTest
     }
 
     @Test
+    public void MLDSAServiceJNI_generateKeyPair_nullRand() throws Exception
+    {
+        try
+        {
+            mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
+    }
+
+
+    @Test
+    public void MLDSAServiceJNI_generateKeyPair_nullRand_seedVariant() throws Exception
+    {
+        try
+        {
+            mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), new byte[32], 32, null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
+    }
+
+
+    @Test
     public void MLDSAServiceJNI_generateKeyPair_seedWrongKeyType() throws Exception
     {
         byte[] seed = new byte[32];
@@ -311,7 +341,7 @@ public class MLDSALimitTest
         long ref = 0;
         try
         {
-            mldsaServiceNI.getPrivateKey(0, new byte[0]);
+            mldsaServiceNI.getSeed(0, new byte[0]);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -331,7 +361,7 @@ public class MLDSALimitTest
         long ref = TestNISelector.SpecNI.allocate();
         try
         {
-            mldsaServiceNI.getPrivateKey(ref, new byte[0]);
+            mldsaServiceNI.getSeed(ref, new byte[0]);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -351,7 +381,7 @@ public class MLDSALimitTest
         long ref = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
         try
         {
-            mldsaServiceNI.getPrivateKey(ref, new byte[10]);
+            mldsaServiceNI.getSeed(ref, new byte[10]);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -606,6 +636,25 @@ public class MLDSALimitTest
 
     // Boken input for public key is an OpsTest see MLDSAOpsTest class
 
+
+    @Test()
+    public void MLDSAServiceJNI_decode_1privateKey_nullKeySpec() throws Exception
+    {
+
+        long keyRef = 0;
+        try
+        {
+            mldsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_DSA_44.getKsType(), new byte[1024], 0, 1024);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("key spec is null", e.getMessage());
+        }
+        finally
+        {
+        }
+    }
 
     @Test()
     public void MLDSAServiceJNI_decode_1privateKey_inputNull() throws Exception
@@ -1127,7 +1176,7 @@ public class MLDSALimitTest
             keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.initVerify(mldsaRef, keyRef, null, 0, 0);
+            mldsaServiceNI.initSign(mldsaRef, keyRef, null, 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -1521,6 +1570,82 @@ public class MLDSALimitTest
     }
 
 
+    @Test()
+    public void MLDSAServiceJNI_mldsa_sign_externalMu_invalidLen() throws Exception
+    {
+        // EXTERNAL_MU mode requires exactly 64 bytes pushed via update before
+        // sign or verify is called. Anything else triggers
+        // JO_EXTERNAL_MU_INVALID_LEN inside derive_mu.
+
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0,
+                    MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal(), TestUtil.RNDSrc);
+
+            mldsaServiceNI.update(mldsaRef, new byte[63], 0, 63);
+
+            long len = mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc);
+            byte[] sig = new byte[(int) len];
+            mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc);
+
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("external Mu invalid length", e.getMessage());
+        }
+        finally
+        {
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI_mldsa_verify_externalMu_invalidLen() throws Exception
+    {
+        // Same boundary, exercised through the verify path.
+
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0,
+                    MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal());
+
+            mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10);
+
+            mldsaServiceNI.verify(mldsaRef, new byte[1], 1);
+
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("external Mu invalid length", e.getMessage());
+        }
+        finally
+        {
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
     // NB Sign accepts null input, returns length of signature so null input is valid
 
     @Test()
@@ -1874,6 +1999,38 @@ public class MLDSALimitTest
         catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+
+        }
+    }
+
+
+    @Test()
+    public void MLDSAServiceJNI_mldsa_verify_notInitialized() throws Exception
+    {
+        long mldsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            mldsaRef = TestNISelector.getMLDSANI().allocateSigner();
+            Assertions.assertTrue(mldsaRef > 0);
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+
+            Assertions.assertTrue(keyRef > 0);
+            // No initVerify call
+
+            mldsaServiceNI.verify(mldsaRef, new byte[1], 1);
+
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("not initialized", e.getMessage());
         }
         finally
         {

@@ -1,11 +1,10 @@
 /*
+ *  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
  *
- *   Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
- *
- *   Licensed under the Apache License 2.0 (the "License"). You may not use
- *   this file except in compliance with the License.  You can obtain a copy
- *   in the file LICENSE in the source distribution or at
- *   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *  Licensed under the Apache License 2.0 (the "License"). You may not use
+ *  this file except in compliance with the License.  You can obtain a copy
+ *  in the file LICENSE in the source distribution or at
+ *  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
  *
  */
 
@@ -33,6 +32,7 @@ import java.util.logging.Logger;
 
 public class MLDSASignatureSpi extends SignatureSpi
 {
+
     Logger LOG = Logger.getLogger("MLDSASignatureSpi(Java 8)");
 
     public enum MuHandling
@@ -43,32 +43,28 @@ public class MLDSASignatureSpi extends SignatureSpi
     private final OSSLKeyType forcedType;
     private MLDSARef ref = null;
     private MLDSAKey lastKey = null;
-
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
-
     private AlgorithmParameterSpec algorithmParameterSpec = null;
     private boolean updateCalled = false;
     private MuHandling muHandling = MuHandling.INTERNAL;
-
 
     public MLDSASignatureSpi(OSSLKeyType forcedType, MuHandling forcedMu)
     {
         this.forcedType = forcedType;
         algorithmParameterSpec = ContextParameterSpec.EMPTY_CONTEXT_SPEC;
         muHandling = forcedMu;
-
     }
 
 
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
-        if (publicKey instanceof MLDSAPublicKey)
+        if (publicKey instanceof JOMLDSAPublicKey)
         {
             try
             {
                 updateCalled = false;
-                MLDSAPublicKey key = (MLDSAPublicKey) publicKey;
+                JOMLDSAPublicKey key = (JOMLDSAPublicKey) publicKey;
                 lastKey = key;
 
                 if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
@@ -78,9 +74,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new MLDSARef(
-
-                            NISelector.MLDSAServiceNI.allocateSigner(), publicKey.getAlgorithm());
+                    ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), publicKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -103,16 +97,16 @@ public class MLDSASignatureSpi extends SignatureSpi
         throw new InvalidKeyException("expected only MLDSAPublicKey");
     }
 
-
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
     {
         engineInitSign(privateKey, null);
     }
 
     @Override
-    protected void engineInitSign(PrivateKey privateKey, SecureRandom random) throws InvalidKeyException
+    protected void engineInitSign(PrivateKey privateKey, SecureRandom rand) throws InvalidKeyException
     {
-        randSource = DefaultRandSource.replaceWith(this.randSource, random);
+        this.randSource = DefaultRandSource.replaceWith(this.randSource, rand);
+
         if (privateKey instanceof MLDSAPrivateKey)
         {
             try
@@ -145,7 +139,6 @@ public class MLDSASignatureSpi extends SignatureSpi
                         ref.getReference(),
                         key.getSpec().getReference(),
                         context, contextLen, muHandling.ordinal(), randSource);
-
                 return;
             }
             finally
@@ -165,38 +158,24 @@ public class MLDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
     {
-        try
-        {
-            updateCalled = true;
-            NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len);
-        }
-        finally
-        {
-            Reference.reachabilityFence(this);
-        }
+        updateCalled = true;
+        NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len);
     }
 
     @Override
     protected byte[] engineSign() throws SignatureException
     {
+        byte[] sig = null;
         try
         {
-            byte[] sig = null;
-            try
-            {
-                long len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
-                sig = new byte[(int) len];
-                NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
-                return sig;
-            }
-            finally
-            {
-                reInit();
-            }
+            long len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
+            sig = new byte[(int) len];
+            NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            return sig;
         }
         finally
         {
-            Reference.reachabilityFence(this);
+            reInit();
         }
     }
 
@@ -206,21 +185,12 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         try
         {
-            try
-            {
-                int code = NISelector.MLDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
-
-
-                return code == ErrorCode.JO_SUCCESS.getCode();
-            }
-            finally
-            {
-                reInit();
-            }
+            int code = NISelector.MLDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
+            return code == ErrorCode.JO_SUCCESS.getCode();
         }
         finally
         {
-            Reference.reachabilityFence(this);
+            reInit();
         }
     }
 
