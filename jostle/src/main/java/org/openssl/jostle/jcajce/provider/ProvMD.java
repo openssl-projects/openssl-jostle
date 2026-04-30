@@ -84,7 +84,7 @@ public class ProvMD
                     xofLen = 0;
                 }
             }
-            String clName = "MDServiceSPI$" + (name.replace("-", "_").replace("/", "_"));
+            String clName = name.replace("-", "_").replace("/", "_");
             provider.addAlgorithmImplementation("MessageDigest", name, PREFIX + "MDServiceSPI$" + clName, attr, (arg) -> new MDServiceSPI(name, xofLen));
             provider.addAlias("MessageDigest", name, keyAliasMap.get(name));
         }

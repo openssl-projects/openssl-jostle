@@ -38,6 +38,6 @@ public class MDServiceJNI implements MDServiceNI
 
 
     @Override
-    native public void ni_reset(long ref);
+    native public int ni_reset(long ref);
 
 }

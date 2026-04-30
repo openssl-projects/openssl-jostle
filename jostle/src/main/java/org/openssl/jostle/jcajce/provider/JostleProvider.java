@@ -207,6 +207,7 @@ public class JostleProvider
 
     void addAlias(String type, String name, String... aliases)
     {
+        name = Strings.toUpperCase(name);
         if (!containsKey(type + "." + name))
         {
             throw new IllegalStateException("primary key (" + type + "." + name + ") not found");
@@ -214,12 +215,13 @@ public class JostleProvider
 
         for (String alias : aliases)
         {
-            doPut("Alg.Alias." + type + "." + alias, name);
+            doPut("Alg.Alias." + type + "." + Strings.toUpperCase(alias), name);
         }
     }
 
     void addAlias(String type, String name, Collection<String> aliases)
     {
+        name = Strings.toUpperCase(name);
         if (!containsKey(type + "." + name))
         {
             throw new IllegalStateException("primary key (" + type + "." + name + ") not found");
@@ -227,13 +229,14 @@ public class JostleProvider
 
         for (String alias : aliases)
         {
-            doPut("Alg.Alias." + type + "." + alias, name);
+            doPut("Alg.Alias." + type + "." + Strings.toUpperCase(alias), name);
         }
     }
 
 
     void addAlias(String type, String name, ASN1ObjectIdentifier... oids)
     {
+        name = Strings.toUpperCase(name);
         if (!containsKey(type + "." + name))
         {
             throw new IllegalStateException("primary key (" + type + "." + name + ") not found");
@@ -250,6 +253,14 @@ public class JostleProvider
     {
         if (containsKey(key))
         {
+            Object existing = get(key);
+            if (existing != null && existing.equals(name))
+            {
+                // Idempotent re-registration of the same alias → target
+                // mapping. Allows providers to list mixed-case aliases that
+                // collide once normalised to upper-case.
+                return;
+            }
             throw new IllegalStateException("duplicate provider key (" + key + ") found");
         }
 

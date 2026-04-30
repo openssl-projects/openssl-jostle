@@ -77,6 +77,14 @@ public class MDServiceSPI extends MessageDigestSpi
     {
         synchronized (this)
         {
+            // Per the MessageDigestSpi contract, "buffer too small for the
+            // digest output" must surface as DigestException rather than the
+            // IllegalArgumentException the NI layer would otherwise throw.
+            int needed = mdServiceNI.getDigestOutputLen(ref.getReference());
+            if (len < needed)
+            {
+                throw new DigestException("output buffer too small (need " + needed + ", got " + len + ")");
+            }
             int l = mdServiceNI.digest(ref.getReference(), buf, offset, len);
             mdServiceNI.reset(ref.getReference());
             return l;

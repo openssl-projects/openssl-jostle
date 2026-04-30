@@ -22,48 +22,68 @@
 #include "rand/jostle_lib_ctx.h"
 
 md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
-    const EVP_MD *md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), name,NULL);
+    ERR_clear_error();
+
+    EVP_MD *md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), name,NULL);
     if (md == NULL) {
         *err = JO_NAME_NOT_FOUND;
         return NULL;
     }
 
+    // Reject mismatched xof_len up front so the NI surface can't enter a
+    // broken state where xof=0 but the algorithm is XOF (or vice versa).
+    const int is_xof = EVP_MD_xof(md);
+    if ((is_xof && xof_len <= 0) || (!is_xof && xof_len > 0)) {
+        EVP_MD_free(md);
+        *err = JO_MD_XOF_LEN_INVALID;
+        return NULL;
+    }
+
     EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
     if (OPS_FAILED_CREATE_1 mdctx == NULL) {
+        EVP_MD_free(md);
         *err = JO_MD_CREATE_FAILED;
         return NULL;
     }
 
-    if (OPS_FAILED_INIT_1 !EVP_DigestInit_ex2(mdctx, md, NULL)) {
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_construct_int(OSSL_DIGEST_PARAM_XOFLEN, &xof_len),
+        OSSL_PARAM_END
+    };
+    const OSSL_PARAM *params_ptr = is_xof ? params : NULL;
+
+    if (OPS_FAILED_INIT_1 !EVP_DigestInit_ex2(mdctx, md, params_ptr)) {
         EVP_MD_CTX_free(mdctx);
+        EVP_MD_free(md);
         *err = JO_MD_INIT_FAILED;
         return NULL;
     }
 
 
-    if (xof_len > 0) {
-        OSSL_PARAM params[] = {OSSL_PARAM_END,OSSL_PARAM_END};
-        params[0] = OSSL_PARAM_construct_int(OSSL_DIGEST_PARAM_XOFLEN, &xof_len);
-
-
-        if (OPS_FAILED_SET_1 !EVP_MD_CTX_set_params(mdctx, params)) {
+    int fixed_size = 0;
+    if (!is_xof) {
+        fixed_size = EVP_MD_get_size(md);
+        // Non-XOF digest with no fixed size (or negative) — should not happen
+        // for any digest registered via ProvMD, but bail out cleanly so the
+        // ctx never carries digest_byte_length <= 0.
+        if (fixed_size <= 0) {
             EVP_MD_CTX_free(mdctx);
-            *err = JO_MD_SET_PARAM_FAIL;
+            EVP_MD_free(md);
+            *err = JO_MD_INIT_FAILED;
             return NULL;
         }
     }
-
 
     md_ctx *ctx = OPENSSL_zalloc(sizeof(md_ctx));
     jo_assert(ctx != NULL);
     ctx->md_type = md;
     ctx->mdctx = mdctx;
 
-    if (xof_len > 0) {
+    if (is_xof) {
         ctx->digest_byte_length = xof_len;
         ctx->xof = 1;
     } else {
-        ctx->digest_byte_length = EVP_MD_size(md);
+        ctx->digest_byte_length = fixed_size;
         ctx->xof = 0;
     }
 
@@ -80,6 +100,9 @@ void md_ctx_destroy(md_ctx *ctx) {
     if (ctx->mdctx != NULL) {
         EVP_MD_CTX_free(ctx->mdctx);
     }
+    if (ctx->md_type != NULL) {
+        EVP_MD_free((EVP_MD *) ctx->md_type);
+    }
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -88,6 +111,14 @@ void md_ctx_destroy(md_ctx *ctx) {
 int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
     jo_assert(ctx != NULL);
     jo_assert(ctx->mdctx != NULL);
+
+    // Bridges constrain `len` to int32, but md_ctx_update is exported. Guard
+    // the narrowing return cast for direct C callers.
+    if (len > INT_MAX) {
+        return JO_MD_DIGEST_LEN_INT_OVERFLOW;
+    }
+
+    ERR_clear_error();
     if (OPS_OPENSSL_ERROR_1 !EVP_DigestUpdate(ctx->mdctx, data, len)) {
         return JO_OPENSSL_ERROR;
     }
@@ -97,6 +128,7 @@ int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
 int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
     jo_assert(ctx != NULL);
     jo_assert(ctx->mdctx != NULL);
+    ERR_clear_error();
 
     uint32_t ret_len = 0;
 
@@ -121,14 +153,16 @@ int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
 int32_t md_ctx_reset(md_ctx *ctx) {
     jo_assert(ctx != NULL);
     jo_assert(ctx->mdctx != NULL);
+    ERR_clear_error();
 
-    OSSL_PARAM params[] = {OSSL_PARAM_END,OSSL_PARAM_END};
+    int xof_len = ctx->digest_byte_length;
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_construct_int(OSSL_DIGEST_PARAM_XOFLEN, &xof_len),
+        OSSL_PARAM_END
+    };
+    const OSSL_PARAM *params_ptr = ctx->xof ? params : NULL;
 
-    if (ctx->xof > 0) {
-        params[0] = OSSL_PARAM_construct_int(OSSL_DIGEST_PARAM_XOFLEN, &ctx->digest_byte_length);
-    }
-
-    if (!EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params)) {
+    if (!EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params_ptr)) {
         return JO_OPENSSL_ERROR;
     }
 

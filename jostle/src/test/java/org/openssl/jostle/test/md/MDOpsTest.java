@@ -106,23 +106,14 @@ public class MDOpsTest
         }
     }
 
-    @Test
-    public void allocateDigest_mdSetParamFailed() throws Exception
-    {
-        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
-        try
-        {
-            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
-            mdNI.allocateDigest("SHA256", 256);
-            Assertions.fail("Expected operation to fail but did not");
-        } catch (IllegalStateException e)
-        {
-            Assertions.assertEquals("md unable to set param", e.getMessage());
-        } finally
-        {
-            operationsTestNI.resetFlags();
-        }
-    }
+    //
+    // XOFLEN is now applied via EVP_DigestInit_ex2's params argument in a
+    // single call, so OPS_FAILED_SET has no place to inject for MD. The two
+    // tests below cover the new XOF-len consistency rejection that fires
+    // before any EVP work begins.
+    //
+    // XOF-len consistency rejection (JO_MD_XOF_LEN_INVALID) is pure input
+    // validation and lives in MDLimitTest.
 
 
     @Test
@@ -215,7 +206,7 @@ public class MDOpsTest
     @Test
     public void digest_final_failed_xof() throws Exception {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
-        long ref = mdNI.allocateDigest("SHAKE-128", 0);
+        long ref = mdNI.allocateDigest("SHAKE-128", 32);
 
         try {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);

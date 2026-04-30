@@ -160,7 +160,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     md_ctx *ctx = (md_ctx *) ref;
     jo_assert(ctx != NULL);
 
-    if (ctx->digest_byte_length == 0) {
+    if (ctx->digest_byte_length <= 0) {
         return JO_NOT_INITIALIZED;
     }
 
@@ -185,7 +185,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     jo_assert(ctx != NULL);
 
     if (_output == NULL) {
-        /* Caller wants length */
+        /* Caller wants length — must match ni_getDigestOutputLen contract */
+        if (ctx->digest_byte_length <= 0) {
+            return JO_NOT_INITIALIZED;
+        }
+        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
+            return JO_MD_DIGEST_LEN_INT_OVERFLOW;
+        }
         return (jint) ctx->digest_byte_length;
     }
 
@@ -235,9 +241,9 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_md_MDServiceJNI
  * Method:    ni_reset
- * Signature: (J)V
+ * Signature: (J)I
  */
-JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1reset
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1reset
 (JNIEnv *env, jobject jo, jlong ref) {
     UNUSED(env);
     UNUSED(jo);
@@ -245,8 +251,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     md_ctx *ctx = (md_ctx *) ref;
     if (ctx == NULL) {
         // Observed spurious resets from within the JVMs provider logic in the past.
-        return;
+        return JO_SUCCESS;
     }
 
-    md_ctx_reset(ctx);
+    return md_ctx_reset(ctx);
 }

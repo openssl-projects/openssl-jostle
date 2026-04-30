@@ -30,7 +30,7 @@ public interface MDServiceNI extends DefaultServiceNI
 
     int ni_digest(long ref, byte[] out, int offset, int length);
 
-    void ni_reset(long ref);
+    int ni_reset(long ref);
 
 
     // Allocate state for digest
@@ -70,7 +70,7 @@ public interface MDServiceNI extends DefaultServiceNI
 
     default void reset(long ref)
     {
-        ni_reset(ref);
+        handleErrors(ni_reset(ref));
     }
 
 
@@ -93,28 +93,8 @@ public interface MDServiceNI extends DefaultServiceNI
                 throw new IllegalStateException("digest len overflow");
             case JO_MD_SET_PARAM_FAIL:
                 throw new IllegalStateException("md unable to set param");
-//            case JO_INPUT_IS_NULL:
-//                throw new NullPointerException("input is null");
-//            case JO_INPUT_OFFSET_IS_NEGATIVE:
-//                throw new IllegalArgumentException("input offset negative");
-//            case JO_INPUT_LEN_IS_NEGATIVE:
-//                throw new IllegalArgumentException("input len negative");
-//            case JO_INPUT_OUT_OF_RANGE:
-//                throw new IllegalArgumentException("input offset + length out of range");
-//            case JO_FAILED_ACCESS_INPUT:
-//                throw new AccessException("unable to access input array");
-//            case JO_FAILED_ACCESS_OUTPUT:
-//                throw new AccessException("unable to access output array");
-//            case JO_OUTPUT_LEN_IS_NEGATIVE:
-//                throw new IllegalArgumentException("output len negative");
-//            case JO_OUTPUT_OFFSET_IS_NEGATIVE:
-//                throw new IllegalArgumentException("output offset negative");
-//            case JO_OUTPUT_TOO_SMALL:
-//                throw new IllegalArgumentException("output too small");
-//            case JO_OUTPUT_OUT_OF_RANGE:
-//                throw new IllegalArgumentException("output offset + length out of range");
-//            case JO_OPENSSL_ERROR:
-//                throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
+            case JO_MD_XOF_LEN_INVALID:
+                throw new IllegalArgumentException("xof length inconsistent with algorithm");
             default:
                 return baseErrorHandler(code);
         }

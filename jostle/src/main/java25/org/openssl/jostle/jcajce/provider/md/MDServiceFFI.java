@@ -57,7 +57,7 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        updateByteFunc = lookup.find("MB_UpdateByte").orElseThrow();
+        updateByteFunc = lookup.find("MD_UpdateByte").orElseThrow();
         updateByteFuncHandle = linker.downcallHandle(updateByteFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -67,7 +67,7 @@ public class MDServiceFFI implements MDServiceNI
         );
 
 
-        updateBytesFunc = lookup.find("MB_UpdateBytes").orElseThrow();
+        updateBytesFunc = lookup.find("MD_UpdateBytes").orElseThrow();
         updateBytesFuncHandle = linker.downcallHandle(updateBytesFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -94,7 +94,7 @@ public class MDServiceFFI implements MDServiceNI
                 )
         );
 
-        digestBytesFunc = lookup.find("MB_Digest").orElseThrow();
+        digestBytesFunc = lookup.find("MD_Digest").orElseThrow();
         digestBytesFuncHandle = linker.downcallHandle(digestBytesFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -107,7 +107,8 @@ public class MDServiceFFI implements MDServiceNI
 
         resetFunc = lookup.find("MD_Reset").orElseThrow();
         resetFuncHandle = linker.downcallHandle(resetFunc,
-                FunctionDescriptor.ofVoid(
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS // md_ctx *
                 )
         );
@@ -141,7 +142,7 @@ public class MDServiceFFI implements MDServiceNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "FFI MB_UpdateByte", t);
+            L.log(Level.WARNING, "FFI MD_UpdateByte", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -163,7 +164,7 @@ public class MDServiceFFI implements MDServiceNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "FFI MB_UpdateBytes", t);
+            L.log(Level.WARNING, "FFI MD_UpdateBytes", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -214,17 +215,17 @@ public class MDServiceFFI implements MDServiceNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "FFI MB_Digest", t);
+            L.log(Level.WARNING, "FFI MD_Digest", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
 
     @Override
-    public void ni_reset(long ref)
+    public int ni_reset(long ref)
     {
         try
         {
-            resetFuncHandle.invokeExact(MemorySegment.ofAddress(ref));
+            return (int) resetFuncHandle.invokeExact(MemorySegment.ofAddress(ref));
         }
         catch (Throwable t)
         {

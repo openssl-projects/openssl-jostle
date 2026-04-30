@@ -35,12 +35,12 @@ void MD_Dispose(md_ctx *ctx) {
     md_ctx_destroy(ctx);
 }
 
-int32_t MB_UpdateByte(md_ctx *ctx, uint8_t data) {
+int32_t MD_UpdateByte(md_ctx *ctx, uint8_t data) {
     jo_assert(ctx != NULL);
     return md_ctx_update(ctx, (uint8_t *) &data, 1);
 }
 
-int32_t MB_UpdateBytes(md_ctx *ctx, uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len) {
+int32_t MD_UpdateBytes(md_ctx *ctx, uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len) {
     jo_assert(ctx != NULL);
     int32_t ret_code = JO_FAIL;
 
@@ -85,10 +85,17 @@ int32_t MD_GetDigestLen(md_ctx *ctx) {
     return  ctx->digest_byte_length;
 }
 
-int32_t MB_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off, int32_t out_len) {
+int32_t MD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off, int32_t out_len) {
     jo_assert(ctx != NULL);
 
     if (output == NULL) {
+        /* Caller wants length — must match MD_GetDigestLen contract */
+        if (ctx->digest_byte_length <= 0) {
+            return JO_NOT_INITIALIZED;
+        }
+        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
+            return JO_MD_DIGEST_LEN_INT_OVERFLOW;
+        }
         return ctx->digest_byte_length;
     }
 
@@ -123,11 +130,11 @@ int32_t MB_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_
 }
 
 
-void MD_Reset(md_ctx *ctx) {
+int32_t MD_Reset(md_ctx *ctx) {
     if (ctx == NULL) {
         // Observed spurious resets from within the JVMs provider logic in the past.
-        return;
+        return JO_SUCCESS;
     }
 
-    md_ctx_reset(ctx);
+    return md_ctx_reset(ctx);
 }
