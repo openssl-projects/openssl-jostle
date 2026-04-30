@@ -80,7 +80,7 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
-                ));
+                ), Linker.Option.critical(true));
 
 
         getNameFunc = lookup.find("SpecNI_GetName").orElseThrow();
@@ -119,7 +119,7 @@ public class SpecFFI implements SpecNI
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_getTypeOrdinal",
+                    "FFI SpecNI_disposeKeySpec",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -161,6 +161,14 @@ public class SpecFFI implements SpecNI
             {
                 throw new IllegalArgumentException("returned name len is negative");
             }
+            // Mirror the JNI bridge: SpecNI_GetName returns NULL with *len=0
+            // when the spec is null or has no key. Surface this as a null
+            // String to the Java caller rather than dereferencing a NULL
+            // segment.
+            if (size == 0 || memorySegment.address() == 0)
+            {
+                return null;
+            }
             memorySegment = memorySegment.reinterpret(size + 1); // + null termination
             return memorySegment.getString(0);
         }
@@ -172,7 +180,7 @@ public class SpecFFI implements SpecNI
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_getTypeOrdinal",
+                    "FFI SpecNI_GetName",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -181,6 +189,8 @@ public class SpecFFI implements SpecNI
     @Override
     public int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
+        // we have to arena because C code will make upcall for entropy which is
+        // not possible during a critical section
         try (Arena a = Arena.ofConfined())
         {
             var ref = MemorySegment.ofAddress(keyRef);
@@ -188,12 +198,21 @@ public class SpecFFI implements SpecNI
             var secretRef = secret != null ? a.allocate(secret.length) : MemorySegment.NULL;
             var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-
-            var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
-                    "getRandomSegment",
-                    entropyMt).bindTo(randSource);
-            var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            // let encap()'s existing check return
+            // JO_RAND_NO_RAND_UP_CALL — same path JNI takes.
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
 
 
             int r = (int) encapFuncHandle.invokeExact(ref, optRef, secretRef, secretRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
@@ -224,26 +243,15 @@ public class SpecFFI implements SpecNI
     @Override
     public int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
     {
+        // Decap has no upcall, so can use critical
         try (Arena a = Arena.ofConfined())
         {
             var ref = MemorySegment.ofAddress(keyRef);
             var optRef = opt != null ? a.allocateFrom(opt) : MemorySegment.NULL;
-            var inputRef = input != null ? a.allocate(input.length) : MemorySegment.NULL;
-            var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
+            var inputRef = input != null ? MemorySegment.ofArray(input) : MemorySegment.NULL;
+            var outRef = out != null ? MemorySegment.ofArray(out) : MemorySegment.NULL;
 
-            if (input != null)
-            {
-                inputRef.asByteBuffer().put(input);
-            }
-
-            int r = (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len);
-
-            if (out != null)
-            {
-                outRef.asByteBuffer().get(out);
-            }
-
-            return r;
+            return (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len);
         }
         catch (Throwable t)
         {

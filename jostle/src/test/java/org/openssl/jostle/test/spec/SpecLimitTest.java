@@ -12,11 +12,14 @@
 package org.openssl.jostle.test.spec;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
@@ -328,6 +331,47 @@ public class SpecLimitTest
     }
 
 
+    @Test
+    public void encap_nullRandSrc() throws Exception
+    {
+        // Both bridges should reject a null rand_src with the same exception:
+        // JNI returns JO_RAND_NO_RAND_UP_CALL directly; FFI passes a NULL
+        // upcall stub and encap() in the util layer returns the same code.
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            specNI.encap(spec, null, new byte[32], 0, 32, new byte[768], 0, 768, null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
+    @Test
+    public void encap_outputNullSizeQuery() throws Exception
+    {
+        // Pin the contract: encap(out=null) returns the required ciphertext
+        // size without performing the actual encapsulation.
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            int size = specNI.encap(spec, null, new byte[32], 0, 32, null, 0, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(768, size); // ML-KEM-512 ciphertext size
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
     //
     // OpenSSL doesn't fail when presented with an invalid option on EVP_PKEY_CTX_set_kem_op for,
     // I assume PKEYs that don't actually have options
@@ -618,6 +662,145 @@ public class SpecLimitTest
         catch (IllegalArgumentException e)
         {
             Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
+    @Test
+    public void decap_outputNullSizeQuery() throws Exception
+    {
+        // Pin the contract: decap(out=null) returns the required output (shared
+        // secret) size without performing the actual decapsulation.
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Build a valid ciphertext via encap.
+            int ctSize = specNI.encap(spec, null, new byte[32], 0, 32, null, 0, 0, TestUtil.RNDSrc);
+            byte[] ciphertext = new byte[ctSize];
+            specNI.encap(spec, null, new byte[32], 0, 32, ciphertext, 0, ciphertext.length, TestUtil.RNDSrc);
+
+            int size = specNI.decap(spec, null, ciphertext, 0, ciphertext.length, null, 0, 0);
+            Assertions.assertEquals(32, size); // ML-KEM shared secret size
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
+    //
+    // ni_getName edge cases — both bridges should return null Java strings for
+    // null spec / no-key spec, and should produce the OpenSSL-canonical name
+    // for a real key. PKEYKeySpec's constructor relies on this contract.
+    //
+    @Test
+    public void getName_validKey() throws Exception
+    {
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            String name = specNI.getName(spec);
+            Assertions.assertEquals("ML-KEM-512", name);
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
+    public void getName_nullSpec() throws Exception
+    {
+        Assertions.assertNull(specNI.getName(0));
+    }
+
+    @Test
+    public void getName_specWithNullKey() throws Exception
+    {
+        // Allocated key_spec but no key has been generated/decoded into it.
+        long spec = specNI.allocate();
+        try
+        {
+            Assertions.assertNull(specNI.getName(spec));
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
+    //
+    // PKEYKeySpec constructor defensive-check tests — pin the new exceptions
+    // so a future regression doesn't silently NPE on unknown algorithms or
+    // null arguments.
+    //
+    @Test
+    public void pkeyKeySpec_singleArg_zeroRef() throws Exception
+    {
+        try
+        {
+            new PKEYKeySpec(0);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("'ref' cannot be zero", e.getMessage());
+        }
+    }
+
+    @Test
+    public void pkeyKeySpec_singleArg_specWithNullKey() throws Exception
+    {
+        // Spec is allocated but no key — getName returns null, ctor must
+        // surface a clear IllegalArgumentException rather than NPE.
+        long spec = specNI.allocate();
+        try
+        {
+            new PKEYKeySpec(spec);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("unable to determine algorithm name for ref", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
+    public void pkeyKeySpec_twoArg_zeroRef() throws Exception
+    {
+        try
+        {
+            new PKEYKeySpec(0, OSSLKeyType.ML_KEM_512);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("'ref' cannot be zero", e.getMessage());
+        }
+    }
+
+    @Test
+    public void pkeyKeySpec_twoArg_nullType() throws Exception
+    {
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            new PKEYKeySpec(spec, null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("'type' cannot be null", e.getMessage());
         }
         finally
         {

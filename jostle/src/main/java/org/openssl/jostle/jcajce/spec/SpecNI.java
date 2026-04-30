@@ -24,7 +24,7 @@ public interface SpecNI extends DefaultServiceNI
 
     String ni_getName(long keyRef);
 
-    int ni_encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource);
+    int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
 
@@ -47,9 +47,9 @@ public interface SpecNI extends DefaultServiceNI
         return ni_getName(keyRef);
     }
 
-    default int encap(long keyRef, String opt, byte[] secret, int intOff, int inLen, byte[] out, int off, int len, RandSource randSource)
+    default int encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
-        return (int)handleErrors(ni_encap(keyRef, opt, secret, intOff, inLen, out, off, len, randSource));
+        return (int)handleErrors(ni_encap(keyRef, opt, secret, inOff, inLen, out, off, len, randSource));
     }
 
     default int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)

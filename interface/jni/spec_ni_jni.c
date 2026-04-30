@@ -47,8 +47,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1allocate
 
     jo_assert(_err != NULL);
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     const int32_t err = JO_SUCCESS;
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
@@ -193,7 +192,7 @@ exit:
  * Signature: (JLjava/lang/String;[BII[BII)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
-(JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint int_off, jint in_len, jbyteArray _output,
+(JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint in_off, jint in_len, jbyteArray _output,
  jint out_off, jint out_len) {
     UNUSED(jo);
 
@@ -220,7 +219,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
         goto exit;
     }
 
-    if (int_off < 0) {
+    if (in_off < 0) {
         ret = JO_INPUT_OFFSET_IS_NEGATIVE;
         goto exit;
     }
@@ -230,7 +229,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, int_off, in_len)) {
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
         ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -270,7 +269,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
         }
     }
 
-    uint8_t *in = input.bytearray + int_off;
+    uint8_t *in = input.bytearray + in_off;
 
     ret = decap(ks, (const char *) opp, in, in_len, out, out_len);
 

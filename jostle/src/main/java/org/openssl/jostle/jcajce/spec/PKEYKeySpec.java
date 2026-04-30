@@ -32,13 +32,29 @@ public class PKEYKeySpec
             throw new IllegalArgumentException("'ref' cannot be zero");
         }
 
-        this.type = OSSLKeyType.forAlias(NISelector.SpecNI.getName(ref));//   OSSLKeyType.values()[NISelector.SpecNI.getTypeOrdinal(ref)];
+        String name = NISelector.SpecNI.getName(ref);
+        if (name == null)
+        {
+            throw new IllegalArgumentException("unable to determine algorithm name for ref");
+        }
+        this.type = OSSLKeyType.forAlias(name);
+        if (this.type == null)
+        {
+            throw new IllegalArgumentException("unknown algorithm: " + name);
+        }
         this.ref = new PKEYReference(ref, type.name());
-
     }
 
     public PKEYKeySpec(long ref, OSSLKeyType type)
     {
+        if (ref == 0)
+        {
+            throw new IllegalArgumentException("'ref' cannot be zero");
+        }
+        if (type == null)
+        {
+            throw new IllegalArgumentException("'type' cannot be null");
+        }
         this.type = type;
         this.ref = new PKEYReference(ref, type.name());
     }

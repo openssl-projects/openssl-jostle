@@ -37,18 +37,18 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(101);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1101);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_2 EVP_PKEY_encapsulate_init(ctx,NULL) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(102);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1102);
         goto exit;
     }
 
     if (kem != NULL) {
         if (OPS_OPENSSL_ERROR_3 EVP_PKEY_CTX_set_kem_op(ctx, kem) <= 0) {
-            ret = JO_OPENSSL_ERROR OPS_OFFSET(103);
+            ret = JO_OPENSSL_ERROR OPS_OFFSET(1103);
             goto exit;
         }
     }
@@ -59,7 +59,7 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     const size_t user_secret_size = secret_len;
 
     if (OPS_OPENSSL_ERROR_4 EVP_PKEY_encapsulate(ctx, NULL, &min_len, secret, &secret_len) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(104);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1104);
         goto exit;
     }
 
@@ -81,13 +81,13 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
 
     if (user_secret_size < secret_len) {
         // Mirrors the ciphertext-buffer-too-small check above so callers get
-        // a clean diagnostic instead of an opaque OPS_OFFSET(105) failure.
+        // a clean diagnostic instead of an opaque OPS_OFFSET(1105) failure.
         ret = JO_OUTPUT_TOO_SMALL;
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_5 EVP_PKEY_encapsulate(ctx, out, &min_len, secret, &secret_len) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(105);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1105);
         goto exit;
     }
 
@@ -114,25 +114,25 @@ int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, c
 
     ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(101);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1201);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_2 EVP_PKEY_decapsulate_init(ctx,NULL) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(102);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1202);
         goto exit;
     }
 
     if (kem != NULL) {
         if (OPS_OPENSSL_ERROR_3 EVP_PKEY_CTX_set_kem_op(ctx, kem) <= 0) {
-            ret = JO_OPENSSL_ERROR OPS_OFFSET(103);
+            ret = JO_OPENSSL_ERROR OPS_OFFSET(1203);
             goto exit;
         }
     }
 
     size_t min_len = 0;
     if (OPS_OPENSSL_ERROR_4 EVP_PKEY_decapsulate(ctx, NULL, &min_len, input, in_len) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(104);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1204);
         goto exit;
     }
 
@@ -153,7 +153,7 @@ int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, c
     }
 
     if (OPS_OPENSSL_ERROR_5 EVP_PKEY_decapsulate(ctx, out, &min_len, input, in_len) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(105);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(1205);
         goto exit;
     }
 

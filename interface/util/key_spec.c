@@ -21,10 +21,10 @@ key_spec *create_spec(void) {
 }
 
 /*
- * free the underlying PKEY, this may be done at the exit of a try catch block for a key
+ * free the underlying PKEY only.
+ * Internal helper used by free_key_spec; caller must have null-checked spec.
  */
-void free_spec(key_spec *spec) {
-    jo_assert(spec != NULL);
+static void free_spec(key_spec *spec) {
     EVP_PKEY_free(spec->key);
     spec->key = NULL;
 }

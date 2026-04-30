@@ -50,11 +50,6 @@ typedef struct key_spec {
 key_spec *create_spec(void);
 
 /*
- * free the underlying PKEY
- */
-void free_spec(key_spec *spec);
-
-/*
  * free the key_spec and also freeing the PKEY if not already done so.
  * this would be normally called by the disposal daemon.
  */
