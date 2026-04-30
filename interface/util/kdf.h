@@ -32,16 +32,4 @@ int32_t pbkdf2(
     size_t out_len
 );
 
-int32_t pkcs12(
-    uint8_t *password, size_t password_len,
-    uint8_t *salt, size_t salt_len,
-    uint32_t iter,
-    uint8_t *digest,
-    size_t digest_len,
-    uint8_t *out,
-    size_t out_len
-);
-
-
-
 #endif //KDF_H

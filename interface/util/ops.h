@@ -78,6 +78,7 @@ int get_ops_test(const uint32_t index);
 #define OPS_FAILED_ACCESS_1
 #define OPS_FAILED_ACCESS_2
 #define OPS_FAILED_ACCESS_3
+#define OPS_FAILED_ACCESS_4
 #define OPS_POINTER_CHANGE
 #define OPS_OPENSSL_ERROR_1
 #define OPS_OPENSSL_ERROR_2

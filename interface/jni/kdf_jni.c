@@ -137,10 +137,6 @@ exit:
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkdf2
 (JNIEnv *env, jobject jo, jbyteArray _password, jbyteArray _salt, jint iter, jstring digest, jbyteArray _out,
  jint out_offset, jint out_len) {
-    UNUSED(env);
-    UNUSED(jo);
-
-    UNUSED(env);
     UNUSED(jo);
 
     int ret_code = JO_FAIL;
@@ -223,8 +219,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
         goto exit;
     }
 
-    digest_str = (*env)->GetStringUTFChars(env, digest,NULL);
-
+    digest_str = (*env)->GetStringUTFChars(env, digest, NULL);
+    if (OPS_FAILED_ACCESS_4 digest_str == NULL) {
+        ret_code = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
 
     // out_offset is not negative by this point
     uint8_t *out = output.bytearray + out_offset;

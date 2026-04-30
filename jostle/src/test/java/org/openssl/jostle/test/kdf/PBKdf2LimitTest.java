@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
@@ -203,8 +204,8 @@ public class PBKdf2LimitTest
         try
         {
             //
-            // Digest string passed directly to OpenSSL. As a result we will see -1003 if OPS Testing is enabled
-            // or an OpenSSLException if OPS Testing is not enabled.
+            // Digest string passed directly to OpenSSL. As a result we will see JO_OPENSSL_ERROR offset by 2001
+            // (pbkdf2 derive site) if OPS Testing is enabled, or an OpenSSLException if OPS Testing is not.
             //
             code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);
             kdfNI.handleErrorCodes(code);
@@ -214,7 +215,7 @@ public class PBKdf2LimitTest
             //
             // OPS testing was enabled, we will get a different code because of error code offset
             //
-            Assertions.assertEquals(-1003, code);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2001, code);
             String message = TestNISelector.getOpenSSLNI().getOSSLErrors();
             Assertions.assertTrue(message.contains("unsupported") && message.contains("! : 0"));
         }

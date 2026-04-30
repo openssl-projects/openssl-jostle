@@ -16,6 +16,7 @@
 #include <openssl/types.h>
 
 #include "bc_err_codes.h"
+#include "jo_assert.h"
 #include "ops.h"
 #include "rand/jostle_lib_ctx.h"
 
@@ -28,11 +29,15 @@ int32_t scrypt(
     uint8_t *out,
     size_t out_len
 ) {
+    jo_assert(password != NULL);
+    jo_assert(salt != NULL);
+    jo_assert(out != NULL);
+
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
 
-    OSSL_PARAM params[6] = {0};
+    ERR_clear_error();
 
     kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "SCRYPT", NULL);
     if (OPS_OPENSSL_ERROR_1  kdf == NULL) {
@@ -48,13 +53,14 @@ int32_t scrypt(
         goto exit;
     }
 
-    params[0] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_PASSWORD,
-                                                  password, password_len);
-    params[1] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len);
-    params[2] = OSSL_PARAM_construct_uint64(OSSL_KDF_PARAM_SCRYPT_N, &n);
-    params[3] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_R, &r);
-    params[4] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_P, &p);
-    params[5] = OSSL_PARAM_construct_end();
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_PASSWORD, password, password_len),
+        OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len),
+        OSSL_PARAM_construct_uint64(OSSL_KDF_PARAM_SCRYPT_N, &n),
+        OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_R, &r),
+        OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_P, &p),
+        OSSL_PARAM_END
+    };
 
     if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(1001);
@@ -80,11 +86,16 @@ int32_t pbkdf2(
     uint8_t *out,
     size_t out_len
 ) {
+    jo_assert(password != NULL);
+    jo_assert(salt != NULL);
+    jo_assert(digest != NULL);
+    jo_assert(out != NULL);
+
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
 
-    OSSL_PARAM params[5] = {0};
+    ERR_clear_error();
 
     kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
@@ -96,20 +107,20 @@ int32_t pbkdf2(
 
 
     if (OPS_OPENSSL_ERROR_2 !kctx) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(2000);
         goto exit;
     }
 
-
-    params[0] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_PASSWORD,
-                                                  password, password_len);
-    params[1] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len);
-    params[2] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_ITER, &iter);
-    params[3] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char *) digest, digest_len);
-    params[4] = OSSL_PARAM_construct_end();
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_PASSWORD, password, password_len),
+        OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len),
+        OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_ITER, &iter),
+        OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char *) digest, digest_len),
+        OSSL_PARAM_END
+    };
 
     if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(1001);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET(2001);
         goto exit;
     }
 

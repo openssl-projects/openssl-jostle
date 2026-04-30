@@ -20,7 +20,7 @@ public class KdfNIFFI implements KdfNI
 {
     //KDF_PBKDF2
 
-    private static final Logger L = Logger.getLogger("MLDSA_NI_FFI");
+    private static final Logger L = Logger.getLogger("KDF_NI_FFI");
     private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
@@ -134,9 +134,4 @@ public class KdfNIFFI implements KdfNI
         }
     }
 
-    @Override
-    public int pkcs12(byte[] password, byte[] salt, int iter, String digest, byte[] out, int outOffset, int outLen)
-    {
-        return 0;
-    }
 }

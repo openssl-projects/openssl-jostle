@@ -14,6 +14,7 @@ package org.openssl.jostle.test.kdf;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
@@ -40,6 +41,15 @@ public class ScryptOpsTest
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
         {
             Security.addProvider(new JostleProvider());
+        }
+    }
+
+    @BeforeEach
+    public void beforeEach()
+    {
+        if (operationsTestNI.opsTestAvailable())
+        {
+            operationsTestNI.resetFlags();
         }
     }
 

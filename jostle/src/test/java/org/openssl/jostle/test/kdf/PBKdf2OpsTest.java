@@ -14,6 +14,7 @@ package org.openssl.jostle.test.kdf;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
@@ -40,6 +41,15 @@ public class PBKdf2OpsTest
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
         {
             Security.addProvider(new JostleProvider());
+        }
+    }
+
+    @BeforeEach
+    public void beforeEach()
+    {
+        if (operationsTestNI.opsTestAvailable())
+        {
+            operationsTestNI.resetFlags();
         }
     }
 
@@ -101,6 +111,25 @@ public class PBKdf2OpsTest
     }
 
     @Test
+    public void pbekdf2_access_digest_name() throws Exception
+    {
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
+            kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[16], 0, 16));
+            Assertions.fail();
+        } catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("unable to access name", e.getMessage());
+        } finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
     public void pbekdf2_kdf_fetch_failed() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
@@ -127,7 +156,7 @@ public class PBKdf2OpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             code = kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1000, code);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2000, code);
         } finally
         {
             operationsTestNI.resetFlags();
@@ -143,7 +172,7 @@ public class PBKdf2OpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             code = kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1001, code);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2001, code);
         } finally
         {
             operationsTestNI.resetFlags();
