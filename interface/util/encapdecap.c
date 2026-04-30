@@ -8,14 +8,20 @@
 #include "encapdecap.h"
 
 
+#include <openssl/err.h>
 #include <openssl/evp.h>
 
 #include "bc_err_codes.h"
+#include "jo_assert.h"
 #include "ops.h"
 #include "rand/jostle_lib_ctx.h"
 
 int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t secret_len, uint8_t *out,
               const size_t out_len, void *rand_src) {
+    jo_assert(key_spec != NULL);
+    jo_assert(key_spec->key != NULL);
+    jo_assert(secret != NULL);
+
     int32_t ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
 
@@ -25,6 +31,8 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     }
 
     rand_set_java_srand_call(rand_src);
+
+    ERR_clear_error();
 
     ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
@@ -46,6 +54,9 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     }
 
     size_t min_len = 0;
+    // Capture the caller's secret buffer size before the size-query call
+    // mutates secret_len to the required size.
+    const size_t user_secret_size = secret_len;
 
     if (OPS_OPENSSL_ERROR_4 EVP_PKEY_encapsulate(ctx, NULL, &min_len, secret, &secret_len) <= 0) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(104);
@@ -68,6 +79,13 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
         goto exit;
     }
 
+    if (user_secret_size < secret_len) {
+        // Mirrors the ciphertext-buffer-too-small check above so callers get
+        // a clean diagnostic instead of an opaque OPS_OFFSET(105) failure.
+        ret = JO_OUTPUT_TOO_SMALL;
+        goto exit;
+    }
+
     if (OPS_OPENSSL_ERROR_5 EVP_PKEY_encapsulate(ctx, out, &min_len, secret, &secret_len) <= 0) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(105);
         goto exit;
@@ -85,8 +103,15 @@ exit:
 
 int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, const size_t in_len, uint8_t *out,
               const size_t out_len) {
+    jo_assert(key_spec != NULL);
+    jo_assert(key_spec->key != NULL);
+    jo_assert(input != NULL);
+
     int32_t ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
+
+    ERR_clear_error();
+
     ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET(101);

@@ -304,6 +304,30 @@ public class SpecLimitTest
     }
 
 
+    @Test
+    public void encap_secretBufferTooSmall() throws Exception
+    {
+        // ML-KEM-512 produces a 768-byte ciphertext and a 32-byte shared
+        // secret. A 768-byte ciphertext buffer passes the existing
+        // out_len < min_len check; a 16-byte secret buffer then trips the
+        // post-size-query secret-size validation in encap().
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            specNI.encap(spec, null, new byte[16], 0, 16, new byte[768], 0, 768, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
     //
     // OpenSSL doesn't fail when presented with an invalid option on EVP_PKEY_CTX_set_kem_op for,
     // I assume PKEYs that don't actually have options

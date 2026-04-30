@@ -43,9 +43,9 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1dispose
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1allocate(
     JNIEnv *env, jobject jo, jintArray _err) {
-    UNUSED(env);
     UNUSED(jo);
 
+    jo_assert(_err != NULL);
 
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
@@ -96,8 +96,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
         return JO_RAND_NO_RAND_UP_CALL;
     }
 
-    rand_set_java_srand_call(rand_src);
-
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -106,6 +104,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
     if (ks->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
+
+    rand_set_java_srand_call(rand_src);
 
 
     java_bytearray_ctx input, output;

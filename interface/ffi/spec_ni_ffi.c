@@ -26,6 +26,7 @@ void SpecNI_disposeKeySpec(key_spec *ctx) {
 }
 
 key_spec *SpecNI_allocateKeySpec(int32_t *err) {
+    jo_assert(err != NULL);
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
     *err = JO_SUCCESS;
@@ -152,6 +153,7 @@ exit:
 }
 
 const char *SpecNI_GetName(key_spec *ks, size_t *len) {
+    jo_assert(len != NULL);
     if (ks == NULL || ks->key == NULL) {
         *len = 0;
         return NULL;
