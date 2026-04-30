@@ -10,10 +10,12 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
+import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 
 import java.security.*;
@@ -34,7 +36,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
     {
         {
             put(MLKEMParameterSpec.ml_kem_512, OSSLKeyType.ML_KEM_512);
-            put(MLKEMParameterSpec.ml_kem_768, OSSLKeyType.ML_KEM_512);
+            put(MLKEMParameterSpec.ml_kem_768, OSSLKeyType.ML_KEM_768);
             put(MLKEMParameterSpec.ml_kem_1024, OSSLKeyType.ML_KEM_1024);
         }
     });
@@ -93,7 +95,8 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
                 NISelector.MLKEMServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
+                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length,
+                        DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
                 return new JOMLKEMPublicKey(pkeySpec);
             }
         }
@@ -139,19 +142,29 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
-                byte[] encoded;
+                PKEYKeySpec pkeySpec;
                 if (spec.isSeed())
                 {
-                    encoded = spec.getSeed();
+                    // Seed-only form: derive the keypair from the 64-byte
+                    // seed via OSSL_PKEY_PARAM_ML_KEM_SEED keygen rather
+                    // than via decode_privateKey (which only accepts the
+                    // long form).
+                    byte[] seed = spec.getSeed();
+                    long ref = NISelector.MLKEMServiceNI.generateKeyPair(
+                            osslKeyType.getKsType(),
+                            seed, seed.length,
+                            DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                    pkeySpec = new PKEYKeySpec(ref, osslKeyType);
                 }
                 else
                 {
-                    encoded = spec.getPrivateData();
+                    byte[] encoded = spec.getPrivateData();
+                    pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    NISelector.MLKEMServiceNI.decode_privateKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(),
+                            encoded, 0, encoded.length,
+                            DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
                 }
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.MLKEMServiceNI.decode_privateKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length);
                 return new JOMLKEMPrivateKey(pkeySpec, spec.isSeed());
             }
         }

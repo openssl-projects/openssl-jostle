@@ -48,26 +48,24 @@ key_spec *MLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(spec != NULL);
-
-
     if (seed == NULL) {
         *ret_val = JO_SEED_IS_NULL;
-        goto exit;
+        return NULL;
     }
 
     if (seed_len < 0) {
         *ret_val = JO_SEED_LEN_IS_NEGATIVE;
-        goto exit;
+        return NULL;
     }
 
     if ((size_t) seed_len > seed_size) {
         // seed_len asserted non-negative by this point
-
         *ret_val = JO_INVALID_SEED_LEN_OUT_OF_RANGE;
-        goto exit;
+        return NULL;
     }
+
+    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
+    jo_assert(spec != NULL);
 
     *ret_val = mlkem_generate_key_pair(spec, type, seed, seed_len, rand_src);
 
@@ -76,7 +74,6 @@ key_spec *MLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
         spec = NULL;
     }
 
-exit:
     return spec;
 }
 
@@ -116,11 +113,6 @@ int32_t MLKEM_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
         goto exit;
     }
 
-    if (kp->key == NULL) {
-        ret_val = JO_KEY_SPEC_HAS_NULL_KEY;
-        goto exit;
-    }
-
     ret_val = mlkem_get_private_seed(kp, output, output_len);
 
 exit:
@@ -133,7 +125,8 @@ int32_t MLKEM_decodePublicKey(key_spec *key_spec,
                               uint8_t *input,
                               size_t input_size,
                               int32_t in_off,
-                              int32_t in_len) {
+                              int32_t in_len,
+                              void *rand_src) {
     int32_t ret_val = JO_FAIL;
 
     if (key_spec == NULL) {
@@ -164,7 +157,7 @@ int32_t MLKEM_decodePublicKey(key_spec *key_spec,
     //    key_spec->type = key_type;
 
     uint8_t *start = input + in_off;
-    ret_val = mlkem_decode_public_key(key_spec, key_type, start, in_len);
+    ret_val = mlkem_decode_public_key(key_spec, key_type, start, in_len, rand_src);
 
 
 exit:
@@ -173,7 +166,8 @@ exit:
 
 int32_t MLKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size,
                                int32_t in_off,
-                               int32_t in_len) {
+                               int32_t in_len,
+                               void *rand_src) {
     int32_t ret_val = JO_FAIL;
 
     if (key_spec == NULL) {
@@ -204,7 +198,7 @@ int32_t MLKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *in
     // key_spec->type = key_type;
 
     uint8_t *start = input + in_off;
-    ret_val = mlkem_decode_private_key(key_spec, key_type, start, in_len);
+    ret_val = mlkem_decode_private_key(key_spec, key_type, start, in_len, rand_src);
 
 
 exit:

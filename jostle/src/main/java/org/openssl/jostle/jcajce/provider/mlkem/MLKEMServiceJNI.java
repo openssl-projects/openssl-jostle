@@ -30,8 +30,8 @@ public class MLKEMServiceJNI implements MLKEMServiceNI
     public native int ni_getSeed(long ref, byte[] output);
 
     @Override
-    public native int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    public native int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource);
 
     @Override
-    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource);
 }

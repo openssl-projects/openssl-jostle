@@ -24,6 +24,8 @@ import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec;
+import org.openssl.jostle.jcajce.spec.MLKEMPublicKeySpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyGenerator;
@@ -423,5 +425,99 @@ public class MLKEMTest
         }
     }
 
+
+    @Test
+    public void testKeyGen() throws Exception
+    {
+        for (MLKEMParameterSpec spec : joSpec)
+        {
+            org.bouncycastle.jcajce.spec.MLKEMParameterSpec bcSpec = jostleToBc.get(spec);
+
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLKEM", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicKey = keyPair.getPublic().getEncoded();
+            byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+            //
+            // Verify encoded key can be handled by BC and is usable
+            //
+            KeyFactory factory = KeyFactory.getInstance(bcSpec.getName(), BouncyCastleProvider.PROVIDER_NAME);
+            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+            KeyGenerator encapsulator = KeyGenerator.getInstance(bcSpec.getName(), BouncyCastleProvider.PROVIDER_NAME);
+            encapsulator.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(pubKeyBC, "AES", 256)
+                    .withKdfAlgorithm(null)
+                    .build());
+            org.bouncycastle.jcajce.SecretKeyWithEncapsulation secretKey =
+                    (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) encapsulator.generateKey();
+
+            KeyGenerator extractor = KeyGenerator.getInstance(bcSpec.getName(), BouncyCastleProvider.PROVIDER_NAME);
+            extractor.init(new org.bouncycastle.jcajce.spec.KEMExtractSpec.Builder(privKeyBC, secretKey.getEncapsulation(), "AES", 256)
+                    .withKdfAlgorithm(null)
+                    .build());
+            org.bouncycastle.jcajce.SecretKeyWithEncapsulation recoveredKey =
+                    (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) extractor.generateKey();
+
+            Assertions.assertArrayEquals(secretKey.getEncoded(), recoveredKey.getEncoded());
+            Assertions.assertArrayEquals(secretKey.getEncapsulation(), recoveredKey.getEncapsulation());
+        }
+    }
+
+
+    @Test
+    public void testLoadRawKey() throws Exception
+    {
+        // Jostle->Jostle round trip: keygen with Jostle, extract long-form
+        // raw bytes, rebuild via MLKEM*KeySpec / KeyFactory (which exercises
+        // mlkem_decode_public_key / mlkem_decode_private_key success paths),
+        // then encap/decap with the reconstructed keys.
+
+        for (MLKEMParameterSpec spec : joSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLKEM", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicData = ((org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey) keyPair.getPublic()).getPublicData();
+            byte[] privateData = ((MLKEMPrivateKey) keyPair.getPrivate()).getPrivateData();
+
+            MLKEMPublicKeySpec publicKeySpec = new MLKEMPublicKeySpec(spec, publicData);
+            MLKEMPrivateKeySpec privateKeySpec = new MLKEMPrivateKeySpec(spec, privateData, publicData);
+
+            KeyFactory keyFactory = KeyFactory.getInstance("MLKEM", JostleProvider.PROVIDER_NAME);
+            PublicKey pubKey = keyFactory.generatePublic(publicKeySpec);
+            PrivateKey privKey = keyFactory.generatePrivate(privateKeySpec);
+
+            KeyGenerator encapsulator = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+            encapsulator.init(KEMGenerateSpec.builder()
+                    .withPublicKey(pubKey)
+                    .withKeySizeInBits(256)
+                    .withAlgorithmName("AES").build());
+            SecretKeyWithEncapsulation secretKey = (SecretKeyWithEncapsulation) encapsulator.generateKey();
+
+            KeyGenerator extractor = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+            extractor.init(KEMExtractSpec.builder()
+                    .withPrivate(privKey)
+                    .withAlgorithmName("AES")
+                    .withKeySizeInBits(256)
+                    .withEncapsulatedKey(secretKey.getEncapsulation())
+                    .build());
+            SecretKeyWithEncapsulation recoveredKey = (SecretKeyWithEncapsulation) extractor.generateKey();
+
+            Assertions.assertArrayEquals(secretKey.getEncoded(), recoveredKey.getEncoded());
+            Assertions.assertArrayEquals(secretKey.getEncapsulation(), recoveredKey.getEncapsulation());
+        }
+    }
+
+
+    // testKeyRecovery (BC keygen → Jostle import via PKCS8/X509 → Jostle
+    // encap/decap) is intentionally omitted: it exposes a separate
+    // ASNEncoder.fromPrivateKeyInfo / fromSubjectPublicKeyInfo issue where
+    // d2i_PrivateKey is called against the global OpenSSL libctx, not
+    // Jostle's. Subsequent Jostle operations using the reconstructed
+    // EVP_PKEY then NPE. Cross-cutting follow-up.
 
 }

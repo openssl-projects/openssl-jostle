@@ -91,7 +91,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             }
         }
 
-        return new JOMLKEMPrivateKey(spec); // TODO clone native spec
+        return new JOMLKEMPrivateKey(spec);
     }
 
     public byte[] getDirectEncoding()

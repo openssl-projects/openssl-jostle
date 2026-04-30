@@ -48,26 +48,24 @@ key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(spec != NULL);
-
-
     if (seed == NULL) {
         *ret_val = JO_SEED_IS_NULL;
-        goto exit;
+        return NULL;
     }
 
     if (seed_len < 0) {
         *ret_val = JO_SEED_LEN_IS_NEGATIVE;
-        goto exit;
+        return NULL;
     }
 
     if ((size_t) seed_len > seed_size) {
         // seed_len asserted non-negative by this point
-
         *ret_val = JO_INVALID_SEED_LEN_OUT_OF_RANGE;
-        goto exit;
+        return NULL;
     }
+
+    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
+    jo_assert(spec != NULL);
 
     *ret_val = mldsa_generate_key_pair(spec, type, seed, seed_len, rnd_src);
 
@@ -76,7 +74,6 @@ key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
         spec = NULL;
     }
 
-exit:
     return spec;
 }
 

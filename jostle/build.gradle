@@ -245,19 +245,19 @@ sourceSets {
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.82'
+    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.84'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     test17Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test17Implementation 'org.bouncycastle:bcprov-jdk18on:1.82'
+    test17Implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
     test17RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     test21Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test21Implementation 'org.bouncycastle:bcprov-jdk18on:1.82'
+    test21Implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
     test21RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     test25Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test25Implementation 'org.bouncycastle:bcprov-jdk18on:1.82'
+    test25Implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
     test25RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

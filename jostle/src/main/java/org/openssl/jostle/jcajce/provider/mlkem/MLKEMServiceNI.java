@@ -30,9 +30,9 @@ public interface MLKEMServiceNI extends DefaultServiceNI
 
     int ni_getSeed(long ref, byte[] output);
 
-    int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource);
 
-    int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource);
 
 
     /**
@@ -95,14 +95,14 @@ public interface MLKEMServiceNI extends DefaultServiceNI
     }
 
 
-    default int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    default int decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource)
     {
-        return (int) handleErrors(ni_decode_publicKey(spec_ref, keyType, input, inputOffset, inputLen));
+        return (int) handleErrors(ni_decode_publicKey(spec_ref, keyType, input, inputOffset, inputLen, randSource));
     }
 
-    default int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    default int decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource)
     {
-        return (int) handleErrors(ni_decode_privateKey(spec_ref, keyType, input, inputOffset, inputLen));
+        return (int) handleErrors(ni_decode_privateKey(spec_ref, keyType, input, inputOffset, inputLen, randSource));
     }
 
 

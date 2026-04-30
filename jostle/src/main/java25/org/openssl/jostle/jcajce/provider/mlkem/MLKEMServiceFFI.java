@@ -114,8 +114,9 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
         decodePrivateKeyFunc = lookup.find("MLKEM_decodePrivateKey").orElseThrow();
         decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
@@ -126,8 +127,9 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
         entropyFd = FunctionDescriptor.of(
                 ValueLayout.JAVA_INT, // return code
@@ -288,13 +290,32 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
             MemorySegment keySpec = MemorySegment.ofAddress(spec_ref);
-            MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
-            return (int) decodePublicKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
+            MemorySegment inputRef = input == null ? MemorySegment.NULL : a.allocate(input.length);
+            if (input != null)
+            {
+                inputRef.asByteBuffer().put(input);
+            }
+
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
+
+            return (int) decodePublicKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen, getEntropySegment);
         }
         catch (Throwable t)
         {
@@ -305,13 +326,32 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
     }
 
     @Override
-    public int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen, RandSource randSource)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
             MemorySegment keySpec = MemorySegment.ofAddress(spec_ref);
-            MemorySegment inputRef = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
-            return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen);
+            MemorySegment inputRef = input == null ? MemorySegment.NULL : a.allocate(input.length);
+            if (input != null)
+            {
+                inputRef.asByteBuffer().put(input);
+            }
+
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
+
+            return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen, getEntropySegment);
         }
         catch (Throwable t)
         {

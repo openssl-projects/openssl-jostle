@@ -29,6 +29,8 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
     rand_set_java_srand_call(rnd_src);
 
+    ERR_clear_error();
+
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
@@ -40,7 +42,6 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
     if (seed != NULL) {
         if (seed_len != MLKEM_SEED_LEN) {
-            // slh_n not negative by this point
             ret_code = JO_INVALID_SEED_LEN;
             goto exit;
         }
@@ -63,23 +64,31 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     }
 
 
-    if (ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1100);
         goto exit;
     }
 
-    if (!EVP_PKEY_keygen_init(ctx)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_4 EVP_PKEY_keygen_init(ctx) <= 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1101);
         goto exit;
     }
 
-    if (!EVP_PKEY_CTX_set_params(ctx, params)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 EVP_PKEY_CTX_set_params(ctx, params) <= 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1102);
         goto exit;
     }
 
-    if (!EVP_PKEY_keygen(ctx, &(spec->key))) {
-        ret_code = JO_OPENSSL_ERROR;
+    // Defensive: caller is expected to pass a fresh spec, but if the spec
+    // already holds a key, EVP_PKEY_keygen would overwrite it without freeing
+    // and leak the EVP_PKEY. Mirrors the same guard in decode_*_key.
+    if (spec->key != NULL) {
+        EVP_PKEY_free(spec->key);
+        spec->key = NULL;
+    }
+
+    if (OPS_OPENSSL_ERROR_6 EVP_PKEY_keygen(ctx, &(spec->key)) <= 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1103);
         goto exit;
     }
 
@@ -106,19 +115,36 @@ exit:
 }
 
 int32_t mlkem_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    jo_assert(key_spec != NULL);
     EVP_PKEY *pkey = key_spec->key;
 
     if (pkey == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
+    const char *algo = EVP_PKEY_get0_type_name(pkey);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    if (0 != strncmp(algo, "ML-KEM", 6)) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    ERR_clear_error();
 
     size_t min_len;
 
     // Get minimum len
-    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, NULL, 0,
-                                                                 &min_len)) {
+    if (OPS_OPENSSL_ERROR_1 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, NULL, 0,
+                                                            &min_len) <= 0) {
         return JO_OPENSSL_ERROR;
+    }
+
+    // Guard the size-query cast: every later return casts min_len (or written,
+    // which is bounded by min_len) to int32_t.
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
     // Return the length
@@ -133,32 +159,45 @@ int32_t mlkem_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
 
     size_t written = 0;
 
-    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len,
-                                                                 &written)) {
+    if (OPS_OPENSSL_ERROR_2 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len,
+                                                            &written) <= 0) {
         return JO_OPENSSL_ERROR OPS_OFFSET(1000);
-    }
-
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
     return (int32_t) written;
 }
 
 int32_t mlkem_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    jo_assert(key_spec != NULL);
     EVP_PKEY *pkey = key_spec->key;
 
     if (pkey == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
+    const char *algo = EVP_PKEY_get0_type_name(pkey);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    if (0 != strncmp(algo, "ML-KEM", 6)) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    ERR_clear_error();
+
     size_t min_len;
 
-    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0,
-                                                                 &min_len)) {
+    if (OPS_OPENSSL_ERROR_1 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0,
+                                                            &min_len) <= 0) {
         return JO_OPENSSL_ERROR;
     }
 
+    // Guard the size-query cast: every later return casts min_len (or written,
+    // which is bounded by min_len) to int32_t.
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
 
     if (out == NULL) {
         return (int32_t) min_len;
@@ -171,23 +210,29 @@ int32_t mlkem_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
     size_t written = 0;
 
 
-    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
-                                                                 &written)) {
+    if (OPS_OPENSSL_ERROR_2 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
+                                                            &written) <= 0) {
         return JO_OPENSSL_ERROR OPS_OFFSET(1000);
-    }
-
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
     return (int32_t) written;
 }
 
 int32_t mlkem_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len) {
+    jo_assert(key_spec != NULL);
     EVP_PKEY *pkey = key_spec->key;
 
     if (pkey == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+    const char *algo = EVP_PKEY_get0_type_name(pkey);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+
+    if (0 != strncmp(algo, "ML-KEM", 6)) {
+        return JO_INCORRECT_KEY_TYPE;
     }
 
     const size_t min_len = MLKEM_SEED_LEN;
@@ -203,23 +248,32 @@ int32_t mlkem_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
 
     size_t written = 0;
 
+    ERR_clear_error();
+
     if (OPS_OPENSSL_ERROR_1
-        1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_KEM_SEED, out, min_len, &written)) {
+        EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_KEM_SEED, out, min_len, &written) <= 0) {
         return JO_OPENSSL_ERROR;
     }
 
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 written > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
     return (int32_t) written;
 }
 
-int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *src, size_t src_len) {
+int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len,
+                                 void *rnd_src) {
     int32_t ret_code = JO_FAIL;
     const char *type;
 
     jo_assert(key_spec != NULL);
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    rand_set_java_srand_call(rnd_src);
 
     size_t min_len;
 
@@ -238,7 +292,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *s
             min_len = 3168;
             break;
         default:
-            return JO_INVALID_KEY_TYPE;
+            return JO_INCORRECT_KEY_TYPE;
     }
 
 
@@ -247,6 +301,14 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *s
         goto exit;
     }
 
+    ERR_clear_error();
+
+    // Defensive: caller is expected to pass a fresh spec, but if the spec
+    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    if (key_spec->key != NULL) {
+        EVP_PKEY_free(key_spec->key);
+        key_spec->key = NULL;
+    }
 
     key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
@@ -269,11 +331,18 @@ exit:
     return ret_code;
 }
 
-int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *src, size_t src_len) {
+int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len,
+                                void *rnd_src) {
     int32_t ret_code = JO_FAIL;
     const char *type;
 
     jo_assert(key_spec != NULL);
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    rand_set_java_srand_call(rnd_src);
 
     size_t min_len;
     switch (typeId) {
@@ -290,7 +359,7 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *sr
             min_len = 1568;
             break;
         default:
-            return JO_INVALID_KEY_TYPE;
+            return JO_INCORRECT_KEY_TYPE;
     }
 
     if (min_len != src_len) {
@@ -298,6 +367,14 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *sr
         goto exit;
     }
 
+    ERR_clear_error();
+
+    // Defensive: caller is expected to pass a fresh spec, but if the spec
+    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    if (key_spec->key != NULL) {
+        EVP_PKEY_free(key_spec->key);
+        key_spec->key = NULL;
+    }
 
     key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 

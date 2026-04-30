@@ -22,8 +22,8 @@ int32_t mlkem_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
 
 int32_t mlkem_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len);
 
-int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *src, size_t src_len);
+int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len, void *rnd_src);
 
-int32_t mlkem_decode_public_key(key_spec *key_spec,  int32_t typeId,   uint8_t *src, size_t src_len);
+int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len, void *rnd_src);
 
 #endif //MLKEM_H

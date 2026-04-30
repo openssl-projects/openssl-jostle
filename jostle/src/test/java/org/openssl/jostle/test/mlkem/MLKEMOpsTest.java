@@ -14,6 +14,7 @@ package org.openssl.jostle.test.mlkem;
 import org.junit.jupiter.api.*;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
@@ -33,6 +34,28 @@ public class MLKEMOpsTest
     MLKEMServiceNI mlkemServiceNI = TestNISelector.getMLKEMNI();
     SpecNI specNI = TestNISelector.getSpecNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
+
+    private static final long JO_OPENSSL_ERROR = ErrorCode.JO_OPENSSL_ERROR.getCode();
+
+    private void assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag flag, long expectedCode) throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+        try
+        {
+            int[] err = new int[1];
+            operationsTestNI.setFlag(flag);
+            keyRef = mlkemServiceNI.ni_generateKeyPair(
+                    OSSLKeyType.ML_KEM_512.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, keyRef);
+            Assertions.assertEquals(expectedCode, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
 
 
     @BeforeAll
@@ -443,7 +466,7 @@ public class MLKEMOpsTest
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024);
+            mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -491,7 +514,7 @@ public class MLKEMOpsTest
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-                mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length);
+                mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length, TestUtil.RNDSrc);
                 Assertions.fail();
             }
             catch (OpenSSLException e)
@@ -521,7 +544,7 @@ public class MLKEMOpsTest
             Assertions.assertTrue(keyRef > 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
-            mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024);
+            mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -534,6 +557,85 @@ public class MLKEMOpsTest
             operationsTestNI.resetFlags();
             specNI.dispose(keyRef);
         }
+    }
+
+
+    @Test()
+    public void MLKEMServiceJNI_decode_1privateKey_openSSLErrorDecoding() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+
+        // Buffer sizes are the minimum private-key length per variant
+        // (mlkem_decode_private_key switch). Content is zero-filled, which
+        // EVP_PKEY_new_raw_private_key_ex will reject; this still drives the
+        // OPS_OPENSSL_ERROR_1 cookie line and the JO_OPENSSL_ERROR return
+        // path so gcov sees the cookie line as covered.
+
+        final Object[][] tuples = new Object[][]{
+                {
+                        OSSLKeyType.ML_KEM_512.getKsType(),
+                        new byte[1632]
+                },
+                {
+                        OSSLKeyType.ML_KEM_768.getKsType(),
+                        new byte[2400]
+                },
+                {
+                        OSSLKeyType.ML_KEM_1024.getKsType(),
+                        new byte[3168]
+                }
+        };
+
+        for (Object[] tuple : tuples)
+        {
+
+            int keyType = (Integer) tuple[0];
+            byte[] key = (byte[]) tuple[1];
+
+            try
+            {
+                keyRef = TestNISelector.getSpecNI().allocate();
+                Assertions.assertTrue(keyRef > 0);
+                operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+                mlkemServiceNI.decode_privateKey(keyRef, keyType, key, 0, key.length, TestUtil.RNDSrc);
+                Assertions.fail();
+            }
+            catch (OpenSSLException e)
+            {
+                Assertions.assertNotNull(e.getMessage());
+            }
+            finally
+            {
+                operationsTestNI.resetFlags();
+                specNI.dispose(keyRef);
+            }
+        }
+    }
+
+
+    @Test()
+    public void MLKEM_generateKeyPair_ctxNew_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, JO_OPENSSL_ERROR - 1100);
+    }
+
+    @Test()
+    public void MLKEM_generateKeyPair_keygenInit_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, JO_OPENSSL_ERROR - 1101);
+    }
+
+    @Test()
+    public void MLKEM_generateKeyPair_setParams_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, JO_OPENSSL_ERROR - 1102);
+    }
+
+    @Test()
+    public void MLKEM_generateKeyPair_keygen_fail() throws Exception
+    {
+        assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6, JO_OPENSSL_ERROR - 1103);
     }
 
 
