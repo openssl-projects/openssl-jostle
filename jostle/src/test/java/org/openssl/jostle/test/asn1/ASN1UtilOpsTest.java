@@ -335,6 +335,171 @@ public class ASN1UtilOpsTest
 
 
     @Test
+    public void opsTestEncodePublicKey_i2dFail() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long asn1Ref = 0;
+        long keyRef = 0;
+        try
+        {
+            asn1Ref = asn1NI.allocate();
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            asn1NI.encodePublicKey(asn1Ref, keyRef);
+            Assertions.fail();
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        }
+        finally
+        {
+            asn1NI.dispose(asn1Ref);
+            specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void opsTestEncodePrivateKey_i2dFail() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long asn1Ref = 0;
+        long keyRef = 0;
+        try
+        {
+            asn1Ref = asn1NI.allocate();
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
+            Assertions.fail();
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        }
+        finally
+        {
+            asn1NI.dispose(asn1Ref);
+            specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void opsTestFromPrivateKeyInfo_accessByteArray() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+        long keyRef = 0;
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            keyRef = asn1NI.fromPrivateKeyInfo(new byte[100], 0, 100);
+            Assertions.fail();
+        }
+        catch (AccessException e)
+        {
+            Assertions.assertEquals("unable to access input array", e.getMessage());
+        }
+        finally
+        {
+            if (keyRef > 0) specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void opsTestFromPublicKeyInfo_accessByteArray() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+        long keyRef = 0;
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            keyRef = asn1NI.fromPublicKeyInfo(new byte[100], 0, 100);
+            Assertions.fail();
+        }
+        catch (AccessException e)
+        {
+            Assertions.assertEquals("unable to access input array", e.getMessage());
+        }
+        finally
+        {
+            if (keyRef > 0) specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void opsTestFromPrivateKeyInfo_pointerChange() throws Exception
+    {
+        // Round-trip: encode a real private key, then on decode set
+        // OPS_POINTER_CHANGE so the d2i pointer-change guard fires
+        // even though the EVP_PKEY pointer didn't actually change.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_44);
+        KeyPair pair = keyGen.generateKeyPair();
+        byte[] pkcs8 = pair.getPrivate().getEncoded();
+
+        long keyRef = 0;
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
+            keyRef = asn1NI.fromPrivateKeyInfo(pkcs8, 0, pkcs8.length);
+            Assertions.fail();
+        }
+        catch (org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException e)
+        {
+            // expected
+        }
+        finally
+        {
+            if (keyRef > 0) specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void opsTestFromPublicKeyInfo_pointerChange() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_44);
+        KeyPair pair = keyGen.generateKeyPair();
+        byte[] x509 = pair.getPublic().getEncoded();
+
+        long keyRef = 0;
+        try
+        {
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
+            keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
+            Assertions.fail();
+        }
+        catch (org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException e)
+        {
+            // expected
+        }
+        finally
+        {
+            if (keyRef > 0) specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
     public void ML_KEM_seedOnly() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());

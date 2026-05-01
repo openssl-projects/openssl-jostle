@@ -513,11 +513,45 @@ public class MLKEMTest
     }
 
 
-    // testKeyRecovery (BC keygen → Jostle import via PKCS8/X509 → Jostle
-    // encap/decap) is intentionally omitted: it exposes a separate
-    // ASNEncoder.fromPrivateKeyInfo / fromSubjectPublicKeyInfo issue where
-    // d2i_PrivateKey is called against the global OpenSSL libctx, not
-    // Jostle's. Subsequent Jostle operations using the reconstructed
-    // EVP_PKEY then NPE. Cross-cutting follow-up.
+    @Test
+    public void testKeyRecovery() throws Exception
+    {
+        // BC keygen → Jostle KeyFactory PKCS8/X509 import → Jostle encap/decap.
+        // Exercises the asn1_writer_decode_*_key path (now bound to Jostle's
+        // libctx via d2i_PrivateKey_ex / d2i_PUBKEY_ex).
+
+        for (org.bouncycastle.jcajce.spec.MLKEMParameterSpec bcs : bcSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLKEM", BouncyCastleProvider.PROVIDER_NAME);
+            keyGen.initialize(bcs);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicKeyX509 = keyPair.getPublic().getEncoded();
+            byte[] privateKeyPKCS8 = keyPair.getPrivate().getEncoded();
+
+            KeyFactory jostleFactory = KeyFactory.getInstance("MLKEM", JostleProvider.PROVIDER_NAME);
+            PrivateKey privateKey = jostleFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyPKCS8));
+            PublicKey publicKey = jostleFactory.generatePublic(new X509EncodedKeySpec(publicKeyX509));
+
+            KeyGenerator encapsulator = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+            encapsulator.init(KEMGenerateSpec.builder()
+                    .withPublicKey(publicKey)
+                    .withKeySizeInBits(256)
+                    .withAlgorithmName("AES").build());
+            SecretKeyWithEncapsulation secretKey = (SecretKeyWithEncapsulation) encapsulator.generateKey();
+
+            KeyGenerator extractor = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+            extractor.init(KEMExtractSpec.builder()
+                    .withPrivate(privateKey)
+                    .withAlgorithmName("AES")
+                    .withKeySizeInBits(256)
+                    .withEncapsulatedKey(secretKey.getEncapsulation())
+                    .build());
+            SecretKeyWithEncapsulation recoveredKey = (SecretKeyWithEncapsulation) extractor.generateKey();
+
+            Assertions.assertArrayEquals(secretKey.getEncoded(), recoveredKey.getEncoded());
+            Assertions.assertArrayEquals(secretKey.getEncapsulation(), recoveredKey.getEncapsulation());
+        }
+    }
 
 }

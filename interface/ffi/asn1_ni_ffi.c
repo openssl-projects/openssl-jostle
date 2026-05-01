@@ -44,7 +44,7 @@ int32_t ASN1_encodePublicKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
         return JO_OPENSSL_ERROR;
     }
 
-    if (OPS_INT32_OVERFLOW_1 buf_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -78,11 +78,16 @@ int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char
 
 
     size_t buf_len = 0;
-    if (!asn1_writer_encode_private_key(asn1_ctx, key_spec, &buf_len, encoding_option)) {
-        return JO_OPENSSL_ERROR;
+    {
+        int32_t r = asn1_writer_encode_private_key(asn1_ctx, key_spec, &buf_len, encoding_option);
+        if (r != 1) {
+            // r is either 0 (generic OpenSSL error) or a specific negative
+            // error code propagated from the util.
+            return (r == 0) ? JO_OPENSSL_ERROR : r;
+        }
     }
 
-    if (OPS_INT32_OVERFLOW_1 buf_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -100,7 +105,7 @@ int32_t ASN1_getData(asn1_ctx *asn1_ctx, uint8_t *output, size_t output_len) {
     }
 
 
-    if (OPS_INT32_OVERFLOW_1 buf_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -151,6 +156,11 @@ key_spec *ASN1_fromPublicKeyInfo(
     *ret_code = JO_FAIL;
 
     key_spec *key_spec = NULL;
+
+    if (input == NULL) {
+        *ret_code = JO_INPUT_IS_NULL;
+        goto exit;
+    }
 
     if (in_off < 0) {
         *ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;

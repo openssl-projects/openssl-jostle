@@ -41,7 +41,7 @@ public interface Asn1Ni extends DefaultServiceNI
     {
         int[] err = new int[1];
         long ref = ni_allocate(err);
-        handleErrors(ref);
+        handleErrors(err[0]);
         return ref;
     }
 

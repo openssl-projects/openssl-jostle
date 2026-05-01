@@ -7,6 +7,7 @@
 
 
 #include <stdlib.h>
+#include <string.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
@@ -79,7 +80,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePub
         return JO_OPENSSL_ERROR;
     }
 
-    if (OPS_INT32_OVERFLOW_1 buf_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -100,7 +101,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePri
     jo_assert(ctx != NULL);
 
     key_spec *key = (key_spec *) key_ref;
-    size_t ret_code = 0;
+    int32_t ret_code = JO_FAIL;
+    size_t buf_len = 0;
     const char *option_string = NULL;
     int encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
 
@@ -134,14 +136,22 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePri
     }
 
 
-    if (!asn1_writer_encode_private_key(ctx, key, &ret_code, encoding_option)) {
-        ret_code = JO_OPENSSL_ERROR;
+    {
+        int32_t r = asn1_writer_encode_private_key(ctx, key, &buf_len, encoding_option);
+        if (r != 1) {
+            // r is either 0 (generic OpenSSL error) or a specific negative
+            // error code propagated from the util.
+            ret_code = (r == 0) ? JO_OPENSSL_ERROR : r;
+            goto exit;
+        }
+    }
+
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
+        ret_code = JO_OUTPUT_SIZE_INT_OVERFLOW;
         goto exit;
     }
 
-    if (OPS_INT32_OVERFLOW_1 ret_code > INT_MAX) {
-        ret_code = JO_OUTPUT_SIZE_INT_OVERFLOW;
-    }
+    ret_code = (int32_t) buf_len;
 
 
 exit:
@@ -149,7 +159,7 @@ exit:
         (*env)->ReleaseStringUTFChars(env, _option, option_string);
     }
 
-    return (jint) ret_code;
+    return ret_code;
 }
 
 /*
@@ -182,7 +192,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
         goto exit;
     }
 
-    if (OPS_INT32_OVERFLOW_1 buf_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
         ret_code = JO_OUTPUT_SIZE_INT_OVERFLOW;
         goto exit;
     }
@@ -211,7 +221,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPriv
     init_bytearray_ctx(&input);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
 
@@ -269,7 +279,12 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPubl
     init_bytearray_ctx(&input);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (input.bytearray == NULL) {
+        ret_code = JO_INPUT_IS_NULL;
         goto exit;
     }
 

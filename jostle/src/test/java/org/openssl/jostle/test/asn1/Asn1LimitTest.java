@@ -61,7 +61,7 @@ public class Asn1LimitTest
     }
 
     @Test
-    public void encodePublicKey_specNullTest() throws Exception
+    public void encodePrivateKey_keyRefIsZero() throws Exception
     {
         long asn1Ref = TestNISelector.Asn1NI.allocate();
 
@@ -80,26 +80,26 @@ public class Asn1LimitTest
     }
 
     @Test
-    public void encodePublicKey_specNullKeyTest() throws Exception
+    public void encodePublicKey_keyRefIsZero() throws Exception
     {
         long asn1Ref = TestNISelector.Asn1NI.allocate();
-        long specRef = TestNISelector.SpecNI.allocate();
+
         try
         {
-            TestNISelector.Asn1NI.encodePublicKey(asn1Ref, specRef);
+            TestNISelector.Asn1NI.encodePublicKey(asn1Ref, 0);
+
             Assertions.fail("Should have thrown exception");
         } catch (Exception e)
         {
-            Assertions.assertEquals("key spec has null key", e.getMessage());
+            Assertions.assertEquals("key reference is null", e.getMessage());
         } finally
         {
             TestNISelector.Asn1NI.dispose(asn1Ref);
-            TestNISelector.SpecNI.dispose(specRef);
         }
     }
 
     @Test
-    public void encodePublicKey_keyNullInSpec() throws Exception
+    public void encodePublicKey_specNullKeyTest() throws Exception
     {
         long asn1Ref = TestNISelector.Asn1NI.allocate();
         long specRef = TestNISelector.SpecNI.allocate();
@@ -242,6 +242,37 @@ public class Asn1LimitTest
             TestNISelector.Asn1NI.dispose(asn1Ref);
         }
     }
+
+    @Test
+    public void encodePrivateKey_seedOnly_unsupportedAlgorithm() throws Exception
+    {
+        // seed_only_encoder only handles ML-DSA / ML-KEM. Anything else (e.g.,
+        // Ed25519) returns JO_INCORRECT_KEY_TYPE which the bridge surfaces as
+        // IllegalArgumentException("invalid key type").
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("Ed25519", JostleProvider.PROVIDER_NAME);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        org.openssl.jostle.jcajce.interfaces.OSSLKey privateKey =
+                (org.openssl.jostle.jcajce.interfaces.OSSLKey) keyPair.getPrivate();
+
+        long asn1Ref = TestNISelector.Asn1NI.allocate();
+        try
+        {
+            TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(),
+                    PrivateKeyOptions.SEED_ONLY.getValue());
+            Assertions.fail("Should have thrown exception");
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("invalid key type", e.getMessage());
+        }
+        finally
+        {
+            TestNISelector.Asn1NI.dispose(asn1Ref);
+        }
+    }
+
 
     @Test
     public void encodePublicKey_unknown_encoding_option() throws Exception

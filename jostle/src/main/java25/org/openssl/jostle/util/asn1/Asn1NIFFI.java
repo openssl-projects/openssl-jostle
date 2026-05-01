@@ -19,7 +19,7 @@ import java.util.logging.Logger;
 public class Asn1NIFFI implements Asn1Ni
 {
 
-    private static final Logger L = Logger.getLogger("SpecNI_FFI");
+    private static final Logger L = Logger.getLogger("ASN1_NI_FFI");
     private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
@@ -173,8 +173,19 @@ public class Asn1NIFFI implements Asn1Ni
     {
         try (Arena a = Arena.ofConfined())
         {
-            var opt = a.allocateFrom(option);
-            return (int) encodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef), opt, opt.byteSize());
+            MemorySegment opt;
+            long optSize;
+            if (option == null)
+            {
+                opt = MemorySegment.NULL;
+                optSize = 0L;
+            }
+            else
+            {
+                opt = a.allocateFrom(option);
+                optSize = opt.byteSize();
+            }
+            return (int) encodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(ref), MemorySegment.ofAddress(keyRef), opt, optSize);
         }
         catch (Throwable t)
         {

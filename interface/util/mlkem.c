@@ -64,18 +64,36 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     }
 
 
-    if (OPS_OPENSSL_ERROR_3 ctx == NULL) {
+#ifdef JOSTLE_OPS
+    if (is_ops_set(10)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1100);
         goto exit;
     }
-
-    if (OPS_OPENSSL_ERROR_4 EVP_PKEY_keygen_init(ctx) <= 0) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1101);
+#endif
+    if (ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
 
-    if (OPS_OPENSSL_ERROR_5 EVP_PKEY_CTX_set_params(ctx, params) <= 0) {
+#ifdef JOSTLE_OPS
+    if (is_ops_set(11)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1101);
+        goto exit;
+    }
+#endif
+    if (EVP_PKEY_keygen_init(ctx) <= 0) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+#ifdef JOSTLE_OPS
+    if (is_ops_set(12)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1102);
+        goto exit;
+    }
+#endif
+    if (EVP_PKEY_CTX_set_params(ctx, params) <= 0) {
+        ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
 
@@ -87,8 +105,14 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         spec->key = NULL;
     }
 
-    if (OPS_OPENSSL_ERROR_6 EVP_PKEY_keygen(ctx, &(spec->key)) <= 0) {
+#ifdef JOSTLE_OPS
+    if (is_ops_set(13)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1103);
+        goto exit;
+    }
+#endif
+    if (EVP_PKEY_keygen(ctx, &(spec->key)) <= 0) {
+        ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
 

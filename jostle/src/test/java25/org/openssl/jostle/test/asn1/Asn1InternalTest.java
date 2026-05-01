@@ -119,4 +119,63 @@ public class Asn1InternalTest
 
 
     }
+
+
+    @Test
+    public void decodePublicKey_src_isNull() throws Throwable
+    {
+        // The bridges always pass non-NULL src after their own validation,
+        // so the util-side `if (src == NULL)` defensive check (line 364-365
+        // of asn1_util.c) is only reachable via direct util call. This test
+        // exercises that path through FFI.
+
+        Assumptions.assumeTrue(CryptoServicesRegistrar.isNativeAvailable());
+        Assumptions.assumeTrue(Loader.isFFI());
+
+        SymbolLookup lookup = SymbolLookup.loaderLookup();
+        Linker linker = Linker.nativeLinker();
+
+        try (Arena arena = Arena.ofConfined())
+        {
+            var func = lookup.find("asn1_writer_decode_public_key").orElseThrow();
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+
+            var ret_code = arena.allocateFrom(ValueLayout.OfInt.JAVA_INT, 0);
+
+            MemorySegment spec = (MemorySegment) handle.invokeExact(MemorySegment.NULL, 0L, ret_code);
+
+            int code = ret_code.get(ValueLayout.JAVA_INT, 0);
+
+            Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), code);
+            Assertions.assertEquals(0L, spec.address());
+        }
+    }
+
+
+    @Test
+    public void decodePrivateKey_src_isNull() throws Throwable
+    {
+        // Same as above for decode_private_key (line 315-316 of asn1_util.c).
+
+        Assumptions.assumeTrue(CryptoServicesRegistrar.isNativeAvailable());
+        Assumptions.assumeTrue(Loader.isFFI());
+
+        SymbolLookup lookup = SymbolLookup.loaderLookup();
+        Linker linker = Linker.nativeLinker();
+
+        try (Arena arena = Arena.ofConfined())
+        {
+            var func = lookup.find("asn1_writer_decode_private_key").orElseThrow();
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+
+            var ret_code = arena.allocateFrom(ValueLayout.OfInt.JAVA_INT, 0);
+
+            MemorySegment spec = (MemorySegment) handle.invokeExact(MemorySegment.NULL, 0L, ret_code);
+
+            int code = ret_code.get(ValueLayout.JAVA_INT, 0);
+
+            Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), code);
+            Assertions.assertEquals(0L, spec.address());
+        }
+    }
 }
