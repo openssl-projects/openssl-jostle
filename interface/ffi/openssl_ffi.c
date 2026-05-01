@@ -35,20 +35,21 @@ int32_t set_openssl_module(const char *prov_name /* JVM */) {
     }
 
 
-    jostle_lib_ctx *rnd = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
-    jo_assert(rnd != NULL);
+    // jostle_ctx_init_new owns rnd: allocates on entry, frees on failure.
+    jostle_lib_ctx *rnd = NULL;
 
 
     result = jostle_ctx_init_new(&rnd, prov_name);
     if (UNSUCCESSFUL(result)) {
-        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        // rnd is NULL: init_new freed it.
         goto exit;
     }
 
     result = set_global_jostle_lib_ctx(rnd);
 
     if (UNSUCCESSFUL(result)) {
-        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        // rnd owns libctx + providers + rand_ctx; plain OPENSSL_free leaks them.
+        jostle_ctx_destroy(rnd);
     }
 
 
@@ -62,6 +63,16 @@ exit:
 */
 char *get_ossl_errors(uint64_t *len) {
     BIO *bio = BIO_new(BIO_s_mem());
+    if (bio == NULL) {
+        // Allocation failure: return a usable diagnostic string instead of
+        // crashing in ERR_print_errors below. Caller frees.
+        static const char msg[] = "bio was null";
+        *len = sizeof(msg);
+        char *ret = calloc(*len, 1);
+        jo_assert(ret != NULL);
+        memcpy(ret, msg, sizeof(msg));
+        return ret;
+    }
     ERR_print_errors(bio);
     char *buf = NULL;
     size_t size = BIO_get_mem_data(bio, &buf);

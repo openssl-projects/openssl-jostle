@@ -79,9 +79,7 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         goto exit;
     }
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, EVP_PKEY_keygen would overwrite it without freeing
-    // and leak the EVP_PKEY. Mirrors the same guard in decode_*_key.
+    // Free any pre-existing key so EVP_PKEY_keygen doesn't leak it.
     if (spec->key != NULL) {
         EVP_PKEY_free(spec->key);
         spec->key = NULL;
@@ -141,8 +139,7 @@ int32_t mlkem_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
         return JO_OPENSSL_ERROR;
     }
 
-    // Guard the size-query cast: every later return casts min_len (or written,
-    // which is bounded by min_len) to int32_t.
+    // Guard the int32_t cast in later returns.
     if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
@@ -193,8 +190,7 @@ int32_t mlkem_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
         return JO_OPENSSL_ERROR;
     }
 
-    // Guard the size-query cast: every later return casts min_len (or written,
-    // which is bounded by min_len) to int32_t.
+    // Guard the int32_t cast in later returns.
     if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
@@ -303,8 +299,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
 
     ERR_clear_error();
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    // Free any pre-existing key to avoid leaking it.
     if (key_spec->key != NULL) {
         EVP_PKEY_free(key_spec->key);
         key_spec->key = NULL;
@@ -369,8 +364,7 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
 
     ERR_clear_error();
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    // Free any pre-existing key to avoid leaking it.
     if (key_spec->key != NULL) {
         EVP_PKEY_free(key_spec->key);
         key_spec->key = NULL;

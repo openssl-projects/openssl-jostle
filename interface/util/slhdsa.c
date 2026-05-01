@@ -138,9 +138,7 @@ int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, s
         goto exit;
     }
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, EVP_PKEY_keygen would overwrite it without freeing
-    // and leak the EVP_PKEY. Mirrors the same guard in decode_*_key.
+    // Free any pre-existing key so EVP_PKEY_keygen doesn't leak it.
     if (spec->key != NULL) {
         EVP_PKEY_free(spec->key);
         spec->key = NULL;
@@ -387,8 +385,7 @@ int32_t slh_dsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *
 
     ERR_clear_error();
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    // Free any pre-existing key to avoid leaking it.
     if (key_spec->key != NULL) {
         EVP_PKEY_free(key_spec->key);
         key_spec->key = NULL;
@@ -478,8 +475,7 @@ int32_t slh_dsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *s
 
     ERR_clear_error();
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, dropping it on the floor would leak the EVP_PKEY.
+    // Free any pre-existing key to avoid leaking it.
     if (key_spec->key != NULL) {
         EVP_PKEY_free(key_spec->key);
         key_spec->key = NULL;
@@ -559,16 +555,13 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
         goto exit;
     }
 
-    // No EVP / OSSL calls have run yet, so the queue clear belongs after the
-    // soft-error checks above (which preserve prior state) and before any of
-    // the resource-allocating work below.
+    // Clear after soft-error checks, before resource-allocating work.
     ERR_clear_error();
 
     OPENSSL_cleanse((void *) ctx->context, MAX_CTX_LEN);
 
 
-    // sign_ctx_len < 0 is a valid sentinel ("no context bytes"); skip the
-    // memcpy so we don't reinterpret a negative length as size_t.
+    // sign_ctx_len < 0 is a "no context bytes" sentinel; skip the memcpy.
     if (sign_ctx != NULL && sign_ctx_len > 0) {
         memcpy(ctx->context, sign_ctx, sign_ctx_len);
     }
@@ -628,15 +621,13 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
 
     ctx->sig = EVP_SIGNATURE_fetch(get_global_jostle_ossl_lib_ctx(), algo,NULL);
 
-    // Short-circuit on fetch failure rather than letting NULL flow through to
-    // sign_message_init and surface as a misleading downstream diagnostic.
+    // Short-circuit on fetch failure to preserve the real diagnostic.
     if (OPS_FAILED_CREATE_1 ctx->sig == NULL) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
     }
 
-    // Clamp context_len for the OSSL_PARAM payload: negative is a "no context"
-    // sentinel and must not be reinterpreted as size_t.
+    // Clamp context_len for OSSL_PARAM: negative sentinel must not become size_t.
     const size_t param_ctx_len = ctx->context_len > 0 ? (size_t) ctx->context_len : 0;
     const OSSL_PARAM params[] = {
         OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_CONTEXT_STRING, ctx->context, param_ctx_len),
@@ -669,9 +660,7 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
 
 exit:
     if (ret_code != JO_SUCCESS) {
-        // Roll back any partial state on failure so a subsequent update/sign
-        // call sees a "not initialized" context rather than a half-configured
-        // one that would leak through and surface confusing OpenSSL errors.
+        // Roll back partial state so a subsequent call sees "not initialized".
         if (ctx->sig != NULL) {
             EVP_SIGNATURE_free(ctx->sig);
             ctx->sig = NULL;
@@ -711,15 +700,12 @@ int32_t slh_dsa_ctx_init_verify(
         goto exit;
     }
 
-    // No EVP / OSSL calls have run yet, so the queue clear belongs after the
-    // soft-error checks above (which preserve prior state) and before any of
-    // the resource-allocating work below.
+    // Clear after soft-error checks, before resource-allocating work.
     ERR_clear_error();
 
     OPENSSL_cleanse((void *) ctx->context, MAX_CTX_LEN);
 
-    // sign_ctx_len < 0 is a valid sentinel ("no context bytes"); skip the
-    // memcpy so we don't reinterpret a negative length as size_t.
+    // sign_ctx_len < 0 is a "no context bytes" sentinel; skip the memcpy.
     if (sign_ctx != NULL && sign_ctx_len > 0) {
         memcpy(ctx->context, sign_ctx, sign_ctx_len);
     }
@@ -777,8 +763,7 @@ int32_t slh_dsa_ctx_init_verify(
     }
 
 
-    // Clamp context_len for the OSSL_PARAM payload: negative is a "no context"
-    // sentinel and must not be reinterpreted as size_t.
+    // Clamp context_len for OSSL_PARAM: negative sentinel must not become size_t.
     const size_t param_ctx_len = ctx->context_len > 0 ? (size_t) ctx->context_len : 0;
     const OSSL_PARAM params[] = {
         OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_CONTEXT_STRING, ctx->context, param_ctx_len),
@@ -821,9 +806,7 @@ int32_t slh_dsa_ctx_init_verify(
 
 exit:
     if (ret_code != JO_SUCCESS) {
-        // Roll back any partial state on failure so a subsequent verify call
-        // sees a "not initialized" context rather than a half-configured one
-        // that would leak through and surface confusing OpenSSL errors.
+        // Roll back partial state so a subsequent call sees "not initialized".
         if (ctx->sig != NULL) {
             EVP_SIGNATURE_free(ctx->sig);
             ctx->sig = NULL;
@@ -845,8 +828,7 @@ int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
-    // Hoisted so the unified cleanse at exit always sees an initialised
-    // pointer regardless of which goto-exit path fired.
+    // Hoisted so the cleanse at exit always sees initialised values.
     uint8_t *msg = NULL;
     size_t msg_len = 0;
 
@@ -937,9 +919,7 @@ int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const siz
     uint8_t *msg = NULL;
     const size_t msg_len = BIO_get_mem_data(ctx->msg_buf, &msg);
 
-    // Clear any stale errors from the thread's queue before marking, so the
-    // mark sits at an empty state and ERR_pop_to_mark on a verify-false path
-    // can't surface unrelated prior errors.
+    // Clear stale errors before marking so verify-false doesn't surface them.
     ERR_clear_error();
     ERR_set_mark();
     int ret = EVP_PKEY_verify(ctx->pctx, sig, sig_len, msg, msg_len);
@@ -955,13 +935,11 @@ int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const siz
         ret_code = JO_SUCCESS;
     } else {
         if (ret < 0) {
-            // Real OpenSSL error — keep the queued errors for diagnosis,
-            // but drop the mark so it doesn't accumulate across calls.
+            // Real error: keep queued errors, drop the mark.
             ERR_clear_last_mark();
             ret_code = JO_OPENSSL_ERROR;
         } else {
-            // Plain verification failure — discard any noise EVP_PKEY_verify
-            // pushed onto the queue.
+            // Verification failure: pop noise EVP_PKEY_verify pushed.
             ERR_pop_to_mark();
             ret_code = JO_FAIL;
         }
@@ -989,9 +967,8 @@ int32_t slh_dsa_update(const slh_dsa_ctx *ctx, const uint8_t *in, const size_t i
 
     ERR_clear_error();
 
-    // BIO_write returns the number of bytes written, so a zero-length request
-    // returns 0 — which the truthy check below would mistake for an error.
-    // Skip the call entirely; an empty update is a no-op.
+    // BIO_write returns 0 on zero-length input; skip to avoid the
+    // truthy check below mistaking it for failure.
     if (in_len > 0) {
         if (OPS_OPENSSL_ERROR_1 !BIO_write(ctx->msg_buf, in, (int) in_len)) {
             ret_code = JO_OPENSSL_ERROR;

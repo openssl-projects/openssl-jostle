@@ -54,8 +54,7 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     }
 
     size_t min_len = 0;
-    // Capture the caller's secret buffer size before the size-query call
-    // mutates secret_len to the required size.
+    // Save before the size-query call mutates secret_len.
     const size_t user_secret_size = secret_len;
 
     if (OPS_OPENSSL_ERROR_4 EVP_PKEY_encapsulate(ctx, NULL, &min_len, secret, &secret_len) <= 0) {
@@ -80,9 +79,8 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     }
 
     if (user_secret_size < secret_len) {
-        // Mirrors the ciphertext-buffer-too-small check above so callers get
-        // a clean diagnostic instead of an opaque -2105 OPS-encoded failure
-        // from the second EVP_PKEY_encapsulate call.
+        // Mirrors the ciphertext check above; avoids opaque -2105 from the
+        // second EVP_PKEY_encapsulate.
         ret = JO_OUTPUT_TOO_SMALL;
         goto exit;
     }

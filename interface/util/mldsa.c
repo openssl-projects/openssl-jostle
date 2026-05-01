@@ -104,9 +104,7 @@ fail:
  * @return 0 = fail, 1 = success
  */
 int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret_code) {
-    // Fixed-size buffer covering the largest ML-DSA public key (ML-DSA-87 =
-    // 2592 bytes). VLAs would be portable to C99 but MSVC doesn't accept
-    // them, and this codebase targets Windows.
+    // Largest ML-DSA public key (ML-DSA-87 = 2592). VLAs avoided for MSVC.
     enum { KEY_ENC_MAX = 2592 };
     size_t min_len;
 
@@ -305,9 +303,7 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         goto exit;
     }
 
-    // Defensive: caller is expected to pass a fresh spec, but if the spec
-    // already holds a key, EVP_PKEY_keygen would overwrite it without freeing
-    // and leak the EVP_PKEY. Mirrors the same guard in decode_*_key.
+    // Free any pre-existing key so EVP_PKEY_keygen doesn't leak it.
     if (spec->key != NULL) {
         EVP_PKEY_free(spec->key);
         spec->key = NULL;
@@ -713,16 +709,13 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         goto exit;
     }
 
-    // No EVP / OSSL calls have run yet, so the queue clear belongs after the
-    // soft-error checks above (which preserve prior state) and before any of
-    // the resource-allocating work below.
+    // Clear after soft-error checks, before resource-allocating work.
     ERR_clear_error();
 
     OPENSSL_cleanse(ctx->context, MAX_CTX_LEN);
     OPENSSL_cleanse(ctx->tr, TR_LEN);
 
-    // sign_ctx_len < 0 is a valid sentinel ("no preHash/context bytes"); skip
-    // the memcpy so we don't reinterpret a negative length as size_t.
+    // sign_ctx_len < 0 is a "no context bytes" sentinel; skip the memcpy.
     if (sign_ctx != NULL && sign_ctx_len > 0) {
         memcpy(ctx->context, sign_ctx, sign_ctx_len);
     }
@@ -787,9 +780,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         goto exit;
     }
 
-    // Short-circuit on fetch failure rather than letting NULL flow through
-    // extract_tr / pctx setup and eventually surface as a sign_message_init
-    // error — that would mask the real diagnostic in the queue.
+    // Short-circuit on fetch failure to preserve the real diagnostic.
     if (OPS_FAILED_CREATE_1 ctx->sig == NULL) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
@@ -835,9 +826,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 
 exit:
     if (ret_code != JO_SUCCESS) {
-        // Roll back any partial state on failure so a subsequent update/sign
-        // call sees a "not initialized" context rather than a half-configured
-        // one that would leak through and surface confusing OpenSSL errors.
+        // Roll back partial state so a subsequent call sees "not initialized".
         if (ctx->sig != NULL) {
             EVP_SIGNATURE_free(ctx->sig);
             ctx->sig = NULL;
@@ -881,16 +870,13 @@ int32_t mldsa_ctx_init_verify(
         goto exit;
     }
 
-    // No EVP / OSSL calls have run yet, so the queue clear belongs after the
-    // soft-error checks above (which preserve prior state) and before any of
-    // the resource-allocating work below.
+    // Clear after soft-error checks, before resource-allocating work.
     ERR_clear_error();
 
     OPENSSL_cleanse(ctx->context, MAX_CTX_LEN);
     OPENSSL_cleanse(ctx->tr, TR_LEN);
 
-    // sign_ctx_len < 0 is a valid sentinel ("no preHash/context bytes"); skip
-    // the memcpy so we don't reinterpret a negative length as size_t.
+    // sign_ctx_len < 0 is a "no context bytes" sentinel; skip the memcpy.
     if (sign_ctx != NULL && sign_ctx_len > 0) {
         memcpy(ctx->context, sign_ctx, sign_ctx_len);
     }
@@ -961,9 +947,7 @@ int32_t mldsa_ctx_init_verify(
         goto exit;
     }
 
-    // Short-circuit on fetch failure rather than letting NULL flow through
-    // extract_tr / pctx setup and eventually surface as a verify_message_init
-    // error — that would mask the real diagnostic in the queue.
+    // Short-circuit on fetch failure to preserve the real diagnostic.
     if (OPS_FAILED_CREATE_1 ctx->sig == NULL) {
         ret_code = JO_OPENSSL_ERROR;
         goto exit;
@@ -1041,9 +1025,8 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, uint8_t *out, const size_t out_len,
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
-    // Zero-init so a partial write from derive_mu (e.g. EVP_DigestFinalXOF
-    // failing mid-stream) can't leave real Mu bytes on the stack, and so the
-    // unified cleanse at exit always touches a known buffer.
+    // Zero-init: partial derive_mu writes don't leak Mu bytes; cleanse at
+    // exit always touches a known buffer.
     uint8_t mu[Mu_BYTES] = {0};
 
     if (rnd_src == NULL) {
@@ -1172,13 +1155,11 @@ int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_le
         ret_code = JO_SUCCESS;
     } else {
         if (ret < 0) {
-            // Real OpenSSL error — keep the queued errors for diagnosis,
-            // but drop the mark so it doesn't accumulate across calls.
+            // Real error: keep queued errors, drop the mark.
             ERR_clear_last_mark();
             ret_code = JO_OPENSSL_ERROR;
         } else {
-            // Plain verification failure — discard any noise EVP_PKEY_verify
-            // pushed onto the queue.
+            // Verification failure: pop noise EVP_PKEY_verify pushed.
             ERR_pop_to_mark();
             ret_code = JO_FAIL;
         }
@@ -1208,9 +1189,8 @@ int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_le
             goto exit;
         }
 
-        // BIO_write returns the number of bytes written, so a zero-length
-        // request returns 0 — which the truthy check below would mistake for
-        // an error. Skip the call entirely; an empty update is a no-op.
+        // BIO_write returns 0 on zero-length input; skip to avoid the
+        // truthy check below mistaking it for failure.
         if (in_len > 0) {
             if (OPS_OPENSSL_ERROR_1 !BIO_write(ctx->mu_buf, in, (int) in_len)) {
                 ret_code = JO_OPENSSL_ERROR;

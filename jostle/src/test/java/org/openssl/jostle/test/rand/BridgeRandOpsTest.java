@@ -194,7 +194,7 @@ public class BridgeRandOpsTest
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
-        catch (Throwable t)
+        catch (Exception t)
         {
             Assertions.assertTrue(t.getClass() == OpenSSLException.class);
             Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -98"));

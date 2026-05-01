@@ -10,7 +10,7 @@
 #define TYPES_H_jni
 
 #include "../util/bc_err_codes.h"
-#define UNUSED(x) (void)(x) /*  Prefer to keep the warnings. */
+#include "../util/macros.h"  // UNUSED — single definition in util tier.
 
 
 #endif //TYPES_H_jni

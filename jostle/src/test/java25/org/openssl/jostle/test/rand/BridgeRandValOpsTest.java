@@ -141,11 +141,8 @@ public class BridgeRandValOpsTest
         Assertions.assertTrue(err.contains("-100")); // JO_RAND_NO_RESEED
     }
 
-    //
-    // Allow us to pass in DRBGParams regardless of what is in the SecureRandom
-    // or not as the case may be.
-    //
-    public class TestRandRandSource extends DefaultRandSource
+    // Pass DRBGParams regardless of what's in the SecureRandom.
+    public static class TestRandRandSource extends DefaultRandSource
     {
         public TestRandRandSource(SecureRandom secureRandom, SecureRandomParameters params)
         {

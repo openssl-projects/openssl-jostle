@@ -23,6 +23,11 @@
 #include "../util/ops.h"
 #include "../util/rand/jostle_lib_ctx.h"
 
+// Definitions for the externs in rand_upcall_jni.h.
+JavaVM *java_vm = NULL;
+jclass target_class = NULL;
+jmethodID target_method = NULL;
+
 void rand_up_call_init_jni(JNIEnv *env) {
     int ret = (*env)->GetJavaVM(env, &java_vm);
     jo_assert(ret >= 0);
@@ -36,6 +41,9 @@ void rand_up_call_init_jni(JNIEnv *env) {
     target_class = (*env)->NewGlobalRef(env, clazz);
     jo_assert(target_class != NULL);
 
+    // FindClass returned a local ref; we hold a global now, drop the local.
+    (*env)->DeleteLocalRef(env, clazz);
+
     target_method = (*env)->GetMethodID(env, target_class, "getRandomBytes", "([BIIZ)I");
     jo_assert(target_method != NULL);
 }
@@ -43,15 +51,12 @@ void rand_up_call_init_jni(JNIEnv *env) {
 int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
                             unsigned int strength, int prediction_resistance,
                             const unsigned char *adin, size_t adin_len) {
-    //
-    // Note: "rnd_src" is set from a thread local accessed from within an implementation of
-    // OSSL_FUNC_RAND_GENERATE in jostle_lib_ctx.c
-    //
-
+    // rnd_src comes from a thread-local set by jostle_lib_ctx.c's generate().
     UNUSED(adin);
     UNUSED(adin_len);
     int rc = JO_FAIL;
     JNIEnv *env = NULL;
+    jbyteArray bytes = NULL;
 
     if (OPS_RAND_UP_CALL_NULL rnd_src == NULL) {
         rc = JO_RAND_NO_RAND_UP_CALL;
@@ -69,18 +74,30 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         return JO_OPENSSL_ERROR;
     }
 
-    //
-    // OpenSSL might call this from non JVM thread.
-    //
-    rc = (*java_vm)->AttachCurrentThread(java_vm, (void *) &env, NULL);
-    if (OPS_THREAD_ATTACH_1 rc < JNI_OK) {
+
+    // Probe via GetEnv; only Attach + Detach if caller thread was detached.
+    // Detaching an already-attached caller would tear down its JNI env.
+    // OPS_THREAD_ATTACH_1 fires on both branches with the same error so
+    // tests see "attach thread: -99" regardless of caller state.
+    // JNI_VERSION_1_6: minimum needed; no version-specific calls below.
+    int we_attached = 0;
+    jint env_state = (*java_vm)->GetEnv(java_vm, (void *) &env, JNI_VERSION_1_6);
+    if (env_state == JNI_EDETACHED) {
+        int attach_rc = (*java_vm)->AttachCurrentThread(java_vm, (void *) &env, NULL);
+        if (OPS_THREAD_ATTACH_1 attach_rc < JNI_OK) {
+            rc = JO_RAND_ERROR;
+            ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, attach thread: %d", rc);
+            return rc;
+        }
+        we_attached = 1;
+    } else if (OPS_THREAD_ATTACH_1 env_state != JNI_OK) {
         rc = JO_RAND_ERROR;
         ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, attach thread: %d", rc);
         return rc;
     }
 
 
-    jbyteArray bytes = (*env)->NewByteArray(env, (jsize) out_len);
+    bytes = (*env)->NewByteArray(env, (jsize) out_len);
     if (OPS_FAILED_CREATE_1 bytes == NULL) {
         rc = JO_RAND_ERROR;
         ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, create bytearray: %d", rc);
@@ -91,10 +108,7 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
     const int pr = prediction_resistance == 0 ? JNI_FALSE : JNI_TRUE;
 
 
-    //
     // Request random data.
-    //
-
     rc = (*env)->CallIntMethod(
         env,
         (jobject) rnd_src,
@@ -104,10 +118,27 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         strength,
         pr);
 
+    // Pending exception would poison later JNI calls; convert to JO_RAND_ERROR.
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionDescribe(env);  // log to stderr
+        (*env)->ExceptionClear(env);
+        rc = JO_RAND_ERROR;
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB,
+                       "handler fail, rand up call threw an exception: %d", rc);
+        goto exit;
+    }
+
 
     if (OPS_SHORT_SIZE_1 rc >= 0 && rc < (int) out_len) {
         rc = JO_RAND_UP_SHORT_RESULT;
         ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, short output: %d", rc);
+        goto exit;
+    }
+
+    if (rc > (int) out_len) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB,
+                       "handler fail, rand up call returned %d > requested %zu", rc, out_len);
+        rc = JO_RAND_ERROR;
         goto exit;
     }
 
@@ -122,13 +153,18 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         memcpy(_out, output, rc);
     }
 
-    // returns void, nothing to check
-    (*env)->ReleaseByteArrayElements(env, bytes, (jbyte *) output, 0);
+    // JNI_ABORT: read-only access, skip the copy-back.
+    (*env)->ReleaseByteArrayElements(env, bytes, (jbyte *) output, JNI_ABORT);
 
 exit:
 
-    if (env != NULL) {
-        // deliberately ignoring the error because it can't detach
+    // Without explicit DeleteLocalRef, refs accumulate across calls when the
+    // caller thread was already attached (no Detach to flush the frame).
+    if (bytes != NULL) {
+        (*env)->DeleteLocalRef(env, bytes);
+    }
+
+    if (we_attached) {
         (*java_vm)->DetachCurrentThread(java_vm);
     }
     return rc;

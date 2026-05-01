@@ -63,9 +63,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     int fixed_size = 0;
     if (!is_xof) {
         fixed_size = EVP_MD_get_size(md);
-        // Non-XOF digest with no fixed size (or negative) — should not happen
-        // for any digest registered via ProvMD, but bail out cleanly so the
-        // ctx never carries digest_byte_length <= 0.
+        // Defensive: bail before ctx carries digest_byte_length <= 0.
         if (fixed_size <= 0) {
             EVP_MD_CTX_free(mdctx);
             EVP_MD_free(md);

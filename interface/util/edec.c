@@ -593,9 +593,8 @@ int32_t edec_ctx_sign(edec_ctx *ctx, uint8_t *out, const size_t out_len, void *r
     ret_code = (int32_t) sig_len;
 
 exit:
-    // BIO holds the buffered message. Once the actual signature write has been attempted
-    // (success or failure), the operation is complete and the message must not leak into
-    // the next sign call. Caller must re-initialise to retry after a sign failure.
+    // Reset after sign attempt so the message doesn't leak into the next call.
+    // Caller must re-init to retry.
     if (sign_attempted) {
         BIO_reset(ctx->message);
     }
@@ -618,9 +617,8 @@ int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len)
 
     ERR_clear_error();
 
-    // OpenSSL emits an "invalid signature" error on verify-fail which we don't care about.
-    // Set a mark so we can selectively discard that noise without losing genuine errors
-    // (real OpenSSL failures need to remain queued for the caller to format).
+    // Mark so verify-fail's "invalid signature" noise can be popped while
+    // genuine OpenSSL errors remain queued.
     ERR_set_mark();
 
     uint8_t *msg = NULL;

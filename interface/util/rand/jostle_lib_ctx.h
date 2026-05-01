@@ -21,6 +21,14 @@ int32_t jostle_ctx_init_new(jostle_lib_ctx **rnd_ctx, const char *name);
 
 
 /**
+ * Free a jostle_lib_ctx: OSSL_LIB_CTX (unloads providers, releases rand_ctx
+ * refs) and the wrapper struct. Safe with NULL. Failure-path rollback only;
+ * not a general teardown primitive.
+ */
+void jostle_ctx_destroy(jostle_lib_ctx *ctx);
+
+
+/**
  * Set the global jostle lib ctx, expected to be called once
  * during java provider startup but does not enforce that.
  * Initialises a thread local

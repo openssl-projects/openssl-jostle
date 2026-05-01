@@ -28,7 +28,6 @@
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSSLProviderModule(
     JNIEnv *env, jclass cl, jstring _prov_name) {
-    UNUSED(env);
     UNUSED(cl);
 
     const char *prov_name = NULL;
@@ -48,21 +47,22 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
     }
 
 
-    jostle_lib_ctx *rnd = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
-    jo_assert(rnd != NULL);
+    // jostle_ctx_init_new owns rnd: allocates on entry, frees on failure.
+    jostle_lib_ctx *rnd = NULL;
 
     prov_name = (*env)->GetStringUTFChars(env, _prov_name, NULL);
 
     result = jostle_ctx_init_new(&rnd, prov_name);
     if (UNSUCCESSFUL(result)) {
-        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        // rnd is NULL: init_new freed it.
         goto exit;
     }
 
     result = set_global_jostle_lib_ctx(rnd);
 
     if (UNSUCCESSFUL(result)) {
-        OPENSSL_clear_free(rnd, sizeof(*rnd));
+        // rnd owns libctx + providers + rand_ctx; plain OPENSSL_free leaks them.
+        jostle_ctx_destroy(rnd);
         goto exit;
     }
 
@@ -83,7 +83,6 @@ exit:
  */
 JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_getOSSLErrors
 (JNIEnv *env, jclass cl) {
-    UNUSED(env);
     UNUSED(cl);
 
     BIO *bio = BIO_new(BIO_s_mem());

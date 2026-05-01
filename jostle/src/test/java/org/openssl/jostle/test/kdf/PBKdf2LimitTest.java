@@ -188,13 +188,9 @@ public class PBKdf2LimitTest
     @Test
     public void testPBEKDF2_unknown_digest() throws Exception
     {
-        //
-        // Real-failure path: "!" is not a valid digest, so OpenSSL returns
-        // unsupported. Per-flag OPS_OFFSET_*(x) macros only encode an offset
-        // when the matching OPS flag is actually set, so callers see plain
-        // JO_OPENSSL_ERROR (-> OpenSSLException) regardless of whether the
-        // OPS build is in use — no offset leakage on real failures.
-        //
+        // Real-failure path: "!" is not a valid digest. OPS_OFFSET_*(x) only
+        // applies an offset when its matching flag is set, so caller sees
+        // plain OpenSSLException in both OPS and non-OPS builds.
         try
         {
             int code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);

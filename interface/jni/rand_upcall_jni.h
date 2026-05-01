@@ -12,9 +12,9 @@
 
 #include <jni.h>
 
-static JavaVM *java_vm = NULL;
-static jclass target_class = NULL;
-static jmethodID target_method = NULL;
+extern JavaVM *java_vm;
+extern jclass target_class;
+extern jmethodID target_method;
 
 
 void rand_up_call_init_jni(JNIEnv *env);

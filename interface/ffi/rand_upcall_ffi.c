@@ -50,6 +50,13 @@ int rand_up_call_next_bytes(void *rnd_up_call, unsigned char *out, size_t out_le
     if (OPS_SHORT_SIZE_1 rc >= 0 && rc < len) {
         rc = JO_RAND_UP_SHORT_RESULT;
         ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "handler fail, short output: %d", rc);
+        return rc;
+    }
+
+    if (rc > len) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB,
+                       "handler fail, rand up call returned %d > requested %d", rc, len);
+        return JO_RAND_ERROR;
     }
 
 
