@@ -122,7 +122,7 @@ int32_t edec_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len,
                                                                  &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
@@ -171,7 +171,7 @@ int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
                                                                  &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
@@ -399,7 +399,7 @@ int32_t edec_ctx_init_sign(
     ctx->digest_ctx = EVP_MD_CTX_new();
 
     if (OPS_OPENSSL_ERROR_1 ctx->digest_ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
         goto exit;
     }
 
@@ -421,7 +421,7 @@ int32_t edec_ctx_init_sign(
 
     if (OPS_OPENSSL_ERROR_2 EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key,
                                                   params) != 1) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1001);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
         goto exit;
     }
 
@@ -464,7 +464,7 @@ int32_t edec_ctx_init_verify(
     ctx->digest_ctx = EVP_MD_CTX_new();
 
     if (OPS_OPENSSL_ERROR_1 ctx->digest_ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1003);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1003);
         goto exit;
     }
 
@@ -489,7 +489,7 @@ int32_t edec_ctx_init_verify(
             libctx,
             NULL,
             key_spec->key, params)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1004);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1004);
         goto exit;
     }
 

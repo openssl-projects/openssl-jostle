@@ -49,7 +49,7 @@ int32_t scrypt(
 
 
     if (OPS_OPENSSL_ERROR_2 !kctx) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
         goto exit;
     }
 
@@ -63,7 +63,7 @@ int32_t scrypt(
     };
 
     if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(1001);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(1001);
         goto exit;
     }
 
@@ -107,7 +107,7 @@ int32_t pbkdf2(
 
 
     if (OPS_OPENSSL_ERROR_2 !kctx) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(2000);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2000);
         goto exit;
     }
 
@@ -120,7 +120,7 @@ int32_t pbkdf2(
     };
 
     if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
-        ret = JO_OPENSSL_ERROR OPS_OFFSET(2001);
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2001);
         goto exit;
     }
 

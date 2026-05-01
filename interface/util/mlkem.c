@@ -64,36 +64,18 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     }
 
 
-#ifdef JOSTLE_OPS
-    if (is_ops_set(10)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1100);
-        goto exit;
-    }
-#endif
-    if (ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(1100);
         goto exit;
     }
 
-#ifdef JOSTLE_OPS
-    if (is_ops_set(11)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1101);
-        goto exit;
-    }
-#endif
-    if (EVP_PKEY_keygen_init(ctx) <= 0) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_4 EVP_PKEY_keygen_init(ctx) <= 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(1101);
         goto exit;
     }
 
-#ifdef JOSTLE_OPS
-    if (is_ops_set(12)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1102);
-        goto exit;
-    }
-#endif
-    if (EVP_PKEY_CTX_set_params(ctx, params) <= 0) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 EVP_PKEY_CTX_set_params(ctx, params) <= 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(1102);
         goto exit;
     }
 
@@ -105,14 +87,8 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         spec->key = NULL;
     }
 
-#ifdef JOSTLE_OPS
-    if (is_ops_set(13)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1103);
-        goto exit;
-    }
-#endif
-    if (EVP_PKEY_keygen(ctx, &(spec->key)) <= 0) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_6 EVP_PKEY_keygen(ctx, &(spec->key)) <= 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(1103);
         goto exit;
     }
 
@@ -185,7 +161,7 @@ int32_t mlkem_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
 
     if (OPS_OPENSSL_ERROR_2 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len,
                                                             &written) <= 0) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;
@@ -236,7 +212,7 @@ int32_t mlkem_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
 
     if (OPS_OPENSSL_ERROR_2 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
                                                             &written) <= 0) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;

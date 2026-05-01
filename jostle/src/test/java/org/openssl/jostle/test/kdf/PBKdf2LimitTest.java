@@ -12,16 +12,12 @@
 package org.openssl.jostle.test.kdf;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.CryptoServicesRegistrar;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
-import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.security.Security;
 
@@ -30,7 +26,6 @@ public class PBKdf2LimitTest
 
 
     KdfNI kdfNI = TestNISelector.getKDFNI();
-    OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
 
     @BeforeAll
     public static void beforeAll()
@@ -191,58 +186,22 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_unknown_digest_opsEnabled() throws Exception
-    {
-
-        //
-        // When OpsTesting is enabled it will return an error code that is offset
-        // and an IllegalStateException.
-        //
-
-        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        int code = -1;
-        try
-        {
-            //
-            // Digest string passed directly to OpenSSL. As a result we will see JO_OPENSSL_ERROR offset by 2001
-            // (pbkdf2 derive site) if OPS Testing is enabled, or an OpenSSLException if OPS Testing is not.
-            //
-            code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);
-            kdfNI.handleErrorCodes(code);
-            Assertions.fail();
-        } catch (IllegalStateException iae)
-        {
-            //
-            // OPS testing was enabled, we will get a different code because of error code offset
-            //
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2001, code);
-            String message = TestNISelector.getOpenSSLNI().getOSSLErrors();
-            Assertions.assertTrue(message.contains("unsupported") && message.contains("! : 0"));
-        }
-    }
-
-    @Test
-    public void testPBEKDF2_unknown_digest_opsDisabled() throws Exception
+    public void testPBEKDF2_unknown_digest() throws Exception
     {
         //
-        // When ops testing is disabled callers will get an OpenSSLException
+        // Real-failure path: "!" is not a valid digest, so OpenSSL returns
+        // unsupported. Per-flag OPS_OFFSET_*(x) macros only encode an offset
+        // when the matching OPS flag is actually set, so callers see plain
+        // JO_OPENSSL_ERROR (-> OpenSSLException) regardless of whether the
+        // OPS build is in use — no offset leakage on real failures.
         //
-        Assumptions.assumeFalse(operationsTestNI.opsTestAvailable());
-        int code;
         try
         {
-            //
-            // Digest string passed directly to OpenSSL. As a result we will see -1003 if OPS Testing is enabled
-            // or an OpenSSLException if OPS Testing is not enabled.
-            //
-            code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);
+            int code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);
             kdfNI.handleErrorCodes(code);
             Assertions.fail();
         } catch (OpenSSLException osex)
         {
-            //
-            // Ops testing was not enabled
-            //
             String message = osex.getMessage();
             Assertions.assertTrue(message.contains("unsupported") && message.contains("! : 0"));
         }

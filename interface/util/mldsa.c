@@ -32,26 +32,26 @@
  */
 int setup_hash_with_tr_and_context(const mldsa_ctx *ctx, EVP_MD_CTX *md, int32_t *ret_code) {
     if (OPS_OPENSSL_ERROR_9 1 != EVP_DigestUpdate(md, ctx->tr, 64)) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2020);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(2020);
         return 0;
     }
 
     if (ctx->context_len >= 0) {
         const uint8_t pre_hash = (ctx->hash_type == MLDSA_HASH_NONE) ? 0 : 1;
         if (OPS_OPENSSL_ERROR_10 1 != EVP_DigestUpdate(md, &pre_hash, 1)) {
-            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2021);
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(2021);
             return 0;
         }
 
         const uint8_t len = (uint8_t) ctx->context_len & 0xFFl;
 
         if (OPS_OPENSSL_ERROR_11 1 != EVP_DigestUpdate(md, &len, 1)) {
-            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2022);
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(2022);
             return 0;
         }
 
         if (OPS_OPENSSL_ERROR_12 1 != EVP_DigestUpdate(md, ctx->context, len)) {
-            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2023);
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(2023);
             return 0;
         }
     }
@@ -70,7 +70,7 @@ int setup_hash_with_tr_and_context(const mldsa_ctx *ctx, EVP_MD_CTX *md, int32_t
 int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
     *ctx = EVP_MD_CTX_new();
     if (OPS_OPENSSL_ERROR_7 *ctx == NULL) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2010);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(2010);
         goto fail;
     }
 
@@ -80,7 +80,7 @@ int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
         const int init_ok = EVP_DigestInit_ex2(*ctx, evp_md, NULL);
         EVP_MD_free(evp_md);
         if (OPS_OPENSSL_ERROR_8 1 != init_ok) {
-            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2011);
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(2011);
             goto fail;
         }
         return 1;
@@ -134,18 +134,18 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
     size_t written = 0;
 
     if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_get_octet_string_param(key_spec->key, OSSL_PKEY_PARAM_PUB_KEY, key_enc, min_len, &written)) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2000);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2000);
         goto exit;
     }
 
     if (OPS_SHORT_SIZE_1 written != min_len) {
-        *ret_code = JO_EXTRACTED_KEY_UNEXPECTED_LEN OPS_OFFSET(2001);
+        *ret_code = JO_EXTRACTED_KEY_UNEXPECTED_LEN OPS_OFFSET_SHORT_SIZE_1(2001);
         goto exit;
     }
 
     shake = EVP_MD_CTX_new();
     if (OPS_FAILED_CREATE_2 shake == NULL) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2002);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(2002);
         goto exit;
     }
 
@@ -153,18 +153,18 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
     jo_assert(evp_md != NULL);
 
     if (OPS_FAILED_INIT_1 1 != EVP_DigestInit_ex2(shake, evp_md, NULL)) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2003);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_1(2003);
         goto exit;
     }
 
     // Rho + T1
     if (OPS_OPENSSL_ERROR_4 1 != EVP_DigestUpdate(shake, key_enc, written)) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2004);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(2004);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_5 1 != EVP_DigestFinalXOF(shake, tr, TR_LEN)) {
-        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2005);
+        *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(2005);
         goto exit;
     }
 
@@ -386,7 +386,7 @@ int32_t mldsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len,
                                                                  &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;
@@ -436,7 +436,7 @@ int32_t mldsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
                                                                  &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;
@@ -822,12 +822,12 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
     ctx->pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_sign_message_init(ctx->pctx, ctx->sig, params)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1001);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
         goto exit;
     }
 
@@ -997,13 +997,13 @@ int32_t mldsa_ctx_init_verify(
     ctx->pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1003);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1003);
         goto exit;
     }
 
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_verify_message_init(ctx->pctx, ctx->sig, params)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1004);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1004);
         goto exit;
     }
 

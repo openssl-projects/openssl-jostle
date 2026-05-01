@@ -64,7 +64,7 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
 
     ERR_clear_error();
     if (OPS_OPENSSL_ERROR_2 EVP_MAC_init(mctx->ctx, mctx->key, mctx->key_len, params) != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     mctx->initialized = 1;
@@ -104,7 +104,7 @@ mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) 
 
     mctx->ctx = EVP_MAC_CTX_new(mctx->mac);
     if (OPS_OPENSSL_ERROR_2 mctx->ctx == NULL) {
-        *err = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
         goto exit;
     }
 
@@ -179,7 +179,7 @@ int32_t mac_update(mac_ctx *mctx, const uint8_t *in, int32_t off, int32_t len) {
 
     ERR_clear_error();
     if (OPS_OPENSSL_ERROR_1 EVP_MAC_update(mctx->ctx, in + off, (size_t) len) != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
     }
 
     return JO_SUCCESS;
@@ -218,7 +218,7 @@ int32_t mac_len(mac_ctx *mctx) {
     ERR_clear_error();
     size_t ret = EVP_MAC_CTX_get_mac_size(mctx->ctx);
     if (OPS_OPENSSL_ERROR_1 ret == 0) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
     }
 
     if (OPS_INT32_OVERFLOW_1 ret > INT32_MAX) {

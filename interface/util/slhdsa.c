@@ -124,17 +124,17 @@ int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, s
 
 
     if (OPS_OPENSSL_ERROR_3 ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2100);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2100);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_4 !EVP_PKEY_keygen_init(ctx)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2101);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(2101);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_5 !EVP_PKEY_CTX_set_params(ctx, params)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2102);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(2102);
         goto exit;
     }
 
@@ -147,7 +147,7 @@ int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, s
     }
 
     if (OPS_OPENSSL_ERROR_6 !EVP_PKEY_keygen(ctx, &(spec->key))) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(2103);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(2103);
         goto exit;
     }
 
@@ -216,7 +216,7 @@ int32_t slh_dsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_
     size_t written = 0;
 
     if (OPS_OPENSSL_ERROR_2 !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, out, min_len, &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;
@@ -265,7 +265,7 @@ int32_t slh_dsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out
 
 
     if (OPS_OPENSSL_ERROR_2 !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len, &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;
@@ -316,7 +316,7 @@ int32_t slh_dsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_le
 
     if (OPS_OPENSSL_ERROR_2
         !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_SLH_DSA_SEED, out, min_len, &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
     return (int32_t) written;
@@ -649,19 +649,19 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
     ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1000);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
         goto exit;
     }
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_sign_message_init(ctx->pctx, ctx->sig, params)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1001);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
         goto exit;
     }
 
     ctx->msg_buf = BIO_new(BIO_s_mem());
 
     if (OPS_FAILED_CREATE_2 ctx->msg_buf == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1002);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(1002);
         goto exit;
     }
 
@@ -799,13 +799,13 @@ int32_t slh_dsa_ctx_init_verify(
     ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1003);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1003);
         goto exit;
     }
 
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_verify_message_init(ctx->pctx, ctx->sig, params)) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1004);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1004);
         goto exit;
     }
 
@@ -813,7 +813,7 @@ int32_t slh_dsa_ctx_init_verify(
     ctx->msg_buf = BIO_new(BIO_s_mem());
 
     if (OPS_FAILED_CREATE_2 ctx->msg_buf == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET(1005);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(1005);
         goto exit;
     }
     ret_code = JO_SUCCESS;

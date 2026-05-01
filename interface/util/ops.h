@@ -64,8 +64,49 @@
 
 #define OPS_MAX_TEST 34
 
-// Offset the error code by fixed amount during ops testing
-#define OPS_OFFSET(x) - x
+// Per-flag offset macros: expand to "+ (is_ops_set(N) ? -(x) : 0)" so they
+// add an offset only iff the corresponding OPS flag is set. Pairs with
+// OPS_OPENSSL_ERROR_N (same suffix) to encode which call site failed during
+// OPS testing while leaving real-failure return codes unmodified. The leading
+// "+" is part of the expansion so non-OPS builds collapse the macro to
+// nothing — no spurious "+ 0" survives in release code. Usage:
+//
+//   if (OPS_OPENSSL_ERROR_3 ctx == NULL) {
+//       ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2100);
+//       goto exit;
+//   }
+//
+// On OPS firing: ret_code = JO_OPENSSL_ERROR + (-2100) (test sees -2102).
+// On real failure (flag not set): ret_code = JO_OPENSSL_ERROR + 0 (plain -2).
+// Non-OPS build: macro expands to nothing, leaving
+//   ret_code = JO_OPENSSL_ERROR;
+// — no "+ 0" residue in release code.
+#define OPS_OFFSET_OPENSSL_ERROR_1(x)  + (is_ops_set(8)  ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_2(x)  + (is_ops_set(9)  ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_3(x)  + (is_ops_set(10) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_4(x)  + (is_ops_set(11) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_5(x)  + (is_ops_set(12) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_6(x)  + (is_ops_set(13) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_7(x)  + (is_ops_set(28) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_8(x)  + (is_ops_set(29) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_9(x)  + (is_ops_set(30) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_10(x) + (is_ops_set(31) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_11(x) + (is_ops_set(32) ? -(x) : 0)
+#define OPS_OFFSET_OPENSSL_ERROR_12(x) + (is_ops_set(33) ? -(x) : 0)
+
+// Paired offset macros for the other OPS flag families. Same "+ ..." shape so
+// non-OPS builds drop them entirely.
+#define OPS_OFFSET_FAILED_CREATE_1(x)  + (is_ops_set(15) ? -(x) : 0)
+#define OPS_OFFSET_FAILED_CREATE_2(x)  + (is_ops_set(16) ? -(x) : 0)
+#define OPS_OFFSET_FAILED_INIT_1(x)    + (is_ops_set(17) ? -(x) : 0)
+#define OPS_OFFSET_FAILED_INIT_2(x)    + (is_ops_set(18) ? -(x) : 0)
+#define OPS_OFFSET_FAILED_SET_1(x)     + (is_ops_set(19) ? -(x) : 0)
+#define OPS_OFFSET_FAILED_SET_2(x)     + (is_ops_set(20) ? -(x) : 0)
+#define OPS_OFFSET_LEN_CHANGE_1(x)     + (is_ops_set(14) ? -(x) : 0)
+#define OPS_OFFSET_POINTER_CHANGE(x)   + (is_ops_set(7)  ? -(x) : 0)
+#define OPS_OFFSET_SHORT_SIZE_1(x)     + (is_ops_set(23) ? -(x) : 0)
+#define OPS_OFFSET_THREAD_ATTACH_1(x)  + (is_ops_set(21) ? -(x) : 0)
+#define OPS_OFFSET_JNI_FAIL_CREATE_1(x) + (is_ops_set(22) ? -(x) : 0)
 
 int is_ops_set(const uint32_t index);
 
@@ -102,7 +143,6 @@ int get_ops_test(const uint32_t index);
 
 #define OPS_FAILED_SET_1
 #define OPS_FAILED_SET_2
-#define OPS_OFFSET(x)
 
 #define OPS_THREAD_ATTACH_1
 #define OPS_JNI_FAIL_CREATE_1
@@ -119,6 +159,35 @@ int get_ops_test(const uint32_t index);
 #define OPS_OPENSSL_ERROR_10
 #define OPS_OPENSSL_ERROR_11
 #define OPS_OPENSSL_ERROR_12
+
+// Non-OPS build: every offset macro vanishes entirely (no "+ 0" residue).
+// Combined with the leading "+" baked into the OPS-build expansion, call
+// sites read uniformly as `JO_OPENSSL_ERROR OPS_OFFSET_*(N)` regardless of
+// build flavour — and the release code reduces to just `JO_OPENSSL_ERROR`.
+#define OPS_OFFSET_OPENSSL_ERROR_1(x)
+#define OPS_OFFSET_OPENSSL_ERROR_2(x)
+#define OPS_OFFSET_OPENSSL_ERROR_3(x)
+#define OPS_OFFSET_OPENSSL_ERROR_4(x)
+#define OPS_OFFSET_OPENSSL_ERROR_5(x)
+#define OPS_OFFSET_OPENSSL_ERROR_6(x)
+#define OPS_OFFSET_OPENSSL_ERROR_7(x)
+#define OPS_OFFSET_OPENSSL_ERROR_8(x)
+#define OPS_OFFSET_OPENSSL_ERROR_9(x)
+#define OPS_OFFSET_OPENSSL_ERROR_10(x)
+#define OPS_OFFSET_OPENSSL_ERROR_11(x)
+#define OPS_OFFSET_OPENSSL_ERROR_12(x)
+
+#define OPS_OFFSET_FAILED_CREATE_1(x)
+#define OPS_OFFSET_FAILED_CREATE_2(x)
+#define OPS_OFFSET_FAILED_INIT_1(x)
+#define OPS_OFFSET_FAILED_INIT_2(x)
+#define OPS_OFFSET_FAILED_SET_1(x)
+#define OPS_OFFSET_FAILED_SET_2(x)
+#define OPS_OFFSET_LEN_CHANGE_1(x)
+#define OPS_OFFSET_POINTER_CHANGE(x)
+#define OPS_OFFSET_SHORT_SIZE_1(x)
+#define OPS_OFFSET_THREAD_ATTACH_1(x)
+#define OPS_OFFSET_JNI_FAIL_CREATE_1(x)
 
 #endif
 
