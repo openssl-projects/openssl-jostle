@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.ShortBufferException;
@@ -1319,6 +1320,581 @@ public class BlockCipherLimitTest
             this.key = key;
             this.iv = iv;
             passing = true;
+        }
+    }
+
+    @Test
+    public void testCtrOverflowPoisonsCtx() throws Exception
+    {
+        // Drive AES128/CTR with a 15-byte IV (limit = 256 blocks = 4096 bytes)
+        // past the legal counter range. Verify:
+        //   1. update returns ctr-overflow.
+        //   2. subsequent updates keep returning ctr-overflow.
+        //   3. doFinal cannot rescue the cipher — its auto-reset hits the
+        //      poison check in init and surfaces "cipher is poisoned".
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 6, 0); // AES128, CTR, NO_PADDING
+
+            byte[] key = new byte[16];
+            byte[] iv = new byte[15];
+            for (int i = 0; i < 16; i++) key[i] = (byte) i;
+            for (int i = 0; i < 15; i++) iv[i] = (byte) (i + 100);
+
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0));
+
+            // 4097 bytes — past the 256-block legal range.
+            byte[] input = new byte[4097];
+            byte[] output = new byte[4097];
+
+            try
+            {
+                blockCipherNI.update(ref, output, 0, input, 0, input.length);
+                Assertions.fail("expected ctr overflow");
+            }
+            catch (IllegalStateException ex)
+            {
+                Assertions.assertEquals("ctr mode overflow", ex.getMessage());
+            }
+
+            // Subsequent ops fail fast with the poisoned error — the
+            // initial overflow flagged the ctx, and every entry point
+            // (update / final / set_tag) checks the flag at the top.
+            try
+            {
+                blockCipherNI.update(ref, output, 0, new byte[16], 0, 16);
+                Assertions.fail("expected cipher poisoned on retry");
+            }
+            catch (IllegalStateException ex)
+            {
+                Assertions.assertTrue(ex.getMessage().contains("poisoned"));
+            }
+
+            try
+            {
+                blockCipherNI.doFinal(ref, output, 0);
+                Assertions.fail("expected cipher poisoned");
+            }
+            catch (IllegalStateException ex)
+            {
+                Assertions.assertTrue(ex.getMessage().contains("poisoned"));
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testGetUpdateSize() throws Exception
+    {
+        // Drives block_cipher_get_update_size across the three branches it
+        // exposes: streaming pass-through, non-streaming PADDED block-rounding,
+        // and the !initialized early-return.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
+
+            // Pre-init: returns JO_NOT_INITIALIZED -> IllegalStateException.
+            try
+            {
+                blockCipherNI.getUpdateSize(ref, 16);
+                Assertions.fail("expected !initialized to fail");
+            }
+            catch (IllegalStateException ex)
+            {
+                Assertions.assertEquals("not initialized", ex.getMessage());
+            }
+
+            // PADDED non-streaming branch: result rounds down to block boundary
+            // including any partial-block carry from prior update. Fresh ctx
+            // has processed=0, so for input 32 we expect 32 (2 full blocks).
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            Assertions.assertEquals(32, blockCipherNI.getUpdateSize(ref, 32));
+            // input 17 → 16 (one whole block, byte 17 carries to next call).
+            Assertions.assertEquals(16, blockCipherNI.getUpdateSize(ref, 17));
+
+            blockCipherNI.dispose(ref);
+            ref = 0;
+
+            // Streaming branch: returns len unchanged.
+            ref = blockCipherNI.makeInstance(8, 6, 0); // AES128, CTR, NO_PADDING
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            Assertions.assertEquals(13, blockCipherNI.getUpdateSize(ref, 13));
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testUpdateAAD_nonGcmMode() throws Exception
+    {
+        // updateAAD requires a GCM ctx; non-GCM modes must reject before the
+        // EVP layer silently swallows the AAD. The underlying exception is
+        // InvalidAlgorithmParameterException; updateAAD wraps it in a
+        // RuntimeException since it isn't part of its declared throws set.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.updateAAD(ref, new byte[16], 0, 16);
+            Assertions.fail("expected non-GCM updateAAD to fail");
+        }
+        catch (RuntimeException ex)
+        {
+            Assertions.assertEquals("mode not supported for cipher", ex.getMessage());
+            Assertions.assertTrue(ex.getCause() instanceof InvalidAlgorithmParameterException);
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testUpdateAAD_notInitialized() throws Exception
+    {
+        // Calling updateAAD before init must surface as JO_NOT_INITIALIZED.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
+            blockCipherNI.updateAAD(ref, new byte[16], 0, 16);
+            Assertions.fail("expected !initialized updateAAD to fail");
+        }
+        catch (IllegalStateException ex)
+        {
+            Assertions.assertEquals("not initialized", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testUpdateAAD_zeroLen() throws Exception
+    {
+        // Zero-length AAD is a documented no-op: returns 0, no error.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[12], 16);
+            int result = blockCipherNI.updateAAD(ref, new byte[16], 0, 0);
+            Assertions.assertEquals(0, result);
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    private static byte[] parseHex(String hex)
+    {
+        int n = hex.length() / 2;
+        byte[] out = new byte[n];
+        for (int i = 0; i < n; i++)
+        {
+            out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+    }
+
+    @Test
+    public void testGetBlockSize_notInitialized() throws Exception
+    {
+        // get_block_size now gates on initialized; pre-init the cached
+        // cipher_block_size may carry stale values from a failed init.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
+            blockCipherNI.getBlockSize(ref);
+            Assertions.fail("expected !initialized to fail");
+        }
+        catch (IllegalStateException ex)
+        {
+            Assertions.assertEquals("not initialized", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testGetFinalSize_notInitialized() throws Exception
+    {
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 0);
+            blockCipherNI.getFinalSize(ref, 16);
+            Assertions.fail("expected !initialized to fail");
+        }
+        catch (IllegalStateException ex)
+        {
+            Assertions.assertEquals("not initialized", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testFinal_notInitialized() throws Exception
+    {
+        // doFinal must reject pre-init: the EVP ctx has no cipher / key set.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 0);
+            blockCipherNI.doFinal(ref, new byte[16], 0);
+            Assertions.fail("expected !initialized doFinal to fail");
+        }
+        catch (IllegalStateException ex)
+        {
+            Assertions.assertEquals("not initialized", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testFinal_outputTooSmall_encryptPadded() throws Exception
+    {
+        // PADDED CBC encrypt requires at least one block in the doFinal
+        // output buffer for the trailing padding block. Passing a 0-byte
+        // output should surface JO_OUTPUT_TOO_SMALL → ShortBufferException.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            blockCipherNI.doFinal(ref, new byte[0], 0);
+            Assertions.fail("expected output too small");
+        }
+        catch (ShortBufferException ex)
+        {
+            Assertions.assertEquals("output too small", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testInit_invalidTagLen_overMax() throws Exception
+    {
+        // Bridge validates tag_len < 0; the > MAX_TAG_LEN check is C-side.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[12], 17);
+            Assertions.fail("expected invalid tag len");
+        }
+        catch (IllegalArgumentException ex)
+        {
+            Assertions.assertEquals("invalid tag len", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testInit_onPoisonedCtx() throws Exception
+    {
+        // Poison via CTR overflow, then call init explicitly. The poisoned
+        // check at the top of init must reject — recovery is destroy + create.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 6, 0); // AES128, CTR, NO_PADDING
+            byte[] key = new byte[16];
+            byte[] iv = new byte[15];
+            for (int i = 0; i < 16; i++) key[i] = (byte) i;
+            for (int i = 0; i < 15; i++) iv[i] = (byte) (i + 100);
+
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0));
+
+            // 4097 bytes — past the 256-block legal range for 15-byte IV.
+            try
+            {
+                blockCipherNI.update(ref, new byte[4097], 0, new byte[4097], 0, 4097);
+                Assertions.fail("expected ctr overflow");
+            }
+            catch (IllegalStateException ex)
+            {
+                Assertions.assertEquals("ctr mode overflow", ex.getMessage());
+            }
+
+            // Now ctx is poisoned. Calling init must surface that.
+            try
+            {
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0);
+                Assertions.fail("expected poisoned ctx to reject init");
+            }
+            catch (IllegalStateException ex)
+            {
+                Assertions.assertTrue(ex.getMessage().contains("poisoned"));
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testInit_aes128Gcm_invalidIvLen() throws Exception
+    {
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[11], 16);
+            Assertions.fail("expected invalid iv length");
+        }
+        catch (InvalidAlgorithmParameterException ex)
+        {
+            Assertions.assertEquals("invalid iv length", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testInit_aes192Gcm_invalidIvLen() throws Exception
+    {
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(9, 8, 0); // AES192, GCM
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[24], new byte[11], 16);
+            Assertions.fail("expected invalid iv length");
+        }
+        catch (InvalidAlgorithmParameterException ex)
+        {
+            Assertions.assertEquals("invalid iv length", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testInit_aes256Gcm_invalidIvLen() throws Exception
+    {
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(10, 8, 0); // AES256, GCM
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[32], new byte[11], 16);
+            Assertions.fail("expected invalid iv length");
+        }
+        catch (InvalidAlgorithmParameterException ex)
+        {
+            Assertions.assertEquals("invalid iv length", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testAes128Xts_ieee1619Vector2() throws Exception
+    {
+        // IEEE Std 1619-2007 Annex B, Vector 2.
+        //   K1     = 0x11 * 16
+        //   K2     = 0x22 * 16
+        //   tweak  = data unit sequence number 0x3333333333 as 128-bit LE
+        //   pt     = 0x44 * 32
+        //   ct     = c454185e6a16936e39334038acef838bfb186fff7480adc4289382ecd6d394f0
+        // (Vector 1 from the same annex has K1 == K2 == 0; modern OpenSSL
+        //  rejects that as a security-policy violation, so Vector 2 is used.)
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 11, 0); // AES128, XTS, NO_PADDING
+            byte[] key = new byte[32];
+            for (int i = 0; i < 16; i++) key[i] = 0x11;
+            for (int i = 16; i < 32; i++) key[i] = 0x22;
+            byte[] iv = new byte[16];
+            for (int i = 0; i < 5; i++) iv[i] = 0x33;
+            byte[] pt = new byte[32];
+            for (int i = 0; i < 32; i++) pt[i] = 0x44;
+            byte[] expectedCt = parseHex(
+                    "c454185e6a16936e39334038acef838bfb186fff7480adc4289382ecd6d394f0");
+
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0));
+
+            byte[] ct = new byte[32];
+            int produced = blockCipherNI.update(ref, ct, 0, pt, 0, 32);
+            int finalProduced = blockCipherNI.doFinal(ref, ct, produced);
+
+            Assertions.assertEquals(32, produced + finalProduced);
+            Assertions.assertArrayEquals(expectedCt, ct);
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testAes256Xts_kat() throws Exception
+    {
+        // Regression KAT for AES-256-XTS. Inputs are deterministic byte
+        // patterns; the expected ciphertext was computed against the
+        // bundled OpenSSL via EVP_aes_256_xts() and pinned here. Failure
+        // means either our wrapper or the linked OpenSSL diverged from
+        // the value at the time of authoring.
+        //
+        //   K1     = bytes 0..31
+        //   K2     = bytes 32..63
+        //   tweak  = bytes 100..115
+        //   pt[i]  = (i*3 + 7) & 0xff,  32 bytes
+        //   ct     = a7399efea2c66376055c1acd97933a8c6ac8dd3005f3396c3959b3ad323a3db4
+        long encRef = 0, decRef = 0;
+        try
+        {
+            byte[] key = new byte[64];
+            for (int i = 0; i < 64; i++) key[i] = (byte) i;
+            byte[] iv = new byte[16];
+            for (int i = 0; i < 16; i++) iv[i] = (byte) (i + 100);
+            byte[] pt = new byte[32];
+            for (int i = 0; i < 32; i++) pt[i] = (byte) (i * 3 + 7);
+            byte[] expectedCt = parseHex(
+                    "a7399efea2c66376055c1acd97933a8c6ac8dd3005f3396c3959b3ad323a3db4");
+
+            // Encrypt: KAT.
+            encRef = blockCipherNI.makeInstance(10, 11, 0); // AES256, XTS
+            Assertions.assertEquals(0, blockCipherNI.init(encRef, Cipher.ENCRYPT_MODE, key, iv, 0));
+            byte[] ct = new byte[32];
+            int produced = blockCipherNI.update(encRef, ct, 0, pt, 0, 32);
+            int finalProduced = blockCipherNI.doFinal(encRef, ct, produced);
+            Assertions.assertEquals(32, produced + finalProduced);
+            Assertions.assertArrayEquals(expectedCt, ct);
+
+            // Decrypt: round-trip back to plaintext.
+            decRef = blockCipherNI.makeInstance(10, 11, 0);
+            Assertions.assertEquals(0, blockCipherNI.init(decRef, Cipher.DECRYPT_MODE, key, iv, 0));
+            byte[] decrypted = new byte[32];
+            int dProduced = blockCipherNI.update(decRef, decrypted, 0, ct, 0, 32);
+            int dFinal = blockCipherNI.doFinal(decRef, decrypted, dProduced);
+            Assertions.assertEquals(32, dProduced + dFinal);
+            Assertions.assertArrayEquals(pt, decrypted);
+        }
+        finally
+        {
+            blockCipherNI.dispose(encRef);
+            blockCipherNI.dispose(decRef);
+        }
+    }
+
+    @Test
+    public void testAes128Xts_invalidKeyLen() throws Exception
+    {
+        // XTS now requires a 32-byte key for AES-128. A 16-byte key (the
+        // pre-fix accepted length) must now be rejected.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 11, 0); // AES128, XTS
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            Assertions.fail("expected invalid key length");
+        }
+        catch (InvalidKeyException ex)
+        {
+            Assertions.assertEquals("invalid key length", ex.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testGcmTag_naturallyInvalid() throws Exception
+    {
+        // End-to-end natural tag-failure path (no OPS): encrypt, flip a tag
+        // byte, decrypt. Verifies AEADBadTagException is raised AND the
+        // doFinal output buffer is OPENSSL_cleanse'd to zeros (best-effort
+        // plaintext scrubbing on tag failure).
+        long encRef = 0, decRef = 0;
+        try
+        {
+            byte[] key = new byte[16];
+            byte[] iv = new byte[12];
+            for (int i = 0; i < 16; i++) key[i] = (byte) i;
+            for (int i = 0; i < 12; i++) iv[i] = (byte) (i + 100);
+
+            // Encrypt 16 bytes of plaintext → 16 bytes ciphertext + 16 bytes tag.
+            encRef = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
+            blockCipherNI.init(encRef, Cipher.ENCRYPT_MODE, key, iv, 16);
+
+            byte[] plaintext = new byte[16];
+            for (int i = 0; i < 16; i++) plaintext[i] = (byte) (i + 1);
+
+            byte[] ctAndTag = new byte[32];
+            int produced = blockCipherNI.update(encRef, ctAndTag, 0, plaintext, 0, 16);
+            int finalProduced = blockCipherNI.doFinal(encRef, ctAndTag, produced);
+            Assertions.assertEquals(32, produced + finalProduced);
+
+            // Flip the last (tag) byte to invalidate the tag.
+            ctAndTag[31] ^= (byte) 0xFF;
+
+            // Decrypt path: feed corrupted ct+tag, doFinal should reject.
+            decRef = blockCipherNI.makeInstance(8, 8, 0);
+            blockCipherNI.init(decRef, Cipher.DECRYPT_MODE, key, iv, 16);
+
+            byte[] plaintextOut = new byte[16];
+            blockCipherNI.update(decRef, plaintextOut, 0, ctAndTag, 0, 32);
+
+            // Pre-fill the doFinal output buffer with sentinel bytes; the
+            // cleanse path should zero them out on tag failure.
+            byte[] finalOut = new byte[16];
+            for (int i = 0; i < 16; i++) finalOut[i] = (byte) 0xAA;
+
+            try
+            {
+                blockCipherNI.doFinal(decRef, finalOut, 0);
+                Assertions.fail("expected tag failure");
+            }
+            catch (BadPaddingException ex)
+            {
+                Assertions.assertEquals("bad tag", ex.getMessage());
+            }
+
+            // Verify the cleanse fired — every byte of finalOut should be 0.
+            for (int i = 0; i < 16; i++)
+            {
+                Assertions.assertEquals(0, finalOut[i], "finalOut[" + i + "] not cleansed");
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(encRef);
+            blockCipherNI.dispose(decRef);
         }
     }
 

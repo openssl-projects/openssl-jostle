@@ -21,11 +21,15 @@ import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.SecretKey;
+import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
@@ -1215,6 +1219,394 @@ public class AESAgreementTest
             }
         }
         return sb.toString();
+    }
+
+
+    @Test
+    public void testJce_aes128Xts_ieee1619Vector2() throws Exception
+    {
+        // JCE-level KAT for AES-128-XTS via Jostle. Mirrors the native-layer
+        // KAT in BlockCipherLimitTest, exercising the full provider pipeline:
+        //   Cipher.getInstance("AES/XTS/NoPadding") → engineSetMode("XTS") →
+        //   determineOSSLCipher(32 → AES128 because mode==XTS) → native init.
+        //
+        // IEEE Std 1619-2007 Annex B Vector 2:
+        //   K = 0x11 * 16 || 0x22 * 16
+        //   tweak = 0x33 * 5 || 0x00 * 11
+        //   pt = 0x44 * 32
+        //   ct = c454185e6a16936e39334038acef838bfb186fff7480adc4289382ecd6d394f0
+        byte[] key = new byte[32];
+        for (int i = 0; i < 16; i++) key[i] = 0x11;
+        for (int i = 16; i < 32; i++) key[i] = 0x22;
+        byte[] iv = new byte[16];
+        for (int i = 0; i < 5; i++) iv[i] = 0x33;
+        byte[] pt = new byte[32];
+        for (int i = 0; i < 32; i++) pt[i] = 0x44;
+        byte[] expectedCt = Hex.decode("c454185e6a16936e39334038acef838bfb186fff7480adc4289382ecd6d394f0");
+
+        Cipher c = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] ct = c.doFinal(pt);
+        Assertions.assertArrayEquals(expectedCt, ct);
+
+        // Round-trip: decrypt and verify we get pt back.
+        Cipher d = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] decrypted = d.doFinal(ct);
+        Assertions.assertArrayEquals(pt, decrypted);
+    }
+
+    @Test
+    public void testJce_aes256Xts_kat() throws Exception
+    {
+        // JCE-level KAT for AES-256-XTS. Exercises the keySize=64 path in
+        // determineOSSLCipher. KAT vector matches the native-layer test.
+        byte[] key = new byte[64];
+        for (int i = 0; i < 64; i++) key[i] = (byte) i;
+        byte[] iv = new byte[16];
+        for (int i = 0; i < 16; i++) iv[i] = (byte) (i + 100);
+        byte[] pt = new byte[32];
+        for (int i = 0; i < 32; i++) pt[i] = (byte) (i * 3 + 7);
+        byte[] expectedCt = Hex.decode("a7399efea2c66376055c1acd97933a8c6ac8dd3005f3396c3959b3ad323a3db4");
+
+        Cipher c = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] ct = c.doFinal(pt);
+        Assertions.assertArrayEquals(expectedCt, ct);
+
+        Cipher d = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] decrypted = d.doFinal(ct);
+        Assertions.assertArrayEquals(pt, decrypted);
+    }
+
+    @Test
+    public void testJce_aes128Xts_ciphertextStealing() throws Exception
+    {
+        // NIST SP 800-38E section 4 mandates XTS-AES support for data unit
+        // lengths that aren't a multiple of the block size, via ciphertext
+        // stealing (CTS). Output length matches input length.
+        //   K = 0x55 * 16 || (0x66, 0x67, ..., 0x75)
+        //   tweak = (0x80, 0x81, ..., 0x8f)
+        //   pt = (0x01, 0x02, ..., 0x25)  (37 bytes — 2 full blocks + 5)
+        //   ct = fe263bf4e6119b10f2ec7da6e3235c33cf107db237efa93f05db27c499d478ca47d1fa01fa
+        // Computed against the bundled OpenSSL EVP_aes_128_xts.
+        byte[] key = new byte[32];
+        for (int i = 0; i < 16; i++) key[i] = 0x55;
+        for (int i = 16; i < 32; i++) key[i] = (byte) (0x66 + i - 16);
+        byte[] iv = new byte[16];
+        for (int i = 0; i < 16; i++) iv[i] = (byte) (0x80 + i);
+        byte[] pt = new byte[37];
+        for (int i = 0; i < 37; i++) pt[i] = (byte) (i + 1);
+        byte[] expectedCt = Hex.decode(
+                "fe263bf4e6119b10f2ec7da6e3235c33cf107db237efa93f05db27c499d478ca47d1fa01fa");
+
+        Cipher c = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] ct = c.doFinal(pt);
+        Assertions.assertEquals(37, ct.length);
+        Assertions.assertArrayEquals(expectedCt, ct);
+
+        // Round-trip.
+        Cipher d = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        d.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] decrypted = d.doFinal(ct);
+        Assertions.assertArrayEquals(pt, decrypted);
+    }
+
+    @Test
+    public void testJce_aesXts_subBlockInputRejected() throws Exception
+    {
+        // XTS-AES requires at least one full block (16 bytes); sub-block
+        // input is undefined per NIST SP 800-38E. We reject early.
+        Cipher c = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        byte[] key = new byte[32];
+        for (int i = 0; i < 16; i++) key[i] = 0x55;
+        for (int i = 16; i < 32; i++) key[i] = 0x66;
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(new byte[16]));
+        try
+        {
+            c.doFinal(new byte[7]);
+            fail("expected XTS to reject sub-block input");
+        }
+        catch (IllegalBlockSizeException ex)
+        {
+            // expected — JO_NOT_BLOCK_ALIGNED → IllegalBlockSizeException.
+        }
+    }
+
+    @Test
+    public void testJce_aesCbcNoPadding_doFinalRejectsNonAligned() throws Exception
+    {
+        // CBC/NO_PADDING is block-only: doFinal with sub-block (or partial-
+        // block-after-aligned) input must fail with IllegalBlockSizeException
+        // rather than silently truncating, padding, or producing garbage.
+        Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+        try
+        {
+            c.doFinal(new byte[15]);
+            fail("expected non-aligned CBC/NoPadding doFinal to fail");
+        }
+        catch (IllegalBlockSizeException ex)
+        {
+            Assertions.assertEquals("data not block size aligned", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testJce_aesEcbNoPadding_doFinalRejectsNonAligned() throws Exception
+    {
+        // Same contract for ECB.
+        Cipher c = Cipher.getInstance("AES/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"));
+        try
+        {
+            c.doFinal(new byte[17]);
+            fail("expected non-aligned ECB/NoPadding doFinal to fail");
+        }
+        catch (IllegalBlockSizeException ex)
+        {
+            Assertions.assertEquals("data not block size aligned", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testJce_aes256CbcNoPadding_doFinalRejectsNonAligned() throws Exception
+    {
+        // Verify the rejection fires for the AES-256 cipher_id dispatch too,
+        // not just AES-128 (different switch arm in the native init).
+        Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[32], "AES"), new IvParameterSpec(new byte[16]));
+        try
+        {
+            c.doFinal(new byte[20]);
+            fail("expected non-aligned CBC/NoPadding doFinal to fail");
+        }
+        catch (IllegalBlockSizeException ex)
+        {
+            Assertions.assertEquals("data not block size aligned", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testJce_aesCbcNoPadding_residualAfterAlignedUpdate() throws Exception
+    {
+        // A more subtle misuse: caller feeds a block-aligned chunk via
+        // update(), then a sub-block residual via doFinal(). The aligned
+        // update succeeds; the doFinal must fail rather than discard the
+        // trailing bytes or produce garbage.
+        Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+
+        byte[] partial = c.update(new byte[16]);
+        Assertions.assertEquals(16, partial.length);
+
+        try
+        {
+            c.doFinal(new byte[5]);
+            fail("expected residual doFinal to fail");
+        }
+        catch (IllegalBlockSizeException ex)
+        {
+            Assertions.assertEquals("data not block size aligned", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testJce_aesCbcNoPadding_updateRejectsNonAligned() throws Exception
+    {
+        // Cipher.update has no checked-exception throws clause, so the SPI
+        // wraps the underlying error in a RuntimeException. The cause is
+        // ShortBufferException: getUpdateSize(15) returns 0 for a sub-block
+        // CBC/NoPadding input (no full blocks to output), so the native
+        // out_len < in_len guard fires before the alignment guard. Pin
+        // the wrapping behavior — silent success or a bare NPE would be
+        // the dangerous failure modes.
+        Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+        try
+        {
+            c.update(new byte[15]);
+            fail("expected non-aligned update to fail");
+        }
+        catch (RuntimeException ex)
+        {
+            Assertions.assertTrue(ex.getCause() instanceof ShortBufferException,
+                    "expected ShortBufferException cause, got "
+                            + (ex.getCause() == null ? "null" : ex.getCause().getClass().getName()));
+        }
+    }
+
+    @Test
+    public void testJce_aesCbcPkcs5_acceptsNonAligned() throws Exception
+    {
+        // Sanity check: PADDED CBC must NOT reject non-aligned input — the
+        // padding mode exists precisely to handle it.
+        Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+        byte[] ct = c.doFinal(new byte[15]);
+        // 15 bytes pad to one full block of 16.
+        Assertions.assertEquals(16, ct.length);
+    }
+
+    @Test
+    public void testJce_aesCtrNoPadding_acceptsNonAligned() throws Exception
+    {
+        // Sanity: CTR turns AES into a stream cipher; any input length OK.
+        Cipher c = Cipher.getInstance("AES/CTR/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+        byte[] ct = c.doFinal(new byte[3]);
+        Assertions.assertEquals(3, ct.length);
+    }
+
+    @Test
+    public void testJce_aesCfb_aliasesToCfb128() throws Exception
+    {
+        // JCE convention: the bare "CFB" mode in a transformation string
+        // means CFB128 — the most common variant. Verify the alias works
+        // and produces the same ciphertext as the explicit "CFB128" form.
+        byte[] key = new byte[16];
+        byte[] iv = new byte[16];
+        for (int i = 0; i < 16; i++) { key[i] = (byte) i; iv[i] = (byte) (i + 16); }
+        byte[] pt = new byte[37];
+        for (int i = 0; i < 37; i++) pt[i] = (byte) (i + 1);
+
+        Cipher cAlias = Cipher.getInstance("AES/CFB/NoPadding", JostleProvider.PROVIDER_NAME);
+        cAlias.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] ctAlias = cAlias.doFinal(pt);
+
+        Cipher cExplicit = Cipher.getInstance("AES/CFB128/NoPadding", JostleProvider.PROVIDER_NAME);
+        cExplicit.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        byte[] ctExplicit = cExplicit.doFinal(pt);
+
+        Assertions.assertArrayEquals(ctExplicit, ctAlias);
+        Assertions.assertEquals(37, ctAlias.length); // CFB is streaming
+    }
+
+    @Test
+    public void testJce_unknownMode_throwsNoSuchAlgorithm() throws Exception
+    {
+        // Unknown mode strings must surface as NoSuchAlgorithmException
+        // (the JCE-contracted exception type), not the IllegalArgumentException
+        // that OSSLMode.valueOf would have thrown bare.
+        try
+        {
+            Cipher.getInstance("AES/NOTAREALMODE/NoPadding", JostleProvider.PROVIDER_NAME);
+            fail("expected unknown mode to be rejected");
+        }
+        catch (NoSuchAlgorithmException ex)
+        {
+            // expected
+        }
+    }
+
+    @Test
+    public void testJce_byteBufferUpdate_arrayBacked() throws Exception
+    {
+        // ByteBuffer engineUpdate path with both buffers array-backed.
+        // Verifies positions advance correctly and round-trip works.
+        Cipher enc = Cipher.getInstance("AES/CTR/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+
+        ByteBuffer in = ByteBuffer.allocate(64);
+        for (int i = 0; i < 64; i++) in.put((byte) i);
+        in.flip();
+
+        ByteBuffer out = ByteBuffer.allocate(64);
+        int produced = enc.update(in, out);
+        Assertions.assertEquals(64, produced);
+        Assertions.assertEquals(64, in.position(), "input position should advance fully");
+        Assertions.assertEquals(64, out.position(), "output position should advance by produced");
+        Assertions.assertEquals(0, in.remaining());
+
+        // Round-trip via doFinal (which CipherSpi's default ByteBuffer path
+        // handles via our byte[] engineDoFinal).
+        byte[] ct = new byte[64];
+        out.flip();
+        out.get(ct);
+
+        Cipher dec = Cipher.getInstance("AES/CTR/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+        byte[] pt = dec.doFinal(ct);
+
+        for (int i = 0; i < 64; i++) Assertions.assertEquals((byte) i, pt[i]);
+    }
+
+    @Test
+    public void testJce_byteBufferUpdate_directBuffer() throws Exception
+    {
+        // Direct (non-array-backed) ByteBuffers exercise the staging-buffer
+        // branch of engineUpdate(ByteBuffer, ByteBuffer).
+        Cipher enc = Cipher.getInstance("AES/CTR/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+
+        ByteBuffer in = ByteBuffer.allocateDirect(48);
+        for (int i = 0; i < 48; i++) in.put((byte) (i + 5));
+        in.flip();
+
+        ByteBuffer out = ByteBuffer.allocateDirect(48);
+        int produced = enc.update(in, out);
+        Assertions.assertEquals(48, produced);
+        Assertions.assertEquals(48, in.position());
+        Assertions.assertEquals(48, out.position());
+
+        // Round-trip
+        out.flip();
+        byte[] ct = new byte[48];
+        out.get(ct);
+
+        Cipher dec = Cipher.getInstance("AES/CTR/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+        byte[] pt = dec.doFinal(ct);
+
+        for (int i = 0; i < 48; i++) Assertions.assertEquals((byte) (i + 5), pt[i]);
+    }
+
+    @Test
+    public void testJce_byteBufferUpdate_shortOutputBufferLeavesPositionsUnchanged() throws Exception
+    {
+        // ShortBufferException must not advance either buffer's position —
+        // JCE contract for the ByteBuffer overload.
+        Cipher enc = Cipher.getInstance("AES/CTR/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+
+        ByteBuffer in = ByteBuffer.allocate(32);
+        for (int i = 0; i < 32; i++) in.put((byte) i);
+        in.flip();
+
+        ByteBuffer out = ByteBuffer.allocate(8); // too small
+
+        int inPosBefore = in.position();
+        int outPosBefore = out.position();
+        try
+        {
+            enc.update(in, out);
+            fail("expected ShortBufferException");
+        }
+        catch (ShortBufferException ex)
+        {
+            // expected
+        }
+        Assertions.assertEquals(inPosBefore, in.position(), "input position must be unchanged");
+        Assertions.assertEquals(outPosBefore, out.position(), "output position must be unchanged");
+    }
+
+    @Test
+    public void testJce_aesXts_invalidKeySize() throws Exception
+    {
+        // Anything other than 32 or 64 bytes must be rejected up front by
+        // the SPI's mode-aware key dispatch.
+        Cipher c = Cipher.getInstance("AES/XTS/NoPadding", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
+            fail("expected XTS to reject 16-byte key");
+        }
+        catch (InvalidKeyException ex)
+        {
+            Assertions.assertTrue(ex.getMessage().contains("XTS"));
+        }
     }
 
 

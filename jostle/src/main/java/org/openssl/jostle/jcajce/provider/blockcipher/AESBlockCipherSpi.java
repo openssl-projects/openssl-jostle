@@ -38,19 +38,36 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
     {
 
-        switch (keySize)
+        if (osslMode == OSSLMode.XTS)
         {
-            case 16:
-                osslCipher = OSSLCipher.AES128;
-                break;
-            case 24:
-                osslCipher = OSSLCipher.AES192;
-                break;
-            case 32:
-                this.osslCipher = OSSLCipher.AES256;
-                break;
-            default:
-                throw new InvalidKeyException("unsupported key size, must be 16, 24 or 32 bytes");
+            switch (keySize)
+            {
+                case 32:
+                    osslCipher = OSSLCipher.AES128;
+                    break;
+                case 64:
+                    osslCipher = OSSLCipher.AES256;
+                    break;
+                default:
+                    throw new InvalidKeyException("XTS requires a 32-byte (AES-128) or 64-byte (AES-256) key");
+            }
+        }
+        else
+        {
+            switch (keySize)
+            {
+                case 16:
+                    osslCipher = OSSLCipher.AES128;
+                    break;
+                case 24:
+                    osslCipher = OSSLCipher.AES192;
+                    break;
+                case 32:
+                    this.osslCipher = OSSLCipher.AES256;
+                    break;
+                default:
+                    throw new InvalidKeyException("unsupported key size, must be 16, 24 or 32 bytes");
+            }
         }
 
 

@@ -72,7 +72,17 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineSetMode(String mode) throws NoSuchAlgorithmException
     {
-        osslMode = OSSLMode.valueOf(mode);
+        String resolved = "CFB".equalsIgnoreCase(mode) ? "CFB128" : mode;
+        try
+        {
+            osslMode = OSSLMode.valueOf(resolved);
+        }
+        catch (IllegalArgumentException ex)
+        {
+            // Translate to the JCE-contracted exception type for unknown
+            // modes; valueOf throws IllegalArgumentException directly.
+            throw new NoSuchAlgorithmException("cipher mode " + mode + " not supported");
+        }
 
         if (mandatedMode != null && mandatedMode != osslMode)
         {
@@ -97,15 +107,25 @@ class BlockCipherSpi extends CipherSpi
         }
     }
 
+    /**
+     * JCE convention is IllegalStateException for pre-init misuse; without
+     * this guard the entry points below would throw NullPointerException on
+     * the first refWrapper.getReference() call, which is a leaky abstraction.
+     */
+    private void requireInitialized()
+    {
+        if (refWrapper == null)
+        {
+            throw new IllegalStateException("cipher not initialized");
+        }
+    }
+
     @Override
     protected int engineGetBlockSize()
     {
         try
         {
-            if (refWrapper == null)
-            {
-                throw new IllegalStateException("cipher not initialized");
-            }
+            requireInitialized();
 
             if (blockSize == 0)
             {
@@ -125,6 +145,7 @@ class BlockCipherSpi extends CipherSpi
     {
         try
         {
+            requireInitialized();
             return blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
         }
         finally
@@ -273,6 +294,7 @@ class BlockCipherSpi extends CipherSpi
     {
         try
         {
+            requireInitialized();
             blockCipherNi.updateAAD(refWrapper.getReference(), src, offset, len);
         }
         finally
@@ -328,6 +350,7 @@ class BlockCipherSpi extends CipherSpi
     {
         try
         {
+            requireInitialized();
             int len = blockCipherNi.getUpdateSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
 
@@ -355,11 +378,100 @@ class BlockCipherSpi extends CipherSpi
     }
 
 
+    /**
+     * ByteBuffer override. CipherSpi provides a default that funnels through
+     * the byte[] path, but it allocates an intermediate buffer per call even
+     * when both buffers are array-backed; this override sidesteps that copy
+     * when possible and keeps the position bookkeeping in one place.
+     *
+     * Behaviour:
+     *   - input.position() advances by inLen on success;
+     *   - output.position() advances by `written` on success;
+     *   - on ShortBufferException both positions are unchanged (per JCE).
+     */
+    @Override
+    protected int engineUpdate(ByteBuffer input, ByteBuffer output) throws ShortBufferException
+    {
+        try
+        {
+            requireInitialized();
+
+            int inLen = input.remaining();
+            if (inLen == 0)
+            {
+                return 0;
+            }
+
+            // Resolve input bytes without committing input.position() yet —
+            // a thrown ShortBufferException must leave the buffer untouched.
+            byte[] inputArray;
+            int inputOffset;
+            int inputStartPos = input.position();
+            boolean inputOwned = false; // true if we allocated a transient copy
+            if (input.hasArray())
+            {
+                inputArray = input.array();
+                inputOffset = input.arrayOffset() + inputStartPos;
+            }
+            else
+            {
+                inputArray = new byte[inLen];
+                input.get(inputArray);
+                input.position(inputStartPos); // restore — we'll commit after success
+                inputOffset = 0;
+                inputOwned = true;
+            }
+
+            try
+            {
+                if (output.hasArray())
+                {
+                    int outputStartPos = output.position();
+                    int written = engineUpdate(inputArray, inputOffset, inLen,
+                            output.array(),
+                            output.arrayOffset() + outputStartPos);
+                    input.position(inputStartPos + inLen);
+                    output.position(outputStartPos + written);
+                    return written;
+                }
+                else
+                {
+                    // Output is a direct buffer; route via the byte[]-returning
+                    // engineUpdate which sizes its own staging buffer correctly,
+                    // then copy out. ShortBufferException is raised before any
+                    // position is advanced.
+                    byte[] result = engineUpdate(inputArray, inputOffset, inLen);
+                    if (output.remaining() < result.length)
+                    {
+                        Arrays.fill(result, (byte) 0);
+                        throw new ShortBufferException("output buffer too small");
+                    }
+                    output.put(result);
+                    input.position(inputStartPos + inLen);
+                    Arrays.fill(result, (byte) 0);
+                    return result.length;
+                }
+            }
+            finally
+            {
+                if (inputOwned)
+                {
+                    Arrays.fill(inputArray, (byte) 0);
+                }
+            }
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
     @Override
     protected int engineUpdate(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset) throws ShortBufferException
     {
         try
         {
+            requireInitialized();
             int k = engineGetOutputSize(inputLen);
             if (output.length - outputOffset < k)
             {
@@ -405,6 +517,7 @@ class BlockCipherSpi extends CipherSpi
     {
         try
         {
+            requireInitialized();
             int len = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
             try
@@ -429,6 +542,7 @@ class BlockCipherSpi extends CipherSpi
 
         try
         {
+            requireInitialized();
             int k = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
 
             if (outputOffset + k > output.length)

@@ -133,6 +133,8 @@
 
 #define JO_MD_XOF_LEN_INVALID -102
 
+#define JO_CTX_POISONED -103
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x

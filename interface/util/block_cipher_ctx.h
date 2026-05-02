@@ -15,7 +15,8 @@
 #include "ctr_u128_t.h"
 
 #define MAX_IV_LEN 16
-#define MAX_KEY_LEN 32
+// XTS uses two AES keys concatenated, so AES-256-XTS = 64 bytes.
+#define MAX_KEY_LEN 64
 #define MAX_TAG_LEN 16
 
 typedef struct block_cipher_ctx {
@@ -35,13 +36,15 @@ typedef struct block_cipher_ctx {
     size_t tag_len;
     uint8_t tag_buffer[MAX_TAG_LEN];
     uint32_t tag_index;
+    uint8_t poisoned;
+    uint8_t initialized;
 } block_cipher_ctx;
 
 
 /*
  * Creates an empty context
  */
-block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint8_t padding, int32_t *err);
+block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint32_t padding, int32_t *err);
 
 /*
  * Destroy the block_cipher_context releasing any internal state.
@@ -89,11 +92,6 @@ int32_t block_cipher_ctx_final(
     block_cipher_ctx *ctx,
     uint8_t *output,
     size_t out_len);
-
-/*
- * Set the tag, must be called prior to calling final
- */
-int32_t block_cipher_set_tag(block_cipher_ctx *ctx, uint8_t *tag, size_t tag_len);
 
 /*
  * Return the actual size of the block cipher.

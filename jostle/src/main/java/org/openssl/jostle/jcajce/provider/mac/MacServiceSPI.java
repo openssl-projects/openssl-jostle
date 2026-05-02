@@ -117,22 +117,6 @@ public class MacServiceSPI extends MacSpi
         }
     }
 
-    private byte[] extractKeyBytes(Key key) throws InvalidKeyException
-    {
-        if (!(key instanceof SecretKey))
-        {
-            throw new InvalidKeyException("unsupported key type: " + key.getClass().getName());
-        }
-
-        byte[] encoded = key.getEncoded();
-        if (encoded == null)
-        {
-            throw new InvalidKeyException("key encoding is null");
-        }
-
-        return encoded;
-    }
-
     private static class Disposer extends NativeDisposer
     {
         Disposer(long ref)

@@ -27,8 +27,12 @@ void counter_init(ctr_u128_t *ctr, uint8_t *iv, size_t iv_len) {
         iv_len = COUNTER_SIZE;
     }
 
+
+    memset(ctr->original_counter, 0, COUNTER_SIZE);
     ctr->mag[0] = 0U;
     ctr->mag[1] = 0U;
+    ctr->rolled = 0;
+    ctr->limit = 0;
     ctr->iv_len = iv_len;
 
     if (iv_len > 8 && iv_len < COUNTER_SIZE) {

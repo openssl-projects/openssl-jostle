@@ -128,6 +128,7 @@ public enum ErrorCode
     JO_RAND_NO_RESEED(-100),
     JO_RAND_FAIL_ACCESS_BUFFER(-101),
     JO_MD_XOF_LEN_INVALID(-102),
+    JO_CTX_POISONED(-103),
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

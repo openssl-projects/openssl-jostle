@@ -218,6 +218,8 @@ public interface BlockCipherNI extends DefaultServiceNI
                 throw new IllegalBlockSizeException("data not block size aligned");
             case JO_CTR_MODE_OVERFLOW:
                 throw new IllegalStateException("ctr mode overflow");
+            case JO_CTX_POISONED:
+                throw new IllegalStateException("cipher is poisoned; create a new instance with a fresh iv");
             case JO_INVALID_CIPHER_TEXT:
                 throw new BadPaddingException("invalid cipher text");
             case JO_TAG_INVALID:
