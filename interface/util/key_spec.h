@@ -41,6 +41,8 @@
 #define KS_ED25519 20
 #define KS_ED448 24
 
+#define KS_RSA 25
+
 
 typedef struct key_spec {
     EVP_PKEY *key;

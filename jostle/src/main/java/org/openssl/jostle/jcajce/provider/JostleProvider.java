@@ -96,6 +96,7 @@ public class JostleProvider
         new ProvScryptKDF().configure(this);
         new ProvMD().configure(this);
         new ProvED().configure(this);
+        new ProvRSA().configure(this);
         new ProvMac().configure(this);
     }
 

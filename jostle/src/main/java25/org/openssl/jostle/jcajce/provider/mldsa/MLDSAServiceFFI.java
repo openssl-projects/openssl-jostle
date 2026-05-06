@@ -33,7 +33,6 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
     private static final MemorySegment generateKeyPairWithSeedFunc;
     private static final MethodHandle generateKeyPairWithSeedFuncHandle;
 
-
     private static final MemorySegment getPublicKeyFunc;
     private static final MethodHandle getPublicKeyFuncHandle;
 

@@ -36,6 +36,15 @@ import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceFFI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceFFI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherFFI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherJNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherFFI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherJNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAServiceFFI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAServiceJNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceJNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecFFI;
@@ -67,6 +76,9 @@ public class NISelector
     public static final KdfNI KdfNI;
     public static final MDServiceNI MDServiceNI;
     public static final EDServiceNI EDServiceNI;
+    public static final RSAServiceNI RSAServiceNI;
+    public static final RSAOAEPCipherNI RSAOAEPCipherNI;
+    public static final RSAPKCS1CipherNI RSAPKCS1CipherNI;
     public static final MacServiceNI MacServiceNI;
 
     static
@@ -85,6 +97,9 @@ public class NISelector
             KdfNI = new KdfNIFFI();
             MDServiceNI = new MDServiceFFI();
             EDServiceNI = new EdDSAServiceFFI();
+            RSAServiceNI = new RSAServiceFFI();
+            RSAOAEPCipherNI = new RSAOAEPCipherFFI();
+            RSAPKCS1CipherNI = new RSAPKCS1CipherFFI();
             MacServiceNI = new MacServiceFFI();
 
         }
@@ -102,6 +117,9 @@ public class NISelector
             KdfNI = new KdfNIJNI();
             MDServiceNI = new MDServiceJNI();
             EDServiceNI = new EDServiceJNI();
+            RSAServiceNI = new RSAServiceJNI();
+            RSAOAEPCipherNI = new RSAOAEPCipherJNI();
+            RSAPKCS1CipherNI = new RSAPKCS1CipherJNI();
             MacServiceNI = new MacServiceJNI();
         }
     }
