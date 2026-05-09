@@ -151,6 +151,151 @@ public class RSAPKCS1CipherTest
         Assertions.assertArrayEquals(msg, pt);
     }
 
+    /**
+     * <b>Hard guard against re-opening the Bleichenbacher padding oracle.</b>
+     *
+     * <p>OpenSSL 3.x's RSA provider enables implicit rejection by
+     * default for PKCS#1 v1.5 decryption — the
+     * {@code OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION} parameter,
+     * documented in {@code provider-asym_cipher(7)} as "Set by default
+     * in OpenSSL providers." Jostle additionally hard-codes
+     * {@code implicit-rejection = 1} in {@code rsa_pkcs1_init} so the
+     * intent is unambiguous in our source. When implicit rejection is
+     * on, decrypting malformed-but-correct-length PKCS#1 v1.5
+     * ciphertext returns a deterministic synthetic plaintext rather
+     * than throwing — the cornerstone of this provider's Bleichenbacher
+     * resistance.
+     *
+     * <p>The test asserts five properties of the synthetic output:
+     * <ol>
+     *   <li><b>No exception.</b> Decrypting tampered ciphertext must
+     *       NOT throw {@link javax.crypto.BadPaddingException}. If it
+     *       does, the oracle is OPEN.</li>
+     *   <li><b>No PKCS#1 v1.5 framing leaks through.</b> The synthetic
+     *       must NOT begin with {@code 0x00 0x02} — those are the
+     *       leading bytes of an EME-PKCS1-v1_5 encoded message
+     *       (RFC 8017 §7.2.1) that must have been stripped before
+     *       reaching the API. If the bytes appear at the start of our
+     *       result, the SPI is leaking the raw padded block — a
+     *       structural decode bug independent of (but morally similar
+     *       to) the padding oracle.</li>
+     *   <li><b>Synthetic ≠ original plaintext.</b> The synthetic must
+     *       NOT coincidentally equal the message we encrypted. A pass
+     *       here would indicate either a probability ~2<sup>-32</sup>
+     *       collision (tolerable per-trial) or an SPI bug where the
+     *       decrypt path silently returned the encrypted-and-cached
+     *       plaintext instead of the synthetic.</li>
+     *   <li><b>Determinism.</b> Decrypting the same tampered
+     *       ciphertext twice (same key) MUST produce byte-identical
+     *       synthetic. RFC-style implicit rejection derives synthetic
+     *       output via a PRF over the private key + ciphertext, so
+     *       the property is fundamental to the construction.</li>
+     *   <li><b>Distinguishability.</b> Two different tampered
+     *       ciphertexts MUST produce different synthetic outputs
+     *       (probability of accidental match is negligible). If they
+     *       collapsed to the same output the synthetic generator
+     *       would itself be the side-channel.</li>
+     * </ol>
+     *
+     * <p>If the test fails, the assertion message points at exactly
+     * the file and parameter to investigate.
+     */
+    @Test
+    public void testPKCS1_ImplicitRejection_HardGuard() throws Exception
+    {
+        byte[] original = new byte[]{0x11, 0x22, 0x33, 0x44};
+
+        Cipher enc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, sharedKeyPair.getPublic());
+        byte[] valid = enc.doFinal(original);
+
+        Cipher dec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
+
+        SecureRandom rng = new SecureRandom();
+
+        // --- Trial A: random tampering, all five assertions on result -----
+        byte[] tamperedA = valid.clone();
+        int posA = rng.nextInt(tamperedA.length);
+        tamperedA[posA] ^= (byte) (1 + rng.nextInt(255));
+
+        byte[] resultA = decryptOrFailOpen(dec, tamperedA, "Trial A, byte " + posA);
+        assertSyntheticHasNoPkcs1Framing(resultA, "Trial A");
+        Assertions.assertFalse(java.util.Arrays.equals(resultA, original),
+                "Trial A: synthetic plaintext accidentally equals the original "
+                        + "encrypted message. With implicit rejection on, the synthetic "
+                        + "is PRF-derived from key+ciphertext and should be uncorrelated "
+                        + "with the encrypted plaintext.");
+
+        // Determinism: same ciphertext + same key + same SPI must yield
+        // byte-identical synthetic on a second call.
+        byte[] resultARepeat = decryptOrFailOpen(dec, tamperedA, "Trial A repeat");
+        Assertions.assertArrayEquals(resultA, resultARepeat,
+                "Trial A: implicit-rejection synthetic must be deterministic for "
+                        + "the same (private key, ciphertext) pair. A change in synthetic "
+                        + "between calls would suggest the synthetic generator is reading "
+                        + "fresh entropy — either a non-conforming OpenSSL implementation "
+                        + "or a side-channel.");
+
+        // --- Trial B: different tampering, must produce different synthetic ---
+        byte[] tamperedB = valid.clone();
+        // Different byte position from A (mod-rotate to guarantee distinctness).
+        int posB = (posA + 1 + rng.nextInt(tamperedB.length - 1)) % tamperedB.length;
+        tamperedB[posB] ^= (byte) 0xFF;
+
+        byte[] resultB = decryptOrFailOpen(dec, tamperedB, "Trial B, byte " + posB);
+        assertSyntheticHasNoPkcs1Framing(resultB, "Trial B");
+        Assertions.assertFalse(java.util.Arrays.equals(resultA, resultB),
+                "Trials A and B produced identical synthetic plaintext from "
+                        + "different tampered ciphertexts. Implicit rejection should derive "
+                        + "uniquely from each ciphertext; an accidental collision is "
+                        + "negligible probability and a real collision implies the "
+                        + "synthetic generator is broken or absent.");
+    }
+
+    private static byte[] decryptOrFailOpen(Cipher dec, byte[] tampered, String trialLabel)
+            throws Exception
+    {
+        try
+        {
+            return dec.doFinal(tampered);
+        }
+        catch (javax.crypto.BadPaddingException bpe)
+        {
+            Assertions.fail(
+                    "BLEICHENBACHER ORACLE OPEN — implicit rejection appears to be DISABLED. "
+                            + "Decrypting malformed PKCS#1 v1.5 ciphertext threw "
+                            + "BadPaddingException instead of returning synthetic plaintext. "
+                            + "Check: (1) interface/util/rsa_pkcs1.c — the explicit "
+                            + "EVP_PKEY_CTX_set_params(\"implicit-rejection\" = 1) call must "
+                            + "still be present and the value must still be 1; (2) the "
+                            + "linked OpenSSL build (provider-asym_cipher(7) documents "
+                            + "OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION as default-on). "
+                            + "Trial: " + trialLabel + ". Underlying: " + bpe.getMessage());
+            return null; // unreachable — fail throws
+        }
+    }
+
+    private static void assertSyntheticHasNoPkcs1Framing(byte[] result, String trialLabel)
+    {
+        Assertions.assertNotNull(result, trialLabel + ": synthetic plaintext is null");
+        // The synthetic is the post-strip plaintext (the M of EM = 00 02 PS 00 M).
+        // Therefore the leading 00 02 framing markers must NOT appear at the
+        // start of the result — if they do, the framing didn't get stripped
+        // and the SPI is exposing the raw padded block.
+        if (result.length >= 2)
+        {
+            Assertions.assertFalse(
+                    result[0] == (byte) 0x00 && result[1] == (byte) 0x02,
+                    trialLabel + ": synthetic begins with PKCS#1 v1.5 type-2 framing "
+                            + "markers (0x00 0x02). The post-strip plaintext should not "
+                            + "contain those leading bytes — their presence indicates the "
+                            + "raw padded block is leaking through the API instead of being "
+                            + "decoded by EVP_PKEY_decrypt.");
+        }
+    }
+
+
     @Test
     public void testPKCS1_WrapReuseAfterWrap() throws Exception
     {

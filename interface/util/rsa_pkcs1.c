@@ -9,9 +9,11 @@
 #include "rsa_pkcs1.h"
 
 #include <string.h>
+#include <openssl/core_names.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/params.h>
 #include <openssl/rsa.h>
 
 #include "bc_err_codes.h"
@@ -112,6 +114,42 @@ int32_t rsa_pkcs1_init(rsa_pkcs1_ctx *ctx, const key_spec *key,
     if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2110);
         goto exit;
+    }
+
+    // ============================================================
+    // BLEICHENBACHER MITIGATION — explicit implicit-rejection = 1
+    // ============================================================
+    // OpenSSL 3.x's RSA provider enables implicit rejection by default
+    // (provider-asym_cipher(7) documents
+    // OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION as "Set by default in
+    // OpenSSL providers"). With it on, EVP_PKEY_decrypt on malformed
+    // PKCS#1 v1.5 padding returns a deterministic synthetic plaintext
+    // instead of signalling failure — directly mitigating
+    // Bleichenbacher-style padding oracle attacks.
+    //
+    // We set it EXPLICITLY to 1 here even though the default agrees,
+    // so the security property is unambiguous in our source rather
+    // than implicit in OpenSSL's defaults. If a future OpenSSL release
+    // ever changed the default, or this code linked against a custom
+    // provider with different defaults, the protection would still be
+    // in place.
+    //
+    // DO NOT change the value to 0 or remove this block. Doing so
+    // re-opens the Bleichenbacher oracle. The Java test
+    // RSAPKCS1CipherTest.testPKCS1_ImplicitRejection_HardGuard
+    // asserts the runtime behaviour and will fail loudly if the
+    // oracle is reopened.
+    // ============================================================
+    {
+        unsigned int implicit_rejection = 1;
+        OSSL_PARAM params[2];
+        params[0] = OSSL_PARAM_construct_uint(
+                OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION, &implicit_rejection);
+        params[1] = OSSL_PARAM_construct_end();
+        if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_CTX_set_params(pctx, params)) {
+            ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(2111);
+            goto exit;
+        }
     }
 
     ctx->pctx = pctx;
