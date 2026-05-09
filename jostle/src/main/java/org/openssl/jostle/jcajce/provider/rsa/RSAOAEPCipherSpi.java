@@ -17,6 +17,7 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.RSAKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
+import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -343,12 +344,23 @@ public class RSAOAEPCipherSpi extends CipherSpi
                 System.arraycopy(out, 0, trimmed, 0, written);
                 return trimmed;
             }
+            catch (InvalidCipherTextException e)
+            {
+                // OAEP decrypt failure (padding-check failed, ciphertext
+                // out of range, etc.). The NI surfaces a dedicated
+                // exception for this so JCE-canonical BadPaddingException
+                // is produced without inspecting the OpenSSL error queue.
+                // InvalidCipherTextException is only thrown by the OAEP
+                // NI in decrypt mode, so no opMode check needed.
+                throw (BadPaddingException) new BadPaddingException(e.getMessage()).initCause(e);
+            }
             catch (OpenSSLException e)
             {
-                // OpenSSL surfaces both "ciphertext too long for modulus"
-                // and OAEP padding check failures via the same error path.
-                // For decrypt, JCE convention is BadPaddingException; for
-                // encrypt this is closer to IllegalBlockSizeException.
+                // Encrypt-mode failure (input too long for modulus, etc.)
+                // or any non-cipher-text decrypt-mode failure. For decrypt
+                // mode, JCE convention is BadPaddingException for any
+                // decrypt failure (avoid leaking distinguishability);
+                // for encrypt this is closer to IllegalBlockSizeException.
                 if (opMode == RSAOAEPCipherNI.OP_DECRYPT)
                 {
                     throw (BadPaddingException) new BadPaddingException(e.getMessage()).initCause(e);

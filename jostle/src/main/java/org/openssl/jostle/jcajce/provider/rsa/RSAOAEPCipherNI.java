@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.rand.RandSource;
 
 /**
@@ -90,6 +91,16 @@ public interface RSAOAEPCipherNI extends DefaultServiceNI
         {
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type for RSA");
+            case JO_INVALID_CIPHER_TEXT:
+                // OAEP decrypt failure — padding-check failed or the
+                // ciphertext is structurally invalid. Surface as the
+                // dedicated InvalidCipherTextException (extends
+                // OpenSSLException, so callers that handle the parent
+                // type continue to work). The JCE SPI catches this and
+                // translates to BadPaddingException at engineDoFinal.
+                throw new InvalidCipherTextException(
+                        String.format("invalid cipher text: %s",
+                                org.openssl.jostle.jcajce.provider.OpenSSL.getOpenSSLErrors()));
             default:
         }
 

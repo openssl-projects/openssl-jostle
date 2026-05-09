@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -304,38 +305,111 @@ public class RSAOAEPCipherLimitTest
     @Test
     public void RSAOAEPCipherNI_doFinal_writesAtOffsetWithoutClobberingPrefix() throws Exception
     {
-        long ref = 0;
+        long encRef = 0;
+        long decRef = 0;
         long keyRef = 0;
         try
         {
-            ref = cipherNI.allocateCipher();
+            encRef = cipherNI.allocateCipher();
+            decRef = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
-            cipherNI.init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
+            cipherNI.init(encRef, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
             byte[] msg = {1, 2, 3, 4};
-            int needed = cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, TestUtil.RNDSrc);
+            int needed = cipherNI.doFinal(encRef, msg, 0, msg.length, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(256, needed);
 
+            // Fill the WHOLE buffer with random bytes so the prefix-intact
+            // check is against an arbitrary value (not a fixed sentinel)
+            // — exercises the bridge under realistic caller state and
+            // catches a clobbering bug regardless of the byte being
+            // overwritten. Save aside a copy of the prefix so we can
+            // compare after the call.
             int prefix = 5;
             byte[] big = new byte[needed + prefix];
-            java.util.Arrays.fill(big, 0, prefix, (byte) 0xAA);
+            new SecureRandom().nextBytes(big);
+            byte[] expectedPrefix = new byte[prefix];
+            System.arraycopy(big, 0, expectedPrefix, 0, prefix);
 
-            int written = cipherNI.doFinal(ref, msg, 0, msg.length,
+            int written = cipherNI.doFinal(encRef, msg, 0, msg.length,
                     big, prefix, TestUtil.RNDSrc);
             Assertions.assertEquals(needed, written);
 
-            for (int i = 0; i < prefix; i++)
-            {
-                Assertions.assertEquals((byte) 0xAA, big[i],
-                        "prefix byte " + i + " was clobbered");
-            }
-            Assertions.assertNotEquals((byte) 0xAA, big[prefix],
-                    "ciphertext should start at offset " + prefix);
+            // (1) Bridge contract: bytes preceding outOff must be untouched —
+            //     match the saved-aside copy byte-for-byte.
+            byte[] actualPrefix = new byte[prefix];
+            System.arraycopy(big, 0, actualPrefix, 0, prefix);
+            Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                    "prefix bytes were modified by the encryption call");
+
+            // (2) Positive functional check: the ciphertext at
+            //     big[prefix..prefix+needed] decrypts to the original
+            //     plaintext. Proves the ciphertext landed at outOff.
+            byte[] ct = new byte[needed];
+            System.arraycopy(big, prefix, ct, 0, needed);
+
+            cipherNI.init(decRef, keyRef, RSAOAEPCipherNI.OP_DECRYPT,
+                    "SHA-256", null, null, TestUtil.RNDSrc);
+            int ptLen = cipherNI.doFinal(decRef, ct, 0, ct.length,
+                    null, 0, TestUtil.RNDSrc);
+            byte[] pt = new byte[ptLen];
+            int ptWritten = cipherNI.doFinal(decRef, ct, 0, ct.length,
+                    pt, 0, TestUtil.RNDSrc);
+            byte[] trimmed = new byte[ptWritten];
+            System.arraycopy(pt, 0, trimmed, 0, ptWritten);
+            Assertions.assertArrayEquals(msg, trimmed,
+                    "ciphertext at offset " + prefix + " did not decrypt to "
+                            + "the original plaintext");
+
+            // (3) Negative functional check: a 256-byte window starting
+            //     ONE BYTE EARLIER (i.e. one byte INTO the random prefix)
+            //     must NOT decrypt to the original plaintext. This proves
+            //     the encryption wrote starting at EXACTLY outOff and no
+            //     earlier — if it had written at outOff-1 the shifted
+            //     window would actually be the real ciphertext and would
+            //     decrypt successfully.
+            byte[] shifted = new byte[needed];
+            System.arraycopy(big, prefix - 1, shifted, 0, needed);
+
+            cipherNI.init(decRef, keyRef, RSAOAEPCipherNI.OP_DECRYPT,
+                    "SHA-256", null, null, TestUtil.RNDSrc);
+            // OAEP-decrypt failure on a corrupted ciphertext surfaces as
+            // InvalidCipherTextException through the NI handleErrors
+            // translator (JO_INVALID_CIPHER_TEXT in the C layer). This is
+            // the typed exception the test wants to see — generic
+            // OpenSSLException would be wrong (might mask a genuine
+            // OpenSSL error), and a successful decrypt would mean the
+            // encryption wrote at outOff-1 instead of outOff.
+            //
+            // Note: we MUST pass a real output buffer here. The
+            // size-query path (output=null) only asks OpenSSL for the
+            // output buffer length and doesn't actually run the OAEP
+            // decode — corruption is only detected in the real decrypt
+            // call.
+            //
+            // (decRef is declared in an outer try/finally and is reassigned
+            // there; capture it in a final local for the lambda.)
+            final long decRefFinal = decRef;
+            byte[] shiftedOut = new byte[needed];
+            org.openssl.jostle.jcajce.provider.InvalidCipherTextException thrown =
+                    Assertions.assertThrows(
+                            org.openssl.jostle.jcajce.provider.InvalidCipherTextException.class,
+                            () -> cipherNI.doFinal(decRefFinal, shifted, 0, shifted.length,
+                                    shiftedOut, 0, TestUtil.RNDSrc),
+                            "ciphertext window shifted by 1 byte INTO the prefix "
+                                    + "did NOT trigger InvalidCipherTextException — "
+                                    + "encryption wrote at outOff-1 instead of at "
+                                    + "outOff=" + prefix);
+            Assertions.assertNotNull(thrown.getMessage());
+            Assertions.assertTrue(thrown.getMessage().startsWith("invalid cipher text"),
+                    "expected message prefix 'invalid cipher text', got: "
+                            + thrown.getMessage());
         }
         finally
         {
-            cipherNI.disposeCipher(ref);
+            cipherNI.disposeCipher(encRef);
+            cipherNI.disposeCipher(decRef);
             specNI.dispose(keyRef);
         }
     }

@@ -210,7 +210,11 @@ int32_t rsa_oaep_dofinal(rsa_oaep_ctx *ctx,
         rc = EVP_PKEY_decrypt(ctx->pctx, NULL, &out_required, in, in_len);
     }
     if (OPS_OPENSSL_ERROR_1 rc != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(2002);
+        // The bridge surfaces InvalidCipherTextException to
+        // NI-level callers and BadPaddingException to JCE callers.
+        int32_t base = (ctx->op_mode == RSA_OAEP_OP_DECRYPT)
+                ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        return base OPS_OFFSET_OPENSSL_ERROR_1(2002);
     }
 
     if (OPS_INT32_OVERFLOW_1 out_required > (size_t) INT32_MAX) {
@@ -233,11 +237,13 @@ int32_t rsa_oaep_dofinal(rsa_oaep_ctx *ctx,
         rc = EVP_PKEY_decrypt(ctx->pctx, out, &actual, in, in_len);
     }
     if (OPS_OPENSSL_ERROR_2 rc != 1) {
-        // For decrypt this includes "padding check failed" — the JCE
-        // surfaces that as BadPaddingException. The bridge layer maps
-        // JO_OPENSSL_ERROR to OpenSSLException with the error queue,
-        // and the SPI translates to BadPaddingException for decrypt.
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2003);
+        // InvalidCipherTextException; the JCE SPI translates that to
+        // BadPaddingException at engineDoFinal. Encrypt failures stay
+        // as JO_OPENSSL_ERROR (translated to IllegalBlockSizeException
+        // by the SPI).
+        int32_t base = (ctx->op_mode == RSA_OAEP_OP_DECRYPT)
+                ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        return base OPS_OFFSET_OPENSSL_ERROR_2(2003);
     }
 
     if (actual > (size_t) INT32_MAX) {

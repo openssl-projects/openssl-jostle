@@ -382,6 +382,107 @@ public class RSATest
     }
 
 
+    /**
+     * High-level (JCE Signature API) variant of the offset-write test
+     * that lives in {@link RSALimitTest} at the NI layer. Validates the
+     * full SPI path:
+     * <ol>
+     *   <li>fill the output buffer with random bytes (representing
+     *       arbitrary caller state, not a chosen sentinel);</li>
+     *   <li>sign into the buffer at {@code outOff = prefix} via
+     *       {@link Signature#sign(byte[], int, int)};</li>
+     *   <li>compare the prefix region against a saved-aside copy to
+     *       confirm the bridge didn't write before {@code outOff};</li>
+     *   <li>extract the signature from {@code big[prefix..prefix+sigLen]}
+     *       and verify it succeeds against the original message;</li>
+     *   <li>extract a 256-byte window starting ONE BYTE EARLIER (one
+     *       byte INTO the random prefix) and verify it does NOT
+     *       succeed — this proves the signature wrote at exactly
+     *       {@code outOff}, not {@code outOff - 1}.</li>
+     * </ol>
+     */
+    @Test
+    public void testPkcs1_signWritesAtOffsetWithoutClobberingPrefix_jce() throws Exception
+    {
+        byte[] msg = randomMessage(64);
+
+        Signature signer = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(sharedKeyPair.getPrivate());
+        signer.update(msg);
+
+        // Sign once with a fresh signer to learn the signature length.
+        byte[] firstSig = signer.sign();
+        int sigLen = firstSig.length;
+        Assertions.assertEquals(256, sigLen, "2048-bit modulus → 256-byte signature");
+
+        // Re-init for the offset-write call.
+        signer.initSign(sharedKeyPair.getPrivate());
+        signer.update(msg);
+
+        int prefix = 7;
+        byte[] big = new byte[sigLen + prefix];
+        new SecureRandom().nextBytes(big);
+        byte[] expectedPrefix = new byte[prefix];
+        System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+
+        // JCE offset-aware sign: writes the signature into big starting
+        // at position `prefix`, returning the byte count written.
+        int written = signer.sign(big, prefix, sigLen);
+        Assertions.assertEquals(sigLen, written);
+
+        // (1) Bridge contract: prefix bytes preceding outOff must be
+        //     untouched.
+        byte[] actualPrefix = new byte[prefix];
+        System.arraycopy(big, 0, actualPrefix, 0, prefix);
+        Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                "prefix bytes were modified by the JCE sign(out, offset, len) call");
+
+        // (2) Positive functional check: the signature at
+        //     big[prefix..prefix+sigLen] verifies against the original
+        //     message. PKCS#1 v1.5 is deterministic so it also matches
+        //     the firstSig we computed earlier.
+        byte[] sigFromBig = new byte[sigLen];
+        System.arraycopy(big, prefix, sigFromBig, 0, sigLen);
+        Assertions.assertArrayEquals(firstSig, sigFromBig,
+                "signature at offset " + prefix + " differs from the same "
+                        + "message signed without an offset (PKCS#1 v1.5 must "
+                        + "be deterministic)");
+
+        Signature verifier = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(sharedKeyPair.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sigFromBig),
+                "signature at offset " + prefix + " did not verify against "
+                        + "the original message");
+
+        // (3) Negative boundary check: a sigLen-byte window starting ONE
+        //     BYTE EARLIER (one byte INTO the random prefix) must NOT
+        //     verify. Probability that 256 random bytes are a valid
+        //     signature for the given message is ~2^-2048.
+        byte[] shiftedSig = new byte[sigLen];
+        System.arraycopy(big, prefix - 1, shiftedSig, 0, sigLen);
+
+        verifier.initVerify(sharedKeyPair.getPublic());
+        verifier.update(msg);
+        boolean shiftedVerified;
+        try
+        {
+            shiftedVerified = verifier.verify(shiftedSig);
+        }
+        catch (java.security.SignatureException expected)
+        {
+            // OpenSSL may surface structural errors (e.g. the BER
+            // decode fails) as an exception via the verify wrapper —
+            // that's also a correct rejection.
+            shiftedVerified = false;
+        }
+        Assertions.assertFalse(shiftedVerified,
+                "signature window shifted by 1 byte INTO the prefix "
+                        + "verified successfully — sign() wrote at outOff-1 "
+                        + "instead of at outOff=" + prefix);
+    }
+
+
     // -----------------------------------------------------------------
     // RSASSA-PSS
     // -----------------------------------------------------------------

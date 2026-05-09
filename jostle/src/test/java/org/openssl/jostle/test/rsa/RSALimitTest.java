@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -1168,41 +1169,90 @@ public class RSALimitTest
     @Test
     public void RSAServiceNI_sign_writesAtOffsetWithoutClobberingPrefix() throws Exception
     {
-        long rsaRef = 0;
+        long signRef = 0;
+        long verifyRef = 0;
         long keyRef = 0;
         try
         {
-            rsaRef = rsaServiceNI.allocateSigner();
+            signRef = rsaServiceNI.allocateSigner();
+            verifyRef = rsaServiceNI.allocateSigner();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
-            rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
-                    RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
-            rsaServiceNI.update(rsaRef, new byte[]{1, 2, 3}, 0, 3);
 
-            int needed = rsaServiceNI.sign(rsaRef, null, 0, TestUtil.RNDSrc);
+            byte[] msg = new byte[]{1, 2, 3};
+
+            rsaServiceNI.initSign(signRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
+            rsaServiceNI.update(signRef, msg, 0, msg.length);
+
+            int needed = rsaServiceNI.sign(signRef, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(256, needed);
 
-            // Buffer is sig.length + offset; mark the prefix with 0xAA
-            // so any zeroing of those bytes by the bridge is visible.
+            // Fill the WHOLE buffer with random bytes; save aside a copy
+            // of the prefix so the post-sign comparison is against an
+            // arbitrary value rather than a fixed sentinel.
             int prefix = 7;
             byte[] big = new byte[needed + prefix];
-            java.util.Arrays.fill(big, 0, prefix, (byte) 0xAA);
+            new SecureRandom().nextBytes(big);
+            byte[] expectedPrefix = new byte[prefix];
+            System.arraycopy(big, 0, expectedPrefix, 0, prefix);
 
-            int written = rsaServiceNI.sign(rsaRef, big, prefix, TestUtil.RNDSrc);
+            int written = rsaServiceNI.sign(signRef, big, prefix, TestUtil.RNDSrc);
             Assertions.assertEquals(needed, written);
 
-            // Prefix bytes must be untouched.
-            for (int i = 0; i < prefix; i++)
+            // (1) Bridge contract: bytes preceding outOff must be untouched.
+            byte[] actualPrefix = new byte[prefix];
+            System.arraycopy(big, 0, actualPrefix, 0, prefix);
+            Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                    "prefix bytes were modified by the sign call");
+
+            // (2) Positive functional check: the signature at
+            //     big[prefix..prefix+needed] verifies against the
+            //     original message.
+            byte[] sig = new byte[needed];
+            System.arraycopy(big, prefix, sig, 0, needed);
+
+            rsaServiceNI.initVerify(verifyRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PKCS1, null, 0);
+            rsaServiceNI.update(verifyRef, msg, 0, msg.length);
+            int verifyResult = rsaServiceNI.verify(verifyRef, sig, sig.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), verifyResult,
+                    "signature at offset " + prefix + " did not verify against "
+                            + "the original message");
+
+            // (3) Negative functional check: a 256-byte window starting
+            //     ONE BYTE EARLIER (one byte INTO the random prefix) must
+            //     NOT verify. The probability that a window of 256 random
+            //     bytes is a valid PKCS#1 v1.5 signature for the given
+            //     message is ~2^-2048 — verification must return JO_FAIL.
+            //     If it returned SUCCESS the sign call had written at
+            //     outOff-1 instead of outOff.
+            byte[] shiftedSig = new byte[needed];
+            System.arraycopy(big, prefix - 1, shiftedSig, 0, needed);
+
+            rsaServiceNI.initVerify(verifyRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PKCS1, null, 0);
+            rsaServiceNI.update(verifyRef, msg, 0, msg.length);
+            int shiftedResult;
+            try
             {
-                Assertions.assertEquals((byte) 0xAA, big[i],
-                        "prefix byte " + i + " was clobbered");
+                shiftedResult = rsaServiceNI.verify(verifyRef, shiftedSig, shiftedSig.length);
             }
-            // The signature bytes must be at offset `prefix`.
-            Assertions.assertNotEquals((byte) 0xAA, big[prefix],
-                    "signature should start at offset " + prefix);
+            catch (Exception expected)
+            {
+                // EVP_DigestVerifyFinal can return a structural error (-1)
+                // for malformed signatures; the wrapper translates that
+                // to OpenSSLException. That's also a correct rejection.
+                shiftedResult = ErrorCode.JO_FAIL.getCode();
+            }
+            Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), shiftedResult,
+                    "signature window shifted by 1 byte INTO the prefix "
+                            + "verified successfully — sign wrote at outOff-1 "
+                            + "instead of at outOff=" + prefix);
         }
         finally
         {
-            rsaServiceNI.disposeSigner(rsaRef);
+            rsaServiceNI.disposeSigner(signRef);
+            rsaServiceNI.disposeSigner(verifyRef);
             specNI.dispose(keyRef);
         }
     }

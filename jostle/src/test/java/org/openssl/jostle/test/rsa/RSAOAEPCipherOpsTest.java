@@ -359,6 +359,58 @@ public class RSAOAEPCipherOpsTest
         }
     }
 
+    @Test
+    public void RSAOAEPCipher_doFinal_decryptFailure_returnsInvalidCipherText() throws Exception
+    {
+        // OPS-driven assertion of the decrypt-mode error code split:
+        // when EVP_PKEY_decrypt fails, the C layer returns
+        // JO_INVALID_CIPHER_TEXT (-21) instead of JO_OPENSSL_ERROR (-2).
+        // The bridge translates to InvalidCipherTextException; the SPI
+        // then to BadPaddingException for JCE callers.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long encRef = 0;
+        long decRef = 0;
+        long keyRef = 0;
+        try
+        {
+            encRef = cipherNI.allocateCipher();
+            decRef = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            cipherNI.init(encRef, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
+                    "SHA-256", null, null, TestUtil.RNDSrc);
+
+            // Produce a real ciphertext to feed to the decrypt path —
+            // structure must be valid so the size-query path succeeds
+            // before the OPS flag trips the second EVP_PKEY_decrypt.
+            int needed = cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3,
+                    null, 0, TestUtil.RNDSrc);
+            byte[] ct = new byte[needed];
+            cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3, ct, 0, TestUtil.RNDSrc);
+
+            cipherNI.init(decRef, keyRef, RSAOAEPCipherNI.OP_DECRYPT,
+                    "SHA-256", null, null, TestUtil.RNDSrc);
+            int sizeQuery = cipherNI.doFinal(decRef, ct, 0, ct.length,
+                    null, 0, TestUtil.RNDSrc);
+            byte[] pt = new byte[sizeQuery];
+
+            OpenSSL.getOpenSSLErrors(); // purge
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            // JO_INVALID_CIPHER_TEXT (-21) + offset(-2003) = -2024.
+            int code = cipherNI.ni_doFinal(decRef, ct, 0, ct.length,
+                    pt, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(-2024, code,
+                    "decrypt-mode OPS failure must surface JO_INVALID_CIPHER_TEXT-based code");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            cipherNI.disposeCipher(encRef);
+            cipherNI.disposeCipher(decRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
 
     // -----------------------------------------------------------------
     // doFinal — input/output access faults (JNI only)

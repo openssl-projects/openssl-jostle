@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -234,36 +235,98 @@ public class RSAPKCS1CipherLimitTest
     @Test
     public void RSAPKCS1CipherNI_doFinal_writesAtOffsetWithoutClobberingPrefix() throws Exception
     {
-        long ref = 0;
+        long encRef = 0;
+        long decRef = 0;
         long keyRef = 0;
         try
         {
-            ref = cipherNI.allocateCipher();
+            encRef = cipherNI.allocateCipher();
+            decRef = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
-            cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
+            cipherNI.init(encRef, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
             byte[] msg = {1, 2, 3, 4};
-            int needed = cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, TestUtil.RNDSrc);
+            int needed = cipherNI.doFinal(encRef, msg, 0, msg.length, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(256, needed);
 
+            // Fill the WHOLE buffer with random bytes; save aside a copy
+            // of the prefix so the post-encryption comparison is against
+            // an arbitrary value rather than a fixed sentinel.
             int prefix = 5;
             byte[] big = new byte[needed + prefix];
-            java.util.Arrays.fill(big, 0, prefix, (byte) 0xAA);
+            new SecureRandom().nextBytes(big);
+            byte[] expectedPrefix = new byte[prefix];
+            System.arraycopy(big, 0, expectedPrefix, 0, prefix);
 
-            int written = cipherNI.doFinal(ref, msg, 0, msg.length,
+            int written = cipherNI.doFinal(encRef, msg, 0, msg.length,
                     big, prefix, TestUtil.RNDSrc);
             Assertions.assertEquals(needed, written);
 
-            for (int i = 0; i < prefix; i++)
+            // (1) Bridge contract: bytes preceding outOff must be untouched.
+            byte[] actualPrefix = new byte[prefix];
+            System.arraycopy(big, 0, actualPrefix, 0, prefix);
+            Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                    "prefix bytes were modified by the encryption call");
+
+            // (2) Positive functional check: ciphertext at
+            //     big[prefix..prefix+needed] decrypts to the original
+            //     plaintext.
+            byte[] ct = new byte[needed];
+            System.arraycopy(big, prefix, ct, 0, needed);
+
+            cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
+            int ptLen = cipherNI.doFinal(decRef, ct, 0, ct.length,
+                    null, 0, TestUtil.RNDSrc);
+            byte[] pt = new byte[ptLen];
+            int ptWritten = cipherNI.doFinal(decRef, ct, 0, ct.length,
+                    pt, 0, TestUtil.RNDSrc);
+            byte[] trimmed = new byte[ptWritten];
+            System.arraycopy(pt, 0, trimmed, 0, ptWritten);
+            Assertions.assertArrayEquals(msg, trimmed,
+                    "ciphertext at offset " + prefix + " did not decrypt to "
+                            + "the original plaintext");
+
+            // (3) Negative functional check: a 256-byte window starting
+            //     ONE BYTE EARLIER (i.e. one byte INTO the random prefix)
+            //     must NOT decrypt to the original plaintext. With
+            //     OpenSSL's implicit-rejection enabled, decryption of a
+            //     malformed ciphertext returns deterministic synthetic
+            //     plaintext rather than throwing — which can never equal
+            //     the original 4-byte message except by negligible chance.
+            //     If the SPI had written at outOff-1 the shifted window
+            //     would actually be the real ciphertext and would decrypt
+            //     to msg.
+            byte[] shifted = new byte[needed];
+            System.arraycopy(big, prefix - 1, shifted, 0, needed);
+
+            boolean shiftedDecryptedToOriginal = false;
+            try
             {
-                Assertions.assertEquals((byte) 0xAA, big[i],
-                        "prefix byte " + i + " was clobbered");
+                cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
+                int sLen = cipherNI.doFinal(decRef, shifted, 0, shifted.length,
+                        null, 0, TestUtil.RNDSrc);
+                byte[] sPt = new byte[sLen];
+                int sWritten = cipherNI.doFinal(decRef, shifted, 0, shifted.length,
+                        sPt, 0, TestUtil.RNDSrc);
+                byte[] sTrimmed = new byte[sWritten];
+                System.arraycopy(sPt, 0, sTrimmed, 0, sWritten);
+                shiftedDecryptedToOriginal = java.util.Arrays.equals(msg, sTrimmed);
             }
-            Assertions.assertNotEquals((byte) 0xAA, big[prefix]);
+            catch (Exception expected)
+            {
+                // Some shifted windows fail structurally (e.g. ciphertext > n)
+                // before the implicit-rejection path runs; that's also a
+                // correct outcome.
+            }
+            Assertions.assertFalse(shiftedDecryptedToOriginal,
+                    "ciphertext window shifted by 1 byte INTO the prefix "
+                            + "decrypted to the original plaintext — encryption "
+                            + "wrote at outOff-1 instead of at outOff=" + prefix);
         }
         finally
         {
-            cipherNI.disposeCipher(ref);
+            cipherNI.disposeCipher(encRef);
+            cipherNI.disposeCipher(decRef);
             specNI.dispose(keyRef);
         }
     }
