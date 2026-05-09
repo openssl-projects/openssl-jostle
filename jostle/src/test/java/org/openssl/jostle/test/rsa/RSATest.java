@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
@@ -155,6 +156,111 @@ public class RSATest
         }
     }
 
+    /**
+     * Modulus size below the project floor (1024 bits) is rejected on
+     * both the int-only and AlgorithmParameterSpec init surfaces. The
+     * floor exists because RSA-768 was factored in 2010 and RSA-829 in
+     * 2020 — anything below 1024 bits is broken cryptographically.
+     */
+    @Test
+    public void testKeyPairGenerator_rejectsKeySizeBelowMin() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        for (int badSize : new int[]{0, 1, 511, 512, 768, 1023})
+        {
+            try
+            {
+                kpg.initialize(badSize);
+                Assertions.fail("should have rejected key size " + badSize);
+            }
+            catch (java.security.InvalidParameterException expected) {}
+
+            try
+            {
+                kpg.initialize(new RSAKeyGenParameterSpec(badSize, RSAKeyGenParameterSpec.F4));
+                Assertions.fail("should have rejected key size " + badSize + " via spec");
+            }
+            catch (InvalidAlgorithmParameterException expected) {}
+        }
+    }
+
+    /**
+     * Modulus size above the project ceiling (16384 bits) is rejected.
+     * The ceiling exists because RSA keygen runtime is O(bits<sup>3</sup>);
+     * a request for, say, 1,000,000 bits would never complete and could
+     * exhaust memory. Provides DoS protection at the JCA boundary.
+     */
+    @Test
+    public void testKeyPairGenerator_rejectsKeySizeAboveMax() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        for (int badSize : new int[]{16385, 32768, 100_000, Integer.MAX_VALUE})
+        {
+            try
+            {
+                kpg.initialize(badSize);
+                Assertions.fail("should have rejected key size " + badSize);
+            }
+            catch (java.security.InvalidParameterException expected) {}
+
+            try
+            {
+                kpg.initialize(new RSAKeyGenParameterSpec(badSize, RSAKeyGenParameterSpec.F4));
+                Assertions.fail("should have rejected key size " + badSize + " via spec");
+            }
+            catch (InvalidAlgorithmParameterException expected) {}
+        }
+    }
+
+    /**
+     * Modulus size at the exact bounds is accepted. Sanity-check that
+     * the boundary check is inclusive on both ends. (We don't actually
+     * run keygen for 16384 bits — that's slow — but we DO run keygen
+     * at 1024 to confirm the lower bound works end-to-end.)
+     */
+    @Test
+    public void testKeyPairGenerator_acceptsBoundaryKeySizes() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+
+        // Lower bound — exercise full keygen.
+        kpg.initialize(1024);
+        Assertions.assertNotNull(kpg.generateKeyPair());
+
+        // Upper bound — initialize only (skip keygen for runtime).
+        Assertions.assertDoesNotThrow(() ->
+                kpg.initialize(new RSAKeyGenParameterSpec(16384, RSAKeyGenParameterSpec.F4)));
+    }
+
+    /**
+     * Even public exponent is rejected. Per RSA, e must be coprime to
+     * phi(n); for any RSA modulus phi(n) is even, so any even e shares
+     * the factor 2 and produces a structurally broken key. Surface as
+     * a typed exception with a clear message rather than letting it
+     * propagate to OpenSSL.
+     */
+    @Test
+    public void testKeyPairGenerator_rejectsEvenPublicExponent() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        for (BigInteger evenE : new BigInteger[]{
+                BigInteger.valueOf(4),
+                BigInteger.valueOf(6),
+                BigInteger.valueOf(65536)})
+        {
+            try
+            {
+                kpg.initialize(new RSAKeyGenParameterSpec(2048, evenE));
+                Assertions.fail("should have rejected even exponent " + evenE);
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertTrue(e.getMessage().contains("must be odd"),
+                        "expected 'must be odd' in message, got: " + e.getMessage());
+            }
+        }
+    }
+
 
     // -----------------------------------------------------------------
     // PKCS#1 v1.5 signature round-trips
@@ -265,7 +371,7 @@ public class RSATest
             signer.update(msg);
             byte[] sig = signer.sign();
 
-            byte[] tampered = msg.clone();
+            byte[] tampered = Arrays.clone(msg);
             tampered[42] ^= 1;
 
             Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
@@ -551,7 +657,7 @@ public class RSATest
 
         // Bad sig over msgB: ensure the SPI's reInit() clears state so
         // a previously-cached "true" cannot leak across calls.
-        byte[] tampered = sigB.clone();
+        byte[] tampered = Arrays.clone(sigB);
         tampered[0] ^= 0x01;
         verifier.update(msgB);
         Assertions.assertFalse(verifier.verify(tampered),

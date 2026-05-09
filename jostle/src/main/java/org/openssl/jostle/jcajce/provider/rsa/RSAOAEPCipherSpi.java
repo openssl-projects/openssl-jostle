@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -524,8 +525,10 @@ public class RSAOAEPCipherSpi extends CipherSpi
             byte[] v = ((PSource.PSpecified) pSource).getValue();
             // PSpecified.DEFAULT exposes a zero-length value — treat
             // as "no label" rather than allocating an empty array
-            // through to the native side.
-            labelBytes = (v == null || v.length == 0) ? null : v.clone();
+            // through to the native side. Arrays.clone() is null-safe
+            // (the project-standard helper) so a future contract change
+            // returning null doesn't NPE here.
+            labelBytes = (v == null || v.length == 0) ? null : Arrays.clone(v);
         }
         else if (pSource != null)
         {

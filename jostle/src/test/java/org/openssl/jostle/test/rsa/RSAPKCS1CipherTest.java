@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -218,9 +219,23 @@ public class RSAPKCS1CipherTest
 
         SecureRandom rng = new SecureRandom();
 
-        // --- Trial A: random tampering, all five assertions on result -----
-        byte[] tamperedA = valid.clone();
-        int posA = rng.nextInt(tamperedA.length);
+        // Tamper positions are restricted to [1, length-1]. Tampering byte 0
+        // (the most-significant byte of the 2048-bit ciphertext) has a high
+        // probability of pushing the integer value above the modulus n, at
+        // which point OpenSSL rejects the ciphertext STRUCTURALLY ("data too
+        // large for modulus") BEFORE running the PKCS#1 v1.5 padding check.
+        // Implicit rejection only fires for padding failures, not structural
+        // ones — so a byte-0 tamper produces BadPaddingException even on a
+        // healthy implementation, and would falsely trigger "ORACLE OPEN".
+        // Bytes 1..length-1 cannot push the value past n (the change is
+        // bounded by 256^(length-1-pos) << n) so they always reach the
+        // padding check, where implicit rejection applies.
+        final int posLowerBound = 1;
+        final int posRange = valid.length - posLowerBound;
+
+        // --- Trial A: random tampering, all assertions on result -----
+        byte[] tamperedA = Arrays.clone(valid);
+        int posA = posLowerBound + rng.nextInt(posRange);
         tamperedA[posA] ^= (byte) (1 + rng.nextInt(255));
 
         byte[] resultA = decryptOrFailOpen(dec, tamperedA, "Trial A, byte " + posA);
@@ -242,9 +257,14 @@ public class RSAPKCS1CipherTest
                         + "or a side-channel.");
 
         // --- Trial B: different tampering, must produce different synthetic ---
-        byte[] tamperedB = valid.clone();
-        // Different byte position from A (mod-rotate to guarantee distinctness).
-        int posB = (posA + 1 + rng.nextInt(tamperedB.length - 1)) % tamperedB.length;
+        byte[] tamperedB = Arrays.clone(valid);
+        // Different byte position from A, also in [1, length-1].
+        int posB;
+        do
+        {
+            posB = posLowerBound + rng.nextInt(posRange);
+        }
+        while (posB == posA);
         tamperedB[posB] ^= (byte) 0xFF;
 
         byte[] resultB = decryptOrFailOpen(dec, tamperedB, "Trial B, byte " + posB);
@@ -266,6 +286,25 @@ public class RSAPKCS1CipherTest
         }
         catch (javax.crypto.BadPaddingException bpe)
         {
+            // If the underlying OpenSSL message is "data too large for
+            // modulus" the failure is STRUCTURAL (c >= n), not a padding
+            // failure — and implicit rejection deliberately does not fire
+            // for structural rejections. The hard guard restricts
+            // tampering to bytes 1..length-1 specifically to avoid this
+            // case; if it ever fires here, the test code that picks the
+            // tamper position is broken (rare flake), not the oracle.
+            String underlying = bpe.getMessage() == null ? "" : bpe.getMessage();
+            if (underlying.contains("data too large for modulus"))
+            {
+                Assertions.fail(
+                        "Tampered ciphertext value exceeded the modulus n — this is a "
+                                + "STRUCTURAL rejection by OpenSSL, not a padding failure, and "
+                                + "is independent of the implicit-rejection setting. The test "
+                                + "should not have tampered byte 0 (the only position where this "
+                                + "is realistically possible); check posLowerBound. "
+                                + "Trial: " + trialLabel + ". Underlying: " + underlying);
+                return null;
+            }
             Assertions.fail(
                     "BLEICHENBACHER ORACLE OPEN — implicit rejection appears to be DISABLED. "
                             + "Decrypting malformed PKCS#1 v1.5 ciphertext threw "
@@ -275,7 +314,7 @@ public class RSAPKCS1CipherTest
                             + "still be present and the value must still be 1; (2) the "
                             + "linked OpenSSL build (provider-asym_cipher(7) documents "
                             + "OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION as default-on). "
-                            + "Trial: " + trialLabel + ". Underlying: " + bpe.getMessage());
+                            + "Trial: " + trialLabel + ". Underlying: " + underlying);
             return null; // unreachable — fail throws
         }
     }
@@ -605,7 +644,7 @@ public class RSAPKCS1CipherTest
         byte[] ct = enc.doFinal(msg);
 
         // Flip a byte in the middle of the ciphertext.
-        byte[] tampered = ct.clone();
+        byte[] tampered = Arrays.clone(ct);
         tampered[100] ^= 0x42;
 
         Cipher dec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
