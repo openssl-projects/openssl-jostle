@@ -171,7 +171,19 @@ public class RSAOAEPCipherSpi extends CipherSpi
         // RSA outputs are bounded by the modulus size in both directions.
         // Decrypt outputs are smaller in practice (= inputLen - 2*hash - 2)
         // but returning modulusBytes is the safe upper bound.
-        return modulusBytes == 0 ? inputLen + 64 : modulusBytes;
+        //
+        // JCE Cipher.getOutputSize already throws IllegalStateException
+        // when the cipher isn't initialised, so this method is only
+        // invoked post-init via the JCE entry point (modulusBytes is
+        // populated by engineInit). A direct SPI invocation pre-init
+        // would otherwise return a bogus value derived from inputLen
+        // (e.g. inputLen + 64 had overflow risk for inputLen near
+        // INT_MAX); reject explicitly to match the JCE convention.
+        if (modulusBytes == 0)
+        {
+            throw new IllegalStateException("cipher not initialised");
+        }
+        return modulusBytes;
     }
 
     @Override

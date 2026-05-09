@@ -123,7 +123,17 @@ public class RSAPKCS1CipherSpi extends CipherSpi
     @Override
     protected int engineGetOutputSize(int inputLen)
     {
-        return modulusBytes == 0 ? inputLen + 64 : modulusBytes;
+        // RSA outputs are bounded by the modulus size in both directions.
+        // JCE Cipher.getOutputSize already throws IllegalStateException
+        // when the cipher isn't initialised, so this method is only
+        // invoked post-init (modulusBytes is populated by engineInit).
+        // Reject explicitly if a direct SPI invocation reaches this
+        // method pre-init, rather than returning a bogus value.
+        if (modulusBytes == 0)
+        {
+            throw new IllegalStateException("cipher not initialised");
+        }
+        return modulusBytes;
     }
 
     @Override
