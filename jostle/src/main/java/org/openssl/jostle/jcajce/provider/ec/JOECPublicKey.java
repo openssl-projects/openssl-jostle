@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
+import org.openssl.jostle.jcajce.interfaces.ECKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -20,7 +21,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 
-class JOECPublicKey extends AsymmetricKeyImpl implements ECPublicKey, OSSLKey
+class JOECPublicKey extends AsymmetricKeyImpl implements ECPublicKey, ECKey, OSSLKey
 {
     JOECPublicKey(PKEYKeySpec spec)
     {

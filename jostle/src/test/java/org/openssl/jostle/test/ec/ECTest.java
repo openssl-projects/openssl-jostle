@@ -36,7 +36,10 @@ import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 /**
@@ -336,15 +339,16 @@ public class ECTest
     }
 
     /**
-     * TODO Phase 1.5: BC's strict EC PKCS#8 parser doesn't accept
-     * OpenSSL 3.x's default emission. Evaluate whether to add an
-     * encoding-mode hint to {@code PrivateKeyOptions} so the OpenSSL
-     * side emits the SEC1-wrapped form BC expects, or accept that
-     * users wanting BC interop on EC private keys re-encode through
-     * the public-key path. Public-key X.509 interop already works
-     * (see {@link #testKeyEncoding_X509_BCInterop()}).
+     * BC's EC KeyFactory is strict about the PKCS#8 structure — it
+     * rejects the legacy SEC1 ECPrivateKey form that OpenSSL's
+     * {@code i2d_PrivateKey_bio} would emit by default. Jostle's
+     * encoder routes EC keys through {@code OSSL_ENCODER} with
+     * {@code structure="PrivateKeyInfo"} to produce a properly-wrapped
+     * PKCS#8 PrivateKeyInfo (with the SEC1 ECPrivateKey nested inside
+     * the OCTET STRING). This test confirms the round-trip works in
+     * both directions.
      */
-    // @Test
+    @Test
     public void testKeyEncoding_PKCS8_BCInterop() throws Exception
     {
         for (String curve : STANDARD_CURVES)
@@ -355,6 +359,19 @@ public class ECTest
             joKpg.initialize(new ECGenParameterSpec(curve));
             PrivateKey joPriv = joKpg.generateKeyPair().getPrivate();
             byte[] joEncoded = joPriv.getEncoded();
+
+            // Sanity: the encoded form starts with PKCS#8 version 0,
+            // not SEC1 version 1. Catches a regression in the encoder
+            // path that would silently revert to legacy emission.
+            // First three bytes: outer SEQUENCE tag + length (1 or 2
+            // bytes) + INTEGER tag, so byte[3] holds the version
+            // length and byte[4] the version itself when the SEQUENCE
+            // length is short-form. For the 3-byte form (length 0x81 LL),
+            // shift everything by one. We just check both possibilities.
+            int verIdx = (joEncoded[1] & 0x80) != 0 ? 5 : 4;
+            Assertions.assertEquals(0, joEncoded[verIdx],
+                    curve + ": Jostle PKCS#8 didn't start with version 0 — "
+                            + "SEC1 ECPrivateKey leaked through to getEncoded()");
 
             KeyFactory bcKf = KeyFactory.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
             PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(joEncoded));
@@ -373,6 +390,36 @@ public class ECTest
     // -----------------------------------------------------------------
     // Provider plumbing: OID alias + getInstance via OID
     // -----------------------------------------------------------------
+
+    /**
+     * Jostle EC keys implement {@code org.openssl.jostle.jcajce.interfaces.ECKey},
+     * the project marker that lets callers handling keys from multiple
+     * providers (SunEC, BC, Jostle) discriminate Jostle-typed keys via
+     * {@code instanceof}. Sits parallel to the other Jostle marker
+     * interfaces ({@code RSAKey}, {@code EdDSAKey}, etc.).
+     */
+    @Test
+    public void testProvider_keysImplementJostleECKeyMarker() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair kp = kpg.generateKeyPair();
+
+        Assertions.assertTrue(
+                kp.getPublic() instanceof org.openssl.jostle.jcajce.interfaces.ECKey,
+                "Jostle public EC key should implement Jostle's ECKey marker");
+        Assertions.assertTrue(
+                kp.getPrivate() instanceof org.openssl.jostle.jcajce.interfaces.ECKey,
+                "Jostle private EC key should implement Jostle's ECKey marker");
+
+        // The marker extends java.security.interfaces.ECKey too — sanity
+        // check that's still true (would catch a refactor that dropped
+        // the standard interface from the marker definition).
+        Assertions.assertTrue(
+                kp.getPublic() instanceof java.security.interfaces.ECKey);
+        Assertions.assertTrue(
+                kp.getPrivate() instanceof java.security.interfaces.ECKey);
+    }
 
     @Test
     public void testProvider_getInstanceByOID() throws Exception
@@ -493,6 +540,131 @@ public class ECTest
         Assertions.assertTrue(verifier.verify(sig),
                 "rebuilt public key did not verify a signature from the original private key");
     }
+
+    // -----------------------------------------------------------------
+    // ECKeyFactorySpi rejection paths
+    // -----------------------------------------------------------------
+
+    /**
+     * The SPI must reject foreign KeySpec types (e.g. an RSA
+     * public-key spec passed to the EC factory) with
+     * {@link InvalidKeySpecException}. Important for JCE provider-chain
+     * fallback semantics.
+     */
+    @Test
+    public void testKeyFactory_engineGeneratePublic_rejectsForeignSpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        RSAPublicKeySpec rsaSpec = new RSAPublicKeySpec(
+                BigInteger.valueOf(0xC0FFEEL), BigInteger.valueOf(65537));
+        try
+        {
+            kf.generatePublic(rsaSpec);
+            Assertions.fail("expected InvalidKeySpecException for RSAPublicKeySpec");
+        }
+        catch (InvalidKeySpecException expected) {}
+    }
+
+    @Test
+    public void testKeyFactory_engineGeneratePrivate_rejectsForeignSpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            // Passing an X.509 public-key spec to generatePrivate is the
+            // wrong kind of bytes — must surface as InvalidKeySpecException.
+            kf.generatePrivate(new X509EncodedKeySpec(new byte[16]));
+            Assertions.fail("expected InvalidKeySpecException");
+        }
+        catch (InvalidKeySpecException expected) {}
+    }
+
+    /**
+     * {@code engineGetKeySpec} with a class the SPI doesn't recognise
+     * must throw {@link InvalidKeySpecException}, not silently return
+     * {@code null} or a wrong-type cast.
+     */
+    @Test
+    public void testKeyFactory_engineGetKeySpec_rejectsUnsupportedSpecClass() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair kp = kpg.generateKeyPair();
+
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        // KeySpec is the base interface and not a concrete spec class;
+        // there's no built-in conversion from JOECPublicKey to that.
+        // Use a custom KeySpec subtype to force the unsupported branch.
+        class CustomSpec implements KeySpec {}
+        try
+        {
+            kf.getKeySpec(kp.getPublic(), CustomSpec.class);
+            Assertions.fail("expected InvalidKeySpecException for unsupported spec class");
+        }
+        catch (InvalidKeySpecException expected) {}
+
+        try
+        {
+            kf.getKeySpec(kp.getPrivate(), CustomSpec.class);
+            Assertions.fail("expected InvalidKeySpecException for unsupported spec class");
+        }
+        catch (InvalidKeySpecException expected) {}
+    }
+
+    /**
+     * {@code engineGetKeySpec} with a key whose class the SPI doesn't
+     * recognise (e.g. a BC EC key, or a foreign key wrapper) must
+     * throw {@link InvalidKeySpecException}.
+     */
+    @Test
+    public void testKeyFactory_engineGetKeySpec_rejectsForeignKey() throws Exception
+    {
+        // Generate an EC key with BC and ask Jostle's KeyFactory to
+        // extract a spec from it. BC's ECPublicKey is not a JOECPublicKey,
+        // so the SPI's instanceof checks fall through.
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
+        bcKpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        KeyFactory joKf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            joKf.getKeySpec(bcKp.getPublic(), ECPublicKeySpec.class);
+            Assertions.fail("expected InvalidKeySpecException for foreign EC key");
+        }
+        catch (InvalidKeySpecException expected) {}
+    }
+
+    /**
+     * {@code KeyFactory.translateKey} should accept a foreign-provider
+     * EC key and return a Jostle-provider equivalent. Catches paths
+     * where the engine round-trips the encoded form correctly.
+     */
+    @Test
+    public void testKeyFactory_engineTranslateKey_foreignECKey() throws Exception
+    {
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
+        bcKpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        KeyFactory joKf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+
+        // Public side: BC key → Jostle key, both should encode to the
+        // same X.509 SPKI bytes since they describe the same point.
+        java.security.Key joPub = joKf.translateKey(bcKp.getPublic());
+        Assertions.assertTrue(joPub instanceof ECPublicKey,
+                "translateKey result should be ECPublicKey");
+        Assertions.assertArrayEquals(bcKp.getPublic().getEncoded(), joPub.getEncoded(),
+                "translateKey must preserve the X.509 encoding");
+
+        // A Jostle key passed to translateKey should come back as-is.
+        KeyPairGenerator joKpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        joKpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair joKp = joKpg.generateKeyPair();
+        Assertions.assertSame(joKp.getPublic(), joKf.translateKey(joKp.getPublic()),
+                "translateKey on a Jostle key should return the same instance");
+    }
+
 
     /**
      * Sign with a private key rebuilt from {@link ECPrivateKeySpec},

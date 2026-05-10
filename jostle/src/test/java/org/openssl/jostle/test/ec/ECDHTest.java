@@ -387,6 +387,60 @@ public class ECDHTest
         catch (ShortBufferException expected) {}
     }
 
+    @Test
+    public void testEcdh_GenerateSecretIntoBuffer_nullBuffer_isIllegalArgument() throws Exception
+    {
+        KeyPair alice = generateKeyPair("P-256");
+        KeyPair bob = generateKeyPair("P-256");
+
+        KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+        ka.init(alice.getPrivate());
+        ka.doPhase(bob.getPublic(), true);
+
+        try
+        {
+            ka.generateSecret(null, 0);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected) {}
+    }
+
+    @Test
+    public void testEcdh_GenerateSecretIntoBuffer_negativeOffset_isIllegalArgument() throws Exception
+    {
+        KeyPair alice = generateKeyPair("P-256");
+        KeyPair bob = generateKeyPair("P-256");
+
+        KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+        ka.init(alice.getPrivate());
+        ka.doPhase(bob.getPublic(), true);
+
+        try
+        {
+            ka.generateSecret(new byte[64], -1);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected) {}
+    }
+
+    @Test
+    public void testEcdh_GenerateSecretIntoBuffer_offsetPastEnd_isIllegalArgument() throws Exception
+    {
+        KeyPair alice = generateKeyPair("P-256");
+        KeyPair bob = generateKeyPair("P-256");
+
+        KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+        ka.init(alice.getPrivate());
+        ka.doPhase(bob.getPublic(), true);
+
+        try
+        {
+            ka.generateSecret(new byte[64], 200);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected) {}
+    }
+
 
     // -----------------------------------------------------------------
     // generateSecret(String) — SecretKey form
@@ -409,6 +463,35 @@ public class ECDHTest
         Assertions.assertEquals("AES", key.getAlgorithm());
         Assertions.assertEquals(32, key.getEncoded().length,
                 "P-256 ECDH secret should be 32 bytes");
+    }
+
+    /**
+     * {@code engineGenerateSecret(String)} must reject blank algorithm
+     * names with {@link java.security.NoSuchAlgorithmException}.
+     * {@code SecretKeySpec} only rejects {@code null} / empty strings;
+     * a string containing only whitespace would be silently accepted
+     * and produce a SecretKey with a non-meaningful algorithm name —
+     * almost certainly not what the caller intended.
+     */
+    @Test
+    public void testEcdh_GenerateSecret_rejectsBlankAlgorithmName() throws Exception
+    {
+        KeyPair alice = generateKeyPair("P-256");
+        KeyPair bob = generateKeyPair("P-256");
+
+        for (String bad : new String[]{null, "", " ", "    ", "\t\n "})
+        {
+            KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+            ka.init(alice.getPrivate());
+            ka.doPhase(bob.getPublic(), true);
+            try
+            {
+                ka.generateSecret(bad);
+                Assertions.fail("expected NoSuchAlgorithmException for "
+                        + (bad == null ? "null" : "\"" + bad + "\""));
+            }
+            catch (java.security.NoSuchAlgorithmException expected) {}
+        }
     }
 
 

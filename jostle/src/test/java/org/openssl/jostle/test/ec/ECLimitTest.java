@@ -90,6 +90,53 @@ public class ECLimitTest
 
 
     // -----------------------------------------------------------------
+    // makePrivateFromComponents
+    // -----------------------------------------------------------------
+
+    @Test
+    public void ECServiceNI_makePrivateFromComponents_nullCurveName()
+    {
+        try
+        {
+            ec.makePrivateFromComponents(null, new byte[]{0x01, 0x02}, TestUtil.RNDSrc);
+            Assertions.fail("expected NullPointerException");
+        }
+        catch (NullPointerException expected)
+        {
+            Assertions.assertEquals("name is null", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void ECServiceNI_makePrivateFromComponents_nullScalar()
+    {
+        try
+        {
+            ec.makePrivateFromComponents("P-256", null, TestUtil.RNDSrc);
+            Assertions.fail("expected NullPointerException");
+        }
+        catch (NullPointerException expected)
+        {
+            Assertions.assertEquals("input is null", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void ECServiceNI_makePrivateFromComponents_nullRand()
+    {
+        try
+        {
+            ec.makePrivateFromComponents("P-256", new byte[]{0x01, 0x02}, null);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("supplied random source was null", expected.getMessage());
+        }
+    }
+
+
+    // -----------------------------------------------------------------
     // getComponent
     // -----------------------------------------------------------------
 
@@ -104,6 +151,52 @@ public class ECLimitTest
         catch (IllegalArgumentException expected)
         {
             Assertions.assertEquals("key spec is null", expected.getMessage());
+        }
+    }
+
+    /**
+     * Default branch in the {@code switch (component)} — any selector
+     * outside {0,1,2,3} returns {@code JO_FAIL}, surfaced by the Java
+     * default error handler as {@code IllegalStateException}.
+     */
+    @Test
+    public void ECServiceNI_getComponent_invalidSelector()
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.getComponent(keyRef, 999, new byte[64]);
+            Assertions.fail("expected IllegalStateException for invalid selector");
+        }
+        catch (IllegalStateException expected) {}
+        finally
+        {
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_getComponent_outputTooSmall()
+    {
+        // Caller-supplied buffer is shorter than the BIGNUM magnitude
+        // requires — getComponent returns JO_OUTPUT_TOO_SMALL. The
+        // default error handler maps this to "output too small".
+        long keyRef = 0;
+        try
+        {
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            // P-256 X is ~32 bytes; 4 bytes is guaranteed too small.
+            ec.getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X, new byte[4]);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("output too small", expected.getMessage());
+        }
+        finally
+        {
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
         }
     }
 
@@ -213,6 +306,125 @@ public class ECLimitTest
         catch (NullPointerException expected)
         {
             Assertions.assertEquals("name is null", expected.getMessage());
+        }
+        finally
+        {
+            if (ref != 0) ec.disposeSigner(ref);
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // ec_ctx state-machine guards (pre-init, opp mismatch)
+    // -----------------------------------------------------------------
+
+    @Test
+    public void ECServiceNI_update_beforeInit_isNotInitialized()
+    {
+        long ref = 0;
+        try
+        {
+            ref = ec.allocateSigner();
+            // No initSign / initVerify before update.
+            ec.update(ref, new byte[]{0x01}, 0, 1);
+            Assertions.fail("expected IllegalStateException");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("not initialized", expected.getMessage());
+        }
+        finally
+        {
+            if (ref != 0) ec.disposeSigner(ref);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_sign_beforeInit_isNotInitialized()
+    {
+        long ref = 0;
+        try
+        {
+            ref = ec.allocateSigner();
+            ec.sign(ref, new byte[128], 0, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalStateException");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("not initialized", expected.getMessage());
+        }
+        finally
+        {
+            if (ref != 0) ec.disposeSigner(ref);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_verify_beforeInit_isNotInitialized()
+    {
+        long ref = 0;
+        try
+        {
+            ref = ec.allocateSigner();
+            ec.verify(ref, new byte[64], 64, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalStateException");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("not initialized", expected.getMessage());
+        }
+        finally
+        {
+            if (ref != 0) ec.disposeSigner(ref);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_sign_afterInitVerify_isUnexpectedState()
+    {
+        // Init for verify, then call sign — ec_ctx_sign rejects with
+        // JO_UNEXPECTED_STATE because ctx->opp != EC_OP_SIGN.
+        long ref = 0;
+        long keyRef = 0;
+        try
+        {
+            ref = ec.allocateSigner();
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.initVerify(ref, keyRef, "SHA-256");
+            ec.update(ref, new byte[]{0x01}, 0, 1);
+            ec.sign(ref, new byte[128], 0, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalStateException");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("unexpected state", expected.getMessage());
+        }
+        finally
+        {
+            if (ref != 0) ec.disposeSigner(ref);
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_verify_afterInitSign_isUnexpectedState()
+    {
+        // Inverse of the above — initSign then verify.
+        long ref = 0;
+        long keyRef = 0;
+        try
+        {
+            ref = ec.allocateSigner();
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
+            ec.update(ref, new byte[]{0x01}, 0, 1);
+            ec.verify(ref, new byte[64], 64, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalStateException");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("unexpected state", expected.getMessage());
         }
         finally
         {

@@ -18,10 +18,17 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
+import java.lang.ref.Reference;
 import java.math.BigInteger;
 import java.security.interfaces.ECPrivateKey;
 import java.security.spec.ECParameterSpec;
 
+/**
+ * Java 9+ override of the Java 8 baseline. Uses
+ * {@link Reference#reachabilityFence} to keep this key reachable across
+ * the native encoding call, replacing the {@code synchronized(this)}
+ * idiom in the baseline.
+ */
 class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, OSSLKey
 {
     JOECPrivateKey(PKEYKeySpec spec)
@@ -44,9 +51,13 @@ class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, O
     @Override
     public byte[] getEncoded()
     {
-        synchronized (this)
+        try
         {
             return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
         }
     }
 

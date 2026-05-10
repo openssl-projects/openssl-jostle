@@ -19,28 +19,25 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
-import java.security.*;
+import java.lang.ref.Reference;
+import java.security.InvalidKeyException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.SignatureException;
+import java.security.SignatureSpi;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 
 /**
  * ECDSA Signature SPI for the standard {@code SHAxxxwithECDSA} family.
  * One instance per (digest, EC) pair; the digest name is fixed at
- * construction time. The native side runs the digest streamed through
- * {@code EVP_DigestSignUpdate} / {@code EVP_DigestVerifyUpdate} and
- * finalises with {@code EVP_DigestSign/VerifyFinal}, producing /
- * accepting DER-encoded {@code SEQUENCE \{INTEGER r, INTEGER s\}}
- * (per RFC 5480 §2.2).
+ * construction time.
  *
- * <p>Mirrors the structure of {@code RSASignatureSpiBase}:
- * {@code synchronized(this)} keeps this SPI reachable across native
- * calls (Java 8 baseline; the java9 override would use
- * {@link java.lang.ref.Reference#reachabilityFence}); a
- * {@code requireInitialised()} guard makes pre-init misuse surface
- * as {@link IllegalStateException} instead of NPE; the {@code lastKey}
- * field pins the {@code PKEYKeySpec} so its native handle stays alive
- * across every native call; {@code reInit} restores key state after
- * a terminal sign/verify so the SPI is reusable without re-init.
+ * <p>Java 9+ override of the Java 8 baseline. Uses
+ * {@link Reference#reachabilityFence} to keep this SPI instance (which
+ * owns the native ec_ctx) reachable across native calls, replacing the
+ * {@code synchronized(this)} idiom used in the baseline.
  */
 public class ECDSASignatureSpi extends SignatureSpi
 {
@@ -61,7 +58,7 @@ public class ECDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
-        synchronized (this)
+        try
         {
             if (!(publicKey instanceof ECPublicKey))
             {
@@ -78,6 +75,10 @@ public class ECDSASignatureSpi extends SignatureSpi
             ensureRef();
             ecServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
         }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     @Override
@@ -91,7 +92,7 @@ public class ECDSASignatureSpi extends SignatureSpi
     {
         this.randSource = DefaultRandSource.replaceWith(this.randSource, secureRandom);
 
-        synchronized (this)
+        try
         {
             if (!(privateKey instanceof ECPrivateKey))
             {
@@ -109,6 +110,10 @@ public class ECDSASignatureSpi extends SignatureSpi
             ecServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
                     digestName, randSource);
         }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     @Override
@@ -120,39 +125,47 @@ public class ECDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
     {
-        synchronized (this)
+        requireInitialised();
+        try
         {
-            requireInitialised();
             ecServiceNI.update(ref.getReference(), b, off, len);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
         }
     }
 
     @Override
     protected byte[] engineSign() throws SignatureException
     {
-        synchronized (this)
+        requireInitialised();
+        try
         {
-            requireInitialised();
+            int upperBound = ecServiceNI.sign(ref.getReference(), null, 0, randSource);
+            byte[] sig = new byte[upperBound];
+            int actualLen = ecServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            if (actualLen == sig.length)
+            {
+                return sig;
+            }
+            // ECDSA DER-encoded signatures vary in length per call
+            // (each integer can be 1 byte shorter when the high bit
+            // is unset). Trim to the actual length the second call
+            // wrote.
+            byte[] trimmed = new byte[actualLen];
+            System.arraycopy(sig, 0, trimmed, 0, actualLen);
+            return trimmed;
+        }
+        finally
+        {
             try
             {
-                int upperBound = ecServiceNI.sign(ref.getReference(), null, 0, randSource);
-                byte[] sig = new byte[upperBound];
-                int actualLen = ecServiceNI.sign(ref.getReference(), sig, 0, randSource);
-                if (actualLen == sig.length)
-                {
-                    return sig;
-                }
-                // ECDSA DER-encoded signatures vary in length per call
-                // (each integer can be 1 byte shorter when the high bit
-                // is unset). Trim to the actual length the second call
-                // wrote.
-                byte[] trimmed = new byte[actualLen];
-                System.arraycopy(sig, 0, trimmed, 0, actualLen);
-                return trimmed;
+                reInit();
             }
             finally
             {
-                reInit();
+                Reference.reachabilityFence(this);
             }
         }
     }
@@ -160,24 +173,25 @@ public class ECDSASignatureSpi extends SignatureSpi
     @Override
     protected boolean engineVerify(byte[] sigBytes) throws SignatureException
     {
-        synchronized (this)
+        requireInitialised();
+        try
         {
-            requireInitialised();
+            int code = ecServiceNI.verify(
+                    ref.getReference(),
+                    sigBytes,
+                    sigBytes != null ? sigBytes.length : 0,
+                    randSource);
+            return code == ErrorCode.JO_SUCCESS.getCode();
+        }
+        finally
+        {
             try
             {
-                // randSource is required even on verify — OpenSSL's EC
-                // implementation uses RAND for point-blinding inside
-                // EVP_DigestVerifyFinal as a side-channel mitigation.
-                int code = ecServiceNI.verify(
-                        ref.getReference(),
-                        sigBytes,
-                        sigBytes != null ? sigBytes.length : 0,
-                        randSource);
-                return code == ErrorCode.JO_SUCCESS.getCode();
+                reInit();
             }
             finally
             {
-                reInit();
+                Reference.reachabilityFence(this);
             }
         }
     }
@@ -213,8 +227,7 @@ public class ECDSASignatureSpi extends SignatureSpi
 
     /**
      * Re-initialise after a sign or verify so the next streaming
-     * update starts fresh against the same key. Mirrors the pattern
-     * in {@code RSASignatureSpiBase}.
+     * update starts fresh against the same key.
      */
     private void reInit()
     {
@@ -271,73 +284,46 @@ public class ECDSASignatureSpi extends SignatureSpi
 
     public static class SHA1 extends ECDSASignatureSpi
     {
-        public SHA1()
-        {
-            super("SHA-1");
-        }
+        public SHA1() { super("SHA-1"); }
     }
 
     public static class SHA224 extends ECDSASignatureSpi
     {
-        public SHA224()
-        {
-            super("SHA-224");
-        }
+        public SHA224() { super("SHA-224"); }
     }
 
     public static class SHA256 extends ECDSASignatureSpi
     {
-        public SHA256()
-        {
-            super("SHA-256");
-        }
+        public SHA256() { super("SHA-256"); }
     }
 
     public static class SHA384 extends ECDSASignatureSpi
     {
-        public SHA384()
-        {
-            super("SHA-384");
-        }
+        public SHA384() { super("SHA-384"); }
     }
 
     public static class SHA512 extends ECDSASignatureSpi
     {
-        public SHA512()
-        {
-            super("SHA-512");
-        }
+        public SHA512() { super("SHA-512"); }
     }
 
     public static class SHA3_224 extends ECDSASignatureSpi
     {
-        public SHA3_224()
-        {
-            super("SHA3-224");
-        }
+        public SHA3_224() { super("SHA3-224"); }
     }
 
     public static class SHA3_256 extends ECDSASignatureSpi
     {
-        public SHA3_256()
-        {
-            super("SHA3-256");
-        }
+        public SHA3_256() { super("SHA3-256"); }
     }
 
     public static class SHA3_384 extends ECDSASignatureSpi
     {
-        public SHA3_384()
-        {
-            super("SHA3-384");
-        }
+        public SHA3_384() { super("SHA3-384"); }
     }
 
     public static class SHA3_512 extends ECDSASignatureSpi
     {
-        public SHA3_512()
-        {
-            super("SHA3-512");
-        }
+        public SHA3_512() { super("SHA3-512"); }
     }
 }

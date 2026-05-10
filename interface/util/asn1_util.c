@@ -15,6 +15,7 @@
 #include <openssl/err.h>
 #include <openssl/x509.h>
 #include <openssl/core_names.h>
+#include <openssl/encoder.h>
 #include "bc_err_codes.h"
 #include "key_spec.h"
 #include "ops.h"
@@ -312,6 +313,32 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
 }
 
 
+/**
+ * Emit a private key as PKCS#8 PrivateKeyInfo via OSSL_ENCODER. Used
+ * for EC keys where {@code i2d_PrivateKey_bio} would otherwise emit
+ * the legacy SEC1 ECPrivateKey form (which a strict third-party
+ * parser like BC's EC KeyFactory rejects, and which is also a
+ * contract violation since {@code JOECPrivateKey.getFormat()}
+ * returns "PKCS#8").
+ *
+ * Returns 1 on success, 0 on OpenSSL error.
+ */
+static int32_t encode_private_key_pkcs8(asn1_ctx *ctx, key_spec *key_spec) {
+    OSSL_ENCODER_CTX *ectx = OSSL_ENCODER_CTX_new_for_pkey(
+            key_spec->key,
+            EVP_PKEY_KEYPAIR,
+            "DER",
+            "PrivateKeyInfo",
+            NULL);
+    if (ectx == NULL) {
+        return 0;
+    }
+    int32_t ok = OSSL_ENCODER_to_bio(ectx, ctx->buffer);
+    OSSL_ENCODER_CTX_free(ectx);
+    return ok ? 1 : 0;
+}
+
+
 int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t *buf_len, int encoding_option) {
     jo_assert(ctx != NULL);
     jo_assert(key_spec != NULL);
@@ -322,6 +349,19 @@ int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t
 
     switch (encoding_option) {
         case PRIVATE_KEY_DEFAULT_ENCODING:
+            // EC keys go through the OSSL_ENCODER PKCS#8 path so the
+            // emitted bytes are an actual PKCS#8 PrivateKeyInfo (matching
+            // getFormat()="PKCS#8") rather than the SEC1 ECPrivateKey
+            // that i2d_PrivateKey_bio would default to. All other key
+            // types stay on the legacy i2d path — for RSA / Ed / PQC
+            // that already produces what callers expect (round-trip and
+            // BC interop tests confirm).
+            if (EVP_PKEY_is_a(key_spec->key, "EC")) {
+                if (OPS_OPENSSL_ERROR_4 1 != encode_private_key_pkcs8(ctx, key_spec)) {
+                    return 0;
+                }
+                break;
+            }
             if (OPS_OPENSSL_ERROR_4 !i2d_PrivateKey_bio(ctx->buffer, key_spec->key)) {
                 return 0;
             }

@@ -16,15 +16,21 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASNEncoder;
-import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
-import java.math.BigInteger;
-import java.security.interfaces.ECPrivateKey;
+import java.lang.ref.Reference;
+import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECParameterSpec;
+import java.security.spec.ECPoint;
 
-class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, OSSLKey
+/**
+ * Java 9+ override of the Java 8 baseline. Uses
+ * {@link Reference#reachabilityFence} to keep this key reachable across
+ * the native encoding call, replacing the {@code synchronized(this)}
+ * idiom in the baseline.
+ */
+class JOECPublicKey extends AsymmetricKeyImpl implements ECPublicKey, ECKey, OSSLKey
 {
-    JOECPrivateKey(PKEYKeySpec spec)
+    JOECPublicKey(PKEYKeySpec spec)
     {
         super(spec);
     }
@@ -38,15 +44,19 @@ class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, O
     @Override
     public String getFormat()
     {
-        return "PKCS#8";
+        return "X.509";
     }
 
     @Override
     public byte[] getEncoded()
     {
-        synchronized (this)
+        try
         {
-            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASNEncoder.asSubjectPublicKeyInfo(spec);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
         }
     }
 
@@ -57,9 +67,11 @@ class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, O
     }
 
     @Override
-    public BigInteger getS()
+    public ECPoint getW()
     {
-        return ECComponents.getBigInteger(spec, ECServiceNI.COMP_PRIVATE_VALUE);
+        return new ECPoint(
+                ECComponents.getBigInteger(spec, ECServiceNI.COMP_PUBLIC_X),
+                ECComponents.getBigInteger(spec, ECServiceNI.COMP_PUBLIC_Y));
     }
 
     @Override

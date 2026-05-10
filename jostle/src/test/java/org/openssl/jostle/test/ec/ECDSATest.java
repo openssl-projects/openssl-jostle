@@ -616,6 +616,182 @@ public class ECDSATest
 
 
     // -----------------------------------------------------------------
+    // SPI plumbing: single-byte update, parameter contracts
+    // -----------------------------------------------------------------
+
+    /**
+     * Direct test of {@code engineUpdate(byte)}: feed a message one
+     * byte at a time via {@link Signature#update(byte)} and assert the
+     * resulting signature verifies. Catches a regression in the
+     * single-byte-overload's call-through to the byte-array overload.
+     */
+    @Test
+    public void testEcdsa_SingleByteUpdate_verifies() throws Exception
+    {
+        KeyPair kp = generateKeyPair("P-256");
+        byte[] msg = randomMessage(64);
+
+        Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        for (byte b : msg)
+        {
+            signer.update(b);
+        }
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        for (byte b : msg)
+        {
+            verifier.update(b);
+        }
+        Assertions.assertTrue(verifier.verify(sig),
+                "byte-by-byte update via engineUpdate(byte) must produce a verifiable signature");
+    }
+
+    /**
+     * The bare ECDSA Signature SPI doesn't accept any parameters
+     * (PSS-style PSSParameterSpec is RSA-only). Both
+     * {@code setParameter} overloads should throw
+     * {@link UnsupportedOperationException} per the SPI contract.
+     */
+    @Test
+    public void testEcdsa_SetParameterString_throwsUnsupported() throws Exception
+    {
+        Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            // Deprecated overload — only reachable via setParameter(String, Object).
+            signer.setParameter("anything", new Object());
+            Assertions.fail("expected UnsupportedOperationException");
+        }
+        catch (UnsupportedOperationException expected) {}
+        catch (java.security.InvalidParameterException expected) {}
+    }
+
+    @Test
+    public void testEcdsa_GetParameter_throwsUnsupported() throws Exception
+    {
+        Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            // Deprecated overload — only reachable via getParameter(String).
+            signer.getParameter("anything");
+            Assertions.fail("expected UnsupportedOperationException");
+        }
+        catch (UnsupportedOperationException expected) {}
+        catch (java.security.InvalidParameterException expected) {}
+    }
+
+
+    // -----------------------------------------------------------------
+    // Offset-write contract via Signature.sign(byte[], int, int)
+    // -----------------------------------------------------------------
+
+    /**
+     * Tests the JCE offset-write contract per CLAUDE.md "verify
+     * offset-write contracts via functional round-trip, not sentinel
+     * bytes":
+     * <ol>
+     *   <li>fill the output buffer with random bytes;</li>
+     *   <li>save the prefix region aside;</li>
+     *   <li>call {@code Signature.sign(buf, off, len)};</li>
+     *   <li>compare the prefix region byte-for-byte against the saved
+     *       copy — proves no writes preceded {@code outOff};</li>
+     *   <li>extract the signature window starting at {@code outOff} and
+     *       verify against the original message — proves the bytes
+     *       written are a real signature, not random;</li>
+     *   <li>extract a window starting one byte EARLIER and confirm it
+     *       does NOT verify — proves the bridge wrote at exactly
+     *       {@code outOff} and not at {@code outOff - 1}.</li>
+     * </ol>
+     *
+     * <p>ECDSA signatures are variable-length DER, so step (5) compares
+     * by verification rather than by byte equality (PKCS#1 v1.5 RSA can
+     * be byte-equal because it's deterministic; ECDSA cannot).
+     */
+    @Test
+    public void testEcdsa_signWritesAtOffsetWithoutClobberingPrefix_jce() throws Exception
+    {
+        KeyPair kp = generateKeyPair("P-256");
+        byte[] msg = randomMessage(64);
+
+        // Probe the upper-bound length first.
+        Signature probe = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        probe.initSign(kp.getPrivate());
+        probe.update(msg);
+        byte[] firstSig = probe.sign();
+        int upperBound = firstSig.length;
+
+        // Pick a generous capacity so the variable-length signature
+        // fits regardless of how the DER lengths land this run.
+        int prefix = 7;
+        int capacity = upperBound + 8;
+        byte[] big = new byte[prefix + capacity];
+        new SecureRandom().nextBytes(big);
+        byte[] expectedPrefix = new byte[prefix];
+        System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+
+        Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        int written = signer.sign(big, prefix, capacity);
+
+        // (1) Prefix bytes preceding outOff must be untouched.
+        byte[] actualPrefix = new byte[prefix];
+        System.arraycopy(big, 0, actualPrefix, 0, prefix);
+        Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                "prefix bytes were modified by Signature.sign(out, offset, len)");
+
+        // (2) Functional check: the bytes at big[prefix..prefix+written]
+        // verify against the original message.
+        byte[] sigFromBig = new byte[written];
+        System.arraycopy(big, prefix, sigFromBig, 0, written);
+
+        Signature verifier = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sigFromBig),
+                "signature at offset " + prefix + " did not verify against the "
+                        + "original message — sign() wrote junk into the output buffer");
+
+        // (3) Negative boundary check: a window of the same length
+        // starting ONE BYTE EARLIER (one byte INTO the random prefix)
+        // must NOT verify. Random bytes have effectively-zero
+        // probability of being a valid ECDSA signature.
+        if (prefix >= 1)
+        {
+            byte[] shiftedSig = new byte[written];
+            System.arraycopy(big, prefix - 1, shiftedSig, 0, written);
+            verifier.initVerify(kp.getPublic());
+            verifier.update(msg);
+            boolean shiftedVerified;
+            try
+            {
+                shiftedVerified = verifier.verify(shiftedSig);
+            }
+            catch (java.security.SignatureException expected)
+            {
+                shiftedVerified = false;
+            }
+            catch (RuntimeException expected)
+            {
+                // OpenSSL surfaces structural DER-parse errors as
+                // OpenSSLException (a RuntimeException) rather than
+                // SignatureException — random bytes typically fail
+                // ASN.1 parsing rather than ECDSA verification proper.
+                // Either way it's a correct rejection.
+                shiftedVerified = false;
+            }
+            Assertions.assertFalse(shiftedVerified,
+                    "signature window shifted by 1 byte INTO the prefix "
+                            + "verified successfully — sign() wrote at outOff-1 "
+                            + "instead of at outOff=" + prefix);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------
 
