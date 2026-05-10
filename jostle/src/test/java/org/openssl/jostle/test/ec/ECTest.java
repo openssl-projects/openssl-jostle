@@ -56,7 +56,12 @@ import java.security.spec.X509EncodedKeySpec;
 public class ECTest
 {
     private static final String[] STANDARD_CURVES = {
-            "P-256", "P-384", "P-521", "secp256k1"
+            "P-256", "P-384", "P-521", "secp256k1",
+            // One binary-field curve to cover the GF(2^m) code paths in
+            // both OpenSSL's EC code and Jostle's bridges. K-283 chosen
+            // for being the most commonly used NIST K-curve still
+            // supported in mainstream OpenSSL builds.
+            "sect283k1"
     };
 
     @BeforeAll
@@ -223,6 +228,54 @@ public class ECTest
     // -----------------------------------------------------------------
     // All-curves smoke test
     // -----------------------------------------------------------------
+
+    /**
+     * NIST K-NNN / B-NNN aliases must resolve to the matching SECG
+     * {@code sectNNNk1}/{@code sectNNNrN} curve. Important for users
+     * migrating from BouncyCastle, which exposes binary-field curves
+     * by their NIST short names. The pairs below mirror NIST FIPS 186
+     * Annex D's name-to-SECG mapping.
+     */
+    @Test
+    public void testKeyPairGenerator_acceptsNistBKAliases() throws Exception
+    {
+        // (NIST short name, SECG canonical name, expected field bits)
+        String[][] aliases = {
+                {"K-163", "sect163k1", "163"},
+                {"K-233", "sect233k1", "233"},
+                {"K-283", "sect283k1", "283"},
+                {"K-409", "sect409k1", "409"},
+                {"K-571", "sect571k1", "571"},
+                // NOTE: NIST B-163 maps to sect163r2, not r1.
+                {"B-163", "sect163r2", "163"},
+                {"B-233", "sect233r1", "233"},
+                {"B-283", "sect283r1", "283"},
+                {"B-409", "sect409r1", "409"},
+                {"B-571", "sect571r1", "571"},
+        };
+        int verified = 0;
+        for (String[] row : aliases)
+        {
+            String nistName = row[0];
+            String secgName = row[1];
+            int expectedBits = Integer.parseInt(row[2]);
+            // Skip a name only if the loaded OpenSSL build doesn't
+            // advertise the SECG underlying curve.
+            if (!NISelector.ECServiceNI.curveSupported(secgName)) continue;
+
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+            kpg.initialize(new ECGenParameterSpec(nistName));
+            KeyPair kp = kpg.generateKeyPair();
+            ECPublicKey pub = (ECPublicKey) kp.getPublic();
+            Assertions.assertEquals(expectedBits,
+                    pub.getParams().getCurve().getField().getFieldSize(),
+                    nistName + " did not resolve to a curve with the "
+                            + "expected field size " + expectedBits);
+            verified++;
+        }
+        Assertions.assertTrue(verified > 0,
+                "No NIST K/B-curves were testable against this OpenSSL build");
+    }
 
     @Test
     public void testKeyPairGenerator_AllStandardCurves_genThenIntrospect() throws Exception

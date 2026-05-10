@@ -39,11 +39,39 @@ import java.util.Map;
  * surface as {@link InvalidAlgorithmParameterException} thanks to a
  * pre-flight probe via {@link ECServiceNI#curveSupported(String)}.
  *
+ * <h2>Accepted curve names</h2>
+ *
+ * Any name OpenSSL accepts via {@code OSSL_PKEY_PARAM_GROUP_NAME} works
+ * directly. Common families:
+ *
+ * <ul>
+ *   <li><b>NIST P-curves (prime field)</b>: {@code P-256}, {@code P-384},
+ *       {@code P-521}, {@code P-224} — also accepted as the SECG
+ *       {@code secp256r1}/{@code secp384r1}/{@code secp521r1}/{@code secp224r1},
+ *       the X9.62 {@code prime256v1}, or the OID dotted form.</li>
+ *   <li><b>NIST K-curves (binary field, Koblitz)</b>: {@code K-163},
+ *       {@code K-233}, {@code K-283}, {@code K-409}, {@code K-571} —
+ *       BC-style aliases for the SECG {@code sect163k1} … {@code sect571k1}.</li>
+ *   <li><b>NIST B-curves (binary field, random)</b>: {@code B-163},
+ *       {@code B-233}, {@code B-283}, {@code B-409}, {@code B-571} —
+ *       BC-style aliases for {@code sect163r2}/{@code sect233r1}/
+ *       {@code sect283r1}/{@code sect409r1}/{@code sect571r1}. Note
+ *       {@code B-163} maps to {@code sect163r2} (not r1 — sect163r1 was
+ *       withdrawn before NIST adopted the family).</li>
+ *   <li><b>SECG Koblitz prime</b>: {@code secp256k1}.</li>
+ *   <li><b>Brainpool (RFC 5639)</b>: {@code brainpoolP{160,192,224,256,320,384,512}{r1,t1}}.</li>
+ *   <li><b>Other SECG/X9.62 curves</b>: any {@code sectNNN(k1|r1|r2)} or
+ *       {@code primeNNNvN} the OpenSSL build advertises.</li>
+ * </ul>
+ *
  * <p>Two initialisation surfaces:
  * <ul>
- *   <li>{@link #initialize(int)} — bit-size form. Bits are mapped to a
- *       canonical curve name via the small {@link #SIZE_TO_CURVE} table.
- *       Sizes outside the table are rejected.</li>
+ *   <li>{@link #initialize(int)} — bit-size form, P-curves only. Bits
+ *       are mapped to a canonical curve name via the small
+ *       {@link #SIZE_TO_CURVE} table (256/384/521 only). Binary curves
+ *       are deliberately omitted because the bit→curve mapping is
+ *       ambiguous (e.g. 283 could mean K-283 or B-283); pass them by
+ *       name through {@code ECGenParameterSpec} instead.</li>
  *   <li>{@link #initialize(AlgorithmParameterSpec)} with
  *       {@link ECGenParameterSpec} — preferred. The curve name is
  *       passed straight through to OpenSSL.</li>

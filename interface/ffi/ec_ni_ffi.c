@@ -238,13 +238,17 @@ int32_t JoEC_kexInit(ec_kex_ctx *ctx, key_spec *my_priv, void *rnd_src) {
     return ec_kex_init(ctx, my_priv, rnd_src);
 }
 
-int32_t JoEC_kexSetPeer(ec_kex_ctx *ctx, key_spec *peer_pub) {
+int32_t JoEC_kexSetPeer(ec_kex_ctx *ctx, key_spec *peer_pub,
+                        void *rnd_src) {
     jo_assert(ctx != NULL);
 
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     if (peer_pub == NULL) {
         return JO_KEY_SPEC_IS_NULL;
     }
-    return ec_kex_set_peer(ctx, peer_pub);
+    return ec_kex_set_peer(ctx, peer_pub, rnd_src);
 }
 
 int32_t JoEC_kexDerive(ec_kex_ctx *ctx,

@@ -82,7 +82,13 @@ public interface ECServiceNI extends DefaultServiceNI
 
     int ni_kexInit(long ref, long keyRef, RandSource rndSource);
 
-    int ni_kexSetPeer(long ref, long peerRef);
+    /**
+     * Bind the peer public key to a kex ctx. {@link RandSource} is
+     * required because OpenSSL's binary-field curve handling does an
+     * internal point-blinded scalar mul (via {@code EVP_PKEY_public_check}
+     * inside {@code EVP_PKEY_derive_set_peer}) that consumes RAND.
+     */
+    int ni_kexSetPeer(long ref, long peerRef, RandSource rndSource);
 
     int ni_kexDerive(long ref, byte[] out, int outOff, RandSource rndSource);
 
@@ -198,9 +204,9 @@ public interface ECServiceNI extends DefaultServiceNI
         handleErrors(ni_kexInit(ref, keyRef, rndSource));
     }
 
-    default void kexSetPeer(long ref, long peerRef)
+    default void kexSetPeer(long ref, long peerRef, RandSource rndSource)
     {
-        handleErrors(ni_kexSetPeer(ref, peerRef));
+        handleErrors(ni_kexSetPeer(ref, peerRef, rndSource));
     }
 
     default int kexDerive(long ref, byte[] out, int outOff, RandSource rndSource)

@@ -471,10 +471,15 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
 /*
  * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
  * Method:    ni_kexSetPeer
- * Signature: (JJ)I
+ * Signature: (JJLorg/openssl/jostle/rand/RandSource;)I
+ *
+ * RandSource is required because for binary-field curves
+ * EVP_PKEY_derive_set_peer triggers an internal point-blinded
+ * scalar-multiplication via EVP_PKEY_public_check; the lib-ctx-bound
+ * RAND provider has to be able to upcall into Java for entropy.
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1kexSetPeer
-(JNIEnv *env, jobject jo, jlong kex_ref, jlong key_ref) {
+(JNIEnv *env, jobject jo, jlong kex_ref, jlong key_ref, jobject rnd_src) {
     UNUSED(env);
     UNUSED(jo);
 
@@ -486,7 +491,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
         return JO_KEY_SPEC_IS_NULL;
     }
 
-    return ec_kex_set_peer(ctx, spec);
+    return ec_kex_set_peer(ctx, spec, rnd_src);
 }
 
 /*

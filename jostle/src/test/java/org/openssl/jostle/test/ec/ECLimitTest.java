@@ -777,7 +777,7 @@ public class ECLimitTest
             ref = ec.allocateKex();
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.kexInit(ref, keyRef, TestUtil.RNDSrc);
-            ec.kexSetPeer(ref, 0L);
+            ec.kexSetPeer(ref, 0L, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -792,6 +792,35 @@ public class ECLimitTest
     }
 
     @Test
+    public void ECServiceNI_kexSetPeer_nullRand()
+    {
+        long ref = 0;
+        long keyRef = 0;
+        long peerRef = 0;
+        try
+        {
+            ref = ec.allocateKex();
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.kexInit(ref, keyRef, TestUtil.RNDSrc);
+            ec.kexSetPeer(ref, peerRef, null);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            // RAND is required even on set_peer because binary-field
+            // curves trigger an internal EVP_PKEY_public_check.
+            Assertions.assertEquals("supplied random source was null", expected.getMessage());
+        }
+        finally
+        {
+            if (ref != 0) ec.disposeKex(ref);
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+        }
+    }
+
+    @Test
     public void ECServiceNI_kexSetPeer_beforeInit_isNotInitialized()
     {
         long ref = 0;
@@ -801,7 +830,7 @@ public class ECLimitTest
             ref = ec.allocateKex();
             peer = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             // No kexInit beforehand — set_peer must surface "not initialized".
-            ec.kexSetPeer(ref, peer);
+            ec.kexSetPeer(ref, peer, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalStateException");
         }
         catch (IllegalStateException expected)
@@ -827,7 +856,7 @@ public class ECLimitTest
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.kexInit(ref, keyRef, TestUtil.RNDSrc);
-            ec.kexSetPeer(ref, peerRef);
+            ec.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
             ec.kexDerive(ref, new byte[64], 0, null);
             Assertions.fail("expected IllegalArgumentException");
         }
@@ -855,7 +884,7 @@ public class ECLimitTest
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.kexInit(ref, keyRef, TestUtil.RNDSrc);
-            ec.kexSetPeer(ref, peerRef);
+            ec.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
             ec.kexDerive(ref, new byte[64], -1, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalArgumentException");
         }
@@ -883,7 +912,7 @@ public class ECLimitTest
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.kexInit(ref, keyRef, TestUtil.RNDSrc);
-            ec.kexSetPeer(ref, peerRef);
+            ec.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
             ec.kexDerive(ref, new byte[64], 100, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalArgumentException");
         }

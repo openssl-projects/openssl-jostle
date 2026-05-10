@@ -170,10 +170,14 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS));
 
-        // JoEC_kexSetPeer(ec_kex_ctx*, key_spec*) -> int
+        // JoEC_kexSetPeer(ec_kex_ctx*, key_spec*, void* rnd_src) -> int
+        // NON-critical: binary-field curves trigger an internal
+        // EVP_PKEY_public_check that consumes RAND. Same rationale
+        // as verify / kex_derive.
         kexSetPeerH = bind("JoEC_kexSetPeer",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS));
 
@@ -546,13 +550,14 @@ public class ECServiceFFI implements ECServiceNI
     }
 
     @Override
-    public int ni_kexSetPeer(long ref, long peerRef)
+    public int ni_kexSetPeer(long ref, long peerRef, RandSource rndSource)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
             return (int) kexSetPeerH.invokeExact(
                     MemorySegment.ofAddress(ref),
-                    MemorySegment.ofAddress(peerRef));
+                    MemorySegment.ofAddress(peerRef),
+                    entropyStub(a, rndSource));
         }
         catch (Throwable t)
         {

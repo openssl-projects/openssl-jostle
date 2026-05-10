@@ -59,7 +59,9 @@ public class ECDSATest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private static final String[] STANDARD_CURVES = {"P-256", "P-384", "P-521", "secp256k1"};
+    private static final String[] STANDARD_CURVES = {
+            "P-256", "P-384", "P-521", "secp256k1", "sect283k1"
+    };
 
     /**
      * Digest names accepted by the JCE Signature lookup. Must match

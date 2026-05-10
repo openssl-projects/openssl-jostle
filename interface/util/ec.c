@@ -109,13 +109,13 @@ int32_t ec_generate_key(key_spec *spec, const char *curve_name,
 
     ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
                                      "EC", NULL);
-    if (ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3000);
         goto exit;
     }
 
-    if (1 != EVP_PKEY_keygen_init(ctx)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_keygen_init(ctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3001);
         goto exit;
     }
 
@@ -124,22 +124,22 @@ int32_t ec_generate_key(key_spec *spec, const char *curve_name,
             OSSL_PKEY_PARAM_GROUP_NAME, (char *) curve_name, 0);
     params[1] = OSSL_PARAM_construct_end();
 
-    if (1 != EVP_PKEY_CTX_set_params(ctx, params)) {
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_CTX_set_params(ctx, params)) {
         // Most likely cause: unknown curve name. Java SPI should have
         // pre-validated via ec_curve_supported() — surface as a generic
         // OpenSSL error here so callers that bypass the SPI also fail
         // cleanly.
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3002);
         goto exit;
     }
 
-    if (1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3003);
         goto exit;
     }
 
-    if (spec->key == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 spec->key == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(3004);
         goto exit;
     }
 
@@ -320,42 +320,43 @@ int32_t ec_make_private_from_components(key_spec *spec,
     EVP_PKEY *pkey = NULL;
 
     scalar_bn = BN_bin2bn(scalar_be, (int) scalar_len, NULL);
-    if (scalar_bn == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_6 scalar_bn == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3010);
         goto exit;
     }
 
     bld = OSSL_PARAM_BLD_new();
-    if (bld == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_7 bld == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(3011);
         goto exit;
     }
 
-    if (1 != OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_GROUP_NAME,
-                                              curve_name, 0)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_8 1 != OSSL_PARAM_BLD_push_utf8_string(
+            bld, OSSL_PKEY_PARAM_GROUP_NAME, curve_name, 0)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(3012);
         goto exit;
     }
-    if (1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY, scalar_bn)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_9 1 != OSSL_PARAM_BLD_push_BN(
+            bld, OSSL_PKEY_PARAM_PRIV_KEY, scalar_bn)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(3013);
         goto exit;
     }
 
     params = OSSL_PARAM_BLD_to_param(bld);
-    if (params == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_10 params == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(3014);
         goto exit;
     }
 
     pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
                                       "EC", NULL);
-    if (pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3015);
         goto exit;
     }
 
-    if (1 != EVP_PKEY_fromdata_init(pctx)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_fromdata_init(pctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(3016);
         goto exit;
     }
 
@@ -363,13 +364,16 @@ int32_t ec_make_private_from_components(key_spec *spec,
     // (private + public). With only OSSL_PKEY_PARAM_PRIV_KEY supplied,
     // OpenSSL derives the public point via Q = d * G — the source of
     // the entropy upcall above.
-    if (1 != EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_KEYPAIR, params)) {
-        ret_code = JO_OPENSSL_ERROR;
+    // Reuses OPS_OPENSSL_ERROR_1 (see also ec_generate_key); each test
+    // exercises only one entry point per flag.
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_fromdata(pctx, &pkey,
+                                                    EVP_PKEY_KEYPAIR, params)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3017);
         goto exit;
     }
 
-    if (pkey == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 pkey == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3018);
         goto exit;
     }
 
@@ -452,16 +456,16 @@ int32_t ec_ctx_init_sign(ec_ctx *ctx, const key_spec *key,
     }
     ctx->opp = 0;
 
+    // Reuses OPS_OPENSSL_ERROR_3 / _4. Each test drives only one path.
     md_ctx = EVP_MD_CTX_new();
-    if (md_ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 md_ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3020);
         goto exit;
     }
 
-    if (1 != EVP_DigestSignInit_ex(md_ctx, &pctx,
-                                   digest_name, libctx, NULL,
-                                   key->key, NULL)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_4 1 != EVP_DigestSignInit_ex(
+            md_ctx, &pctx, digest_name, libctx, NULL, key->key, NULL)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3021);
         goto exit;
     }
 
@@ -508,16 +512,16 @@ int32_t ec_ctx_init_verify(ec_ctx *ctx, const key_spec *key,
     }
     ctx->opp = 0;
 
+    // Reuses OPS_OPENSSL_ERROR_5 / _6. Each test drives only one path.
     md_ctx = EVP_MD_CTX_new();
-    if (md_ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 md_ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(3030);
         goto exit;
     }
 
-    if (1 != EVP_DigestVerifyInit_ex(md_ctx, &pctx,
-                                     digest_name, libctx, NULL,
-                                     key->key, NULL)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_6 1 != EVP_DigestVerifyInit_ex(
+            md_ctx, &pctx, digest_name, libctx, NULL, key->key, NULL)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3031);
         goto exit;
     }
 
@@ -548,13 +552,17 @@ int32_t ec_ctx_update(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
 
     ERR_clear_error();
 
+    // Both branches share the same OPS flag; each test exercises one
+    // mode only. Distinct offsets keep the failures distinguishable.
     if (ctx->opp == EC_OP_SIGN) {
-        if (1 != EVP_DigestSignUpdate(ctx->digest_ctx, in, in_len)) {
-            return JO_OPENSSL_ERROR;
+        if (OPS_OPENSSL_ERROR_7 1 != EVP_DigestSignUpdate(
+                ctx->digest_ctx, in, in_len)) {
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(3040);
         }
     } else if (ctx->opp == EC_OP_VERIFY) {
-        if (1 != EVP_DigestVerifyUpdate(ctx->digest_ctx, in, in_len)) {
-            return JO_OPENSSL_ERROR;
+        if (OPS_OPENSSL_ERROR_7 1 != EVP_DigestVerifyUpdate(
+                ctx->digest_ctx, in, in_len)) {
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(3041);
         }
     } else {
         return JO_UNEXPECTED_STATE;
@@ -584,8 +592,9 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
     ERR_clear_error();
 
     size_t sig_len = 0;
-    if (1 != EVP_DigestSignFinal(ctx->digest_ctx, NULL, &sig_len)) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_8 1 != EVP_DigestSignFinal(
+            ctx->digest_ctx, NULL, &sig_len)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(3050);
     }
 
     if (sig_len > (size_t) INT32_MAX) {
@@ -607,8 +616,9 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
     // due to the leading-zero rule for unsigned integers in ASN.1 DER).
     // The first DigestSignFinal call returned an UPPER BOUND; the real
     // length comes back from the second call. We report the actual.
-    if (1 != EVP_DigestSignFinal(ctx->digest_ctx, out, &sig_len)) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_9 1 != EVP_DigestSignFinal(
+            ctx->digest_ctx, out, &sig_len)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(3051);
     }
 
     return (int32_t) sig_len;
@@ -646,6 +656,13 @@ int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
     ERR_set_mark();
 
     int ret = EVP_DigestVerifyFinal(ctx->digest_ctx, sig, sig_len);
+
+    // OPS instrumentation: OPS_OPENSSL_ERROR_10 forces the
+    // structural-error branch (ret == -1 path).
+    if (OPS_OPENSSL_ERROR_10 0) {
+        ERR_clear_last_mark();
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(3060);
+    }
 
     if (ret == 1) {
         ERR_pop_to_mark();
@@ -716,13 +733,13 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
 
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(
             get_global_jostle_ossl_lib_ctx(), my_priv->key, NULL);
-    if (pctx == NULL) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3070);
     }
 
-    if (1 != EVP_PKEY_derive_init(pctx)) {
+    if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_derive_init(pctx)) {
         EVP_PKEY_CTX_free(pctx);
-        return JO_OPENSSL_ERROR;
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(3071);
     }
 
     ctx->pctx = pctx;
@@ -730,9 +747,14 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
 }
 
 
-int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub) {
+int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
+                        void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(peer_pub != NULL);
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     if (ctx->pctx == NULL) {
         return JO_NOT_INITIALIZED;
@@ -747,13 +769,22 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub) {
         return check;
     }
 
+    // Binary-field curves: EVP_PKEY_derive_set_peer runs an internal
+    // EVP_PKEY_public_check that scalar-multiplies the peer point with
+    // point-blinded multiplication, drawing from RAND. Bind the
+    // per-thread Java upcall so the RAND provider can call out into
+    // Java entropy. Same pattern as ec_ctx_verify / ec_kex_derive.
+    rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
     // EVP_PKEY_derive_set_peer also enforces curve-equality between the
     // local and peer keys; a mismatch surfaces as JO_OPENSSL_ERROR which
     // the Java SPI translates to InvalidKeyException at doPhase().
-    if (1 != EVP_PKEY_derive_set_peer(ctx->pctx, peer_pub->key)) {
-        return JO_OPENSSL_ERROR;
+    // Reuses OPS_OPENSSL_ERROR_1 (also used in keygen / fromdata) — the
+    // test exercises only one of those paths per flag setting.
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_derive_set_peer(
+            ctx->pctx, peer_pub->key)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3080);
     }
 
     ctx->peer_set = 1;
@@ -783,9 +814,11 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
+    // Two derive sites (probe + fetch) share OPS_OPENSSL_ERROR_2 — same
+    // multiplexing logic as ec_ctx_sign's pair of DigestSignFinal calls.
     size_t need = 0;
-    if (1 != EVP_PKEY_derive(ctx->pctx, NULL, &need)) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_derive(ctx->pctx, NULL, &need)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3090);
     }
 
     if (need > (size_t) INT32_MAX) {
@@ -801,8 +834,8 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
     }
 
     size_t written = out_len;
-    if (1 != EVP_PKEY_derive(ctx->pctx, out, &written)) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_derive(ctx->pctx, out, &written)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3091);
     }
 
     if (written > (size_t) INT32_MAX) {

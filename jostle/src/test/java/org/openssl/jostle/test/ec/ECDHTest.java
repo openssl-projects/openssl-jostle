@@ -53,7 +53,9 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class ECDHTest
 {
-    private static final String[] STANDARD_CURVES = {"P-256", "P-384", "P-521", "secp256k1"};
+    private static final String[] STANDARD_CURVES = {
+            "P-256", "P-384", "P-521", "secp256k1", "sect283k1"
+    };
 
 
     @BeforeAll
@@ -91,11 +93,16 @@ public class ECDHTest
             Assertions.assertArrayEquals(aliceSecret, bobSecret,
                     curve + ": Alice and Bob derived different secrets");
 
-            // Sanity: secret length matches the curve byte length.
-            int curveBytes = (curveBitSize(curve) + 7) / 8;
-            Assertions.assertEquals(curveBytes, aliceSecret.length,
+            // Sanity: secret length matches the curve field byte length.
+            // Derive from the actual ECParameterSpec rather than a
+            // hardcoded switch so the assertion works for any curve we
+            // add to STANDARD_CURVES (binary-field K/B curves included).
+            int fieldBits = ((java.security.interfaces.ECPublicKey) alice.getPublic())
+                    .getParams().getCurve().getField().getFieldSize();
+            int expectedBytes = (fieldBits + 7) / 8;
+            Assertions.assertEquals(expectedBytes, aliceSecret.length,
                     curve + ": shared secret length mismatch (expected "
-                            + curveBytes + ")");
+                            + expectedBytes + ")");
 
             generated++;
         }
@@ -533,25 +540,5 @@ public class ECDHTest
         ka.init(priv);
         ka.doPhase(peer, true);
         return ka.generateSecret();
-    }
-
-    /**
-     * Map curve names back to bit sizes for length sanity checks.
-     * Only covers the curves listed in {@link #STANDARD_CURVES}.
-     */
-    private static int curveBitSize(String curve)
-    {
-        switch (curve)
-        {
-            case "P-256":
-            case "secp256k1":
-                return 256;
-            case "P-384":
-                return 384;
-            case "P-521":
-                return 521;
-            default:
-                throw new IllegalArgumentException("unknown curve: " + curve);
-        }
     }
 }

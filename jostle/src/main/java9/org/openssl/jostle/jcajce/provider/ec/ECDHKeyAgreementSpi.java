@@ -125,8 +125,12 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             JOECPublicKey peer = (JOECPublicKey) key;
             try
             {
+                // randSource required for binary-field curves —
+                // EVP_PKEY_derive_set_peer runs an internal
+                // EVP_PKEY_public_check that consumes RAND.
                 ecServiceNI.kexSetPeer(ref.getReference(),
-                        peer.getSpec().getReference());
+                        peer.getSpec().getReference(),
+                        randSource);
             }
             catch (RuntimeException e)
             {

@@ -209,8 +209,16 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
 /*
  * Bind the peer public key. Must be called after ec_kex_init and before
  * ec_kex_derive.
+ *
+ *   rnd_src: RandSource. Required even though set_peer is logically a
+ *            "just hand me the public point" operation — for binary-field
+ *            curves OpenSSL's {@code EVP_PKEY_derive_set_peer} runs an
+ *            internal {@code EVP_PKEY_public_check} that scalar-multiplies
+ *            the peer point with point-blinded multiplication, which
+ *            consumes RAND through the lib-ctx-bound provider.
  */
-int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub);
+int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
+                        void *rnd_src);
 
 /*
  * Two-call protocol:

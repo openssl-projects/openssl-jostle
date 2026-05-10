@@ -63,7 +63,7 @@ public class ECServiceJNI implements ECServiceNI
     public native int ni_kexInit(long ref, long keyRef, RandSource rndSource);
 
     @Override
-    public native int ni_kexSetPeer(long ref, long peerRef);
+    public native int ni_kexSetPeer(long ref, long peerRef, RandSource rndSource);
 
     @Override
     public native int ni_kexDerive(long ref, byte[] out, int outOff, RandSource rndSource);
