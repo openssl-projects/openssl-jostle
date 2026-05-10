@@ -42,6 +42,7 @@
 #define KS_ED448 24
 
 #define KS_RSA 25
+#define KS_EC 26
 
 
 typedef struct key_spec {

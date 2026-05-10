@@ -14,6 +14,8 @@ import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherJNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.ec.ECServiceJNI;
+import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceJNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
@@ -63,6 +65,7 @@ public class NISelector
     public static final RSAServiceNI RSAServiceNI;
     public static final RSAOAEPCipherNI RSAOAEPCipherNI;
     public static final RSAPKCS1CipherNI RSAPKCS1CipherNI;
+    public static final ECServiceNI ECServiceNI;
     public static final MacServiceNI MacServiceNI;
 
     static
@@ -82,6 +85,7 @@ public class NISelector
         RSAServiceNI = new RSAServiceJNI();
         RSAOAEPCipherNI = new RSAOAEPCipherJNI();
         RSAPKCS1CipherNI = new RSAPKCS1CipherJNI();
+        ECServiceNI = new ECServiceJNI();
         MacServiceNI = new MacServiceJNI();
     }
 }

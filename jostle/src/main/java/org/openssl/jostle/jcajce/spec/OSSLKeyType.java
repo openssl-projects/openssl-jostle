@@ -44,7 +44,8 @@ public enum OSSLKeyType
     Ed25519ph(22,"Ed25519ph","ED25519PH"),
     ED448ph(23,  "Ed448ph","ED448PH"),
     ED448(24, "Ed448", "ED448"),
-    RSA(25, "RSA", "1.2.840.113549.1.1.1");
+    RSA(25, "RSA", "1.2.840.113549.1.1.1"),
+    EC(26, "EC", "1.2.840.10045.2.1");
 
     private final String[] aliases;
     int ksType;

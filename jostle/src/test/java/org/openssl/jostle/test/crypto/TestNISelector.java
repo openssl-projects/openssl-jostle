@@ -15,6 +15,7 @@ import org.openssl.jostle.NativeServiceNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
+import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
@@ -107,6 +108,10 @@ public class TestNISelector extends NISelector
 
     public static RSAPKCS1CipherNI getRSAPKCS1CipherNi() {
         return RSAPKCS1CipherNI;
+    }
+
+    public static ECServiceNI getECNi() {
+        return ECServiceNI;
     }
 
 }

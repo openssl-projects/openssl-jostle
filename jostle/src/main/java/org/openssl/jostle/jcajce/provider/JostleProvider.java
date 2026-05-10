@@ -97,6 +97,7 @@ public class JostleProvider
         new ProvMD().configure(this);
         new ProvED().configure(this);
         new ProvRSA().configure(this);
+        new ProvEC().configure(this);
         new ProvMac().configure(this);
     }
 
