@@ -137,6 +137,15 @@ public enum ErrorCode
     JO_RSA_PRIME_EXP_P_IS_NULL(-109),
     JO_RSA_PRIME_EXP_Q_IS_NULL(-110),
     JO_RSA_CRT_COEFFICIENT_IS_NULL(-111),
+
+    // Null native-context pointer passed across the JNI/FFI boundary
+    // (caller-supplied long handle was 0). Bridge-layer null check.
+    JO_SIGNER_CTX_IS_NULL(-112),
+    JO_KEX_CTX_IS_NULL(-113),
+
+    // Curve name not recognised by the loaded OpenSSL build.
+    JO_CURVE_NOT_SUPPORTED(-114),
+
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

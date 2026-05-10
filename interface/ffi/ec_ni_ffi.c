@@ -21,6 +21,11 @@
 // =============================================================
 
 int32_t JoEC_curveSupported(const char *curve_name) {
+    // Bridge surfaces a null name as a typed error code; the util
+    // function asserts non-NULL as a bridge-validated invariant.
+    if (curve_name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
     return ec_curve_supported(curve_name);
 }
 
@@ -74,6 +79,17 @@ key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
         *ret_val = JO_INPUT_IS_NULL;
         return NULL;
     }
+    // Bridge validates scalar length so the util layer can trust the
+    // value. Empty scalar is meaningless; >INT32_MAX would wrap when
+    // the util layer casts to int for BN_bin2bn.
+    if (scalar_size == 0) {
+        *ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        return NULL;
+    }
+    if (scalar_size > (size_t) INT32_MAX) {
+        *ret_val = JO_INPUT_TOO_LONG_INT32;
+        return NULL;
+    }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
         return NULL;
@@ -123,8 +139,12 @@ void JoEC_disposeSigner(ec_ctx *ctx) {
 int32_t JoEC_initSign(ec_ctx *ctx, key_spec *key,
                      const char *digest_name,
                      void *rnd_src) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
     }
@@ -136,8 +156,9 @@ int32_t JoEC_initSign(ec_ctx *ctx, key_spec *key,
 
 int32_t JoEC_initVerify(ec_ctx *ctx, key_spec *key,
                        const char *digest_name) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
     }
@@ -150,8 +171,9 @@ int32_t JoEC_initVerify(ec_ctx *ctx, key_spec *key,
 int32_t JoEC_update(ec_ctx *ctx,
                    uint8_t *input, size_t input_size,
                    int32_t in_off, int32_t in_len) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     if (input == NULL) {
         return JO_INPUT_IS_NULL;
     }
@@ -172,8 +194,9 @@ int32_t JoEC_sign(ec_ctx *ctx,
                  uint8_t *output, size_t output_size,
                  int32_t out_off,
                  void *rnd_src) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -196,8 +219,9 @@ int32_t JoEC_verify(ec_ctx *ctx,
                    uint8_t *sig, size_t sig_size,
                    int32_t sig_len,
                    void *rnd_src) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -230,8 +254,12 @@ void JoEC_disposeKex(ec_kex_ctx *ctx) {
 }
 
 int32_t JoEC_kexInit(ec_kex_ctx *ctx, key_spec *my_priv, void *rnd_src) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     if (my_priv == NULL) {
         return JO_KEY_SPEC_IS_NULL;
     }
@@ -240,8 +268,9 @@ int32_t JoEC_kexInit(ec_kex_ctx *ctx, key_spec *my_priv, void *rnd_src) {
 
 int32_t JoEC_kexSetPeer(ec_kex_ctx *ctx, key_spec *peer_pub,
                         void *rnd_src) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -255,8 +284,9 @@ int32_t JoEC_kexDerive(ec_kex_ctx *ctx,
                        uint8_t *out, size_t out_size,
                        int32_t out_off,
                        void *rnd_src) {
-    jo_assert(ctx != NULL);
-
+    if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }

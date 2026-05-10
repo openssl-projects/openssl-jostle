@@ -175,7 +175,14 @@ public class ECTest
                 kpg.initialize(bad);
                 Assertions.fail("should have rejected key size " + bad);
             }
-            catch (InvalidParameterException expected) {}
+            catch (InvalidParameterException expected)
+            {
+                Assertions.assertTrue(
+                        expected.getMessage().contains("is not supported"),
+                        "expected 'is not supported' in message for "
+                                + "key size " + bad
+                                + ", got: " + expected.getMessage());
+            }
         }
     }
 
@@ -204,7 +211,11 @@ public class ECTest
             kpg.initialize((AlgorithmParameterSpec) null);
             Assertions.fail();
         }
-        catch (InvalidAlgorithmParameterException expected) {}
+        catch (InvalidAlgorithmParameterException expected)
+        {
+            Assertions.assertEquals("AlgorithmParameterSpec is null",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -615,7 +626,13 @@ public class ECTest
             kf.generatePublic(rsaSpec);
             Assertions.fail("expected InvalidKeySpecException for RSAPublicKeySpec");
         }
-        catch (InvalidKeySpecException expected) {}
+        catch (InvalidKeySpecException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith("unsupported key spec: "),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
     @Test
@@ -629,7 +646,13 @@ public class ECTest
             kf.generatePrivate(new X509EncodedKeySpec(new byte[16]));
             Assertions.fail("expected InvalidKeySpecException");
         }
-        catch (InvalidKeySpecException expected) {}
+        catch (InvalidKeySpecException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith("unsupported key spec: "),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
     /**
@@ -654,14 +677,28 @@ public class ECTest
             kf.getKeySpec(kp.getPublic(), CustomSpec.class);
             Assertions.fail("expected InvalidKeySpecException for unsupported spec class");
         }
-        catch (InvalidKeySpecException expected) {}
+        catch (InvalidKeySpecException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith(
+                            "unsupported key spec for EC public key: "),
+                    "unexpected message: " + expected.getMessage());
+        }
 
         try
         {
             kf.getKeySpec(kp.getPrivate(), CustomSpec.class);
             Assertions.fail("expected InvalidKeySpecException for unsupported spec class");
         }
-        catch (InvalidKeySpecException expected) {}
+        catch (InvalidKeySpecException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith(
+                            "unsupported key spec for EC private key: "),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
     /**
@@ -685,7 +722,13 @@ public class ECTest
             joKf.getKeySpec(bcKp.getPublic(), ECPublicKeySpec.class);
             Assertions.fail("expected InvalidKeySpecException for foreign EC key");
         }
-        catch (InvalidKeySpecException expected) {}
+        catch (InvalidKeySpecException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith("unrecognised key type: "),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
     /**

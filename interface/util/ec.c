@@ -48,43 +48,60 @@ static int32_t check_is_ec(const EVP_PKEY *pkey) {
 // =============================================================
 
 int32_t ec_curve_supported(const char *curve_name) {
-    if (curve_name == NULL) {
-        return 0;
-    }
+    // Bridge-validated invariant: curve_name was null-checked by the
+    // JNI / FFI bridge, which surfaced JO_NAME_IS_NULL on its own.
+    jo_assert(curve_name != NULL);
 
-    // OpenSSL's EC keymgmt only validates the curve name lazily —
-    // EVP_PKEY_CTX_set_params(GROUP_NAME) stores the string and
-    // returns success regardless of whether the name resolves.
-    // Validation happens at paramgen/keygen. Drive a full
-    // EVP_PKEY_paramgen so an unrecognised name fails here rather
-    // than slipping through to a pretend-supported state.
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(
-            get_global_jostle_ossl_lib_ctx(), "EC", NULL);
+    // OpenSSL's EC keymgmt validates the curve name lazily —
+    // EVP_PKEY_CTX_set_params(GROUP_NAME) stores the string and returns
+    // success regardless of whether the name resolves. Real validation
+    // happens at paramgen/keygen. We drive a full EVP_PKEY_paramgen so
+    // an unrecognised name fails here rather than slipping through.
+    //
+    // Early-exit / goto-exit style with `1 != X` checks for consistency
+    // with the rest of the file (rsa.c convention; CLAUDE.md "Logic
+    // errors and inverted conditions").
+
+    int32_t ret_code = JO_CURVE_NOT_SUPPORTED;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_PKEY *pkey = NULL;
+
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+                                     "EC", NULL);
     if (ctx == NULL) {
-        ERR_clear_error();
-        return 0;
+        goto exit;
     }
 
-    int32_t supported = 0;
-    if (1 == EVP_PKEY_paramgen_init(ctx)) {
-        OSSL_PARAM params[2];
-        params[0] = OSSL_PARAM_construct_utf8_string(
-                OSSL_PKEY_PARAM_GROUP_NAME, (char *) curve_name, 0);
-        params[1] = OSSL_PARAM_construct_end();
-        if (1 == EVP_PKEY_CTX_set_params(ctx, params)) {
-            EVP_PKEY *pkey = NULL;
-            if (1 == EVP_PKEY_paramgen(ctx, &pkey) && pkey != NULL) {
-                supported = 1;
-            }
-            EVP_PKEY_free(pkey);
-        }
+    if (1 != EVP_PKEY_paramgen_init(ctx)) {
+        goto exit;
     }
 
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_utf8_string(
+            OSSL_PKEY_PARAM_GROUP_NAME, (char *) curve_name, 0);
+    params[1] = OSSL_PARAM_construct_end();
+
+    if (1 != EVP_PKEY_CTX_set_params(ctx, params)) {
+        goto exit;
+    }
+
+    if (1 != EVP_PKEY_paramgen(ctx, &pkey)) {
+        goto exit;
+    }
+    if (pkey == NULL) {
+        goto exit;
+    }
+
+    ret_code = 1;
+
+exit:
+    EVP_PKEY_free(pkey);
     EVP_PKEY_CTX_free(ctx);
     // Suppress any "no such group" entry the failed probe queued — the
-    // caller is checking a boolean, not asking for an error report.
+    // caller is asking a yes/no question, not requesting an error
+    // report.
     ERR_clear_error();
-    return supported;
+    return ret_code;
 }
 
 
@@ -97,9 +114,7 @@ int32_t ec_generate_key(key_spec *spec, const char *curve_name,
     jo_assert(spec != NULL);
     jo_assert(curve_name != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
@@ -289,20 +304,15 @@ int32_t ec_make_private_from_components(key_spec *spec,
                                         const uint8_t *scalar_be,
                                         size_t scalar_len,
                                         void *rnd_src) {
+    // Bridge-validated inputs: pointer null checks AND scalar length
+    // bounds (zero-length, > INT32_MAX) are done by both JNI and FFI
+    // bridges before this util function runs. Util asserts as
+    // invariants — if any of these fire, the bridge skipped a check.
     jo_assert(spec != NULL);
-
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
-    if (curve_name == NULL) {
-        return JO_NAME_IS_NULL;
-    }
-    if (scalar_be == NULL) {
-        return JO_INPUT_IS_NULL;
-    }
-    if (scalar_len == 0) {
-        return JO_INPUT_LEN_IS_NEGATIVE;
-    }
+    jo_assert(curve_name != NULL);
+    jo_assert(scalar_be != NULL);
+    jo_assert(scalar_len > 0 && scalar_len <= (size_t) INT32_MAX);
+    jo_assert(rnd_src != NULL);
 
     // OpenSSL re-derives the public point from the scalar via
     // point-blinded multiplication on first use of the resulting
@@ -428,9 +438,7 @@ int32_t ec_ctx_init_sign(ec_ctx *ctx, const key_spec *key,
     jo_assert(key != NULL);
     jo_assert(digest_name != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     if (key->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
@@ -539,15 +547,16 @@ exit:
 
 
 int32_t ec_ctx_update(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
+    // Bridges pass in_len as int32_t (JNI: jint; FFI: int32_t) and
+    // already null-check `in` and bounds-check the offset/length pair,
+    // so an in_len exceeding INT32_MAX is structurally impossible from
+    // either bridge. Util treats both as invariants.
     jo_assert(ctx != NULL);
     jo_assert(in != NULL);
+    jo_assert(in_len <= (size_t) INT32_MAX);
 
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
-    }
-
-    if (in_len > (size_t) INT_MAX) {
-        return JO_INPUT_TOO_LONG_INT32;
     }
 
     ERR_clear_error();
@@ -576,9 +585,7 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
                     void *rnd_src) {
     jo_assert(ctx != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
@@ -627,12 +634,14 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
 
 int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
                       void *rnd_src) {
+    // Bridges pass sig_len as int32_t (JNI: jint; FFI: int32_t) and
+    // already null-check `sig` and range-check the length, so sig_len
+    // exceeding INT32_MAX is structurally impossible from either bridge.
     jo_assert(ctx != NULL);
     jo_assert(sig != NULL);
+    jo_assert(sig_len <= (size_t) INT32_MAX);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
@@ -640,10 +649,6 @@ int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
 
     if (ctx->opp != EC_OP_VERIFY) {
         return JO_UNEXPECTED_STATE;
-    }
-
-    if (sig_len > (size_t) INT_MAX) {
-        return JO_INPUT_TOO_LONG_INT32;
     }
 
     // EC point blinding inside EVP_DigestVerifyFinal pulls bytes from the
@@ -708,9 +713,7 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
     jo_assert(ctx != NULL);
     jo_assert(my_priv != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     if (my_priv->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
@@ -752,9 +755,7 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
     jo_assert(ctx != NULL);
     jo_assert(peer_pub != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     if (ctx->pctx == NULL) {
         return JO_NOT_INITIALIZED;
@@ -796,9 +797,7 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
                       void *rnd_src) {
     jo_assert(ctx != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     if (ctx->pctx == NULL) {
         return JO_NOT_INITIALIZED;

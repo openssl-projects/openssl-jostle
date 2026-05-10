@@ -30,13 +30,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
 (JNIEnv *env, jobject jo, jstring _curveName) {
     UNUSED(jo);
 
+    // Bridge surfaces null/access failures as typed error codes —
+    // the Java boolean wrapper (`code == 1`) collapses every negative
+    // value to `false`, so callers continue to see the boolean
+    // contract while NI-level callers can distinguish the cause.
     if (_curveName == NULL) {
-        return 0;
+        return JO_NAME_IS_NULL;
     }
 
     const char *curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
     if (curve_name == NULL) {
-        return 0;
+        return JO_UNABLE_TO_ACCESS_NAME;
     }
 
     int32_t result = ec_curve_supported(curve_name);
@@ -62,6 +66,10 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
 
     if (_curveName == NULL) {
         ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
         goto exit;
     }
 
@@ -119,6 +127,10 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
         ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
     if (curve_name == NULL) {
@@ -128,6 +140,14 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&scalar, env, _scalar)) {
         ret_val = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+    // Bridge validates scalar length so the util layer can trust the
+    // value (jsize is int32_t, so scalar.size > INT32_MAX is structurally
+    // impossible from JNI — only the zero-length case needs an explicit
+    // check here; the FFI bridge additionally guards against >INT32_MAX).
+    if (scalar.size == 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
 
@@ -231,7 +251,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_ctx *ctx = (ec_ctx *) ec_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     key_spec *spec = (key_spec *) key_ref;
     if (spec == NULL) {
@@ -261,7 +286,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_ctx *ctx = (ec_ctx *) ec_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     key_spec *spec = (key_spec *) key_ref;
     if (spec == NULL) {
@@ -291,7 +318,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_ctx *ctx = (ec_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     int32_t ret_code = JO_FAIL;
     critical_bytearray_ctx input;
@@ -336,7 +365,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_ctx *ctx = (ec_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     if (_output == NULL) {
         return ec_ctx_sign(ctx, NULL, 0, rnd_src);
@@ -385,7 +419,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_ctx *ctx = (ec_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     if (_sig == NULL) {
         return JO_SIG_IS_NULL;
@@ -458,7 +497,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_kex_ctx *ctx = (ec_kex_ctx *) kex_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     key_spec *spec = (key_spec *) key_ref;
     if (spec == NULL) {
@@ -484,7 +528,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_kex_ctx *ctx = (ec_kex_ctx *) kex_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     key_spec *spec = (key_spec *) key_ref;
     if (spec == NULL) {
@@ -508,7 +557,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     UNUSED(jo);
 
     ec_kex_ctx *ctx = (ec_kex_ctx *) kex_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     if (_out == NULL) {
         // Two-call protocol: caller wants the required length.

@@ -118,6 +118,12 @@ public interface DefaultServiceNI
 
             case JO_RAND_NO_RAND_METHOD:
                 throw new IllegalArgumentException("supplied random source was null");
+            case JO_SIGNER_CTX_IS_NULL:
+                throw new IllegalArgumentException("signer context is null");
+            case JO_KEX_CTX_IS_NULL:
+                throw new IllegalArgumentException("key-agreement context is null");
+            case JO_CURVE_NOT_SUPPORTED:
+                throw new IllegalArgumentException("curve not supported by the loaded OpenSSL build");
             default:
                 throw new IllegalStateException("unexpected error code " + errorCode + ": " + code);
         }

@@ -152,6 +152,9 @@ public class ECDHTest
         catch (InvalidKeyException expected)
         {
             // Good — curve mismatch translated to typed exception.
+            Assertions.assertEquals(
+                    "ECDH doPhase: peer key rejected (curve mismatch?)",
+                    expected.getMessage());
         }
     }
 
@@ -214,7 +217,11 @@ public class ECDHTest
             ka.doPhase(kp.getPublic(), true);
             Assertions.fail("doPhase before init must throw");
         }
-        catch (IllegalStateException expected) {}
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("ECDH KeyAgreement not initialised",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -228,7 +235,11 @@ public class ECDHTest
             ka.generateSecret();
             Assertions.fail("generateSecret before doPhase must throw");
         }
-        catch (IllegalStateException expected) {}
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("ECDH: must call doPhase before generateSecret",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -243,7 +254,12 @@ public class ECDHTest
             ka.doPhase(bob.getPublic(), false);
             Assertions.fail("ECDH is single-phase; lastPhase=false must throw");
         }
-        catch (IllegalStateException expected) {}
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals(
+                    "ECDH is a single-phase protocol; lastPhase must be true",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -261,7 +277,11 @@ public class ECDHTest
             ka.init(rsaPriv);
             Assertions.fail("ECDH init with RSA private key must throw InvalidKeyException");
         }
-        catch (InvalidKeyException expected) {}
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals("ECDH init: expected an ECPrivateKey",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -279,7 +299,11 @@ public class ECDHTest
             ka.doPhase(rsaPub, true);
             Assertions.fail("ECDH doPhase with RSA public key must throw InvalidKeyException");
         }
-        catch (InvalidKeyException expected) {}
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals("ECDH doPhase: expected an ECPublicKey",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -292,7 +316,15 @@ public class ECDHTest
             ka.init(kp.getPrivate(), new AlgorithmParameterSpec() {}, null);
             Assertions.fail("ECDH does not accept AlgorithmParameterSpec");
         }
-        catch (InvalidAlgorithmParameterException expected) {}
+        catch (InvalidAlgorithmParameterException expected)
+        {
+            // SPI message names the rejected spec class — varies in
+            // suffix because anonymous-subclass class names are
+            // compiler-generated, so match on prefix.
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith("no parameters accepted for ECDH"),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
 
@@ -391,7 +423,12 @@ public class ECDHTest
             ka.generateSecret(tooSmall, 0);
             Assertions.fail("expected ShortBufferException");
         }
-        catch (ShortBufferException expected) {}
+        catch (ShortBufferException expected)
+        {
+            Assertions.assertTrue(expected.getMessage().startsWith(
+                    "ECDH generateSecret: buffer needs "),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
     @Test
@@ -409,7 +446,10 @@ public class ECDHTest
             ka.generateSecret(null, 0);
             Assertions.fail("expected IllegalArgumentException");
         }
-        catch (IllegalArgumentException expected) {}
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("output buffer is null", expected.getMessage());
+        }
     }
 
     @Test
@@ -427,7 +467,10 @@ public class ECDHTest
             ka.generateSecret(new byte[64], -1);
             Assertions.fail("expected IllegalArgumentException");
         }
-        catch (IllegalArgumentException expected) {}
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("offset out of range", expected.getMessage());
+        }
     }
 
     @Test
@@ -442,10 +485,17 @@ public class ECDHTest
 
         try
         {
-            ka.generateSecret(new byte[64], 200);
+            // Boundary probe: offset = 65 is the smallest value that
+            // exceeds the 64-byte buffer (the SPI accepts
+            // offset == length and rejects anything past). Avoids
+            // hiding an off-by-N in the SPI's range check.
+            ka.generateSecret(new byte[64], 65);
             Assertions.fail("expected IllegalArgumentException");
         }
-        catch (IllegalArgumentException expected) {}
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("offset out of range", expected.getMessage());
+        }
     }
 
 
@@ -497,7 +547,12 @@ public class ECDHTest
                 Assertions.fail("expected NoSuchAlgorithmException for "
                         + (bad == null ? "null" : "\"" + bad + "\""));
             }
-            catch (java.security.NoSuchAlgorithmException expected) {}
+            catch (java.security.NoSuchAlgorithmException expected)
+            {
+                Assertions.assertEquals(
+                        "algorithm name must be non-null and non-blank",
+                        expected.getMessage());
+            }
         }
     }
 

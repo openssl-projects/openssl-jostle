@@ -14,6 +14,7 @@ package org.openssl.jostle.test.ec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.test.TestUtil;
@@ -55,8 +56,36 @@ public class ECLimitTest
     @Test
     public void ECServiceNI_curveSupported_nullName()
     {
-        // Returns false for null — must NOT throw.
+        // Boolean wrapper must return false for null — must NOT throw.
+        // Wrapper checks `code == 1`, so any negative ni return → false.
         Assertions.assertFalse(ec.curveSupported(null));
+    }
+
+    @Test
+    public void ECServiceNI_ni_curveSupported_nullName_returnsTypedCode()
+    {
+        // Direct NI call surfaces the typed error code so callers
+        // bypassing the boolean wrapper can distinguish the cause.
+        Assertions.assertEquals(ErrorCode.JO_NAME_IS_NULL.getCode(),
+                ec.ni_curveSupported(null));
+    }
+
+    @Test
+    public void ECServiceNI_ni_curveSupported_unknownCurve_returnsCurveNotSupported()
+    {
+        // Unrecognised curve name → JO_CURVE_NOT_SUPPORTED at the NI
+        // level (boolean wrapper still returns false for it).
+        Assertions.assertEquals(ErrorCode.JO_CURVE_NOT_SUPPORTED.getCode(),
+                ec.ni_curveSupported("definitely-not-a-real-curve"));
+        Assertions.assertFalse(ec.curveSupported("definitely-not-a-real-curve"));
+    }
+
+    @Test
+    public void ECServiceNI_ni_curveSupported_knownCurve_returns1()
+    {
+        // P-256 must be universally supported on any reasonable
+        // OpenSSL build. The NI returns 1 on success.
+        Assertions.assertEquals(1, ec.ni_curveSupported("P-256"));
     }
 
     @Test
@@ -169,7 +198,14 @@ public class ECLimitTest
             ec.getComponent(keyRef, 999, new byte[64]);
             Assertions.fail("expected IllegalStateException for invalid selector");
         }
-        catch (IllegalStateException expected) {}
+        catch (IllegalStateException expected)
+        {
+            // ec_get_component returns JO_FAIL for unknown selectors;
+            // baseErrorHandler's default arm wraps it with the typed
+            // exception and a message naming the code.
+            Assertions.assertEquals("unexpected error code JO_FAIL: -1",
+                    expected.getMessage());
+        }
         finally
         {
             if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
@@ -186,8 +222,11 @@ public class ECLimitTest
         try
         {
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
-            // P-256 X is ~32 bytes; 4 bytes is guaranteed too small.
-            ec.getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X, new byte[4]);
+            // Boundary probe: P-256 X is exactly 32 bytes, so 31 is the
+            // largest size that should be rejected. A check off-by-N
+            // would let arbitrary smaller values like 4 through but
+            // reject this one.
+            ec.getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X, new byte[31]);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -197,6 +236,149 @@ public class ECLimitTest
         finally
         {
             if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // Null native-context handle (caller passes 0L for ec_ref / kex_ref).
+    // Bridge layer must surface this as IllegalArgumentException with a
+    // typed message — never abort the JVM via jo_assert.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void ECServiceNI_initSign_nullSignerCtx()
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.initSign(0L, keyRef, "SHA-256", TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("signer context is null", expected.getMessage());
+        }
+        finally
+        {
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_initVerify_nullSignerCtx()
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.initVerify(0L, keyRef, "SHA-256");
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("signer context is null", expected.getMessage());
+        }
+        finally
+        {
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_update_nullSignerCtx()
+    {
+        try
+        {
+            ec.update(0L, new byte[]{0x01}, 0, 1);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("signer context is null", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void ECServiceNI_sign_nullSignerCtx()
+    {
+        try
+        {
+            ec.sign(0L, new byte[64], 0, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("signer context is null", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void ECServiceNI_verify_nullSignerCtx()
+    {
+        try
+        {
+            ec.verify(0L, new byte[64], 64, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("signer context is null", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void ECServiceNI_kexInit_nullKexCtx()
+    {
+        long keyRef = 0;
+        try
+        {
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.kexInit(0L, keyRef, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("key-agreement context is null", expected.getMessage());
+        }
+        finally
+        {
+            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_kexSetPeer_nullKexCtx()
+    {
+        long peerRef = 0;
+        try
+        {
+            peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+            ec.kexSetPeer(0L, peerRef, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("key-agreement context is null", expected.getMessage());
+        }
+        finally
+        {
+            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+        }
+    }
+
+    @Test
+    public void ECServiceNI_kexDerive_nullKexCtx()
+    {
+        try
+        {
+            ec.kexDerive(0L, new byte[64], 0, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("key-agreement context is null", expected.getMessage());
         }
     }
 
@@ -520,7 +702,10 @@ public class ECLimitTest
             ref = ec.allocateSigner();
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
-            ec.update(ref, new byte[16], 10, 10);
+            // Boundary probe: off + len = 1 + 16 = 17 > 16, the smallest
+            // sum that should be rejected. A check off-by-N would let
+            // arbitrary values like (10, 10) through but reject this one.
+            ec.update(ref, new byte[16], 1, 16);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -600,7 +785,11 @@ public class ECLimitTest
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
             ec.update(ref, new byte[]{0x01}, 0, 1);
-            ec.sign(ref, new byte[128], 200, TestUtil.RNDSrc);
+            // Boundary probe: out_off = 129 is the smallest value that
+            // exceeds the 128-byte buffer (the bridge accepts
+            // out_off == buffer.length as "write at end with zero
+            // capacity"). Avoids hiding an off-by-N in the bridge check.
+            ec.sign(ref, new byte[128], 129, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -705,7 +894,10 @@ public class ECLimitTest
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.initVerify(ref, keyRef, "SHA-256");
             ec.update(ref, new byte[]{0x01}, 0, 1);
-            ec.verify(ref, new byte[16], 100, TestUtil.RNDSrc);
+            // Boundary probe: sig_len = 17 is the smallest value that
+            // exceeds the 16-byte buffer. A check off-by-N would let
+            // arbitrary values like 100 through but reject this one.
+            ec.verify(ref, new byte[16], 17, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -913,7 +1105,10 @@ public class ECLimitTest
             peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
             ec.kexInit(ref, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            ec.kexDerive(ref, new byte[64], 100, TestUtil.RNDSrc);
+            // Boundary probe: out_off = 65 is the smallest value that
+            // exceeds the 64-byte buffer. The bridge accepts
+            // out_off == buffer.length but rejects anything past.
+            ec.kexDerive(ref, new byte[64], 65, TestUtil.RNDSrc);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)

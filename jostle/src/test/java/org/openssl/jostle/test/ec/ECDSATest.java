@@ -335,8 +335,11 @@ public class ECDSATest
         catch (java.security.SignatureException expected)
         {
             // The JCE wraps the SPI's IllegalStateException in a
-            // SignatureException with message "object not initialized
-            // for signing/verification".
+            // SignatureException whose message names the missing init.
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().contains("not initialized"),
+                    "unexpected message: " + expected.getMessage());
         }
     }
 
@@ -349,7 +352,13 @@ public class ECDSATest
             signer.sign();
             Assertions.fail("sign before init must throw");
         }
-        catch (java.security.SignatureException expected) {}
+        catch (java.security.SignatureException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().contains("not initialized"),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
     @Test
@@ -361,7 +370,13 @@ public class ECDSATest
             verifier.verify(new byte[]{1, 2, 3});
             Assertions.fail("verify before init must throw");
         }
-        catch (java.security.SignatureException expected) {}
+        catch (java.security.SignatureException expected)
+        {
+            Assertions.assertNotNull(expected.getMessage());
+            Assertions.assertTrue(
+                    expected.getMessage().contains("not initialized"),
+                    "unexpected message: " + expected.getMessage());
+        }
     }
 
 
@@ -595,7 +610,12 @@ public class ECDSATest
             verifier.initVerify(rsa.getPublic());
             Assertions.fail("expected InvalidKeyException for RSA public key");
         }
-        catch (InvalidKeyException expected) {}
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals(
+                    "expected an ECPublicKey from the Jostle provider",
+                    expected.getMessage());
+        }
     }
 
     @Test
@@ -613,7 +633,12 @@ public class ECDSATest
             signer.initSign(rsa.getPrivate());
             Assertions.fail("expected InvalidKeyException for RSA private key");
         }
-        catch (InvalidKeyException expected) {}
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals(
+                    "expected an ECPrivateKey from the Jostle provider",
+                    expected.getMessage());
+        }
     }
 
 
@@ -667,8 +692,18 @@ public class ECDSATest
             signer.setParameter("anything", new Object());
             Assertions.fail("expected UnsupportedOperationException");
         }
-        catch (UnsupportedOperationException expected) {}
-        catch (java.security.InvalidParameterException expected) {}
+        catch (UnsupportedOperationException expected)
+        {
+            // Our SPI throws a bare UnsupportedOperationException with no
+            // message — verify the JCE didn't decorate it.
+            Assertions.assertNull(expected.getMessage());
+        }
+        catch (java.security.InvalidParameterException expected)
+        {
+            // Defensive backup: a future JCE that wraps the SPI's UOE in
+            // an IPE would land here. Not expected on current JDKs but
+            // accepted to keep the contract loose.
+        }
     }
 
     @Test
@@ -681,8 +716,17 @@ public class ECDSATest
             signer.getParameter("anything");
             Assertions.fail("expected UnsupportedOperationException");
         }
-        catch (UnsupportedOperationException expected) {}
-        catch (java.security.InvalidParameterException expected) {}
+        catch (UnsupportedOperationException expected)
+        {
+            // Our SPI throws a bare UnsupportedOperationException with no
+            // message — verify the JCE didn't decorate it.
+            Assertions.assertNull(expected.getMessage());
+        }
+        catch (java.security.InvalidParameterException expected)
+        {
+            // Defensive backup: a future JCE that wraps the SPI's UOE in
+            // an IPE would land here.
+        }
     }
 
 

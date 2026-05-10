@@ -144,6 +144,23 @@
 #define JO_RSA_PRIME_EXP_Q_IS_NULL -110
 #define JO_RSA_CRT_COEFFICIENT_IS_NULL -111
 
+/*
+ * Null native-context pointer passed in across the JNI/FFI boundary.
+ * The bridge layer null-checks the user-supplied long handle and
+ * returns one of these — never asserts. Distinct codes per ctx type
+ * so the JCE caller's exception message names what was missing.
+ */
+#define JO_SIGNER_CTX_IS_NULL -112
+#define JO_KEX_CTX_IS_NULL -113
+
+/*
+ * Curve name didn't resolve through the loaded OpenSSL provider chain.
+ * Returned by ec_curve_supported when the name fails an EVP_PKEY_paramgen
+ * probe. Bridge-friendly typed code so callers can distinguish "OpenSSL
+ * doesn't recognise this curve" from a generic OpenSSL error.
+ */
+#define JO_CURVE_NOT_SUPPORTED -114
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x
