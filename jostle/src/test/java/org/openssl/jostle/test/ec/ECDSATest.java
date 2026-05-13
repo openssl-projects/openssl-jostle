@@ -105,7 +105,10 @@ public class ECDSATest
         int trials = 0;
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
             KeyPair kp = generateKeyPair(curve);
 
             for (String alg : DIGEST_ALGS)
@@ -256,7 +259,10 @@ public class ECDSATest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
             KeyPair joKp = generateKeyPair(curve);
 
             // BC needs a key it can decode — round-trip the public X.509
@@ -288,7 +294,10 @@ public class ECDSATest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             // BC generates the key so we know BC owns the private side.
             KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
@@ -430,7 +439,7 @@ public class ECDSATest
         signer.update(msg);
         byte[] sigB = signer.sign();
 
-        Assertions.assertFalse(java.util.Arrays.equals(sigA, sigB),
+        Assertions.assertFalse(Arrays.areEqual(sigA, sigB),
                 "two ECDSA signatures over the same message must differ "
                         + "(non-determinism) — equal output suggests cached k");
         // But both must verify.
@@ -540,7 +549,7 @@ public class ECDSATest
         byte[] s2 = sig.sign();
         // ECDSA non-determinism — s2 must NOT equal s but must still
         // verify.
-        Assertions.assertFalse(java.util.Arrays.equals(s, s2),
+        Assertions.assertFalse(Arrays.areEqual(s, s2),
                 "fresh ECDSA sign on the same instance must produce a "
                         + "different signature");
         sig.initVerify(kp.getPublic());
@@ -804,36 +813,34 @@ public class ECDSATest
         // (3) Negative boundary check: a window of the same length
         // starting ONE BYTE EARLIER (one byte INTO the random prefix)
         // must NOT verify. Random bytes have effectively-zero
-        // probability of being a valid ECDSA signature.
-        if (prefix >= 1)
+        // probability of being a valid ECDSA signature. The prefix
+        // constant above guarantees prefix >= 1.
+        byte[] shiftedSig = new byte[written];
+        System.arraycopy(big, prefix - 1, shiftedSig, 0, written);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        boolean shiftedVerified;
+        try
         {
-            byte[] shiftedSig = new byte[written];
-            System.arraycopy(big, prefix - 1, shiftedSig, 0, written);
-            verifier.initVerify(kp.getPublic());
-            verifier.update(msg);
-            boolean shiftedVerified;
-            try
-            {
-                shiftedVerified = verifier.verify(shiftedSig);
-            }
-            catch (java.security.SignatureException expected)
-            {
-                shiftedVerified = false;
-            }
-            catch (RuntimeException expected)
-            {
-                // OpenSSL surfaces structural DER-parse errors as
-                // OpenSSLException (a RuntimeException) rather than
-                // SignatureException — random bytes typically fail
-                // ASN.1 parsing rather than ECDSA verification proper.
-                // Either way it's a correct rejection.
-                shiftedVerified = false;
-            }
-            Assertions.assertFalse(shiftedVerified,
-                    "signature window shifted by 1 byte INTO the prefix "
-                            + "verified successfully — sign() wrote at outOff-1 "
-                            + "instead of at outOff=" + prefix);
+            shiftedVerified = verifier.verify(shiftedSig);
         }
+        catch (java.security.SignatureException expected)
+        {
+            shiftedVerified = false;
+        }
+        catch (RuntimeException expected)
+        {
+            // OpenSSL surfaces structural DER-parse errors as
+            // OpenSSLException (a RuntimeException) rather than
+            // SignatureException — random bytes typically fail
+            // ASN.1 parsing rather than ECDSA verification proper.
+            // Either way it's a correct rejection.
+            shiftedVerified = false;
+        }
+        Assertions.assertFalse(shiftedVerified,
+                "signature window shifted by 1 byte INTO the prefix "
+                        + "verified successfully — sign() wrote at outOff-1 "
+                        + "instead of at outOff=" + prefix);
     }
 
 

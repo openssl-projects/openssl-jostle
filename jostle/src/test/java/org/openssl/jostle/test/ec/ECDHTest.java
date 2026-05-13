@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
@@ -82,7 +83,10 @@ public class ECDHTest
         int generated = 0;
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPair alice = generateKeyPair(curve);
             KeyPair bob = generateKeyPair(curve);
@@ -124,7 +128,7 @@ public class ECDHTest
         byte[] aliceWithBob = derive(alice.getPrivate(), bob.getPublic());
         byte[] aliceWithEve = derive(alice.getPrivate(), eve.getPublic());
 
-        Assertions.assertFalse(java.util.Arrays.equals(aliceWithBob, aliceWithEve),
+        Assertions.assertFalse(Arrays.areEqual(aliceWithBob, aliceWithEve),
                 "different peers must produce different shared secrets");
     }
 
@@ -168,7 +172,10 @@ public class ECDHTest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPair joKp = generateKeyPair(curve);
             KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
@@ -351,7 +358,7 @@ public class ECDHTest
         ka.doPhase(charlie.getPublic(), true);
         byte[] s2 = ka.generateSecret();
 
-        Assertions.assertFalse(java.util.Arrays.equals(s1, s2),
+        Assertions.assertFalse(Arrays.areEqual(s1, s2),
                 "different peers on reused SPI must produce different secrets");
 
         // The reverse derivation by charlie should still match s2.
@@ -416,8 +423,8 @@ public class ECDHTest
         ka.init(alice.getPrivate());
         ka.doPhase(bob.getPublic(), true);
 
-        // P-256 secret is 32 bytes; a 16-byte buffer is too small.
-        byte[] tooSmall = new byte[16];
+        // P-256 secret is 32 bytes; a 31-byte buffer is too small.
+        byte[] tooSmall = new byte[31];
         try
         {
             ka.generateSecret(tooSmall, 0);

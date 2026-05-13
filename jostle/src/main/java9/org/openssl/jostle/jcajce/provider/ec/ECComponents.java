@@ -113,7 +113,10 @@ final class ECComponents
             }
             catch (Throwable t)
             {
-                if (firstFailure == null) firstFailure = t;
+                if (firstFailure == null)
+                {
+                    firstFailure = t;
+                }
             }
         }
         throw new IllegalStateException(
@@ -130,14 +133,23 @@ final class ECComponents
      */
     static String findCurveName(ECParameterSpec params)
     {
-        if (params == null) return null;
+        if (params == null)
+        {
+            return null;
+        }
         for (String candidate : KNOWN_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(candidate)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(candidate))
+            {
+                continue;
+            }
             try
             {
                 ECParameterSpec known = resolveParams(candidate);
-                if (paramsEqual(params, known)) return candidate;
+                if (paramsEqual(params, known))
+                {
+                    return candidate;
+                }
             }
             catch (RuntimeException ignored)
             {
@@ -152,16 +164,43 @@ final class ECComponents
      */
     private static boolean paramsEqual(ECParameterSpec a, ECParameterSpec b)
     {
-        if (a == b) return true;
-        if (a == null || b == null) return false;
-        if (a.getCofactor() != b.getCofactor()) return false;
-        if (!a.getOrder().equals(b.getOrder())) return false;
+        if (a == b)
+        {
+            return true;
+        }
+        if (a == null || b == null)
+        {
+            return false;
+        }
+        if (a.getCofactor() != b.getCofactor())
+        {
+            return false;
+        }
+        if (!a.getOrder().equals(b.getOrder()))
+        {
+            return false;
+        }
         if (a.getCurve().getField().getFieldSize()
-                != b.getCurve().getField().getFieldSize()) return false;
-        if (!a.getCurve().getA().equals(b.getCurve().getA())) return false;
-        if (!a.getCurve().getB().equals(b.getCurve().getB())) return false;
-        if (!a.getGenerator().getAffineX().equals(b.getGenerator().getAffineX())) return false;
-        if (!a.getGenerator().getAffineY().equals(b.getGenerator().getAffineY())) return false;
+                != b.getCurve().getField().getFieldSize())
+        {
+            return false;
+        }
+        if (!a.getCurve().getA().equals(b.getCurve().getA()))
+        {
+            return false;
+        }
+        if (!a.getCurve().getB().equals(b.getCurve().getB()))
+        {
+            return false;
+        }
+        if (!a.getGenerator().getAffineX().equals(b.getGenerator().getAffineX()))
+        {
+            return false;
+        }
+        if (!a.getGenerator().getAffineY().equals(b.getGenerator().getAffineY()))
+        {
+            return false;
+        }
         return true;
     }
 

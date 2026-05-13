@@ -208,7 +208,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -235,7 +238,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -262,7 +268,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -282,7 +291,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -344,7 +356,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -364,7 +379,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+            if (peerRef != 0)
+            {
+                NISelectorDispose.disposeSpec(peerRef);
+            }
         }
     }
 
@@ -403,7 +421,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
         }
     }
 
@@ -425,8 +446,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -448,8 +475,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -469,7 +502,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
         }
     }
 
@@ -491,8 +527,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -518,7 +560,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
         }
     }
 
@@ -538,7 +583,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
         }
     }
 
@@ -558,7 +606,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
         }
     }
 
@@ -584,8 +635,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -610,8 +667,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -639,8 +702,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -663,8 +732,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -687,8 +762,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -714,8 +795,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -744,8 +831,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -769,8 +862,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -798,8 +897,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -828,8 +933,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -853,8 +964,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -878,8 +995,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -906,8 +1029,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeSigner(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeSigner(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -932,7 +1061,10 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
         }
     }
 
@@ -954,8 +1086,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -978,8 +1116,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 
@@ -1006,9 +1150,18 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
-            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
+            if (peerRef != 0)
+            {
+                NISelectorDispose.disposeSpec(peerRef);
+            }
         }
     }
 
@@ -1031,8 +1184,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (peer != 0) NISelectorDispose.disposeSpec(peer);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (peer != 0)
+            {
+                NISelectorDispose.disposeSpec(peer);
+            }
         }
     }
 
@@ -1058,9 +1217,18 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
-            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
+            if (peerRef != 0)
+            {
+                NISelectorDispose.disposeSpec(peerRef);
+            }
         }
     }
 
@@ -1086,9 +1254,18 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
-            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
+            if (peerRef != 0)
+            {
+                NISelectorDispose.disposeSpec(peerRef);
+            }
         }
     }
 
@@ -1117,9 +1294,18 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
-            if (peerRef != 0) NISelectorDispose.disposeSpec(peerRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
+            if (peerRef != 0)
+            {
+                NISelectorDispose.disposeSpec(peerRef);
+            }
         }
     }
 
@@ -1143,8 +1329,14 @@ public class ECLimitTest
         }
         finally
         {
-            if (ref != 0) ec.disposeKex(ref);
-            if (keyRef != 0) NISelectorDispose.disposeSpec(keyRef);
+            if (ref != 0)
+            {
+                ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
         }
     }
 

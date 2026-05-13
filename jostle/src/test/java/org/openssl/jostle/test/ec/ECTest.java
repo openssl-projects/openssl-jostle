@@ -272,7 +272,10 @@ public class ECTest
             int expectedBits = Integer.parseInt(row[2]);
             // Skip a name only if the loaded OpenSSL build doesn't
             // advertise the SECG underlying curve.
-            if (!NISelector.ECServiceNI.curveSupported(secgName)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(secgName))
+            {
+                continue;
+            }
 
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             kpg.initialize(new ECGenParameterSpec(nistName));
@@ -329,7 +332,10 @@ public class ECTest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             kpg.initialize(new ECGenParameterSpec(curve));
@@ -351,7 +357,10 @@ public class ECTest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             kpg.initialize(new ECGenParameterSpec(curve));
@@ -376,7 +385,10 @@ public class ECTest
         // Jostle's KeyFactory.
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPairGenerator joKpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             joKpg.initialize(new ECGenParameterSpec(curve));
@@ -417,7 +429,10 @@ public class ECTest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPairGenerator joKpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             joKpg.initialize(new ECGenParameterSpec(curve));
@@ -515,7 +530,10 @@ public class ECTest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             kpg.initialize(new ECGenParameterSpec(curve));
@@ -555,7 +573,10 @@ public class ECTest
     {
         for (String curve : STANDARD_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(curve)) continue;
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
 
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
             kpg.initialize(new ECGenParameterSpec(curve));
