@@ -52,6 +52,8 @@ subprojects {
         source.exclude '**/*.class'
         source.exclude '**/*.crt'
         source.exclude '**/*.crl'
+        source.exclude '**/*.dll'
+        source.exclude '**/*.dylib'
         source.exclude '**/*.eml'
         source.exclude '**/*.gpg'
         source.exclude '**/*.jar'
@@ -59,6 +61,7 @@ subprojects {
         source.exclude '**/*.pem'
         source.exclude '**/*.*pub'
         source.exclude '**/*.rsp'
+        source.exclude '**/*.so'
         source.exclude 'out/*'
     }
 
