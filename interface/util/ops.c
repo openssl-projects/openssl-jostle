@@ -13,7 +13,6 @@
 
 #include "jo_assert.h"
 #include "rand/jostle_lib_ctx.h"
-#include <unistd.h>
 
 #ifdef JOSTLE_OPS
 
