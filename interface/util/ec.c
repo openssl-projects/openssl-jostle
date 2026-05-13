@@ -177,14 +177,14 @@ exit:
 static int32_t get_curve_name_component(const key_spec *spec,
                                         uint8_t *out, size_t out_len) {
     size_t name_len = 0;
-    if (1 != EVP_PKEY_get_utf8_string_param(spec->key,
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_utf8_string_param(spec->key,
                                             OSSL_PKEY_PARAM_GROUP_NAME,
                                             NULL, 0, &name_len)) {
-        return JO_OPENSSL_ERROR;
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3100);
     }
 
     if (out == NULL || out_len == 0) {
-        if (name_len > (size_t) INT32_MAX) {
+        if (OPS_INT32_OVERFLOW_1 name_len > (size_t) INT32_MAX) {
             return JO_OUTPUT_TOO_LONG_INT32;
         }
         return (int32_t) name_len;
@@ -198,14 +198,14 @@ static int32_t get_curve_name_component(const key_spec *spec,
     // `max_buf_sz >= name_len + 1`. Use a temp buffer so the caller's
     // `out` doesn't need to leave room for a terminator they don't want.
     char *tmp = OPENSSL_malloc(name_len + 1);
-    if (tmp == NULL) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 tmp == NULL) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3101);
     }
     int32_t ret_code;
-    if (1 != EVP_PKEY_get_utf8_string_param(spec->key,
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_get_utf8_string_param(spec->key,
                                             OSSL_PKEY_PARAM_GROUP_NAME,
                                             tmp, name_len + 1, NULL)) {
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3102);
     } else {
         memcpy(out, tmp, name_len);
         ret_code = (int32_t) name_len;
@@ -225,14 +225,14 @@ static int32_t get_bn_component(const key_spec *spec, const char *param_name,
     BIGNUM *bn = NULL;
     int32_t ret_code = JO_FAIL;
 
-    if (1 != EVP_PKEY_get_bn_param(spec->key, param_name, &bn)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_get_bn_param(spec->key, param_name, &bn)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3110);
         goto exit;
     }
 
     int byte_len = BN_num_bytes(bn);
-    if (byte_len < 0) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 byte_len < 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(3111);
         goto exit;
     }
 
@@ -247,8 +247,8 @@ static int32_t get_bn_component(const key_spec *spec, const char *param_name,
     }
 
     int written = BN_bn2bin(bn, out);
-    if (written < 0) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_6 written < 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3112);
         goto exit;
     }
 
@@ -604,7 +604,7 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(3050);
     }
 
-    if (sig_len > (size_t) INT32_MAX) {
+    if (OPS_INT32_OVERFLOW_1 sig_len > (size_t) INT32_MAX) {
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
@@ -813,14 +813,16 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
-    // Two derive sites (probe + fetch) share OPS_OPENSSL_ERROR_2 — same
-    // multiplexing logic as ec_ctx_sign's pair of DigestSignFinal calls.
+    // Probe and fetch sites use distinct OPS flags — same split as
+    // ec_ctx_sign's pair of EVP_DigestSignFinal calls (flags _8 / _9).
+    // Sharing a flag would make the fetch site (3091) unreachable from
+    // a test because the probe site (3090) fires first.
     size_t need = 0;
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_derive(ctx->pctx, NULL, &need)) {
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3090);
     }
 
-    if (need > (size_t) INT32_MAX) {
+    if (OPS_INT32_OVERFLOW_1 need > (size_t) INT32_MAX) {
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
@@ -833,11 +835,11 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
     }
 
     size_t written = out_len;
-    if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_derive(ctx->pctx, out, &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3091);
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_derive(ctx->pctx, out, &written)) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3091);
     }
 
-    if (written > (size_t) INT32_MAX) {
+    if (OPS_INT32_OVERFLOW_2 written > (size_t) INT32_MAX) {
         return JO_OUTPUT_TOO_LONG_INT32;
     }
     return (int32_t) written;
