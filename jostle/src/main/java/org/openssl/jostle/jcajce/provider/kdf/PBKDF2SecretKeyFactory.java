@@ -22,17 +22,17 @@ import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
-public class PBEKDF2SecretKeyFactory extends SecretKeyFactorySpi
+public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
 {
 
     private final String forcedDigestAlgorithm;
 
-    public PBEKDF2SecretKeyFactory(String forcedDigestAlgorithm)
+    public PBKDF2SecretKeyFactory(String forcedDigestAlgorithm)
     {
         this.forcedDigestAlgorithm = DigestUtil.getCanonicalDigestName(forcedDigestAlgorithm);
     }
 
-    public PBEKDF2SecretKeyFactory()
+    public PBKDF2SecretKeyFactory()
     {
         this.forcedDigestAlgorithm = null;
     }

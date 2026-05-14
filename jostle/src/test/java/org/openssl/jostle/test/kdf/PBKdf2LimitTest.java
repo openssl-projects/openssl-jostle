@@ -37,7 +37,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_null_password() throws Exception
+    public void testPBKDF2_null_password() throws Exception
     {
         try
         {
@@ -51,7 +51,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_null_salt() throws Exception
+    public void testPBKDF2_null_salt() throws Exception
     {
         try
         {
@@ -65,7 +65,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_empty_salt() throws Exception
+    public void testPBKDF2_empty_salt() throws Exception
     {
         try
         {
@@ -79,7 +79,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_iter_negative() throws Exception
+    public void testPBKDF2_iter_negative() throws Exception
     {
         try
         {
@@ -93,7 +93,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_null_output() throws Exception
+    public void testPBKDF2_null_output() throws Exception
     {
         try
         {
@@ -106,7 +106,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_output_offset_negative() throws Exception
+    public void testPBKDF2_output_offset_negative() throws Exception
     {
         try
         {
@@ -120,7 +120,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_output_length_negative() throws Exception
+    public void testPBKDF2_output_length_negative() throws Exception
     {
         try
         {
@@ -133,7 +133,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_output_range_past_end_1() throws Exception
+    public void testPBKDF2_output_range_past_end_1() throws Exception
     {
         try
         {
@@ -146,7 +146,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_output_range_past_end_2() throws Exception
+    public void testPBKDF2_output_range_past_end_2() throws Exception
     {
         try
         {
@@ -160,7 +160,7 @@ public class PBKdf2LimitTest
 
 
     @Test
-    public void testPBEKDF2_null_digest() throws Exception
+    public void testPBKDF2_null_digest() throws Exception
     {
         try
         {
@@ -173,7 +173,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_empty_digest() throws Exception
+    public void testPBKDF2_empty_digest() throws Exception
     {
         try
         {
@@ -186,7 +186,7 @@ public class PBKdf2LimitTest
     }
 
     @Test
-    public void testPBEKDF2_unknown_digest() throws Exception
+    public void testPBKDF2_unknown_digest() throws Exception
     {
         // Real-failure path: "!" is not a valid digest. OPS_OFFSET_*(x) only
         // applies an offset when its matching flag is set, so caller sees
