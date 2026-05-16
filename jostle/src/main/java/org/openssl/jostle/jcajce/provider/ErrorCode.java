@@ -146,6 +146,19 @@ public enum ErrorCode
     // Curve name not recognised by the loaded OpenSSL build.
     JO_CURVE_NOT_SUPPORTED(-114),
 
+    // HKDF input-validation codes. IKM is mandatory (per RFC 5869);
+    // salt and info are optional and the existing JO_KDF_SALT_* codes
+    // are reused only when a non-NULL salt fails JNI access.
+    JO_KDF_HKDF_IKM_NULL(-115),
+    JO_KDF_HKDF_IKM_FAILED_ACCESS(-116),
+    JO_KDF_HKDF_INFO_FAILED_ACCESS(-117),
+
+    // X9.63 KDF input-validation codes. Z is mandatory (typically the
+    // raw ECDH shared secret); shared-info is optional.
+    JO_KDF_X963KDF_Z_NULL(-118),
+    JO_KDF_X963KDF_Z_FAILED_ACCESS(-119),
+    JO_KDF_X963KDF_INFO_FAILED_ACCESS(-120),
+
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

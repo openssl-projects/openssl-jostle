@@ -1617,18 +1617,27 @@ public class BlockCipherLimitTest
     }
 
     @Test
-    public void testInit_onPoisonedCtx() throws Exception
+    public void testInit_onPoisonedCtx_clearsPoison() throws Exception
     {
-        // Poison via CTR overflow, then call init explicitly. The poisoned
-        // check at the top of init must reject — recovery is destroy + create.
+        // Poison via CTR overflow, then call init explicitly. JCE
+        // convention is that init creates fresh-state state — re-init
+        // is the standard recovery path from any decrypt / update
+        // failure. The poison flag prevents reuse of an in-flight
+        // operation but does NOT block re-init.
         long ref = 0;
         try
         {
             ref = blockCipherNI.makeInstance(8, 6, 0); // AES128, CTR, NO_PADDING
             byte[] key = new byte[16];
             byte[] iv = new byte[15];
-            for (int i = 0; i < 16; i++) key[i] = (byte) i;
-            for (int i = 0; i < 15; i++) iv[i] = (byte) (i + 100);
+            for (int i = 0; i < 16; i++)
+            {
+                key[i] = (byte) i;
+            }
+            for (int i = 0; i < 15; i++)
+            {
+                iv[i] = (byte) (i + 100);
+            }
 
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0));
 
@@ -1643,16 +1652,18 @@ public class BlockCipherLimitTest
                 Assertions.assertEquals("ctr mode overflow", ex.getMessage());
             }
 
-            // Now ctx is poisoned. Calling init must surface that.
-            try
-            {
-                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0);
-                Assertions.fail("expected poisoned ctx to reject init");
-            }
-            catch (IllegalStateException ex)
-            {
-                Assertions.assertTrue(ex.getMessage().contains("poisoned"));
-            }
+            // Ctx is now poisoned. Calling init must clear the flag
+            // (re-init is the standard recovery path) and accept the
+            // new key/IV.
+            Assertions.assertEquals(0,
+                    blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0),
+                    "init on a poisoned ctx must clear the flag and succeed");
+
+            // And the cipher should be usable immediately.
+            byte[] block = new byte[16];
+            int written = blockCipherNI.update(ref, block, 0, block, 0, 16);
+            Assertions.assertEquals(16, written,
+                    "follow-up update after re-init must succeed");
         }
         finally
         {

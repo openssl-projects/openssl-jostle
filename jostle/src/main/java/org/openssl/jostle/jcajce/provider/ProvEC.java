@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
+import org.openssl.jostle.jcajce.provider.ec.ECDHwithKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyPairGenerator;
@@ -87,6 +88,39 @@ class ProvEC
                 PREFIX + "ECDHKeyAgreementSpi", attr,
                 (arg) -> new ECDHKeyAgreementSpi());
         provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
+
+        // Bare ECDHwithKDF — digest taken from the caller's
+        // KDFParameterSpec at init time. Useful when the digest is
+        // known only at runtime (rare for CMP; more typical for
+        // generic SP 800-56A callers).
+        provider.addAlgorithmImplementation("KeyAgreement", "ECDHwithKDF",
+                PREFIX + "ECDHwithKDF", attr,
+                (arg) -> new ECDHwithKDFKeyAgreementSpi(null));
+
+        // ECDHwithSHA<N>KDF — bare ECDH composed with ANSI X9.63 KDF.
+        // CMS / CMP key-agreement recipient infos use this family of
+        // transformations as the bridge between raw ECDH shared
+        // secrets and the AES key-wrapping key.
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA1KDF", "SHA-1");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA224KDF", "SHA-224");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA256KDF", "SHA-256");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA384KDF", "SHA-384");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA512KDF", "SHA-512");
+
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA3-224KDF", "SHA3-224");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA3-256KDF", "SHA3-256");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA3-384KDF", "SHA3-384");
+        registerECDHwithKDF(provider, attr, "ECDHwithSHA3-512KDF", "SHA3-512");
+    }
+
+    private static void registerECDHwithKDF(JostleProvider provider,
+                                            Map<String, String> attr,
+                                            String name,
+                                            String digestName)
+    {
+        provider.addAlgorithmImplementation("KeyAgreement", name,
+                PREFIX + name, attr,
+                (arg) -> new ECDHwithKDFKeyAgreementSpi(digestName));
     }
 
 

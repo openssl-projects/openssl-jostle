@@ -89,10 +89,13 @@ int32_t block_cipher_ctx_init(
     int32_t tag_len) {
     EVP_CIPHER *evp_cipher = NULL;
 
-    if (ctx->poisoned) {
-        return JO_CTX_POISONED;
-    }
-
+    // JCE convention: init creates a fresh-state cipher. The poison
+    // flag is set on update/doFinal failures to prevent reuse of a
+    // broken intermediate state, but init itself wipes that state
+    // by re-binding the EVP_CIPHER_CTX with new key material. Clear
+    // the flag here so a caller can re-init after an unwrap / decrypt
+    // failure (the standard recovery path).
+    ctx->poisoned = 0;
 
     ctx->initialized = 0;
 
@@ -114,11 +117,18 @@ int32_t block_cipher_ctx_init(
     OPENSSL_cleanse(ctx->tag_buffer, MAX_TAG_LEN);
 
     /*
-     * Modes that do not take an iv
+     * Modes that do not take an iv.
+     * - ECB: structurally has no IV.
+     * - WRAP / WRAP_PAD: RFC 3394 / RFC 5649 specify a fixed integrity
+     *   check value as the "IV" of the wrap construction. The JCE
+     *   AESWrap / AESWrapPad cipher contract is that the caller does not
+     *   supply an IV — OpenSSL uses the spec-default ICV internally.
      */
 
     switch (ctx->mode_id) {
         case ECB:
+        case WRAP:
+        case WRAP_PAD:
             if (iv_len != 0) {
                 return JO_MODE_TAKES_NO_IV;
             }
@@ -196,8 +206,12 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-XTS",NULL);
                     break;
 
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP-PAD",NULL);
+                    break;
 
                 // case OCB: Authenticated
                 // case CCM: Authenticated
@@ -248,8 +262,12 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CTR",NULL);
 
                     break;
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP-PAD",NULL);
+                    break;
 
                 // case OCB: Authenticated
                 // case CCM: Authenticated
@@ -307,8 +325,12 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-XTS",NULL);
                     break;
 
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP-PAD",NULL);
+                    break;
 
                 // case OCB: Authenticated
                 // case CCM: Authenticated
@@ -651,6 +673,12 @@ int32_t block_cipher_ctx_init(
         iv_for_openssl = iv;
     }
 
+    // RFC 3394 (AES-KW) and RFC 5649 (AES-KWP) require OpenSSL to be
+    // told to permit wrap mode on the context — without the flag every
+    // wrap call fails with "cipher operation already in progress".
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        EVP_CIPHER_CTX_set_flags(ctx->evp, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
 
     switch (opp_mode) {
         case ENCRYPT_MODE:
@@ -827,7 +855,18 @@ int32_t block_cipher_ctx_update(
     }
 
     if (ctx->op_mode == ENCRYPT_MODE || ctx->tag_len == 0) {
-        if (out_len < in_len) {
+        size_t needed = in_len;
+        if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+            // Wrap encrypt expands input by 8 bytes (more for KWP padding).
+            // Wrap decrypt produces at most input - 8 bytes (KWP may strip
+            // up to 7 more pad bytes; we still need the upper-bound buffer).
+            if (ctx->op_mode == ENCRYPT_MODE) {
+                needed = ((in_len + 7) & ~(size_t) 7) + 8;
+            } else {
+                needed = (in_len < 8) ? 0 : in_len - 8;
+            }
+        }
+        if (out_len < needed) {
             return JO_OUTPUT_TOO_SMALL;
         }
     } else if (ctx->op_mode == DECRYPT_MODE) {
@@ -849,6 +888,12 @@ int32_t block_cipher_ctx_update(
             if (in_len < ctx->cipher_block_size) {
                 return JO_NOT_BLOCK_ALIGNED;
             }
+        } else if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+            // RFC 3394 (KW / WRAP) requires the plaintext to be a multiple
+            // of 8 bytes (the wrap semiblock), NOT the AES block size of
+            // 16. RFC 5649 (KWP / WRAP_PAD) accepts any length >= 1. We
+            // let OpenSSL enforce the per-mode alignment rule rather than
+            // duplicating it here.
         } else if (in_len % ctx->cipher_block_size != 0) {
             return JO_NOT_BLOCK_ALIGNED;
         }
@@ -1011,6 +1056,22 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
             len = (ctx->op_mode == ENCRYPT_MODE) ? total + ctx->cipher_block_size : total;
         } else {
             len = total - left_over + ctx->cipher_block_size;
+        }
+    }
+
+    // RFC 3394 / 5649 key wrap: ciphertext = round-up-to-multiple-of-8
+    // of plaintext plus an 8-byte ICV. WRAP requires the plaintext to be
+    // a multiple of 8 already, so the round-up is a no-op; WRAP_PAD pads
+    // to a multiple of 8 before wrapping. Same expression handles both.
+    // For decrypt we return the upper bound (plaintext_len <= ct_len - 8)
+    // so the caller's buffer is large enough; the SPI trims any unused
+    // suffix when it reports the actual written length.
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        if (ctx->op_mode == ENCRYPT_MODE) {
+            size_t rounded = (len + 7) & ~(size_t) 7;
+            len = rounded + 8;
+        } else if (ctx->op_mode == DECRYPT_MODE) {
+            len = (len < 8) ? 0 : len - 8;
         }
     }
 

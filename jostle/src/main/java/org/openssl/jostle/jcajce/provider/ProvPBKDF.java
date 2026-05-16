@@ -31,14 +31,36 @@ class ProvPBKDF
     {
 
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PREFIX + "Base", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory());
+        // id-PBKDF2 — PKCS#5 / RFC 8018 §A.2. Identifies the PBKDF2 KDF
+        // itself; the PRF is carried in the PBKDF2-params structure
+        // (a separate AlgorithmIdentifier). The per-PRF aliases below
+        // bind a SecretKeyFactory lookup-by-OID to the right PRF.
+        provider.addAlias("SecretKeyFactory", "PBKDF2", "1.2.840.113549.1.5.12");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA1", PREFIX + "BaseSHA1", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-1"));
+        // id-hmacWithSHA1 — RFC 8018 §B.1.
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA1", "1.2.840.113549.2.7");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA224", PREFIX + "BaseSHA224", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-224"));
+        // id-hmacWithSHA224 — RFC 4231.
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA224", "1.2.840.113549.2.8");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA256", PREFIX + "BaseSHA256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-256"));
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA256", "1.2.840.113549.2.9");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA384", PREFIX + "BaseSHA384", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-384"));
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA384", "1.2.840.113549.2.10");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512", PREFIX + "BaseSHA512", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512"));
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA512", "1.2.840.113549.2.11");
 
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-224", PREFIX + "BaseSHA512_224", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/224"));
+        // id-hmacWithSHA512-224 — RFC 6234.
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA512-224", "1.2.840.113549.2.12");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-256", PREFIX + "BaseSHA512_256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/256"));
+        // id-hmacWithSHA512-256 — RFC 6234.
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHHMACSHA512-256", "1.2.840.113549.2.13");
 
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-224", PREFIX + "BaseSHA3_224", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-224"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-256", PREFIX + "BaseSHA3_256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-256"));

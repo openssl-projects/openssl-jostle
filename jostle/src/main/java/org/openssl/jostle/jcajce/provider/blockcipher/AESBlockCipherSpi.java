@@ -33,6 +33,15 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     public AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
         super(cipher, mode, "AES");
+
+        if (cipher != null)
+        {
+            this.osslCipher = cipher;
+        }
+        if (mode != null)
+        {
+            this.osslMode = mode;
+        }
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException

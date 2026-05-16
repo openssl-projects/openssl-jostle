@@ -161,6 +161,19 @@
  */
 #define JO_CURVE_NOT_SUPPORTED -114
 
+// HKDF-specific bridge-validated input failures. IKM (input keying
+// material) is mandatory per RFC 5869; salt and info may be absent.
+#define JO_KDF_HKDF_IKM_NULL -115
+#define JO_KDF_HKDF_IKM_FAILED_ACCESS -116
+#define JO_KDF_HKDF_INFO_FAILED_ACCESS -117
+
+// X9.63 KDF (and SP 800-56A "concatenation KDF") bridge-validated
+// input failures. Z (the secret to derive from, typically the raw
+// ECDH shared secret) is mandatory; shared-info is optional.
+#define JO_KDF_X963KDF_Z_NULL -118
+#define JO_KDF_X963KDF_Z_FAILED_ACCESS -119
+#define JO_KDF_X963KDF_INFO_FAILED_ACCESS -120
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x

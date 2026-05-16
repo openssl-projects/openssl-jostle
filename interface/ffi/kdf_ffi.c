@@ -13,7 +13,7 @@
 #include "../util/bc_err_codes.h"
 
 
-int32_t KDF_PBKDF2(
+int32_t JoKDF_PBKDF2(
     uint8_t *passwd, size_t passwd_len,
     uint8_t *salt, size_t salt_len,
     int32_t iter,
@@ -93,7 +93,7 @@ exit:
 }
 
 
-int32_t KDF_SCRYPT(
+int32_t JoKDF_SCRYPT(
     uint8_t *passwd, size_t passwd_len,
     uint8_t *salt, size_t salt_len,
     int32_t n,
@@ -172,6 +172,121 @@ int32_t KDF_SCRYPT(
         p,
         out, out_len);
 
+
+exit:
+    return ret_code;
+}
+
+
+int32_t JoKDF_HKDF(
+    uint8_t *ikm, size_t ikm_len,
+    uint8_t *salt, size_t salt_len,
+    uint8_t *info, size_t info_len,
+    uint8_t *digest_name, size_t digest_name_len,
+    uint8_t *output,
+    size_t out_size,
+    int32_t out_offset,
+    int32_t out_len
+) {
+    int32_t ret_code = JO_FAIL;
+
+    if (ikm == NULL) {
+        ret_code = JO_KDF_HKDF_IKM_NULL;
+        goto exit;
+    }
+
+    // Salt and info are optional in HKDF (RFC 5869). Accept NULL.
+
+    if (output == NULL) {
+        ret_code = JO_OUTPUT_IS_NULL;
+        goto exit;
+    }
+    if (out_offset < 0) {
+        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+    if (out_len < 0) {
+        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+    if (!check_in_range(out_size, out_offset, out_len)) {
+        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    if (digest_name == NULL) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+    if (digest_name_len == 0) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    uint8_t *out = output + out_offset;
+
+    ret_code = hkdf(
+        ikm, ikm_len,
+        salt, salt_len,
+        info, info_len,
+        digest_name, digest_name_len,
+        out, out_len);
+
+exit:
+    return ret_code;
+}
+
+
+int32_t JoKDF_X963KDF(
+    uint8_t *z, size_t z_len,
+    uint8_t *shared_info, size_t shared_info_len,
+    uint8_t *digest_name, size_t digest_name_len,
+    uint8_t *output,
+    size_t out_size,
+    int32_t out_offset,
+    int32_t out_len
+) {
+    int32_t ret_code = JO_FAIL;
+
+    if (z == NULL) {
+        ret_code = JO_KDF_X963KDF_Z_NULL;
+        goto exit;
+    }
+    // Shared info is optional per X9.63 §3.6.
+
+    if (output == NULL) {
+        ret_code = JO_OUTPUT_IS_NULL;
+        goto exit;
+    }
+    if (out_offset < 0) {
+        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+    if (out_len < 0) {
+        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+    if (!check_in_range(out_size, out_offset, out_len)) {
+        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    if (digest_name == NULL) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+    if (digest_name_len == 0) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    uint8_t *out = output + out_offset;
+
+    ret_code = x963kdf(
+        z, z_len,
+        shared_info, shared_info_len,
+        digest_name, digest_name_len,
+        out, out_len);
 
 exit:
     return ret_code;

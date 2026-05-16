@@ -20,9 +20,13 @@ import org.openssl.jostle.util.Strings;
 import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 
 class BlockCipherSpi extends CipherSpi
@@ -157,6 +161,26 @@ class BlockCipherSpi extends CipherSpi
         throw new IllegalStateException("not implemented");
     }
 
+    /**
+     * Translate {@code Cipher.WRAP_MODE} / {@code Cipher.UNWRAP_MODE} into
+     * the {@code ENCRYPT_MODE} / {@code DECRYPT_MODE} pair the native
+     * layer understands. The wrap/unwrap distinction lives at the SPI
+     * level (in {@link #engineWrap} / {@link #engineUnwrap}); the
+     * underlying {@code EVP_*} machinery only knows encrypt and decrypt.
+     */
+    private static int toCryptoMode(int opmode)
+    {
+        if (opmode == Cipher.WRAP_MODE)
+        {
+            return Cipher.ENCRYPT_MODE;
+        }
+        if (opmode == Cipher.UNWRAP_MODE)
+        {
+            return Cipher.DECRYPT_MODE;
+        }
+        return opmode;
+    }
+
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
@@ -166,12 +190,13 @@ class BlockCipherSpi extends CipherSpi
             ensureNativeReference();
 
             blockSize = 0;
-            this.opMode = opmode;
+            int nativeOpmode = toCryptoMode(opmode);
+            this.opMode = nativeOpmode;
 
             byte[] keyBytes = key.getEncoded();
             try
             {
-                blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, null, 0);
+                blockCipherNi.init(refWrapper.getReference(), nativeOpmode, keyBytes, null, 0);
             }
             catch (InvalidAlgorithmParameterException e)
             {
@@ -194,7 +219,8 @@ class BlockCipherSpi extends CipherSpi
             final byte[] ivBytes;
             int tagLen;
             blockSize = 0;
-            this.opMode = opmode;
+            int nativeOpmode = toCryptoMode(opmode);
+            this.opMode = nativeOpmode;
 
             if (params == null)
             {
@@ -230,7 +256,7 @@ class BlockCipherSpi extends CipherSpi
                 }
             }
 
-            blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen);
+            blockCipherNi.init(refWrapper.getReference(), nativeOpmode, keyBytes, ivBytes, tagLen);
 
             engineGetBlockSize();
         }
@@ -538,6 +564,135 @@ class BlockCipherSpi extends CipherSpi
 
             written += code;
             return written;
+        }
+    }
+
+
+    /**
+     * Wrap a key. The default {@code CipherSpi} implementation throws
+     * {@code UnsupportedOperationException}; we override it so a Cipher
+     * initialised in {@code Cipher.WRAP_MODE} with a backing wrap-capable
+     * mode (AES-KW / AES-KWP via {@code OSSLMode.WRAP} / {@code WRAP_PAD})
+     * can drive the standard {@code Cipher.wrap(Key)} entry point.
+     * Implemented as a thin delegation onto {@code engineDoFinal} — for
+     * wrap modes the entire output comes out of {@code EVP_EncryptUpdate}
+     * (called from {@code engineDoFinal} via the NI update path); the
+     * subsequent {@code EVP_EncryptFinal} returns zero bytes which is
+     * exactly the spec-defined behaviour for these modes.
+     */
+    @Override
+    protected byte[] engineWrap(Key key) throws InvalidKeyException, IllegalBlockSizeException
+    {
+        if (key == null)
+        {
+            throw new InvalidKeyException("cannot wrap null key");
+        }
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException("cannot extract encoded form of key");
+        }
+        if (encoded.length == 0)
+        {
+            throw new InvalidKeyException("cannot wrap zero-length key");
+        }
+        try
+        {
+            return engineDoFinal(encoded, 0, encoded.length);
+        }
+        catch (BadPaddingException e)
+        {
+            // Wrap modes shouldn't surface BadPaddingException during
+            // encrypt; if they do, the contract still requires us to
+            // funnel it through IllegalBlockSizeException for the wrap
+            // entry point.
+            throw new IllegalBlockSizeException(e.getMessage());
+        }
+        catch (RuntimeException e)
+        {
+            // Native-side rejection of malformed wrap input (e.g.
+            // RFC 3394 requires the plaintext to be a multiple of 8
+            // bytes; an unaligned input fails inside EVP_EncryptUpdate
+            // and propagates as an OpenSSLException). JCE callers
+            // expect a checked exception from Cipher.wrap(); collapse
+            // these into IllegalBlockSizeException with the OpenSSL
+            // detail preserved as the cause.
+            throw (IllegalBlockSizeException) new IllegalBlockSizeException(
+                    "wrap failed: " + e.getMessage()).initCause(e);
+        }
+    }
+
+    /**
+     * Unwrap previously-wrapped key material. Mirror of {@link #engineWrap}
+     * — the bulk decrypt happens in {@code engineDoFinal}, and we re-hydrate
+     * the resulting bytes into the right {@code Key} object based on
+     * {@code wrappedKeyType}. JCE convention is that an unwrap failure —
+     * whether structural (wrong wrap algorithm, ICV mismatch) or downstream
+     * (KeyFactory rejecting the encoded form) — surfaces as
+     * {@code InvalidKeyException}, never {@code BadPaddingException} (which
+     * would be a Bleichenbacher-style oracle).
+     */
+    @Override
+    protected Key engineUnwrap(byte[] wrappedKey, String wrappedKeyAlgorithm, int wrappedKeyType)
+            throws InvalidKeyException, NoSuchAlgorithmException
+    {
+        if (wrappedKey == null)
+        {
+            throw new InvalidKeyException("wrapped key is null");
+        }
+        if (wrappedKeyAlgorithm == null)
+        {
+            throw new NoSuchAlgorithmException("wrapped-key algorithm is null");
+        }
+        byte[] encoded;
+        try
+        {
+            encoded = engineDoFinal(wrappedKey, 0, wrappedKey.length);
+        }
+        catch (IllegalBlockSizeException e)
+        {
+            throw new InvalidKeyException("unwrap failed: " + e.getMessage(), e);
+        }
+        catch (BadPaddingException e)
+        {
+            throw new InvalidKeyException("unwrap failed: " + e.getMessage(), e);
+        }
+        catch (RuntimeException e)
+        {
+            // RFC 3394 / 5649 ICV-mismatch and wrong-KEK failures surface
+            // through the native layer as OpenSSLException (a runtime
+            // exception). JCE convention is that all unwrap failures
+            // become InvalidKeyException — never a checked padding
+            // exception (Bleichenbacher channel).
+            throw new InvalidKeyException("unwrap failed: " + e.getMessage(), e);
+        }
+
+        switch (wrappedKeyType)
+        {
+            case Cipher.SECRET_KEY:
+                return new SecretKeySpec(encoded, wrappedKeyAlgorithm);
+            case Cipher.PUBLIC_KEY:
+                try
+                {
+                    KeyFactory kf = KeyFactory.getInstance(wrappedKeyAlgorithm);
+                    return kf.generatePublic(new X509EncodedKeySpec(encoded));
+                }
+                catch (InvalidKeySpecException e)
+                {
+                    throw new InvalidKeyException("unwrap: invalid X.509 SubjectPublicKeyInfo: " + e.getMessage(), e);
+                }
+            case Cipher.PRIVATE_KEY:
+                try
+                {
+                    KeyFactory kf = KeyFactory.getInstance(wrappedKeyAlgorithm);
+                    return kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+                }
+                catch (InvalidKeySpecException e)
+                {
+                    throw new InvalidKeyException("unwrap: invalid PKCS#8 PrivateKeyInfo: " + e.getMessage(), e);
+                }
+            default:
+                throw new InvalidKeyException("unknown wrapped-key type " + wrappedKeyType);
         }
     }
 

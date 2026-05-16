@@ -18,5 +18,11 @@ public class KdfNIJNI implements KdfNI
 
     @Override
     public native int pbkdf2(byte[] password, byte[] salt, int iter, String digest, byte[] out, int outOffset, int outLen);
+
+    @Override
+    public native int hkdf(byte[] ikm, byte[] salt, byte[] info, String digest, byte[] out, int outOffset, int outLen);
+
+    @Override
+    public native int x963kdf(byte[] z, byte[] sharedInfo, String digest, byte[] out, int outOffset, int outLen);
 }
 

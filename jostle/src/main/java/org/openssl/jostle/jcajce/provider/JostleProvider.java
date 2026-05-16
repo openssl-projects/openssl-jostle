@@ -93,6 +93,8 @@ public class JostleProvider
         new ProvSLHDSA().configure(this);
         new ProvMLKEM().configure(this);
         new ProvPBKDF().configure(this);
+        new ProvHKDF().configure(this);
+        new ProvXEC().configure(this);
         new ProvScryptKDF().configure(this);
         new ProvMD().configure(this);
         new ProvED().configure(this);

@@ -44,6 +44,14 @@
 #define KS_RSA 25
 #define KS_EC 26
 
+// X25519 / X448 (RFC 7748 Montgomery curves) for key agreement (XDH).
+// Distinct from the ED* type macros above which name the twisted-Edwards
+// signature variants. OpenSSL exposes them as separate EVP_PKEY types
+// (`EVP_PKEY_X25519` / `EVP_PKEY_X448`), so we cannot share a key_spec
+// type with EC or with the Edwards signature keys.
+#define KS_X25519 27
+#define KS_X448 28
+
 
 typedef struct key_spec {
     EVP_PKEY *key;

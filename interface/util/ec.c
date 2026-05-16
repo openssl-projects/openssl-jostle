@@ -18,6 +18,7 @@
 
 #include "bc_err_codes.h"
 #include "jo_assert.h"
+#include "xec.h"
 #include "key_spec.h"
 #include "ops.h"
 #include "rand/jostle_lib_ctx.h"
@@ -42,6 +43,26 @@ static int32_t check_is_ec(const EVP_PKEY *pkey) {
     return JO_SUCCESS;
 }
 
+/**
+ * Like {@link check_is_ec} but also accepts the X25519 / X448 Montgomery
+ * curves. The {@code ec_kex_*} functions are EVP_PKEY-type-agnostic at
+ * the OpenSSL level — they only need the key to be derive-capable —
+ * so the SPI for XDH (X25519/X448) reuses them. Sign/verify still go
+ * through the strict EC-only check.
+ */
+static int32_t check_is_ec_or_xec(const EVP_PKEY *pkey) {
+    const char *algo = EVP_PKEY_get0_type_name(pkey);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+    if (strcmp(algo, "EC") == 0
+            || strcmp(algo, "X25519") == 0
+            || strcmp(algo, "X448") == 0) {
+        return JO_SUCCESS;
+    }
+    return JO_INCORRECT_KEY_TYPE;
+}
+
 
 // =============================================================
 // Curve introspection
@@ -51,6 +72,13 @@ int32_t ec_curve_supported(const char *curve_name) {
     // Bridge-validated invariant: curve_name was null-checked by the
     // JNI / FFI bridge, which surfaced JO_NAME_IS_NULL on its own.
     jo_assert(curve_name != NULL);
+
+    // Dispatch X25519 / X448 to the Montgomery probe — they're distinct
+    // EVP_PKEY types and aren't reachable through the "EC" provider's
+    // named-group mechanism the rest of this function uses.
+    if (strcmp(curve_name, "X25519") == 0 || strcmp(curve_name, "X448") == 0) {
+        return xec_curve_supported(curve_name);
+    }
 
     // OpenSSL's EC keymgmt validates the curve name lazily —
     // EVP_PKEY_CTX_set_params(GROUP_NAME) stores the string and returns
@@ -115,6 +143,13 @@ int32_t ec_generate_key(key_spec *spec, const char *curve_name,
     jo_assert(curve_name != NULL);
 
     jo_assert(rnd_src != NULL);
+
+    // Dispatch X25519 / X448 to the dedicated Montgomery keygen — they
+    // need EVP_PKEY_CTX_new_from_name with the curve as the type, not
+    // as an OSSL_PKEY_PARAM_GROUP_NAME on an "EC" context.
+    if (strcmp(curve_name, "X25519") == 0 || strcmp(curve_name, "X448") == 0) {
+        return xec_generate_key(spec, curve_name, rnd_src);
+    }
 
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
@@ -719,7 +754,10 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-    int32_t check = check_is_ec(my_priv->key);
+    // EC + X25519 + X448 all share the same EVP_PKEY_derive flow;
+    // the SPI dispatches by EVP_PKEY type at the OpenSSL level so we
+    // don't restrict to "EC" here.
+    int32_t check = check_is_ec_or_xec(my_priv->key);
     if (check != JO_SUCCESS) {
         return check;
     }
@@ -765,7 +803,8 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-    int32_t check = check_is_ec(peer_pub->key);
+    // Accept the same key-type set as ec_kex_init.
+    int32_t check = check_is_ec_or_xec(peer_pub->key);
     if (check != JO_SUCCESS) {
         return check;
     }
