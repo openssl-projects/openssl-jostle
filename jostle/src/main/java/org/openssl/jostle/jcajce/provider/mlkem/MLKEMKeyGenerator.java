@@ -10,7 +10,6 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
-import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
@@ -35,17 +34,28 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     private boolean extract;
     private final OSSLKeyType forcedKeyType;
     private AlgorithmParameterSpec parameterSpec;
-    private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
+    private RandSource randSource;
 
 
     public MLKEMKeyGenerator(MLKEMParameterSpec spec)
     {
         this.forcedKeyType = spec.getKeyType();
+        randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(forcedKeyType));
     }
 
     public MLKEMKeyGenerator()
     {
         this.forcedKeyType = OSSLKeyType.NONE;
+        // No forced type — default to 128-bit baseline. engineInit
+        // will trigger a strength upgrade for the peer key's variant
+        // if needed.
+        randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(OSSLKeyType.NONE));
+    }
+
+    private static int strengthForKeyType(OSSLKeyType type)
+    {
+        OSSLKeyType activeType = (type == OSSLKeyType.NONE) ? OSSLKeyType.ML_KEM_512 : type;
+        return MLKEMParameterSpec.getSpecForOSSLType(activeType).getRequiredStrengthBits();
     }
 
     @Override
@@ -57,8 +67,6 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
-        randSource = DefaultRandSource.replaceWith(randSource, random);
-
         if (params instanceof KEMExtractSpec)
         {
             PrivateKey key = ((KEMExtractSpec) params).getPrivateKey();
@@ -71,6 +79,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                     throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
                 }
                 parameterSpec = params;
+                // Decap path doesn't consume entropy, but a caller-supplied
+                // SecureRandom should still be honoured if they call
+                // back through encap on a new init.
+                randSource = DefaultRandSource.replaceWith(randSource, random, strengthForKeyType(kem.getSpec().getType()));
                 return;
             }
             throw new InvalidAlgorithmParameterException("Only MLKEMPrivateKey is supported");
@@ -89,7 +101,31 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                     {
                         throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
                     }
+
+                    int strengthBits = strengthForKeyType(kem.getSpec().getType());
+
+                    // Fail fast if the caller supplied a SecureRandom
+                    // that reports a strength below the algorithm's
+                    // requirement (Java 9+ DRBG path). Sources that
+                    // don't expose a strength claim return 0 and are
+                    // accepted — the C-side RAND gate is the safety
+                    // net for those. Only enforced on the encap path:
+                    // decap doesn't consume entropy.
+                    int suppliedStrength = DefaultRandSource.strengthOf(random);
+                    if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+                    {
+                        throw new InvalidAlgorithmParameterException(
+                                "supplied SecureRandom reports " + suppliedStrength
+                                        + "-bit strength but " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName()
+                                        + " requires " + strengthBits);
+                    }
+
                     parameterSpec = params;
+                    // Resolve / upgrade RandSource for the peer key's
+                    // variant — ML-KEM-768/1024 need 192/256-bit
+                    // strength to pass the OpenSSL RAND gate
+                    // (GH issue #34).
+                    randSource = DefaultRandSource.replaceWith(randSource, random, strengthBits);
                     return;
                 }
                 throw new InvalidAlgorithmParameterException("Only MLKEMPublicKey is supported");
@@ -132,6 +168,8 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
         {
             KEMGenerateSpec generateSpec = (KEMGenerateSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) generateSpec.getPublicKey()).getSpec();
+            // engineInit resolved randSource for the peer key's
+            // strength category — use it directly.
             byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
             long len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
             byte[] wrappedKey = new byte[(int) len];

@@ -75,6 +75,40 @@ public class MLKEMParameterSpec implements AlgorithmParameterSpec
         return keyType;
     }
 
+    /**
+     * NIST security strength (in bits) per FIPS 203 Table 2:
+     * <ul>
+     *   <li>ML-KEM-512  — security category 1, 128-bit strength</li>
+     *   <li>ML-KEM-768  — security category 3, 192-bit strength</li>
+     *   <li>ML-KEM-1024 — security category 5, 256-bit strength</li>
+     * </ul>
+     *
+     * <p>This drives the JCE SPI's default-SecureRandom selection — when
+     * a caller calls {@code init(spec)} without supplying a
+     * {@code SecureRandom}, the SPI uses this value to instantiate a
+     * DRBG whose reported strength meets OpenSSL's RAND-strength gate.
+     * Using a 128-bit-strength DRBG with ML-KEM-768/1024 produces an
+     * {@link org.openssl.jostle.jcajce.provider.OpenSSLException} on
+     * the encap/keygen path (see GH issue #34).
+     */
+    public int getRequiredStrengthBits()
+    {
+        if (keyType == OSSLKeyType.ML_KEM_512)
+        {
+            return 128;
+        }
+        if (keyType == OSSLKeyType.ML_KEM_768)
+        {
+            return 192;
+        }
+        if (keyType == OSSLKeyType.ML_KEM_1024)
+        {
+            return 256;
+        }
+        // Unknown type — be conservative and ask for the strongest.
+        return 256;
+    }
+
     public static MLKEMParameterSpec fromName(String name)
     {
         if (name == null)

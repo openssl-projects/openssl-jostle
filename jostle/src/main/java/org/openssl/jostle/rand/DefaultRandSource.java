@@ -65,6 +65,72 @@ public class DefaultRandSource implements RandSource
     }
 
 
+    /**
+     * Strength-aware variant of {@link #replaceWith(RandSource, SecureRandom)}.
+     *
+     * <p>Reuses {@code current} when it already satisfies the request, to
+     * avoid allocating a new {@link DefaultRandSource} on every call.
+     * The decision matrix:
+     *
+     * <ol>
+     * <li>If the caller supplied a non-null {@code userRand}, that is
+     *     the source of truth — the returned RandSource wraps it
+     *     as-is regardless of strength (the caller has taken
+     *     responsibility for the RNG). {@code current} is reused if
+     *     it's already wrapping the same SecureRandom instance.</li>
+     * <li>If {@code userRand} is null and {@code current}'s reported
+     *     strength is already at least {@code requiredStrengthBits},
+     *     {@code current} is returned unchanged.</li>
+     * <li>Otherwise a strength-appropriate default is fetched via
+     *     {@link CryptoServicesRegistrar#getSecureRandom(int)} and
+     *     {@code current} is replaced (reusing it if it happens to
+     *     already wrap the same default).</li>
+     * </ol>
+     *
+     * <p>Java 8 baseline note: {@link #getStrength()} always returns
+     * {@code 0} here because the Java 8 API can't introspect a DRBG's
+     * configured strength. The reuse path therefore only fires via
+     * identity-equality of the underlying SecureRandom in branch 1
+     * (caller-supplied) and branch 3 (cached default). The Java 9+
+     * multi-release override of this class returns the actual DRBG
+     * strength, which makes branch 2 effective and avoids the per-call
+     * allocation.
+     *
+     * @param current the existing RandSource (may be {@code null}).
+     * @param userRand the caller-supplied SecureRandom, or {@code null}
+     *                 to use a strength-appropriate default.
+     * @param requiredStrengthBits minimum strength required; consulted
+     *                             only when {@code userRand} is null.
+     * @return {@code current} (unchanged) or a fresh DefaultRandSource.
+     */
+    public static RandSource replaceWith(RandSource current, SecureRandom userRand, int requiredStrengthBits)
+    {
+        if (userRand != null)
+        {
+            // Caller-supplied source — wrap as-is.
+            if (current instanceof DefaultRandSource && ((DefaultRandSource) current).random == userRand)
+            {
+                return current;
+            }
+            return new DefaultRandSource(userRand);
+        }
+
+        // No caller-supplied random. Reuse current if it already meets
+        // the strength requirement.
+        if (current instanceof DefaultRandSource && current.getStrength() >= requiredStrengthBits)
+        {
+            return current;
+        }
+
+        SecureRandom defaultRand = CryptoServicesRegistrar.getSecureRandom(requiredStrengthBits);
+        if (current instanceof DefaultRandSource && ((DefaultRandSource) current).random == defaultRand)
+        {
+            return current;
+        }
+        return new DefaultRandSource(defaultRand);
+    }
+
+
     @Override
     public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
     {
@@ -98,6 +164,47 @@ public class DefaultRandSource implements RandSource
     public SecureRandom getRandom()
     {
         return random;
+    }
+
+    /**
+     * Java 8 baseline returns {@code 0} (strength unknown) — the
+     * {@code DrbgParameters} API needed to introspect a SecureRandom's
+     * configured strength is Java 9+. The Java 9+ multi-release
+     * override reports the actual DRBG strength.
+     */
+    @Override
+    public int getStrength()
+    {
+        return 0;
+    }
+
+
+    /**
+     * Inspect the reported security strength of an externally-supplied
+     * {@link SecureRandom}. Returns {@code 0} when the strength cannot
+     * be determined.
+     *
+     * <p>Used by SPIs to fail fast at {@code initialize} when a caller
+     * passes a SecureRandom whose reported strength is insufficient
+     * for the algorithm — surfacing an {@code InvalidAlgorithmParameterException}
+     * with a useful message instead of letting the C-side RAND gate
+     * surface a generic OpenSSL error at first {@code generate*} call.
+     *
+     * <p>Java 8 baseline always returns {@code 0}: the {@code DrbgParameters}
+     * API needed to introspect a SecureRandom's configured strength is
+     * Java 9+, and there is no other portable way to query it. Callers
+     * should treat {@code 0} as "unknown — don't reject" rather than
+     * "insufficient": rejecting on unknown would break legitimate uses
+     * of custom or plain {@code new SecureRandom()} instances, and the
+     * C-side RAND gate is still the safety net for genuinely-weak
+     * sources passed through unchecked.
+     *
+     * @param rand the SecureRandom to inspect; {@code null} returns 0.
+     * @return reported strength in bits, or {@code 0} if unknown.
+     */
+    public static int strengthOf(SecureRandom rand)
+    {
+        return 0;
     }
 
 

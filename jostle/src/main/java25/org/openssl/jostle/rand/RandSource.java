@@ -24,6 +24,16 @@ public interface RandSource
 
     SecureRandom getRandom();
 
+    /**
+     * Reported security strength in bits of the underlying randomness
+     * source, or {@code 0} if the strength cannot be determined.
+     *
+     * <p>Used by {@link DefaultRandSource#replaceWith(RandSource, SecureRandom, int)}
+     * to decide whether the existing source already satisfies a
+     * strength requirement without constructing a new instance.
+     */
+    int getStrength();
+
     default int getRandomSegment(MemorySegment memorySegment, int len, int strength, boolean predictionResistant)
     {
 

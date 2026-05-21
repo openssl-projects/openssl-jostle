@@ -52,6 +52,36 @@ public class MLDSAParameterSpec
         return name;
     }
 
+    /**
+     * NIST security strength (in bits) per FIPS 204 Table 1:
+     * <ul>
+     *   <li>ML-DSA-44 — security category 2, 128-bit strength</li>
+     *   <li>ML-DSA-65 — security category 3, 192-bit strength</li>
+     *   <li>ML-DSA-87 — security category 5, 256-bit strength</li>
+     * </ul>
+     *
+     * <p>Drives the JCE SPI's default-SecureRandom selection when the
+     * caller doesn't supply one explicitly. See {@link MLKEMParameterSpec#getRequiredStrengthBits}
+     * for the rationale (GH issue #34).
+     */
+    public int getRequiredStrengthBits()
+    {
+        if (this == ml_dsa_44)
+        {
+            return 128;
+        }
+        if (this == ml_dsa_65)
+        {
+            return 192;
+        }
+        if (this == ml_dsa_87)
+        {
+            return 256;
+        }
+        // Unknown — conservative.
+        return 256;
+    }
+
 
     public static MLDSAParameterSpec fromName(String name)
     {

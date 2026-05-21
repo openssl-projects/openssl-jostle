@@ -10,7 +10,6 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
-import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -31,7 +30,17 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 {
     Logger LOG = Logger.getLogger("MLDSAKeyPairGeneratorImpl(Java 8)");
     private OSSLKeyType keyType;
-    private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
+
+    /**
+     * Cached RandSource. Initialised in the constructor to a
+     * strength-appropriate default based on the constructor's keyType
+     * (so {@code generateKeyPair} works on a typed instance without an
+     * explicit {@code initialize} call). {@code initialize} replaces it
+     * via {@link DefaultRandSource#replaceWith(RandSource, SecureRandom, int)},
+     * which reuses the existing instance when the request is already
+     * satisfied — eliminating the per-call wrap allocation.
+     */
+    private RandSource randSource;
 
     private static final Map<Object, OSSLKeyType> paramToTypeMap = new HashMap<Object, OSSLKeyType>()
     {
@@ -67,6 +76,14 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         {
             throw new IllegalArgumentException("unknown algorithm: " + algorithm);
         }
+
+        // Pre-resolve a strength-appropriate default RandSource so a
+        // typed instance (e.g. KeyPairGenerator.getInstance("ML-DSA-65"))
+        // works without an explicit initialize() call. The umbrella
+        // "ML-DSA" alias resolves to NONE; fall back to the 128-bit
+        // category — generateKeyPair on a NONE instance without
+        // initialize() will fail at the native layer anyway.
+        randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(keyType));
     }
 
     public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
@@ -77,7 +94,6 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
     @Override
     public void initialize(AlgorithmParameterSpec params, SecureRandom rand) throws InvalidAlgorithmParameterException
     {
-        this.random = DefaultRandSource.replaceWith(this.random, rand);
         if (!(params instanceof MLDSAParameterSpec))
         {
             throw new InvalidAlgorithmParameterException("only MLDSAParameterSpec is supported");
@@ -101,13 +117,41 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         {
             throw new InvalidAlgorithmParameterException("expected " + keyType + " but was supplied " + newType);
         }
+
+        int strengthBits = strengthForKeyType(keyType);
+
+        // Fail fast if the caller supplied a SecureRandom that reports
+        // a strength below the algorithm's requirement (Java 9+ DRBG
+        // path). Sources that don't expose a strength claim
+        // (plain new SecureRandom(), Java 8, custom subclasses) return
+        // 0 here and are accepted — the C-side RAND gate is the safety
+        // net for those.
+        int suppliedStrength = DefaultRandSource.strengthOf(rand);
+        if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "supplied SecureRandom reports " + suppliedStrength
+                            + "-bit strength but " + spec.getName()
+                            + " requires " + strengthBits);
+        }
+
+        // Resolve / upgrade the RandSource to match the now-final keyType.
+        // replaceWith reuses the existing instance when it already
+        // satisfies the request — no allocation when the strength is
+        // unchanged AND the caller didn't supply a different SecureRandom.
+        randSource = DefaultRandSource.replaceWith(randSource, rand, strengthBits);
+    }
+
+    private static int strengthForKeyType(OSSLKeyType type)
+    {
+        OSSLKeyType activeType = (type == OSSLKeyType.NONE) ? OSSLKeyType.ML_DSA_44 : type;
+        return MLDSAParameterSpec.fromName(activeType.getTypeName()).getRequiredStrengthBits();
     }
 
     @Override
     public KeyPair generateKeyPair()
     {
-
-        long res = NISelector.MLDSAServiceNI.generateKeyPair(keyType.getKsType(), random);
+        long res = NISelector.MLDSAServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
 
         if (res == 0)
