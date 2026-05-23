@@ -73,6 +73,10 @@ To switch the native build between OPS-instrumented and not, you must rebuild th
 
 When you change a class that has overrides in `javaN/`, you **must apply equivalent changes** to every override copy. There is no automation guarding against drift; the `DefaultRandSourceParityTest` in `src/test/java/.../rand/` is one example of a source-level parity guard.
 
+**Test source sets follow the same split.** `src/test/java/` compiles at `release=8` — tests that use Java 9+ APIs (`DrbgParameters`, `Reference.reachabilityFence`, sealed classes, the FFI APIs) MUST live in `src/test/java25/`. The `unitTest25*` / `integrationTest25*` Gradle tasks run BOTH source sets together against a Java 25 JVM, so a test in `src/test/java25/` runs alongside everything in `src/test/java/`. Use this split to add strength-validation, DRBG, or FFI-only tests; put baseline coverage that works on every JDK in `src/test/java/`.
+
+**Test classpath uses `jar.archiveFile`, not live class outputs.** The `test25` source set compiles against the assembled multi-release jar. If you modify a class/interface that tests reference, `compileTest25Java` will see the OLD signature until the jar is rebuilt — `./gradlew :jostle:jar`. Most often surfaces when you add a new method to a project-internal interface (`RandSource`, `MDServiceNI`, etc.) and test compilation fails with "method does not override or implement a method from a supertype" because the jar still contains the pre-edit version.
+
 ## How a transformation is wired
 
 A given crypto operation (e.g. ML-DSA signatures) involves files in roughly this layout:
@@ -119,6 +123,14 @@ Every native call that consumes entropy must accept a `RandSource` parameter. On
 `rnd_src` is **not** valid across calls — it's only live for the duration of the function it was passed into. Cache the Java reference on the SPI side, not in C state.
 
 Direct buffer access (JNI critical regions) cannot make up-calls — fetch random data before entering critical sections, or after leaving them.
+
+**Strength-appropriate default RNG for post-quantum algorithms.** ML-KEM-768/1024, ML-DSA-65/87, and SLH-DSA-*-192/256 require RNG strength above the JDK default 128-bit DRBG — the C-side RAND gate rejects insufficient entropy with `JO_RAND_INSUFFICIENT_STRENGTH` (GH issue #34). The canonical pattern, with the existing four PQ SPIs (`MLKEMKeyPairGenerator`, `MLKEMKeyGenerator`, `MLDSAKeyPairGeneratorImpl`, `SLHDSAKeyPairGenerator`) as reference:
+
+1. Parameter spec exposes `getRequiredStrengthBits()` returning 128/192/256.
+2. `CryptoServicesRegistrar.getSecureRandom(int strengthBits)` returns a strength-targeted DRBG via `SecureRandomProvider.get(int)`. The Java 9+ override of `ThreadLocalSecureRandomProvider` constructs `SecureRandom.getInstance("DRBG", DrbgParameters.instantiation(...))`; Java 8 inherits the default that delegates back to `get()`. The multi-release split lives in `ThreadLocalSecureRandomProvider`, NOT in `CryptoServicesRegistrar` (which is a single source file).
+3. SPIs hold a `RandSource randSource` field initialised in the constructor to a strength-appropriate default (so typed instances work without explicit `initialize()`). `initialize` / `engineInit` calls `DefaultRandSource.replaceWith(randSource, userRand, strengthBits)` which reuses the existing wrapper when current strength is sufficient AND the caller didn't supply a different SecureRandom — avoids per-call `wrap()` allocation. `generateKeyPair` / `engineGenerateKey` uses `randSource` directly with no further resolution.
+4. Strength-validation gate at `initialize` / `engineInit`: if the caller-supplied SecureRandom reports a non-zero strength via `DefaultRandSource.strengthOf(rand)` below the requirement, throw `InvalidAlgorithmParameterException` immediately. A reported strength of 0 means "unknown" (Java 8, or non-DRBG SecureRandom) — accept it and let the C-side RAND gate be the safety net.
+5. Don't add a separate `SecureRandom userRandom` field alongside `randSource` — `replaceWith` takes the user's SecureRandom as a parameter, so it doesn't need to be cached on the SPI. The user-supplied SecureRandom enters `replaceWith` directly from the `initialize` parameter.
 
 ## Style and submission
 
@@ -390,6 +402,8 @@ When the same class lives in multiple `src/main/javaN/` directories, the **publi
 - A `javaN/` copy can use Java-N-specific APIs internally, but the parameter and return types of public methods must remain Java-8-expressible.
 
 The existing `## Multi-release source layout (critical)` warns about applying changes to every override copy but doesn't articulate the ABI-stability rule. Drift surfaces only when downstream code is compiled against the older view and run on the newer JDK — which most local test runs don't exercise. The `DefaultRandSourceParityTest` is a precedent for source-level parity guards; consider similar tests for any class with substantial cross-version overrides.
+
+Adding a method to a project-internal interface (`RandSource`, `MDServiceNI`, `SecureRandomProvider`, etc.) requires updating EVERY implementation — production classes, multi-release overrides (`src/main/javaN/`), AND test fakes. Test fakes are the easiest to miss because they often live as static inner classes inside larger test files (`TestUtil.TestRandSource`, the `*RandSource` family in `BridgeRandLimitTest`). The compile error is "X is not abstract and does not override abstract method Y" — search the test tree by interface name before declaring an interface change done. Prefer `default` methods on the interface when the new behaviour has a sensible no-op fallback (the test fakes inherit the default and you don't need to touch them); use abstract methods only when every implementation must make a deliberate choice. Also remember the FFI-aware Java 25 override of the interface itself (e.g. `src/main/java25/.../RandSource.java`) — when the base interface declares a new abstract method, the Java 25 override must declare it too, or the multi-release jar serves up a Java 25 view missing the method.
 
 **SPI state-machine guards — `requireInitialised()` pattern**
 
