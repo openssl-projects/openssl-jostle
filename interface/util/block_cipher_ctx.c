@@ -608,6 +608,27 @@ int32_t block_cipher_ctx_init(
                     return JO_INVALID_MODE;
             }
             break; // SM4
+        case DES_EDE3:
+            // 3-key Triple DES (DES-EDE3). 24-byte key, 8-byte block.
+            // Only ECB and CBC are in OpenSSL 3.5's default provider;
+            // other DES-EDE3 modes (CFB*, OFB) live in legacy and are
+            // intentionally not exposed here.
+            ctx->cipher_block_size = BLOCK_SIZE_DES_EDE3;
+            if (key_len != 24) {
+                return JO_INVALID_KEY_LEN;
+            }
+            switch (ctx->mode_id) {
+                case ECB:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "DES-EDE3-ECB",NULL);
+                    break;
+                case CBC:
+                    REQUIRE_IV_LEN(BLOCK_SIZE_DES_EDE3)
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "DES-EDE3-CBC",NULL);
+                    break;
+                default:
+                    return JO_INVALID_MODE;
+            }
+            break; // DES_EDE3
         default:
             return JO_INVALID_CIPHER; // Cipher mode
     }
@@ -1229,11 +1250,24 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     if (ctx->streaming || ctx->mode_id == XTS) {
         result = len;
     } else {
-        size_t remaining = 0;
-        if (ctx->padding == PADDED) {
-            remaining = ctx->processed % ctx->cipher_block_size;
-        }
-        result = ctx->cipher_block_size * ((remaining + len) / ctx->cipher_block_size);
+        // Block-cipher modes (padded or unpadded): the upper bound on
+        // bytes that this update may write is one block per "completed"
+        // block from buffered+new bytes. The buffered-bytes term applies
+        // to BOTH padded and unpadded modes — unpadded mode also buffers
+        // partial blocks at the EVP layer, even though Jostle currently
+        // rejects sub-block update input via JO_NOT_BLOCK_ALIGNED.
+        //
+        // The auto-allocating Cipher.update(byte[], int, int) path
+        // calls this with `len` and then invokes block_cipher_ctx_update
+        // with the allocated buffer; that function's safety guard
+        // `if (out_len < in_len) return JO_OUTPUT_TOO_SMALL` would
+        // reject any sub-block update whose precise required output is
+        // 0 bytes. Return max(aligned, len) so the auto-allocating
+        // caller always passes the guard. The Java SPI trims the
+        // returned buffer to the actually-written length.
+        size_t remaining = ctx->processed % ctx->cipher_block_size;
+        size_t aligned = ctx->cipher_block_size * ((remaining + len) / ctx->cipher_block_size);
+        result = aligned > len ? aligned : len;
     }
 
     if (result > INT32_MAX) {

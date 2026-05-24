@@ -1410,13 +1410,23 @@ public class BlockCipherLimitTest
                 Assertions.assertEquals("not initialized", ex.getMessage());
             }
 
-            // PADDED non-streaming branch: result rounds down to block boundary
-            // including any partial-block carry from prior update. Fresh ctx
-            // has processed=0, so for input 32 we expect 32 (2 full blocks).
+            // PADDED non-streaming branch: result is max(aligned, len)
+            // — the aligned formula gives the actual bytes that will be
+            // written, but the C-side update guard requires
+            // out_len >= in_len so we widen to ensure the auto-allocating
+            // Cipher.update(byte[], int, int) path passes that guard.
+            // Fresh ctx has processed=0.
             blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            // input 32 → aligned=32, max(32,32)=32 (2 full blocks, no carry).
             Assertions.assertEquals(32, blockCipherNI.getUpdateSize(ref, 32));
-            // input 17 → 16 (one whole block, byte 17 carries to next call).
-            Assertions.assertEquals(16, blockCipherNI.getUpdateSize(ref, 17));
+            // input 17 → aligned=16 (one whole block, byte 17 carries
+            // forward) but max(16,17)=17 — we widen to in_len so the
+            // sub-block-of-second-block byte doesn't trip the
+            // out_len >= in_len guard at block_cipher_ctx_update.
+            Assertions.assertEquals(17, blockCipherNI.getUpdateSize(ref, 17));
+            // input 1 → aligned=0, max(0,1)=1. Pre-fix this returned 0
+            // and broke the auto-allocating sub-block path.
+            Assertions.assertEquals(1, blockCipherNI.getUpdateSize(ref, 1));
 
             blockCipherNI.dispose(ref);
             ref = 0;

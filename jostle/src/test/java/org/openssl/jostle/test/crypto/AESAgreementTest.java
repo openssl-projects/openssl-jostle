@@ -1417,12 +1417,14 @@ public class AESAgreementTest
     public void testJce_aesCbcNoPadding_updateRejectsNonAligned() throws Exception
     {
         // Cipher.update has no checked-exception throws clause, so the SPI
-        // wraps the underlying error in a RuntimeException. The cause is
-        // ShortBufferException: getUpdateSize(15) returns 0 for a sub-block
-        // CBC/NoPadding input (no full blocks to output), so the native
-        // out_len < in_len guard fires before the alignment guard. Pin
-        // the wrapping behavior — silent success or a bare NPE would be
-        // the dangerous failure modes.
+        // wraps the underlying error in a RuntimeException. After the
+        // get_update_size fix that widens the buffer to max(aligned,
+        // in_len), the sub-block input now passes the out_len >= in_len
+        // guard and reaches the more-accurate alignment check; the cause
+        // is now IllegalBlockSizeException ("data not block size aligned"),
+        // which is the right semantic failure for non-aligned input to
+        // an unpadded mode. Pin the wrapping behavior — silent success
+        // or a bare NPE would be the dangerous failure modes.
         Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
         c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
         try
@@ -1432,8 +1434,8 @@ public class AESAgreementTest
         }
         catch (RuntimeException ex)
         {
-            Assertions.assertTrue(ex.getCause() instanceof ShortBufferException,
-                    "expected ShortBufferException cause, got "
+            Assertions.assertTrue(ex.getCause() instanceof IllegalBlockSizeException,
+                    "expected IllegalBlockSizeException cause, got "
                             + (ex.getCause() == null ? "null" : ex.getCause().getClass().getName()));
         }
     }

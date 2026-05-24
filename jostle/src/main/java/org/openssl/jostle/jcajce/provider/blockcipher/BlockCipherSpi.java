@@ -65,6 +65,14 @@ class BlockCipherSpi extends CipherSpi
     {
         mandatedCipher = osslCipher;
         mandatedMode = osslMode;
+        // Seed the active osslMode field with the mandated mode. JCE
+        // form-1 OID-alias lookup (e.g. Cipher.getInstance(some_oid))
+        // resolves a primary that pre-locks the mode here and does NOT
+        // call engineSetMode — without this assignment, ensureNativeReference
+        // NPEs on osslMode.ordinal(). The shadowing of the field by
+        // the same-named parameter is the reason this was easy to miss;
+        // the explicit `this.` qualifier is intentional.
+        this.osslMode = osslMode;
         this.keyAlgorithm = expectedKeyAlgorithm;
     }
 
@@ -518,7 +526,7 @@ class BlockCipherSpi extends CipherSpi
             byte[] workingInput = input;
 
 
-            if (input == output) // same array
+            if (input != null && input == output) // same array
             {
                 if (overlap(inputOffset, inputLen, outputOffset, k))
                 {
@@ -530,11 +538,19 @@ class BlockCipherSpi extends CipherSpi
 
 
             int written = 0;
-            int code = blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
 
-            written += code;
+            // Cipher.doFinal() (no-args) lands here with input=null,
+            // inputLen=0. Skip the NI.update call entirely — the EVP
+            // layer treats a zero-length update as a no-op, but the
+            // NI bridge null-checks workingInput up front and would
+            // throw NullPointerException. Only call update when there
+            // are bytes to feed.
+            if (inputLen > 0)
+            {
+                written += blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
+            }
 
-            code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
+            int code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
 
             written += code;
             return written;
