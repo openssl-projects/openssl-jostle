@@ -1239,7 +1239,11 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     }
 
 
-    if (len > INT32_MAX) {
+    // Input overflow gate — `len` is a size_t from the caller, so on
+    // 64-bit platforms it can exceed INT32_MAX. OPS_INT32_OVERFLOW_1
+    // lets tests fault-inject the overflow path without having to
+    // actually pass a 2GB+ value across the JNI/FFI boundary.
+    if (OPS_INT32_OVERFLOW_1 len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -1270,7 +1274,12 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
         result = aligned > len ? aligned : len;
     }
 
-    if (result > INT32_MAX) {
+    // Output overflow gate — `aligned` is `block_size * ((remaining + len)
+    // / block_size)`, which can in principle exceed `len` (and thus
+    // INT32_MAX) when `remaining` is non-zero and `len` is close to the
+    // limit. OPS_INT32_OVERFLOW_2 lets tests exercise this branch even
+    // when the input passed the first gate.
+    if (OPS_INT32_OVERFLOW_2 result > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
     return (int32_t) result;

@@ -256,6 +256,18 @@ JCE SPIs are state machines whose terminal operations — `sign`, `verify`, `doF
 
 These tests are cheap — typically 15–30 lines each — and they're the only practical way to catch the class of bugs where the per-call path is correct but the inter-call transition isn't. The CLAUDE.md "exercise the negative path" rule applies recursively to reset: a positive-only reuse test ("two encrypts in a row") proves the SPI doesn't crash on reuse, but it doesn't prove the second encrypt actually re-randomised — the negative-then-positive and positive-then-negative patterns are what surface that.
 
+### Pin the exception message in OPS / Limit-test catch blocks
+
+The error-code → exception mapping in `DefaultServiceNI.baseErrorHandler` (and the per-NI `handleError` overrides like `BlockCipherNI.handleError`) is the only place that guarantees a specific `JO_*` code maps to a specific typed exception with a specific message. A test that only catches by type — `catch (OpenSSLException ex) { // expected }` — passes even when someone moves the case to a different arm whose typed exception happens to be the same but whose message format differs, or when the underlying error code silently changes to one that produces a different message via the same wrapper. Both are the exact bug classes the OPS / Limit infrastructure is designed to detect; an empty catch body fails to detect them.
+
+Rule: every catch block in an `*OpsTest` or `*LimitTest` MUST assert the exception's message text. Three sub-patterns by injected-failure type:
+
+1. **OPS-injected `JO_OPENSSL_ERROR`** — exact-match `assertEquals("OpenSSL Error: null", ex.getMessage())`. The OPS macro short-circuits before any real OpenSSL call, so the thread-local error queue stays empty and `String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors())` formats the literal `"null"` into the message.
+2. **Real OpenSSL failures (Limit tests where actual EVP calls fail)** — prefix-match `assertTrue(ex.getMessage().startsWith("OpenSSL Error:"))`. The queue content varies with the call site and OpenSSL version, so an exact-match would be brittle; the prefix proves the wrapper fired without pinning the volatile detail.
+3. **Other typed exceptions from the handler arms** — exact-match the fixed message from the corresponding `baseErrorHandler` arm, e.g. `assertEquals("a returned pointer changed unexpectedly", e.getMessage())` for `UnexpectedPointerChangeException` (`JO_UNEXPECTED_POINTER_CHANGE`), `assertEquals("output too long int32", e.getMessage())` for `OverflowException` (`JO_OUTPUT_SIZE_INT_OVERFLOW`).
+
+Avoid `// expected` empty catch bodies. `BlockCipherOpsTest`, `ASN1UtilOpsTest`, `RSAOpsTest` are the canonical references; all `*OpsTest` files now follow the convention. Non-OPS tests that catch JDK-provider-thrown exceptions (`DigestException`, `NoSuchAlgorithmException`, `CloneNotSupportedException`, etc.) are exempt — those messages come from the JDK and vary across releases.
+
 ### Hard-code security-critical OpenSSL parameters; pair with a runtime hard guard
 
 When OpenSSL exposes a parameter that controls a security property the implementation depends on — even when its default already matches what we need — set it explicitly in our code via `EVP_PKEY_CTX_set_params` (or the equivalent setter). Defaults can change between OpenSSL releases, custom providers can override them, and someone editing the C code can flip a value "for diagnostics" without realising it weakens the implementation. The explicit set makes the intent unambiguous to anyone reading the source and survives all three of those drift modes.
