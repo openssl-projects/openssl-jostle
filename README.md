@@ -39,30 +39,30 @@ structure for this is laid out in ```interface/loading``` along with appropriate
 "deps.txt" files.
 
 
-### Step 1 Obtain and build OpenSSL Library 3.5
+### Step 1 Obtain and build OpenSSL Library 3.6
 
-OpenSSL Library 3.5 source bundle can be downloaded from [OpenSSL Downloads](https://openssl-library.org/source/)
+OpenSSL Library 3.6 source bundle can be downloaded from [OpenSSL Downloads](https://openssl-library.org/source/)
 
 After copying the source url, download the source tarball onto a suitable machine and unpack it.
 For the current LTS release you can use the following commands.
 
 ```
-    wget https://github.com/openssl/openssl/releases/download/openssl-3.5.4/openssl-3.5.4.tar.gz
+    wget https://github.com/openssl/openssl/releases/download/openssl-3.6.4/openssl-3.6.4.tar.gz
     
-    tar -zxvf openssl-3.5.4.tar.gz    
+    tar -zxvf openssl-3.6.4.tar.gz    
 ```
 
-In order to build OpenSSL 3.5 you will need to have also installed the appropriate build tools for the OS that you are building on.
+In order to build OpenSSL 3.6 you will need to have also installed the appropriate build tools for the OS that you are building on.
 
-### Step 2 Build OpenSSL Library 3.5 
+### Step 2 Build OpenSSL Library 3.6 
 
 Users should specify a prefix when building the OpenSSL Library for this example there is no need to install it on the host 
 for all users so we will use prefix and keep it nearby. 
 
 ```
-  cd openssl-3.5.4
+  cd openssl-3.6.4
   
-  # Tell OpenSSL to install build products in the same parent as openssl-3.5.4
+  # Tell OpenSSL to install build products in the same parent as openssl-3.6.4
   ./Configure --prefix=`pwd`/../openssl_3_5
   
   # Build it.
@@ -84,7 +84,7 @@ ls -al
     
 drwxr-xr-x.  4 ec2-user ec2-user    46 Oct  2 08:08 .
 drwx------.  4 ec2-user ec2-user   133 Oct  2 07:34 ..
-drwxr-xr-x. 28 ec2-user ec2-user 16384 Oct  2 08:08 openssl-3.5.4
+drwxr-xr-x. 28 ec2-user ec2-user 16384 Oct  2 08:08 openssl-3.6.4
 drwxr-xr-x.  5 ec2-user ec2-user    45 Oct  2 08:08 openssl_3_5
 
 ls -al openssl_3_5
@@ -327,7 +327,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.5.4
+  OpenSSL Version: 3.6.4
 .END
 Use: -fine to emit FINE level logs
 -------------------------------------------------------------------------------
@@ -361,7 +361,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.5.4
+  OpenSSL Version: 3.6.4
 .END
 Use: -fine to emit FINE level logs
 -------------------------------------------------------------------------------
@@ -408,7 +408,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.5.4
+  OpenSSL Version: 3.6.4
 .END
 Use: -fine to emit FINE level logs
 
