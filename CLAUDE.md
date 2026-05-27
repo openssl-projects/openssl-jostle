@@ -268,6 +268,28 @@ Rule: every catch block in an `*OpsTest` or `*LimitTest` MUST assert the excepti
 
 Avoid `// expected` empty catch bodies. `BlockCipherOpsTest`, `ASN1UtilOpsTest`, `RSAOpsTest` are the canonical references; all `*OpsTest` files now follow the convention. Non-OPS tests that catch JDK-provider-thrown exceptions (`DigestException`, `NoSuchAlgorithmException`, `CloneNotSupportedException`, etc.) are exempt — those messages come from the JDK and vary across releases.
 
+### Link every OPS test to its C-source fault-injection site
+
+Every test in a `*OpsTest.java` file MUST carry a `// Exercises <repo-relative-c-path>:<line>` comment immediately above the `operationsTestNI.setFlag(...)` call that drives it. The comment names the exact C if-line containing the `OPS_*` macro that the test trips — i.e. the call site whose return value the flag short-circuits, NOT the error-return line. Without the link, reading the test alone doesn't tell you which C site it exercises: you'd have to compute `offset = -code - 2`, grep the C tree for the matching `OPS_OFFSET_*(offset)`, and walk backwards to the `if (OPS_* ...)` line every time.
+
+The format is intentionally minimal — single line, same indent as the `setFlag` call, no prose, no function name:
+
+```java
+            // Exercises interface/util/rsa.c:589
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int code = rsaServiceNI.ni_initSign(...);
+```
+
+Rationale for the minimalism: a bare `path:line` is the smallest target that can go stale (only the integer line number), so a C-side refactor that shifts lines is trivially fixed by re-running the annotate-ops-tests skill or by editing the integer. Any additional context — slot-reuse rationale, padding-choice rationale, "this fires inside helper X called by Y" — belongs in the test's surrounding Javadoc, NOT in the inline comment. The skill's "update in place" logic would overwrite manual prose added to the comment on the next re-run.
+
+Three rules apply:
+
+1. **Every new OPS test gets the comment at creation time.** This is not optional and not "we'll add it later" — the linkage is the only thing that makes the test traceable. Apply to `OPS_OPENSSL_ERROR_*`, `OPS_FAILED_ACCESS_*`, `OPS_INT32_OVERFLOW_*`, `OPS_LEN_CHANGE_*`, `OPS_POINTER_CHANGE`, every OPS family.
+2. **The path is repo-root-relative.** `interface/util/rsa.c:589` for OpenSSL-error sites in the abstraction layer, `interface/jni/ec_ni_jni.c:42` for JNI access faults in the bridge layer. Same prefix whether the site lives under `util/` or `jni/`.
+3. **The line number is the if-line, not the return line.** `if (OPS_OPENSSL_ERROR_1 md_ctx == NULL) {` is the line readers care about — it names the EVP function being faulted. The `return JO_OPENSSL_ERROR OPS_OFFSET_*(...)` on the next line is the consequence, not the test target.
+
+For `OPS_OPENSSL_ERROR_*` tests, the `.claude/skills/annotate-ops-tests/` skill auto-generates and refreshes the comment from the test's `setFlag` + `assertEquals(-code, ...)` pair — useful after C edits shift line numbers. For `OPS_FAILED_ACCESS_*` and other non-offset OPS families the skill can't auto-link (no `OPS_OFFSET_*` macro to key the index off), so the comment must be added manually when the test is written.
+
 ### Hard-code security-critical OpenSSL parameters; pair with a runtime hard guard
 
 When OpenSSL exposes a parameter that controls a security property the implementation depends on — even when its default already matches what we need — set it explicitly in our code via `EVP_PKEY_CTX_set_params` (or the equivalent setter). Defaults can change between OpenSSL releases, custom providers can override them, and someone editing the C code can flip a value "for diagnostics" without realising it weakens the implementation. The explicit set makes the intent unambiguous to anyone reading the source and survives all three of those drift modes.

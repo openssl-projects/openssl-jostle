@@ -39,7 +39,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     }
 
     const char *curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
-    if (curve_name == NULL) {
+    if (OPS_FAILED_ACCESS_1 curve_name == NULL) {
         return JO_UNABLE_TO_ACCESS_NAME;
     }
 
@@ -74,7 +74,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
     }
 
     curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
-    if (curve_name == NULL) {
+    if (OPS_FAILED_ACCESS_1 curve_name == NULL) {
         ret_val = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
@@ -133,7 +133,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
     }
 
     curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
-    if (curve_name == NULL) {
+    if (OPS_FAILED_ACCESS_2 curve_name == NULL) {
         ret_val = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
@@ -267,7 +267,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     }
 
     const char *digest = (*env)->GetStringUTFChars(env, _digest, NULL);
-    if (digest == NULL) {
+    if (OPS_FAILED_ACCESS_1 digest == NULL) {
         return JO_UNABLE_TO_ACCESS_NAME;
     }
 
@@ -299,7 +299,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
     }
 
     const char *digest = (*env)->GetStringUTFChars(env, _digest, NULL);
-    if (digest == NULL) {
+    if (OPS_FAILED_ACCESS_1 digest == NULL) {
         return JO_UNABLE_TO_ACCESS_NAME;
     }
 

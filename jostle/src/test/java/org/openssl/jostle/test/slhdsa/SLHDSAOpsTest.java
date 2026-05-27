@@ -175,6 +175,7 @@ public class SLHDSAOpsTest
             keyRef = slhDSAServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/slhdsa.c:315
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
             long code = slhDSAServiceNI.ni_getPrivateKey(keyRef, new byte[4096]);
@@ -493,6 +494,7 @@ public class SLHDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/slhdsa.c:642
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = slhDSAServiceNI.ni_initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
@@ -519,6 +521,7 @@ public class SLHDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/slhdsa.c:647
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = slhDSAServiceNI.ni_initSign(slhdsaRef, keyRef, new byte[1024], 0, 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
@@ -577,6 +580,7 @@ public class SLHDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/slhdsa.c:786
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = slhDSAServiceNI.ni_initVerify(slhdsaRef, keyRef, new byte[1024], 0, 0, 0);
             Assertions.assertEquals(-1005, code); // OpenSSL error with offset
@@ -603,6 +607,7 @@ public class SLHDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/slhdsa.c:792
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = slhDSAServiceNI.ni_initVerify(slhdsaRef, keyRef, new byte[1024], 0, 0, 0);
             Assertions.assertEquals(-1006, code); // OpenSSL error with offset

@@ -79,6 +79,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_pkcs1.c:98
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2100 + JO_OPENSSL_ERROR (-2) → -2102.
@@ -104,6 +105,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_pkcs1.c:109
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2101 + JO_OPENSSL_ERROR (-2) → -2103.
@@ -129,6 +131,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_pkcs1.c:109
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
             Assertions.assertEquals(-2103, code);
@@ -154,6 +157,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_pkcs1.c:114
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // -2 + (-2110) = -2112.
@@ -186,6 +190,7 @@ public class RSAPKCS1CipherOpsTest
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/util/rsa_pkcs1.c:198
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2102 + JO_OPENSSL_ERROR (-2) → -2104.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -247,6 +252,7 @@ public class RSAPKCS1CipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/util/rsa_pkcs1.c:226
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2103 + JO_OPENSSL_ERROR (-2) → -2105.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,

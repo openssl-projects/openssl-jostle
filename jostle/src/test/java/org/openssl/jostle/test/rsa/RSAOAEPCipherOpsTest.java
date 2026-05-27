@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OverflowException;
@@ -68,6 +69,76 @@ public class RSAOAEPCipherOpsTest
 
 
     // -----------------------------------------------------------------
+    // init — JNI access faults (digest / mgf1 string fetch). JNI-only.
+    // -----------------------------------------------------------------
+
+    /**
+     * Target: {@code interface/jni/rsa_oaep_ni_jni.c:84} — fault-injects the
+     * {@code GetStringUTFChars(oaep_md)} failure inside {@code ni_init}.
+     * Uses slot {@code _2} because {@code _1} is consumed by the label
+     * byte-array load further down the same function.
+     */
+    @Test
+    public void RSAOAEPCipher_init_accessOaepMdName_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+
+        long ref = 0;
+        long keyRef = 0;
+        try
+        {
+            ref = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+
+            // Exercises interface/jni/rsa_oaep_ni_jni.c:84
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
+                    "SHA-256", null, null, TestUtil.RNDSrc);
+            Assertions.assertEquals(ErrorCode.JO_UNABLE_TO_ACCESS_NAME.getCode(), code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            cipherNI.disposeCipher(ref);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /**
+     * Target: {@code interface/jni/rsa_oaep_ni_jni.c:90} — fault-injects the
+     * {@code GetStringUTFChars(mgf1_md)} failure inside {@code ni_init}.
+     * The mgf1 string must be non-null for the fetch to actually run.
+     */
+    @Test
+    public void RSAOAEPCipher_init_accessMgf1MdName_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+
+        long ref = 0;
+        long keyRef = 0;
+        try
+        {
+            ref = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+
+            // Exercises interface/jni/rsa_oaep_ni_jni.c:90
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
+                    "SHA-256", "SHA-256", null, TestUtil.RNDSrc);
+            Assertions.assertEquals(ErrorCode.JO_UNABLE_TO_ACCESS_NAME.getCode(), code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            cipherNI.disposeCipher(ref);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
     // init — distinguishable failure paths via offset codes
     // -----------------------------------------------------------------
 
@@ -83,6 +154,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:114
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -109,6 +181,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:125
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -135,6 +208,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:125
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_DECRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -165,6 +239,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:130
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -191,6 +266,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:135
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -217,6 +293,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:143
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -243,6 +320,7 @@ public class RSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa_oaep.c:159
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             // Provide a non-empty label so the set0_rsa_oaep_label call is
             // reached (it lives behind `if (label != NULL && label_len > 0)`).
@@ -279,6 +357,7 @@ public class RSAOAEPCipherOpsTest
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/util/rsa_oaep.c:212
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2002 + JO_OPENSSL_ERROR (-2) → -2004.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -345,6 +424,7 @@ public class RSAOAEPCipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/util/rsa_oaep.c:246
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2003 + JO_OPENSSL_ERROR (-2) → -2005.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,

@@ -47,18 +47,22 @@ int32_t edec_generate_key(key_spec *spec, int32_t type, void *rnd_src) {
             goto exit;
     }
 
-    if (ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    // OPS slot _2 reused — only fires elsewhere in edec_get_*_encoded,
+    // none of which are reachable during edec_generate_key.
+    if (OPS_OPENSSL_ERROR_2 ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1010);
         goto exit;
     }
 
-    if (!EVP_PKEY_keygen_init(ctx)) {
-        ret_code = JO_OPENSSL_ERROR;
+    // OPS slot _3 — unused in this function before this point.
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_keygen_init(ctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(1011);
         goto exit;
     }
 
-    if (!EVP_PKEY_keygen(ctx, &(spec->key))) {
-        ret_code = JO_OPENSSL_ERROR;
+    // OPS slot _4 — unused in this function before this point.
+    if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(1012);
         goto exit;
     }
 
