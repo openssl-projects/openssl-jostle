@@ -460,6 +460,81 @@ public class BlockCipherOpsTest
     }
 
     @Test
+    public void testOcbSetTagOnInitFailure_encrypt() throws Exception
+    {
+        // OPS_OPENSSL_ERROR_8 forces the OCB-init EVP_CTRL_AEAD_SET_TAG
+        // (length-only, NULL buffer) call to look failed. RFC 7253
+        // permits OCB tag lengths other than 16; OpenSSL needs the
+        // non-default length set before key/IV — Jostle calls
+        // EVP_CIPHER_CTX_ctrl(..., EVP_CTRL_AEAD_SET_TAG, tag_len, NULL).
+        // Triggers only when mode is OCB AND tag_len != 16.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+
+            try
+            {
+                // Exercises interface/util/block_cipher_ctx.c:755
+                // Tag length 12 bytes (96 bits) — non-default for OCB,
+                // so the SET_TAG control fires (and short-circuits under
+                // OPS_OPENSSL_ERROR_8).
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 12);
+                Assertions.fail("expected OCB SET_TAG (encrypt-init) failure");
+            }
+            catch (OpenSSLException ex)
+            {
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testOcbSetTagOnInitFailure_decrypt() throws Exception
+    {
+        // OPS_OPENSSL_ERROR_8 also gates the decrypt-init SET_TAG call.
+        // Same fault, separate code path — independent test confirms the
+        // decrypt side also error-handles correctly.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+
+            try
+            {
+                // Exercises interface/util/block_cipher_ctx.c:790
+                blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 12);
+                Assertions.fail("expected OCB SET_TAG (decrypt-init) failure");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
     public void testGcmDecryptUpdateFailure_tagBufferPath() throws Exception
     {
         // GCM DECRYPT _update with input >= 2*tag_len fills the tag buffer
