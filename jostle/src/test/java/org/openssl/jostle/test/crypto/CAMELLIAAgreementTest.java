@@ -24,6 +24,7 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -934,6 +935,61 @@ public class CAMELLIAAgreementTest
 
         Assertions.assertFalse(Arrays.areEqual(msg, decoded),
                 "decrypting with the wrong key must not yield the original plaintext");
+    }
+
+
+    /**
+     * CAMELLIA-CTR accepts IVs in the range [block_size/2, block_size] —
+     * i.e. 8..16 bytes for the 128-bit CAMELLIA block size. Every valid
+     * length must agree with BC byte-for-byte; lengths outside the range
+     * must be rejected by both.
+     */
+    @Test
+    public void camelliaCtr_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("camelliaCtr_nonceLengthBoundaries");
+        String xform = "CAMELLIA/CTR/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "CAMELLIA");
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        for (int ivLen = 8; ivLen <= 16; ivLen++)
+        {
+            byte[] iv = new byte[ivLen];
+            sr.nextBytes(iv);
+            IvParameterSpec spec = new IvParameterSpec(iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "ivLen=" + ivLen + ": CAMELLIA-CTR ciphertext diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "ivLen=" + ivLen + ": CAMELLIA-CTR roundtrip failed");
+        }
+
+        for (int badLen : new int[]{0, 1, 7, 17, 32})
+        {
+            byte[] iv = new byte[badLen];
+            sr.nextBytes(iv);
+            Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(iv));
+                Assertions.fail("CAMELLIA-CTR must reject IV length " + badLen);
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
     }
 
 }

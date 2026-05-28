@@ -224,7 +224,10 @@ int32_t block_cipher_ctx_init(
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
                 case OCB:
-                    if (iv_len != 12) {
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes (strictly
+                    // less than the AES block size). OpenSSL enforces
+                    // the same range.
+                    if (iv_len < 1 || iv_len > 15) {
                         return JO_INVALID_IV_LEN;
                     }
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-OCB",NULL);
@@ -281,7 +284,8 @@ int32_t block_cipher_ctx_init(
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
                 case OCB:
-                    if (iv_len != 12) {
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes.
+                    if (iv_len < 1 || iv_len > 15) {
                         return JO_INVALID_IV_LEN;
                     }
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-OCB",NULL);
@@ -343,8 +347,14 @@ int32_t block_cipher_ctx_init(
                 // case WRAP:
                 // case WRAP_PAD:
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -734,6 +744,19 @@ int32_t block_cipher_ctx_init(
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
                 }
+                // OCB requires the tag length to be set BEFORE the key
+                // (RFC 7253 permits non-default tag lengths; OpenSSL
+                // defaults to 16 and applies EVP_CTRL_AEAD_SET_TAG with
+                // a NULL buffer + the desired length to override).
+                // GCM's tag length is enforced at doFinal-time by
+                // Jostle's own buffer rather than via OpenSSL, so this
+                // call is OCB-only.
+                if (ctx->mode_id == OCB && ctx->tag_len > 0 && ctx->tag_len != 16) {
+                    if (OPS_OPENSSL_ERROR_8 1 != EVP_CIPHER_CTX_ctrl(ctx->evp, EVP_CTRL_AEAD_SET_TAG, (int) ctx->tag_len, NULL)) {
+                        ret_code = JO_OPENSSL_ERROR;
+                        goto exit;
+                    }
+                }
                 if (OPS_FAILED_INIT_1 1 != EVP_EncryptInit_ex(ctx->evp, NULL, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
@@ -758,6 +781,16 @@ int32_t block_cipher_ctx_init(
                                                                  NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
+                }
+                // See OCB tag-length note on the encrypt path above —
+                // the same NULL-buffer SET_TAG call is needed on decrypt
+                // so OpenSSL knows how many ciphertext bytes are the
+                // payload vs. the tag.
+                if (ctx->mode_id == OCB && ctx->tag_len > 0 && ctx->tag_len != 16) {
+                    if (OPS_OPENSSL_ERROR_8 1 != EVP_CIPHER_CTX_ctrl(ctx->evp, EVP_CTRL_AEAD_SET_TAG, (int) ctx->tag_len, NULL)) {
+                        ret_code = JO_OPENSSL_ERROR;
+                        goto exit;
+                    }
                 }
                 if (OPS_FAILED_INIT_1 1 != EVP_DecryptInit_ex(ctx->evp, NULL, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;

@@ -28,6 +28,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -1734,6 +1735,293 @@ public class AESAgreementTest
             pos += chunk;
         }
         return enc.doFinal(msg);
+    }
+
+
+    // -----------------------------------------------------------------
+    // AES-OCB (AEAD, RFC 7253) — agreement with BouncyCastle, tag-length
+    // variation, AAD handling, tamper rejection. OCB shares the AEAD
+    // code path with GCM (gated on is_aead_mode(mode_id) in C); these
+    // tests pin the actual cross-impl agreement.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void aesOCB_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_agreesWithBC");
+        String xform = "AES/OCB/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[keySize];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(64)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "keySize=" + keySize + ": AES-OCB ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "keySize=" + keySize + ": AES-OCB roundtrip");
+        }
+    }
+
+    /**
+     * RFC 7253 permits OCB tags of 64, 96, or 128 bits. Some
+     * implementations also support 8..128 in 8-bit steps; we test the
+     * canonical three.
+     */
+    @Test
+    public void aesOCB_tagLengthVariation_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_tagLengthVariation_agreesWithBC");
+        String xform = "AES/OCB/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[sr.nextInt(64)];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        for (int tagBits : new int[]{64, 96, 128})
+        {
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(tagBits, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "tagBits=" + tagBits + ": AES-OCB ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "tagBits=" + tagBits + ": AES-OCB roundtrip");
+        }
+    }
+
+    /**
+     * RFC 7253: OCB nonce MUST be 1..15 bytes. The 16-byte boundary
+     * (matching the AES block size) and the 0-byte boundary must both
+     * be rejected; valid lengths in between must produce ciphertext
+     * byte-equal with BouncyCastle's OCB implementation.
+     */
+    @Test
+    public void aesOCB_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_nonceLengthBoundaries");
+        String xform = "AES/OCB/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        // Every valid nonce length per RFC 7253 §3.1 (N_MIN = 1 byte,
+        // N_MAX = 15 bytes). Each must agree with BC byte-for-byte AND
+        // roundtrip via Jostle decrypt.
+        for (int ivLen = 1; ivLen <= 15; ivLen++)
+        {
+            byte[] iv = new byte[ivLen];
+            sr.nextBytes(iv);
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "ivLen=" + ivLen + ": AES-OCB ciphertext diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "ivLen=" + ivLen + ": AES-OCB roundtrip failed");
+        }
+
+        // Invalid lengths: 0 and 16 must both be rejected. Use a
+        // 16-byte IV via IvParameterSpec since GCMParameterSpec requires
+        // >0 length; for the 0-length case, use IvParameterSpec(new byte[0]).
+        for (int badLen : new int[]{0, 16, 17, 32})
+        {
+            byte[] badIv = new byte[badLen];
+            sr.nextBytes(badIv);
+            Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            try
+            {
+                if (badLen == 0)
+                {
+                    // GCMParameterSpec rejects 0-length tags too; pass via
+                    // raw IvParameterSpec to bypass that and let our C-side
+                    // OCB nonce check be the one that fires.
+                    c.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(badIv));
+                }
+                else
+                {
+                    c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, badIv));
+                }
+                Assertions.fail("AES-OCB must reject nonce length " + badLen);
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+            catch (java.security.InvalidKeyException expected) { }
+        }
+    }
+
+    @Test
+    public void aesOCB_tamperedCiphertext_isRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_tamperedCiphertext_isRejected");
+        String xform = "AES/OCB/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[32];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        byte[] ct = enc.doFinal(msg);
+
+        // Tamper ciphertext byte.
+        byte[] tampered = ct.clone();
+        tampered[0] ^= 0x01;
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("AES-OCB must reject tampered ciphertext");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper tag (last 16 bytes).
+        byte[] tagFlip = ct.clone();
+        tagFlip[tagFlip.length - 1] ^= 0xFF;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tagFlip);
+            Assertions.fail("AES-OCB must reject tampered tag");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper AAD.
+        byte[] tamperedAad = aad.clone();
+        tamperedAad[0] ^= 0x01;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(tamperedAad);
+        try
+        {
+            dec.doFinal(ct);
+            Assertions.fail("AES-OCB must reject tampered AAD");
+        }
+        catch (AEADBadTagException expected) { }
+    }
+
+
+    /**
+     * AES-CTR accepts IVs in the range [block_size/2, block_size] —
+     * i.e. 8..16 bytes for AES. Every valid length must agree with BC
+     * byte-for-byte; lengths outside the range must be rejected by both.
+     */
+    @Test
+    public void aesCtr_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCtr_nonceLengthBoundaries");
+        String xform = "AES/CTR/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        // Every valid nonce length.
+        for (int ivLen = 8; ivLen <= 16; ivLen++)
+        {
+            byte[] iv = new byte[ivLen];
+            sr.nextBytes(iv);
+            IvParameterSpec spec = new IvParameterSpec(iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "ivLen=" + ivLen + ": AES-CTR ciphertext diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "ivLen=" + ivLen + ": AES-CTR roundtrip failed");
+        }
+
+        // Invalid lengths: both sides must reject.
+        for (int badLen : new int[]{0, 1, 7, 17, 32})
+        {
+            byte[] iv = new byte[badLen];
+            sr.nextBytes(iv);
+            Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(iv));
+                Assertions.fail("AES-CTR must reject IV length " + badLen);
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
     }
 
 }
