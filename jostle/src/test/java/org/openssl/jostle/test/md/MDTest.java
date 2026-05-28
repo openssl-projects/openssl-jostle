@@ -29,6 +29,26 @@ import java.security.Security;
 
 public class MDTest
 {
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     public static void before() throws Exception
@@ -103,7 +123,7 @@ public class MDTest
         // MD5-SHA1 is not supported by BC so it is skipped here
         //
 
-        SecureRandom random = new SecureRandom();
+        SecureRandom sr = seededRandom("testAgreeWithBCSlidingWindow");
 
         for (String digest : new String[]{
                 "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
@@ -132,7 +152,7 @@ public class MDTest
             // Test over the same array
 
             byte[] joBuf = new byte[1024 * 4];
-            random.nextBytes(joBuf);
+            sr.nextBytes(joBuf);
 
             byte[] bcBuf = Arrays.clone(joBuf);
 
@@ -167,7 +187,7 @@ public class MDTest
         // MD5-SHA1 is not supported by BC so it is skipped here
         //
 
-        SecureRandom random = new SecureRandom();
+        SecureRandom sr = seededRandom("testAgreesWithBC");
         for (String digest : new String[]{
                 "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
                 "SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512", "SHAKE-128", "SHAKE-256", "MD5",
@@ -220,7 +240,7 @@ public class MDTest
                 //
                 if (sizeOfUpdate > 0)
                 {
-                    int split = random.nextInt(sizeOfUpdate);
+                    int split = sr.nextInt(sizeOfUpdate);
                     int p = 0;
                     for (; p < split; p++)
                     {
@@ -413,8 +433,9 @@ public class MDTest
     @Test
     public void testUpdateByteBuffer() throws Exception
     {
+        SecureRandom sr = seededRandom("testUpdateByteBuffer");
         byte[] data = new byte[1024];
-        new SecureRandom().nextBytes(data);
+        sr.nextBytes(data);
 
         MessageDigest direct = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
         direct.update(data);
@@ -493,6 +514,63 @@ public class MDTest
             int expectedLen = (Integer) row[1];
             MessageDigest md = MessageDigest.getInstance(name, JostleProvider.PROVIDER_NAME);
             Assertions.assertEquals(expectedLen, md.getDigestLength(), "digest length for " + name);
+        }
+    }
+
+    /**
+     * Negative path per CLAUDE.md "Tests must exercise the negative
+     * path". The BC-agreement tests confirm Jostle's digest matches BC
+     * byte-for-byte on random inputs — strong protection against a
+     * stub returning a fixed buffer. This test adds the complementary
+     * differentiator check: for the same digest, two distinct inputs
+     * must produce distinct outputs, AND a single-bit flip in the
+     * input must change the digest. A digest implementation that
+     * hashed only the first N bytes (or ignored some input bits)
+     * would still agree with BC for inputs whose differences fell in
+     * the ignored region; this test catches that class of bug.
+     */
+    @Test
+    public void testDistinctInputsProduceDistinctDigests() throws Exception
+    {
+        SecureRandom sr = seededRandom("testDistinctInputsProduceDistinctDigests");
+        String[] algorithms = {
+                "SHA-1", "SHA-224", "SHA-256", "SHA-384", "SHA-512",
+                "SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512",
+                "SHA-512/224", "SHA-512/256",
+                "SHAKE-128", "SHAKE-256",
+                "MD5", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512", "SM3",
+        };
+        for (String alg : algorithms)
+        {
+            MessageDigest md = MessageDigest.getInstance(alg, JostleProvider.PROVIDER_NAME);
+
+            // Random pair of distinct messages → distinct digests.
+            byte[] m1 = new byte[64];
+            byte[] m2 = new byte[64];
+            sr.nextBytes(m1);
+            sr.nextBytes(m2);
+            byte[] d1 = md.digest(m1);
+            byte[] d2 = md.digest(m2);
+            Assertions.assertFalse(Arrays.areEqual(d1, d2),
+                    alg + ": two distinct random inputs produced identical digests");
+
+            // Single-bit flip → different digest. Probes that the
+            // implementation actually consumes every input byte (a
+            // digest that hashed only the first 8 bytes would still
+            // agree with BC for inputs whose differences sat past
+            // byte 8 — this catches that).
+            byte[] base = new byte[128];
+            sr.nextBytes(base);
+            byte[] flipped = base.clone();
+            flipped[100] ^= (byte) 0x01;  // flip past the first block boundary for most digests
+            byte[] dBase = md.digest(base);
+            byte[] dFlip = md.digest(flipped);
+            Assertions.assertFalse(Arrays.areEqual(dBase, dFlip),
+                    alg + ": single-bit input change did not change the digest");
+
+            // Same input twice → identical digest (digests are deterministic).
+            Assertions.assertArrayEquals(dBase, md.digest(base),
+                    alg + ": same input must produce the same digest");
         }
     }
 

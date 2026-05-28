@@ -57,7 +57,26 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class ECDSATest
 {
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
     private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     private static final String[] STANDARD_CURVES = {
             "P-256", "P-384", "P-521", "secp256k1", "sect283k1"
@@ -102,6 +121,7 @@ public class ECDSATest
     @Test
     public void testEcdsa_AllCurvesAllDigests_roundTrip() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_AllCurvesAllDigests_roundTrip");
         int trials = 0;
         for (String curve : STANDARD_CURVES)
         {
@@ -113,7 +133,7 @@ public class ECDSATest
 
             for (String alg : DIGEST_ALGS)
             {
-                byte[] msg = randomMessage(128 + RANDOM.nextInt(384));
+                byte[] msg = randomMessage(sr, 128 + sr.nextInt(384));
                 signVerify(alg, kp, msg);
                 trials++;
             }
@@ -129,8 +149,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_TamperedMessage_doesNotVerify() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_TamperedMessage_doesNotVerify");
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(256);
+        byte[] msg = randomMessage(sr, 256);
 
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -150,8 +171,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_TamperedSignature_doesNotVerify() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_TamperedSignature_doesNotVerify");
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(256);
+        byte[] msg = randomMessage(sr, 256);
 
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -195,8 +217,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_ChunkingMatrix_allVerify() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_ChunkingMatrix_allVerify");
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(1024);
+        byte[] msg = randomMessage(sr, 1024);
 
         // Reference: one-shot verification path proves the signing path is sane.
         Assertions.assertTrue(verify("SHA256withECDSA", kp, msg, signOneShot("SHA256withECDSA", kp, msg)));
@@ -219,7 +242,7 @@ public class ECDSATest
         {
             Assertions.assertTrue(
                     verify("SHA256withECDSA", kp, msg,
-                            signWithRandomSplits("SHA256withECDSA", kp, msg)),
+                            signWithRandomSplits(sr, "SHA256withECDSA", kp, msg)),
                     "random-split signed signature did not verify");
         }
     }
@@ -232,8 +255,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_VerifyChunkingMatrix() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_VerifyChunkingMatrix");
         KeyPair kp = generateKeyPair("P-384");
-        byte[] msg = randomMessage(900);
+        byte[] msg = randomMessage(sr, 900);
 
         Signature signer = Signature.getInstance("SHA384withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -257,6 +281,7 @@ public class ECDSATest
     @Test
     public void testEcdsa_BCAgreement_signJostleVerifyBC() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_BCAgreement_signJostleVerifyBC");
         for (String curve : STANDARD_CURVES)
         {
             if (!NISelector.ECServiceNI.curveSupported(curve))
@@ -273,7 +298,7 @@ public class ECDSATest
 
             for (String alg : DIGEST_ALGS)
             {
-                byte[] msg = randomMessage(64 + RANDOM.nextInt(512));
+                byte[] msg = randomMessage(sr, 64 + sr.nextInt(512));
 
                 Signature joSigner = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
                 joSigner.initSign(joKp.getPrivate());
@@ -292,6 +317,7 @@ public class ECDSATest
     @Test
     public void testEcdsa_BCAgreement_signBCVerifyJostle() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_BCAgreement_signBCVerifyJostle");
         for (String curve : STANDARD_CURVES)
         {
             if (!NISelector.ECServiceNI.curveSupported(curve))
@@ -311,7 +337,7 @@ public class ECDSATest
 
             for (String alg : DIGEST_ALGS)
             {
-                byte[] msg = randomMessage(64 + RANDOM.nextInt(512));
+                byte[] msg = randomMessage(sr, 64 + sr.nextInt(512));
 
                 Signature bcSigner = Signature.getInstance(alg, BouncyCastleProvider.PROVIDER_NAME);
                 bcSigner.initSign(bcKp.getPrivate());
@@ -396,12 +422,13 @@ public class ECDSATest
     @Test
     public void testEcdsa_TwoSignsOnSameInstance_bothVerify() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_TwoSignsOnSameInstance_bothVerify");
         KeyPair kp = generateKeyPair("P-256");
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
 
-        byte[] msgA = randomMessage(64);
-        byte[] msgB = randomMessage(96);
+        byte[] msgA = randomMessage(sr, 64);
+        byte[] msgB = randomMessage(sr, 96);
 
         signer.update(msgA);
         byte[] sigA = signer.sign();
@@ -429,8 +456,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_SameMessageTwice_signaturesDiffer() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_SameMessageTwice_signaturesDiffer");
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(64);
+        byte[] msg = randomMessage(sr, 64);
 
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -450,11 +478,12 @@ public class ECDSATest
     @Test
     public void testEcdsa_NegativeThenPositive_failureDoesNotPoisonState() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_NegativeThenPositive_failureDoesNotPoisonState");
         // Drive a verify failure, then a verify success on the same
         // instance — the failure path must not leave residual state.
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msgA = randomMessage(64);
-        byte[] msgB = randomMessage(96);
+        byte[] msgA = randomMessage(sr, 64);
+        byte[] msgB = randomMessage(sr, 96);
 
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -495,10 +524,11 @@ public class ECDSATest
     @Test
     public void testEcdsa_PositiveThenNegative_priorPassDoesNotLeak() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_PositiveThenNegative_priorPassDoesNotLeak");
         // Inverse of the above: a previous-pass verify must not echo
         // its "true" result on a subsequent fail.
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(64);
+        byte[] msg = randomMessage(sr, 64);
 
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -529,10 +559,11 @@ public class ECDSATest
     @Test
     public void testEcdsa_RoleFlip_SignThenVerifyOnSameInstance() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_RoleFlip_SignThenVerifyOnSameInstance");
         // initSign → sign → initVerify on the SAME instance → verify.
         // lastKey must replace cleanly when the role flips.
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(48);
+        byte[] msg = randomMessage(sr, 48);
 
         Signature sig = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         sig.initSign(kp.getPrivate());
@@ -565,9 +596,10 @@ public class ECDSATest
     @Test
     public void testEcdsa_GetInstanceByOID_SHA256() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_GetInstanceByOID_SHA256");
         // ecdsa-with-SHA256 OID = 1.2.840.10045.4.3.2.
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(64);
+        byte[] msg = randomMessage(sr, 64);
 
         Signature signer = Signature.getInstance("1.2.840.10045.4.3.2",
                 JostleProvider.PROVIDER_NAME);
@@ -584,9 +616,10 @@ public class ECDSATest
     @Test
     public void testEcdsa_GetInstanceByOID_SHA3_256() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_GetInstanceByOID_SHA3_256");
         // ecdsa-with-SHA3-256 OID = 2.16.840.1.101.3.4.3.10.
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(64);
+        byte[] msg = randomMessage(sr, 64);
 
         Signature signer = Signature.getInstance("2.16.840.1.101.3.4.3.10",
                 JostleProvider.PROVIDER_NAME);
@@ -664,8 +697,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_SingleByteUpdate_verifies() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_SingleByteUpdate_verifies");
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(64);
+        byte[] msg = randomMessage(sr, 64);
 
         Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -768,8 +802,9 @@ public class ECDSATest
     @Test
     public void testEcdsa_signWritesAtOffsetWithoutClobberingPrefix_jce() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdsa_signWritesAtOffsetWithoutClobberingPrefix_jce");
         KeyPair kp = generateKeyPair("P-256");
-        byte[] msg = randomMessage(64);
+        byte[] msg = randomMessage(sr, 64);
 
         // Probe the upper-bound length first.
         Signature probe = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
@@ -783,7 +818,7 @@ public class ECDSATest
         int prefix = 7;
         int capacity = upperBound + 8;
         byte[] big = new byte[prefix + capacity];
-        new SecureRandom().nextBytes(big);
+        sr.nextBytes(big);
         byte[] expectedPrefix = new byte[prefix];
         System.arraycopy(big, 0, expectedPrefix, 0, prefix);
 
@@ -892,7 +927,7 @@ public class ECDSATest
         return signer.sign();
     }
 
-    private static byte[] signWithRandomSplits(String alg, KeyPair kp, byte[] msg) throws Exception
+    private static byte[] signWithRandomSplits(SecureRandom sr, String alg, KeyPair kp, byte[] msg) throws Exception
     {
         Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -900,7 +935,7 @@ public class ECDSATest
         while (pos < msg.length)
         {
             int remaining = msg.length - pos;
-            int chunk = 1 + RANDOM.nextInt(Math.max(1, remaining));
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
             chunk = Math.min(chunk, remaining);
             signer.update(msg, pos, chunk);
             pos += chunk;
@@ -921,10 +956,10 @@ public class ECDSATest
         return verifier.verify(sig);
     }
 
-    private static byte[] randomMessage(int len)
+    private static byte[] randomMessage(SecureRandom sr, int len)
     {
         byte[] m = new byte[len];
-        RANDOM.nextBytes(m);
+        sr.nextBytes(m);
         return m;
     }
 }

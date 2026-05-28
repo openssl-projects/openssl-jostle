@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
@@ -33,7 +34,26 @@ import java.security.Security;
  */
 public class CAMELLIAAgreementTest
 {
-    static SecureRandom secRand = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -49,7 +69,7 @@ public class CAMELLIAAgreementTest
     }
 
 
-    private void exercise_simpleDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_simpleDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -57,17 +77,17 @@ public class CAMELLIAAgreementTest
             for (int t = 0; t < top; t += step)
             {
                 byte[] msg = new byte[t];
-                secRand.nextBytes(msg);
+                sr.nextBytes(msg);
 
                 byte[] key = new byte[keySize];
-                secRand.nextBytes(key);
+                sr.nextBytes(key);
 
                 byte[] iv = null;
                 IvParameterSpec ivSpec = null;
                 if (ivLen > -1)
                 {
                     iv = new byte[ivLen];
-                    secRand.nextBytes(iv);
+                    sr.nextBytes(iv);
                     ivSpec = new IvParameterSpec(iv);
                 }
 
@@ -118,7 +138,7 @@ public class CAMELLIAAgreementTest
     }
 
 
-    private void exercise_complexDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -133,17 +153,17 @@ public class CAMELLIAAgreementTest
                     {
 
                         byte[] msg = new byte[t];
-                        secRand.nextBytes(msg);
+                        sr.nextBytes(msg);
 
                         byte[] key = new byte[keySize];
-                        secRand.nextBytes(key);
+                        sr.nextBytes(key);
 
                         byte[] iv = null;
                         IvParameterSpec ivSpec = null;
                         if (ivLen > -1)
                         {
                             iv = new byte[ivLen];
-                            secRand.nextBytes(iv);
+                            sr.nextBytes(iv);
                             ivSpec = new IvParameterSpec(iv);
                         }
 
@@ -180,8 +200,8 @@ public class CAMELLIAAgreementTest
                         byte[] outputJavaCt = new byte[expectedLenCt + jitterOutput];
                         byte[] outputJostleCt = new byte[expectedLenCt + jitterOutput];
 
-                        secRand.nextBytes(outputJavaCt);
-                        secRand.nextBytes(outputJostleCt);
+                        sr.nextBytes(outputJavaCt);
+                        sr.nextBytes(outputJostleCt);
 
                         Byte leader = null;
                         if (jitterOutput > 0)
@@ -220,8 +240,8 @@ public class CAMELLIAAgreementTest
                         byte[] outputJavaPt = new byte[expectedLenCt + jitterInput];
                         byte[] outputJostlePt = new byte[expectedLenCt + jitterInput];
 
-                        secRand.nextBytes(outputJavaPt);
-                        secRand.nextBytes(outputJostlePt);
+                        sr.nextBytes(outputJavaPt);
+                        sr.nextBytes(outputJostlePt);
                         leader = null;
                         if (jitterInput > 0)
                         {
@@ -263,7 +283,7 @@ public class CAMELLIAAgreementTest
     }
 
 
-    private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -278,7 +298,7 @@ public class CAMELLIAAgreementTest
                     {
 
                         byte[] msg = new byte[t];
-                        secRand.nextBytes(msg);
+                        sr.nextBytes(msg);
 
                         //
                         // Split the original message between update and do final.
@@ -286,14 +306,14 @@ public class CAMELLIAAgreementTest
 
 
                         byte[] key = new byte[keySize];
-                        secRand.nextBytes(key);
+                        sr.nextBytes(key);
 
                         byte[] iv = null;
                         IvParameterSpec ivSpec = null;
                         if (ivLen > -1)
                         {
                             iv = new byte[ivLen];
-                            secRand.nextBytes(iv);
+                            sr.nextBytes(iv);
                             ivSpec = new IvParameterSpec(iv);
                         }
 
@@ -330,8 +350,8 @@ public class CAMELLIAAgreementTest
                         byte[] outputJavaCt = new byte[expectedLenCt + offsetOutput];
                         byte[] outputJostleCt = new byte[expectedLenCt + offsetOutput];
 
-                        secRand.nextBytes(outputJavaCt);
-                        secRand.nextBytes(outputJostleCt);
+                        sr.nextBytes(outputJavaCt);
+                        sr.nextBytes(outputJostleCt);
 
                         Byte leader = null;
                         if (offsetOutput > 0)
@@ -420,8 +440,8 @@ public class CAMELLIAAgreementTest
                         byte[] outputJavaPt = new byte[expectedLenCt + offsetInput];
                         byte[] outputJostlePt = new byte[expectedLenCt + offsetInput];
 
-                        secRand.nextBytes(outputJavaPt);
-                        secRand.nextBytes(outputJostlePt);
+                        sr.nextBytes(outputJavaPt);
+                        sr.nextBytes(outputJostlePt);
                         leader = null;
                         if (offsetInput > 0)
                         {
@@ -476,7 +496,7 @@ public class CAMELLIAAgreementTest
         }
     }
 
-    private void exercise_complexDoFinalSameArray(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexDoFinalSameArray(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
         for (int keySize : keys)
         {
@@ -484,7 +504,7 @@ public class CAMELLIAAgreementTest
 
 
             byte[] msg = new byte[msgLen];
-            secRand.nextBytes(msg);
+            sr.nextBytes(msg);
 
             //
             // Split the original message between update and do final.
@@ -492,14 +512,14 @@ public class CAMELLIAAgreementTest
 
 
             byte[] key = new byte[keySize];
-            secRand.nextBytes(key);
+            sr.nextBytes(key);
 
             byte[] iv = null;
             IvParameterSpec ivSpec = null;
             if (ivLen > -1)
             {
                 iv = new byte[ivLen];
-                //     secRand.nextBytes(iv);
+                //     sr.nextBytes(iv);
                 ivSpec = new IvParameterSpec(iv);
             }
 
@@ -525,7 +545,7 @@ public class CAMELLIAAgreementTest
 
             byte[] workingArrayJostle = new byte[msg.length + expectedLenCt];
 
-            //  secRand.nextBytes(workingArrayJava);
+            //  sr.nextBytes(workingArrayJava);
 
             System.arraycopy(msg, 0, workingArrayJostle, 0, msg.length);
 
@@ -539,7 +559,7 @@ public class CAMELLIAAgreementTest
             {
 
                 // Flood array and create backup
-                secRand.nextBytes(workingArrayJostle);
+                sr.nextBytes(workingArrayJostle);
                 System.arraycopy(workingArrayJostle, 0, originalWorkingArray, 0, workingArrayJostle.length);
 
                 //
@@ -583,7 +603,7 @@ public class CAMELLIAAgreementTest
             {
 
                 // Flood array and create backup
-                secRand.nextBytes(workingArrayJostle);
+                sr.nextBytes(workingArrayJostle);
                 System.arraycopy(workingArrayJostle, 0, originalWorkingArray, 0, workingArrayJostle.length);
 
                 //
@@ -675,6 +695,7 @@ public class CAMELLIAAgreementTest
     @Test
     public void testCamellia() throws Exception
     {
+        SecureRandom sr = seededRandom("testCamellia");
 
 
         //
@@ -682,25 +703,25 @@ public class CAMELLIAAgreementTest
         //
 
 
-        exercise_simpleDoFinal("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_simpleDoFinal("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_simpleDoFinal("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_simpleDoFinal("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_simpleDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_simpleDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_simpleDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_simpleDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_simpleDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_simpleDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_simpleDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_simpleDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_simpleDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
@@ -708,74 +729,74 @@ public class CAMELLIAAgreementTest
         //
 
 
-        exercise_complexDoFinal("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_complexDoFinal("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexDoFinal("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_complexDoFinal("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
         // Spread message between update and doFinal calls.
         //
-        exercise_complexUpdateDoFinal("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_complexUpdateDoFinal("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexUpdateDoFinal("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexUpdateDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexUpdateDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexUpdateDoFinal("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexUpdateDoFinal("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
         // Where input and output array is the same.
         //
 
-        exercise_complexDoFinalSameArray("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1);
-        exercise_complexDoFinalSameArray("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexDoFinalSameArray("CAMELLIA/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexDoFinalSameArray("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, 16);
-        exercise_complexDoFinalSameArray("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexDoFinalSameArray("CAMELLIA/CBC/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, 16, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexDoFinalSameArray("CAMELLIA/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
     }
@@ -809,5 +830,110 @@ public class CAMELLIAAgreementTest
         return sb.toString();
     }
 
+
+    // -----------------------------------------------------------------
+    // Negative path: tampered ciphertext / wrong key must not roundtrip.
+    // Per CLAUDE.md "Tests must exercise the negative path" — BC byte
+    // equality already rules out a stub Jostle implementation, but the
+    // explicit tamper/wrong-key tests catch the same-buggy-mode-in-both-
+    // libs class of bug that BC parity alone can't.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void testTamperedCiphertext_doesNotRoundTrip() throws Exception
+    {
+        SecureRandom sr = seededRandom("testTamperedCiphertext_doesNotRoundTrip");
+        // CAMELLIA is a 128-bit block cipher. Use CBC/NoPadding so the
+        // decrypt path produces wrong-but-non-throwing plaintext.
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[16];
+        sr.nextBytes(iv);
+        byte[] msg = new byte[3 * 16];
+        sr.nextBytes(msg);
+
+        Cipher enc = Cipher.getInstance("CAMELLIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "CAMELLIA"), new IvParameterSpec(iv));
+        byte[] ct = enc.doFinal(msg);
+
+        byte[] tampered = ct.clone();
+        tampered[16] ^= (byte) 0x01;
+
+        Cipher dec = Cipher.getInstance("CAMELLIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "CAMELLIA"), new IvParameterSpec(iv));
+        byte[] decoded = dec.doFinal(tampered);
+
+        Assertions.assertFalse(Arrays.areEqual(msg, decoded),
+                "tampered ciphertext must not decrypt to the original plaintext");
+    }
+
+    @Test
+    public void testTamperedPadding_rejectsAtDoFinal() throws Exception
+    {
+        SecureRandom sr = seededRandom("testTamperedPadding_rejectsAtDoFinal");
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[16];
+        sr.nextBytes(iv);
+
+        boolean sawBadPadding = false;
+        for (int trial = 0; trial < 20; trial++)
+        {
+            byte[] msg = new byte[37];
+            sr.nextBytes(msg);
+
+            Cipher enc = Cipher.getInstance("CAMELLIA/CBC/PKCS7Padding", JostleProvider.PROVIDER_NAME);
+            enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "CAMELLIA"), new IvParameterSpec(iv));
+            byte[] ct = enc.doFinal(msg);
+
+            byte[] tampered = ct.clone();
+            tampered[tampered.length - 1] ^= (byte) 0xFF;
+
+            Cipher dec = Cipher.getInstance("CAMELLIA/CBC/PKCS7Padding", JostleProvider.PROVIDER_NAME);
+            dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "CAMELLIA"), new IvParameterSpec(iv));
+            try
+            {
+                byte[] out = dec.doFinal(tampered);
+                Assertions.assertFalse(Arrays.areEqual(msg, out),
+                        "tampered ciphertext that didn't throw still must not roundtrip");
+            }
+            catch (BadPaddingException expected)
+            {
+                sawBadPadding = true;
+            }
+        }
+        Assertions.assertTrue(sawBadPadding,
+                "expected at least one BadPaddingException across 20 tampering trials");
+    }
+
+    @Test
+    public void testWrongKey_doesNotRoundTrip() throws Exception
+    {
+        SecureRandom sr = seededRandom("testWrongKey_doesNotRoundTrip");
+        byte[] k1 = new byte[16];
+        byte[] k2 = new byte[16];
+        do
+        {
+            sr.nextBytes(k1);
+            sr.nextBytes(k2);
+        }
+        while (Arrays.areEqual(k1, k2));
+
+        byte[] iv = new byte[16];
+        sr.nextBytes(iv);
+        byte[] msg = new byte[3 * 16];
+        sr.nextBytes(msg);
+
+        Cipher enc = Cipher.getInstance("CAMELLIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(k1, "CAMELLIA"), new IvParameterSpec(iv));
+        byte[] ct = enc.doFinal(msg);
+
+        Cipher dec = Cipher.getInstance("CAMELLIA/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(k2, "CAMELLIA"), new IvParameterSpec(iv));
+        byte[] decoded = dec.doFinal(ct);
+
+        Assertions.assertFalse(Arrays.areEqual(msg, decoded),
+                "decrypting with the wrong key must not yield the original plaintext");
+    }
 
 }

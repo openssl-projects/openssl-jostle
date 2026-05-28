@@ -27,7 +27,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Signature;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
@@ -63,6 +65,27 @@ public class ECTest
             // supported in mainstream OpenSSL builds.
             "sect283k1"
     };
+
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md "Random message content AND length").
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     public static void beforeAll()
@@ -603,6 +626,7 @@ public class ECTest
     @Test
     public void testKeyFactory_ECPublicKeySpec_VerifiesOriginalSignature() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_ECPublicKeySpec_VerifiesOriginalSignature");
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
         kpg.initialize(new ECGenParameterSpec("P-256"));
         KeyPair kp = kpg.generateKeyPair();
@@ -611,19 +635,33 @@ public class ECTest
         ECPublicKeySpec pubSpec = kf.getKeySpec(kp.getPublic(), ECPublicKeySpec.class);
         ECPublicKey rebuiltPub = (ECPublicKey) kf.generatePublic(pubSpec);
 
-        java.security.Signature signer = java.security.Signature.getInstance(
+        Signature signer = Signature.getInstance(
                 "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
-        byte[] msg = "hello from a respec-roundtripped public key".getBytes();
+        // Random content AND random length (16..271 bytes) per CLAUDE.md
+        // "Random message content AND length" — fixed strings hide bugs
+        // in alignment-, length-, or value-specific code paths.
+        byte[] msg = new byte[16 + sr.nextInt(256)];
+        sr.nextBytes(msg);
         signer.update(msg);
         byte[] sig = signer.sign();
 
-        java.security.Signature verifier = java.security.Signature.getInstance(
+        Signature verifier = Signature.getInstance(
                 "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         verifier.initVerify(rebuiltPub);
         verifier.update(msg);
         Assertions.assertTrue(verifier.verify(sig),
                 "rebuilt public key did not verify a signature from the original private key");
+
+        // Negative: tampering the message must break verification — guards
+        // against a stub verifier that returns true on every input.
+        msg[0] ^= 1;
+        Signature tamperedVerifier = Signature.getInstance(
+                "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        tamperedVerifier.initVerify(rebuiltPub);
+        tamperedVerifier.update(msg);
+        Assertions.assertFalse(tamperedVerifier.verify(sig),
+                "rebuilt public key verified a tampered message");
     }
 
     // -----------------------------------------------------------------
@@ -793,6 +831,7 @@ public class ECTest
     @Test
     public void testKeyFactory_ECPrivateKeySpec_SignsForOriginalPublic() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_ECPrivateKeySpec_SignsForOriginalPublic");
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
         kpg.initialize(new ECGenParameterSpec("P-256"));
         KeyPair kp = kpg.generateKeyPair();
@@ -801,19 +840,33 @@ public class ECTest
         ECPrivateKeySpec privSpec = kf.getKeySpec(kp.getPrivate(), ECPrivateKeySpec.class);
         ECPrivateKey rebuiltPriv = (ECPrivateKey) kf.generatePrivate(privSpec);
 
-        java.security.Signature signer = java.security.Signature.getInstance(
+        Signature signer = Signature.getInstance(
                 "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(rebuiltPriv);
-        byte[] msg = "hello from a respec-roundtripped private key".getBytes();
+        // Random content AND random length (16..271 bytes) per CLAUDE.md
+        // "Random message content AND length" — fixed strings hide bugs
+        // in alignment-, length-, or value-specific code paths.
+        byte[] msg = new byte[16 + sr.nextInt(256)];
+        sr.nextBytes(msg);
         signer.update(msg);
         byte[] sig = signer.sign();
 
-        java.security.Signature verifier = java.security.Signature.getInstance(
+        Signature verifier = Signature.getInstance(
                 "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
         verifier.initVerify(kp.getPublic());
         verifier.update(msg);
         Assertions.assertTrue(verifier.verify(sig),
                 "signature from rebuilt private key did not verify against the "
                         + "original public key (public-point re-derivation went wrong)");
+
+        // Negative: tampering the message must break verification — guards
+        // against a stub verifier that returns true on every input.
+        msg[0] ^= 1;
+        Signature tamperedVerifier = Signature.getInstance(
+                "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        tamperedVerifier.initVerify(kp.getPublic());
+        tamperedVerifier.update(msg);
+        Assertions.assertFalse(tamperedVerifier.verify(sig),
+                "original public key verified a tampered message signed by the rebuilt private key");
     }
 }

@@ -42,7 +42,26 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public class AESAgreementTest
 {
-    static SecureRandom secRand = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -58,7 +77,7 @@ public class AESAgreementTest
     }
 
 
-    private void exercise_simpleDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_simpleDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -66,17 +85,17 @@ public class AESAgreementTest
             for (int t = 0; t < top; t += step)
             {
                 byte[] msg = new byte[t];
-                secRand.nextBytes(msg);
+                sr.nextBytes(msg);
 
                 byte[] key = new byte[keySize];
-                secRand.nextBytes(key);
+                sr.nextBytes(key);
 
                 byte[] iv = null;
                 IvParameterSpec ivSpec = null;
                 if (ivLen > -1)
                 {
                     iv = new byte[ivLen];
-                    secRand.nextBytes(iv);
+                    sr.nextBytes(iv);
                     ivSpec = new IvParameterSpec(iv);
                 }
 
@@ -127,7 +146,7 @@ public class AESAgreementTest
     }
 
 
-    private void exercise_complexDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -142,17 +161,17 @@ public class AESAgreementTest
                     {
 
                         byte[] msg = new byte[t];
-                        secRand.nextBytes(msg);
+                        sr.nextBytes(msg);
 
                         byte[] key = new byte[keySize];
-                        secRand.nextBytes(key);
+                        sr.nextBytes(key);
 
                         byte[] iv = null;
                         IvParameterSpec ivSpec = null;
                         if (ivLen > -1)
                         {
                             iv = new byte[ivLen];
-                            secRand.nextBytes(iv);
+                            sr.nextBytes(iv);
                             ivSpec = new IvParameterSpec(iv);
                         }
 
@@ -189,8 +208,8 @@ public class AESAgreementTest
                         byte[] outputJavaCt = new byte[expectedLenCt + jitterOutput];
                         byte[] outputJostleCt = new byte[expectedLenCt + jitterOutput];
 
-                        secRand.nextBytes(outputJavaCt);
-                        secRand.nextBytes(outputJostleCt);
+                        sr.nextBytes(outputJavaCt);
+                        sr.nextBytes(outputJostleCt);
 
                         Byte leader = null;
                         if (jitterOutput > 0)
@@ -229,8 +248,8 @@ public class AESAgreementTest
                         byte[] outputJavaPt = new byte[expectedLenCt + jitterInput];
                         byte[] outputJostlePt = new byte[expectedLenCt + jitterInput];
 
-                        secRand.nextBytes(outputJavaPt);
-                        secRand.nextBytes(outputJostlePt);
+                        sr.nextBytes(outputJavaPt);
+                        sr.nextBytes(outputJostlePt);
                         leader = null;
                         if (jitterInput > 0)
                         {
@@ -272,7 +291,7 @@ public class AESAgreementTest
     }
 
 
-    private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -287,7 +306,7 @@ public class AESAgreementTest
                     {
 
                         byte[] msg = new byte[t];
-                        secRand.nextBytes(msg);
+                        sr.nextBytes(msg);
 
                         //
                         // Split the original message between update and do final.
@@ -295,14 +314,14 @@ public class AESAgreementTest
 
 
                         byte[] key = new byte[keySize];
-                        secRand.nextBytes(key);
+                        sr.nextBytes(key);
 
                         byte[] iv = null;
                         IvParameterSpec ivSpec = null;
                         if (ivLen > -1)
                         {
                             iv = new byte[ivLen];
-                            secRand.nextBytes(iv);
+                            sr.nextBytes(iv);
                             ivSpec = new IvParameterSpec(iv);
                         }
 
@@ -339,8 +358,8 @@ public class AESAgreementTest
                         byte[] outputJavaCt = new byte[expectedLenCt + offsetOutput];
                         byte[] outputJostleCt = new byte[expectedLenCt + offsetOutput];
 
-                        secRand.nextBytes(outputJavaCt);
-                        secRand.nextBytes(outputJostleCt);
+                        sr.nextBytes(outputJavaCt);
+                        sr.nextBytes(outputJostleCt);
 
                         Byte leader = null;
                         if (offsetOutput > 0)
@@ -429,8 +448,8 @@ public class AESAgreementTest
                         byte[] outputJavaPt = new byte[expectedLenCt + offsetInput];
                         byte[] outputJostlePt = new byte[expectedLenCt + offsetInput];
 
-                        secRand.nextBytes(outputJavaPt);
-                        secRand.nextBytes(outputJostlePt);
+                        sr.nextBytes(outputJavaPt);
+                        sr.nextBytes(outputJostlePt);
                         leader = null;
                         if (offsetInput > 0)
                         {
@@ -485,7 +504,7 @@ public class AESAgreementTest
         }
     }
 
-    private void exercise_complexDoFinalSameArray(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexDoFinalSameArray(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
         for (int keySize : keys)
         {
@@ -493,7 +512,7 @@ public class AESAgreementTest
 
 
             byte[] msg = new byte[msgLen];
-            secRand.nextBytes(msg);
+            sr.nextBytes(msg);
 
             //
             // Split the original message between update and do final.
@@ -501,14 +520,14 @@ public class AESAgreementTest
 
 
             byte[] key = new byte[keySize];
-            secRand.nextBytes(key);
+            sr.nextBytes(key);
 
             byte[] iv = null;
             IvParameterSpec ivSpec = null;
             if (ivLen > -1)
             {
                 iv = new byte[ivLen];
-                secRand.nextBytes(iv);
+                sr.nextBytes(iv);
                 ivSpec = new IvParameterSpec(iv);
             }
 
@@ -534,7 +553,7 @@ public class AESAgreementTest
 
             byte[] workingArrayJostle = new byte[msg.length + expectedLenCt];
 
-            //  secRand.nextBytes(workingArrayJava);
+            //  sr.nextBytes(workingArrayJava);
 
             System.arraycopy(msg, 0, workingArrayJostle, 0, msg.length);
 
@@ -548,7 +567,7 @@ public class AESAgreementTest
             {
 
                 // Flood array and create backup
-                secRand.nextBytes(workingArrayJostle);
+                sr.nextBytes(workingArrayJostle);
                 System.arraycopy(workingArrayJostle, 0, originalWorkingArray, 0, workingArrayJostle.length);
 
                 //
@@ -592,7 +611,7 @@ public class AESAgreementTest
             {
 
                 // Flood array and create backup
-                secRand.nextBytes(workingArrayJostle);
+                sr.nextBytes(workingArrayJostle);
                 System.arraycopy(workingArrayJostle, 0, originalWorkingArray, 0, workingArrayJostle.length);
 
                 //
@@ -633,31 +652,32 @@ public class AESAgreementTest
     @Test
     public void testAes() throws Exception
     {
+        SecureRandom sr = seededRandom("testAes");
 
 
         //
         // The doFinal that returns a byte[]
         //
 
-        exercise_simpleDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_simpleDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_simpleDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_simpleDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_simpleDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_simpleDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_simpleDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_simpleDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
@@ -665,74 +685,74 @@ public class AESAgreementTest
         //
 
 
-        exercise_complexDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_complexDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_complexDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
         // Spread message between update and doFinal calls.
         //
-        exercise_complexUpdateDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_complexUpdateDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexUpdateDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_complexUpdateDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexUpdateDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexUpdateDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexUpdateDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
         // Where input and output array is the same.
         //
 
-        exercise_complexDoFinalSameArray("AES/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1);
-        exercise_complexDoFinalSameArray("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexDoFinalSameArray("AES/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1, sr);
+        exercise_complexDoFinalSameArray("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexDoFinalSameArray("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexDoFinalSameArray("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexDoFinalSameArray("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
     }
@@ -741,7 +761,7 @@ public class AESAgreementTest
     @Test
     public void aesGCMSpread() throws Exception
     {
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMSpread");
 
 
         String xform = "AES/GCM/NoPadding";
@@ -832,7 +852,7 @@ public class AESAgreementTest
     @Test
     public void aesGCMSpreadSplitUpdateDoFinal() throws Exception
     {
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMSpreadSplitUpdateDoFinal");
 
 
         String xform = "AES/GCM/NoPadding";
@@ -949,7 +969,7 @@ public class AESAgreementTest
     public void aesGCMWithAAD() throws Exception
     {
 
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMWithAAD");
 
         String xform = "AES/GCM/NoPadding";
         byte[] iv = new byte[12];
@@ -1056,7 +1076,7 @@ public class AESAgreementTest
     public void aesGCMWithTagLen() throws Exception
     {
 
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMWithTagLen");
 
         String xform = "AES/GCM/NoPadding";
         byte[] iv = new byte[12];

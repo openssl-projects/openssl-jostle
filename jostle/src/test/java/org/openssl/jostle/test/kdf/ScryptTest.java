@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -28,7 +29,26 @@ import java.security.Security;
 
 public class ScryptTest
 {
-    static SecureRandom secRand = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -43,10 +63,10 @@ public class ScryptTest
         }
     }
 
-    private static byte[] random(int length)
+    private static byte[] random(int length, SecureRandom sr)
     {
         byte[] bytes = new byte[length];
-        secRand.nextBytes(bytes);
+        sr.nextBytes(bytes);
         return bytes;
     }
 
@@ -62,9 +82,9 @@ public class ScryptTest
         // real world viability, please do not cut and paste this into anything important.
         //
 
-
-        char[] passphrase = new String(random(8)).toCharArray();
-        byte[] salt = random(16);
+        SecureRandom sr = seededRandom("testBCAgreement");
+        char[] passphrase = new String(random(8, sr)).toCharArray();
+        byte[] salt = random(16, sr);
         SecretKeyFactory kfJostle = SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME);
         SecretKeyFactory kfBc = SecretKeyFactory.getInstance("SCRYPT", BouncyCastleProvider.PROVIDER_NAME);
 
@@ -73,6 +93,52 @@ public class ScryptTest
 
         Assertions.assertArrayEquals(joKey.getEncoded(), bcKey.getEncoded(), "SCRYPT");
 
+    }
+
+
+    /**
+     * Negative path per CLAUDE.md "Tests must exercise the negative
+     * path". The BC-agreement test above proves Jostle produces the
+     * same output as BC for one input — but doesn't prove the output
+     * actually depends on each input. A KDF that ignored its salt (or
+     * password) would silently agree with BC if BC had the same bug,
+     * or would produce the same output for two distinct salts. This
+     * test confirms each input actually influences the derived key.
+     */
+    @Test
+    public void testInputsActuallyInfluenceDerivedKey() throws Exception
+    {
+        SecureRandom sr = seededRandom("testInputsActuallyInfluenceDerivedKey");
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME);
+
+        char[] pwd1 = new String(random(8, sr)).toCharArray();
+        char[] pwd2 = new String(random(8, sr)).toCharArray();
+        byte[] salt1 = random(16, sr);
+        byte[] salt2 = random(16, sr);
+
+        // Cheap scrypt params chosen for test speed, not real-world use.
+        int n = 2, r = 1, p = 1, keyLen = 256;
+
+        byte[] base = kf.generateSecret(new ScryptKeySpec(pwd1, salt1, n, r, p, keyLen)).getEncoded();
+
+        byte[] diffPwd = kf.generateSecret(new ScryptKeySpec(pwd2, salt1, n, r, p, keyLen)).getEncoded();
+        Assertions.assertFalse(Arrays.areEqual(base, diffPwd),
+                "different password must produce a different derived key");
+
+        byte[] diffSalt = kf.generateSecret(new ScryptKeySpec(pwd1, salt2, n, r, p, keyLen)).getEncoded();
+        Assertions.assertFalse(Arrays.areEqual(base, diffSalt),
+                "different salt must produce a different derived key");
+
+        // Higher cost parameter → different key (scrypt's N parameter
+        // changes the iteration count of the inner mixing function).
+        byte[] diffN = kf.generateSecret(new ScryptKeySpec(pwd1, salt1, 4, r, p, keyLen)).getEncoded();
+        Assertions.assertFalse(Arrays.areEqual(base, diffN),
+                "different cost parameter N must produce a different derived key");
+
+        // Same inputs → same key (scrypt is deterministic).
+        byte[] repeat = kf.generateSecret(new ScryptKeySpec(pwd1, salt1, n, r, p, keyLen)).getEncoded();
+        Assertions.assertArrayEquals(base, repeat,
+                "same inputs must produce the same derived key (scrypt is deterministic)");
     }
 
 

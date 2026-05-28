@@ -30,6 +30,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
@@ -54,6 +55,27 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class ECDHTest
 {
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
+
     private static final String[] STANDARD_CURVES = {
             "P-256", "P-384", "P-521", "secp256k1", "sect283k1"
     };
@@ -375,6 +397,7 @@ public class ECDHTest
     @Test
     public void testEcdh_GenerateSecretIntoBuffer_writesAtOffset() throws Exception
     {
+        SecureRandom sr = seededRandom("testEcdh_GenerateSecretIntoBuffer_writesAtOffset");
         KeyPair alice = generateKeyPair("P-256");
         KeyPair bob = generateKeyPair("P-256");
 
@@ -393,7 +416,7 @@ public class ECDHTest
         byte[] big = new byte[reference.length + prefix];
         // Fill with random bytes; save aside a copy of the prefix region
         // so we can confirm the bridge didn't write before outOff.
-        new java.security.SecureRandom().nextBytes(big);
+        sr.nextBytes(big);
         byte[] expectedPrefix = new byte[prefix];
         System.arraycopy(big, 0, expectedPrefix, 0, prefix);
 
