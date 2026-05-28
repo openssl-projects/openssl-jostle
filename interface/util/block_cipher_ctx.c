@@ -358,9 +358,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -402,9 +407,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -446,9 +456,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }

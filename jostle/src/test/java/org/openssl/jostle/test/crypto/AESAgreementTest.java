@@ -1632,4 +1632,108 @@ public class AESAgreementTest
     }
 
 
+    // -----------------------------------------------------------------
+    // AES-GCM: adversarial AAD-chunking matrix per CLAUDE.md "AAD
+    // chunking is independent of plaintext chunking — vary them
+    // separately." Existing aesGCMSpreadSplitUpdateDoFinal varies
+    // plaintext chunking but always calls updateAAD(aad, 0, aad.length)
+    // as a one-shot. This test fills that gap.
+    // -----------------------------------------------------------------
+
+    /**
+     * Drive the SAME (key, IV, plaintext, AAD) through different
+     * updateAAD chunking strategies; the resulting tag and ciphertext
+     * must be byte-identical regardless of how AAD was fed.
+     *
+     * The AAD-handling code in OpenSSL's GCM has a separate state
+     * machine from the plaintext-handling code; a bug in the AAD
+     * buffering layer wouldn't surface in tests that only ever pass
+     * AAD as one-shot.
+     */
+    @Test
+    public void aesGCM_AADChunkingMatrix_byteIdentical() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesGCM_AADChunkingMatrix_byteIdentical");
+        String xform = "AES/GCM/NoPadding";
+
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[256 + sr.nextInt(256)];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[256 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+        byte[] reference = encryptWithAADChunking(xform, secretKey, ivSpec, aad, msg, aad.length);
+
+        // byte-by-byte AAD
+        Assertions.assertArrayEquals(reference,
+                encryptWithAADChunking(xform, secretKey, ivSpec, aad, msg, 1),
+                "byte-by-byte AAD diverged from one-shot AAD");
+
+        // Adversarial offsets around the AES block size (16) — GCM
+        // processes AAD in 16-byte blocks via GHASH.
+        for (int chunk : new int[]{15, 16, 17, 31, 32, 33, 63, 64, 65})
+        {
+            Assertions.assertArrayEquals(reference,
+                    encryptWithAADChunking(xform, secretKey, ivSpec, aad, msg, chunk),
+                    "chunk=" + chunk + ": AAD chunking diverged from one-shot");
+        }
+
+        // Random splits of the AAD.
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertArrayEquals(reference,
+                    encryptWithRandomAADSplits(xform, secretKey, ivSpec, aad, msg, sr),
+                    "random-split trial=" + trial + ": AAD chunking diverged from one-shot");
+        }
+
+        // Confirm the reference ciphertext decrypts (also through a
+        // chunked-AAD decryptor) — guards against any AAD-side change
+        // having silently produced a tag that doesn't actually verify.
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
+        for (int off = 0; off < aad.length; off += 17)
+        {
+            int len = Math.min(17, aad.length - off);
+            dec.updateAAD(aad, off, len);
+        }
+        Assertions.assertArrayEquals(msg, dec.doFinal(reference),
+                "chunked-AAD decrypt did not recover original plaintext");
+    }
+
+    private static byte[] encryptWithAADChunking(String xform, SecretKey key, IvParameterSpec ivSpec,
+                                                 byte[] aad, byte[] msg, int chunk) throws Exception
+    {
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+        for (int off = 0; off < aad.length; off += chunk)
+        {
+            int len = Math.min(chunk, aad.length - off);
+            enc.updateAAD(aad, off, len);
+        }
+        return enc.doFinal(msg);
+    }
+
+    private static byte[] encryptWithRandomAADSplits(String xform, SecretKey key, IvParameterSpec ivSpec,
+                                                     byte[] aad, byte[] msg, SecureRandom sr) throws Exception
+    {
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+        int pos = 0;
+        while (pos < aad.length)
+        {
+            int remaining = aad.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            enc.updateAAD(aad, pos, chunk);
+            pos += chunk;
+        }
+        return enc.doFinal(msg);
+    }
+
 }

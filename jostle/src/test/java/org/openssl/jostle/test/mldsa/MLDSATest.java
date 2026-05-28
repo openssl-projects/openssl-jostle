@@ -577,6 +577,134 @@ public class MLDSATest
     }
 
 
+    /**
+     * Streaming chunking matrix per CLAUDE.md, iterated over every
+     * ML-DSA parameter set. ML-DSA's mu computation absorbs the
+     * message via SHAKE-256 — adversarial chunks around 136 (the SHAKE
+     * rate, "block size" for absorption purposes) pivot the
+     * partial-block path. Each chunked signature is verified through
+     * the one-shot verify path; then a pinned signature is verified
+     * through every chunking strategy.
+     */
+    @Test
+    public void testMLDSA_ChunkingMatrix_allVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testMLDSA_ChunkingMatrix_allVerify");
+        for (MLDSAParameterSpec spec : joSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] msg = new byte[1024];
+            sr.nextBytes(msg);
+
+            int[] chunks = {1, 135, 136, 137, 271, 272, 273, msg.length};
+
+            // Sign-side chunking matrix.
+            for (int chunk : chunks)
+            {
+                byte[] sig = signWithChunking("MLDSA", keyPair, msg, chunk);
+                Assertions.assertTrue(verifyOneShot("MLDSA", keyPair, msg, sig),
+                        spec + " sign-chunk=" + chunk + ": chunked-signed signature did not verify");
+            }
+            for (int trial = 0; trial < 5; trial++)
+            {
+                byte[] sig = signWithRandomSplits("MLDSA", sr, keyPair, msg);
+                Assertions.assertTrue(verifyOneShot("MLDSA", keyPair, msg, sig),
+                        spec + " random-split trial=" + trial + ": signature did not verify");
+            }
+
+            // Verify-side chunking matrix.
+            byte[] oneSig = signOneShot("MLDSA", keyPair, msg);
+            for (int chunk : chunks)
+            {
+                Assertions.assertTrue(verifyWithChunking("MLDSA", keyPair, msg, oneSig, chunk),
+                        spec + " verify-chunk=" + chunk + ": chunked verify diverged from one-shot");
+            }
+            for (int trial = 0; trial < 5; trial++)
+            {
+                Assertions.assertTrue(verifyWithRandomSplits("MLDSA", sr, keyPair, msg, oneSig),
+                        spec + " random-split verify trial=" + trial + ": verify diverged");
+            }
+        }
+    }
+
+    private static byte[] signOneShot(String alg, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        return signer.sign();
+    }
+
+    private static byte[] signWithChunking(String alg, KeyPair kp, byte[] msg, int chunk) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            signer.update(msg, off, len);
+        }
+        return signer.sign();
+    }
+
+    private static byte[] signWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            signer.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return signer.sign();
+    }
+
+    private static boolean verifyOneShot(String alg, KeyPair kp, byte[] msg, byte[] sig) throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithChunking(String alg, KeyPair kp, byte[] msg, byte[] sig, int chunk)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            verifier.update(msg, off, len);
+        }
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg, byte[] sig)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            verifier.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return verifier.verify(sig);
+    }
+
+
     @Test
     public void testCalculateRawMu() throws Exception
     {

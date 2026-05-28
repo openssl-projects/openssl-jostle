@@ -19,9 +19,11 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.*;
@@ -938,6 +940,167 @@ public class ARIAAgreementTest
 
         Assertions.assertFalse(Arrays.areEqual(msg, decoded),
                 "decrypting with the wrong key must not yield the original plaintext");
+    }
+
+
+    // -----------------------------------------------------------------
+    // ARIA-GCM (AEAD) — agreement with BouncyCastle, tag-length variation,
+    // AAD handling, tamper rejection.
+    // -----------------------------------------------------------------
+
+    /**
+     * Random key / IV / AAD / plaintext agreement with BC across all three
+     * ARIA key sizes. Covers no-AAD AND AAD-bearing paths in one loop.
+     */
+    @Test
+    public void ariaGCM_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaGCM_agreesWithBC");
+        String xform = "ARIA/GCM/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[keySize];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(64)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+            GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "keySize=" + keySize + ": ARIA-GCM ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "keySize=" + keySize + ": ARIA-GCM roundtrip");
+        }
+    }
+
+    /**
+     * Tag-length variation for ARIA-GCM. All NIST-permitted tag lengths
+     * (32, 64, 96, 104, 112, 120, 128 bits) must agree with BC.
+     */
+    @Test
+    public void ariaGCM_tagLengthVariation_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaGCM_tagLengthVariation_agreesWithBC");
+        String xform = "ARIA/GCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[sr.nextInt(64)];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        for (int tagBits : new int[]{32, 64, 96, 104, 112, 120, 128})
+        {
+            SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+            GCMParameterSpec gcmSpec = new GCMParameterSpec(tagBits, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "tagBits=" + tagBits + ": ARIA-GCM ciphertext+tag diverged");
+
+            // Roundtrip: Jostle decrypt of Jostle ciphertext.
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "tagBits=" + tagBits + ": ARIA-GCM roundtrip");
+        }
+    }
+
+    /**
+     * Tampering either the ciphertext, the tag, or the AAD must cause
+     * decryption to reject. Guards against any AEAD-tag-check bypass.
+     */
+    @Test
+    public void ariaGCM_tamperedCiphertext_isRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaGCM_tamperedCiphertext_isRejected");
+        String xform = "ARIA/GCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[32];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec gcmSpec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);
+        enc.updateAAD(aad);
+        byte[] ct = enc.doFinal(msg);
+
+        // Tamper ciphertext byte.
+        byte[] tampered = ct.clone();
+        tampered[0] ^= 0x01;
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("ARIA-GCM must reject tampered ciphertext");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper tag byte (last 16 bytes of ct).
+        byte[] tagFlip = ct.clone();
+        tagFlip[tagFlip.length - 1] ^= 0xFF;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tagFlip);
+            Assertions.fail("ARIA-GCM must reject tampered tag");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper AAD.
+        byte[] tamperedAad = aad.clone();
+        tamperedAad[0] ^= 0x01;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+        dec.updateAAD(tamperedAad);
+        try
+        {
+            dec.doFinal(ct);
+            Assertions.fail("ARIA-GCM must reject tampered AAD");
+        }
+        catch (AEADBadTagException expected) { }
     }
 
 }
