@@ -117,6 +117,20 @@ public class AESKeyGeneratorTest
         Assertions.assertFalse(Arrays.areAllZeroes(keyBytes, 0, keyBytes.length));
     }
 
+    @Test
+    public void testGen_fixedSizesWithoutInit() throws Exception
+    {
+        for (String algorithm : new String[]{"AES128", "AES192", "AES256"})
+        {
+            KeyGenerator keyGen = KeyGenerator.getInstance(algorithm, JostleProvider.PROVIDER_NAME);
+            byte[] keyBytes = keyGen.generateKey().getEncoded();
+            int expectedSize = Integer.parseInt(algorithm.substring("AES".length()));
+
+            Assertions.assertEquals(expectedSize, keyBytes.length << 3);
+            Assertions.assertFalse(Arrays.areAllZeroes(keyBytes, 0, keyBytes.length));
+        }
+    }
+
 
     @Test
     public void testGen_validKeySizes() throws Exception

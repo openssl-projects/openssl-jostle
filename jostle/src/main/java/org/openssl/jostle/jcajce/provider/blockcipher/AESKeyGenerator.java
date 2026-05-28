@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ProvSecretKeySpec;
 
 import javax.crypto.KeyGeneratorSpi;
@@ -32,12 +33,13 @@ public class AESKeyGenerator extends KeyGeneratorSpi
 
     public AESKeyGenerator()
     {
-        random = new SecureRandom();
+        random = CryptoServicesRegistrar.getSecureRandom();
         keySize = 256;
     }
 
     public AESKeyGenerator(int fixedSize)
     {
+        random = CryptoServicesRegistrar.getSecureRandom();
         this.fixedKeySize = fixedSize;
         this.keySize = fixedSize;
     }
