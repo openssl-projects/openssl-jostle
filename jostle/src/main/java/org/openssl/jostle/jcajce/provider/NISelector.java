@@ -28,6 +28,8 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceJNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceJNI;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherJNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherJNI;
@@ -67,6 +69,7 @@ public class NISelector
     public static final RSAPKCS1CipherNI RSAPKCS1CipherNI;
     public static final ECServiceNI ECServiceNI;
     public static final MacServiceNI MacServiceNI;
+    public static final RandServiceNI RandServiceNI;
 
     static
     {
@@ -87,5 +90,6 @@ public class NISelector
         RSAPKCS1CipherNI = new RSAPKCS1CipherJNI();
         ECServiceNI = new ECServiceJNI();
         MacServiceNI = new MacServiceJNI();
+        RandServiceNI = new RandServiceJNI();
     }
 }

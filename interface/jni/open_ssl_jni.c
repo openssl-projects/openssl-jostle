@@ -10,14 +10,15 @@
 #include <openssl/bio.h>
 
 #include "org_openssl_jostle_jcajce_provider_OpenSSLJNI.h"
-#include <openssl/provider.h>
 #include <openssl/err.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "rand_upcall_jni.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
 #include "../util/jo_assert.h"
+#include "../util/rand.h"
 #include "../util/rand/jostle_lib_ctx.h"
 
 
@@ -32,6 +33,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
 
     const char *prov_name = NULL;
     int result = JO_FAIL;
+    int32_t rand_created = 0;
 
 
     if (_prov_name == NULL) {
@@ -47,27 +49,40 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
     }
 
 
-    // jostle_ctx_init_new owns rnd: allocates on entry, frees on failure.
-    jostle_lib_ctx *rnd = NULL;
+    // Separate RAND context backs SecureRandomSpi. provider_ctx backs
+    // OpenSSL operations using RandSource up-calls.
+    jostle_lib_ctx *provider_ctx = NULL;
 
     prov_name = (*env)->GetStringUTFChars(env, _prov_name, NULL);
-
-    result = jostle_ctx_init_new(&rnd, prov_name);
-    if (UNSUCCESSFUL(result)) {
-        // rnd is NULL: init_new freed it.
+    if (prov_name == NULL) {
+        result = JO_FAIL;
         goto exit;
     }
 
-    result = set_global_jostle_lib_ctx(rnd);
+    result = rand_init(prov_name, &rand_created);
+    if (UNSUCCESSFUL(result)) {
+        goto exit;
+    }
+
+    result = jostle_ctx_init_new(&provider_ctx, prov_name);
+    if (UNSUCCESSFUL(result)) {
+        if (rand_created) {
+            rand_destroy();
+        }
+        goto exit;
+    }
+
+    result = set_global_jostle_lib_ctx(provider_ctx);
 
     if (UNSUCCESSFUL(result)) {
-        // rnd owns libctx + providers + rand_ctx; plain OPENSSL_free leaks them.
-        jostle_ctx_destroy(rnd);
+        if (rand_created) {
+            rand_destroy();
+        }
+        jostle_ctx_destroy(provider_ctx);
         goto exit;
     }
 
     rand_up_call_init_jni(env);
-
 
 exit:
     if (prov_name != NULL) {

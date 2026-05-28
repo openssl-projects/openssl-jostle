@@ -26,6 +26,13 @@ public class OpenSSL
      */
     synchronized static void setOSSLProvider(String moduleName)
     {
+        if (moduleName == null || moduleName.trim().isEmpty())
+        {
+            throw new IllegalArgumentException("moduleName is null or empty");
+        }
+
+        moduleName = moduleName.trim();
+
         if (lastModuleName != null)
         {
             if (lastModuleName.equals(moduleName))
@@ -35,15 +42,6 @@ public class OpenSSL
 
             throw new IllegalStateException("OpenSSL already initialized to " + lastModuleName);
         }
-
-        if (moduleName == null || moduleName.trim().isEmpty())
-        {
-            throw new IllegalArgumentException("moduleName is null or empty");
-        }
-
-        moduleName = moduleName.trim();
-
-        lastModuleName = moduleName;
 
         CryptoServicesRegistrar.assertNativeAvailable();
 
@@ -60,10 +58,13 @@ public class OpenSSL
                 throw new IllegalArgumentException("moduleName name is null");
             case JO_PROV_NAME_EMPTY:
                 throw new IllegalArgumentException("moduleName name is empty");
+            case JO_UNEXPECTED_STATE:
+                throw new IllegalStateException("OpenSSL already initialized to a different module");
             default:
                 throw new IllegalArgumentException("unexpected return code: " + code);
         }
 
+        lastModuleName = moduleName;
     }
 
     /**

@@ -11,10 +11,11 @@
 #include <stddef.h>
 #include <openssl/bio.h>
 #include <openssl/err.h>
-#include <openssl/provider.h>
 #include <openssl/types.h>
+#include <stdlib.h>
 #include <string.h>
 #include "../util/jo_assert.h"
+#include "../util/rand.h"
 #include "../util/rand/jostle_lib_ctx.h"
 
 
@@ -23,6 +24,7 @@
 */
 int32_t set_openssl_module(const char *prov_name /* JVM */) {
     int32_t result = JO_FAIL;
+    int32_t rand_created = 0;
 
     if (prov_name == NULL) {
         result = JO_PROV_NAME_NULL;
@@ -35,21 +37,30 @@ int32_t set_openssl_module(const char *prov_name /* JVM */) {
     }
 
 
-    // jostle_ctx_init_new owns rnd: allocates on entry, frees on failure.
-    jostle_lib_ctx *rnd = NULL;
+    // Separate RAND context backs SecureRandomSpi. provider_ctx backs
+    // OpenSSL operations using RandSource up-calls.
+    jostle_lib_ctx *provider_ctx = NULL;
 
-
-    result = jostle_ctx_init_new(&rnd, prov_name);
+    result = rand_init(prov_name, &rand_created);
     if (UNSUCCESSFUL(result)) {
-        // rnd is NULL: init_new freed it.
         goto exit;
     }
 
-    result = set_global_jostle_lib_ctx(rnd);
+    result = jostle_ctx_init_new(&provider_ctx, prov_name);
+    if (UNSUCCESSFUL(result)) {
+        if (rand_created) {
+            rand_destroy();
+        }
+        goto exit;
+    }
+
+    result = set_global_jostle_lib_ctx(provider_ctx);
 
     if (UNSUCCESSFUL(result)) {
-        // rnd owns libctx + providers + rand_ctx; plain OPENSSL_free leaks them.
-        jostle_ctx_destroy(rnd);
+        if (rand_created) {
+            rand_destroy();
+        }
+        jostle_ctx_destroy(provider_ctx);
     }
 
 

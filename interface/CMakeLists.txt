@@ -75,6 +75,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     #
     add_library(interface_jni SHARED
             jni/md_jni.c
+            jni/rand_jni.c
             jni/mac_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
@@ -116,6 +117,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/mac.c
             util/md.c
             util/md.h
+            util/rand.c
+            util/rand.h
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
@@ -159,6 +162,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     #
     add_library(interface_ffi SHARED
             ffi/md_ffi.c
+            ffi/rand_ffi.c
             ffi/mac_ffi.c
             ffi/ffi.h
             ffi/ffi.c
@@ -200,6 +204,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/mac.c
             util/md.c
             util/md.h
+            util/rand.c
+            util/rand.h
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
@@ -271,6 +277,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     #
     add_library(interface_jni SHARED
             jni/md_jni.c
+            jni/rand_jni.c
             jni/mac_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
@@ -311,6 +318,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/mac.c
             util/md.c
             util/md.h
+            util/rand.c
+            util/rand.h
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
@@ -349,6 +358,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     #
     add_library(interface_ffi SHARED
             ffi/md_ffi.c
+            ffi/rand_ffi.c
             ffi/mac_ffi.c
             ffi/ffi.h
             ffi/ffi.c
@@ -390,6 +400,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/mac.c
             util/md.c
             util/md.h
+            util/rand.c
+            util/rand.h
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
@@ -442,6 +454,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 
     add_library(interface_jni SHARED
             jni/md_jni.c
+            jni/rand_jni.c
             jni/mac_jni.c
             jni/native_info_jni.c
             jni/open_ssl_jni.c
@@ -483,6 +496,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/mac.c
             util/md.c
             util/md.h
+            util/rand.c
+            util/rand.h
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
@@ -527,6 +542,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/slh_dsa_ni_ffi.c
             ffi/asn1_ni_ffi.c
             ffi/md_ffi.c
+            ffi/rand_ffi.c
             ffi/mac_ffi.c
             util/jo_assert.h
             util/mldsa.h
@@ -555,6 +571,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/mac.c
             util/md.c
             util/md.h
+            util/rand.c
+            util/rand.h
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
@@ -593,6 +611,3 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     install(FILES "${OPEN_SSL_DLL}" DESTINATION ${INSTALL_PATH})
 
 endif ()
-
-
-

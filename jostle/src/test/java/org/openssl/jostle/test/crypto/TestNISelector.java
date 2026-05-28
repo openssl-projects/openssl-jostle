@@ -24,6 +24,7 @@ import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
@@ -96,6 +97,11 @@ public class TestNISelector extends NISelector
     public static MacServiceNI getMacServiceNI()
     {
         return MacServiceNI;
+    }
+
+    public static RandServiceNI getRandNI()
+    {
+        return RandServiceNI;
     }
 
     public static RSAServiceNI getRSANi() {
