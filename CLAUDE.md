@@ -480,6 +480,15 @@ The project deliberately deviates from JCE historical defaults: PSS defaults to 
 - Cross-provider agreement tests must pass explicit `PSSParameterSpec` / `OAEPParameterSpec` objects — they can't rely on default-vs-default parity because the defaults differ.
 - New SPI defaults belong in a per-SPI `private static final String DEFAULT_DIGEST = "SHA-256"` constant, with the deviation documented in the class header (see `RSAPSSSignatureSpi`'s class-level Javadoc for the canonical pattern).
 
+**AEAD param-spec acceptance: if an SPI takes a tag-carrying AEAD spec, examine whether it should also take `IvParameterSpec`**
+
+The standard JCE has no `CCMParameterSpec`; `GCMParameterSpec` (tag length in bits + nonce) is the de-facto AEAD parameter holder for *all* AEAD modes. BouncyCastle's provider accepts three specs for any AEAD mode (GCM/CCM/OCB): `GCMParameterSpec`, BC's own `org.bouncycastle.jcajce.spec.AEADParameterSpec`, and plain `IvParameterSpec` (nonce only, tag length defaulted). Whenever you add or review an AEAD cipher SPI that accepts a tag-carrying AEAD spec (`GCMParameterSpec` or `AEADParameterSpec`), examine whether it should *also* accept `IvParameterSpec` for BC parity — a caller holding only a nonce is a common case, and rejecting it is a gratuitous interop gap.
+
+1. **The IV-only path needs a default tag length, and that default MUST match BouncyCastle** or byte-for-byte agreement breaks. BC's default is per-mode, not universal: GCM defaults to 128 bits, but **CCM defaults to 64 bits** (`CCMBlockCipher.init` uses `getMacSize(forEncryption, 64)` on the `ParametersWithIV` path). Never copy one mode's default to another — read the BC source for the specific mode.
+2. **Encrypt AND decrypt must accept it.** The easiest miss is broadening `engineInit` for one direction only.
+3. **Prove it with a BC-agreement test on the `IvParameterSpec` path** — init both providers with the same `IvParameterSpec` and assert byte-identical ciphertext+tag (this is precisely what catches a wrong default tag length), plus a Jostle decrypt round-trip.
+4. Reference: `CCMCipherSpi` accepts `GCMParameterSpec` + `IvParameterSpec` (64-bit default via `CCM_DEFAULT_TAG_BITS`); `BlockCipherSpi`'s GCM accepts `IvParameterSpec` with a 128-bit default. `AESAgreementTest.aesCCM_ivParameterSpec_agreesWithBC` is the canonical agreement test.
+
 **`SecureRandom` acquisition is expensive — cache, don't allocate per call**
 
 `new SecureRandom()` blocks on system entropy seeding (at first call per JVM, sometimes longer on Linux without `/dev/urandom` warmup) and the JCE retries through providers on every constructor call if instantiation fails. Per-operation `new SecureRandom()` adds up:

@@ -14,9 +14,7 @@ package org.openssl.jostle.jcajce.provider;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
-import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherFFI;
-import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherJNI;
-import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.*;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceFFI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceJNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
@@ -38,16 +36,8 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceFFI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.rsa.*;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceFFI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherFFI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherJNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherFFI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherJNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAServiceFFI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAServiceJNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceJNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecFFI;
@@ -68,6 +58,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 public class NISelector
 {
     public static final BlockCipherNI BlockCipherNI;
+    public static final CCMCipherNI CCMCipherNI;
     public static final OpenSSLNI OpenSSLNI;
     public static final NativeServiceNI NativeServiceNI;
     public static final MLDSAServiceNI MLDSAServiceNI;
@@ -90,6 +81,7 @@ public class NISelector
         if (Loader.isFFI())
         {
             BlockCipherNI = new BlockCipherFFI();
+            CCMCipherNI = new CCMCipherFFI();
             OpenSSLNI = new OpenSSLFFI();
             NativeServiceNI = new NativeServiceFFI();
             MLDSAServiceNI = new MLDSAServiceFFI();
@@ -111,6 +103,7 @@ public class NISelector
         else
         {
             BlockCipherNI = new BlockCipherJNI();
+            CCMCipherNI = new CCMCipherJNI();
             OpenSSLNI = new OpenSSLJNI();
             NativeServiceNI = new NativeServiceJNI();
             MLDSAServiceNI = new MLDSAServiceJNI();

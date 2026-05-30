@@ -23,9 +23,11 @@ import javax.crypto.AEADBadTagException;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.ByteBuffer;
 import java.security.*;
 
 /**
@@ -1101,6 +1103,495 @@ public class ARIAAgreementTest
             Assertions.fail("ARIA-GCM must reject tampered AAD");
         }
         catch (AEADBadTagException expected) { }
+    }
+
+
+    // -----------------------------------------------------------------
+    // ARIA-CCM (AEAD, NIST SP 800-38C) — see AESAgreementTest comments
+    // on the dedicated CCM SPI.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void ariaCCM_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_agreesWithBC");
+        String xform = "ARIA/CCM/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[keySize];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(64)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "keySize=" + keySize + ": ARIA-CCM ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "keySize=" + keySize + ": ARIA-CCM roundtrip");
+        }
+    }
+
+    @Test
+    public void ariaCCM_tagLengthVariation_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_tagLengthVariation_agreesWithBC");
+        String xform = "ARIA/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[24];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        for (int tagBits : new int[]{32, 48, 64, 80, 96, 112, 128})
+        {
+            SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+            GCMParameterSpec spec = new GCMParameterSpec(tagBits, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "tagBits=" + tagBits + ": ARIA-CCM ciphertext+tag diverged");
+        }
+    }
+
+    @Test
+    public void ariaCCM_tamperedCiphertext_isRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_tamperedCiphertext_isRejected");
+        String xform = "ARIA/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[32];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        byte[] ct = enc.doFinal(msg);
+
+        byte[] tampered = ct.clone();
+        tampered[0] ^= 0x01;
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("ARIA-CCM must reject tampered ciphertext");
+        }
+        catch (AEADBadTagException expected) { }
+    }
+
+    @Test
+    public void ariaCCM_incrementalAAD_throwsIllegalState() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_incrementalAAD_throwsIllegalState");
+        byte[] key = new byte[16]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+
+        Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "ARIA"), new GCMParameterSpec(128, iv));
+        c.updateAAD(new byte[]{0x01, 0x02, 0x03});
+        try
+        {
+            c.updateAAD(new byte[]{0x04});
+            Assertions.fail("second updateAAD on CCM must throw");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertTrue(expected.getMessage().toLowerCase().contains("ccm"));
+        }
+    }
+
+    // --- CCM SPI-machinery parity (shared CCMCipherSpi paths driven
+    //     through the ARIA family) ---
+
+    private static byte[] ariaCcmEncChunked(SecretKey key, GCMParameterSpec spec,
+                                            byte[] aad, byte[] msg, int chunk) throws Exception
+    {
+        Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            c.updateAAD(aad);
+        }
+        if (chunk <= 0)
+        {
+            return c.doFinal(msg);
+        }
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            c.update(msg, off, Math.min(chunk, msg.length - off));
+        }
+        return c.doFinal();
+    }
+
+    private static byte[] ariaCcmDec(SecretKey key, GCMParameterSpec spec, byte[] aad, byte[] ct) throws Exception
+    {
+        Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.DECRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            c.updateAAD(aad);
+        }
+        return c.doFinal(ct);
+    }
+
+    @Test
+    public void ariaCCM_chunkingMatrix_byteIdentical() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_chunkingMatrix_byteIdentical");
+        byte[] key = new byte[32]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[40]; sr.nextBytes(aad);
+        byte[] msg = new byte[200 + sr.nextInt(120)]; sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        byte[] reference = ariaCcmEncChunked(secretKey, spec, aad, msg, 0);
+        Assertions.assertArrayEquals(reference, ariaCcmEncChunked(secretKey, spec, aad, msg, 1),
+                "byte-by-byte diverged");
+        for (int chunk : new int[]{15, 16, 17, 31, 32, 33})
+        {
+            Assertions.assertArrayEquals(reference, ariaCcmEncChunked(secretKey, spec, aad, msg, chunk),
+                    "chunk=" + chunk + " diverged");
+        }
+        Assertions.assertArrayEquals(msg, ariaCcmDec(secretKey, spec, aad, reference), "roundtrip failed");
+    }
+
+    @Test
+    public void ariaCCM_offsetWrite_roundTripsWithoutClobberingPrefix() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_offsetWrite_roundTripsWithoutClobberingPrefix");
+        byte[] key = new byte[32]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[24]; sr.nextBytes(aad);
+        byte[] msg = new byte[80]; sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        int prefix = 7;
+        Cipher sizing = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        sizing.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        int needed = sizing.getOutputSize(msg.length);
+
+        byte[] big = new byte[prefix + needed + 5];
+        sr.nextBytes(big);
+        byte[] expectedPrefix = new byte[prefix];
+        System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+
+        Cipher enc = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        int written = enc.doFinal(msg, 0, msg.length, big, prefix);
+
+        byte[] actualPrefix = new byte[prefix];
+        System.arraycopy(big, 0, actualPrefix, 0, prefix);
+        Assertions.assertArrayEquals(expectedPrefix, actualPrefix, "prefix clobbered");
+
+        byte[] ct = new byte[written];
+        System.arraycopy(big, prefix, ct, 0, written);
+        Assertions.assertArrayEquals(msg, ariaCcmDec(secretKey, spec, aad, ct), "extracted ct failed roundtrip");
+
+        byte[] shifted = new byte[written];
+        System.arraycopy(big, prefix - 1, shifted, 0, written);
+        try
+        {
+            byte[] bad = ariaCcmDec(secretKey, spec, aad, shifted);
+            Assertions.assertFalse(Arrays.areEqual(msg, bad), "shifted window must not recover plaintext");
+        }
+        catch (AEADBadTagException expected) { }
+    }
+
+    @Test
+    public void ariaCCM_offsetWrite_shortBufferRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_offsetWrite_shortBufferRejected");
+        byte[] key = new byte[16]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] msg = new byte[48]; sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        try
+        {
+            enc.doFinal(msg, 0, msg.length, new byte[msg.length], 0);
+            Assertions.fail("expected ShortBufferException");
+        }
+        catch (ShortBufferException expected) { }
+    }
+
+    @Test
+    public void ariaCCM_resetReuse_acrossOperations() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_resetReuse_acrossOperations");
+        byte[] key = new byte[32]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        byte[] m1 = new byte[33]; sr.nextBytes(m1);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        byte[] c1 = enc.doFinal(m1);
+        Assertions.assertArrayEquals(m1, ariaCcmDec(secretKey, spec, null, c1));
+
+        byte[] iv2 = new byte[12]; sr.nextBytes(iv2);
+        GCMParameterSpec spec2 = new GCMParameterSpec(128, iv2);
+        byte[] m2 = new byte[64]; sr.nextBytes(m2);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec2);
+        byte[] c2 = enc.doFinal(m2);
+        Assertions.assertArrayEquals(m2, ariaCcmDec(secretKey, spec2, null, c2));
+
+        Cipher dec = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        byte[] tampered = c2.clone();
+        tampered[0] ^= 0x01;
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec2);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("expected AEADBadTagException");
+        }
+        catch (AEADBadTagException expected) { }
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec2);
+        Assertions.assertArrayEquals(m2, dec.doFinal(c2), "instance poisoned after tamper failure");
+    }
+
+    @Test
+    public void ariaCCM_emptyPlaintext_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_emptyPlaintext_agreesWithBC");
+        byte[] key = new byte[16]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[40]; sr.nextBytes(aad);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher bc = Cipher.getInstance("ARIA/CCM/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bc.updateAAD(aad);
+        byte[] bcCt = bc.doFinal(new byte[0]);
+
+        Cipher jo = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        jo.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        jo.updateAAD(aad);
+        byte[] joCt = jo.doFinal(new byte[0]);
+
+        Assertions.assertArrayEquals(bcCt, joCt, "empty-plaintext tag diverged");
+        Assertions.assertEquals(0, ariaCcmDec(secretKey, spec, aad, joCt).length);
+    }
+
+    @Test
+    public void ariaCCM_tamperedTagAndAAD_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_tamperedTagAndAAD_rejected");
+        byte[] key = new byte[32]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[32]; sr.nextBytes(aad);
+        byte[] msg = new byte[64]; sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        byte[] ct = enc.doFinal(msg);
+
+        // Tamper the tag (last 16 bytes).
+        byte[] tagFlip = ct.clone();
+        tagFlip[tagFlip.length - 1] ^= 0xFF;
+        try
+        {
+            ariaCcmDec(secretKey, spec, aad, tagFlip);
+            Assertions.fail("ARIA-CCM must reject tampered tag");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper the AAD.
+        byte[] tamperedAad = aad.clone();
+        tamperedAad[0] ^= 0x01;
+        try
+        {
+            ariaCcmDec(secretKey, spec, tamperedAad, ct);
+            Assertions.fail("ARIA-CCM must reject tampered AAD");
+        }
+        catch (AEADBadTagException expected) { }
+    }
+
+    @Test
+    public void ariaCCM_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_nonceLengthBoundaries");
+        byte[] key = new byte[32]; sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        byte[] aad = new byte[16]; sr.nextBytes(aad);
+        byte[] msg = new byte[64]; sr.nextBytes(msg);
+
+        for (int ivLen = 7; ivLen <= 13; ivLen++)
+        {
+            byte[] iv = new byte[ivLen]; sr.nextBytes(iv);
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher bc = Cipher.getInstance("ARIA/CCM/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+            bc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            bc.updateAAD(aad);
+            byte[] bcCt = bc.doFinal(msg);
+
+            Cipher jo = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            jo.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jo.updateAAD(aad);
+            Assertions.assertArrayEquals(bcCt, jo.doFinal(msg), "ivLen=" + ivLen + " diverged from BC");
+        }
+
+        for (int badLen : new int[]{6, 14, 16})
+        {
+            byte[] iv = new byte[badLen]; sr.nextBytes(iv);
+            try
+            {
+                Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, iv));
+                c.updateAAD(aad);
+                c.doFinal(msg);
+                Assertions.fail("ARIA-CCM must reject nonce length " + badLen);
+            }
+            // CCMCipherSpi validates nonce length at engineInit, so the
+            // rejection is the JCE-correct InvalidAlgorithmParameterException.
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
+
+    /**
+     * Key-length boundary: valid ARIA sizes {16,24,32} accepted
+     * (exercising ARIA-128/192/256-CCM), and each length one byte to
+     * either side — plus 1 and well-above-max — rejected. (0 isn't probed:
+     * SecretKeySpec rejects an empty key before init.)
+     */
+    @Test
+    public void ariaCCM_wrongKeyLength_rejected() throws Exception
+    {
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        for (int len : new int[]{16, 24, 32})
+        {
+            Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[len], "ARIA"),
+                    new GCMParameterSpec(128, iv));
+        }
+        for (int badLen : new int[]{1, 15, 17, 23, 25, 31, 33, 64})
+        {
+            Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[badLen], "ARIA"),
+                        new GCMParameterSpec(128, iv));
+                Assertions.fail("ARIA-CCM must reject key length " + badLen);
+            }
+            catch (InvalidKeyException expected) { }
+        }
+    }
+
+    /**
+     * Tag lengths that are multiples of 8 bits but NOT in the CCM valid
+     * set {32,48,64,80,96,112,128} must be rejected at engineInit with
+     * InvalidAlgorithmParameterException.
+     */
+    @Test
+    public void ariaCCM_invalidTagLength_rejected() throws Exception
+    {
+        byte[] key = new byte[16];
+        new SecureRandom().nextBytes(key);
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        // 16=2 bytes (<min), 40=5 bytes (odd), 144=18 bytes (>max).
+        for (int badTagBits : new int[]{16, 40, 144})
+        {
+            Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(badTagBits, iv));
+                Assertions.fail("ARIA-CCM must reject tag length " + badTagBits + " bits");
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
+
+    /**
+     * ARIA-CCM accepts an IvParameterSpec (nonce only); the tag defaults
+     * to 64 bits to match BouncyCastle's CCM IV-only default, so the
+     * output agrees with BC byte-for-byte.
+     */
+    @Test
+    public void ariaCCM_ivParameterSpec_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaCCM_ivParameterSpec_agreesWithBC");
+        String xform = "ARIA/CCM/NoPadding";
+        byte[] key = new byte[32]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[sr.nextInt(48)]; sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)]; sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+        IvParameterSpec spec = new IvParameterSpec(iv);
+
+        Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bcEnc.updateAAD(aad);
+        byte[] bcCt = bcEnc.doFinal(msg);
+
+        Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        joEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        joEnc.updateAAD(aad);
+        byte[] joCt = joEnc.doFinal(msg);
+
+        Assertions.assertArrayEquals(bcCt, joCt,
+                "ARIA-CCM IvParameterSpec diverged from BC (default tag length mismatch?)");
+        Assertions.assertEquals(msg.length + 8, joCt.length, "expected 8-byte default CCM tag");
+
+        Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        joDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        joDec.updateAAD(aad);
+        Assertions.assertArrayEquals(msg, joDec.doFinal(joCt), "ARIA-CCM IvParameterSpec roundtrip failed");
     }
 
 
