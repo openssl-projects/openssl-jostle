@@ -53,6 +53,16 @@ int32_t JoCCM_init(ccm_ctx *ctx, int32_t op_mode,
     if (tag_len < 0) {
         return JO_INVALID_TAG_LEN;
     }
+    // CCM tag-length set membership ({4,6,8,10,12,14,16}). Validated in
+    // the bridge so util can assert it as an invariant.
+    if (!valid_ccm_tag_len((size_t) tag_len)) {
+        return JO_INVALID_TAG_LEN;
+    }
+    // CCM nonce length range [7,13] (NIST SP 800-38C §6.1). Validated in
+    // the bridge so util can assert it as an invariant.
+    if (iv_len < CCM_MIN_NONCE_LEN || iv_len > CCM_MAX_NONCE_LEN) {
+        return JO_INVALID_IV_LEN;
+    }
     return ccm_ctx_init(ctx, op_mode, key, key_len, iv, iv_len, (size_t) tag_len);
 }
 
@@ -70,16 +80,15 @@ int32_t JoCCM_doFinal(ccm_ctx *ctx,
     if (ctx == NULL) {
         return JO_FAIL;
     }
+    // All null / negative scalar checks first, then the range checks —
+    // same order as the JNI bridge (ni_doFinal) so both layers return
+    // identical codes even for inputs with more than one fault.
     if (aad_len < 0) {
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
     if (aad == NULL && aad_len != 0) {
         return JO_INPUT_IS_NULL;
     }
-    if (aad != NULL && !check_in_range(aad_size, 0, (size_t) aad_len)) {
-        return JO_INPUT_OUT_OF_RANGE;
-    }
-
     if (input == NULL) {
         return JO_INPUT_IS_NULL;
     }
@@ -89,15 +98,17 @@ int32_t JoCCM_doFinal(ccm_ctx *ctx,
     if (in_len < 0) {
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
-    if (!check_in_range(input_size, (size_t) in_off, (size_t) in_len)) {
-        return JO_INPUT_OUT_OF_RANGE;
-    }
-
     if (output == NULL) {
         return JO_OUTPUT_IS_NULL;
     }
     if (out_off < 0) {
         return JO_OUTPUT_OFFSET_IS_NEGATIVE;
+    }
+    if (aad != NULL && !check_in_range(aad_size, 0, (size_t) aad_len)) {
+        return JO_INPUT_OUT_OF_RANGE;
+    }
+    if (!check_in_range(input_size, (size_t) in_off, (size_t) in_len)) {
+        return JO_INPUT_OUT_OF_RANGE;
     }
     if ((size_t) out_off > output_size) {
         return JO_OUTPUT_OUT_OF_RANGE;

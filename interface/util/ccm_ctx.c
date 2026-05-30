@@ -16,7 +16,9 @@
 #include <string.h>
 
 // Per NIST SP 800-38C §6.1, CCM tag length t ∈ {4,6,8,10,12,14,16}.
-static int valid_ccm_tag_len(size_t tag_len) {
+// Non-static: the JNI/FFI bridges call this to validate the caller's
+// tag length (declared in ccm_ctx.h); ccm_ctx_init asserts it.
+int valid_ccm_tag_len(size_t tag_len) {
     switch (tag_len) {
         case 4:
         case 6:
@@ -98,10 +100,12 @@ ccm_ctx *ccm_ctx_create(uint32_t cipher_id, int32_t *err) {
         return NULL;
     }
     ctx->cipher_id = cipher_id;
+    ERR_clear_error();
     ctx->evp = EVP_CIPHER_CTX_new();
-    if (ctx->evp == NULL) {
+    if (OPS_FAILED_CREATE_2 ctx->evp == NULL) {
+        EVP_CIPHER_CTX_free(ctx->evp); // NULL-safe; frees it if OPS forced this branch
         OPENSSL_free(ctx);
-        *err = JO_OPENSSL_ERROR;
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(4017);
         return NULL;
     }
     ctx->initialized = 0;
@@ -136,18 +140,14 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
     if (opp_mode != ENCRYPT_MODE && opp_mode != DECRYPT_MODE) {
         return JO_INVALID_OP_MODE;
     }
-    // Validate iv_len.
-    if (iv_len < CCM_MIN_NONCE_LEN || iv_len > CCM_MAX_NONCE_LEN) {
-        return JO_INVALID_IV_LEN;
-    }
-    // Validate tag_len.
-    if (!valid_ccm_tag_len(tag_len)) {
-        return JO_INVALID_TAG_LEN;
-    }
-    // Validate key_len (also cross-checked by fetch — fail fast here).
-    if (key_len > CCM_MAX_KEY_LEN) {
-        return JO_INVALID_KEY_LEN;
-    }
+    // iv_len and tag_len are range/set validated by the bridge
+    // (ccm_ni_jni.c / ccm_ni_ffi.c) and asserted here as invariants — a
+    // firing assert means the bridge skipped a check (programmer error),
+    // not a user-input error. The exact key_len-vs-cipher check is owned
+    // by ccm_fetch_evp_cipher below (it holds the cipher→key-length
+    // table); the key_len buffer-bound is asserted before the memcpy.
+    jo_assert(iv_len >= CCM_MIN_NONCE_LEN && iv_len <= CCM_MAX_NONCE_LEN);
+    jo_assert(valid_ccm_tag_len(tag_len));
 
     // Probe-fetch the cipher to catch cipher_id+key_len mismatches at
     // init-time rather than do_encrypt-time. Discard the result; the
@@ -162,6 +162,9 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
     EVP_CIPHER_free(probe);
 
     ctx->op_mode = opp_mode;
+    // The probe-fetch above validated key_len against the cipher
+    // (∈ {16,24,32}), so it fits the fixed-size key buffer.
+    jo_assert(key_len <= CCM_MAX_KEY_LEN);
     ctx->key_len = key_len;
     memcpy(ctx->key, key, key_len);
     ctx->iv_len = iv_len;
@@ -363,6 +366,14 @@ static int32_t ccm_do_one_shot(ccm_ctx *ctx,
         //   failure here as a tag-check fail (JO_INVALID_CIPHER_TEXT) and
         //   let the SPI surface it as AEADBadTagException.
         if (1 != EVP_DecryptUpdate(ctx->evp, out, &outl, in, (int) pt_len)) {
+            // Tag check failed. OpenSSL's CCM may have written unverified
+            // plaintext into out before detecting the MAC mismatch;
+            // cleanse it best-effort so unverified plaintext is not
+            // released to the caller's buffer (defence in depth — the SPI
+            // also discards its buffer on this path).
+            if (pt_len > 0) {
+                OPENSSL_cleanse(out, pt_len);
+            }
             ret = JO_INVALID_CIPHER_TEXT;
             goto exit;
         }
@@ -396,6 +407,11 @@ int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len)
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
     }
+    // input_len reaches us as a non-negative Java int (the bridge rejects
+    // negatives), so it is in [0, INT32_MAX]. Assert that invariant — both
+    // branches cast a value derived from it back to int32_t. A firing
+    // assert means the bridge skipped its check (programmer error).
+    jo_assert(input_len <= (size_t) INT32_MAX);
     if (op_mode == ENCRYPT_MODE) {
         // pt → ct||tag
         if (input_len > (size_t) INT32_MAX - ctx->tag_len) {
@@ -403,8 +419,9 @@ int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len)
         }
         return (int32_t) (input_len + ctx->tag_len);
     } else if (op_mode == DECRYPT_MODE) {
-        // input_len is derived from a java int and is asserted positive by the time this
-        // function is called.
+        // ct||tag → pt: subtract the tag, flooring at 0 when the input is
+        // too short to carry one. input_len <= INT32_MAX (asserted above),
+        // so the subtraction fits int32_t.
         if (input_len < ctx->tag_len) {
             return 0;
         }

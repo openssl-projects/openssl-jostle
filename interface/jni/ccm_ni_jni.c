@@ -78,6 +78,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     if (tag_len < 0) {
         return JO_INVALID_TAG_LEN;
     }
+    // CCM tag-length set membership ({4,6,8,10,12,14,16}). Validated in
+    // the bridge so util can assert it as an invariant.
+    if (!valid_ccm_tag_len((size_t) tag_len)) {
+        return JO_INVALID_TAG_LEN;
+    }
 
     java_bytearray_ctx key_ctx;
     java_bytearray_ctx iv_ctx;
@@ -91,6 +96,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     }
     if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&iv_ctx, env, _iv)) {
         ret = JO_FAILED_ACCESS_IV;
+        goto exit;
+    }
+    // CCM nonce length range [7,13] (NIST SP 800-38C §6.1). Validated in
+    // the bridge so util can assert it as an invariant.
+    if (iv_ctx.size < CCM_MIN_NONCE_LEN || iv_ctx.size > CCM_MAX_NONCE_LEN) {
+        ret = JO_INVALID_IV_LEN;
         goto exit;
     }
 

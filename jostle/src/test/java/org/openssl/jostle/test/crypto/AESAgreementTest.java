@@ -2505,6 +2505,192 @@ public class AESAgreementTest
     }
 
     /**
+     * Nonce-reuse guard (SunJCE-parity): after a successful ENCRYPT
+     * doFinal, a second encryption on the same instance WITHOUT re-init
+     * would reuse the nonce — catastrophic for CCM — and must be rejected
+     * with IllegalStateException (from doFinal, update, and updateAAD).
+     * Re-init with a fresh nonce clears the guard. Decrypt is exempt:
+     * a second decrypt on one instance without re-init is allowed.
+     */
+    @Test
+    public void aesCCM_encryptReuseWithoutReinit_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_encryptReuseWithoutReinit_rejected");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] m1 = new byte[40];
+        sr.nextBytes(m1);
+        byte[] m2 = new byte[24];
+        sr.nextBytes(m2);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.doFinal(m1); // first encrypt consumes the nonce
+
+        // Second encrypt on the same instance WITHOUT re-init must throw.
+        try
+        {
+            enc.doFinal(m2);
+            Assertions.fail("CCM must reject a second encrypt without re-init (nonce reuse)");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertTrue(expected.getMessage().contains("re-initialise"),
+                    "message should mention re-initialising: " + expected.getMessage());
+        }
+        // update / updateAAD must also be rejected after a terminal encrypt.
+        try
+        {
+            enc.update(m2);
+            Assertions.fail("CCM update after encrypt without re-init must throw");
+        }
+        catch (IllegalStateException expected) { }
+        try
+        {
+            enc.updateAAD(new byte[4]);
+            Assertions.fail("CCM updateAAD after encrypt without re-init must throw");
+        }
+        catch (IllegalStateException expected) { }
+
+        // Re-init with a fresh nonce clears the guard — encryption works again.
+        byte[] iv2 = new byte[12];
+        sr.nextBytes(iv2);
+        GCMParameterSpec spec2 = new GCMParameterSpec(128, iv2);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec2);
+        byte[] c2 = enc.doFinal(m2);
+        Assertions.assertArrayEquals(m2, ccmDecryptOneShot(xform, secretKey, spec2, null, c2),
+                "encryption after re-init should round-trip");
+
+        // Decrypt is exempt: a second decrypt on one instance WITHOUT
+        // re-init is allowed (no nonce-reuse risk on the decrypt side).
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec2);
+        Assertions.assertArrayEquals(m2, dec.doFinal(c2), "first decrypt");
+        Assertions.assertArrayEquals(m2, dec.doFinal(c2),
+                "second decrypt without re-init must be allowed");
+    }
+
+    /**
+     * CCM transformation-form resolution. The canonical 3-token
+     * "AES/CCM/NoPadding" resolves to the dedicated AESCCMCipherSpi
+     * (round-trip is covered by aesCCM_agreesWithBC). The 2-token
+     * "AES/CCM" is an INVALID JCE transformation format — javax.crypto.Cipher
+     * requires 1 or 3 slash-separated tokens and rejects 2 at tokenisation,
+     * so it throws NoSuchAlgorithmException BEFORE any provider/alias lookup.
+     * It therefore never silently routes CCM through the generic
+     * AESBlockCipherSpi; the only valid CCM transformation is the 3-token
+     * form.
+     */
+    @Test
+    public void aesCCM_twoTokenForm_isRejected() throws Exception
+    {
+        // Canonical 3-token form resolves to the dedicated CCM SPI.
+        Assertions.assertNotNull(
+                Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME),
+                "AES/CCM/NoPadding must resolve");
+
+        // 2-token "AES/CCM" is an invalid transformation format — rejected
+        // at tokenisation, never routed to the generic block-cipher SPI.
+        try
+        {
+            Cipher.getInstance("AES/CCM", JostleProvider.PROVIDER_NAME);
+            Assertions.fail("AES/CCM (2-token) must be rejected as an invalid transformation");
+        }
+        catch (NoSuchAlgorithmException expected)
+        {
+            // expected — JCE requires 1 or 3 transformation tokens.
+        }
+    }
+
+    /**
+     * Finding-9 residual: CCM must never route through the generic
+     * streaming BlockCipherSpi. A 3-token transformation with a
+     * non-NoPadding token (e.g. "AES/CCM/PKCS5Padding") IS a valid JCE
+     * format, so without a guard JCE form-4 lookup falls through to the
+     * generic AES SPI — OSSLMode has a CCM entry, so engineSetMode("CCM")
+     * would otherwise succeed — yielding a broken CCM cipher on the
+     * streaming path. The generic SPI must reject CCM (it is only valid via
+     * the dedicated "AES/CCM/NoPadding" one-shot SPI).
+     */
+    @Test
+    public void aesCCM_genericPathRejected() throws Exception
+    {
+        try
+        {
+            Cipher.getInstance("AES/CCM/PKCS5Padding", JostleProvider.PROVIDER_NAME);
+            Assertions.fail("CCM must not route through the generic block-cipher SPI; " +
+                    "only AES/CCM/NoPadding (dedicated SPI) is valid");
+        }
+        catch (NoSuchAlgorithmException expected)
+        {
+            // expected — the generic engineSetMode rejects CCM.
+        }
+    }
+
+    /**
+     * Regression (NF1): the offset engineDoFinal must NOT retain (and
+     * re-buffer) its input when it rejects an under-sized output buffer.
+     * Per the JCE contract a ShortBufferException is recoverable by
+     * retrying with a larger buffer and the SAME input — if the SPI
+     * buffered the input before throwing, the retry encrypts the plaintext
+     * twice (doubled output / wrong ciphertext). The retry here must
+     * encrypt the input exactly once and round-trip to the original msg.
+     */
+    @Test
+    public void aesCCM_offsetDoFinal_shortBufferRetry_doesNotDoubleInput() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_offsetDoFinal_shortBufferRetry_doesNotDoubleInput");
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[48];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+        final int tagBytes = 16;
+        final int singleOutput = msg.length + tagBytes;
+
+        Cipher enc = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+
+        // 1. Under-sized output buffer → ShortBufferException (per JCE contract).
+        try
+        {
+            enc.doFinal(msg, 0, msg.length, new byte[msg.length], 0);
+            Assertions.fail("expected ShortBufferException for under-sized output");
+        }
+        catch (ShortBufferException expected)
+        {
+            // expected
+        }
+
+        // 2. Retry with the SAME input and a generous buffer (large enough
+        //    even if the input were doubled). The SPI must have left no
+        //    buffered input behind from the failed attempt.
+        byte[] out = new byte[2 * msg.length + tagBytes + 16];
+        int written = enc.doFinal(msg, 0, msg.length, out, 0);
+        Assertions.assertEquals(singleOutput, written,
+                "ShortBufferException retry must encrypt the input ONCE; a doubled " +
+                "written count means the failed attempt's input was retained");
+
+        // 3. Functional proof: the retry output decrypts to the original msg.
+        byte[] ct = new byte[written];
+        System.arraycopy(out, 0, ct, 0, written);
+        Assertions.assertArrayEquals(msg,
+                ccmDecryptOneShot("AES/CCM/NoPadding", secretKey, spec, aad, ct),
+                "retry ciphertext must decrypt to the original plaintext");
+    }
+
+    /**
      * MED gap: CCM with zero-length plaintext — authenticate the AAD
      * only. Output is just the tag. Must agree with BC and round-trip.
      */

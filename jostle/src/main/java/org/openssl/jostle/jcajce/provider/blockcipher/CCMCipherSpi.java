@@ -93,6 +93,14 @@ public class CCMCipherSpi extends CipherSpi
     /* updateAAD discipline flags. */
     private boolean aadRejected;   // set true after first updateAAD AND after first update
 
+    /*
+     * Nonce-reuse guard (mirrors SunJCE's GCM behaviour): set true after a
+     * successful ENCRYPT doFinal so a second encryption on the same
+     * instance — which would reuse the nonce, catastrophic for CCM — is
+     * rejected until engineInit supplies a fresh nonce. Decrypt is exempt.
+     */
+    private boolean encryptionReinitRequired;
+
 
     public CCMCipherSpi(CipherFamily family)
     {
@@ -143,7 +151,15 @@ public class CCMCipherSpi extends CipherSpi
         }
         if (opMode == Cipher.ENCRYPT_MODE)
         {
-            return (int) pending + tagLenBytes;
+            // ct||tag; guard the tag addition in long so the (int) cast
+            // can't overflow to a negative size (matches the C-side
+            // JO_OUTPUT_TOO_LONG_INT32 guard in ccm_ctx_get_output_size).
+            long needed = pending + tagLenBytes;
+            if (needed > Integer.MAX_VALUE)
+            {
+                throw new IllegalStateException("CCM output size overflows int");
+            }
+            return (int) needed;
         }
         // Decrypt: input contains the tag, output is shorter.
         return (int) Math.max(0L, pending - tagLenBytes);
@@ -260,6 +276,7 @@ public class CCMCipherSpi extends CipherSpi
         this.iv = Arrays.clone(nonce);
         this.tagLenBytes = tagBytes;
         this.aadRejected = false;
+        this.encryptionReinitRequired = false;
         this.aadBuffer.reset();
         this.dataBuffer.reset();
     }
@@ -336,6 +353,7 @@ public class CCMCipherSpi extends CipherSpi
     protected void engineUpdateAAD(byte[] src, int offset, int len)
     {
         requireInitialised();
+        checkEncryptionReinit();
         // AAD must be supplied BEFORE any plaintext, AND in a single call.
         if (aadRejected)
         {
@@ -354,6 +372,7 @@ public class CCMCipherSpi extends CipherSpi
             return;
         }
         requireInitialised();
+        checkEncryptionReinit();
         if (aadRejected)
         {
             throw new IllegalStateException(
@@ -384,6 +403,7 @@ public class CCMCipherSpi extends CipherSpi
     protected byte[] engineUpdate(byte[] input, int inputOffset, int inputLen)
     {
         requireInitialised();
+        checkEncryptionReinit();
         // Any update closes the AAD window per JCE convention.
         aadRejected = true;
         if (input != null && inputLen > 0)
@@ -406,6 +426,7 @@ public class CCMCipherSpi extends CipherSpi
             throws IllegalBlockSizeException, BadPaddingException
     {
         requireInitialised();
+        checkEncryptionReinit();
         if (input != null && inputLen > 0)
         {
             dataBuffer.write(input, inputOffset, inputLen);
@@ -425,6 +446,11 @@ public class CCMCipherSpi extends CipherSpi
                 AEADBadTagException jceEx = new AEADBadTagException(ex.getMessage());
                 jceEx.initCause(ex);
                 throw jceEx;
+            }
+            // A successful encrypt consumes the nonce; block reuse until re-init.
+            if (opMode == Cipher.ENCRYPT_MODE)
+            {
+                encryptionReinitRequired = true;
             }
             if (written == output.length)
             {
@@ -446,22 +472,28 @@ public class CCMCipherSpi extends CipherSpi
             throws ShortBufferException, IllegalBlockSizeException, BadPaddingException
     {
         requireInitialised();
-        if (input != null && inputLen > 0)
-        {
-            dataBuffer.write(input, inputOffset, inputLen);
-        }
-        int needed = engineGetOutputSize(0);
+        checkEncryptionReinit();
+        // Size-check BEFORE buffering so a ShortBufferException leaves the
+        // SPI state untouched — the JCE contract lets the caller retry with
+        // a larger buffer and the SAME input, which must not double-buffer.
+        int pendingLen = (input != null && inputLen > 0) ? inputLen : 0;
+        int needed = engineGetOutputSize(pendingLen);
         if (output == null || output.length - outputOffset < needed)
         {
             throw new ShortBufferException(
                     "CCM output buffer too small: need " + needed +
                     " bytes from offset " + outputOffset);
         }
+        if (input != null && inputLen > 0)
+        {
+            dataBuffer.write(input, inputOffset, inputLen);
+        }
         try
         {
+            int written;
             try
             {
-                return doFinalInternal(output, outputOffset);
+                written = doFinalInternal(output, outputOffset);
             }
             catch (InvalidCipherTextException ex)
             {
@@ -469,6 +501,12 @@ public class CCMCipherSpi extends CipherSpi
                 jceEx.initCause(ex);
                 throw jceEx;
             }
+            // A successful encrypt consumes the nonce; block reuse until re-init.
+            if (opMode == Cipher.ENCRYPT_MODE)
+            {
+                encryptionReinitRequired = true;
+            }
+            return written;
         }
         finally
         {
@@ -515,11 +553,27 @@ public class CCMCipherSpi extends CipherSpi
     }
 
     /**
+     * Reject a second encryption on this instance without re-init —
+     * reusing the nonce in CCM destroys confidentiality and authenticity.
+     * Mirrors SunJCE's GCM "Cannot reuse iv" guard; decrypt is exempt.
+     */
+    private void checkEncryptionReinit()
+    {
+        if (opMode == Cipher.ENCRYPT_MODE && encryptionReinitRequired)
+        {
+            throw new IllegalStateException(
+                    "CCM encryption cannot be reused with the same nonce; " +
+                    "re-initialise with a fresh nonce before encrypting again");
+        }
+    }
+
+    /**
      * Reset only the streaming buffers + AAD flag — opMode / iv / key
-     * stay so the SPI is re-usable for another doFinal without
-     * re-init (mirrors GCM behaviour at the BC layer, where a fresh
-     * doFinal CAN be called after init+doFinal without re-init, but
-     * with a fresh AAD).
+     * stay. A DECRYPT instance is immediately re-usable for another
+     * doFinal without re-init. An ENCRYPT instance is NOT: the
+     * encryptionReinitRequired guard (set after a successful encrypt)
+     * forces re-init with a fresh nonce before encrypting again, since
+     * reusing a CCM nonce is catastrophic (mirrors SunJCE's GCM guard).
      */
     private void resetStreamingState()
     {

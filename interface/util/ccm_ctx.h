@@ -50,6 +50,14 @@ typedef struct ccm_ctx {
 } ccm_ctx;
 
 /**
+ * True if tag_len is a valid CCM tag length (NIST SP 800-38C §6.1:
+ * {4,6,8,10,12,14,16} bytes). Exposed so the JNI/FFI bridges validate
+ * the caller's tag length and return JO_INVALID_TAG_LEN; ccm_ctx_init
+ * asserts it as a bridge-validated invariant.
+ */
+int valid_ccm_tag_len(size_t tag_len);
+
+/**
  * Allocate a new ccm_ctx for the named cipher family.
  * Returns NULL with *err set on failure.
  */

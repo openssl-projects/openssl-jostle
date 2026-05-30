@@ -87,6 +87,36 @@ public class CCMOpsTest
     }
 
     // -----------------------------------------------------------------
+    // ccm_ctx_create — EVP_CIPHER_CTX_new allocation failure
+    // -----------------------------------------------------------------
+
+    /**
+     * ccm_ctx_create's EVP_CIPHER_CTX_new() failure path. The flag is armed
+     * BEFORE ni_makeInstance because create is the only call that allocates
+     * the EVP_CIPHER_CTX. Shared util site, so this runs on JNI and FFI.
+     */
+    @Test
+    public void ccm_makeInstance_ctxNew_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        long ref = 0;
+        int[] err = new int[1];
+        try
+        {
+            // Exercises interface/util/ccm_ctx.c:105
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2);
+            ref = ccmCipherNI.ni_makeInstance(CCMCipherNI.AES128, err);
+            Assertions.assertEquals(-4019, err[0]);
+            Assertions.assertEquals(0L, ref, "failed makeInstance must return a null ref");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            ccmCipherNI.ni_dispose(ref);
+        }
+    }
+
+    // -----------------------------------------------------------------
     // ccm_fetch_evp_cipher — fetch failure (init probe-fetch path)
     // -----------------------------------------------------------------
 
@@ -98,7 +128,7 @@ public class CCMOpsTest
         try
         {
             ref = newCtx();
-            // Exercises interface/util/ccm_ctx.c:72
+            // Exercises interface/util/ccm_ctx.c:74
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             int code = ccmCipherNI.ni_init(ref, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16);
             Assertions.assertEquals(-4003, code);
@@ -123,7 +153,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:236
+            // Exercises interface/util/ccm_ctx.c:246
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4004, code);
@@ -144,7 +174,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_DECRYPT);
-            // Exercises interface/util/ccm_ctx.c:314
+            // Exercises interface/util/ccm_ctx.c:324
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[32], 0, 32, new byte[16], 0);
             Assertions.assertEquals(-4005, code);
@@ -165,7 +195,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:241
+            // Exercises interface/util/ccm_ctx.c:251
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4006, code);
@@ -186,7 +216,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_DECRYPT);
-            // Exercises interface/util/ccm_ctx.c:319
+            // Exercises interface/util/ccm_ctx.c:329
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[32], 0, 32, new byte[16], 0);
             Assertions.assertEquals(-4018, code);
@@ -207,7 +237,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:248
+            // Exercises interface/util/ccm_ctx.c:258
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4007, code);
@@ -228,7 +258,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_DECRYPT);
-            // Exercises interface/util/ccm_ctx.c:326
+            // Exercises interface/util/ccm_ctx.c:336
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[32], 0, 32, new byte[16], 0);
             Assertions.assertEquals(-4008, code);
@@ -249,7 +279,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:254
+            // Exercises interface/util/ccm_ctx.c:264
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4009, code);
@@ -270,7 +300,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_DECRYPT);
-            // Exercises interface/util/ccm_ctx.c:333
+            // Exercises interface/util/ccm_ctx.c:343
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[32], 0, 32, new byte[16], 0);
             Assertions.assertEquals(-4010, code);
@@ -291,7 +321,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:260
+            // Exercises interface/util/ccm_ctx.c:270
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4011, code);
@@ -312,7 +342,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_DECRYPT);
-            // Exercises interface/util/ccm_ctx.c:339
+            // Exercises interface/util/ccm_ctx.c:349
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[32], 0, 32, new byte[16], 0);
             Assertions.assertEquals(-4012, code);
@@ -334,7 +364,7 @@ public class CCMOpsTest
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
             // The AAD step only runs when aad_len > 0.
-            // Exercises interface/util/ccm_ctx.c:266
+            // Exercises interface/util/ccm_ctx.c:276
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = ccmCipherNI.ni_doFinal(ref, new byte[8], 8, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4013, code);
@@ -355,7 +385,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_DECRYPT);
-            // Exercises interface/util/ccm_ctx.c:345
+            // Exercises interface/util/ccm_ctx.c:355
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = ccmCipherNI.ni_doFinal(ref, new byte[8], 8, new byte[32], 0, 32, new byte[16], 0);
             Assertions.assertEquals(-4014, code);
@@ -376,7 +406,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:272
+            // Exercises interface/util/ccm_ctx.c:282
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4015, code);
@@ -397,7 +427,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:277
+            // Exercises interface/util/ccm_ctx.c:287
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4016, code);
@@ -418,7 +448,7 @@ public class CCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/util/ccm_ctx.c:282
+            // Exercises interface/util/ccm_ctx.c:292
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(-4017, code);

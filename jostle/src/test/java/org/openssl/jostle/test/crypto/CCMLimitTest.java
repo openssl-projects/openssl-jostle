@@ -144,14 +144,15 @@ public class CCMLimitTest
     }
 
     /**
-     * NI-surface boundary for the C {@code valid_ccm_tag_len}
-     * ({@code ccm_ctx_init}): every valid tag length is accepted and each
-     * adjacent value is rejected. The negative-tag tests above are caught
-     * by the bridge's {@code tag_len < 0} check before {@code valid_ccm_tag_len}
-     * runs; this is the only coverage of its positive set-membership
-     * rejection (unreachable through the JCE path, which validates in
-     * CCMCipherSpi before calling native). Bridge-agnostic — runs on both
-     * JNI and FFI.
+     * NI-surface boundary for {@code valid_ccm_tag_len} — now called by
+     * the bridge ({@code ccm_ni_jni.c} / {@code ccm_ni_ffi.c}), with
+     * {@code ccm_ctx_init} asserting it as an invariant: every valid tag
+     * length is accepted and each adjacent value is rejected. The
+     * negative-tag tests above are caught by the bridge's
+     * {@code tag_len < 0} check before {@code valid_ccm_tag_len} runs;
+     * this is the only coverage of its positive set-membership rejection
+     * (unreachable through the JCE path, which validates in CCMCipherSpi
+     * before calling native). Bridge-agnostic — runs on both JNI and FFI.
      */
     @Test
     public void init_tagLen_setMembershipBoundary() throws Exception
@@ -191,11 +192,13 @@ public class CCMLimitTest
     }
 
     /**
-     * NI-surface boundary for ccm_ctx_init's iv_len (nonce) check: 7..13
-     * bytes accepted, 0/6/14 rejected with JO_INVALID_IV_LEN. Like the
-     * tag-length check this is unreachable through the JCE path
-     * (CCMCipherSpi validates the nonce length first), so the NI surface
-     * is the only place to probe it. Bridge-agnostic.
+     * NI-surface boundary for the bridge's iv_len (nonce) check
+     * ({@code ccm_ni_jni.c} / {@code ccm_ni_ffi.c}, asserted in
+     * {@code ccm_ctx_init}): 7..13 bytes accepted, 0/6/14 rejected with
+     * JO_INVALID_IV_LEN. Like the tag-length check this is unreachable
+     * through the JCE path (CCMCipherSpi validates the nonce length
+     * first), so the NI surface is the only place to probe it.
+     * Bridge-agnostic.
      */
     @Test
     public void init_ivLen_boundary() throws Exception
@@ -544,6 +547,32 @@ public class CCMLimitTest
             ref = newInitedCtx();
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 32);
             Assertions.assertEquals(ErrorCode.JO_OUTPUT_TOO_SMALL.getCode(), code);
+        }
+        finally
+        {
+            ccmCipherNI.ni_dispose(ref);
+        }
+    }
+
+    /**
+     * Bridge parity for multi-fault inputs: when more than one validation
+     * could fire, JNI and FFI must report the SAME code. Here the AAD
+     * length is out of range AND the input array is null; both bridges run
+     * all null/negative scalar checks before any range check, so both
+     * return JO_INPUT_IS_NULL (not JO_INPUT_OUT_OF_RANGE). This runs on
+     * both bridges, so a divergence in either bridge's check ordering
+     * fails loudly.
+     */
+    @Test
+    public void doFinal_multiFault_inputNullBeforeAadRange() throws Exception
+    {
+        long ref = 0;
+        try
+        {
+            ref = newInitedCtx();
+            // aad is 8 bytes but aadLen 9 (out of range) AND input is null.
+            int code = ccmCipherNI.ni_doFinal(ref, new byte[8], 9, null, 0, 0, new byte[32], 0);
+            Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), code);
         }
         finally
         {
