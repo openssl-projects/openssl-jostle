@@ -136,7 +136,11 @@ class BlockCipherSpi extends CipherSpi
 
             if (blockSize == 0)
             {
-                blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
+                blockSize = BlockCipherLengths.getBlockSize(osslCipher);
+                if (blockSize == BlockCipherLengths.UNKNOWN_BLOCK_SIZE)
+                {
+                    blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
+                }
             }
 
             return blockSize;

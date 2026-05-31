@@ -214,9 +214,21 @@ public class EdSignatureSpi extends SignatureSpi
         byte[] sig = null;
         try
         {
-            long len = edServiceNI.sign(ref.getReference(), null, 0, randSource);
-            sig = new byte[(int) len];
-            edServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            int len = EdDSALengths.UNKNOWN_SIGNATURE_LENGTH;
+            if (lastKey instanceof JOEdPrivateKey)
+            {
+                len = EdDSALengths.getSignatureLength(((JOEdPrivateKey) lastKey).getType());
+            }
+            if (len == EdDSALengths.UNKNOWN_SIGNATURE_LENGTH)
+            {
+                len = edServiceNI.sign(ref.getReference(), null, 0, randSource);
+            }
+            sig = new byte[len];
+            int written = edServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            if (written != sig.length)
+            {
+                throw new SignatureException("signature length mismatch");
+            }
             return sig;
         }
         finally

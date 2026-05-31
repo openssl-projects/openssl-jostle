@@ -20,6 +20,7 @@ import java.lang.ref.Reference;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 
 public class MacServiceSPI extends MacSpi
@@ -27,18 +28,27 @@ public class MacServiceSPI extends MacSpi
     private static final MacServiceNI macServiceNI = NISelector.MacServiceNI;
 
     private final MacReference ref;
+    private final int fixedMacLength;
+    private volatile int initializedMacLength = MacLengths.UNKNOWN_MAC_LENGTH;
 
     public MacServiceSPI(String macName, String function)
     {
         this.ref = new MacReference(macServiceNI.allocateMac(macName, function), function);
+
+        this.fixedMacLength = MacLengths.getMacLength(macName, function);
     }
 
     @Override
     protected int engineGetMacLength()
     {
+        if (fixedMacLength != MacLengths.UNKNOWN_MAC_LENGTH)
+        {
+            return fixedMacLength;
+        }
+
         try
         {
-            return macServiceNI.getMacLength(ref.getReference());
+            return getInitializedMacLength();
         }
         finally
         {
@@ -72,7 +82,15 @@ public class MacServiceSPI extends MacSpi
 
         try
         {
+            if (fixedMacLength == MacLengths.UNKNOWN_MAC_LENGTH)
+            {
+                initializedMacLength = MacLengths.UNKNOWN_MAC_LENGTH;
+            }
             macServiceNI.engineInit(ref.getReference(), keyBytes);
+            if (fixedMacLength == MacLengths.UNKNOWN_MAC_LENGTH)
+            {
+                initializedMacLength = macServiceNI.getMacLength(ref.getReference());
+            }
         }
         finally
         {
@@ -111,7 +129,7 @@ public class MacServiceSPI extends MacSpi
     {
         try
         {
-            byte[] out = new byte[engineGetMacLength()];
+            byte[] out = new byte[getInitializedMacLength()];
             int written = macServiceNI.doFinal(ref.getReference(), out, 0);
             macServiceNI.reset(ref.getReference());
             if (written == out.length)
@@ -119,9 +137,7 @@ public class MacServiceSPI extends MacSpi
                 return out;
             }
 
-            byte[] exact = new byte[written];
-            System.arraycopy(out, 0, exact, 0, written);
-            return exact;
+            throw new ProviderException("MAC length mismatch");
         }
         finally
         {
@@ -142,6 +158,18 @@ public class MacServiceSPI extends MacSpi
         }
     }
 
+    private int getInitializedMacLength()
+    {
+        if (fixedMacLength != MacLengths.UNKNOWN_MAC_LENGTH)
+        {
+            return fixedMacLength;
+        }
+        if (initializedMacLength == MacLengths.UNKNOWN_MAC_LENGTH)
+        {
+            initializedMacLength = macServiceNI.getMacLength(ref.getReference());
+        }
+        return initializedMacLength;
+    }
 
     private static class Disposer extends NativeDisposer
     {

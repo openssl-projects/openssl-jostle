@@ -168,9 +168,23 @@ public class MLDSASignatureSpi extends SignatureSpi
         byte[] sig = null;
         try
         {
-            long len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
-            sig = new byte[(int) len];
-            NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            int len = MLDSALengths.UNKNOWN_SIGNATURE_LENGTH;
+            if (lastKey != null)
+            {
+                len = MLDSALengths.getSignatureLength(
+                        lastKey.getSpec().getType(),
+                        muHandling == MuHandling.CALCULATE_MU);
+            }
+            if (len == MLDSALengths.UNKNOWN_SIGNATURE_LENGTH)
+            {
+                len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
+            }
+            sig = new byte[len];
+            int written = NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            if (written != sig.length)
+            {
+                throw new SignatureException("signature length mismatch");
+            }
             return sig;
         }
         finally

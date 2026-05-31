@@ -187,9 +187,21 @@ public class SLHDSASignatureSpi extends SignatureSpi
             byte[] sig = null;
             try
             {
-                long len = NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
-                sig = new byte[(int) len];
-                NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+                int len = SLHDSALengths.UNKNOWN_SIGNATURE_LENGTH;
+                if (lastKey != null)
+                {
+                    len = SLHDSALengths.getSignatureLength(lastKey.getType());
+                }
+                if (len == SLHDSALengths.UNKNOWN_SIGNATURE_LENGTH)
+                {
+                    len = (int) NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
+                }
+                sig = new byte[len];
+                long written = NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+                if (written != sig.length)
+                {
+                    throw new SignatureException("signature length mismatch");
+                }
                 return sig;
             }
             finally

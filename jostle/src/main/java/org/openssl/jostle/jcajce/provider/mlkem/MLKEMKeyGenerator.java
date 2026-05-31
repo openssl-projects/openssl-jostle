@@ -171,9 +171,13 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             // engineInit resolved randSource for the peer key's
             // strength category — use it directly.
             byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
-            long len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
-            byte[] wrappedKey = new byte[(int) len];
-            len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
+            int encapsulationLen = MLKEMLengths.getEncapsulationLength(spec.getType());
+            if (encapsulationLen == MLKEMLengths.UNKNOWN_ENCAPSULATION_LENGTH)
+            {
+                encapsulationLen = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
+            }
+            byte[] wrappedKey = new byte[encapsulationLen];
+            int len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
 
             if (len != wrappedKey.length)
             {
