@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider;
 
 
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIABlockCipherSpi;
+import org.openssl.jostle.jcajce.provider.blockcipher.ARIACCMCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 
@@ -45,5 +46,9 @@ class ProvARIA
         provider.addAlgorithmImplementation("Cipher", "ARIA256", PREFIX + "ARIA256", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA256, OSSLMode.ECB));
         provider.addAlias("Cipher", "ARIA256", NSRIObjectIdentifiers.id_aria256_ecb);
         provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria256_cbc, PREFIX + "ARIA256CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA256, OSSLMode.CBC));
+
+        // ARIA/CCM — see ProvAES note on the dedicated CCM SPI.
+        provider.addAlgorithmImplementation("Cipher", "ARIA/CCM/NoPadding",
+                PREFIX + "ARIACCM", generalAttributes, (arg) -> new ARIACCMCipherSpi());
     }
 }

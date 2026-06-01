@@ -40,7 +40,26 @@ import java.util.Map;
 
 public class MLKEMTest
 {
-    private static SecureRandom random = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     private static MLKEMParameterSpec[] joSpec = new MLKEMParameterSpec[]{
             MLKEMParameterSpec.ml_kem_512,

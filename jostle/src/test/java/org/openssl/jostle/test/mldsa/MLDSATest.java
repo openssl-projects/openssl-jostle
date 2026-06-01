@@ -42,7 +42,26 @@ import java.util.Map;
 public class MLDSATest
 {
 
-    private static SecureRandom random = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     private static MLDSAParameterSpec[] joSpec = new MLDSAParameterSpec[]{
             MLDSAParameterSpec.ml_dsa_44,
@@ -304,12 +323,13 @@ public class MLDSATest
     @Test
     public void testSignVerifyWithReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithReuse");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -350,15 +370,16 @@ public class MLDSATest
     @Test
     public void testSignVerifyWithContextAndReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithContextAndReuse");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx = new byte[129];
-        random.nextBytes(ctx);
+        sr.nextBytes(ctx);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -403,15 +424,16 @@ public class MLDSATest
     @Test
     public void testSignVerifyWithCustomContextAndReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithCustomContextAndReuse");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx = new byte[129];
-        random.nextBytes(ctx);
+        sr.nextBytes(ctx);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -456,6 +478,7 @@ public class MLDSATest
     @Test
     public void testSingleByteUpdateSign() throws Exception
     {
+        SecureRandom sr = seededRandom("testSingleByteUpdateSign");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
@@ -468,7 +491,7 @@ public class MLDSATest
         PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signatureJo = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         signatureJo.initSign(keyPair.getPrivate());
@@ -502,6 +525,7 @@ public class MLDSATest
     @Test
     public void testSingleByteUpdateVerify() throws Exception
     {
+        SecureRandom sr = seededRandom("testSingleByteUpdateVerify");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
@@ -515,7 +539,7 @@ public class MLDSATest
 
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         Signature signatureBc = Signature.getInstance("MLDSA", "BC");
@@ -553,10 +577,138 @@ public class MLDSATest
     }
 
 
+    /**
+     * Streaming chunking matrix per CLAUDE.md, iterated over every
+     * ML-DSA parameter set. ML-DSA's mu computation absorbs the
+     * message via SHAKE-256 — adversarial chunks around 136 (the SHAKE
+     * rate, "block size" for absorption purposes) pivot the
+     * partial-block path. Each chunked signature is verified through
+     * the one-shot verify path; then a pinned signature is verified
+     * through every chunking strategy.
+     */
+    @Test
+    public void testMLDSA_ChunkingMatrix_allVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testMLDSA_ChunkingMatrix_allVerify");
+        for (MLDSAParameterSpec spec : joSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] msg = new byte[1024];
+            sr.nextBytes(msg);
+
+            int[] chunks = {1, 135, 136, 137, 271, 272, 273, msg.length};
+
+            // Sign-side chunking matrix.
+            for (int chunk : chunks)
+            {
+                byte[] sig = signWithChunking("MLDSA", keyPair, msg, chunk);
+                Assertions.assertTrue(verifyOneShot("MLDSA", keyPair, msg, sig),
+                        spec + " sign-chunk=" + chunk + ": chunked-signed signature did not verify");
+            }
+            for (int trial = 0; trial < 5; trial++)
+            {
+                byte[] sig = signWithRandomSplits("MLDSA", sr, keyPair, msg);
+                Assertions.assertTrue(verifyOneShot("MLDSA", keyPair, msg, sig),
+                        spec + " random-split trial=" + trial + ": signature did not verify");
+            }
+
+            // Verify-side chunking matrix.
+            byte[] oneSig = signOneShot("MLDSA", keyPair, msg);
+            for (int chunk : chunks)
+            {
+                Assertions.assertTrue(verifyWithChunking("MLDSA", keyPair, msg, oneSig, chunk),
+                        spec + " verify-chunk=" + chunk + ": chunked verify diverged from one-shot");
+            }
+            for (int trial = 0; trial < 5; trial++)
+            {
+                Assertions.assertTrue(verifyWithRandomSplits("MLDSA", sr, keyPair, msg, oneSig),
+                        spec + " random-split verify trial=" + trial + ": verify diverged");
+            }
+        }
+    }
+
+    private static byte[] signOneShot(String alg, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        return signer.sign();
+    }
+
+    private static byte[] signWithChunking(String alg, KeyPair kp, byte[] msg, int chunk) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            signer.update(msg, off, len);
+        }
+        return signer.sign();
+    }
+
+    private static byte[] signWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            signer.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return signer.sign();
+    }
+
+    private static boolean verifyOneShot(String alg, KeyPair kp, byte[] msg, byte[] sig) throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithChunking(String alg, KeyPair kp, byte[] msg, byte[] sig, int chunk)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            verifier.update(msg, off, len);
+        }
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg, byte[] sig)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            verifier.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return verifier.verify(sig);
+    }
+
+
     @Test
     public void testCalculateRawMu() throws Exception
     {
-
+        SecureRandom sr = seededRandom("testCalculateRawMu");
         for (MLDSAParameterSpec spec : joSpec)
         {
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
@@ -570,8 +722,12 @@ public class MLDSATest
             PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
             PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
 
-
-            byte[] msg = "Hello World!".getBytes();
+            // Random content AND random length per CLAUDE.md "Random message
+            // content AND length" — a single fixed message would miss bugs in
+            // mu computation that ignores parts of the input, or external-mu
+            // sign/verify desync tied to message-bit patterns.
+            byte[] msg = new byte[16 + sr.nextInt(256)];
+            sr.nextBytes(msg);
 
             Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
             jostle.initSign(keyPair.getPrivate());
@@ -637,7 +793,7 @@ public class MLDSATest
     @Test
     public void testCalculateRawMuProxyKey() throws Exception
     {
-
+        SecureRandom sr = seededRandom("testCalculateRawMuProxyKey");
         for (MLDSAParameterSpec spec : joSpec)
         {
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
@@ -651,8 +807,12 @@ public class MLDSATest
             PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
             PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
 
-
-            byte[] msg = "Hello World!".getBytes();
+            // Random content AND random length per CLAUDE.md "Random message
+            // content AND length" — a single fixed message would miss bugs in
+            // mu computation that ignores parts of the input, or external-mu
+            // sign/verify desync tied to message-bit patterns.
+            byte[] msg = new byte[16 + sr.nextInt(256)];
+            sr.nextBytes(msg);
 
             Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
             jostle.initSign(new MLDSAProxyPrivateKey(keyPair.getPublic()));
@@ -707,6 +867,7 @@ public class MLDSATest
     @Test
     public void testKeyGen() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyGen");
         for (MLDSAParameterSpec spec : joSpec)
         {
 
@@ -726,7 +887,7 @@ public class MLDSATest
 
             byte[] msg = new byte[65];
 
-            random.nextBytes(msg);
+            sr.nextBytes(msg);
 
             Signature signatureBC = Signature.getInstance("MLDSA", "BC");
             signatureBC.initSign(privKeyBC);
@@ -744,6 +905,7 @@ public class MLDSATest
     @Test
     public void testKeyRecovery() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyRecovery");
         for (org.bouncycastle.jcajce.spec.MLDSAParameterSpec spec : bcSpec)
         {
 
@@ -761,7 +923,7 @@ public class MLDSATest
 
 
             byte[] msg = new byte[65];
-            random.nextBytes(msg);
+            sr.nextBytes(msg);
 
             Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
             signature.initSign(privateKey);
@@ -780,6 +942,7 @@ public class MLDSATest
     @Test
     public void testLoadRawKey() throws Exception
     {
+        SecureRandom sr = seededRandom("testLoadRawKey");
 
         for (org.bouncycastle.jcajce.spec.MLDSAParameterSpec spec : bcSpec)
         {
@@ -802,7 +965,7 @@ public class MLDSATest
             PublicKey pubKey = keyFactory.generatePublic(publicKeySpec);
 
             byte[] msg = new byte[65];
-            random.nextBytes(msg);
+            sr.nextBytes(msg);
             Signature signatureJostle = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
             signatureJostle.initSign(privKey);
             signatureJostle.update(msg);
@@ -856,19 +1019,19 @@ public class MLDSATest
         // Automatic reuse of the key but change the context before taking
         // the second signatur
 
-
+        SecureRandom sr = seededRandom("testChangeContextAfterTakingSignature");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx1 = new byte[129];
-        random.nextBytes(ctx1);
+        sr.nextBytes(ctx1);
 
         byte[] ctx2 = new byte[65];
-        random.nextBytes(ctx2);
+        sr.nextBytes(ctx2);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         //
         // Take first signature on a fresh instance that is fully set up
@@ -916,15 +1079,16 @@ public class MLDSATest
     @Test
     public void testChangeContextToNullAfterTakingSignature() throws Exception
     {
+        SecureRandom sr = seededRandom("testChangeContextToNullAfterTakingSignature");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx1 = new byte[129];
-        random.nextBytes(ctx1);
+        sr.nextBytes(ctx1);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         //
         // Take first signature on a fresh instance that is fully set up
@@ -1089,7 +1253,7 @@ public class MLDSATest
 
     }
 
-    private void crossProviderVerification(String algoName, MLDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.MLDSAParameterSpec specBC) throws Exception
+    private void crossProviderVerification(String algoName, MLDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.MLDSAParameterSpec specBC, SecureRandom sr) throws Exception
     {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(specJostle);
@@ -1105,7 +1269,7 @@ public class MLDSATest
 
 
         byte[] msg = new byte[2049];
-        random.nextBytes(msg);
+        sr.nextBytes(msg);
 
 
         Signature bcSigner = Signature.getInstance(algoName, "BC");
@@ -1154,7 +1318,7 @@ public class MLDSATest
 
     }
 
-    private void crossProviderVerificationWithContext(String algoName, MLDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.MLDSAParameterSpec specBC, byte[] ctx) throws Exception
+    private void crossProviderVerificationWithContext(String algoName, MLDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.MLDSAParameterSpec specBC, byte[] ctx, SecureRandom sr) throws Exception
     {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(specJostle);
@@ -1170,7 +1334,7 @@ public class MLDSATest
 
 
         byte[] msg = new byte[2049];
-        random.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Signature bcSigner = Signature.getInstance(algoName, "BC");
         bcSigner.initSign(privKeyBC);
@@ -1235,21 +1399,22 @@ public class MLDSATest
     @Test
     public void testMLDSASignature() throws Exception
     {
+        SecureRandom sr = seededRandom("testMLDSASignature");
 
-        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_44, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
-        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_65, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65);
-        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_87, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87);
+        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_44, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44, sr);
+        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_65, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65, sr);
+        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_87, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87, sr);
 
 
         for (int ctxLen = 0; ctxLen < 256; ctxLen++)
         {
 
             byte[] ctx = new byte[ctxLen];
-            random.nextBytes(ctx);
+            sr.nextBytes(ctx);
 
-            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_44, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44, ctx);
-            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_65, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65, ctx);
-            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_87, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87, ctx);
+            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_44, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44, ctx, sr);
+            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_65, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65, ctx, sr);
+            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_87, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87, ctx, sr);
         }
     }
 
@@ -1297,6 +1462,7 @@ public class MLDSATest
     @Test
     public void testSeedOnlyKeyEncoding() throws Exception
     {
+        SecureRandom sr = seededRandom("testSeedOnlyKeyEncoding");
         for (int i = 0; i < joSpec.length; i++)
         {
             MLDSAParameterSpec spec = joSpec[i];
@@ -1322,7 +1488,7 @@ public class MLDSATest
 
             byte[] msg = new byte[65];
 
-            random.nextBytes(msg);
+            sr.nextBytes(msg);
 
             Signature signatureBC = Signature.getInstance(bcSpec.getName(), "BC");
             signatureBC.initSign(privKeyBC);
@@ -1446,16 +1612,17 @@ public class MLDSATest
         // The 3-arg update(buf, off, len) flows through a different JNI path
         // than update(buf). Confirms the slice indexing matches the contiguous
         // form for both signer and verifier.
+        SecureRandom sr = seededRandom("testUpdateSliceVariant");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] message = new byte[513];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         // Embed the message inside a larger buffer with leading + trailing pad.
         byte[] padded = new byte[message.length + 64];
-        random.nextBytes(padded);
+        sr.nextBytes(padded);
         System.arraycopy(message, 0, padded, 32, message.length);
 
         Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
@@ -1487,12 +1654,13 @@ public class MLDSATest
         // Regression: a zero-length update in EXTERNAL_MU mode must be a
         // no-op, not a JO_OPENSSL_ERROR. The native BIO_write(...,0) returns
         // 0, which an earlier truthy-check incorrectly treated as failure.
+        SecureRandom sr = seededRandom("testExternalMuZeroLengthUpdate");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] mu = new byte[64];
-        random.nextBytes(mu);
+        sr.nextBytes(mu);
 
         Signature signature = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
         signature.initSign(keyPair.getPrivate());
@@ -1546,12 +1714,13 @@ public class MLDSATest
     {
         // Re-initialising an existing Signature must reset the underlying ctx
         // cleanly — no stale hash/mu_buf leaking from the previous direction.
+        SecureRandom sr = seededRandom("testReinitFlipsDirection");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] message = new byte[256];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature instance = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
 

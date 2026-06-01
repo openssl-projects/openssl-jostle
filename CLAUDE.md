@@ -146,6 +146,15 @@ Direct buffer access (JNI critical regions) cannot make up-calls — fetch rando
 
 `org.openssl.jostle.util.DumpInfo` (run via the standard `java --module-path .../openssl-jostle-1.0-SNAPSHOT.jar --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo`) prints the loaded provider, OS/arch, JVM version, the resolved interface (JNI/FFI), and which native libs were extracted. Use it to confirm a build picked up the right native libraries.
 
+### Test-discipline checklist — run before declaring a test file done
+
+Whenever you write or modify a roundtrip-style unit test (sign/verify, encrypt/decrypt, MAC, digest, encap/decap, KDF), audit the test against the following two rules **before declaring the work complete**. The full rationale for each rule lives in the named sections below; this checklist is the enforcement summary:
+
+1. **Random inputs.** Every key, IV / nonce, salt, AAD, plaintext, message, and password used in a non-KAT roundtrip MUST be derived from a `SecureRandom` (via `nextBytes`, a `KeyGenerator`, or a `KeyPairGenerator`) — not a hardcoded `byte[]` literal, hex string, or `"...".getBytes()`. KAT tests that pin a published vector are exempt. See **"Vary the chunking, and randomise the inputs"** and **"Run agreement tests against BouncyCastle, with random inputs"** for the full rules.
+2. **Negative path.** Every roundtrip primitive covered in the file MUST have at least one accompanying test that proves the operation actually transforms its input: tampered ciphertext → decrypt diverges, tampered message → verify returns false, wrong key → roundtrip fails, distinct inputs → distinct digests / MACs / derived keys. A KAT alone is insufficient — pair it with at least one differentiator. See **"Tests must exercise the negative path"** for the per-primitive expectations.
+
+**Automation.** Run the `audit-test-coverage` skill (in `.claude/skills/audit-test-coverage/`) before declaring a test file done; it scans the test tree for both classes of gap and reports per-file findings. The skill is heuristic but fast, and surfaces the same kinds of issues the historical audits caught (hardcoded `"hello world".getBytes()` in sign/verify roundtrips, BC-agreement KDF tests without a `KDF(salt1) != KDF(salt2)` differentiator, etc.).
+
 ### Tests must exercise the negative path
 
 A roundtrip-only test (sign → verify, encrypt → decrypt, hash → compare, encode → decode) passes equally well against a broken implementation — a `verify()` stubbed to return `true`, a tag check that's been short-circuited, an encrypt that copies its input, a digest that returns a fixed-length zero buffer, or a parser that silently accepts any bytes will all sail through a happy-path test. Placeholder values left in during development (`return new byte[outLen];`, `System.arraycopy(in, 0, out, 0, len);`, hardcoded literals returned for the one input the author tested with) are exactly the kind of thing a positive-only test misses. For every positive test, add at least one negative case that breaks the precondition the implementation relies on:
@@ -470,6 +479,15 @@ The project deliberately deviates from JCE historical defaults: PSS defaults to 
 - A caller running `Signature.getInstance("RSASSA-PSS").initSign(...).update(m).sign()` against Jostle gets a **different signature** than the same call against SunJCE or BC. This is intentional, but the deviation matters for downstream interop.
 - Cross-provider agreement tests must pass explicit `PSSParameterSpec` / `OAEPParameterSpec` objects — they can't rely on default-vs-default parity because the defaults differ.
 - New SPI defaults belong in a per-SPI `private static final String DEFAULT_DIGEST = "SHA-256"` constant, with the deviation documented in the class header (see `RSAPSSSignatureSpi`'s class-level Javadoc for the canonical pattern).
+
+**AEAD param-spec acceptance: if an SPI takes a tag-carrying AEAD spec, examine whether it should also take `IvParameterSpec`**
+
+The standard JCE has no `CCMParameterSpec`; `GCMParameterSpec` (tag length in bits + nonce) is the de-facto AEAD parameter holder for *all* AEAD modes. BouncyCastle's provider accepts three specs for any AEAD mode (GCM/CCM/OCB): `GCMParameterSpec`, BC's own `org.bouncycastle.jcajce.spec.AEADParameterSpec`, and plain `IvParameterSpec` (nonce only, tag length defaulted). Whenever you add or review an AEAD cipher SPI that accepts a tag-carrying AEAD spec (`GCMParameterSpec` or `AEADParameterSpec`), examine whether it should *also* accept `IvParameterSpec` for BC parity — a caller holding only a nonce is a common case, and rejecting it is a gratuitous interop gap.
+
+1. **The IV-only path needs a default tag length, and that default MUST match BouncyCastle** or byte-for-byte agreement breaks. BC's default is per-mode, not universal: GCM defaults to 128 bits, but **CCM defaults to 64 bits** (`CCMBlockCipher.init` uses `getMacSize(forEncryption, 64)` on the `ParametersWithIV` path). Never copy one mode's default to another — read the BC source for the specific mode.
+2. **Encrypt AND decrypt must accept it.** The easiest miss is broadening `engineInit` for one direction only.
+3. **Prove it with a BC-agreement test on the `IvParameterSpec` path** — init both providers with the same `IvParameterSpec` and assert byte-identical ciphertext+tag (this is precisely what catches a wrong default tag length), plus a Jostle decrypt round-trip.
+4. Reference: `CCMCipherSpi` accepts `GCMParameterSpec` + `IvParameterSpec` (64-bit default via `CCM_DEFAULT_TAG_BITS`); `BlockCipherSpi`'s GCM accepts `IvParameterSpec` with a 128-bit default. `AESAgreementTest.aesCCM_ivParameterSpec_agreesWithBC` is the canonical agreement test.
 
 **`SecureRandom` acquisition is expensive — cache, don't allocate per call**
 

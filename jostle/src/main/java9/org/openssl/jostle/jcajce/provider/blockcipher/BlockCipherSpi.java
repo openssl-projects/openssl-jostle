@@ -92,6 +92,19 @@ class BlockCipherSpi extends CipherSpi
             throw new NoSuchAlgorithmException("cipher mode " + mode + " not supported");
         }
 
+        if (osslMode == OSSLMode.CCM)
+        {
+            // CCM is one-shot (total length up-front, single AAD/payload
+            // update) and does not fit this streaming SPI. It is only valid
+            // via its dedicated transformation, e.g. "AES/CCM/NoPadding"
+            // (AESCCMCipherSpi). Reject it here so a valid-format but
+            // unregistered transformation (e.g. "AES/CCM/PKCS5Padding")
+            // cannot fall through to this generic SPI and run CCM on the
+            // wrong code path.
+            throw new NoSuchAlgorithmException(
+                    "CCM mode is only available via the dedicated <cipher>/CCM/NoPadding transformation");
+        }
+
         if (mandatedMode != null && mandatedMode != osslMode)
         {
             throw new NoSuchAlgorithmException("cipher mode " + osslMode + " not supported");

@@ -28,6 +28,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -42,7 +44,26 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public class AESAgreementTest
 {
-    static SecureRandom secRand = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -58,7 +79,7 @@ public class AESAgreementTest
     }
 
 
-    private void exercise_simpleDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_simpleDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -66,17 +87,17 @@ public class AESAgreementTest
             for (int t = 0; t < top; t += step)
             {
                 byte[] msg = new byte[t];
-                secRand.nextBytes(msg);
+                sr.nextBytes(msg);
 
                 byte[] key = new byte[keySize];
-                secRand.nextBytes(key);
+                sr.nextBytes(key);
 
                 byte[] iv = null;
                 IvParameterSpec ivSpec = null;
                 if (ivLen > -1)
                 {
                     iv = new byte[ivLen];
-                    secRand.nextBytes(iv);
+                    sr.nextBytes(iv);
                     ivSpec = new IvParameterSpec(iv);
                 }
 
@@ -127,7 +148,7 @@ public class AESAgreementTest
     }
 
 
-    private void exercise_complexDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -142,17 +163,17 @@ public class AESAgreementTest
                     {
 
                         byte[] msg = new byte[t];
-                        secRand.nextBytes(msg);
+                        sr.nextBytes(msg);
 
                         byte[] key = new byte[keySize];
-                        secRand.nextBytes(key);
+                        sr.nextBytes(key);
 
                         byte[] iv = null;
                         IvParameterSpec ivSpec = null;
                         if (ivLen > -1)
                         {
                             iv = new byte[ivLen];
-                            secRand.nextBytes(iv);
+                            sr.nextBytes(iv);
                             ivSpec = new IvParameterSpec(iv);
                         }
 
@@ -189,8 +210,8 @@ public class AESAgreementTest
                         byte[] outputJavaCt = new byte[expectedLenCt + jitterOutput];
                         byte[] outputJostleCt = new byte[expectedLenCt + jitterOutput];
 
-                        secRand.nextBytes(outputJavaCt);
-                        secRand.nextBytes(outputJostleCt);
+                        sr.nextBytes(outputJavaCt);
+                        sr.nextBytes(outputJostleCt);
 
                         Byte leader = null;
                         if (jitterOutput > 0)
@@ -229,8 +250,8 @@ public class AESAgreementTest
                         byte[] outputJavaPt = new byte[expectedLenCt + jitterInput];
                         byte[] outputJostlePt = new byte[expectedLenCt + jitterInput];
 
-                        secRand.nextBytes(outputJavaPt);
-                        secRand.nextBytes(outputJostlePt);
+                        sr.nextBytes(outputJavaPt);
+                        sr.nextBytes(outputJostlePt);
                         leader = null;
                         if (jitterInput > 0)
                         {
@@ -272,7 +293,7 @@ public class AESAgreementTest
     }
 
 
-    private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexUpdateDoFinal(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
 
         for (int keySize : keys)
@@ -287,7 +308,7 @@ public class AESAgreementTest
                     {
 
                         byte[] msg = new byte[t];
-                        secRand.nextBytes(msg);
+                        sr.nextBytes(msg);
 
                         //
                         // Split the original message between update and do final.
@@ -295,14 +316,14 @@ public class AESAgreementTest
 
 
                         byte[] key = new byte[keySize];
-                        secRand.nextBytes(key);
+                        sr.nextBytes(key);
 
                         byte[] iv = null;
                         IvParameterSpec ivSpec = null;
                         if (ivLen > -1)
                         {
                             iv = new byte[ivLen];
-                            secRand.nextBytes(iv);
+                            sr.nextBytes(iv);
                             ivSpec = new IvParameterSpec(iv);
                         }
 
@@ -339,8 +360,8 @@ public class AESAgreementTest
                         byte[] outputJavaCt = new byte[expectedLenCt + offsetOutput];
                         byte[] outputJostleCt = new byte[expectedLenCt + offsetOutput];
 
-                        secRand.nextBytes(outputJavaCt);
-                        secRand.nextBytes(outputJostleCt);
+                        sr.nextBytes(outputJavaCt);
+                        sr.nextBytes(outputJostleCt);
 
                         Byte leader = null;
                         if (offsetOutput > 0)
@@ -429,8 +450,8 @@ public class AESAgreementTest
                         byte[] outputJavaPt = new byte[expectedLenCt + offsetInput];
                         byte[] outputJostlePt = new byte[expectedLenCt + offsetInput];
 
-                        secRand.nextBytes(outputJavaPt);
-                        secRand.nextBytes(outputJostlePt);
+                        sr.nextBytes(outputJavaPt);
+                        sr.nextBytes(outputJostlePt);
                         leader = null;
                         if (offsetInput > 0)
                         {
@@ -485,7 +506,7 @@ public class AESAgreementTest
         }
     }
 
-    private void exercise_complexDoFinalSameArray(String xform, int[] keys, int top, int step, int ivLen) throws Exception
+    private void exercise_complexDoFinalSameArray(String xform, int[] keys, int top, int step, int ivLen, SecureRandom sr) throws Exception
     {
         for (int keySize : keys)
         {
@@ -493,7 +514,7 @@ public class AESAgreementTest
 
 
             byte[] msg = new byte[msgLen];
-            secRand.nextBytes(msg);
+            sr.nextBytes(msg);
 
             //
             // Split the original message between update and do final.
@@ -501,14 +522,14 @@ public class AESAgreementTest
 
 
             byte[] key = new byte[keySize];
-            secRand.nextBytes(key);
+            sr.nextBytes(key);
 
             byte[] iv = null;
             IvParameterSpec ivSpec = null;
             if (ivLen > -1)
             {
                 iv = new byte[ivLen];
-                secRand.nextBytes(iv);
+                sr.nextBytes(iv);
                 ivSpec = new IvParameterSpec(iv);
             }
 
@@ -534,7 +555,7 @@ public class AESAgreementTest
 
             byte[] workingArrayJostle = new byte[msg.length + expectedLenCt];
 
-            //  secRand.nextBytes(workingArrayJava);
+            //  sr.nextBytes(workingArrayJava);
 
             System.arraycopy(msg, 0, workingArrayJostle, 0, msg.length);
 
@@ -548,7 +569,7 @@ public class AESAgreementTest
             {
 
                 // Flood array and create backup
-                secRand.nextBytes(workingArrayJostle);
+                sr.nextBytes(workingArrayJostle);
                 System.arraycopy(workingArrayJostle, 0, originalWorkingArray, 0, workingArrayJostle.length);
 
                 //
@@ -592,7 +613,7 @@ public class AESAgreementTest
             {
 
                 // Flood array and create backup
-                secRand.nextBytes(workingArrayJostle);
+                sr.nextBytes(workingArrayJostle);
                 System.arraycopy(workingArrayJostle, 0, originalWorkingArray, 0, workingArrayJostle.length);
 
                 //
@@ -633,31 +654,32 @@ public class AESAgreementTest
     @Test
     public void testAes() throws Exception
     {
+        SecureRandom sr = seededRandom("testAes");
 
 
         //
         // The doFinal that returns a byte[]
         //
 
-        exercise_simpleDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_simpleDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_simpleDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_simpleDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_simpleDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_simpleDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_simpleDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_simpleDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_simpleDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_simpleDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_simpleDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_simpleDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
@@ -665,74 +687,74 @@ public class AESAgreementTest
         //
 
 
-        exercise_complexDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_complexDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_complexDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
         // Spread message between update and doFinal calls.
         //
-        exercise_complexUpdateDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1);
-        exercise_complexUpdateDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexUpdateDoFinal("AES/ECB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, -1, sr);
+        exercise_complexUpdateDoFinal("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexUpdateDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexUpdateDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexUpdateDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexUpdateDoFinal("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexUpdateDoFinal("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexUpdateDoFinal("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
         //
         // Where input and output array is the same.
         //
 
-        exercise_complexDoFinalSameArray("AES/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1);
-        exercise_complexDoFinalSameArray("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1);
+        exercise_complexDoFinalSameArray("AES/ECB/NoPadding", new int[]{16, 24, 32}, 16 * 17, 16, -1, sr);
+        exercise_complexDoFinalSameArray("AES/ECB/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, -1, sr);
 
-        exercise_complexDoFinalSameArray("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16);
-        exercise_complexDoFinalSameArray("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
-        exercise_complexDoFinalSameArray("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16);
+        exercise_complexDoFinalSameArray("AES/CBC/NoPadding", new int[]{16, 24, 32}, 5 * 16, 16, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CBC/PKCS7Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CBC/PKCS5Padding", new int[]{16, 24, 32}, (5 * 16) + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CFB128/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/CFB8/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
+        exercise_complexDoFinalSameArray("AES/OFB/NoPadding", new int[]{16, 24, 32}, 5 * 16, 1, 16, sr);
 
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15);
-        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 8, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 9, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 10, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 11, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 12, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 13, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 14, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 15, sr);
+        exercise_complexDoFinalSameArray("AES/CTR/NoPadding", new int[]{16, 24, 32}, 5 * 16 + 1, 1, 16, sr);
 
 
     }
@@ -741,7 +763,7 @@ public class AESAgreementTest
     @Test
     public void aesGCMSpread() throws Exception
     {
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMSpread");
 
 
         String xform = "AES/GCM/NoPadding";
@@ -832,7 +854,7 @@ public class AESAgreementTest
     @Test
     public void aesGCMSpreadSplitUpdateDoFinal() throws Exception
     {
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMSpreadSplitUpdateDoFinal");
 
 
         String xform = "AES/GCM/NoPadding";
@@ -949,7 +971,7 @@ public class AESAgreementTest
     public void aesGCMWithAAD() throws Exception
     {
 
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMWithAAD");
 
         String xform = "AES/GCM/NoPadding";
         byte[] iv = new byte[12];
@@ -1056,7 +1078,7 @@ public class AESAgreementTest
     public void aesGCMWithTagLen() throws Exception
     {
 
-        SecureRandom random = new SecureRandom();
+        SecureRandom random = seededRandom("aesGCMWithTagLen");
 
         String xform = "AES/GCM/NoPadding";
         byte[] iv = new byte[12];
@@ -1611,5 +1633,1493 @@ public class AESAgreementTest
         }
     }
 
+
+    // -----------------------------------------------------------------
+    // AES-GCM: adversarial AAD-chunking matrix per CLAUDE.md "AAD
+    // chunking is independent of plaintext chunking — vary them
+    // separately." Existing aesGCMSpreadSplitUpdateDoFinal varies
+    // plaintext chunking but always calls updateAAD(aad, 0, aad.length)
+    // as a one-shot. This test fills that gap.
+    // -----------------------------------------------------------------
+
+    /**
+     * Drive the SAME (key, IV, plaintext, AAD) through different
+     * updateAAD chunking strategies; the resulting tag and ciphertext
+     * must be byte-identical regardless of how AAD was fed.
+     *
+     * The AAD-handling code in OpenSSL's GCM has a separate state
+     * machine from the plaintext-handling code; a bug in the AAD
+     * buffering layer wouldn't surface in tests that only ever pass
+     * AAD as one-shot.
+     */
+    @Test
+    public void aesGCM_AADChunkingMatrix_byteIdentical() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesGCM_AADChunkingMatrix_byteIdentical");
+        String xform = "AES/GCM/NoPadding";
+
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[256 + sr.nextInt(256)];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[256 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+        byte[] reference = encryptWithAADChunking(xform, secretKey, ivSpec, aad, msg, aad.length);
+
+        // byte-by-byte AAD
+        Assertions.assertArrayEquals(reference,
+                encryptWithAADChunking(xform, secretKey, ivSpec, aad, msg, 1),
+                "byte-by-byte AAD diverged from one-shot AAD");
+
+        // Adversarial offsets around the AES block size (16) — GCM
+        // processes AAD in 16-byte blocks via GHASH.
+        for (int chunk : new int[]{15, 16, 17, 31, 32, 33, 63, 64, 65})
+        {
+            Assertions.assertArrayEquals(reference,
+                    encryptWithAADChunking(xform, secretKey, ivSpec, aad, msg, chunk),
+                    "chunk=" + chunk + ": AAD chunking diverged from one-shot");
+        }
+
+        // Random splits of the AAD.
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertArrayEquals(reference,
+                    encryptWithRandomAADSplits(xform, secretKey, ivSpec, aad, msg, sr),
+                    "random-split trial=" + trial + ": AAD chunking diverged from one-shot");
+        }
+
+        // Confirm the reference ciphertext decrypts (also through a
+        // chunked-AAD decryptor) — guards against any AAD-side change
+        // having silently produced a tag that doesn't actually verify.
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
+        for (int off = 0; off < aad.length; off += 17)
+        {
+            int len = Math.min(17, aad.length - off);
+            dec.updateAAD(aad, off, len);
+        }
+        Assertions.assertArrayEquals(msg, dec.doFinal(reference),
+                "chunked-AAD decrypt did not recover original plaintext");
+    }
+
+    private static byte[] encryptWithAADChunking(String xform, SecretKey key, IvParameterSpec ivSpec,
+                                                 byte[] aad, byte[] msg, int chunk) throws Exception
+    {
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+        for (int off = 0; off < aad.length; off += chunk)
+        {
+            int len = Math.min(chunk, aad.length - off);
+            enc.updateAAD(aad, off, len);
+        }
+        return enc.doFinal(msg);
+    }
+
+    private static byte[] encryptWithRandomAADSplits(String xform, SecretKey key, IvParameterSpec ivSpec,
+                                                     byte[] aad, byte[] msg, SecureRandom sr) throws Exception
+    {
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, ivSpec);
+        int pos = 0;
+        while (pos < aad.length)
+        {
+            int remaining = aad.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            enc.updateAAD(aad, pos, chunk);
+            pos += chunk;
+        }
+        return enc.doFinal(msg);
+    }
+
+
+    // -----------------------------------------------------------------
+    // AES-OCB (AEAD, RFC 7253) — agreement with BouncyCastle, tag-length
+    // variation, AAD handling, tamper rejection. OCB shares the AEAD
+    // code path with GCM (gated on is_aead_mode(mode_id) in C); these
+    // tests pin the actual cross-impl agreement.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void aesOCB_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_agreesWithBC");
+        String xform = "AES/OCB/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[keySize];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(64)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "keySize=" + keySize + ": AES-OCB ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "keySize=" + keySize + ": AES-OCB roundtrip");
+        }
+    }
+
+    /**
+     * RFC 7253 permits OCB tags of 64, 96, or 128 bits. Some
+     * implementations also support 8..128 in 8-bit steps; we test the
+     * canonical three.
+     */
+    @Test
+    public void aesOCB_tagLengthVariation_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_tagLengthVariation_agreesWithBC");
+        String xform = "AES/OCB/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[sr.nextInt(64)];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        for (int tagBits : new int[]{64, 96, 128})
+        {
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(tagBits, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "tagBits=" + tagBits + ": AES-OCB ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "tagBits=" + tagBits + ": AES-OCB roundtrip");
+        }
+    }
+
+    /**
+     * RFC 7253: OCB nonce MUST be 1..15 bytes. The 16-byte boundary
+     * (matching the AES block size) and the 0-byte boundary must both
+     * be rejected; valid lengths in between must produce ciphertext
+     * byte-equal with BouncyCastle's OCB implementation.
+     */
+    @Test
+    public void aesOCB_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_nonceLengthBoundaries");
+        String xform = "AES/OCB/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        // Every valid nonce length per RFC 7253 §3.1 (N_MIN = 1 byte,
+        // N_MAX = 15 bytes). Each must agree with BC byte-for-byte AND
+        // roundtrip via Jostle decrypt.
+        for (int ivLen = 1; ivLen <= 15; ivLen++)
+        {
+            byte[] iv = new byte[ivLen];
+            sr.nextBytes(iv);
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "ivLen=" + ivLen + ": AES-OCB ciphertext diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "ivLen=" + ivLen + ": AES-OCB roundtrip failed");
+        }
+
+        // Invalid lengths: 0 and 16 must both be rejected. Use a
+        // 16-byte IV via IvParameterSpec since GCMParameterSpec requires
+        // >0 length; for the 0-length case, use IvParameterSpec(new byte[0]).
+        for (int badLen : new int[]{0, 16, 17, 32})
+        {
+            byte[] badIv = new byte[badLen];
+            sr.nextBytes(badIv);
+            Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            try
+            {
+                if (badLen == 0)
+                {
+                    // GCMParameterSpec rejects 0-length tags too; pass via
+                    // raw IvParameterSpec to bypass that and let our C-side
+                    // OCB nonce check be the one that fires.
+                    c.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(badIv));
+                }
+                else
+                {
+                    c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, badIv));
+                }
+                Assertions.fail("AES-OCB must reject nonce length " + badLen);
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+            catch (java.security.InvalidKeyException expected) { }
+        }
+    }
+
+    @Test
+    public void aesOCB_tamperedCiphertext_isRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_tamperedCiphertext_isRejected");
+        String xform = "AES/OCB/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[32];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        byte[] ct = enc.doFinal(msg);
+
+        // Tamper ciphertext byte.
+        byte[] tampered = ct.clone();
+        tampered[0] ^= 0x01;
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("AES-OCB must reject tampered ciphertext");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper tag (last 16 bytes).
+        byte[] tagFlip = ct.clone();
+        tagFlip[tagFlip.length - 1] ^= 0xFF;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tagFlip);
+            Assertions.fail("AES-OCB must reject tampered tag");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper AAD.
+        byte[] tamperedAad = aad.clone();
+        tamperedAad[0] ^= 0x01;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(tamperedAad);
+        try
+        {
+            dec.doFinal(ct);
+            Assertions.fail("AES-OCB must reject tampered AAD");
+        }
+        catch (AEADBadTagException expected) { }
+    }
+
+
+    // -----------------------------------------------------------------
+    // AES-CCM (AEAD, NIST SP 800-38C) — separate SPI path
+    // (AESCCMCipherSpi) because CCM is one-shot at the OpenSSL layer:
+    // total plaintext length must be set up-front, AAD must be a single
+    // contiguous buffer. The SPI buffers Java-side; these tests verify
+    // the end-to-end behaviour matches BouncyCastle.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void aesCCM_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[keySize];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(64)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "keySize=" + keySize + ": AES-CCM ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            byte[] jostlePT = jostleDec.doFinal(jostleCT);
+            Assertions.assertArrayEquals(msg, jostlePT, "keySize=" + keySize + ": AES-CCM roundtrip");
+        }
+    }
+
+    /**
+     * CCM tag lengths per NIST SP 800-38C §6.1: {4, 6, 8, 10, 12, 14, 16}
+     * bytes = {32, 48, 64, 80, 96, 112, 128} bits.
+     */
+    @Test
+    public void aesCCM_tagLengthVariation_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_tagLengthVariation_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[24];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        for (int tagBits : new int[]{32, 48, 64, 80, 96, 112, 128})
+        {
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(tagBits, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "tagBits=" + tagBits + ": AES-CCM ciphertext+tag diverged");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "tagBits=" + tagBits + ": AES-CCM roundtrip");
+        }
+    }
+
+    /**
+     * CCM nonce length per NIST SP 800-38C §6.1: 7..13 bytes.
+     */
+    @Test
+    public void aesCCM_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_nonceLengthBoundaries");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        for (int ivLen = 7; ivLen <= 13; ivLen++)
+        {
+            byte[] iv = new byte[ivLen];
+            sr.nextBytes(iv);
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            javaEnc.updateAAD(aad);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "ivLen=" + ivLen + ": AES-CCM ciphertext diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "ivLen=" + ivLen + ": AES-CCM roundtrip failed");
+        }
+
+        // Out-of-range nonce: 6 and ≥14 must be rejected by Jostle.
+        // CCMCipherSpi validates the nonce length at engineInit, so the
+        // rejection is InvalidAlgorithmParameterException (the JCE-correct
+        // type) — not a generic OpenSSLException/IllegalStateException
+        // leaking up from the native layer.
+        for (int badLen : new int[]{6, 14, 16, 32})
+        {
+            byte[] badIv = new byte[badLen];
+            sr.nextBytes(badIv);
+            try
+            {
+                Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, badIv));
+                c.updateAAD(aad);
+                c.doFinal(msg);
+                Assertions.fail("AES-CCM must reject nonce length " + badLen);
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
+
+    /**
+     * Tag, ciphertext, and AAD tampering must all be rejected with
+     * AEADBadTagException.
+     */
+    @Test
+    public void aesCCM_tamperedCiphertext_isRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_tamperedCiphertext_isRejected");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[32];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        byte[] ct = enc.doFinal(msg);
+
+        // Tamper CT.
+        byte[] tampered = ct.clone();
+        tampered[0] ^= 0x01;
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("AES-CCM must reject tampered ciphertext");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper tag (last 16 bytes).
+        byte[] tagFlip = ct.clone();
+        tagFlip[tagFlip.length - 1] ^= 0xFF;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        try
+        {
+            dec.doFinal(tagFlip);
+            Assertions.fail("AES-CCM must reject tampered tag");
+        }
+        catch (AEADBadTagException expected) { }
+
+        // Tamper AAD.
+        byte[] tamperedAad = aad.clone();
+        tamperedAad[0] ^= 0x01;
+        dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(tamperedAad);
+        try
+        {
+            dec.doFinal(ct);
+            Assertions.fail("AES-CCM must reject tampered AAD");
+        }
+        catch (AEADBadTagException expected) { }
+    }
+
+    /**
+     * Per CLAUDE.md "Tests must exercise the negative path", and per the
+     * Option A design choice — CCM does NOT support incremental AAD.
+     * A second updateAAD call MUST throw IllegalStateException with a
+     * clear message about the underlying CCM constraint.
+     */
+    @Test
+    public void aesCCM_incrementalAAD_throwsIllegalState() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_incrementalAAD_throwsIllegalState");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+
+        Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
+                new GCMParameterSpec(128, iv));
+        c.updateAAD(new byte[]{0x01, 0x02, 0x03});
+        try
+        {
+            c.updateAAD(new byte[]{0x04, 0x05});
+            Assertions.fail("second updateAAD on CCM must throw");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertTrue(expected.getMessage().toLowerCase().contains("ccm"),
+                    "exception message should mention CCM: " + expected.getMessage());
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // CCM SPI-machinery coverage. CCMCipherSpi is cipher-agnostic (only
+    // resolveCipherForKeyLen + the EVP name differ per family), so the
+    // buffering / offset-write / reset / param-handling paths are
+    // exercised thoroughly here for AES; ARIA and SM4 carry per-cipher
+    // smoke tests of the same paths.
+    // -----------------------------------------------------------------
+
+    private static byte[] ccmEncryptChunked(String xform, SecretKey key, GCMParameterSpec spec,
+                                            byte[] aad, byte[] msg, int chunk) throws Exception
+    {
+        Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            c.updateAAD(aad);
+        }
+        if (chunk <= 0)
+        {
+            // one-shot
+            return c.doFinal(msg);
+        }
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            byte[] piece = c.update(msg, off, Math.min(chunk, msg.length - off));
+            // CCM produces no incremental output.
+            Assertions.assertEquals(0, piece == null ? 0 : piece.length,
+                    "CCM update() must not produce incremental output");
+        }
+        return c.doFinal();
+    }
+
+    private static byte[] ccmEncryptRandomSplits(String xform, SecretKey key, GCMParameterSpec spec,
+                                                 byte[] aad, byte[] msg, SecureRandom sr) throws Exception
+    {
+        Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            c.updateAAD(aad);
+        }
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            c.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return c.doFinal();
+    }
+
+    private static byte[] ccmDecryptOneShot(String xform, SecretKey key, GCMParameterSpec spec,
+                                            byte[] aad, byte[] ct) throws Exception
+    {
+        Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.DECRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            c.updateAAD(aad);
+        }
+        return c.doFinal(ct);
+    }
+
+    /**
+     * HIGH gap: the whole point of the Java-side buffering is the
+     * multi-update path. Drive the SAME (key, IV, AAD, plaintext)
+     * through one-shot, byte-by-byte, adversarial AES-block-aligned
+     * chunks, and random splits — every variation must produce a
+     * byte-identical ciphertext (CCM is deterministic per key+nonce),
+     * AND that ciphertext must agree with BC and round-trip.
+     */
+    @Test
+    public void aesCCM_chunkingMatrix_byteIdentical() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_chunkingMatrix_byteIdentical");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[40];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[200 + sr.nextInt(120)];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        byte[] reference = ccmEncryptChunked(xform, secretKey, spec, aad, msg, 0); // one-shot
+
+        Assertions.assertArrayEquals(reference,
+                ccmEncryptChunked(xform, secretKey, spec, aad, msg, 1),
+                "byte-by-byte update diverged from one-shot");
+        for (int chunk : new int[]{15, 16, 17, 31, 32, 33})
+        {
+            Assertions.assertArrayEquals(reference,
+                    ccmEncryptChunked(xform, secretKey, spec, aad, msg, chunk),
+                    "chunk=" + chunk + " diverged from one-shot");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertArrayEquals(reference,
+                    ccmEncryptRandomSplits(xform, secretKey, spec, aad, msg, sr),
+                    "random-split trial=" + trial + " diverged from one-shot");
+        }
+
+        // Agreement with BC + roundtrip.
+        Cipher bc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bc.updateAAD(aad);
+        Assertions.assertArrayEquals(bc.doFinal(msg), reference, "chunked ciphertext diverged from BC");
+        Assertions.assertArrayEquals(msg, ccmDecryptOneShot(xform, secretKey, spec, aad, reference),
+                "chunked-encrypt ciphertext failed to roundtrip");
+    }
+
+    /**
+     * HIGH gap: 4-arg engineDoFinal(in, off, len, output, outOff) with
+     * a non-zero outOff. Per CLAUDE.md "Verify offset-write contracts
+     * via functional round-trip, not sentinel bytes":
+     *   1. fill the output buffer with random bytes,
+     *   2. save the prefix region,
+     *   3. encrypt into the buffer at outOff,
+     *   4. assert the prefix is byte-for-byte untouched,
+     *   5. extract [outOff .. outOff+written] and confirm it decrypts
+     *      back to the plaintext,
+     *   6. extract a window starting at outOff-1 and confirm it does
+     *      NOT authenticate (proves the write started at exactly outOff).
+     */
+    @Test
+    public void aesCCM_offsetWrite_roundTripsWithoutClobberingPrefix() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_offsetWrite_roundTripsWithoutClobberingPrefix");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[24];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[80];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        int prefix = 7;  // deliberately non-block-aligned
+        int needed; // computed below
+        // Determine output length via a sizing call.
+        Cipher sizing = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        sizing.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        needed = sizing.getOutputSize(msg.length);
+
+        byte[] big = new byte[prefix + needed + 5];
+        sr.nextBytes(big);
+        byte[] expectedPrefix = new byte[prefix];
+        System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+        int written = enc.doFinal(msg, 0, msg.length, big, prefix);
+        Assertions.assertTrue(written > 0, "expected ciphertext+tag written");
+
+        // (4) prefix untouched.
+        byte[] actualPrefix = new byte[prefix];
+        System.arraycopy(big, 0, actualPrefix, 0, prefix);
+        Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                "bytes before outOff must be untouched");
+
+        // (5) functional roundtrip of the written window.
+        byte[] ct = new byte[written];
+        System.arraycopy(big, prefix, ct, 0, written);
+        Assertions.assertArrayEquals(msg, ccmDecryptOneShot(xform, secretKey, spec, aad, ct),
+                "ciphertext extracted at outOff failed to roundtrip");
+
+        // (6) shifted window (outOff-1) must NOT authenticate — proves
+        // the write began at exactly outOff, not one byte earlier.
+        byte[] shifted = new byte[written];
+        System.arraycopy(big, prefix - 1, shifted, 0, written);
+        try
+        {
+            byte[] bad = ccmDecryptOneShot(xform, secretKey, spec, aad, shifted);
+            Assertions.assertFalse(Arrays.areEqual(msg, bad),
+                    "window shifted by one byte must not recover the plaintext");
+        }
+        catch (AEADBadTagException expected)
+        {
+            // Expected: the shifted window fails the tag check.
+        }
+    }
+
+    /**
+     * MED gap: the 4-arg engineDoFinal with a too-small output buffer
+     * must throw ShortBufferException without producing output.
+     */
+    @Test
+    public void aesCCM_offsetWrite_shortBufferRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_offsetWrite_shortBufferRejected");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] msg = new byte[48];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        byte[] tooSmall = new byte[msg.length]; // missing room for the 16-byte tag
+        try
+        {
+            enc.doFinal(msg, 0, msg.length, tooSmall, 0);
+            Assertions.fail("expected ShortBufferException for under-sized output");
+        }
+        catch (ShortBufferException expected)
+        {
+            // expected
+        }
+    }
+
+    /**
+     * MED gap: SPI re-use. After a terminal doFinal the instance must
+     * be usable again without re-init, AND a tamper-induced failure
+     * must not poison the next clean operation (negative-then-positive).
+     */
+    @Test
+    public void aesCCM_resetReuse_acrossOperations() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_resetReuse_acrossOperations");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        // Two distinct encrypt operations on one instance.
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        byte[] m1 = new byte[33];
+        sr.nextBytes(m1);
+        byte[] aad1 = new byte[8];
+        sr.nextBytes(aad1);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad1);
+        byte[] c1 = enc.doFinal(m1);
+        Assertions.assertArrayEquals(m1, ccmDecryptOneShot(xform, secretKey, spec, aad1, c1));
+
+        // Re-init with fresh nonce, drive again on the same instance.
+        byte[] iv2 = new byte[12];
+        sr.nextBytes(iv2);
+        GCMParameterSpec spec2 = new GCMParameterSpec(128, iv2);
+        byte[] m2 = new byte[64];
+        sr.nextBytes(m2);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec2);
+        byte[] c2 = enc.doFinal(m2);
+        Assertions.assertArrayEquals(m2, ccmDecryptOneShot(xform, secretKey, spec2, null, c2));
+
+        // Negative-then-positive on a single decrypt instance.
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        byte[] tampered = c2.clone();
+        tampered[0] ^= 0x01;
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec2);
+        try
+        {
+            dec.doFinal(tampered);
+            Assertions.fail("expected AEADBadTagException on tampered ciphertext");
+        }
+        catch (AEADBadTagException expected)
+        {
+            // expected
+        }
+        // Same instance must still work for a clean decrypt afterwards.
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec2);
+        Assertions.assertArrayEquals(m2, dec.doFinal(c2),
+                "instance poisoned after a tamper-induced failure");
+    }
+
+    /**
+     * Nonce-reuse guard (SunJCE-parity): after a successful ENCRYPT
+     * doFinal, a second encryption on the same instance WITHOUT re-init
+     * would reuse the nonce — catastrophic for CCM — and must be rejected
+     * with IllegalStateException (from doFinal, update, and updateAAD).
+     * Re-init with a fresh nonce clears the guard. Decrypt is exempt:
+     * a second decrypt on one instance without re-init is allowed.
+     */
+    @Test
+    public void aesCCM_encryptReuseWithoutReinit_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_encryptReuseWithoutReinit_rejected");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] m1 = new byte[40];
+        sr.nextBytes(m1);
+        byte[] m2 = new byte[24];
+        sr.nextBytes(m2);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.doFinal(m1); // first encrypt consumes the nonce
+
+        // Second encrypt on the same instance WITHOUT re-init must throw.
+        try
+        {
+            enc.doFinal(m2);
+            Assertions.fail("CCM must reject a second encrypt without re-init (nonce reuse)");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertTrue(expected.getMessage().contains("re-initialise"),
+                    "message should mention re-initialising: " + expected.getMessage());
+        }
+        // update / updateAAD must also be rejected after a terminal encrypt.
+        try
+        {
+            enc.update(m2);
+            Assertions.fail("CCM update after encrypt without re-init must throw");
+        }
+        catch (IllegalStateException expected) { }
+        try
+        {
+            enc.updateAAD(new byte[4]);
+            Assertions.fail("CCM updateAAD after encrypt without re-init must throw");
+        }
+        catch (IllegalStateException expected) { }
+
+        // Re-init with a fresh nonce clears the guard — encryption works again.
+        byte[] iv2 = new byte[12];
+        sr.nextBytes(iv2);
+        GCMParameterSpec spec2 = new GCMParameterSpec(128, iv2);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec2);
+        byte[] c2 = enc.doFinal(m2);
+        Assertions.assertArrayEquals(m2, ccmDecryptOneShot(xform, secretKey, spec2, null, c2),
+                "encryption after re-init should round-trip");
+
+        // Decrypt is exempt: a second decrypt on one instance WITHOUT
+        // re-init is allowed (no nonce-reuse risk on the decrypt side).
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec2);
+        Assertions.assertArrayEquals(m2, dec.doFinal(c2), "first decrypt");
+        Assertions.assertArrayEquals(m2, dec.doFinal(c2),
+                "second decrypt without re-init must be allowed");
+    }
+
+    /**
+     * CCM transformation-form resolution. The canonical 3-token
+     * "AES/CCM/NoPadding" resolves to the dedicated AESCCMCipherSpi
+     * (round-trip is covered by aesCCM_agreesWithBC). The 2-token
+     * "AES/CCM" is an INVALID JCE transformation format — javax.crypto.Cipher
+     * requires 1 or 3 slash-separated tokens and rejects 2 at tokenisation,
+     * so it throws NoSuchAlgorithmException BEFORE any provider/alias lookup.
+     * It therefore never silently routes CCM through the generic
+     * AESBlockCipherSpi; the only valid CCM transformation is the 3-token
+     * form.
+     */
+    @Test
+    public void aesCCM_twoTokenForm_isRejected() throws Exception
+    {
+        // Canonical 3-token form resolves to the dedicated CCM SPI.
+        Assertions.assertNotNull(
+                Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME),
+                "AES/CCM/NoPadding must resolve");
+
+        // 2-token "AES/CCM" is an invalid transformation format — rejected
+        // at tokenisation, never routed to the generic block-cipher SPI.
+        try
+        {
+            Cipher.getInstance("AES/CCM", JostleProvider.PROVIDER_NAME);
+            Assertions.fail("AES/CCM (2-token) must be rejected as an invalid transformation");
+        }
+        catch (NoSuchAlgorithmException expected)
+        {
+            // expected — JCE requires 1 or 3 transformation tokens.
+        }
+    }
+
+    /**
+     * Finding-9 residual: CCM must never route through the generic
+     * streaming BlockCipherSpi. A 3-token transformation with a
+     * non-NoPadding token (e.g. "AES/CCM/PKCS5Padding") IS a valid JCE
+     * format, so without a guard JCE form-4 lookup falls through to the
+     * generic AES SPI — OSSLMode has a CCM entry, so engineSetMode("CCM")
+     * would otherwise succeed — yielding a broken CCM cipher on the
+     * streaming path. The generic SPI must reject CCM (it is only valid via
+     * the dedicated "AES/CCM/NoPadding" one-shot SPI).
+     */
+    @Test
+    public void aesCCM_genericPathRejected() throws Exception
+    {
+        try
+        {
+            Cipher.getInstance("AES/CCM/PKCS5Padding", JostleProvider.PROVIDER_NAME);
+            Assertions.fail("CCM must not route through the generic block-cipher SPI; " +
+                    "only AES/CCM/NoPadding (dedicated SPI) is valid");
+        }
+        catch (NoSuchAlgorithmException expected)
+        {
+            // expected — the generic engineSetMode rejects CCM.
+        }
+    }
+
+    /**
+     * Regression (NF1): the offset engineDoFinal must NOT retain (and
+     * re-buffer) its input when it rejects an under-sized output buffer.
+     * Per the JCE contract a ShortBufferException is recoverable by
+     * retrying with a larger buffer and the SAME input — if the SPI
+     * buffered the input before throwing, the retry encrypts the plaintext
+     * twice (doubled output / wrong ciphertext). The retry here must
+     * encrypt the input exactly once and round-trip to the original msg.
+     */
+    @Test
+    public void aesCCM_offsetDoFinal_shortBufferRetry_doesNotDoubleInput() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_offsetDoFinal_shortBufferRetry_doesNotDoubleInput");
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[48];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+        final int tagBytes = 16;
+        final int singleOutput = msg.length + tagBytes;
+
+        Cipher enc = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        enc.updateAAD(aad);
+
+        // 1. Under-sized output buffer → ShortBufferException (per JCE contract).
+        try
+        {
+            enc.doFinal(msg, 0, msg.length, new byte[msg.length], 0);
+            Assertions.fail("expected ShortBufferException for under-sized output");
+        }
+        catch (ShortBufferException expected)
+        {
+            // expected
+        }
+
+        // 2. Retry with the SAME input and a generous buffer (large enough
+        //    even if the input were doubled). The SPI must have left no
+        //    buffered input behind from the failed attempt.
+        byte[] out = new byte[2 * msg.length + tagBytes + 16];
+        int written = enc.doFinal(msg, 0, msg.length, out, 0);
+        Assertions.assertEquals(singleOutput, written,
+                "ShortBufferException retry must encrypt the input ONCE; a doubled " +
+                "written count means the failed attempt's input was retained");
+
+        // 3. Functional proof: the retry output decrypts to the original msg.
+        byte[] ct = new byte[written];
+        System.arraycopy(out, 0, ct, 0, written);
+        Assertions.assertArrayEquals(msg,
+                ccmDecryptOneShot("AES/CCM/NoPadding", secretKey, spec, aad, ct),
+                "retry ciphertext must decrypt to the original plaintext");
+    }
+
+    /**
+     * MED gap: CCM with zero-length plaintext — authenticate the AAD
+     * only. Output is just the tag. Must agree with BC and round-trip.
+     */
+    @Test
+    public void aesCCM_emptyPlaintext_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_emptyPlaintext_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[40];
+        sr.nextBytes(aad);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher bc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bc.updateAAD(aad);
+        byte[] bcCt = bc.doFinal(new byte[0]);
+
+        Cipher jo = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        jo.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        jo.updateAAD(aad);
+        byte[] joCt = jo.doFinal(new byte[0]);
+
+        Assertions.assertArrayEquals(bcCt, joCt, "empty-plaintext CCM tag diverged from BC");
+        Assertions.assertEquals(16, joCt.length, "empty-plaintext output should be the 16-byte tag");
+
+        // Decrypt (tag-only) must succeed and produce empty plaintext.
+        byte[] pt = ccmDecryptOneShot(xform, secretKey, spec, aad, joCt);
+        Assertions.assertEquals(0, pt.length, "empty-plaintext decrypt should yield zero bytes");
+    }
+
+    /**
+     * MED gap: the engineUpdateAAD(ByteBuffer) overload — exercises
+     * both the array-backed and direct (non-array-backed) branches.
+     */
+    @Test
+    public void aesCCM_byteBufferAAD_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_byteBufferAAD_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[40];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher bc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bc.updateAAD(aad);
+        byte[] bcCt = bc.doFinal(msg);
+
+        // Array-backed ByteBuffer.
+        Cipher joHeap = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        joHeap.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        joHeap.updateAAD(ByteBuffer.wrap(aad));
+        Assertions.assertArrayEquals(bcCt, joHeap.doFinal(msg), "array-backed ByteBuffer AAD diverged");
+
+        // Direct (non-array-backed) ByteBuffer.
+        ByteBuffer direct = ByteBuffer.allocateDirect(aad.length);
+        direct.put(aad);
+        direct.flip();
+        Cipher joDirect = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        joDirect.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        joDirect.updateAAD(direct);
+        Assertions.assertArrayEquals(bcCt, joDirect.doFinal(msg), "direct ByteBuffer AAD diverged");
+    }
+
+    /**
+     * LOW gap: init without parameters must be rejected — CCM needs a
+     * nonce + tag length.
+     */
+    @Test
+    public void aesCCM_initWithoutParams_rejected() throws Exception
+    {
+        byte[] key = new byte[16];
+        new SecureRandom().nextBytes(key);
+        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
+            Assertions.fail("CCM init without GCMParameterSpec must be rejected");
+        }
+        catch (InvalidKeyException expected)
+        {
+            // expected — no nonce/tag supplied; the no-params engineInit
+            // overload throws InvalidKeyException (its only checked type).
+        }
+    }
+
+    /**
+     * CCM accepts an IvParameterSpec (nonce only). Because the spec
+     * carries no tag length, the SPI must default to a 64-bit (8-byte)
+     * tag — matching BouncyCastle's CCM IV-only default — for the output
+     * to agree byte-for-byte with BC.
+     */
+    @Test
+    public void aesCCM_ivParameterSpec_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_ivParameterSpec_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16]; sr.nextBytes(key);
+        byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[sr.nextInt(48)]; sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(256)]; sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        IvParameterSpec spec = new IvParameterSpec(iv);
+
+        Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bcEnc.updateAAD(aad);
+        byte[] bcCt = bcEnc.doFinal(msg);
+
+        Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        joEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        joEnc.updateAAD(aad);
+        byte[] joCt = joEnc.doFinal(msg);
+
+        Assertions.assertArrayEquals(bcCt, joCt,
+                "AES-CCM IvParameterSpec diverged from BC (default tag length mismatch?)");
+        // 64-bit default tag => ciphertext is plaintext + 8 bytes.
+        Assertions.assertEquals(msg.length + 8, joCt.length, "expected 8-byte default CCM tag");
+
+        // Decrypt must also accept IvParameterSpec.
+        Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        joDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        joDec.updateAAD(aad);
+        Assertions.assertArrayEquals(msg, joDec.doFinal(joCt), "AES-CCM IvParameterSpec roundtrip failed");
+    }
+
+    /**
+     * LOW gap: init via AlgorithmParameters (rather than the spec
+     * directly) must resolve to the GCMParameterSpec and work.
+     */
+    @Test
+    public void aesCCM_initWithAlgorithmParameters_works() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_initWithAlgorithmParameters_works");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[48];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+        // Build AlgorithmParameters carrying a GCMParameterSpec. Use BC's
+        // CCM AlgorithmParameters so the encoding is interoperable.
+        AlgorithmParameters ap = AlgorithmParameters.getInstance("CCM", BouncyCastleProvider.PROVIDER_NAME);
+        ap.init(new GCMParameterSpec(128, iv));
+
+        Cipher jo = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        jo.init(Cipher.ENCRYPT_MODE, secretKey, ap, sr);
+        jo.updateAAD(aad);
+        byte[] joCt = jo.doFinal(msg);
+
+        Cipher bc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(128, iv));
+        bc.updateAAD(aad);
+        Assertions.assertArrayEquals(bc.doFinal(msg), joCt,
+                "init via AlgorithmParameters diverged from spec-based init");
+    }
+
+    /**
+     * Key-length boundary: the valid AES key sizes {16,24,32} must be
+     * accepted (exercising AES-128/192/256-CCM), and each length one byte
+     * to either side of a valid size — plus 1 and a value well above the
+     * max — must be rejected with InvalidKeyException. (0 is not probed:
+     * SecretKeySpec itself rejects an empty key with IllegalArgumentException
+     * before init is reached.)
+     */
+    @Test
+    public void aesCCM_wrongKeyLength_rejected() throws Exception
+    {
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        // Valid sizes accepted.
+        for (int len : new int[]{16, 24, 32})
+        {
+            Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[len], "AES"),
+                    new GCMParameterSpec(128, iv));
+        }
+        // boundary±1 around 16/24/32, plus 1 and well-above-max.
+        for (int badLen : new int[]{1, 15, 17, 23, 25, 31, 33, 64})
+        {
+            Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[badLen], "AES"),
+                        new GCMParameterSpec(128, iv));
+                Assertions.fail("AES-CCM must reject key length " + badLen);
+            }
+            catch (InvalidKeyException expected)
+            {
+                // expected
+            }
+        }
+    }
+
+    /**
+     * CCM supports only ENCRYPT/DECRYPT. Initialising for WRAP_MODE must
+     * be rejected with a clean IllegalStateException("invalid operation
+     * mode") — mapped by CCMCipherNI.handleErrors — not the generic
+     * "unexpected error code" message baseErrorHandler would emit for an
+     * unmapped JO_INVALID_OP_MODE.
+     */
+    @Test
+    public void aesCCM_wrapMode_rejected() throws Exception
+    {
+        byte[] key = new byte[16];
+        new SecureRandom().nextBytes(key);
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        for (int opMode : new int[]{Cipher.WRAP_MODE, Cipher.UNWRAP_MODE})
+        {
+            Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(opMode, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, iv));
+                Assertions.fail("CCM must reject opMode " + opMode);
+            }
+            catch (IllegalStateException expected)
+            {
+                Assertions.assertEquals("invalid operation mode", expected.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Tag lengths that are multiples of 8 bits but NOT in the CCM valid
+     * set {32,48,64,80,96,112,128} must be rejected at engineInit with
+     * InvalidAlgorithmParameterException (not leak a native
+     * JO_INVALID_TAG_LEN up as a generic IllegalStateException).
+     */
+    @Test
+    public void aesCCM_invalidTagLength_rejected() throws Exception
+    {
+        byte[] key = new byte[16];
+        new SecureRandom().nextBytes(key);
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        // 16=2 bytes (<min), 40=5 bytes (odd), 144=18 bytes (>max).
+        for (int badTagBits : new int[]{16, 40, 144})
+        {
+            Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(badTagBits, iv));
+                Assertions.fail("AES-CCM must reject tag length " + badTagBits + " bits");
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
+
+    /**
+     * Boundary check for CCMCipherSpi's tag-length validation: every
+     * valid CCM tag length must init (and yield a tag of that exact
+     * size), and the multiple-of-8 value immediately on each side of a
+     * valid length must be rejected — so a logic slip that admitted an
+     * out-of-set length would be caught. Also confirms the
+     * {@code (tagBits & 7)} gate rejects non-multiples of 8.
+     */
+    @Test
+    public void aesCCM_tagLength_boundaryRejection() throws Exception
+    {
+        byte[] key = new byte[16];
+        new SecureRandom().nextBytes(key);
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+        // Every valid tag length (bits) must init; an empty-plaintext
+        // encrypt is exactly the tag, so its length confirms tagBits/8.
+        for (int tagBits : new int[]{32, 48, 64, 80, 96, 112, 128})
+        {
+            Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+            c.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(tagBits, iv));
+            Assertions.assertEquals(tagBits / 8, c.doFinal(new byte[0]).length,
+                    "tagBits=" + tagBits + " produced the wrong tag size");
+        }
+
+        // The multiple-of-8 value on each side of every valid length must
+        // be rejected: 24 (below 32) and 136 (above 128) bracket the set;
+        // 40/56/72/88/104/120 are the odd-byte gaps between the valid
+        // even-byte lengths. Together these are both neighbours of every
+        // valid value.
+        for (int badTagBits : new int[]{24, 40, 56, 72, 88, 104, 120, 136})
+        {
+            assertCcmTagRejected(secretKey, iv, badTagBits);
+        }
+
+        // Non-multiples of 8 must be rejected by the (tagBits & 7) gate.
+        for (int badTagBits : new int[]{33, 60, 100, 127})
+        {
+            assertCcmTagRejected(secretKey, iv, badTagBits);
+        }
+    }
+
+    private static void assertCcmTagRejected(SecretKey key, byte[] iv, int tagBits) throws Exception
+    {
+        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagBits, iv));
+            Assertions.fail("AES-CCM must reject tag length " + tagBits + " bits");
+        }
+        catch (InvalidAlgorithmParameterException expected) { }
+    }
+
+    /**
+     * LOW gap: engineGetIV must return the nonce supplied at init.
+     */
+    @Test
+    public void aesCCM_getIV_returnsNonce() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_getIV_returnsNonce");
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, iv));
+        Assertions.assertArrayEquals(iv, c.getIV(), "getIV must return the configured nonce");
+    }
+
+    /**
+     * LOW gap: explicit reverse direction — encrypt with Jostle,
+     * decrypt with BouncyCastle — to confirm interoperability isn't
+     * only implied by byte-equal ciphertext.
+     */
+    @Test
+    public void aesCCM_encryptJostle_decryptBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_encryptJostle_decryptBC");
+        String xform = "AES/CCM/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[keySize];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(48)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(200)];
+            sr.nextBytes(msg);
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            Cipher jo = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jo.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jo.updateAAD(aad);
+            byte[] joCt = jo.doFinal(msg);
+
+            Cipher bc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            bc.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            bc.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, bc.doFinal(joCt),
+                    "keySize=" + keySize + ": BC failed to decrypt Jostle ciphertext");
+        }
+    }
+
+
+    /**
+     * AES-CTR accepts IVs in the range [block_size/2, block_size] —
+     * i.e. 8..16 bytes for AES. Every valid length must agree with BC
+     * byte-for-byte; lengths outside the range must be rejected by both.
+     */
+    @Test
+    public void aesCtr_nonceLengthBoundaries() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCtr_nonceLengthBoundaries");
+        String xform = "AES/CTR/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        // Every valid nonce length.
+        for (int ivLen = 8; ivLen <= 16; ivLen++)
+        {
+            byte[] iv = new byte[ivLen];
+            sr.nextBytes(iv);
+            IvParameterSpec spec = new IvParameterSpec(iv);
+
+            Cipher javaEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            javaEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] javaCT = javaEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(javaCT, jostleCT,
+                    "ivLen=" + ivLen + ": AES-CTR ciphertext diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "ivLen=" + ivLen + ": AES-CTR roundtrip failed");
+        }
+
+        // Invalid lengths: both sides must reject.
+        for (int badLen : new int[]{0, 1, 7, 17, 32})
+        {
+            byte[] iv = new byte[badLen];
+            sr.nextBytes(iv);
+            Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, secretKey, new IvParameterSpec(iv));
+                Assertions.fail("AES-CTR must reject IV length " + badLen);
+            }
+            catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
 
 }

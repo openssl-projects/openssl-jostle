@@ -23,9 +23,11 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.util.Arrays;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -48,6 +50,26 @@ public class MLDSAInternalLayerTest
 
     private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
+
+    /**
+     * Class-level seeding random — used to derive per-test SHA1PRNG
+     * seeds. Per CLAUDE.md "cache one SecureRandom per test class, not
+     * per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same seed.
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
 
 
@@ -245,6 +267,7 @@ public class MLDSAInternalLayerTest
         // Calling decode_public_key twice on the same spec exercises the
         // pre-existing-key free guard. The wrappers always pass fresh specs,
         // so the only way to reach this path is a direct FFI call.
+        SecureRandom sr = seededRandom("decode_publicKey_reusedSpec");
         long sourceRef1 = 0;
         long sourceRef2 = 0;
         long targetRef = 0;
@@ -260,7 +283,7 @@ public class MLDSAInternalLayerTest
             byte[] pub2 = new byte[len];
             Assertions.assertEquals(len, mldsaServiceNI.getPublicKey(sourceRef1, pub1));
             Assertions.assertEquals(len, mldsaServiceNI.getPublicKey(sourceRef2, pub2));
-            Assertions.assertFalse(java.util.Arrays.equals(pub1, pub2));
+            Assertions.assertFalse(Arrays.areEqual(pub1, pub2));
 
             targetRef = specNI.allocate();
             Assertions.assertTrue(targetRef > 0);
@@ -305,12 +328,16 @@ public class MLDSAInternalLayerTest
             byte[] target = new byte[len];
             Assertions.assertEquals(len, mldsaServiceNI.getPublicKey(targetRef, target));
             Assertions.assertArrayEquals(pub2, target);
-            Assertions.assertFalse(java.util.Arrays.equals(pub1, target));
+            Assertions.assertFalse(Arrays.areEqual(pub1, target));
 
             // Sign with sourceRef2's private key (the source of pub2), verify
             // with targetRef. If targetRef is functionally pub2's pubkey, the
             // sig verifies; if it were any other key the verify would fail.
-            byte[] msg = "decode_publicKey_reusedSpec".getBytes();
+            // Random content AND random length per CLAUDE.md test-discipline
+            // checklist — fixed strings hide bugs in alignment/value-specific
+            // code paths.
+            byte[] msg = new byte[16 + sr.nextInt(256)];
+            sr.nextBytes(msg);
             long mldsaRef = 0;
             try
             {
@@ -361,6 +388,7 @@ public class MLDSAInternalLayerTest
     {
         // Mirror of the public-key test — exercises the pre-existing-key
         // free in mldsa_decode_private_key.
+        SecureRandom sr = seededRandom("decode_privateKey_reusedSpec");
         long sourceRef1 = 0;
         long sourceRef2 = 0;
         long targetRef = 0;
@@ -376,7 +404,7 @@ public class MLDSAInternalLayerTest
             byte[] priv2 = new byte[len];
             Assertions.assertEquals(len, mldsaServiceNI.getPrivateKey(sourceRef1, priv1));
             Assertions.assertEquals(len, mldsaServiceNI.getPrivateKey(sourceRef2, priv2));
-            Assertions.assertFalse(java.util.Arrays.equals(priv1, priv2));
+            Assertions.assertFalse(Arrays.areEqual(priv1, priv2));
 
             targetRef = specNI.allocate();
             Assertions.assertTrue(targetRef > 0);
@@ -414,13 +442,16 @@ public class MLDSAInternalLayerTest
             byte[] target = new byte[len];
             Assertions.assertEquals(len, mldsaServiceNI.getPrivateKey(targetRef, target));
             Assertions.assertArrayEquals(priv2, target);
-            Assertions.assertFalse(java.util.Arrays.equals(priv1, target));
+            Assertions.assertFalse(Arrays.areEqual(priv1, target));
 
             // Functional roundtrip: sign with targetRef (now holding priv2),
             // verify with sourceRef2's public key. If targetRef is genuinely
             // priv2 the sig verifies; if it were any other private key the
             // signature wouldn't validate under sourceRef2's public key.
-            byte[] msg = "decode_privateKey_reusedSpec".getBytes();
+            // Random content AND random length per CLAUDE.md test-discipline
+            // checklist.
+            byte[] msg = new byte[16 + sr.nextInt(256)];
+            sr.nextBytes(msg);
             long mldsaRef = 0;
             try
             {

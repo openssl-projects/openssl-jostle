@@ -26,7 +26,26 @@ import java.security.spec.AlgorithmParameterSpec;
 
 public class AESKeyGeneratorTest
 {
-    static SecureRandom secRand = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -47,7 +66,7 @@ public class AESKeyGeneratorTest
         {
             keyGen.init(new AlgorithmParameterSpec()
             {
-            }, secRand);
+            }, new SecureRandom());
             Assertions.fail("Should have thrown an exception");
         } catch (UnsupportedOperationException ose)
         {
@@ -76,10 +95,11 @@ public class AESKeyGeneratorTest
     @Test
     public void testGenFails_fixedKeySize() throws Exception
     {
+        SecureRandom sr = new SecureRandom();
         KeyGenerator keyGen = KeyGenerator.getInstance("AES128", JostleProvider.PROVIDER_NAME);
         try
         {
-            keyGen.init(192, secRand);
+            keyGen.init(192, sr);
             Assertions.fail("Should have thrown an exception");
         } catch (IllegalArgumentException iae)
         {
@@ -89,7 +109,7 @@ public class AESKeyGeneratorTest
         keyGen = KeyGenerator.getInstance("AES192", JostleProvider.PROVIDER_NAME);
         try
         {
-            keyGen.init(256, secRand);
+            keyGen.init(256, sr);
             Assertions.fail("Should have thrown an exception");
         } catch (IllegalArgumentException iae)
         {
@@ -99,7 +119,7 @@ public class AESKeyGeneratorTest
         keyGen = KeyGenerator.getInstance("AES256", JostleProvider.PROVIDER_NAME);
         try
         {
-            keyGen.init(128, secRand);
+            keyGen.init(128, sr);
             Assertions.fail("Should have thrown an exception");
         } catch (IllegalArgumentException iae)
         {
@@ -149,20 +169,37 @@ public class AESKeyGeneratorTest
     @Test
     public void testGen_basicUse() throws Exception
     {
+        SecureRandom sr = seededRandom("testGen_basicUse");
         KeyGenerator keyGen = KeyGenerator.getInstance("AES", JostleProvider.PROVIDER_NAME);
         SecretKey key = keyGen.generateKey();
 
         Cipher cipher = Cipher.getInstance("AES", JostleProvider.PROVIDER_NAME);
         cipher.init(Cipher.ENCRYPT_MODE, key);
         byte[] msg = new byte[32];
-        secRand.nextBytes(msg);
+        sr.nextBytes(msg);
 
         byte[] ct = cipher.doFinal(msg);
+
+        // Negative path per CLAUDE.md "Tests must exercise the negative
+        // path": a stub Cipher that returned the plaintext unchanged
+        // would still pass `decrypt(encrypt(p)) == p`. Assert the
+        // transform actually transforms before checking the roundtrip.
+        Assertions.assertFalse(Arrays.areEqual(msg, ct),
+                "encrypt must actually transform the plaintext");
 
         cipher.init(Cipher.DECRYPT_MODE, key);
         byte[] pt = cipher.doFinal(ct);
 
         Assertions.assertArrayEquals(msg, pt);
+
+        // Wrong-key roundtrip must fail — guards against a stub Cipher
+        // that ignored the key entirely.
+        SecretKey other = keyGen.generateKey();
+        Cipher wrongDec = Cipher.getInstance("AES", JostleProvider.PROVIDER_NAME);
+        wrongDec.init(Cipher.DECRYPT_MODE, other);
+        byte[] wrongPt = wrongDec.doFinal(ct);
+        Assertions.assertFalse(Arrays.areEqual(msg, wrongPt),
+                "decrypting with a different key must not yield the original plaintext");
     }
 
     @Test

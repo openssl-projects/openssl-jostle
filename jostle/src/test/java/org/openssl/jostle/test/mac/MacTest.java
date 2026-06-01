@@ -45,7 +45,26 @@ public class MacTest
     }
 
 
-    private static final SecureRandom secureRandom = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -63,11 +82,12 @@ public class MacTest
     @Test
     public void testHmacSha256AgreementWithBC() throws Exception
     {
+        SecureRandom sr = seededRandom("testHmacSha256AgreementWithBC");
         byte[] key = new byte[33];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
 
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
         jo.init(new SecretKeySpec(key, "HmacSHA256"));
@@ -81,11 +101,12 @@ public class MacTest
     @Test
     public void testHmacSha512ByteBuffer() throws Exception
     {
+        SecureRandom sr = seededRandom("testHmacSha512ByteBuffer");
         byte[] key = new byte[33];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
 
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance("HmacSHA512", JostleProvider.PROVIDER_NAME);
         jo.init(new SecretKeySpec(key, "HmacSHA512"));
@@ -102,11 +123,12 @@ public class MacTest
     @Test
     public void testHmacReset() throws Exception
     {
+        SecureRandom sr = seededRandom("testHmacReset");
         byte[] key = new byte[32];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
 
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         //
         // Basic reuse, outputs should be the same
@@ -135,10 +157,11 @@ public class MacTest
     @MethodSource("newHmacAlgorithms")
     public void testAgreementWithBC(String algorithm) throws Exception
     {
+        SecureRandom sr = seededRandom("testAgreementWithBC[" + algorithm + "]");
         byte[] key = new byte[32];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance(algorithm, JostleProvider.PROVIDER_NAME);
         jo.init(new SecretKeySpec(key, algorithm));
@@ -161,13 +184,13 @@ public class MacTest
     @Test
     public void testCMACAgreementWithBC() throws Exception
     {
-
+        SecureRandom sr = seededRandom("testCMACAgreementWithBC");
         for (int ks:new int[]{16,24,32})
         {
             byte[] key = new byte[ks];
-            secureRandom.nextBytes(key);
+            sr.nextBytes(key);
             byte[] msg = new byte[1025];
-            secureRandom.nextBytes(msg);
+            sr.nextBytes(msg);
 
             Mac jo = Mac.getInstance("AESCMAC", JostleProvider.PROVIDER_NAME);
             jo.init(new SecretKeySpec(key, "AES"));
@@ -196,9 +219,9 @@ public class MacTest
     @MethodSource("newHmacAlgorithms")
     public void testAgreementWithBCZeroLenMSG(String algorithm) throws Exception
     {
-
+        SecureRandom sr = seededRandom("testAgreementWithBCZeroLenMSG[" + algorithm + "]");
         byte[] key = new byte[32];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
         byte[] msg = new byte[0];
 
 
@@ -228,12 +251,13 @@ public class MacTest
     @Test
     public void testHmacReInitDifferentKey() throws Exception
     {
+        SecureRandom sr = seededRandom("testHmacReInitDifferentKey");
         byte[] key1 = new byte[32];
         byte[] key2 = new byte[64];
-        secureRandom.nextBytes(key1);
-        secureRandom.nextBytes(key2);
+        sr.nextBytes(key1);
+        sr.nextBytes(key2);
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
         jo.init(new SecretKeySpec(key1, "HmacSHA256"));
@@ -255,8 +279,9 @@ public class MacTest
     @Test
     public void testCMACReInitDifferentKeySize() throws Exception
     {
+        SecureRandom sr = seededRandom("testCMACReInitDifferentKeySize");
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance("AESCMAC", JostleProvider.PROVIDER_NAME);
         Mac bc = Mac.getInstance("AESCMAC", BouncyCastleProvider.PROVIDER_NAME);
@@ -264,7 +289,7 @@ public class MacTest
         for (int ks: new int[]{16, 24, 32})
         {
             byte[] key = new byte[ks];
-            secureRandom.nextBytes(key);
+            sr.nextBytes(key);
 
             jo.init(new SecretKeySpec(key, "AES"));
             byte[] joOut = jo.doFinal(msg);
@@ -280,10 +305,11 @@ public class MacTest
     @Test
     public void testExplicitReset() throws Exception
     {
+        SecureRandom sr = seededRandom("testExplicitReset");
         byte[] key = new byte[32];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
         jo.init(new SecretKeySpec(key, "HmacSHA256"));
@@ -302,10 +328,11 @@ public class MacTest
     @Test
     public void testHmacDirectByteBuffer() throws Exception
     {
+        SecureRandom sr = seededRandom("testHmacDirectByteBuffer");
         byte[] key = new byte[32];
-        secureRandom.nextBytes(key);
+        sr.nextBytes(key);
         byte[] msg = new byte[1025];
-        secureRandom.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
         jo.init(new SecretKeySpec(key, "HmacSHA256"));
@@ -381,5 +408,122 @@ public class MacTest
 
         Assertions.assertEquals(36, actual.length);
         Assertions.assertArrayEquals(expected, actual);
+    }
+
+
+    // -----------------------------------------------------------------
+    // Adversarial-chunking matrix per CLAUDE.md "Vary the chunking, and
+    // randomise the inputs". HMAC and CMAC are deterministic, so every
+    // chunking pattern through update(...) MUST produce a byte-identical
+    // tag. Catches buffering-layer bugs where the partial-block path
+    // and the bulk path diverge.
+    // -----------------------------------------------------------------
+
+    /**
+     * Adversarial chunking matrix for HMAC across all variants. Each
+     * chunking strategy must produce the same tag as the one-shot call.
+     * Pivots around the SHA-2 / SHA-3 block size (64 and 128 bytes are
+     * the most common; the matrix covers both).
+     */
+    @ParameterizedTest
+    @MethodSource("newHmacAlgorithms")
+    public void testHmac_ChunkingMatrix_byteIdentical(String algorithm) throws Exception
+    {
+        SecureRandom sr = seededRandom("testHmac_ChunkingMatrix_byteIdentical[" + algorithm + "]");
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] msg = new byte[1024 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        byte[] reference = macWithChunking(algorithm, algorithm, key, msg, msg.length);
+
+        // byte-by-byte
+        Assertions.assertArrayEquals(reference,
+                macWithChunking(algorithm, algorithm, key, msg, 1),
+                algorithm + ": byte-by-byte tag diverged from one-shot");
+
+        // Adversarial offsets around common digest block sizes.
+        for (int chunk : new int[]{63, 64, 65, 127, 128, 129})
+        {
+            Assertions.assertArrayEquals(reference,
+                    macWithChunking(algorithm, algorithm, key, msg, chunk),
+                    algorithm + ": chunk=" + chunk + " tag diverged from one-shot");
+        }
+
+        // Random splits.
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertArrayEquals(reference,
+                    macWithRandomSplits(algorithm, algorithm, key, msg, sr),
+                    algorithm + ": random-split trial=" + trial + " tag diverged from one-shot");
+        }
+    }
+
+    /**
+     * Adversarial chunking matrix for AES-CMAC across all three key
+     * lengths. Pivots around the AES block size (16 bytes). The Mac
+     * algorithm name is "AESCMAC" but the SecretKeySpec carries the
+     * raw cipher name "AES" — the helper signature reflects that.
+     */
+    @Test
+    public void testCmac_ChunkingMatrix_byteIdentical() throws Exception
+    {
+        SecureRandom sr = seededRandom("testCmac_ChunkingMatrix_byteIdentical");
+        for (int ks : new int[]{16, 24, 32})
+        {
+            byte[] key = new byte[ks];
+            sr.nextBytes(key);
+            byte[] msg = new byte[1024 + sr.nextInt(256)];
+            sr.nextBytes(msg);
+
+            byte[] reference = macWithChunking("AESCMAC", "AES", key, msg, msg.length);
+
+            Assertions.assertArrayEquals(reference,
+                    macWithChunking("AESCMAC", "AES", key, msg, 1),
+                    "ks=" + ks + ": byte-by-byte CMAC diverged from one-shot");
+
+            // Adversarial offsets around the AES block size.
+            for (int chunk : new int[]{15, 16, 17, 31, 32, 33})
+            {
+                Assertions.assertArrayEquals(reference,
+                        macWithChunking("AESCMAC", "AES", key, msg, chunk),
+                        "ks=" + ks + " chunk=" + chunk + ": CMAC diverged from one-shot");
+            }
+
+            for (int trial = 0; trial < 5; trial++)
+            {
+                Assertions.assertArrayEquals(reference,
+                        macWithRandomSplits("AESCMAC", "AES", key, msg, sr),
+                        "ks=" + ks + " random-split trial=" + trial + ": CMAC diverged from one-shot");
+            }
+        }
+    }
+
+    private static byte[] macWithChunking(String macAlgo, String keyAlgo, byte[] key, byte[] msg, int chunk) throws Exception
+    {
+        Mac mac = Mac.getInstance(macAlgo, JostleProvider.PROVIDER_NAME);
+        mac.init(new SecretKeySpec(key, keyAlgo));
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            mac.update(msg, off, len);
+        }
+        return mac.doFinal();
+    }
+
+    private static byte[] macWithRandomSplits(String macAlgo, String keyAlgo, byte[] key, byte[] msg, SecureRandom sr) throws Exception
+    {
+        Mac mac = Mac.getInstance(macAlgo, JostleProvider.PROVIDER_NAME);
+        mac.init(new SecretKeySpec(key, keyAlgo));
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            mac.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return mac.doFinal();
     }
 }

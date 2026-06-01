@@ -22,6 +22,28 @@
 #define REQUIRE_IV_LEN(expected) if (iv_len != (expected)) return JO_INVALID_IV_LEN;
 
 
+/**
+ * AEAD-mode discriminator. GCM and OCB both:
+ *   1. require EVP_CTRL_AEAD_SET_IVLEN (the unified OpenSSL control)
+ *      before the key/IV are set,
+ *   2. append a 16-byte authentication tag to the ciphertext, and
+ *   3. expose AAD through EVP_EncryptUpdate(NULL, ...) /
+ *      EVP_DecryptUpdate(NULL, ...).
+ *
+ * The rest of the file gates AEAD-specific code paths on this helper
+ * instead of comparing `mode_id == GCM`, so adding a new AEAD mode
+ * means (a) adding it here and (b) wiring the matching EVP_CIPHER_fetch
+ * in the per-cipher switch.
+ *
+ * CCM is intentionally NOT here — CCM requires the total plaintext
+ * length to be set BEFORE AAD is processed, which doesn't fit the
+ * current streaming model. A separate code path is needed for CCM.
+ */
+static inline int is_aead_mode(uint32_t mode_id) {
+    return mode_id == GCM || mode_id == OCB;
+}
+
+
 static inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 
     if (iv_len > block_len) {
@@ -141,6 +163,7 @@ int32_t block_cipher_ctx_init(
         case CTR:
         case OFB:
         case GCM:
+        case OCB:
             ctx->streaming = 1;
             break;
         default:
@@ -199,8 +222,16 @@ int32_t block_cipher_ctx_init(
                 // case WRAP:
                 // case WRAP_PAD:
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes (strictly
+                    // less than the AES block size). OpenSSL enforces
+                    // the same range.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -251,8 +282,14 @@ int32_t block_cipher_ctx_init(
                 // case WRAP:
                 // case WRAP_PAD:
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -310,8 +347,14 @@ int32_t block_cipher_ctx_init(
                 // case WRAP:
                 // case WRAP_PAD:
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -358,9 +401,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -402,9 +450,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -446,9 +499,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -675,7 +733,7 @@ int32_t block_cipher_ctx_init(
 
     switch (opp_mode) {
         case ENCRYPT_MODE:
-            if (ctx->mode_id == GCM) {
+            if (is_aead_mode(ctx->mode_id)) {
 
                 if (OPS_FAILED_INIT_2 1 != EVP_EncryptInit_ex(ctx->evp, evp_cipher, NULL, NULL, NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -685,6 +743,19 @@ int32_t block_cipher_ctx_init(
                                                                  NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
+                }
+                // OCB requires the tag length to be set BEFORE the key
+                // (RFC 7253 permits non-default tag lengths; OpenSSL
+                // defaults to 16 and applies EVP_CTRL_AEAD_SET_TAG with
+                // a NULL buffer + the desired length to override).
+                // GCM's tag length is enforced at doFinal-time by
+                // Jostle's own buffer rather than via OpenSSL, so this
+                // call is OCB-only.
+                if (ctx->mode_id == OCB && ctx->tag_len > 0 && ctx->tag_len != 16) {
+                    if (OPS_OPENSSL_ERROR_8 1 != EVP_CIPHER_CTX_ctrl(ctx->evp, EVP_CTRL_AEAD_SET_TAG, (int) ctx->tag_len, NULL)) {
+                        ret_code = JO_OPENSSL_ERROR;
+                        goto exit;
+                    }
                 }
                 if (OPS_FAILED_INIT_1 1 != EVP_EncryptInit_ex(ctx->evp, NULL, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -700,7 +771,7 @@ int32_t block_cipher_ctx_init(
             break;
 
         case DECRYPT_MODE:
-            if (ctx->mode_id == GCM) {
+            if (is_aead_mode(ctx->mode_id)) {
                 // Same three-step pattern as encrypt; see comment above.
                 if (OPS_FAILED_INIT_2 1 != EVP_DecryptInit_ex(ctx->evp, evp_cipher, NULL, NULL, NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -710,6 +781,16 @@ int32_t block_cipher_ctx_init(
                                                                  NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
+                }
+                // See OCB tag-length note on the encrypt path above —
+                // the same NULL-buffer SET_TAG call is needed on decrypt
+                // so OpenSSL knows how many ciphertext bytes are the
+                // payload vs. the tag.
+                if (ctx->mode_id == OCB && ctx->tag_len > 0 && ctx->tag_len != 16) {
+                    if (OPS_OPENSSL_ERROR_8 1 != EVP_CIPHER_CTX_ctrl(ctx->evp, EVP_CTRL_AEAD_SET_TAG, (int) ctx->tag_len, NULL)) {
+                        ret_code = JO_OPENSSL_ERROR;
+                        goto exit;
+                    }
                 }
                 if (OPS_FAILED_INIT_1 1 != EVP_DecryptInit_ex(ctx->evp, NULL, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -765,7 +846,7 @@ int32_t block_cipher_ctx_updateAAD(
     }
 
 
-    if (ctx->mode_id != GCM) {
+    if (!is_aead_mode(ctx->mode_id)) {
         return JO_INVALID_MODE;
     }
 
@@ -916,7 +997,7 @@ int32_t block_cipher_ctx_update(
             return JO_OPENSSL_ERROR;
         }
     } else if (ctx->op_mode == DECRYPT_MODE) {
-        if (ctx->mode_id == GCM) {
+        if (is_aead_mode(ctx->mode_id)) {
             //
             // Fill tag buffer
             //
@@ -1003,6 +1084,7 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
     if (ctx->streaming == 1) {
         switch (ctx->mode_id) {
             case GCM:
+            case OCB:
 
                 if (ctx->tag_len > 0) {
                     if (ctx->op_mode == ENCRYPT_MODE) {
@@ -1125,7 +1207,7 @@ int32_t block_cipher_ctx_final(
             goto failed;
         }
 
-        if (ctx->mode_id == GCM) {
+        if (is_aead_mode(ctx->mode_id)) {
 
             if ((size_t) written + ctx->tag_len > out_len) {
                 ctx->poisoned = 1;
@@ -1159,7 +1241,7 @@ int32_t block_cipher_ctx_final(
             goto failed;
         }
 
-        if (ctx->mode_id == GCM) {
+        if (is_aead_mode(ctx->mode_id)) {
             //
             // Roll in last tag
             //
@@ -1173,7 +1255,7 @@ int32_t block_cipher_ctx_final(
 
 
         if (OPS_OPENSSL_ERROR_4 1 != EVP_DecryptFinal_ex(ctx->evp, output, &written)) {
-            if (ctx->mode_id == GCM) {
+            if (is_aead_mode(ctx->mode_id)) {
                 written = JO_TAG_INVALID;
             } else {
                 written = JO_INVALID_CIPHER_TEXT;

@@ -11,10 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 
-import org.openssl.jostle.jcajce.provider.blockcipher.AESBlockCipherSpi;
-import org.openssl.jostle.jcajce.provider.blockcipher.AESKeyGenerator;
-import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
-import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
+import org.openssl.jostle.jcajce.provider.blockcipher.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +47,15 @@ class ProvAES
         provider.addAlias("Cipher", "AES256", NISTObjectIdentifiers.id_aes256_ECB);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CBC, PREFIX + "AES256CBC", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.CBC));
         provider.addAlgorithmImplementation("KeyGenerator", "AES256", PREFIX + "AESKeyGen256", generalAesAttributes, (arg) -> new AESKeyGenerator(256));
+
+        // AES/CCM — separate SPI because CCM is one-shot at the
+        // OpenSSL layer (total plaintext length must be known up-front,
+        // AAD must be passed in a single call). Registering with the
+        // explicit "AES/CCM/NoPadding" form so JCE Cipher.getInstance
+        // resolves directly to AESCCMCipherSpi rather than the generic
+        // BlockCipherSpi.
+        provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding",
+                PREFIX + "AESCCM", generalAesAttributes, (arg) -> new AESCCMCipherSpi());
 
     }
 }

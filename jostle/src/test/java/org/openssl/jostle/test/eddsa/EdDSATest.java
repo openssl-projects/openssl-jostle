@@ -47,7 +47,26 @@ import java.security.spec.X509EncodedKeySpec;
 public class EdDSATest
 {
 
-    private static SecureRandom random = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     private final EDServiceNI edServiceNI = TestNISelector.getEdNi();
     private final SpecNI specNI = TestNISelector.getSpecNI();
@@ -278,12 +297,13 @@ public class EdDSATest
     @Test
     public void testSignVerifyWithReuseEdDSA_ED25519() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithReuseEdDSA_ED25519");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(EdDSAParameterSpec.ED25519);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -325,12 +345,13 @@ public class EdDSATest
     @Test
     public void testSignVerifyWithReuseEdDSA_ED448() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithReuseEdDSA_ED448");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(EdDSAParameterSpec.ED448);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -369,18 +390,191 @@ public class EdDSATest
     }
 
 
+    /**
+     * Streaming chunking matrix per CLAUDE.md — Ed25519. EdDSA signatures
+     * depend only on the message bytes (the per-signature nonce is
+     * deterministically derived from the key + message), so feeding the
+     * same logical message via different chunking strategies should
+     * produce a signature that verifies. Exercises the sign-side
+     * absorption path and the verify-side absorption path independently.
+     * SHA-512 block size = 128 bytes.
+     */
+    @Test
+    public void testEdDSA_Ed25519_ChunkingMatrix_allVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testEdDSA_Ed25519_ChunkingMatrix_allVerify");
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(EdDSAParameterSpec.ED25519);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] msg = new byte[1024];
+        sr.nextBytes(msg);
+
+        int[] chunks = {1, 127, 128, 129, 255, 256, 257, msg.length};
+
+        // Sign-side chunking matrix: each chunked signature must verify
+        // through the one-shot verify path.
+        for (int chunk : chunks)
+        {
+            byte[] sig = signWithChunking("EdDSA", keyPair, msg, chunk);
+            Assertions.assertTrue(verifyOneShot("EdDSA", keyPair, msg, sig),
+                    "sign-chunk=" + chunk + ": chunked-signed signature did not verify");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            byte[] sig = signWithRandomSplits("EdDSA", sr, keyPair, msg);
+            Assertions.assertTrue(verifyOneShot("EdDSA", keyPair, msg, sig),
+                    "random-split trial=" + trial + ": signature did not verify");
+        }
+
+        // Verify-side chunking matrix: pin one signature and verify it
+        // through every chunking strategy.
+        byte[] oneSig = signOneShot("EdDSA", keyPair, msg);
+        for (int chunk : chunks)
+        {
+            Assertions.assertTrue(verifyWithChunking("EdDSA", keyPair, msg, oneSig, chunk),
+                    "verify-chunk=" + chunk + ": chunked verify diverged from one-shot");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertTrue(verifyWithRandomSplits("EdDSA", sr, keyPair, msg, oneSig),
+                    "random-split verify trial=" + trial + ": verify diverged");
+        }
+    }
+
+    /**
+     * Streaming chunking matrix per CLAUDE.md — Ed448. SHAKE256 is the
+     * absorption primitive but the JCE-visible streaming surface is
+     * identical to Ed25519 — adversarial chunks around 128 bytes pivot
+     * the partial-block path the same way.
+     */
+    @Test
+    public void testEdDSA_Ed448_ChunkingMatrix_allVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testEdDSA_Ed448_ChunkingMatrix_allVerify");
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(EdDSAParameterSpec.ED448);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] msg = new byte[1024];
+        sr.nextBytes(msg);
+
+        int[] chunks = {1, 127, 128, 129, 255, 256, 257, msg.length};
+
+        for (int chunk : chunks)
+        {
+            byte[] sig = signWithChunking("EdDSA", keyPair, msg, chunk);
+            Assertions.assertTrue(verifyOneShot("EdDSA", keyPair, msg, sig),
+                    "sign-chunk=" + chunk + ": chunked-signed signature did not verify");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            byte[] sig = signWithRandomSplits("EdDSA", sr, keyPair, msg);
+            Assertions.assertTrue(verifyOneShot("EdDSA", keyPair, msg, sig),
+                    "random-split trial=" + trial + ": signature did not verify");
+        }
+
+        byte[] oneSig = signOneShot("EdDSA", keyPair, msg);
+        for (int chunk : chunks)
+        {
+            Assertions.assertTrue(verifyWithChunking("EdDSA", keyPair, msg, oneSig, chunk),
+                    "verify-chunk=" + chunk + ": chunked verify diverged from one-shot");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertTrue(verifyWithRandomSplits("EdDSA", sr, keyPair, msg, oneSig),
+                    "random-split verify trial=" + trial + ": verify diverged");
+        }
+    }
+
+    private static byte[] signOneShot(String alg, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        return signer.sign();
+    }
+
+    private static byte[] signWithChunking(String alg, KeyPair kp, byte[] msg, int chunk) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            signer.update(msg, off, len);
+        }
+        return signer.sign();
+    }
+
+    private static byte[] signWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            signer.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return signer.sign();
+    }
+
+    private static boolean verifyOneShot(String alg, KeyPair kp, byte[] msg, byte[] sig) throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithChunking(String alg, KeyPair kp, byte[] msg, byte[] sig, int chunk)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            verifier.update(msg, off, len);
+        }
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg, byte[] sig)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            verifier.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return verifier.verify(sig);
+    }
+
+
     @Test
     public void testSignVerifyWithContextAndReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithContextAndReuse");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(EdDSAParameterSpec.ED25519);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx = new byte[64];
-        random.nextBytes(ctx);
+        sr.nextBytes(ctx);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -425,15 +619,16 @@ public class EdDSATest
     @Test
     public void testSignVerifyWithCustomContextAndReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithCustomContextAndReuse");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(EdDSAParameterSpec.ED25519);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx = new byte[64];
-        random.nextBytes(ctx);
+        sr.nextBytes(ctx);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -478,9 +673,10 @@ public class EdDSATest
     @Test
     public void testSignJostleVerifyBCEd25519() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignJostleVerifyBCEd25519");
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         KeyPairGenerator joKeyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         joKeyGen.initialize(EdDSAParameterSpec.ED25519);
@@ -534,9 +730,10 @@ public class EdDSATest
     @Test
     public void testSignJostleVerifyBCEd448() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignJostleVerifyBCEd448");
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         KeyPairGenerator joKeyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         joKeyGen.initialize(EdDSAParameterSpec.ED448);
@@ -590,12 +787,13 @@ public class EdDSATest
     @Test
     public void testSignJostleVerifyBCEd25519Ctx() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignJostleVerifyBCEd25519Ctx");
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         byte[] ctxBytes = new byte[128];
-        random.nextBytes(ctxBytes);
+        sr.nextBytes(ctxBytes);
 
         KeyPairGenerator joKeyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         joKeyGen.initialize(EdDSAParameterSpec.ED25519);
@@ -657,11 +855,12 @@ public class EdDSATest
     @Test
     public void testSignJostleVerifyBCEd25519phCtx() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignJostleVerifyBCEd25519phCtx");
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         byte[] ctxBytes = new byte[128];
-        random.nextBytes(ctxBytes);
+        sr.nextBytes(ctxBytes);
 
 
         MessageDigest bcMD = MessageDigest.getInstance("SHA512", BouncyCastleProvider.PROVIDER_NAME);
@@ -738,11 +937,12 @@ public class EdDSATest
     @Test
     public void testSignJostleVerifyBCEd448phCtx() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignJostleVerifyBCEd448phCtx");
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         byte[] ctxBytes = new byte[128];
-        random.nextBytes(ctxBytes);
+        sr.nextBytes(ctxBytes);
 
 
         MessageDigest bcMD = MessageDigest.getInstance("SHA512", BouncyCastleProvider.PROVIDER_NAME);
@@ -987,6 +1187,7 @@ public class EdDSATest
     @Test
     public void testKeyFactory_PublicSpec_RawRoundTrip_ED25519() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_PublicSpec_RawRoundTrip_ED25519");
         KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
         bcKpg.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed25519"));
         KeyPair bcKp = bcKpg.generateKeyPair();
@@ -1004,7 +1205,7 @@ public class EdDSATest
         PrivateKey joPriv = kf.generatePrivate(new EdDSAPrivateKeySpec(EdDSAParameterSpec.ED25519, rawPriv, rawPub));
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(joPriv);
@@ -1020,6 +1221,7 @@ public class EdDSATest
     @Test
     public void testKeyFactory_PublicSpec_RawRoundTrip_ED448() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_PublicSpec_RawRoundTrip_ED448");
         KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
         bcKpg.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed448"));
         KeyPair bcKp = bcKpg.generateKeyPair();
@@ -1037,7 +1239,7 @@ public class EdDSATest
         PrivateKey joPriv = kf.generatePrivate(new EdDSAPrivateKeySpec(EdDSAParameterSpec.ED448, rawPriv, rawPub));
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(joPriv);
@@ -1096,10 +1298,11 @@ public class EdDSATest
     @Test
     public void testKeyFactory_FixedED25519_RejectsED448RawSpec() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_FixedED25519_RejectsED448RawSpec");
         // Raw-bytes path: a fixed-type ED25519 KeyFactory must reject a spec
         // whose EdDSAParameterSpec says ED448.
         byte[] raw = new byte[57];
-        random.nextBytes(raw);
+        sr.nextBytes(raw);
 
         KeyFactory kf = KeyFactory.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
         try
@@ -1151,6 +1354,7 @@ public class EdDSATest
     @Test
     public void testKeyFactory_GetKeySpec_EdDSAPublicSpec() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_GetKeySpec_EdDSAPublicSpec");
         // Generate a Jostle ED25519 keypair, retrieve EdDSAPublicKeySpec, then
         // construct a fresh public key from those raw bytes and confirm it
         // verifies signatures made by the original private key.
@@ -1166,7 +1370,7 @@ public class EdDSATest
         PublicKey rebuilt = kf.generatePublic(spec);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -1182,6 +1386,7 @@ public class EdDSATest
     @Test
     public void testKeyFactory_GetKeySpec_EdDSAPrivateSpec() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyFactory_GetKeySpec_EdDSAPrivateSpec");
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         kpg.initialize(EdDSAParameterSpec.ED25519);
         KeyPair kp = kpg.generateKeyPair();
@@ -1195,7 +1400,7 @@ public class EdDSATest
         PrivateKey rebuilt = kf.generatePrivate(spec);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(rebuilt);
@@ -1215,12 +1420,13 @@ public class EdDSATest
     @Test
     public void testEngineUpdateByte() throws Exception
     {
+        SecureRandom sr = seededRandom("testEngineUpdateByte");
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         kpg.initialize(EdDSAParameterSpec.ED25519);
         KeyPair kp = kpg.generateKeyPair();
 
         byte[] message = new byte[64];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signer = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -1265,14 +1471,15 @@ public class EdDSATest
     @Test
     public void testSetParameterNull() throws Exception
     {
+        SecureRandom sr = seededRandom("testSetParameterNull");
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         kpg.initialize(EdDSAParameterSpec.ED25519);
         KeyPair kp = kpg.generateKeyPair();
 
         byte[] ctx = new byte[16];
-        random.nextBytes(ctx);
+        sr.nextBytes(ctx);
         byte[] message = new byte[64];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signer = Signature.getInstance("Ed25519ph", JostleProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
@@ -1303,6 +1510,7 @@ public class EdDSATest
     @Test
     public void testReInit_DifferentKeyType_GenericEdDSA() throws Exception
     {
+        SecureRandom sr = seededRandom("testReInit_DifferentKeyType_GenericEdDSA");
         KeyPairGenerator kpg25519 = KeyPairGenerator.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
         KeyPair kp25519 = kpg25519.generateKeyPair();
 
@@ -1310,7 +1518,7 @@ public class EdDSATest
         KeyPair kp448 = kpg448.generateKeyPair();
 
         byte[] message = new byte[256];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature sig = Signature.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
 
