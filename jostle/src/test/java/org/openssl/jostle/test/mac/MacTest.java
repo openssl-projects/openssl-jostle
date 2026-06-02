@@ -357,6 +357,37 @@ public class MacTest
                 () -> Mac.getInstance("HmacUNKNOWN_FOOBAR", JostleProvider.PROVIDER_NAME));
     }
 
+    @Test
+    public void testGetMacLengthPerAlgorithm() throws Exception
+    {
+        Object[][] expected = new Object[][]{
+                {"HmacSHA1", 20},
+                {"HmacSHA224", 28},
+                {"HmacSHA256", 32},
+                {"HmacSHA384", 48},
+                {"HmacSHA512", 64},
+                {"HmacSHA512/224", 28},
+                {"HmacSHA512/256", 32},
+                {"HmacSHA3-224", 28},
+                {"HmacSHA3-256", 32},
+                {"HmacSHA3-384", 48},
+                {"HmacSHA3-512", 64},
+                {"HmacSM3", 32},
+                {"HmacMD5", 16},
+                {"HmacMD5SHA1", 36},
+                {"HmacRIPEMD160", 20},
+                {"AESCMAC", 16},
+        };
+
+        for (Object[] row : expected)
+        {
+            String name = (String) row[0];
+            int expectedLen = (Integer) row[1];
+            Mac mac = Mac.getInstance(name, JostleProvider.PROVIDER_NAME);
+            Assertions.assertEquals(expectedLen, mac.getMacLength(), "mac length for " + name);
+        }
+    }
+
 
     @Test
     public void testHmacMD5SHA1KnownVector() throws Exception

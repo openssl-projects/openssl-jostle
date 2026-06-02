@@ -29,6 +29,7 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len);
 int32_t mac_update(mac_ctx *ctx, const uint8_t *in, int32_t off, int32_t len);
 int32_t mac_final(mac_ctx *ctx, uint8_t *out, int32_t off, int32_t out_len);
 int32_t mac_len(mac_ctx *ctx);
+int32_t mac_len_for(mac_ctx *ctx);
 
 int32_t mac_reset(mac_ctx *ctx);
 void mac_free(mac_ctx *ctx);

@@ -17,6 +17,7 @@ public class MacServiceFFI implements MacServiceNI
     private static final MethodHandle MH_update;
     private static final MethodHandle MH_final;
     private static final MethodHandle MH_len;
+    private static final MethodHandle MH_lenMeta;
     private static final MethodHandle MH_reset;
     private static final MethodHandle MH_free;
 
@@ -72,6 +73,13 @@ public class MacServiceFFI implements MacServiceNI
 
         MH_len = LINKER.downcallHandle(
                 LOOKUP.find("MAC_len").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
+
+        MH_lenMeta = LINKER.downcallHandle(
+                LOOKUP.find("MAC_lenMeta").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
@@ -178,6 +186,20 @@ public class MacServiceFFI implements MacServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MAC_len", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_macLengthMeta(long ref)
+    {
+        try
+        {
+            return (int) MH_lenMeta.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI MAC_lenMeta", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

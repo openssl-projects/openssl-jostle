@@ -14,6 +14,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -42,6 +43,9 @@ class BlockCipherSpi extends CipherSpi
     private static int BUF_SIZE = 1024;
 
     private static final BlockCipherNI blockCipherNi = NISelector.BlockCipherNI;
+
+    // OpenSSL-probed block sizes, memoized once per cipher (see NativeLengthCache).
+    private static final NativeLengthCache<OSSLCipher> blockSizes = new NativeLengthCache<OSSLCipher>();
 
     Class[] availableSpecs = new Class[]{
             IvParameterSpec.class,
@@ -150,7 +154,13 @@ class BlockCipherSpi extends CipherSpi
 
             if (blockSize == 0)
             {
-                blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
+                blockSize = blockSizes.get(osslCipher);
+                if (blockSize == NativeLengthCache.UNKNOWN)
+                {
+                    blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
+                    // Memoize OpenSSL's reported block size for this cipher.
+                    blockSizes.cache(osslCipher, blockSize);
+                }
             }
 
             return blockSize;

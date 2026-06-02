@@ -228,6 +228,67 @@ int32_t mac_len(mac_ctx *mctx) {
     return (int32_t) ret;
 }
 
+int32_t mac_len_for(mac_ctx *mctx) {
+    jo_assert(mctx != NULL);
+    jo_assert(mctx->mac_name != NULL);
+    jo_assert(mctx->function_name != NULL);
+
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    EVP_MD *md = NULL;
+    EVP_CIPHER *cipher = NULL;
+    int32_t ret;
+
+    ERR_clear_error();
+
+    // HMAC: output length == the underlying digest's output size, read from
+    // OpenSSL metadata (no key, no EVP_MAC_init required).
+    if (0 == strncmp(mctx->mac_name, "HMAC", sizeof("HMAC"))) {
+        md = EVP_MD_fetch(libctx, mctx->function_name, NULL);
+        if (OPS_OPENSSL_ERROR_3 md == NULL) {
+            ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(1010);
+            goto exit;
+        }
+        int size = EVP_MD_get_size(md);
+        if (OPS_OPENSSL_ERROR_5 size <= 0) {
+            ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(1012);
+            goto exit;
+        }
+        ret = (int32_t) size;
+        goto exit;
+    }
+
+    // CMAC: output length == the cipher's block size. Identical across the
+    // AES key-length variants, so any AES-CBC variant answers it.
+    if (0 == strncmp(mctx->mac_name, "CMAC", sizeof("CMAC"))) {
+        if (0 != strncmp(mctx->function_name, "aes-cbc", sizeof("aes-cbc"))) {
+            ret = JO_UNEXPECTED_STATE;
+            goto exit;
+        }
+        cipher = EVP_CIPHER_fetch(libctx, "aes-128-cbc", NULL);
+        if (OPS_OPENSSL_ERROR_4 cipher == NULL) {
+            ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(1011);
+            goto exit;
+        }
+        int block = EVP_CIPHER_get_block_size(cipher);
+        if (OPS_OPENSSL_ERROR_6 block <= 0) {
+            ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(1013);
+            goto exit;
+        }
+        ret = (int32_t) block;
+        goto exit;
+    }
+
+    ret = JO_UNEXPECTED_STATE;
+
+exit:
+    // NULL-tolerant: in an OPS build the fetch above succeeds and the injected
+    // failure still reaches here with a live md/cipher to free; on a real
+    // failure the pointer is NULL and the free is a no-op.
+    EVP_MD_free(md);
+    EVP_CIPHER_free(cipher);
+    return ret;
+}
+
 int32_t mac_reset(mac_ctx *mctx) {
    jo_assert(mctx != NULL);
 

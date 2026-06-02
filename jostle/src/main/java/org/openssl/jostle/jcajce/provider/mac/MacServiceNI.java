@@ -29,6 +29,10 @@ public interface MacServiceNI extends DefaultServiceNI
 
     int ni_getMacLength(long ref);
 
+    // Keyless MAC length from OpenSSL metadata (digest size / cipher block
+    // size), usable before init. See native mac_len_for.
+    int ni_macLengthMeta(long ref);
+
     int ni_reset(long ref);
 
     void ni_dispose(long ref);
@@ -67,6 +71,11 @@ public interface MacServiceNI extends DefaultServiceNI
     default int getMacLength(long ref)
     {
         return (int) handleErrors(ni_getMacLength(ref));
+    }
+
+    default int macLengthMeta(long ref)
+    {
+        return (int) handleErrors(ni_macLengthMeta(ref));
     }
 
     default void reset(long ref)
