@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -35,6 +36,9 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     private final OSSLKeyType forcedKeyType;
     private AlgorithmParameterSpec parameterSpec;
     private RandSource randSource;
+
+    // OpenSSL-probed encapsulation lengths, memoized once per parameter set (see NativeLengthCache).
+    private static final NativeLengthCache<OSSLKeyType> encapsulationLengths = new NativeLengthCache<OSSLKeyType>();
 
 
     public MLKEMKeyGenerator(MLKEMParameterSpec spec)
@@ -171,10 +175,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             // engineInit resolved randSource for the peer key's
             // strength category — use it directly.
             byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
-            int encapsulationLen = MLKEMLengths.getEncapsulationLength(spec.getType());
-            if (encapsulationLen == MLKEMLengths.UNKNOWN_ENCAPSULATION_LENGTH)
+            int encapsulationLen = encapsulationLengths.get(spec.getType());
+            if (encapsulationLen == NativeLengthCache.UNKNOWN)
             {
                 encapsulationLen = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
+                // Memoize OpenSSL's reported encapsulation length for this parameter set.
+                encapsulationLengths.cache(spec.getType(), encapsulationLen);
             }
             byte[] wrappedKey = new byte[encapsulationLen];
             int len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);

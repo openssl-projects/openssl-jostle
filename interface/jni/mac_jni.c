@@ -235,6 +235,19 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     return mac_len(ctx);
 }
 
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1macLengthMeta
+(JNIEnv *env, jobject self, jlong ref) {
+    UNUSED(env);
+    UNUSED(self);
+
+    mac_ctx *ctx = (void *) ref;
+    jo_assert(ctx != NULL);
+
+    // Keyless metadata query — answers the MAC length before init, so no
+    // ctx->initialized check here (unlike ni_getMacLength).
+    return mac_len_for(ctx);
+}
+
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1reset
 (JNIEnv *env, jobject self, jlong ref) {
     UNUSED(env);

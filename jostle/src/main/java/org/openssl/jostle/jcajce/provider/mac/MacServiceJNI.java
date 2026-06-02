@@ -31,6 +31,9 @@ public class MacServiceJNI implements MacServiceNI
     public native int ni_getMacLength(long ref);
 
     @Override
+    public native int ni_macLengthMeta(long ref);
+
+    @Override
     public native int ni_reset(long ref);
 
     @Override

@@ -123,6 +123,14 @@ int32_t MAC_len(mac_ctx *ctx) {
     return mac_len(ctx);
 }
 
+int32_t MAC_lenMeta(mac_ctx *ctx) {
+    jo_assert(ctx != NULL);
+
+    // Keyless metadata query — answers the MAC length before init, so no
+    // ctx->initialized check here (unlike MAC_len).
+    return mac_len_for(ctx);
+}
+
 int32_t MAC_reset(mac_ctx *ctx) {
     if (ctx == NULL) {
         // Observed spurious resets from within the JVMs provider logic in the past.
