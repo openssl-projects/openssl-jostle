@@ -20,9 +20,13 @@ import org.openssl.jostle.util.Strings;
 import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 
 class BlockCipherSpi extends CipherSpi
@@ -255,7 +259,11 @@ class BlockCipherSpi extends CipherSpi
             final byte[] iv;
             final int tag;
             blockSize = 0;
-            this.opMode = opmode;
+            // The native layer only knows ENCRYPT/DECRYPT. WRAP/UNWRAP (used for
+            // key-wrap modes) map onto encrypt/decrypt respectively.
+            final int nativeOpMode = (opmode == Cipher.WRAP_MODE) ? Cipher.ENCRYPT_MODE
+                : (opmode == Cipher.UNWRAP_MODE) ? Cipher.DECRYPT_MODE : opmode;
+            this.opMode = nativeOpMode;
 
             if (params == null)
             {
@@ -310,7 +318,7 @@ class BlockCipherSpi extends CipherSpi
             this.ivBytes = iv;
             this.tagLen = tag;
 
-            blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, iv, tag);
+            blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, iv, tag);
 
             engineGetBlockSize();
         }
@@ -651,6 +659,69 @@ class BlockCipherSpi extends CipherSpi
         }
     }
 
+
+    @Override
+    protected byte[] engineWrap(Key key)
+        throws IllegalBlockSizeException, InvalidKeyException
+    {
+        byte[] encoded = key.getEncoded();
+        if (encoded == null || encoded.length == 0)
+        {
+            throw new InvalidKeyException("cannot wrap key with null or empty encoding");
+        }
+        try
+        {
+            return engineDoFinal(encoded, 0, encoded.length);
+        }
+        catch (BadPaddingException e)
+        {
+            // wrapping is an encryption operation; a padding error is not expected.
+            throw new IllegalBlockSizeException(e.getMessage());
+        }
+        finally
+        {
+            Arrays.fill(encoded, (byte) 0);
+        }
+    }
+
+    @Override
+    protected Key engineUnwrap(byte[] wrappedKey, String wrappedKeyAlgorithm, int wrappedKeyType)
+        throws InvalidKeyException, NoSuchAlgorithmException
+    {
+        final byte[] encoded;
+        try
+        {
+            encoded = engineDoFinal(wrappedKey, 0, wrappedKey.length);
+        }
+        catch (IllegalBlockSizeException | BadPaddingException e)
+        {
+            throw new InvalidKeyException("unable to unwrap key: " + e.getMessage(), e);
+        }
+
+        try
+        {
+            switch (wrappedKeyType)
+            {
+            case Cipher.SECRET_KEY:
+                return new SecretKeySpec(encoded, wrappedKeyAlgorithm);
+            case Cipher.PUBLIC_KEY:
+                return KeyFactory.getInstance(wrappedKeyAlgorithm).generatePublic(new X509EncodedKeySpec(encoded));
+            case Cipher.PRIVATE_KEY:
+                return KeyFactory.getInstance(wrappedKeyAlgorithm).generatePrivate(new PKCS8EncodedKeySpec(encoded));
+            default:
+                throw new InvalidKeyException("unknown wrapped key type: " + wrappedKeyType);
+            }
+        }
+        catch (InvalidKeySpecException e)
+        {
+            throw new InvalidKeyException("unable to reconstruct unwrapped key: " + e.getMessage(), e);
+        }
+        finally
+        {
+            // SecretKeySpec / the key specs copy the bytes, so clear our copy.
+            Arrays.fill(encoded, (byte) 0);
+        }
+    }
 
     /**
      * Ensure a valid native reference

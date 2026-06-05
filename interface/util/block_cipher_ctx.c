@@ -141,6 +141,11 @@ int32_t block_cipher_ctx_init(
 
     switch (ctx->mode_id) {
         case ECB:
+        case WRAP:
+        case WRAP_PAD:
+            // ECB takes no IV. AES key-wrap (RFC 3394) and key-wrap-with-padding
+            // (RFC 5649) use a fixed default integrity check value, so no IV is
+            // accepted here either.
             if (iv_len != 0) {
                 return JO_MODE_TAKES_NO_IV;
             }
@@ -219,8 +224,12 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-XTS",NULL);
                     break;
 
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP-PAD",NULL);
+                    break;
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
                 case OCB:
@@ -279,8 +288,12 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CTR",NULL);
 
                     break;
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP-PAD",NULL);
+                    break;
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
                 case OCB:
@@ -344,8 +357,12 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-XTS",NULL);
                     break;
 
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP-PAD",NULL);
+                    break;
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
                 case OCB:
@@ -730,6 +747,12 @@ int32_t block_cipher_ctx_init(
         iv_for_openssl = iv;
     }
 
+    // OpenSSL refuses to initialise a key-wrap cipher unless the context
+    // explicitly opts in via EVP_CIPHER_CTX_FLAG_WRAP_ALLOW.
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        EVP_CIPHER_CTX_set_flags(ctx->evp, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
+
 
     switch (opp_mode) {
         case ENCRYPT_MODE:
@@ -928,7 +951,11 @@ int32_t block_cipher_ctx_update(
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
-    if (ctx->op_mode == ENCRYPT_MODE || ctx->tag_len == 0) {
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        // Key-wrap output differs from the input by the 8-byte integrity block
+        // in either direction. The output buffer is sized by get_update_size /
+        // final_size, and OpenSSL fails closed on a short buffer.
+    } else if (ctx->op_mode == ENCRYPT_MODE || ctx->tag_len == 0) {
         if (out_len < in_len) {
             return JO_OUTPUT_TOO_SMALL;
         }
@@ -947,7 +974,11 @@ int32_t block_cipher_ctx_update(
     }
 
     if (ctx->streaming == 0 && ctx->padding == NO_PADDING) {
-        if (ctx->mode_id == XTS) {
+        if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+            // RFC 3394 (KW) requires input that is a multiple of 8 bytes and at
+            // least 16; RFC 5649 (KWP) accepts any length >= 1. OpenSSL enforces
+            // these per-algorithm, so don't impose the 16-byte block alignment.
+        } else if (ctx->mode_id == XTS) {
             if (in_len < ctx->cipher_block_size) {
                 return JO_NOT_BLOCK_ALIGNED;
             }
@@ -1079,6 +1110,27 @@ int32_t block_cipher_ctx_update(
 int32_t final_size(block_cipher_ctx *ctx, size_t len) {
     if (len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        // Key wrap is one-shot: the whole result is produced from the single
+        // EVP update, so size the buffer for the complete operation here.
+        size_t out;
+        if (ctx->op_mode == ENCRYPT_MODE) {
+            // KW appends one 8-byte integrity block; KWP first pads the
+            // plaintext up to a multiple of 8, then appends the block.
+            size_t padded = (ctx->mode_id == WRAP_PAD) ? (((len + 7u) / 8u) * 8u) : len;
+            out = padded + 8u;
+        } else {
+            // Decrypt upper bound: strip the 8-byte integrity block. KWP may
+            // remove a further 0-7 padding bytes; the Java SPI trims the buffer
+            // to the actual decrypted length.
+            out = (len >= 8u) ? (len - 8u) : 0u;
+        }
+        if (out > INT32_MAX) {
+            return JO_OUTPUT_SIZE_INT_OVERFLOW;
+        }
+        return (int32_t) out;
     }
 
     if (ctx->streaming == 1) {
@@ -1327,6 +1379,12 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     // actually pass a 2GB+ value across the JNI/FFI boundary.
     if (OPS_INT32_OVERFLOW_1 len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    // Key wrap is one-shot — the entire wrapped/unwrapped result is written by
+    // the single update call, so size it exactly as the final operation.
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        return final_size(ctx, len);
     }
 
     size_t result;
