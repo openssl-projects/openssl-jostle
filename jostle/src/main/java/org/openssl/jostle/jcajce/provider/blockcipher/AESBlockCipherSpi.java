@@ -11,10 +11,8 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 
-import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.InvalidParameterSpecException;
 
 public class AESBlockCipherSpi extends BlockCipherSpi
 {
@@ -95,19 +93,10 @@ public class AESBlockCipherSpi extends BlockCipherSpi
         super.engineInit(opmode, key, params, random);
     }
 
-    @Override
-    protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
-    {
-
-        determineOSSLCipher(key.getEncoded().length);
-        // TODO: we should have a list of ParameterSpec to try here.
-        try
-        {
-            super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
-        }
-        catch (InvalidParameterSpecException e)
-        {
-            throw new InvalidAlgorithmParameterException(e.getMessage(), e);
-        }
-    }
+    // engineInit(int, Key, AlgorithmParameters, SecureRandom) is intentionally NOT
+    // overridden: the base implementation already tries every supported spec
+    // (IvParameterSpec and GCMParameterSpec) and then dispatches to the
+    // AlgorithmParameterSpec overload above — which performs determineOSSLCipher.
+    // Overriding it here previously narrowed support to IvParameterSpec only,
+    // which broke GCM decryption from an AlgorithmParameters (as used by CMS).
 }

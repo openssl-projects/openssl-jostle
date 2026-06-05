@@ -12,7 +12,6 @@ package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.util.Arrays;
@@ -38,6 +37,14 @@ class BlockCipherSpi extends CipherSpi
     OSSLBlockCipherRefWrapper refWrapper;
     int blockSize;
     int opMode;
+
+    // IV / AEAD parameters in effect for the current init, retained so that
+    // engineGetIV() and engineGetParameters() can report them — including IVs
+    // this SPI generates itself when init is called without parameters (which
+    // the JCE contract requires for encryption/wrapping, and which CMS relies
+    // on to recover the content-encryption IV).
+    private byte[] ivBytes;
+    private int tagLen;
 
     private static int BUF_SIZE = 1024;
 
@@ -179,36 +186,60 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected byte[] engineGetIV()
     {
-        throw new IllegalStateException("not implemented");
+        synchronized (this)
+        {
+            return Arrays.clone(ivBytes);
+        }
     }
 
     @Override
     protected AlgorithmParameters engineGetParameters()
     {
-        throw new IllegalStateException("not implemented");
+        synchronized (this)
+        {
+            if (ivBytes == null)
+            {
+                // ECB (and any mode initialised without an IV) carries no parameters.
+                return null;
+            }
+
+            try
+            {
+                AlgorithmParameters params;
+                if (osslMode == OSSLMode.GCM)
+                {
+                    params = AlgorithmParameters.getInstance("GCM");
+                    params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
+                }
+                else
+                {
+                    params = AlgorithmParameters.getInstance(keyAlgorithm);
+                    params.init(new IvParameterSpec(ivBytes));
+                }
+                return params;
+            }
+            catch (GeneralSecurityException e)
+            {
+                throw new IllegalStateException("unable to create AlgorithmParameters: " + e.getMessage(), e);
+            }
+        }
     }
 
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
-        validateKeyAlg(key);
-        synchronized (this)
+        // Delegate to the parameter-spec form with no parameters; for
+        // encryption/wrapping it will generate any required IV/nonce itself.
+        try
         {
-            ensureNativeReference();
-
-            blockSize = 0;
-            this.opMode = opmode;
-
-            byte[] keyBytes = key.getEncoded();
-            try
-            {
-                blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, null, 0);
-            }
-            catch (InvalidAlgorithmParameterException e)
-            {
-                throw new RuntimeException(e);
-            }
-            engineGetBlockSize();
+            engineInit(opmode, key, (AlgorithmParameterSpec) null, random);
+        }
+        catch (InvalidAlgorithmParameterException e)
+        {
+            // No parameters were supplied and none could be generated (e.g. a
+            // decrypt for a mode that requires an IV) — surface per JCE as an
+            // InvalidKeyException for this entry point.
+            throw new InvalidKeyException(e.getMessage(), e);
         }
     }
 
@@ -221,38 +252,53 @@ class BlockCipherSpi extends CipherSpi
         {
             ensureNativeReference();
             byte[] keyBytes = key.getEncoded();
-            ErrorCode codes;
-            final byte[] ivBytes;
-            int tagLen;
+            final byte[] iv;
+            final int tag;
             blockSize = 0;
             this.opMode = opmode;
 
             if (params == null)
             {
-                ivBytes = null;
-                tagLen = 0;
+                // No parameters supplied. For encryption/wrapping the JCE
+                // contract is that the provider generates any required IV/nonce
+                // at random; engineGetIV()/engineGetParameters() then expose it
+                // so the recipient can decrypt. For decryption/unwrapping we
+                // cannot invent the IV, so leave it null and let the native
+                // layer reject the missing IV for modes that require one.
+                int ivLen = (opmode == Cipher.ENCRYPT_MODE || opmode == Cipher.WRAP_MODE) ? autoIvLength() : 0;
+                if (ivLen > 0)
+                {
+                    iv = new byte[ivLen];
+                    SecureRandom rng = (random != null) ? random : new SecureRandom();
+                    rng.nextBytes(iv);
+                    tag = (osslMode == OSSLMode.GCM) ? 16 : 0;
+                }
+                else
+                {
+                    iv = null;
+                    tag = 0;
+                }
             }
             else
             {
                 if (params instanceof IvParameterSpec)
                 {
-                    ivBytes = ((IvParameterSpec) params).getIV();
+                    iv = ((IvParameterSpec) params).getIV();
                     if (osslMode == OSSLMode.GCM)
                     {
-                        tagLen = 16;
+                        tag = 16;
                     }
                     else
                     {
-                        tagLen = 0;
+                        tag = 0;
                     }
-
                 }
                 else
                 {
                     if (params instanceof GCMParameterSpec)
                     {
-                        ivBytes = ((GCMParameterSpec) params).getIV();
-                        tagLen = (((GCMParameterSpec) params).getTLen() + 7) / 8;
+                        iv = ((GCMParameterSpec) params).getIV();
+                        tag = (((GCMParameterSpec) params).getTLen() + 7) / 8;
                     }
                     else
                     {
@@ -261,9 +307,34 @@ class BlockCipherSpi extends CipherSpi
                 }
             }
 
-            blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen);
+            this.ivBytes = iv;
+            this.tagLen = tag;
+
+            blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, iv, tag);
 
             engineGetBlockSize();
+        }
+    }
+
+    /**
+     * The IV/nonce length, in bytes, this mode needs when the caller supplies
+     * no parameters. ECB and the key-wrap modes take none; GCM/OCB use the
+     * standard 12-byte nonce; remaining block/stream modes use the cipher's
+     * block size. Returns 0 when no IV is required.
+     */
+    private int autoIvLength()
+    {
+        switch (osslMode)
+        {
+        case ECB:
+        case WRAP:
+        case WRAP_PAD:
+            return 0;
+        case GCM:
+        case OCB:
+            return 12;
+        default:
+            return engineGetBlockSize();
         }
     }
 
