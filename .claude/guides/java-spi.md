@@ -110,6 +110,18 @@ The standard JCE has no `CCMParameterSpec`; `GCMParameterSpec` (tag length in bi
 - Test code: cache one `SecureRandom` per test class (the established `private static final SecureRandom RANDOM = new SecureRandom();` pattern), not per `@Test` method.
 - For tests that loop over random inputs, the `seededRandom(testName)` helper (in `RSATest`, `RSAOAEPCipherTest`, `RSAPKCS1CipherTest`) seeds a `SHA1PRNG` from a logged value so a flaky run can be replayed — use that pattern when reproducibility matters.
 
+**Zeroize the `byte[]` from `key.getEncoded()` after use**
+
+Any SPI that pulls raw key material out of a `Key` via `getEncoded()` (cipher `engineInit`, `engineWrap`, MAC `engineInit`, etc.) MUST zeroize that array once the native layer (or the wrap/unwrap) has consumed it. Leaving the plaintext key bytes in a heap array until GC is an unnecessary exposure window — heap dump, swap-to-disk, or a future refactor that reads the stale buffer. Wrap the use in `try { … } finally { … fill(keyBytes, (byte) 0); }`.
+
+This is safe to clear because the standard `javax.crypto.spec.SecretKeySpec.getEncoded()` (the wrap/init `SecretKey` type in practice) returns a *fresh copy* on every call, so zeroing the returned array cannot corrupt the caller's key. A hypothetical custom `Key` whose `getEncoded()` handed back its internal array would be damaged — we accept that as vanishingly unlikely for `SecretKeySpec` and zeroize regardless, because the defence-in-depth on plaintext key material outweighs that edge case.
+
+Two implementation requirements:
+1. Call `getEncoded()` **after** any parameter validation that can throw (e.g. an AEAD tag-length check), and clear in a `finally` — so a rejected `init` never leaves an uncleared key copy and an exception mid-`init` still scrubs it. `BlockCipherSpi.engineInit` obtains `keyBytes` only after the spec branch, immediately before `blockCipherNi.init`, inside a `try/finally` that clears it.
+2. `org.openssl.jostle.util.Arrays.fill(byte[], byte)` is NOT null-safe — it delegates to `java.util.Arrays.fill` — and `getEncoded()` may return null, so guard: `if (keyBytes != null) { Arrays.fill(keyBytes, (byte) 0); }`.
+
+`BlockCipherSpi.engineInit` / `engineWrap` are the reference implementations; `engineUnwrap` applies the same `fill` to the decrypted plaintext it produces.
+
 **Provider registration: static-init order and resilient `configure()`**
 
 `JostleProvider.setup()` calls each `Prov<NAME>.configure(this)` in sequence in a static initializer chain. A `configure()` that throws (e.g. an algorithm whose native dependency is missing) takes the whole provider down with `ExceptionInInitializerError` rather than the targeted exception type — and once a class fails its initializer, the JVM never retries it for the lifetime of the process. Defensive measure: each `Prov<NAME>.configure` should fail soft when an individual algorithm can't be registered (log it, continue to the next algorithm) rather than letting one missing native symbol break every algorithm in the provider.

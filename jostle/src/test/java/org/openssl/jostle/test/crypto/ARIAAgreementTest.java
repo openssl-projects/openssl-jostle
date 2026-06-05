@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NSRIObjectIdentifiers;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -1646,6 +1647,77 @@ public class ARIAAgreementTest
                 Assertions.fail("ARIA-CTR must reject IV length " + badLen);
             }
             catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
+
+    /**
+     * Regression: the ARIA-128-CBC OID primary must run CBC, not ECB. ProvARIA
+     * had {@code id_aria128_cbc} wired to {@code OSSLMode.ECB}. BC (resolving its
+     * own ARIA/CBC) is the source of truth; Jostle is resolved purely by the OID.
+     */
+    @Test
+    public void aria128CbcOid_agreesWithBC() throws Exception
+    {
+        final String ariaCbcOid = NSRIObjectIdentifiers.id_aria128_cbc.getId();
+        SecureRandom sr = seededRandom("aria128CbcOid_agreesWithBC");
+        for (int trial = 0; trial < 20; trial++)
+        {
+            byte[] keyBytes = new byte[16];
+            sr.nextBytes(keyBytes);
+            SecretKeySpec key = new SecretKeySpec(keyBytes, "ARIA");
+            byte[] iv = new byte[16];
+            sr.nextBytes(iv);
+            byte[] pt = new byte[16 * (1 + sr.nextInt(6))]; // block-aligned for NoPadding CBC
+            sr.nextBytes(pt);
+
+            Cipher bcEnc = Cipher.getInstance("ARIA/CBC/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+            byte[] bcCt = bcEnc.doFinal(pt);
+
+            Cipher jslEnc = Cipher.getInstance(ariaCbcOid, JostleProvider.PROVIDER_NAME);
+            jslEnc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+            byte[] jslCt = jslEnc.doFinal(pt);
+            Assertions.assertArrayEquals(bcCt, jslCt,
+                    "ARIA-128-CBC OID must encrypt as CBC and match BC (was registered as ECB)");
+
+            Cipher jslDec = Cipher.getInstance(ariaCbcOid, JostleProvider.PROVIDER_NAME);
+            jslDec.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
+            Assertions.assertArrayEquals(pt, jslDec.doFinal(bcCt),
+                    "Jostle must decrypt BC's ARIA-128-CBC ciphertext via the OID");
+        }
+    }
+
+    /**
+     * Regression: the "ARIA192" cipher must be ARIA-192, not AES-192. ProvARIA
+     * constructed it with {@code OSSLCipher.AES192}, which makes init throw on a
+     * 24-byte key (mandated AES-192 != determined ARIA-192). BC's ARIA/ECB with a
+     * 24-byte key (which selects the 192 variant) is the source of truth.
+     */
+    @Test
+    public void aria192Ecb_matchesBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aria192Ecb_matchesBC");
+        for (int trial = 0; trial < 20; trial++)
+        {
+            byte[] keyBytes = new byte[24]; // 24 bytes -> ARIA-192
+            sr.nextBytes(keyBytes);
+            SecretKeySpec key = new SecretKeySpec(keyBytes, "ARIA");
+            byte[] pt = new byte[16 * (1 + sr.nextInt(6))]; // block-aligned for ECB NoPadding
+            sr.nextBytes(pt);
+
+            Cipher bcEnc = Cipher.getInstance("ARIA/ECB/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, key);
+            byte[] bcCt = bcEnc.doFinal(pt);
+
+            Cipher jslEnc = Cipher.getInstance("ARIA192", JostleProvider.PROVIDER_NAME);
+            jslEnc.init(Cipher.ENCRYPT_MODE, key);
+            byte[] jslCt = jslEnc.doFinal(pt);
+            Assertions.assertArrayEquals(bcCt, jslCt,
+                    "\"ARIA192\" must be ARIA-192 (was wired to AES-192) and match BC");
+
+            Cipher jslDec = Cipher.getInstance("ARIA192", JostleProvider.PROVIDER_NAME);
+            jslDec.init(Cipher.DECRYPT_MODE, key);
+            Assertions.assertArrayEquals(pt, jslDec.doFinal(bcCt));
         }
     }
 

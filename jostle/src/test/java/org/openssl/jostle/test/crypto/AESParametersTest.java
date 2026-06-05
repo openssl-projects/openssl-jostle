@@ -24,6 +24,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.SecureRandom;
 import java.security.Security;
 
@@ -251,5 +252,77 @@ public class AESParametersTest
             rejected = true;
         }
         Assertions.assertTrue(rejected, "GCM must reject decryption under the wrong nonce");
+    }
+
+    @Test
+    public void gcmEncryptCannotBeReusedWithoutReinit() throws Exception
+    {
+        SecureRandom random = seededRandom("gcmEncryptCannotBeReusedWithoutReinit");
+        SecretKey key = aes256Key(random);
+        byte[] msg = new byte[29];
+        random.nextBytes(msg);
+
+        Cipher enc = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, random);
+        enc.doFinal(msg);
+
+        // A second GCM encryption on the same instance would reuse the
+        // auto-generated nonce (catastrophic) and must be rejected until
+        // re-init — SunJCE's "Cannot reuse" contract.
+        boolean rejected = false;
+        try
+        {
+            enc.doFinal(msg);
+        }
+        catch (IllegalStateException e)
+        {
+            rejected = true;
+        }
+        Assertions.assertTrue(rejected, "GCM encrypt reuse without re-init must throw IllegalStateException");
+
+        // Re-init draws a fresh nonce; the instance is usable again and the
+        // result decrypts cleanly.
+        enc.init(Cipher.ENCRYPT_MODE, key, random);
+        byte[] ct = enc.doFinal(msg);
+        byte[] iv = enc.getIV();
+        Cipher dec = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct), "instance must be reusable after re-init");
+    }
+
+    @Test
+    public void gcmRejectsMalformedTagLength() throws Exception
+    {
+        SecureRandom random = seededRandom("gcmRejectsMalformedTagLength");
+        SecretKey key = aes256Key(random);
+        byte[] iv = new byte[12];
+        random.nextBytes(iv);
+
+        // Out-of-range and non-multiple-of-8 tag lengths are rejected at the JCE
+        // boundary with the contracted exception type, rather than reaching
+        // OpenSSL: 24/8 are below the BC floor, 100 is not byte-aligned, 136 is
+        // above the 128-bit maximum.
+        for (int badBits : new int[]{8, 24, 100, 136})
+        {
+            Cipher c = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+            boolean rejected = false;
+            try
+            {
+                c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(badBits, iv), random);
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                rejected = true;
+            }
+            Assertions.assertTrue(rejected, "malformed GCM tag length " + badBits + " must be rejected");
+        }
+
+        // The BC-compatible boundary values are accepted.
+        for (int okBits : new int[]{32, 128})
+        {
+            Cipher c = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+            c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(okBits, iv), random);
+            Assertions.assertNotNull(c.getIV(), okBits + "-bit GCM tag must be accepted");
+        }
     }
 }

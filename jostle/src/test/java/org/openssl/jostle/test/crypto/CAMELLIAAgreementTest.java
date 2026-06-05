@@ -13,6 +13,7 @@ package org.openssl.jostle.test.crypto;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NTTObjectIdentifiers;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
@@ -989,6 +990,44 @@ public class CAMELLIAAgreementTest
                 Assertions.fail("CAMELLIA-CTR must reject IV length " + badLen);
             }
             catch (InvalidAlgorithmParameterException expected) { }
+        }
+    }
+
+    /**
+     * Regression: the Camellia-128-CBC OID primary must run CBC, not ECB.
+     * ProvCAMELLIA had {@code id_camellia128_cbc} wired to {@code OSSLMode.ECB}.
+     * BC (its own Camellia/CBC) is the source of truth; Jostle is resolved
+     * purely by the OID.
+     */
+    @Test
+    public void camellia128CbcOid_agreesWithBC() throws Exception
+    {
+        final String camCbcOid = NTTObjectIdentifiers.id_camellia128_cbc.getId();
+        SecureRandom sr = seededRandom("camellia128CbcOid_agreesWithBC");
+        for (int trial = 0; trial < 20; trial++)
+        {
+            byte[] keyBytes = new byte[16];
+            sr.nextBytes(keyBytes);
+            SecretKeySpec key = new SecretKeySpec(keyBytes, "CAMELLIA");
+            byte[] iv = new byte[16];
+            sr.nextBytes(iv);
+            byte[] pt = new byte[16 * (1 + sr.nextInt(6))]; // block-aligned for NoPadding CBC
+            sr.nextBytes(pt);
+
+            Cipher bcEnc = Cipher.getInstance("Camellia/CBC/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+            byte[] bcCt = bcEnc.doFinal(pt);
+
+            Cipher jslEnc = Cipher.getInstance(camCbcOid, JostleProvider.PROVIDER_NAME);
+            jslEnc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+            byte[] jslCt = jslEnc.doFinal(pt);
+            Assertions.assertArrayEquals(bcCt, jslCt,
+                    "Camellia-128-CBC OID must encrypt as CBC and match BC (was registered as ECB)");
+
+            Cipher jslDec = Cipher.getInstance(camCbcOid, JostleProvider.PROVIDER_NAME);
+            jslDec.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
+            Assertions.assertArrayEquals(pt, jslDec.doFinal(bcCt),
+                    "Jostle must decrypt BC's Camellia-128-CBC ciphertext via the OID");
         }
     }
 
