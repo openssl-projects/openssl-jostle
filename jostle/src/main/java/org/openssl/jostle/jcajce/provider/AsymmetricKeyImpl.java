@@ -12,6 +12,11 @@ package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
+
+import java.security.Key;
+import java.security.MessageDigest;
+import java.security.PrivateKey;
 
 public class AsymmetricKeyImpl
 {
@@ -45,11 +50,11 @@ public class AsymmetricKeyImpl
      * the same key never compared equal — breaking callers that key collections
      * on keys or sanity-check a parsed key against a certificate's key.
      *
-     * <p>When either operand is a {@link java.security.PrivateKey} the encoded
-     * forms contain secret material, so the byte comparison is done with the
-     * constant-time {@link java.security.MessageDigest#isEqual} rather than
-     * {@link java.util.Arrays#equals} (which short-circuits on the first
-     * differing byte and would leak key material through timing).
+     * <p>When either operand is a {@link PrivateKey} the encoded forms contain
+     * secret material, so the byte comparison is done with the constant-time
+     * {@link MessageDigest#isEqual} rather than {@link Arrays#areEqual} (which
+     * short-circuits on the first differing byte and would leak key material
+     * through timing).
      */
     @Override
     public boolean equals(Object o)
@@ -58,33 +63,35 @@ public class AsymmetricKeyImpl
         {
             return true;
         }
-        if (!(this instanceof java.security.Key) || !(o instanceof java.security.Key))
+        if (!(this instanceof Key) || !(o instanceof Key))
         {
             return false;
         }
-        byte[] mine = ((java.security.Key) this).getEncoded();
-        byte[] theirs = ((java.security.Key) o).getEncoded();
+        byte[] mine = ((Key) this).getEncoded();
+        byte[] theirs = ((Key) o).getEncoded();
         if (mine == null || theirs == null)
         {
+            // Guard before areEqual: areEqual(null, null) is true, but two
+            // distinct keys whose encodings are unavailable must not be equal.
             return false;
         }
-        if (this instanceof java.security.PrivateKey || o instanceof java.security.PrivateKey)
+        if (this instanceof PrivateKey || o instanceof PrivateKey)
         {
             // Constant-time: do not short-circuit on secret key material.
-            return java.security.MessageDigest.isEqual(mine, theirs);
+            return MessageDigest.isEqual(mine, theirs);
         }
-        return java.util.Arrays.equals(mine, theirs);
+        return Arrays.areEqual(mine, theirs);
     }
 
     @Override
     public int hashCode()
     {
-        if (this instanceof java.security.Key)
+        if (this instanceof Key)
         {
-            byte[] enc = ((java.security.Key) this).getEncoded();
+            byte[] enc = ((Key) this).getEncoded();
             if (enc != null)
             {
-                return java.util.Arrays.hashCode(enc);
+                return Arrays.hashCode(enc);
             }
         }
         return System.identityHashCode(this);

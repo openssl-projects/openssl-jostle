@@ -15,6 +15,7 @@ import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Principal;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
@@ -195,6 +196,19 @@ class JSLKeyX509Certificate
 
     public void verify(PublicKey key, String sigProvider)
         throws CertificateException, NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException, SignatureException
+    {
+        delegate.verify(key, sigProvider);
+    }
+
+    /**
+     * Provider-instance overload (no {@code NoSuchProviderException}, since the
+     * provider is supplied directly). The base {@link java.security.cert.Certificate}
+     * default throws {@code UnsupportedOperationException}, so this must be
+     * overridden to delegate — otherwise callers that pass a {@link Provider}
+     * instance (rather than a provider name) break against the wrapped cert.
+     */
+    public void verify(PublicKey key, Provider sigProvider)
+        throws CertificateException, NoSuchAlgorithmException, InvalidKeyException, SignatureException
     {
         delegate.verify(key, sigProvider);
     }
