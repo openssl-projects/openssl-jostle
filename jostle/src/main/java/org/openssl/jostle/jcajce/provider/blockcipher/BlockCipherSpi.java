@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
@@ -49,6 +50,12 @@ class BlockCipherSpi extends CipherSpi
     // on to recover the content-encryption IV).
     private byte[] ivBytes;
     private int tagLen;
+
+    // Nonce-reuse guard (mirrors SunJCE's GCM behaviour and CCMCipherSpi): set
+    // true after a successful AEAD (GCM/OCB) encryption so any further data fed
+    // to this instance — which would reuse the nonce, catastrophic for GCM/OCB —
+    // is rejected until re-init establishes a fresh nonce.
+    private boolean encryptionReinitRequired;
 
     private static int BUF_SIZE = 1024;
 
@@ -155,6 +162,20 @@ class BlockCipherSpi extends CipherSpi
         }
     }
 
+    /**
+     * SunJCE/CCMCipherSpi-style nonce-reuse guard for AEAD encryption. Once a
+     * GCM/OCB encryption has completed, the nonce is spent; reject further data
+     * input until the cipher is re-initialised (which draws a fresh nonce).
+     */
+    private void checkEncryptReuse()
+    {
+        if (encryptionReinitRequired)
+        {
+            throw new IllegalStateException(
+                    osslMode + " encryption cannot be reused with the same nonce; re-initialise the cipher");
+        }
+    }
+
     @Override
     protected int engineGetBlockSize()
     {
@@ -255,7 +276,6 @@ class BlockCipherSpi extends CipherSpi
         synchronized (this)
         {
             ensureNativeReference();
-            byte[] keyBytes = key.getEncoded();
             final byte[] iv;
             final int tag;
             blockSize = 0;
@@ -277,7 +297,7 @@ class BlockCipherSpi extends CipherSpi
                 if (ivLen > 0)
                 {
                     iv = new byte[ivLen];
-                    SecureRandom rng = (random != null) ? random : new SecureRandom();
+                    SecureRandom rng = (random != null) ? random : CryptoServicesRegistrar.getSecureRandom();
                     rng.nextBytes(iv);
                     tag = (osslMode == OSSLMode.GCM) ? 16 : 0;
                 }
@@ -305,8 +325,18 @@ class BlockCipherSpi extends CipherSpi
                 {
                     if (params instanceof GCMParameterSpec)
                     {
+                        int tLen = ((GCMParameterSpec) params).getTLen();
+                        // Reject malformed AEAD tag lengths at the JCE boundary —
+                        // BouncyCastle's 32–128-bit, multiple-of-8 range, which the
+                        // cross-provider agreement tests rely on — rather than
+                        // passing an out-of-spec length down to OpenSSL.
+                        if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                        {
+                            throw new InvalidAlgorithmParameterException(
+                                    "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                        }
                         iv = ((GCMParameterSpec) params).getIV();
-                        tag = (((GCMParameterSpec) params).getTLen() + 7) / 8;
+                        tag = tLen / 8;
                     }
                     else
                     {
@@ -317,8 +347,23 @@ class BlockCipherSpi extends CipherSpi
 
             this.ivBytes = iv;
             this.tagLen = tag;
+            this.encryptionReinitRequired = false;
 
-            blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, iv, tag);
+            byte[] keyBytes = key.getEncoded();
+            try
+            {
+                blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, iv, tag);
+            }
+            finally
+            {
+                // Zeroize the plaintext key material once OpenSSL has copied it
+                // into the EVP context. SecretKeySpec.getEncoded() returns a
+                // fresh copy, so clearing it cannot corrupt the caller's key.
+                if (keyBytes != null)
+                {
+                    Arrays.fill(keyBytes, (byte) 0);
+                }
+            }
 
             engineGetBlockSize();
         }
@@ -387,6 +432,7 @@ class BlockCipherSpi extends CipherSpi
         synchronized (this)
         {
             requireInitialized();
+            checkEncryptReuse();
             blockCipherNi.updateAAD(refWrapper.getReference(), src, offset, len);
         }
     }
@@ -439,6 +485,7 @@ class BlockCipherSpi extends CipherSpi
         synchronized (this)
         {
             requireInitialized();
+            checkEncryptReuse();
             int len = blockCipherNi.getUpdateSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
 
@@ -552,6 +599,7 @@ class BlockCipherSpi extends CipherSpi
         synchronized (this)
         {
             requireInitialized();
+            checkEncryptReuse();
             int k = engineGetOutputSize(inputLen);
             if (output.length - outputOffset < k)
             {
@@ -617,6 +665,7 @@ class BlockCipherSpi extends CipherSpi
         synchronized (this)
         {
             requireInitialized();
+            checkEncryptReuse();
             int k = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
 
             if (outputOffset + k > output.length)
@@ -655,6 +704,13 @@ class BlockCipherSpi extends CipherSpi
             int code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
 
             written += code;
+
+            if (opMode == Cipher.ENCRYPT_MODE && (osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB))
+            {
+                // A successful AEAD encryption consumes the nonce; block reuse until re-init.
+                encryptionReinitRequired = true;
+            }
+
             return written;
         }
     }
