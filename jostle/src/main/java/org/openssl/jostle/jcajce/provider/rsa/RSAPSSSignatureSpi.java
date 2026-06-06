@@ -50,6 +50,21 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
 
     public RSAPSSSignatureSpi() {}
 
+    /**
+     * Per-digest constructor for the named {@code SHAxxxWITHRSAANDMGF1} /
+     * {@code SHAxxxWITHRSASSA-PSS} convenience algorithms, where the digest is
+     * implied by the algorithm name. Defaults MGF1 to the same hash and the
+     * salt length to the digest output length, matching PKCS#1 v2.2 practice.
+     * If the caller subsequently supplies a {@link PSSParameterSpec} (as the
+     * PKIX layer does for non-default parameters) it overrides these.
+     */
+    public RSAPSSSignatureSpi(String digest)
+    {
+        this.digestName = digest;
+        this.mgf1Digest = digest;
+        this.saltLen = -1;
+    }
+
     @Override
     protected void engineSetParameter(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
     {

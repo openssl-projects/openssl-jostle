@@ -100,6 +100,7 @@ public class JostleProvider
         new ProvRSA().configure(this);
         new ProvEC().configure(this);
         new ProvMac().configure(this);
+        new ProvX509().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)

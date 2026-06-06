@@ -24,6 +24,7 @@ import org.openssl.jostle.rand.RandSource;
 
 import java.lang.ref.Reference;
 import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -62,20 +63,67 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     protected abstract void nativeInitVerify(long ref, long keyRef);
 
 
+    /**
+     * Coerce an arbitrary public key to a JSL RSA public key. JSL keys are
+     * used directly; foreign RSA keys (e.g. a {@code sun.*} key from a
+     * JDK-parsed certificate, as the CMS/PKIX verifiers hand us) are
+     * re-imported through {@link RSAKeyFactorySpi#engineTranslateKey} so
+     * external callers interoperate without having to pre-convert keys.
+     * Anything that isn't RSA surfaces as {@link InvalidKeyException}.
+     */
+    private static JORSAPublicKey importPublic(PublicKey publicKey) throws InvalidKeyException
+    {
+        if (publicKey instanceof JORSAPublicKey)
+        {
+            return (JORSAPublicKey) publicKey;
+        }
+        try
+        {
+            Key translated = new RSAKeyFactorySpi().engineTranslateKey(publicKey);
+            if (translated instanceof JORSAPublicKey)
+            {
+                return (JORSAPublicKey) translated;
+            }
+        }
+        catch (InvalidKeyException e)
+        {
+            // Wrong-algorithm or unparseable key — fall through to the canonical message.
+        }
+        throw new InvalidKeyException("expected an RSAPublicKey from the Jostle provider");
+    }
+
+    /** Private-key counterpart to {@link #importPublic}. */
+    private static JORSAPrivateKey importPrivate(PrivateKey privateKey) throws InvalidKeyException
+    {
+        if (privateKey instanceof JORSAPrivateKey)
+        {
+            return (JORSAPrivateKey) privateKey;
+        }
+        try
+        {
+            Key translated = new RSAKeyFactorySpi().engineTranslateKey(privateKey);
+            if (translated instanceof JORSAPrivateKey)
+            {
+                return (JORSAPrivateKey) translated;
+            }
+        }
+        catch (InvalidKeyException e)
+        {
+            // Wrong-algorithm or unparseable key — fall through to the canonical message.
+        }
+        throw new InvalidKeyException("expected an RSAPrivateKey from the Jostle provider");
+    }
+
+
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
         try
         {
-            if (!(publicKey instanceof RSAPublicKey))
-            {
-                throw new InvalidKeyException("expected an RSAPublicKey from the Jostle provider");
-            }
-
-            JORSAPublicKey key = (JORSAPublicKey) publicKey;
+            JORSAPublicKey key = importPublic(publicKey);
             lastKey = key;
 
-            ensureRef(publicKey.getAlgorithm());
+            ensureRef(key.getAlgorithm());
             nativeInitVerify(ref.getReference(), key.getSpec().getReference());
         }
         finally
@@ -97,15 +145,10 @@ abstract class RSASignatureSpiBase extends SignatureSpi
 
         try
         {
-            if (!(privateKey instanceof RSAPrivateKey))
-            {
-                throw new InvalidKeyException("expected an RSAPrivateKey from the Jostle provider");
-            }
-
-            JORSAPrivateKey key = (JORSAPrivateKey) privateKey;
+            JORSAPrivateKey key = importPrivate(privateKey);
             lastKey = key;
 
-            ensureRef(privateKey.getAlgorithm());
+            ensureRef(key.getAlgorithm());
             nativeInitSign(ref.getReference(), key.getSpec().getReference(), randSource);
         }
         finally

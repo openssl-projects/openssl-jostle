@@ -18,7 +18,9 @@ import javax.crypto.interfaces.PBEKey;
 import javax.security.auth.DestroyFailedException;
 import javax.security.auth.Destroyable;
 import java.io.Serializable;
+import java.security.MessageDigest;
 import java.security.spec.KeySpec;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 class JOPBEKey implements PBEKey, KeySpec, SecretKey, Destroyable, Serializable
@@ -105,5 +107,36 @@ class JOPBEKey implements PBEKey, KeySpec, SecretKey, Destroyable, Serializable
         {
             throw new IllegalStateException("key has been destroyed");
         }
+    }
+
+    /**
+     * Value equality following the {@code javax.crypto.spec.SecretKeySpec} contract:
+     * same algorithm (case-insensitive) and same raw key bytes. The byte comparison
+     * uses the constant-time {@link MessageDigest#isEqual} because the raw key is
+     * secret material (a non-constant-time compare would leak it via timing).
+     */
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+        {
+            return true;
+        }
+        if (!(o instanceof SecretKey))
+        {
+            return false;
+        }
+        SecretKey other = (SecretKey) o;
+        if (!algoName.equalsIgnoreCase(other.getAlgorithm()))
+        {
+            return false;
+        }
+        return MessageDigest.isEqual(rawKey, other.getEncoded());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return java.util.Arrays.hashCode(rawKey) ^ algoName.toLowerCase(Locale.ROOT).hashCode();
     }
 }
