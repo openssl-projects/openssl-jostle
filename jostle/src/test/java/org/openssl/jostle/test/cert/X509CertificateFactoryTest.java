@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.Signature;
@@ -224,6 +225,18 @@ public class X509CertificateFactoryTest
         verifier2.update(tamperedTbs);
         Assertions.assertFalse(verifier2.verify(sig),
                 cert.getSigAlgName() + ": tampered TBS unexpectedly verified");
+    }
+
+    @Test
+    public void testVerify_withProviderInstance_overload() throws Exception
+    {
+        // The verify(PublicKey, Provider) overload must delegate to the wrapped
+        // cert, NOT fall through to Certificate's default (which throws
+        // UnsupportedOperationException). Self-signed cert → verifies against its
+        // own JSL public key when handed the JSL Provider instance.
+        X509Certificate cert = parse(rsaCertDer());
+        Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        cert.verify(cert.getPublicKey(), jsl); // must not throw
     }
 
     // -----------------------------------------------------------------
