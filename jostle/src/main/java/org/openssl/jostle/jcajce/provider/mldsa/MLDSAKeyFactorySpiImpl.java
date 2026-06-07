@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -55,7 +56,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
     {
         if (keySpec instanceof X509EncodedKeySpec)
         {
-            byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
+            byte[] encoded = KeyInfoCanonicalizer.subjectPublicKeyInfo(((X509EncodedKeySpec) keySpec).getEncoded());
 
             PKEYKeySpec pkeySpec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
 
@@ -106,7 +107,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
 
-            byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
+            byte[] encoded = KeyInfoCanonicalizer.privateKeyInfo(((PKCS8EncodedKeySpec) keySpec).getEncoded());
 
             PKEYKeySpec pkeySpec = ASNEncoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
 

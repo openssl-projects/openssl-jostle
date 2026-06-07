@@ -53,6 +53,14 @@ class ProvMLDSA
         provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
         provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
 
+        // SPKI / signature-algorithm OID aliases (NIST CSOR id-ml-dsa-44/65/87).
+        // Required so X.509 certs whose SubjectPublicKeyInfo / signature carries
+        // the OID resolve to the JSL Signature, rather than falling back to the
+        // JDK default.
+        provider.addAlias("Signature", "ML-DSA-44", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.17"));
+        provider.addAlias("Signature", "ML-DSA-65", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.18"));
+        provider.addAlias("Signature", "ML-DSA-87", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.19"));
+
 
         final Map<String, String> mldsaKfAttr = new HashMap<>();
         provider.addAlgorithmImplementation("KeyFactory", "MLDSA", PREFIX + "MLDSAKeyFactorySpi", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl());
@@ -60,6 +68,13 @@ class ProvMLDSA
         provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_44));
         provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_65));
         provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_87));
+
+        // SPKI OID aliases (NIST CSOR id-ml-dsa-44/65/87) so a certificate's
+        // public key can be re-derived through the JSL KeyFactory keyed on the
+        // SubjectPublicKeyInfo algorithm OID (see JSLKeyX509Certificate).
+        provider.addAlias("KeyFactory", "ML-DSA-44", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.17"));
+        provider.addAlias("KeyFactory", "ML-DSA-65", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.18"));
+        provider.addAlias("KeyFactory", "ML-DSA-87", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.19"));
 
 
     }

@@ -51,17 +51,163 @@ class JSLKeyX509Certificate
     public PublicKey getPublicKey()
     {
         PublicKey key = delegate.getPublicKey();
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            return key;
+        }
+
+        // Prefer the algorithm OID carried in the SubjectPublicKeyInfo over the
+        // JDK key's getAlgorithm() string. The OID is the canonical algorithm
+        // identifier, and the JSL provider registers its KeyFactories under the
+        // SPKI OID aliases (e.g. 1.2.840.113549.1.1.1 for RSA, 1.2.840.10045.2.1
+        // for EC), whereas getAlgorithm() returns a provider-specific name that
+        // may not match any registered KeyFactory.
+        PublicKey jslKey = importKey(subjectPublicKeyInfoAlgorithmOid(encoded), encoded);
+        if (jslKey == null)
+        {
+            // No KeyFactory registered under the OID (e.g. an algorithm JSL only
+            // registers by name) — fall back to the JDK key's algorithm name.
+            jslKey = importKey(key.getAlgorithm(), encoded);
+        }
+        // The JSL provider has no KeyFactory for this algorithm (or can't import
+        // it); fall back to the JDK-provided key.
+        return jslKey != null ? jslKey : key;
+    }
+
+    /**
+     * Re-derive a JSL public key from its X.509 encoding via the JSL provider's
+     * KeyFactory for {@code algorithm}, or {@code null} if the algorithm is
+     * {@code null}, has no JSL KeyFactory, or the encoding can't be imported.
+     */
+    private PublicKey importKey(String algorithm, byte[] encoded)
+    {
+        if (algorithm == null)
+        {
+            return null;
+        }
         try
         {
-            KeyFactory kf = KeyFactory.getInstance(key.getAlgorithm(), providerName);
-            return kf.generatePublic(new X509EncodedKeySpec(key.getEncoded()));
+            KeyFactory kf = KeyFactory.getInstance(algorithm, providerName);
+            return kf.generatePublic(new X509EncodedKeySpec(encoded));
         }
         catch (NoSuchAlgorithmException | NoSuchProviderException | java.security.spec.InvalidKeySpecException e)
         {
-            // The JSL provider has no KeyFactory for this algorithm (or can't import
-            // it); fall back to the JDK-provided key.
-            return key;
+            return null;
         }
+    }
+
+    /**
+     * Extract the algorithm OID from an X.509 SubjectPublicKeyInfo encoding.
+     *
+     * <pre>
+     * SubjectPublicKeyInfo ::= SEQUENCE {
+     *     algorithm        AlgorithmIdentifier,
+     *     subjectPublicKey BIT STRING }
+     * AlgorithmIdentifier ::= SEQUENCE {
+     *     algorithm        OBJECT IDENTIFIER,
+     *     parameters       ANY DEFINED BY algorithm OPTIONAL }
+     * </pre>
+     *
+     * @return the dotted-decimal OID string, or {@code null} if the bytes can't
+     * be parsed as a SubjectPublicKeyInfo (the caller then falls back to the JDK
+     * key's algorithm name).
+     */
+    private static String subjectPublicKeyInfoAlgorithmOid(byte[] spki)
+    {
+        try
+        {
+            int[] pos = {0};
+            readTag(spki, pos, 0x30);   // SubjectPublicKeyInfo SEQUENCE
+            readLength(spki, pos);
+            readTag(spki, pos, 0x30);   // AlgorithmIdentifier SEQUENCE
+            readLength(spki, pos);
+            readTag(spki, pos, 0x06);   // algorithm OBJECT IDENTIFIER
+            int oidLen = readLength(spki, pos);
+            return decodeObjectIdentifier(spki, pos[0], oidLen);
+        }
+        catch (RuntimeException e)
+        {
+            return null;
+        }
+    }
+
+    private static void readTag(byte[] data, int[] pos, int expected)
+    {
+        if (pos[0] >= data.length || (data[pos[0]] & 0xFF) != expected)
+        {
+            throw new IllegalArgumentException("unexpected ASN.1 tag");
+        }
+        pos[0]++;
+    }
+
+    private static int readLength(byte[] data, int[] pos)
+    {
+        if (pos[0] >= data.length)
+        {
+            throw new IllegalArgumentException("truncated ASN.1 length");
+        }
+        int b = data[pos[0]++] & 0xFF;
+        if ((b & 0x80) == 0)
+        {
+            return b;
+        }
+        int count = b & 0x7F;
+        if (count == 0 || count > 4)
+        {
+            throw new IllegalArgumentException("unsupported ASN.1 length");
+        }
+        int len = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (pos[0] >= data.length)
+            {
+                throw new IllegalArgumentException("truncated ASN.1 length");
+            }
+            len = (len << 8) | (data[pos[0]++] & 0xFF);
+        }
+        if (len < 0)
+        {
+            throw new IllegalArgumentException("ASN.1 length out of range");
+        }
+        return len;
+    }
+
+    private static String decodeObjectIdentifier(byte[] data, int off, int len)
+    {
+        if (len <= 0 || off < 0 || off + len > data.length)
+        {
+            throw new IllegalArgumentException("invalid OID encoding");
+        }
+        StringBuilder sb = new StringBuilder();
+        long value = 0;
+        boolean first = true;
+        for (int i = 0; i < len; i++)
+        {
+            int b = data[off + i] & 0xFF;
+            value = (value << 7) | (b & 0x7F);
+            if ((b & 0x80) == 0)
+            {
+                if (first)
+                {
+                    long firstArc = value / 40 > 2 ? 2 : value / 40;
+                    sb.append(firstArc).append('.').append(value - firstArc * 40);
+                    first = false;
+                }
+                else
+                {
+                    sb.append('.').append(value);
+                }
+                value = 0;
+            }
+        }
+        if (!first && value == 0)
+        {
+            return sb.toString();
+        }
+        // A trailing sub-identifier whose high bit was still set means the OID
+        // was truncated.
+        throw new IllegalArgumentException("truncated OID encoding");
     }
 
     // --- everything else delegates ---

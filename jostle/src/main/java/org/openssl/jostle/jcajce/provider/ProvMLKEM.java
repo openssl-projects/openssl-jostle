@@ -59,6 +59,14 @@ class ProvMLKEM
         provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-768", PREFIX + "MLKEMKeyFactorySpi$MLKEM768", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(OSSLKeyType.ML_KEM_768));
         provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-1024", PREFIX + "MLKEMKeyFactorySpi$MLKEM1024", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(OSSLKeyType.ML_KEM_1024));
 
+        // SPKI OID aliases (NIST CSOR id-alg-ml-kem-*, RFC 9814; note the .4.4
+        // "kems" arc, not the .4.3 "sigAlgs" arc) so a certificate's public key
+        // can be re-derived through the JSL KeyFactory keyed on the
+        // SubjectPublicKeyInfo algorithm OID (see JSLKeyX509Certificate).
+        provider.addAlias("KeyFactory", "ML-KEM-512", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.1"));
+        provider.addAlias("KeyFactory", "ML-KEM-768", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.2"));
+        provider.addAlias("KeyFactory", "ML-KEM-1024", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.3"));
+
     }
 
 
