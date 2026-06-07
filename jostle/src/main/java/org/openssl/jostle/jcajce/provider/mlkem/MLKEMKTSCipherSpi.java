@@ -396,11 +396,27 @@ public class MLKEMKTSCipherSpi
 
     private static String digestNameForOid(String oid)
     {
-        if ("2.16.840.1.101.3.4.2.1".equals(oid)) { return "SHA-256"; }
-        if ("2.16.840.1.101.3.4.2.2".equals(oid)) { return "SHA-384"; }
-        if ("2.16.840.1.101.3.4.2.3".equals(oid)) { return "SHA-512"; }
-        if ("2.16.840.1.101.3.4.2.4".equals(oid)) { return "SHA-224"; }
-        if ("1.3.14.3.2.26".equals(oid))          { return "SHA-1"; }
+    {
+        if ("2.16.840.1.101.3.4.2.1".equals(oid))
+        {
+            return "SHA-256";
+        }
+        if ("2.16.840.1.101.3.4.2.2".equals(oid))
+        {
+            return "SHA-384";
+        }
+        if ("2.16.840.1.101.3.4.2.3".equals(oid))
+        {
+            return "SHA-512";
+        }
+        if ("2.16.840.1.101.3.4.2.4".equals(oid))
+        {
+            return "SHA-224";
+        }
+        if ("1.3.14.3.2.26".equals(oid))
+        {
+            return "SHA-1";
+        }
         return null;
     }
 
