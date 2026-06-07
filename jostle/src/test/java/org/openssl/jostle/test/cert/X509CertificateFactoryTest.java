@@ -406,11 +406,15 @@ public class X509CertificateFactoryTest
         list.add(parse(rsaCertDer()));
         CertPath path = cf.generateCertPath(list);
         Assertions.assertEquals(1, path.getCertificates().size());
+        Assertions.assertTrue(path.getCertificates().get(0).getPublicKey().getClass().getName().startsWith("org.openssl.jostle"),
+                "generateCertPath(List) element returned a non-JSL key");
 
         // Encode then re-parse — the encoded form must round-trip back to an
         // equal cert list through the same factory.
         byte[] encoded = path.getEncoded();
         CertPath reparsed = cf.generateCertPath(new ByteArrayInputStream(encoded));
+        Assertions.assertTrue(reparsed.getCertificates().get(0).getPublicKey().getClass().getName().startsWith("org.openssl.jostle"),
+                "generateCertPath(InputStream) element returned a non-JSL key");
         Assertions.assertArrayEquals(
                 list.get(0).getEncoded(),
                 reparsed.getCertificates().get(0).getEncoded(),

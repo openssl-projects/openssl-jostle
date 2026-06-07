@@ -85,13 +85,14 @@ public class X509CertificateFactorySpi
      */
     private static Certificate wrap(Certificate c)
     {
+        // Fast-path: if it's already our wrapper, return unchanged to avoid double-wrapping.
+        if (c instanceof JSLKeyX509Certificate)
+        {
+            return c;
+        }
+
         if (c instanceof X509Certificate)
         {
-            // Avoid double-wrapping: if it's already a JSL wrapper, return as-is.
-            if (c instanceof JSLKeyX509Certificate)
-            {
-                return c;
-            }
             return new JSLKeyX509Certificate((X509Certificate) c, JostleProvider.PROVIDER_NAME);
         }
         return c;
