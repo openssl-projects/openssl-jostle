@@ -67,7 +67,11 @@ public class X509CertificateFactorySpi
         throws CertificateException
     {
         Collection<? extends Certificate> certs = delegate.generateCertificates(inStream);
-        List<Certificate> wrapped = new ArrayList<Certificate>(certs.size());
+        if (certs == null || certs.isEmpty())
+        {
+            return certs;
+        }
+        List<Certificate> wrapped = new ArrayList<>(certs.size());
         for (Certificate c : certs)
         {
             wrapped.add(wrap(c));
@@ -81,6 +85,12 @@ public class X509CertificateFactorySpi
      */
     private static Certificate wrap(Certificate c)
     {
+        // Fast-path: if it's already our wrapper, return unchanged to avoid double-wrapping.
+        if (c instanceof JSLKeyX509Certificate)
+        {
+            return c;
+        }
+
         if (c instanceof X509Certificate)
         {
             return new JSLKeyX509Certificate((X509Certificate) c, JostleProvider.PROVIDER_NAME);
@@ -100,22 +110,60 @@ public class X509CertificateFactorySpi
         return delegate.generateCRLs(inStream);
     }
 
+    // The three engineGenerateCertPath overloads below rebuild the path from
+    // wrapped certificates via delegate.generateCertPath(List). This relies on
+    // the SUN delegate's CertPath retaining the supplied Certificate instances
+    // verbatim in getCertificates() — sun.security.provider.certpath.X509CertPath
+    // stores the list as-is rather than re-parsing — so the JSL wrappers survive
+    // and getPublicKey() yields JSL keys. testGenerateCertPath_* guard this; if a
+    // future delegate re-parsed instead, those tests would fail loudly.
     public CertPath engineGenerateCertPath(InputStream inStream)
         throws CertificateException
     {
-        return delegate.generateCertPath(inStream);
+        CertPath parsed = delegate.generateCertPath(inStream);
+        List<? extends Certificate> certs = parsed.getCertificates();
+        if (certs == null || certs.isEmpty())
+        {
+            return parsed;
+        }
+        List<Certificate> wrapped = new ArrayList<>(certs.size());
+        for (Certificate c : certs)
+        {
+            wrapped.add(wrap(c));
+        }
+        return delegate.generateCertPath(wrapped);
     }
 
     public CertPath engineGenerateCertPath(InputStream inStream, String encoding)
         throws CertificateException
     {
-        return delegate.generateCertPath(inStream, encoding);
+        CertPath parsed = delegate.generateCertPath(inStream, encoding);
+        List<? extends Certificate> certs = parsed.getCertificates();
+        if (certs == null || certs.isEmpty())
+        {
+            return parsed;
+        }
+        List<Certificate> wrapped = new ArrayList<>(certs.size());
+        for (Certificate c : certs)
+        {
+            wrapped.add(wrap(c));
+        }
+        return delegate.generateCertPath(wrapped);
     }
 
     public CertPath engineGenerateCertPath(List<? extends Certificate> certificates)
         throws CertificateException
     {
-        return delegate.generateCertPath(certificates);
+        if (certificates == null || certificates.isEmpty())
+        {
+            return delegate.generateCertPath(certificates);
+        }
+        List<Certificate> wrapped = new ArrayList<>(certificates.size());
+        for (Certificate c : certificates)
+        {
+            wrapped.add(wrap(c));
+        }
+        return delegate.generateCertPath(wrapped);
     }
 
     public java.util.Iterator<String> engineGetCertPathEncodings()
