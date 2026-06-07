@@ -11,13 +11,30 @@
 
 package org.openssl.jostle.test.cert;
 
+import org.bouncycastle.asn1.ASN1Encoding;
+import org.bouncycastle.asn1.ASN1EncodableVector;
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.asn1.x509.TBSCertificate;
+import org.bouncycastle.asn1.x509.Time;
+import org.bouncycastle.asn1.x509.V1TBSCertificateGenerator;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
@@ -31,6 +48,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -44,19 +62,22 @@ import java.util.List;
  * <ol>
  *   <li>the factory resolves against the JSL provider by both "X.509" and the
  *       "X509" alias,</li>
- *   <li>{@code getPublicKey()} returns a JSL key (not the SUN key) for both RSA
- *       and EC certificates,</li>
- *   <li>that JSL key actually verifies the certificate's own (self-signed)
+ *   <li>{@code getPublicKey()} returns a JSL key (not the SUN key) for RSA, EC
+ *       and the post-quantum (ML-DSA / SLH-DSA / ML-KEM) schemes, the latter
+ *       re-derived through the JSL provider via the SubjectPublicKeyInfo
+ *       algorithm OID,</li>
+ *   <li>that JSL key actually verifies the certificate's (self- or CA-) signed
  *       signature through a JSL {@link Signature} — and a tampered TBS does
  *       NOT verify (negative path),</li>
  *   <li>the bulk {@code generateCertificates} and {@code generateCertPath}
  *       entry points round-trip.</li>
  * </ol>
  *
- * <p>The two test certificates are self-signed leaves generated offline with
- * OpenSSL (SHA256withRSA / SHA256withECDSA) and embedded as base64 DER so the
- * test needs no PKIX cert-builder dependency (only bcprov is on the test
- * classpath).
+ * <p>The RSA and EC certificates are self-signed leaves generated offline with
+ * OpenSSL (SHA256withRSA / SHA256withECDSA) and embedded as base64 DER. The
+ * post-quantum certificates are built at runtime — bcprov's ASN.1 layer for the
+ * certificate structure, the JSL provider for signing — so the test still needs
+ * no PKIX cert-builder dependency (only bcprov is on the test classpath).
  */
 public class X509CertificateFactoryTest
 {
@@ -195,6 +216,124 @@ public class X509CertificateFactoryTest
         assertPublicKeyIsJslAndVerifies(cert);
     }
 
+    // -----------------------------------------------------------------
+    // Post-quantum certificates: the SubjectPublicKeyInfo / signature OID must
+    // resolve to a JSL KeyFactory / Signature so getPublicKey() returns a JSL
+    // key (see the OID aliases in ProvMLDSA / ProvSLHDSA / ProvMLKEM and the
+    // OID-keyed import in JSLKeyX509Certificate). Built at runtime because no
+    // PQC cert fixtures exist; bcprov's ASN.1 layer supplies the cert structure
+    // and the JSL provider does the signing.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void testMldsaCert_publicKeyIsJslAndVerifiesSelfSignature() throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance("ML-DSA-44", JostleProvider.PROVIDER_NAME).generateKeyPair();
+        byte[] der = buildPqcCert(kp.getPublic().getEncoded(), "ML-DSA-44",
+                "2.16.840.1.101.3.4.3.17", kp.getPrivate());
+        X509Certificate cert = parse(der);
+
+        PublicKey pub = cert.getPublicKey();
+        Assertions.assertTrue(pub.getClass().getName().startsWith("org.openssl.jostle"),
+                "getPublicKey() did not return a JSL key, was: " + pub.getClass().getName());
+        assertCertSignatureVerifies(cert, pub, "ML-DSA-44");
+    }
+
+    @Test
+    public void testSlhdsaCert_publicKeyIsJslAndVerifiesSelfSignature() throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance("SLH-DSA-SHA2-128F", JostleProvider.PROVIDER_NAME).generateKeyPair();
+        byte[] der = buildPqcCert(kp.getPublic().getEncoded(), "SLH-DSA-SHA2-128F",
+                "2.16.840.1.101.3.4.3.21", kp.getPrivate());
+        X509Certificate cert = parse(der);
+
+        PublicKey pub = cert.getPublicKey();
+        Assertions.assertTrue(pub.getClass().getName().startsWith("org.openssl.jostle"),
+                "getPublicKey() did not return a JSL key, was: " + pub.getClass().getName());
+        assertCertSignatureVerifies(cert, pub, "SLH-DSA-SHA2-128F");
+    }
+
+    @Test
+    public void testMlkemCert_publicKeyResolvedThroughJslByOid() throws Exception
+    {
+        // ML-KEM is a KEM, not a signature scheme: the cert carries an ML-KEM
+        // subject key but is signed by an ML-DSA CA. The subject key must still
+        // be re-derived through the JSL KeyFactory keyed on the ML-KEM SPKI OID
+        // (2.16.840.1.101.3.4.4.2), and the ML-DSA signature must verify.
+        KeyPair caKp = KeyPairGenerator.getInstance("ML-DSA-44", JostleProvider.PROVIDER_NAME).generateKeyPair();
+        KeyPair kemKp = KeyPairGenerator.getInstance("ML-KEM-768", JostleProvider.PROVIDER_NAME).generateKeyPair();
+        byte[] der = buildPqcCert(kemKp.getPublic().getEncoded(), "ML-DSA-44",
+                "2.16.840.1.101.3.4.3.17", caKp.getPrivate());
+        X509Certificate cert = parse(der);
+
+        PublicKey pub = cert.getPublicKey();
+        Assertions.assertTrue(pub.getClass().getName().startsWith("org.openssl.jostle"),
+                "getPublicKey() did not return a JSL key, was: " + pub.getClass().getName());
+        Assertions.assertArrayEquals(kemKp.getPublic().getEncoded(), pub.getEncoded(),
+                "ML-KEM subject key did not round-trip through the JSL KeyFactory");
+        assertCertSignatureVerifies(cert, caKp.getPublic(), "ML-DSA-44");
+    }
+
+    /**
+     * Verify {@code cert}'s signature over its TBS with {@code verifyKey} through
+     * a JSL {@link Signature} named {@code sigAlg}, and prove the verify actually
+     * consumes the bytes: a tampered TBS must NOT verify (negative path).
+     */
+    private static void assertCertSignatureVerifies(X509Certificate cert, PublicKey verifyKey, String sigAlg)
+            throws Exception
+    {
+        byte[] tbs = cert.getTBSCertificate();
+        byte[] sig = cert.getSignature();
+
+        Signature verifier = Signature.getInstance(sigAlg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(verifyKey);
+        verifier.update(tbs);
+        Assertions.assertTrue(verifier.verify(sig),
+                sigAlg + ": JSL key failed to verify the certificate signature");
+
+        byte[] tamperedTbs = Arrays.clone(tbs);
+        tamperedTbs[tamperedTbs.length / 2] ^= 0x01;
+        Signature verifier2 = Signature.getInstance(sigAlg, JostleProvider.PROVIDER_NAME);
+        verifier2.initVerify(verifyKey);
+        verifier2.update(tamperedTbs);
+        Assertions.assertFalse(verifier2.verify(sig),
+                sigAlg + ": tampered TBS unexpectedly verified");
+    }
+
+    /**
+     * Assemble a minimal X.509 v1 certificate carrying {@code subjectSpki} as its
+     * SubjectPublicKeyInfo, signed by {@code signerKey} through the JSL
+     * {@link Signature} {@code sigAlgName}, with {@code sigOid} as the
+     * signatureAlgorithm OID. Self-signed when {@code signerKey} matches the
+     * subject key.
+     */
+    private static byte[] buildPqcCert(byte[] subjectSpki, String sigAlgName, String sigOid, PrivateKey signerKey)
+            throws Exception
+    {
+        AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(new ASN1ObjectIdentifier(sigOid));
+
+        V1TBSCertificateGenerator tbsGen = new V1TBSCertificateGenerator();
+        tbsGen.setSerialNumber(new ASN1Integer(BigInteger.valueOf(1)));
+        tbsGen.setSignature(sigAlgId);
+        tbsGen.setIssuer(new X500Name("CN=Jostle PQC Test"));
+        tbsGen.setStartDate(new Time(new Date(1700000000000L)));
+        tbsGen.setEndDate(new Time(new Date(1900000000000L)));
+        tbsGen.setSubject(new X500Name("CN=Jostle PQC Test"));
+        tbsGen.setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(ASN1Primitive.fromByteArray(subjectSpki)));
+        TBSCertificate tbs = tbsGen.generateTBSCertificate();
+
+        Signature signer = Signature.getInstance(sigAlgName, JostleProvider.PROVIDER_NAME);
+        signer.initSign(signerKey);
+        signer.update(tbs.getEncoded(ASN1Encoding.DER));
+        byte[] sig = signer.sign();
+
+        ASN1EncodableVector v = new ASN1EncodableVector();
+        v.add(tbs);
+        v.add(sigAlgId);
+        v.add(new DERBitString(sig));
+        return new DERSequence(v).getEncoded(ASN1Encoding.DER);
+    }
+
     /**
      * The wrapped certificate's public key must come from the JSL provider,
      * and it must verify the certificate's own (self-signed) signature when
@@ -218,7 +357,7 @@ public class X509CertificateFactoryTest
                 cert.getSigAlgName() + ": JSL key failed to verify the cert's self-signature");
 
         // Negative: flip a byte in the TBS — verification must fail.
-        byte[] tamperedTbs = tbs.clone();
+        byte[] tamperedTbs = Arrays.clone(tbs);
         tamperedTbs[tamperedTbs.length / 2] ^= 0x01;
         Signature verifier2 = Signature.getInstance(cert.getSigAlgName(), JostleProvider.PROVIDER_NAME);
         verifier2.initVerify(pub);
