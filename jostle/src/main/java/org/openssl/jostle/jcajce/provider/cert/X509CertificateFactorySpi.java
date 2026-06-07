@@ -110,6 +110,13 @@ public class X509CertificateFactorySpi
         return delegate.generateCRLs(inStream);
     }
 
+    // The three engineGenerateCertPath overloads below rebuild the path from
+    // wrapped certificates via delegate.generateCertPath(List). This relies on
+    // the SUN delegate's CertPath retaining the supplied Certificate instances
+    // verbatim in getCertificates() — sun.security.provider.certpath.X509CertPath
+    // stores the list as-is rather than re-parsing — so the JSL wrappers survive
+    // and getPublicKey() yields JSL keys. testGenerateCertPath_* guard this; if a
+    // future delegate re-parsed instead, those tests would fail loudly.
     public CertPath engineGenerateCertPath(InputStream inStream)
         throws CertificateException
     {
