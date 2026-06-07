@@ -406,15 +406,45 @@ public class X509CertificateFactoryTest
         list.add(parse(rsaCertDer()));
         CertPath path = cf.generateCertPath(list);
         Assertions.assertEquals(1, path.getCertificates().size());
+        Assertions.assertTrue(path.getCertificates().get(0).getPublicKey().getClass().getName().startsWith("org.openssl.jostle"),
+                "generateCertPath(List) element returned a non-JSL key");
 
         // Encode then re-parse — the encoded form must round-trip back to an
         // equal cert list through the same factory.
         byte[] encoded = path.getEncoded();
         CertPath reparsed = cf.generateCertPath(new ByteArrayInputStream(encoded));
+        Assertions.assertTrue(reparsed.getCertificates().get(0).getPublicKey().getClass().getName().startsWith("org.openssl.jostle"),
+                "generateCertPath(InputStream) element returned a non-JSL key");
         Assertions.assertArrayEquals(
                 list.get(0).getEncoded(),
                 reparsed.getCertificates().get(0).getEncoded(),
                 "CertPath did not round-trip through encode/parse");
+    }
+
+    @Test
+    public void testGenerateCertPath_inputStreamWithEncoding_wrapsCerts() throws Exception
+    {
+        // Covers the engineGenerateCertPath(InputStream, encoding) overload — the
+        // no-encoding InputStream and List paths are covered above. Uses the
+        // non-default "PKCS7" encoding so the encoding-specific decode path is
+        // exercised, and asserts the rebuilt path still yields a JSL key.
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
+
+        List<Certificate> list = new ArrayList<Certificate>();
+        list.add(parse(rsaCertDer()));
+        CertPath path = cf.generateCertPath(list);
+
+        byte[] encoded = path.getEncoded("PKCS7");
+        CertPath reparsed = cf.generateCertPath(new ByteArrayInputStream(encoded), "PKCS7");
+
+        Assertions.assertEquals(1, reparsed.getCertificates().size());
+        Assertions.assertTrue(
+                reparsed.getCertificates().get(0).getPublicKey().getClass().getName().startsWith("org.openssl.jostle"),
+                "generateCertPath(InputStream, encoding) element returned a non-JSL key");
+        Assertions.assertArrayEquals(
+                list.get(0).getEncoded(),
+                reparsed.getCertificates().get(0).getEncoded(),
+                "CertPath did not round-trip through PKCS7 encode/parse");
     }
 
     // -----------------------------------------------------------------
