@@ -67,7 +67,11 @@ public class X509CertificateFactorySpi
         throws CertificateException
     {
         Collection<? extends Certificate> certs = delegate.generateCertificates(inStream);
-        List<Certificate> wrapped = new ArrayList<Certificate>(certs.size());
+        if (certs == null || certs.isEmpty())
+        {
+            return certs;
+        }
+        List<Certificate> wrapped = new ArrayList<>(certs.size());
         for (Certificate c : certs)
         {
             wrapped.add(wrap(c));
@@ -83,6 +87,11 @@ public class X509CertificateFactorySpi
     {
         if (c instanceof X509Certificate)
         {
+            // Avoid double-wrapping: if it's already a JSL wrapper, return as-is.
+            if (c instanceof JSLKeyX509Certificate)
+            {
+                return c;
+            }
             return new JSLKeyX509Certificate((X509Certificate) c, JostleProvider.PROVIDER_NAME);
         }
         return c;
@@ -103,19 +112,50 @@ public class X509CertificateFactorySpi
     public CertPath engineGenerateCertPath(InputStream inStream)
         throws CertificateException
     {
-        return delegate.generateCertPath(inStream);
+        CertPath parsed = delegate.generateCertPath(inStream);
+        List<? extends Certificate> certs = parsed.getCertificates();
+        if (certs == null || certs.isEmpty())
+        {
+            return parsed;
+        }
+        List<Certificate> wrapped = new ArrayList<>(certs.size());
+        for (Certificate c : certs)
+        {
+            wrapped.add(wrap(c));
+        }
+        return delegate.generateCertPath(wrapped);
     }
 
     public CertPath engineGenerateCertPath(InputStream inStream, String encoding)
         throws CertificateException
     {
-        return delegate.generateCertPath(inStream, encoding);
+        CertPath parsed = delegate.generateCertPath(inStream, encoding);
+        List<? extends Certificate> certs = parsed.getCertificates();
+        if (certs == null || certs.isEmpty())
+        {
+            return parsed;
+        }
+        List<Certificate> wrapped = new ArrayList<>(certs.size());
+        for (Certificate c : certs)
+        {
+            wrapped.add(wrap(c));
+        }
+        return delegate.generateCertPath(wrapped);
     }
 
     public CertPath engineGenerateCertPath(List<? extends Certificate> certificates)
         throws CertificateException
     {
-        return delegate.generateCertPath(certificates);
+        if (certificates == null || certificates.isEmpty())
+        {
+            return delegate.generateCertPath(certificates);
+        }
+        List<Certificate> wrapped = new ArrayList<>(certificates.size());
+        for (Certificate c : certificates)
+        {
+            wrapped.add(wrap(c));
+        }
+        return delegate.generateCertPath(wrapped);
     }
 
     public java.util.Iterator<String> engineGetCertPathEncodings()
