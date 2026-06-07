@@ -357,6 +357,67 @@ public class DESedeAgreementTest
     }
 
     @Test
+    public void testAcceptsWrapNameAndCaseInsensitiveKeyAlgorithms() throws Exception
+    {
+        // validateKeyAlg accepts "DESede"/"TripleDES", their JCE key-wrap
+        // spellings (a CEK recovered via Cipher.unwrap on the CMS KEM/KTS path is
+        // tagged with the wrap name, not the bare cipher name), and case variants.
+        // Each accepted alias must not only init without throwing but key the
+        // cipher identically to a plain "DESede" key.
+        SecureRandom rng = seededRandom("testAcceptsWrapNameAndCaseInsensitiveKeyAlgorithms");
+        byte[] keyBytes = new byte[24];
+        rng.nextBytes(keyBytes);
+        byte[] pt = new byte[16];
+        rng.nextBytes(pt);
+
+        Cipher ref = Cipher.getInstance("DESede/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        ref.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "DESede"));
+        byte[] refCt = ref.doFinal(pt);
+
+        String[] acceptedAliases = {"DESedeWrap", "DESEDEWRAP", "TripleDESWrap", "desede", "tripledes"};
+        for (String alias : acceptedAliases)
+        {
+            Cipher enc = Cipher.getInstance("DESede/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, alias));   // must not throw
+            byte[] ct = enc.doFinal(pt);
+            Assertions.assertArrayEquals(refCt, ct,
+                    alias + ": key did not encrypt identically to a DESede-tagged key");
+
+            Cipher dec = Cipher.getInstance("DESede/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(keyBytes, alias));
+            Assertions.assertArrayEquals(pt, dec.doFinal(ct),
+                    alias + ": round-trip failed for accepted key algorithm");
+        }
+
+        // A different family shares neither "DESEDE" nor "TRIPLEDES" prefix and
+        // is still rejected, so the looser match is not a blanket accept-anything.
+        try
+        {
+            Cipher cipher = Cipher.getInstance("DESede/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "AES"));
+            Assertions.fail("AES key must not be accepted by a DESede cipher");
+        }
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals("unsupported key algorithm AES", expected.getMessage());
+        }
+
+        // Single "DES" shares the leading "DES" with "DESede" but is NOT a prefix
+        // of it — the match is alg.startsWith(expected), not the reverse — so a
+        // single-DES key must still be rejected by a DESede cipher.
+        try
+        {
+            Cipher cipher = Cipher.getInstance("DESede/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "DES"));
+            Assertions.fail("single-DES key must not be accepted by a DESede cipher");
+        }
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals("unsupported key algorithm DES", expected.getMessage());
+        }
+    }
+
+    @Test
     public void testCBC_wrongIvLength_rejected() throws Exception
     {
         // DES block size is 8 bytes; IV must be 8. Probe boundary +/- 1.
