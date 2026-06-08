@@ -66,6 +66,14 @@ class ProvAES
         provider.addAlgorithmImplementation("KeyGenerator", "AES256", PREFIX + "AESKeyGen256", generalAesAttributes, (arg) -> new AESKeyGenerator(256));
         provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad);
 
+        // AES-GCM AlgorithmParameters, registered under the GCM OIDs only (see
+        // GCMAlgorithmParameters). Lets OID-driven callers — notably CMS
+        // EnvelopedData decryption — parse the stored GCMParameters (nonce/ICV)
+        // via AlgorithmParameters.getInstance(<aes-gcm-oid>, "JSL").
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes128_GCM, PREFIX + "AES128GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes192_GCM, PREFIX + "AES192GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_GCM, PREFIX + "AES256GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
+
         // AES/CCM — separate SPI because CCM is one-shot at the
         // OpenSSL layer (total plaintext length must be known up-front,
         // AAD must be passed in a single call). Registering with the

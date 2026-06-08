@@ -1213,8 +1213,53 @@ public class AESAgreementTest
         params.init(new byte[16]);
         cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), params);
     }
-    
-    
+
+    @Test
+    public void testAcceptsWrapNameAndCaseInsensitiveKeyAlgorithms() throws Exception
+    {
+        // validateKeyAlg accepts the cipher's own algorithm, its JCE key-wrap
+        // spellings (a CEK recovered via Cipher.unwrap on the CMS KEM/KTS path is
+        // tagged with the wrap name, not the bare "AES"), and case variants. Each
+        // accepted alias must not only init without throwing but key the cipher
+        // identically to a plain "AES" key — proving the prefix match selects AES
+        // key material, not merely that init was permissive.
+        SecureRandom rng = seededRandom("testAcceptsWrapNameAndCaseInsensitiveKeyAlgorithms");
+        byte[] keyBytes = new byte[16];
+        rng.nextBytes(keyBytes);
+        byte[] pt = new byte[32];
+        rng.nextBytes(pt);
+
+        Cipher ref = Cipher.getInstance("AES/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+        ref.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "AES"));
+        byte[] refCt = ref.doFinal(pt);
+
+        String[] acceptedAliases = {"AESWrap", "AESWRAP", "AESKW", "aes", "Aes"};
+        for (String alias : acceptedAliases)
+        {
+            Cipher enc = Cipher.getInstance("AES/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, alias));   // must not throw
+            byte[] ct = enc.doFinal(pt);
+            Assertions.assertArrayEquals(refCt, ct,
+                    alias + ": key did not encrypt identically to an AES-tagged key");
+
+            Cipher dec = Cipher.getInstance("AES/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(keyBytes, alias));
+            Assertions.assertArrayEquals(pt, dec.doFinal(ct),
+                    alias + ": round-trip failed for accepted key algorithm");
+        }
+
+        // A genuinely different family shares no prefix and is still rejected,
+        // so the looser match is not a blanket accept-anything.
+        try {
+            Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding", JostleProvider.PROVIDER_NAME);
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "ARIA"));
+            Assertions.fail("ARIA key must not be accepted by an AES cipher");
+        } catch (InvalidKeyException ikes) {
+            Assertions.assertEquals("unsupported key algorithm ARIA", ikes.getMessage());
+        }
+    }
+
+
     private String pad(int len)
     {
         char[] buf = new char[len];

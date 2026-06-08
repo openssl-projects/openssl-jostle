@@ -892,11 +892,26 @@ class BlockCipherSpi extends CipherSpi
 
     protected void validateKeyAlg(Key key) throws InvalidKeyException
     {
-        if (keyAlgorithm.equals(key.getAlgorithm()))
+        String alg = key.getAlgorithm();
+        if (alg != null)
         {
-            return;
+            String a = Strings.toUpperCase(alg);
+            String expected = Strings.toUpperCase(keyAlgorithm);
+            // Accept the cipher's own key algorithm, and the JCE key-wrap
+            // spellings of it whose key material is still an <alg> key — e.g.
+            // "AES" also matches "AESWrap"/"AESWRAP"/"AESKW". A CEK recovered via
+            // a key-wrap Cipher.unwrap(...) is commonly tagged with the wrap name
+            // rather than the bare cipher name (notably on the CMS KEM/KTS
+            // recipient path, RFC 9629), so a strict equals would reject it. A
+            // genuinely different algorithm (e.g. "ARIA" for an AES cipher) does
+            // not share the prefix and is still rejected; key length is validated
+            // by the native layer regardless.
+            if (a.equals(expected) || a.startsWith(expected))
+            {
+                return;
+            }
         }
-        throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
+        throw new InvalidKeyException("unsupported key algorithm " + alg);
     }
 
 }

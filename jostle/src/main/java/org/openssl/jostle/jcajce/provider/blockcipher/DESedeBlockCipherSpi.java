@@ -11,6 +11,8 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 
+import org.openssl.jostle.util.Strings;
+
 import javax.crypto.spec.IvParameterSpec;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
@@ -104,17 +106,27 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
     }
 
     /**
-     * Accepts both "DESede" and the JCE-standard alias "TripleDES" as
-     * the key's reported algorithm — applications that wire keys from
-     * different libraries shouldn't have to translate.
+     * Accepts both "DESede" and the JCE-standard alias "TripleDES" as the key's
+     * reported algorithm — applications that wire keys from different libraries
+     * shouldn't have to translate — plus their JCE key-wrap spellings (e.g.
+     * "DESedeWrap"), case-insensitively. A CEK recovered via a key-wrap
+     * {@code Cipher.unwrap(...)} is commonly tagged with the wrap name rather
+     * than the bare cipher name (notably on the CMS KEM/KTS recipient path,
+     * RFC 9629), so a strict equals would reject it. A genuinely different
+     * algorithm (e.g. "AES", or single "DES") shares neither prefix and is still
+     * rejected; key length is validated separately by {@link #determineOSSLCipher}.
      */
     @Override
     protected void validateKeyAlg(Key key) throws InvalidKeyException
     {
         String alg = key.getAlgorithm();
-        if (DESEDE.equals(alg) || TRIPLE_DES.equals(alg))
+        if (alg != null)
         {
-            return;
+            String a = Strings.toUpperCase(alg);
+            if (a.startsWith(Strings.toUpperCase(DESEDE)) || a.startsWith(Strings.toUpperCase(TRIPLE_DES)))
+            {
+                return;
+            }
         }
         throw new InvalidKeyException("unsupported key algorithm " + alg);
     }
