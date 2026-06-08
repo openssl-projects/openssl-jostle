@@ -1645,6 +1645,38 @@ public class RSATest
         Assertions.assertTrue(verifier.verify(sig), "PSS round-trip with imported id-RSASSA-PSS key failed");
     }
 
+    /**
+     * {@code RSAPrivateKey.getEncoded()} must be a real PKCS#8 PrivateKeyInfo —
+     * matching the {@code getFormat() == "PKCS#8"} contract — not the
+     * traditional PKCS#1 RSAPrivateKey (JCA/TLS gap #8). A strict PKCS#8 parser
+     * (BC's {@code PrivateKeyInfo.getInstance}) must accept it, and the
+     * privateKeyAlgorithm must be rsaEncryption.
+     */
+    @Test
+    public void testPrivateKeyEncoding_isPkcs8NotPkcs1() throws Exception
+    {
+        PrivateKey priv = sharedKeyPair.getPrivate();
+        Assertions.assertEquals("PKCS#8", priv.getFormat(), "getFormat() should advertise PKCS#8");
+
+        byte[] encoded = priv.getEncoded();
+
+        // Strict PKCS#8 parse — would throw on a traditional PKCS#1 RSAPrivateKey
+        // (its second SEQUENCE element is the modulus INTEGER, not an AlgorithmIdentifier).
+        org.bouncycastle.asn1.pkcs.PrivateKeyInfo pki =
+                org.bouncycastle.asn1.pkcs.PrivateKeyInfo.getInstance(encoded);
+        Assertions.assertEquals(
+                org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.rsaEncryption,
+                pki.getPrivateKeyAlgorithm().getAlgorithm(),
+                "PKCS#8 privateKeyAlgorithm should be rsaEncryption");
+
+        // Re-decode through JSL and confirm the key still functions.
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        PrivateKey roundTripped = kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+        Assertions.assertEquals(
+                ((java.security.interfaces.RSAPrivateKey) priv).getModulus(),
+                ((java.security.interfaces.RSAPrivateKey) roundTripped).getModulus());
+    }
+
     private static byte[] randomMessage(SecureRandom sr, int len)
     {
         byte[] m = new byte[len];
