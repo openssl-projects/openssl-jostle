@@ -16,4 +16,8 @@ void rand_destroy(void);
 
 int32_t rand_random_bytes(uint8_t *output, int32_t output_len, int32_t strength);
 
+int32_t rand_instantiate(int32_t strength, int prediction_resistant);
+
+int32_t rand_reseed(int32_t strength, int prediction_resistant);
+
 #endif //RAND_H

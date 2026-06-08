@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.rand;
 
 import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Arena;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
@@ -29,6 +30,12 @@ public class RandServiceFFI implements RandServiceNI
     private static final MemorySegment randomBytesFunc;
     private static final MethodHandle randomBytesFuncHandle;
 
+    private static final MemorySegment instantiateFunc;
+    private static final MethodHandle instantiateFuncHandle;
+
+    private static final MemorySegment reseedFunc;
+    private static final MethodHandle reseedFuncHandle;
+
     static
     {
         randomBytesFunc = lookup.find("JoRand_randomBytes").orElseThrow();
@@ -41,6 +48,24 @@ public class RandServiceFFI implements RandServiceNI
                         ValueLayout.JAVA_INT
                 )
         );
+
+        instantiateFunc = lookup.find("JoRand_instantiate").orElseThrow();
+        instantiateFuncHandle = linker.downcallHandle(instantiateFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE
+                )
+        );
+
+        reseedFunc = lookup.find("JoRand_reseed").orElseThrow();
+        reseedFuncHandle = linker.downcallHandle(reseedFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE
+                )
+        );
     }
 
     @Override
@@ -51,22 +76,63 @@ public class RandServiceFFI implements RandServiceNI
             return 0;
         }
 
-        try
+        try (Arena a = Arena.ofConfined())
         {
             MemorySegment outputSeg = output == null ?
                     MemorySegment.NULL :
-                    MemorySegment.ofArray(output);
+                    a.allocate(output.length);
 
-            return (int) randomBytesFuncHandle.invokeExact(
+            int code = (int) randomBytesFuncHandle.invokeExact(
                     outputSeg,
                     outputSeg.byteSize(),
                     outputLen,
                     strength
             );
+
+            if (code >= 0 && output != null && outputLen > 0)
+            {
+                outputSeg.asSlice(0, outputLen).asByteBuffer().get(output, 0, outputLen);
+            }
+
+            return code;
         }
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI JoRand_randomBytes", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_instantiate(int strength, boolean predictionResistant)
+    {
+        try
+        {
+            return (int) instantiateFuncHandle.invokeExact(
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0)
+            );
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_instantiate", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_reseed(int strength, boolean predictionResistant)
+    {
+        try
+        {
+            return (int) reseedFuncHandle.invokeExact(
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0)
+            );
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_reseed", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

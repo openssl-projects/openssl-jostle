@@ -69,6 +69,54 @@ public class RandServiceLimitTest
     }
 
     @Test
+    public void instantiateRejectsNegativeStrength()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.instantiate(-1, false));
+    }
+
+    @Test
+    public void instantiateRejectsMinimumNegativeStrength()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.instantiate(Integer.MIN_VALUE, false));
+    }
+
+    @Test
+    public void instantiateRejectsInsufficientStrength()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.instantiate(Integer.MAX_VALUE, false));
+    }
+
+    @Test
+    public void instantiateAcceptsZeroStrength()
+    {
+        randServiceNI.instantiate(0, false);
+    }
+
+    @Test
+    public void instantiateAcceptsAlgorithmStrength()
+    {
+        randServiceNI.instantiate(DRBG_STRENGTH, false);
+    }
+
+    @Test
+    public void reseedRejectsNegativeStrength()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.reseed(-1, false));
+    }
+
+    @Test
+    public void reseedRejectsInsufficientStrength()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.reseed(Integer.MAX_VALUE, false));
+    }
+
+    @Test
+    public void reseedAcceptsAlgorithmStrength()
+    {
+        randServiceNI.reseed(DRBG_STRENGTH, false);
+    }
+
+    @Test
     public void randomBytesRejectsLengthPastOutput()
     {
         Assertions.assertThrows(IllegalArgumentException.class,

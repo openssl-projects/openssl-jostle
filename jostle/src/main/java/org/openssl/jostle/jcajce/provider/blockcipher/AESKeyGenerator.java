@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ProvSecretKeySpec;
 
 import javax.crypto.KeyGeneratorSpi;
@@ -32,12 +33,13 @@ public class AESKeyGenerator extends KeyGeneratorSpi
 
     public AESKeyGenerator()
     {
-        random = new SecureRandom();
+        random = CryptoServicesRegistrar.getSecureRandom();
         keySize = 256;
     }
 
     public AESKeyGenerator(int fixedSize)
     {
+        this.random = CryptoServicesRegistrar.getSecureRandom();
         this.fixedKeySize = fixedSize;
         this.keySize = fixedSize;
     }
@@ -46,7 +48,7 @@ public class AESKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(SecureRandom random)
     {
-        this.random = random;
+        this.random = CryptoServicesRegistrar.getSecureRandom(random);
     }
 
     @Override
@@ -69,18 +71,13 @@ public class AESKeyGenerator extends KeyGeneratorSpi
                 throw new IllegalArgumentException("key size must be 128, 192 or 256");
         }
 
-        if (random == null)
-        {
-            throw new IllegalArgumentException("random is null");
-        }
-
         if (fixedKeySize > 0 && keysize != fixedKeySize)
         {
             throw new IllegalArgumentException("key size must be " + fixedKeySize);
         }
 
 
-        this.random = random;
+        this.random = CryptoServicesRegistrar.getSecureRandom(random);
         this.keySize = keysize;
 
     }

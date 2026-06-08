@@ -32,3 +32,19 @@ int32_t JoRand_randomBytes(uint8_t *output, size_t output_size, int32_t output_l
 
     return rand_random_bytes(output, output_len, strength);
 }
+
+int32_t JoRand_instantiate(int32_t strength, uint8_t prediction_resistant) {
+    if (strength < 0) {
+        return JO_RAND_INSUFFICIENT_STRENGTH;
+    }
+
+    return rand_instantiate(strength, prediction_resistant != 0);
+}
+
+int32_t JoRand_reseed(int32_t strength, uint8_t prediction_resistant) {
+    if (strength < 0) {
+        return JO_RAND_INSUFFICIENT_STRENGTH;
+    }
+
+    return rand_reseed(strength, prediction_resistant != 0);
+}

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <openssl/err.h>
 #include <openssl/crypto.h>
+#include <openssl/evp.h>
 #include <openssl/provider.h>
 #include <openssl/rand.h>
 
@@ -99,4 +100,76 @@ int32_t rand_random_bytes(uint8_t *output, int32_t output_len, int32_t strength)
     }
 
     return JO_SUCCESS;
+}
+
+int32_t rand_instantiate(int32_t strength, int prediction_resistant) {
+    jo_assert(strength >= 0);
+    jo_assert(rand_libctx != NULL);
+
+    ERR_clear_error();
+
+    EVP_RAND_CTX *ctx = RAND_get0_private(rand_libctx);
+    if (ctx == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    unsigned int available_strength = EVP_RAND_get_strength(ctx);
+    if (available_strength < (unsigned int) strength) {
+        return JO_RAND_INSUFFICIENT_STRENGTH;
+    }
+
+    int state = EVP_RAND_get_state(ctx);
+    if (state == EVP_RAND_STATE_UNINITIALISED) {
+        if (1 != EVP_RAND_instantiate(ctx, (unsigned int) strength,
+                                      prediction_resistant != 0, NULL, 0, NULL)) {
+            return JO_OPENSSL_ERROR;
+        }
+        return JO_SUCCESS;
+    }
+
+    if (state == EVP_RAND_STATE_READY) {
+        if (prediction_resistant != 0) {
+            if (1 != EVP_RAND_reseed(ctx, 1, NULL, 0, NULL, 0)) {
+                return JO_RAND_RESEED;
+            }
+        }
+        return JO_SUCCESS;
+    }
+
+    return JO_UNEXPECTED_STATE;
+}
+
+int32_t rand_reseed(int32_t strength, int prediction_resistant) {
+    jo_assert(strength >= 0);
+    jo_assert(rand_libctx != NULL);
+
+    ERR_clear_error();
+
+    EVP_RAND_CTX *ctx = RAND_get0_private(rand_libctx);
+    if (ctx == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    unsigned int available_strength = EVP_RAND_get_strength(ctx);
+    if (available_strength < (unsigned int) strength) {
+        return JO_RAND_INSUFFICIENT_STRENGTH;
+    }
+
+    int state = EVP_RAND_get_state(ctx);
+    if (state == EVP_RAND_STATE_UNINITIALISED) {
+        if (1 != EVP_RAND_instantiate(ctx, (unsigned int) strength,
+                                      prediction_resistant != 0, NULL, 0, NULL)) {
+            return JO_OPENSSL_ERROR;
+        }
+        return JO_SUCCESS;
+    }
+
+    if (state == EVP_RAND_STATE_READY) {
+        if (1 != EVP_RAND_reseed(ctx, prediction_resistant != 0, NULL, 0, NULL, 0)) {
+            return JO_RAND_RESEED;
+        }
+        return JO_SUCCESS;
+    }
+
+    return JO_UNEXPECTED_STATE;
 }

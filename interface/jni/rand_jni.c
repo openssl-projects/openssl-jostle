@@ -61,3 +61,39 @@ exit:
     release_bytearray_ctx(&output);
     return ret_code;
 }
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_instantiate
+ * Signature: (IZ)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1instantiate
+  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant)
+{
+    UNUSED(env);
+    UNUSED(jo);
+
+    if (strength < 0) {
+        return JO_RAND_INSUFFICIENT_STRENGTH;
+    }
+
+    return rand_instantiate(strength, prediction_resistant == JNI_TRUE);
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_reseed
+ * Signature: (IZ)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1reseed
+  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant)
+{
+    UNUSED(env);
+    UNUSED(jo);
+
+    if (strength < 0) {
+        return JO_RAND_INSUFFICIENT_STRENGTH;
+    }
+
+    return rand_reseed(strength, prediction_resistant == JNI_TRUE);
+}
