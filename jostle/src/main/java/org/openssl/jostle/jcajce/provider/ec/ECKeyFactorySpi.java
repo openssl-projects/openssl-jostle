@@ -17,7 +17,7 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.math.BigInteger;
 
@@ -39,7 +39,7 @@ import java.security.spec.X509EncodedKeySpec;
  * KeyFactorySpi for EC. Supports the following key-spec forms:
  * <ol>
  *   <li>{@link X509EncodedKeySpec} for public keys — decoded via the
- *       generic {@link ASNEncoder} into a Jostle {@code EVP_PKEY};</li>
+ *       generic {@link ASN1Encoder} into a Jostle {@code EVP_PKEY};</li>
  *   <li>{@link PKCS8EncodedKeySpec} for private keys — same path;</li>
  *   <li>{@link ECPublicKeySpec} for public keys — the BigInteger
  *       components are encoded to X.509 SubjectPublicKeyInfo via the
@@ -71,7 +71,7 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
             requireEC(spec);
             return new JOECPublicKey(spec);
         }
@@ -84,7 +84,7 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             // handles the OID/parameter encoding the same way OpenSSL's
             // SPKI parser expects.
             byte[] encoded = encodeViaSunEC((ECPublicKeySpec) keySpec);
-            PKEYKeySpec spec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
             requireEC(spec);
             return new JOECPublicKey(spec);
         }
@@ -98,7 +98,7 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASNEncoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
             requireEC(spec);
             return new JOECPrivateKey(spec);
         }

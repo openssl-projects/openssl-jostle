@@ -13,7 +13,7 @@ package org.openssl.jostle.test.crypto;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.NTTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.NTTObjectIdentifiers;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;

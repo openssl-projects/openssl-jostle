@@ -11,7 +11,7 @@
 
 package org.openssl.jostle.jcajce.spec;
 
-import org.openssl.jostle.jcajce.provider.EdECObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
 
 import java.security.InvalidParameterException;
 import java.security.spec.AlgorithmParameterSpec;

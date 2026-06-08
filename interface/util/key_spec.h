@@ -44,6 +44,11 @@
 #define KS_RSA 25
 #define KS_EC 26
 
+// XDH key-agreement key types (RFC 8410). The OpenSSL EVP_PKEY type name
+// ("X25519" / "X448") fully determines these keys — no curve parameter.
+#define KS_X25519 27
+#define KS_X448 28
+
 
 typedef struct key_spec {
     EVP_PKEY *key;

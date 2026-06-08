@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.math.BigInteger;
@@ -59,7 +59,7 @@ class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSS
     {
         synchronized (this)
         {
-            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
         }
     }
 

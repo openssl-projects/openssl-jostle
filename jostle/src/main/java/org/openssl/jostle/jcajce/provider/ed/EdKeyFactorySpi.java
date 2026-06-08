@@ -13,7 +13,7 @@ package org.openssl.jostle.jcajce.provider.ed;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -54,7 +54,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec pkeySpec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
                 throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
@@ -103,7 +103,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
 
-            PKEYKeySpec pkeySpec = ASNEncoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {

@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKTSCipherSpi;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,9 +65,9 @@ class ProvMLKEM
         // "kems" arc, not the .4.3 "sigAlgs" arc) so a certificate's public key
         // can be re-derived through the JSL KeyFactory keyed on the
         // SubjectPublicKeyInfo algorithm OID (see JSLKeyX509Certificate).
-        provider.addAlias("KeyFactory", "ML-KEM-512", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.1"));
-        provider.addAlias("KeyFactory", "ML-KEM-768", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.2"));
-        provider.addAlias("KeyFactory", "ML-KEM-1024", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.3"));
+        provider.addAlias("KeyFactory", "ML-KEM-512", NISTObjectIdentifiers.id_alg_ml_kem_512);
+        provider.addAlias("KeyFactory", "ML-KEM-768", NISTObjectIdentifiers.id_alg_ml_kem_768);
+        provider.addAlias("KeyFactory", "ML-KEM-1024", NISTObjectIdentifiers.id_alg_ml_kem_1024);
 
         // KTS (key-transport) Cipher for the CMS KEMRecipientInfo path (RFC 9629).
         // BC's JceCMSKEMKeyWrapper/Unwrapper resolve it via Cipher.getInstance(<ml-kem-oid>),
@@ -76,9 +77,9 @@ class ProvMLKEM
         provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi());
         provider.addAlias("Cipher", "ML-KEM", "MLKEM");
         provider.addAlias("Cipher", "ML-KEM",
-            new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.1"),
-            new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.2"),
-            new ASN1ObjectIdentifier("2.16.840.1.101.3.4.4.3"));
+            NISTObjectIdentifiers.id_alg_ml_kem_512,
+            NISTObjectIdentifiers.id_alg_ml_kem_768,
+            NISTObjectIdentifiers.id_alg_ml_kem_1024);
 
     }
 

@@ -15,6 +15,7 @@ import org.openssl.jostle.util.AccessSupplier;
 import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.Properties;
 import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -131,6 +132,7 @@ public class JostleProvider
         new ProvED().configure(this);
         new ProvRSA().configure(this);
         new ProvEC().configure(this);
+        new ProvXDH().configure(this);
         new ProvMac().configure(this);
         new ProvX509().configure(this);
     }
