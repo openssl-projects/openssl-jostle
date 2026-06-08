@@ -8,7 +8,9 @@
  *
  */
 
-package org.openssl.jostle.jcajce.provider;
+package org.openssl.jostle.util.asn1.oids;
+
+import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 
 
 public interface NSRIObjectIdentifiers

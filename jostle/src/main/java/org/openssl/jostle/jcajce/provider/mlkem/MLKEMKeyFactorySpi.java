@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import java.security.*;
@@ -60,7 +60,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         {
             byte[] encoded = KeyInfoCanonicalizer.subjectPublicKeyInfo(((X509EncodedKeySpec) keySpec).getEncoded());
 
-            PKEYKeySpec pkeySpec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
@@ -112,7 +112,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
             byte[] encoded = KeyInfoCanonicalizer.privateKeyInfo(((PKCS8EncodedKeySpec) keySpec).getEncoded());
 
-            PKEYKeySpec pkeySpec = ASNEncoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
 
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {

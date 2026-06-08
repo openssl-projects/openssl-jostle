@@ -17,7 +17,7 @@ import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, OSSLKey
@@ -46,7 +46,7 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
     @Override
     public byte[] getEncoded()
     {
-        return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getDirectEncoding()

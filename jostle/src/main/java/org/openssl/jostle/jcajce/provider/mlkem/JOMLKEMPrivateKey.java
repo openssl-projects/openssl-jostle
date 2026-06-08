@@ -19,7 +19,7 @@ import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
@@ -55,9 +55,9 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
     {
         if (seedOnly)
         {
-            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
         }
-        return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getSeed()

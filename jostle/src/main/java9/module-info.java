@@ -18,6 +18,7 @@ module org.openssl.jostle.prov {
     exports org.openssl.jostle.util.io.pem;
     exports org.openssl.jostle.util.encoders;
     exports org.openssl.jostle.util.asn1;
+    exports org.openssl.jostle.util.asn1.oids;
     exports org.openssl.jostle.math.raw;
     exports org.openssl.jostle.jcajce;
     exports org.openssl.jostle.jcajce.spec;

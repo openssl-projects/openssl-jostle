@@ -16,6 +16,8 @@ import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAKeyPairGenerator;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -86,26 +88,26 @@ class ProvSLHDSA
         // SubjectPublicKeyInfo / signature carries the OID resolves to the JSL
         // KeyFactory and Signature (see JSLKeyX509Certificate), rather than falling
         // back to the JDK default.
-        String[] oids = new String[]
+        ASN1ObjectIdentifier[] oids = new ASN1ObjectIdentifier[]
                 {
-                        "2.16.840.1.101.3.4.3.20",  // SLH-DSA-SHA2-128S
-                        "2.16.840.1.101.3.4.3.21",  // SLH-DSA-SHA2-128F
-                        "2.16.840.1.101.3.4.3.22",  // SLH-DSA-SHA2-192S
-                        "2.16.840.1.101.3.4.3.23",  // SLH-DSA-SHA2-192F
-                        "2.16.840.1.101.3.4.3.24",  // SLH-DSA-SHA2-256S
-                        "2.16.840.1.101.3.4.3.25",  // SLH-DSA-SHA2-256F
-                        "2.16.840.1.101.3.4.3.26",  // SLH-DSA-SHAKE-128S
-                        "2.16.840.1.101.3.4.3.27",  // SLH-DSA-SHAKE-128F
-                        "2.16.840.1.101.3.4.3.28",  // SLH-DSA-SHAKE-192S
-                        "2.16.840.1.101.3.4.3.29",  // SLH-DSA-SHAKE-192F
-                        "2.16.840.1.101.3.4.3.30",  // SLH-DSA-SHAKE-256S
-                        "2.16.840.1.101.3.4.3.31"   // SLH-DSA-SHAKE-256F
+                        NISTObjectIdentifiers.id_slh_dsa_sha2_128s,
+                        NISTObjectIdentifiers.id_slh_dsa_sha2_128f,
+                        NISTObjectIdentifiers.id_slh_dsa_sha2_192s,
+                        NISTObjectIdentifiers.id_slh_dsa_sha2_192f,
+                        NISTObjectIdentifiers.id_slh_dsa_sha2_256s,
+                        NISTObjectIdentifiers.id_slh_dsa_sha2_256f,
+                        NISTObjectIdentifiers.id_slh_dsa_shake_128s,
+                        NISTObjectIdentifiers.id_slh_dsa_shake_128f,
+                        NISTObjectIdentifiers.id_slh_dsa_shake_192s,
+                        NISTObjectIdentifiers.id_slh_dsa_shake_192f,
+                        NISTObjectIdentifiers.id_slh_dsa_shake_256s,
+                        NISTObjectIdentifiers.id_slh_dsa_shake_256f
                 };
 
         for (int i = 0; i < algNames.length; i++)
         {
-            provider.addAlias("KeyFactory", algNames[i], new ASN1ObjectIdentifier(oids[i]));
-            provider.addAlias("Signature", algNames[i], new ASN1ObjectIdentifier(oids[i]));
+            provider.addAlias("KeyFactory", algNames[i], oids[i]);
+            provider.addAlias("Signature", algNames[i], oids[i]);
         }
 
     }

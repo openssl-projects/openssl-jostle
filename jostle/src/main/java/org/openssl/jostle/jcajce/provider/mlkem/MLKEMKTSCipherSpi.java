@@ -20,6 +20,8 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -330,9 +332,9 @@ public class MLKEMKTSCipherSpi
         String oid;
         switch (kek.length)
         {
-        case 16: oid = "2.16.840.1.101.3.4.1.5";  break;   // id-aes128-wrap
-        case 24: oid = "2.16.840.1.101.3.4.1.25"; break;   // id-aes192-wrap
-        case 32: oid = "2.16.840.1.101.3.4.1.45"; break;   // id-aes256-wrap
+        case 16: oid = NISTObjectIdentifiers.id_aes128_wrap.getId(); break;   // id-aes128-wrap
+        case 24: oid = NISTObjectIdentifiers.id_aes192_wrap.getId(); break;   // id-aes192-wrap
+        case 32: oid = NISTObjectIdentifiers.id_aes256_wrap.getId(); break;   // id-aes256-wrap
         default: throw new InvalidKeyException("unsupported AES-KW KEK size: " + kek.length);
         }
         Cipher c = Cipher.getInstance(oid, JostleProvider.PROVIDER_NAME);
@@ -427,19 +429,19 @@ public class MLKEMKTSCipherSpi
 
     private static String digestNameForOid(String oid)
     {
-        if ("2.16.840.1.101.3.4.2.1".equals(oid))
+        if (NISTObjectIdentifiers.id_sha256.getId().equals(oid))
         {
             return "SHA-256";
         }
-        if ("2.16.840.1.101.3.4.2.2".equals(oid))
+        if (NISTObjectIdentifiers.id_sha384.getId().equals(oid))
         {
             return "SHA-384";
         }
-        if ("2.16.840.1.101.3.4.2.3".equals(oid))
+        if (NISTObjectIdentifiers.id_sha512.getId().equals(oid))
         {
             return "SHA-512";
         }
-        if ("2.16.840.1.101.3.4.2.4".equals(oid))
+        if (NISTObjectIdentifiers.id_sha224.getId().equals(oid))
         {
             return "SHA-224";
         }
@@ -488,34 +490,13 @@ public class MLKEMKTSCipherSpi
         }
         int len = readLength(data, pos);
         int off = pos[0];
-        if (len <= 0 || off + len > data.length)
-        {
-            throw new IllegalArgumentException("invalid OID");
-        }
+        // fromContents validates the range and the base-128 contents encoding
+        // (minimal sub-identifiers, no dangling continuation bit, length cap),
+        // throwing IllegalArgumentException on any malformation; resolveKdfDigest
+        // maps that to InvalidAlgorithmParameterException.
+        ASN1ObjectIdentifier oid = ASN1ObjectIdentifier.fromContents(data, off, len);
         pos[0] += len;
-        StringBuilder sb = new StringBuilder();
-        long value = 0;
-        boolean first = true;
-        for (int i = 0; i < len; i++)
-        {
-            int b = data[off + i] & 0xFF;
-            value = (value << 7) | (b & 0x7F);
-            if ((b & 0x80) == 0)
-            {
-                if (first)
-                {
-                    long arc = value / 40 > 2 ? 2 : value / 40;
-                    sb.append(arc).append('.').append(value - arc * 40);
-                    first = false;
-                }
-                else
-                {
-                    sb.append('.').append(value);
-                }
-                value = 0;
-            }
-        }
-        return sb.toString();
+        return oid.getId();
     }
 
     private static int readLength(byte[] data, int[] pos)

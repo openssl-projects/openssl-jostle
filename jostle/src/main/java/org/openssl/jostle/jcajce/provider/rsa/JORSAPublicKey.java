@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.math.BigInteger;
 
@@ -44,7 +44,7 @@ class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
     {
         synchronized (this)
         {
-            return ASNEncoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
         }
     }
 

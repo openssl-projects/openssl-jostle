@@ -13,7 +13,7 @@ package org.openssl.jostle.util.asn1;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
-public class ASNEncoder
+public class ASN1Encoder
 {
 
     /**
