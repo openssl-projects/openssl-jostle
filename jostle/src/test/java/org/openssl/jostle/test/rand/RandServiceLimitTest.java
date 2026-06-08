@@ -71,19 +71,21 @@ public class RandServiceLimitTest
     @Test
     public void instantiateRejectsNegativeStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.instantiate(-1, false));
+        assertIllegalArgument("insufficient random strength", () -> randServiceNI.instantiate(-1, false));
     }
 
     @Test
     public void instantiateRejectsMinimumNegativeStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.instantiate(Integer.MIN_VALUE, false));
+        assertIllegalArgument("insufficient random strength",
+                () -> randServiceNI.instantiate(Integer.MIN_VALUE, false));
     }
 
     @Test
     public void instantiateRejectsInsufficientStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.instantiate(Integer.MAX_VALUE, false));
+        assertIllegalArgument("insufficient random strength",
+                () -> randServiceNI.instantiate(Integer.MAX_VALUE, false));
     }
 
     @Test
@@ -101,13 +103,13 @@ public class RandServiceLimitTest
     @Test
     public void reseedRejectsNegativeStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.reseed(-1, false));
+        assertIllegalArgument("insufficient random strength", () -> randServiceNI.reseed(-1, false));
     }
 
     @Test
     public void reseedRejectsInsufficientStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.reseed(Integer.MAX_VALUE, false));
+        assertIllegalArgument("insufficient random strength", () -> randServiceNI.reseed(Integer.MAX_VALUE, false));
     }
 
     @Test
@@ -135,5 +137,11 @@ public class RandServiceLimitTest
         byte[] output = new byte[8];
 
         randServiceNI.randomBytes(output, output.length, DRBG_STRENGTH);
+    }
+
+    private static void assertIllegalArgument(String message, Runnable action)
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class, action::run);
+        Assertions.assertEquals(message, e.getMessage());
     }
 }

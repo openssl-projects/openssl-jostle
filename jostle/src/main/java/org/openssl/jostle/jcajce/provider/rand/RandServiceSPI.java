@@ -33,6 +33,16 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     public RandServiceSPI(RandAlgorithm algorithm)
     {
+        this(algorithm, null);
+    }
+
+    public RandServiceSPI(RandAlgorithm algorithm, Object params)
+    {
+        if (params != null)
+        {
+            throw new UnsupportedOperationException("SecureRandom parameters are not supported");
+        }
+
         if (algorithm == null)
         {
             throw new NullPointerException("algorithm cannot be null");

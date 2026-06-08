@@ -37,7 +37,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         this(algorithm, null);
     }
 
-    public RandServiceSPI(RandAlgorithm algorithm, SecureRandomParameters params)
+    public RandServiceSPI(RandAlgorithm algorithm, Object params)
     {
         if (algorithm == null)
         {
