@@ -1643,6 +1643,16 @@ public class RSATest
         verifier.initVerify(jslPub);
         verifier.update(msg);
         Assertions.assertTrue(verifier.verify(sig), "PSS round-trip with imported id-RSASSA-PSS key failed");
+
+        // Negative: a tampered message must not verify — proves the imported
+        // public key actually checks the signature (not a stub that accepts all).
+        byte[] tampered = Arrays.clone(msg);
+        tampered[sr.nextInt(tampered.length)] ^= 0x01;
+        Signature badVerifier = Signature.getInstance("SHA256withRSAandMGF1", JostleProvider.PROVIDER_NAME);
+        badVerifier.initVerify(jslPub);
+        badVerifier.update(tampered);
+        Assertions.assertFalse(badVerifier.verify(sig),
+                "imported id-RSASSA-PSS key verified a tampered message");
     }
 
     /**
