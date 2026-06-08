@@ -40,8 +40,8 @@ class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
     @Override
     public byte[] getEncoded()
     {
-        // ASN1
-        return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+        // FIPS 204: AlgorithmIdentifier parameters MUST be absent.
+        return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
     }
 
     @Override

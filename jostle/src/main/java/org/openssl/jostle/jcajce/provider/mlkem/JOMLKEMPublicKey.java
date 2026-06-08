@@ -40,8 +40,8 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
     @Override
     public byte[] getEncoded()
     {
-        // ASN1
-        return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+        // FIPS 203: AlgorithmIdentifier parameters MUST be absent.
+        return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
     }
 
 

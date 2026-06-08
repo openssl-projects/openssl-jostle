@@ -76,6 +76,42 @@ public class KeyInfoCanonicalizerTest
         run("ML-KEM-768");
     }
 
+    // Output side (gap #10): a FIPS 203/204/205 key's own getEncoded() must
+    // already carry absent AlgorithmIdentifier parameters, regardless of whether
+    // the provider is globally installed — running it through the canonicaliser
+    // must be a byte-for-byte no-op (a stray NULL would change it).
+
+    @Test
+    public void mldsa_outputCanonical() throws Exception
+    {
+        assertEncodedCanonical("ML-DSA-44");
+    }
+
+    @Test
+    public void slhdsa_outputCanonical() throws Exception
+    {
+        assertEncodedCanonical("SLH-DSA-SHA2-128F");
+    }
+
+    @Test
+    public void mlkem_outputCanonical() throws Exception
+    {
+        assertEncodedCanonical("ML-KEM-768");
+    }
+
+    private void assertEncodedCanonical(String alg) throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME).generateKeyPair();
+
+        byte[] spki = kp.getPublic().getEncoded();
+        Assertions.assertArrayEquals(spki, KeyInfoCanonicalizer.subjectPublicKeyInfo(spki),
+                alg + ": getEncoded() SPKI carries non-absent AlgorithmIdentifier parameters");
+
+        byte[] pkcs8 = kp.getPrivate().getEncoded();
+        Assertions.assertArrayEquals(pkcs8, KeyInfoCanonicalizer.privateKeyInfo(pkcs8),
+                alg + ": getEncoded() PKCS#8 carries non-absent privateKeyAlgorithm parameters");
+    }
+
     // -----------------------------------------------------------------
     // Direct synthetic unit tests of the canonicaliser's branches: an exact
     // NULL parameters element is stripped, and any other shape is returned

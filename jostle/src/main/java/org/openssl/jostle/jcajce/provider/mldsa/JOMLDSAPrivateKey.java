@@ -54,11 +54,12 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
     @Override
     public byte[] getEncoded()
     {
+        // FIPS 204: AlgorithmIdentifier parameters MUST be absent.
         if (seedOnly)
         {
-            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+            return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
         }
-        return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getSeed()
