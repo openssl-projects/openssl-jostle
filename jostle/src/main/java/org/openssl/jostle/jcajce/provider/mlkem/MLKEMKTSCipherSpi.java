@@ -10,13 +10,15 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
-import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -62,7 +64,7 @@ public class MLKEMKTSCipherSpi
 
     private int opmode;
     private PKEYKeySpec keySpec;
-    private SecureRandom random;
+    private RandSource randSource;
 
     // KTSParameterSpec contents (read reflectively in engineInit).
     private int kekBits;
@@ -124,9 +126,34 @@ public class MLKEMKTSCipherSpi
 
         readKtsSpec(params);
 
+        RandSource resolvedRandSource = null;
+        if (opmode == Cipher.WRAP_MODE)
+        {
+            // ML-KEM encapsulation consumes entropy through the C-side RAND gate
+            // (GH #34): ML-KEM-768/1024 require 192/256-bit strength. Fail fast if
+            // the caller supplied a SecureRandom reporting a lower strength (Java 9+
+            // DRBG path); a reported 0 means "unknown" and is accepted, with the C
+            // gate as the safety net. The RandSource is then resolved to a
+            // strength-appropriate DRBG for the key's parameter set — matching
+            // MLKEMKeyGenerator, which also encapsulates. UNWRAP_MODE (decap)
+            // consumes no entropy, so no RandSource is needed there.
+            int strengthBits = strengthForKeyType(spec.getType());
+            int suppliedStrength = DefaultRandSource.strengthOf(random);
+            if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+            {
+                throw new InvalidAlgorithmParameterException(
+                    "supplied SecureRandom reports " + suppliedStrength
+                        + "-bit strength but " + spec.getType().getAlgorithmName()
+                        + " requires " + strengthBits);
+            }
+            resolvedRandSource = DefaultRandSource.replaceWith(null, random, strengthBits);
+        }
+
+        // Assign state only after all validation has passed, so a rejected init
+        // leaves the SPI "not initialised" rather than half-configured.
         this.opmode = opmode;
         this.keySpec = spec;
-        this.random = random;
+        this.randSource = resolvedRandSource;
     }
 
     @Override
@@ -149,9 +176,8 @@ public class MLKEMKTSCipherSpi
         byte[] secret = new byte[SHARED_SECRET_LEN];
         byte[] encapsulation = new byte[encLen];
 
-        SecureRandom rng = (random != null) ? random : CryptoServicesRegistrar.getSecureRandom();
         int written = NISelector.SpecNI.encap(keySpec.getReference(), null,
-            secret, 0, secret.length, encapsulation, 0, encapsulation.length, DefaultRandSource.wrap(rng));
+            secret, 0, secret.length, encapsulation, 0, encapsulation.length, randSource);
         if (written != encLen)
         {
             throw new InvalidKeyException("unexpected ML-KEM encapsulation length: " + written);
@@ -219,8 +245,13 @@ public class MLKEMKTSCipherSpi
                 Cipher aesKw = aesKeyWrap(Cipher.UNWRAP_MODE, kek);
                 return aesKw.unwrap(wrapped, wrappedKeyAlgorithm, wrappedKeyType);
             }
-            catch (InvalidAlgorithmParameterException | NoSuchPaddingException | java.security.NoSuchProviderException e)
+            catch (InvalidAlgorithmParameterException | NoSuchPaddingException
+                | java.security.NoSuchProviderException | OpenSSLException e)
             {
+                // An AES-KW integrity failure (tampered encapsulation or wrapped
+                // key) surfaces from OpenSSL as an unchecked OpenSSLException; the
+                // JCE unwrap contract requires InvalidKeyException, so map it rather
+                // than letting an unchecked exception escape to a CMS unwrapper.
                 throw new InvalidKeyException("unable to unwrap key: " + e.getMessage(), e);
             }
             finally
@@ -417,6 +448,14 @@ public class MLKEMKTSCipherSpi
             return "SHA-1";
         }
         return null;
+    }
+
+    // Strength (bits) the parameter set requires of the encapsulation RNG, so
+    // ML-KEM-768/1024 pass the OpenSSL RAND gate (GH #34): 512->128, 768->192,
+    // 1024->256. Mirrors MLKEMKeyGenerator.
+    private static int strengthForKeyType(OSSLKeyType type)
+    {
+        return MLKEMParameterSpec.getSpecForOSSLType(type).getRequiredStrengthBits();
     }
 
     private static int encapsulationLength(OSSLKeyType type)
