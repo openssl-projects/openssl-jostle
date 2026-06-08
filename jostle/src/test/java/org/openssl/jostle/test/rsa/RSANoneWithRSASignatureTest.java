@@ -210,6 +210,25 @@ public class RSANoneWithRSASignatureTest
     }
 
     /**
+     * PKCS#1 v1.5 signing requires the TBS to fit: {@code len <= k - 11}
+     * (245 bytes for a 2048-bit modulus). An over-long input must be rejected
+     * (OpenSSL's {@code EVP_PKEY_sign} fails) and surface as a typed exception,
+     * not silently truncate or corrupt.
+     */
+    @Test
+    public void testNoneWithRSA_inputTooLongIsRejected() throws Exception
+    {
+        byte[] tooLong = new byte[256]; // > k - 11 = 245 for RSA-2048
+        new SecureRandom().nextBytes(tooLong);
+
+        Signature signer = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(joKeyPair.getPrivate());
+        signer.update(tooLong);
+        Assertions.assertThrows(RuntimeException.class, signer::sign,
+                "NoneWithRSA accepted a TBS longer than the PKCS#1 v1.5 limit");
+    }
+
+    /**
      * Reuse after a terminal op: the same instance must sign two different
      * inputs correctly (proves the native buffer is cleared on re-init).
      */

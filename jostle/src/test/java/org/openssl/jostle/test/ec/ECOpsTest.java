@@ -1272,4 +1272,79 @@ public class ECOpsTest
             specNI.dispose(keyRef);
         }
     }
+
+
+    // -----------------------------------------------------------------
+    // Raw ECDSA (NoneWithECDSA, digest name "NONE") — ec_raw_init / sign / verify
+    // -----------------------------------------------------------------
+
+    @Test
+    public void ec_noneRawInitSign_opensslError()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long sigRef = ec.allocateSigner();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/ec.c:494
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
+            Assertions.assertEquals(errorAt(3100), code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void ec_noneRawSign_opensslError()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long sigRef = ec.allocateSigner();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            ec.initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
+            ec.ni_update(sigRef, new byte[32], 0, 32);
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/ec.c:721
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
+            int code = ec.ni_sign(sigRef, null, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(errorAt(3101), code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void ec_noneRawVerify_opensslError()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long sigRef = ec.allocateSigner();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            ec.initVerify(sigRef, keyRef, "NONE");
+            ec.ni_update(sigRef, new byte[32], 0, 32);
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/ec.c:811
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            int code = ec.ni_verify(sigRef, new byte[72], 72, TestUtil.RNDSrc);
+            Assertions.assertEquals(errorAt(3102), code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
 }

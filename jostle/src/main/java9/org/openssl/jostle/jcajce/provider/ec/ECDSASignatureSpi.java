@@ -361,4 +361,14 @@ public class ECDSASignatureSpi extends SignatureSpi
     {
         public SHA3_512() { super("SHA3-512"); }
     }
+
+    /**
+     * Raw ECDSA — "NoneWithECDSA". No hashing; the caller-supplied digest is
+     * buffered and signed/verified directly (DER-encoded ECDSA signature).
+     * Required by TLS 1.3's externally-hashed ECDSA CertificateVerify.
+     */
+    public static class None extends ECDSASignatureSpi
+    {
+        public None() { super("NONE"); }
+    }
 }

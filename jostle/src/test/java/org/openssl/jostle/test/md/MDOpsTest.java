@@ -239,4 +239,42 @@ public class MDOpsTest
         }
     }
 
+    @Test
+    public void copyDigest_failCreate() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try {
+            // Exercises interface/util/md.c:101
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2);
+            mdNI.copyDigest(ref);
+            Assertions.fail("Expected operation to fail but did not");
+        } catch (IllegalStateException e) {
+            Assertions.assertEquals("md create failed", e.getMessage());
+        } finally {
+            if (ref > 0) {
+                mdNI.dispose(ref);
+            }
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void copyDigest_copyFailed() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try {
+            // Exercises interface/util/md.c:108
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            mdNI.copyDigest(ref);
+            Assertions.fail("Expected operation to fail but did not");
+        } catch (IllegalStateException e) {
+            Assertions.assertEquals("md copy failed", e.getMessage());
+        } finally {
+            if (ref > 0) {
+                mdNI.dispose(ref);
+            }
+            operationsTestNI.resetFlags();
+        }
+    }
+
 }

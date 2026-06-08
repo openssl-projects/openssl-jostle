@@ -90,6 +90,14 @@ class ProvEC
                 "SHA3-512withECDSA", ECDSASignatureSpi.SHA3_512.class,
                 NISTObjectIdentifiers.id_ecdsa_with_sha3_512.getId());
 
+        // Raw ECDSA ("NoneWithECDSA"): the caller supplies an already-computed
+        // digest, so there is no per-digest OID to alias. Required by TLS 1.3's
+        // externally-hashed ECDSA CertificateVerify (BouncyCastle's
+        // JcaTlsECDSA13Signer.generateRawSignature).
+        provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
+                PREFIX + "ECDSASignatureSpi$None", attr,
+                (arg) -> new ECDSASignatureSpi.None());
+
         // ECDH KeyAgreement. The OID 1.3.132.1.12 is id-ecDH from SECG
         // (RFC 5480 §2.1.2 / SEC 1 §C.4); RFC 5480 also permits the
         // generic id-ecPublicKey OID for ECDH-with-X.509 SubjectPublicKeyInfo,

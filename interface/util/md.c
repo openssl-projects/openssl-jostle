@@ -98,14 +98,14 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
     ERR_clear_error();
 
     EVP_MD_CTX *new_mdctx = EVP_MD_CTX_new();
-    if (new_mdctx == NULL) {
+    if (OPS_FAILED_CREATE_2 new_mdctx == NULL) {
         *err = JO_MD_CREATE_FAILED;
         return NULL;
     }
 
     // EVP_MD_CTX_copy_ex snapshots the in-progress digest state (the absorbed
     // bytes), which is exactly what a MessageDigest.clone() needs.
-    if (!EVP_MD_CTX_copy_ex(new_mdctx, src->mdctx)) {
+    if (OPS_OPENSSL_ERROR_11 !EVP_MD_CTX_copy_ex(new_mdctx, src->mdctx)) {
         EVP_MD_CTX_free(new_mdctx);
         *err = JO_MD_COPY_FAILED;
         return NULL;
@@ -113,7 +113,7 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
 
     // The copy carries its own reference to the algorithm descriptor so the
     // clone's md_ctx_destroy is balanced (md_ctx_destroy frees md_type).
-    if (!EVP_MD_up_ref((EVP_MD *) src->md_type)) {
+    if (OPS_OPENSSL_ERROR_12 !EVP_MD_up_ref((EVP_MD *) src->md_type)) {
         EVP_MD_CTX_free(new_mdctx);
         *err = JO_MD_COPY_FAILED;
         return NULL;

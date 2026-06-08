@@ -542,8 +542,8 @@ static void rsa_ctx_clear_session(rsa_ctx *ctx) {
 static int32_t rsa_raw_init(rsa_ctx *ctx, OSSL_LIB_CTX *libctx,
                             EVP_PKEY *key, int op) {
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL);
-    if (pctx == NULL) {
-        return JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(1100);
     }
 
     int init_rc = (op == RSA_OP_SIGN)
@@ -857,9 +857,9 @@ int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
         ERR_clear_error();
 
         size_t raw_sig_len = 0;
-        if (1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
+        if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
-            return JO_OPENSSL_ERROR;
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(1101);
         }
         if (raw_sig_len > INT32_MAX) {
             return JO_OUTPUT_TOO_LONG_INT32;
@@ -945,6 +945,11 @@ int32_t rsa_ctx_verify(rsa_ctx *ctx, const uint8_t *sig, size_t sig_len) {
         ERR_set_mark();
         int raw_ret = EVP_PKEY_verify(ctx->raw_pctx, sig, sig_len,
                                       ctx->raw_buf, ctx->raw_buf_len);
+        // OPS: force the structural-error (-1) branch.
+        if (OPS_OPENSSL_ERROR_11 0) {
+            ERR_clear_last_mark();
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(1102);
+        }
         if (raw_ret == 1) {
             ERR_pop_to_mark();
             return JO_SUCCESS;

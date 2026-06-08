@@ -448,7 +448,96 @@ void ec_ctx_destroy(ec_ctx *ctx) {
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);
     }
+    if (ctx->raw_pctx != NULL) {
+        EVP_PKEY_CTX_free(ctx->raw_pctx);
+    }
+    if (ctx->raw_buf != NULL) {
+        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
+    }
     OPENSSL_clear_free(ctx, sizeof(*ctx));
+}
+
+
+/*
+ * Free all per-session state on the ctx, returning it to the freshly-created
+ * state (no digest_ctx, no raw session, opp == 0). NULL-tolerant on every
+ * field. Called at the top of init_sign / init_verify and from ec_ctx_destroy.
+ */
+static void ec_ctx_clear_session(ec_ctx *ctx) {
+    if (ctx->digest_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
+        ctx->digest_ctx = NULL;
+    }
+    if (ctx->raw_pctx != NULL) {
+        EVP_PKEY_CTX_free(ctx->raw_pctx);
+        ctx->raw_pctx = NULL;
+    }
+    if (ctx->raw_buf != NULL) {
+        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
+        ctx->raw_buf = NULL;
+    }
+    ctx->raw_buf_len = 0;
+    ctx->raw_buf_cap = 0;
+    ctx->opp = 0;
+}
+
+/*
+ * Initialise the raw ECDSA ("NoneWithECDSA") session: an EVP_PKEY_CTX set up
+ * for EVP_PKEY_sign / EVP_PKEY_verify with no EVP_MD, so OpenSSL treats the
+ * caller-supplied bytes as the already-computed digest. ECDSA has no padding,
+ * so there is nothing else to configure. Caller has already cleared prior
+ * session state via ec_ctx_clear_session.
+ */
+static int32_t ec_raw_init(ec_ctx *ctx, OSSL_LIB_CTX *libctx,
+                           EVP_PKEY *key, int op) {
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL);
+    if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3100);
+    }
+
+    int init_rc = (op == EC_OP_SIGN)
+                      ? EVP_PKEY_sign_init(pctx)
+                      : EVP_PKEY_verify_init(pctx);
+    if (1 != init_rc) {
+        EVP_PKEY_CTX_free(pctx);
+        return JO_OPENSSL_ERROR;
+    }
+
+    ctx->raw_pctx = pctx;
+    ctx->opp = op;
+    return JO_SUCCESS;
+}
+
+/*
+ * Append caller-supplied bytes to the raw-mode buffer (the pre-computed digest
+ * that EVP_PKEY_sign / EVP_PKEY_verify consumes one-shot). Grows geometrically;
+ * the total is bounded to INT32_MAX so the eventual int cast can't overflow.
+ */
+static int32_t ec_raw_append(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
+    if (in_len > (size_t) INT32_MAX) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+    if (ctx->raw_buf_len > (size_t) INT32_MAX - in_len) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+
+    size_t need = ctx->raw_buf_len + in_len;
+    if (need > ctx->raw_buf_cap) {
+        size_t new_cap = ctx->raw_buf_cap != 0 ? ctx->raw_buf_cap : 64;
+        while (new_cap < need) {
+            new_cap *= 2;
+        }
+        uint8_t *nb = OPENSSL_realloc(ctx->raw_buf, new_cap);
+        jo_assert(nb != NULL);
+        ctx->raw_buf = nb;
+        ctx->raw_buf_cap = new_cap;
+    }
+
+    if (in_len > 0) {
+        memcpy(ctx->raw_buf + ctx->raw_buf_len, in, in_len);
+    }
+    ctx->raw_buf_len = need;
+    return JO_SUCCESS;
 }
 
 
@@ -479,11 +568,13 @@ int32_t ec_ctx_init_sign(ec_ctx *ctx, const key_spec *key,
     EVP_PKEY_CTX *pctx = NULL;       // not owned — owned by md_ctx
 
     // Free any prior session state up-front (rsa_ctx_init_sign rationale).
-    if (ctx->digest_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->digest_ctx);
-        ctx->digest_ctx = NULL;
+    ec_ctx_clear_session(ctx);
+
+    // Raw ECDSA ("NoneWithECDSA") — no streaming digest; buffer the
+    // caller-supplied digest and sign it one-shot in ec_ctx_sign.
+    if (strcmp(digest_name, "NONE") == 0) {
+        return ec_raw_init(ctx, libctx, key->key, EC_OP_SIGN);
     }
-    ctx->opp = 0;
 
     // Reuses OPS_OPENSSL_ERROR_3 / _4. Each test drives only one path.
     md_ctx = EVP_MD_CTX_new();
@@ -535,11 +626,12 @@ int32_t ec_ctx_init_verify(ec_ctx *ctx, const key_spec *key,
     EVP_MD_CTX *md_ctx = NULL;
     EVP_PKEY_CTX *pctx = NULL;
 
-    if (ctx->digest_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->digest_ctx);
-        ctx->digest_ctx = NULL;
+    ec_ctx_clear_session(ctx);
+
+    // Raw ECDSA ("NoneWithECDSA") verify path — buffer + EVP_PKEY_verify.
+    if (strcmp(digest_name, "NONE") == 0) {
+        return ec_raw_init(ctx, libctx, key->key, EC_OP_VERIFY);
     }
-    ctx->opp = 0;
 
     // Reuses OPS_OPENSSL_ERROR_5 / _6. Each test drives only one path.
     md_ctx = EVP_MD_CTX_new();
@@ -576,6 +668,14 @@ int32_t ec_ctx_update(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
     jo_assert(in != NULL);
     jo_assert(in_len <= (size_t) INT32_MAX);
 
+    // Raw ECDSA: accumulate the caller-supplied digest, no streaming hash.
+    if (ctx->raw_pctx != NULL) {
+        if (ctx->opp != EC_OP_SIGN && ctx->opp != EC_OP_VERIFY) {
+            return JO_UNEXPECTED_STATE;
+        }
+        return ec_raw_append(ctx, in, in_len);
+    }
+
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
     }
@@ -607,6 +707,38 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
     jo_assert(ctx != NULL);
 
     jo_assert(rnd_src != NULL);
+
+    // Raw ECDSA ("NoneWithECDSA"): one-shot EVP_PKEY_sign over the buffered
+    // caller-supplied digest. ECDSA is randomised, so rnd_src feeds the nonce.
+    if (ctx->raw_pctx != NULL) {
+        if (ctx->opp != EC_OP_SIGN) {
+            return JO_UNEXPECTED_STATE;
+        }
+        rand_set_java_srand_call(rnd_src);
+        ERR_clear_error();
+
+        size_t raw_sig_len = 0;
+        if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
+                               ctx->raw_buf, ctx->raw_buf_len)) {
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(3101);
+        }
+        if (raw_sig_len > (size_t) INT32_MAX) {
+            return JO_OUTPUT_TOO_LONG_INT32;
+        }
+        if (out == NULL) {
+            return (int32_t) raw_sig_len;
+        }
+        if (raw_sig_len > out_len) {
+            return JO_OUTPUT_TOO_SMALL;
+        }
+        // ECDSA DER length varies; the first call returned an upper bound and
+        // the second writes the actual length back into raw_sig_len.
+        if (1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
+                               ctx->raw_buf, ctx->raw_buf_len)) {
+            return JO_OPENSSL_ERROR;
+        }
+        return (int32_t) raw_sig_len;
+    }
 
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
@@ -663,6 +795,34 @@ int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
     jo_assert(sig_len <= (size_t) INT32_MAX);
 
     jo_assert(rnd_src != NULL);
+
+    // Raw ECDSA ("NoneWithECDSA"): one-shot EVP_PKEY_verify of the DER
+    // signature against the buffered caller-supplied digest.
+    if (ctx->raw_pctx != NULL) {
+        if (ctx->opp != EC_OP_VERIFY) {
+            return JO_UNEXPECTED_STATE;
+        }
+        rand_set_java_srand_call(rnd_src);
+        ERR_clear_error();
+        ERR_set_mark();
+        int raw_ret = EVP_PKEY_verify(ctx->raw_pctx, sig, sig_len,
+                                      ctx->raw_buf, ctx->raw_buf_len);
+        // OPS: force the structural-error (-1) branch.
+        if (OPS_OPENSSL_ERROR_11 0) {
+            ERR_clear_last_mark();
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3102);
+        }
+        if (raw_ret == 1) {
+            ERR_pop_to_mark();
+            return JO_SUCCESS;
+        } else if (raw_ret == 0) {
+            ERR_pop_to_mark();
+            return JO_FAIL;
+        } else {
+            ERR_clear_last_mark();
+            return JO_OPENSSL_ERROR;
+        }
+    }
 
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
