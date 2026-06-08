@@ -403,25 +403,105 @@ public class MDTest
 
 
     //
-    // MDServiceSPI does not override engineClone, so MessageDigest.clone()
-    // should propagate the default CloneNotSupportedException. Pin this so
-    // a future "implement clone via EVP_MD_CTX_dup" change is intentional.
+    // MessageDigest.clone() snapshots the running digest via EVP_MD_CTX_copy_ex
+    // (gap #3 — required by TLS, which clones the transcript hash). The clone
+    // must carry the absorbed-so-far state AND be fully independent of the
+    // original: feeding different bytes to each after the split must produce
+    // exactly the digests of the respective full inputs.
     //
     @Test
-    public void testClone_notSupported() throws Exception
+    public void testClone_snapshotAndIndependence() throws Exception
     {
-        MessageDigest md = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
-        md.update("Hello".getBytes());
+        SecureRandom sr = seededRandom("testClone_snapshotAndIndependence");
+        byte[] prefix = new byte[16 + sr.nextInt(64)];
+        sr.nextBytes(prefix);
+        byte[] suffixA = new byte[16 + sr.nextInt(64)];
+        sr.nextBytes(suffixA);
+        byte[] suffixB = new byte[16 + sr.nextInt(64)];
+        sr.nextBytes(suffixB);
+        // Force the two branches to differ so the independence check is meaningful.
+        suffixB[0] ^= 0x01;
 
-        try
-        {
-            md.clone();
-            Assertions.fail("expected CloneNotSupportedException");
-        }
-        catch (CloneNotSupportedException e)
-        {
-            // expected
-        }
+        MessageDigest md = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
+        md.update(prefix);
+
+        MessageDigest copy = (MessageDigest) md.clone();
+
+        md.update(suffixA);
+        copy.update(suffixB);
+
+        byte[] origOut = md.digest();
+        byte[] copyOut = copy.digest();
+
+        MessageDigest ref = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
+        ref.update(prefix);
+        ref.update(suffixA);
+        Assertions.assertArrayEquals(ref.digest(), origOut,
+                "original digest changed by the clone (cross-talk)");
+
+        ref.update(prefix);
+        ref.update(suffixB);
+        Assertions.assertArrayEquals(ref.digest(), copyOut,
+                "clone did not carry the pre-split state");
+
+        Assertions.assertFalse(Arrays.areEqual(origOut, copyOut),
+                "distinct post-split inputs produced identical digests");
+    }
+
+    //
+    // A clone taken mid-stream, then completed, must agree with BouncyCastle's
+    // one-shot digest of the full input — cross-implementation confirmation
+    // that the snapshot is the genuine intermediate state, not a reset.
+    //
+    @Test
+    public void testClone_midStream_matchesBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("testClone_midStream_matchesBC");
+        byte[] prefix = new byte[16 + sr.nextInt(128)];
+        sr.nextBytes(prefix);
+        byte[] suffix = new byte[16 + sr.nextInt(128)];
+        sr.nextBytes(suffix);
+
+        MessageDigest md = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
+        md.update(prefix);
+        MessageDigest copy = (MessageDigest) md.clone();
+        copy.update(suffix);
+        byte[] joClone = copy.digest();
+
+        MessageDigest bc = MessageDigest.getInstance("SHA-256", BouncyCastleProvider.PROVIDER_NAME);
+        bc.update(prefix);
+        bc.update(suffix);
+        Assertions.assertArrayEquals(bc.digest(), joClone,
+                "cloned-then-completed digest disagrees with BouncyCastle");
+    }
+
+    //
+    // Cloning must work for XOF-backed digests too (SHAKE256-512), where the
+    // native context carries an xof flag and a fixed squeeze length that the
+    // copy must preserve.
+    //
+    @Test
+    public void testClone_xof_SHAKE256_512() throws Exception
+    {
+        SecureRandom sr = seededRandom("testClone_xof_SHAKE256_512");
+        byte[] prefix = new byte[16 + sr.nextInt(64)];
+        sr.nextBytes(prefix);
+        byte[] suffix = new byte[16 + sr.nextInt(64)];
+        sr.nextBytes(suffix);
+
+        MessageDigest md = MessageDigest.getInstance("SHAKE256-512", JostleProvider.PROVIDER_NAME);
+        md.update(prefix);
+        MessageDigest copy = (MessageDigest) md.clone();
+        copy.update(suffix);
+        byte[] cloneOut = copy.digest();
+
+        Assertions.assertEquals(64, cloneOut.length, "SHAKE256-512 must squeeze 64 bytes");
+
+        MessageDigest ref = MessageDigest.getInstance("SHAKE256-512", JostleProvider.PROVIDER_NAME);
+        ref.update(prefix);
+        ref.update(suffix);
+        Assertions.assertArrayEquals(ref.digest(), cloneOut,
+                "cloned XOF digest did not match the equivalent direct digest");
     }
 
 

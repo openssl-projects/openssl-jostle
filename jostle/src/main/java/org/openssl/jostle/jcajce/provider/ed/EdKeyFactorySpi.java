@@ -196,7 +196,113 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
+        if (key instanceof PublicKey)
+        {
+            return importPublicKey((PublicKey) key);
+        }
+        if (key instanceof PrivateKey)
+        {
+            return importPrivateKey((PrivateKey) key);
+        }
         throw new InvalidKeyException("Invalid Key: " + key);
+    }
+
+    /**
+     * Adopt an EdDSA public key produced by another provider (SunEC's
+     * {@code EdECPublicKey}, BouncyCastle's EdDSA key, etc.) as a
+     * Jostle-native {@link JOEdPublicKey} by re-decoding its X.509
+     * SubjectPublicKeyInfo. Jostle keys are returned unchanged. This is
+     * what lets {@code Signature.getInstance("Ed25519","JSL").initVerify(k)}
+     * accept a foreign-decoded public key — the case BouncyCastle's TLS
+     * layer hits when a peer certificate's key was decoded by a different
+     * provider (GH issue: JCA/TLS gap #5).
+     */
+    static JOEdPublicKey importPublicKey(PublicKey key) throws InvalidKeyException
+    {
+        if (key == null)
+        {
+            throw new InvalidKeyException("public key is null");
+        }
+        if (key instanceof JOEdPublicKey)
+        {
+            return (JOEdPublicKey) key;
+        }
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException(
+                    "cannot import EdDSA public key: no X.509 encoding available from "
+                            + key.getClass().getName());
+        }
+        try
+        {
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            switch (pkeySpec.getType())
+            {
+                case ED25519:
+                case ED448:
+                    return new JOEdPublicKey(pkeySpec);
+                default:
+                    throw new InvalidKeyException(
+                            "not an EdDSA public key: " + pkeySpec.getType());
+            }
+        }
+        catch (InvalidKeyException e)
+        {
+            throw e;
+        }
+        catch (RuntimeException e)
+        {
+            throw new InvalidKeyException(
+                    "unable to import EdDSA public key from its encoding", e);
+        }
+    }
+
+    /**
+     * Counterpart of {@link #importPublicKey(PublicKey)} for private
+     * keys: re-decodes a foreign EdDSA private key's PKCS#8
+     * PrivateKeyInfo into a Jostle-native {@link JOEdPrivateKey}. Jostle
+     * keys are returned unchanged.
+     */
+    static JOEdPrivateKey importPrivateKey(PrivateKey key) throws InvalidKeyException
+    {
+        if (key == null)
+        {
+            throw new InvalidKeyException("private key is null");
+        }
+        if (key instanceof JOEdPrivateKey)
+        {
+            return (JOEdPrivateKey) key;
+        }
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException(
+                    "cannot import EdDSA private key: no PKCS#8 encoding available from "
+                            + key.getClass().getName());
+        }
+        try
+        {
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            switch (pkeySpec.getType())
+            {
+                case ED25519:
+                case ED448:
+                    return new JOEdPrivateKey(pkeySpec);
+                default:
+                    throw new InvalidKeyException(
+                            "not an EdDSA private key: " + pkeySpec.getType());
+            }
+        }
+        catch (InvalidKeyException e)
+        {
+            throw e;
+        }
+        catch (RuntimeException e)
+        {
+            throw new InvalidKeyException(
+                    "unable to import EdDSA private key from its encoding", e);
+        }
     }
 
     public static class ED25519 extends EdKeyFactorySpi

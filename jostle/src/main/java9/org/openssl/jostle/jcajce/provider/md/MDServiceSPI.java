@@ -19,11 +19,12 @@ import java.lang.ref.Reference;
 import java.security.DigestException;
 import java.security.MessageDigestSpi;
 
-public class MDServiceSPI extends MessageDigestSpi
+public class MDServiceSPI extends MessageDigestSpi implements Cloneable
 {
     private static final MDServiceNI mdServiceNI = NISelector.MDServiceNI;
 
     private final MDReference ref;
+    private final String algorithm;
 
     public MDServiceSPI(String algorithm)
     {
@@ -31,6 +32,7 @@ public class MDServiceSPI extends MessageDigestSpi
         //
         // algoritm name must be something that OpenSSL can resolve
         //
+        this.algorithm = algorithm;
         this.ref = new MDReference(mdServiceNI.allocateDigest(algorithm, 0), algorithm);
     }
 
@@ -39,7 +41,20 @@ public class MDServiceSPI extends MessageDigestSpi
         //
         // algoritm name must be something that OpenSSL can resolve
         //
+        this.algorithm = algorithm;
         this.ref = new MDReference(mdServiceNI.allocateDigest(algorithm, xofLen), algorithm);
+    }
+
+    //
+    // Wrapping constructor for clone(): adopts an already-allocated native
+    // digest context (a copy produced by MDServiceNI.copyDigest). Distinct
+    // from the (String, int xofLen) constructor, which *allocates* a fresh
+    // context — this one takes ownership of an existing MDReference.
+    //
+    private MDServiceSPI(String algorithm, MDReference clonedRef)
+    {
+        this.algorithm = algorithm;
+        this.ref = clonedRef;
     }
 
 
@@ -119,6 +134,25 @@ public class MDServiceSPI extends MessageDigestSpi
         try
         {
             return mdServiceNI.getDigestOutputLen(ref.getReference());
+        } finally {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    //
+    // MessageDigest.clone() routes here (the JCA Delegate calls Object.clone()
+    // on the SPI when it is Cloneable). A shallow Object.clone() would share
+    // the single native EVP_MD_CTX between the original and the copy — a
+    // double-free and cross-talk hazard — so we deep-copy the native state via
+    // EVP_MD_CTX_copy_ex and hand the clone its own MDReference/Disposer.
+    //
+    @Override
+    public Object clone() throws CloneNotSupportedException
+    {
+        try
+        {
+            long clonedRef = mdServiceNI.copyDigest(ref.getReference());
+            return new MDServiceSPI(algorithm, new MDReference(clonedRef, algorithm));
         } finally {
             Reference.reachabilityFence(this);
         }

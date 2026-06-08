@@ -164,6 +164,61 @@ final class ECComponents
     }
 
     /**
+     * Canonicalise a caller-supplied curve name to one the loaded
+     * OpenSSL build accepts via {@code OSSL_PKEY_PARAM_GROUP_NAME}.
+     *
+     * <p>OpenSSL does not recognise every standard name for a curve:
+     * P-256 is registered under {@code prime256v1}/{@code P-256} but NOT
+     * the SECG {@code secp256r1} nor the X9.62 OID
+     * {@code 1.2.840.10045.3.1.7}, even though those are the names TLS
+     * (and SECG) callers use. This method maps any accepted alias of a
+     * curve to a name OpenSSL does recognise.
+     *
+     * <p>Strategy: if OpenSSL already accepts the name as-given, return
+     * it unchanged (the common case, and the only behaviour for names
+     * not in the alias table). Otherwise locate the alias family the
+     * name belongs to — matching against every form, including the OID —
+     * and return the first member OpenSSL accepts. Returns {@code null}
+     * if no form of the curve is supported by the loaded build, which
+     * the caller surfaces as {@link java.security.InvalidAlgorithmParameterException}.
+     */
+    static String toOpenSSLCurveName(String requested)
+    {
+        if (requested == null)
+        {
+            return null;
+        }
+        if (NISelector.ECServiceNI.curveSupported(requested))
+        {
+            return requested;
+        }
+        for (String[] family : CURVE_ALIASES.values())
+        {
+            boolean member = false;
+            for (String alias : family)
+            {
+                if (alias.equals(requested))
+                {
+                    member = true;
+                    break;
+                }
+            }
+            if (!member)
+            {
+                continue;
+            }
+            for (String candidate : family)
+            {
+                if (NISelector.ECServiceNI.curveSupported(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Compare two {@link ECParameterSpec} instances field-by-field.
      * {@code ECParameterSpec} doesn't override {@code equals}, so this
      * is a content-based comparison over the curve, generator, order,
@@ -243,7 +298,7 @@ final class ECComponents
      * {@code switch}-with-fallthrough hazards a manual editor might
      * introduce when adding a new family.
      */
-    private static String[] aliasesFor(String curveName)
+    static String[] aliasesFor(String curveName)
     {
         String[] aliases = CURVE_ALIASES.get(curveName);
         return aliases != null ? aliases : new String[]{curveName};

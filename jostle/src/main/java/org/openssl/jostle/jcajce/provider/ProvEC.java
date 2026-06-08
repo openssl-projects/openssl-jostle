@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
@@ -47,6 +48,15 @@ class ProvEC
                 PREFIX + "ECKeyFactorySpi", attr,
                 (arg) -> new ECKeyFactorySpi());
         provider.addAlias("KeyFactory", "EC", EC_PUBLIC_KEY_OID);
+
+        // AlgorithmParameters EC — delegates curve-parameter resolution to
+        // the platform (SunEC). Needed by BouncyCastle's TLS JceTlsECDomain,
+        // which resolves NIST-curve domain parameters via
+        // createAlgorithmParameters("EC") on the JSL-bound helper.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "EC",
+                PREFIX + "ECAlgorithmParameters", new HashMap<>(),
+                (arg) -> new ECAlgorithmParameters());
+        provider.addAlias("AlgorithmParameters", "EC", EC_PUBLIC_KEY_OID);
 
         // ECDSA Signature variants. The signature OIDs come from
         // RFC 5758 (SHA-2) and RFC 5754 / NIST CSOR (SHA-3). The digest

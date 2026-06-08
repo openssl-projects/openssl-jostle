@@ -18,6 +18,10 @@ public class MDServiceJNI implements MDServiceNI
 
 
     @Override
+    native public long ni_copyDigest(long ref, int[] err);
+
+
+    @Override
     native public int ni_updateByte(long ref, byte b);
 
 

@@ -21,6 +21,7 @@
     } md_ctx;
 
     md_ctx * md_ctx_create(const char*name, int xof_len, int *err);
+    md_ctx * md_ctx_copy(const md_ctx *src, int *err);
     void md_ctx_destroy(md_ctx *ctx);
     int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len);
     int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest);
