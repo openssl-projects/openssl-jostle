@@ -28,7 +28,7 @@ public class MLDSAParameterSpec
     public static final MLDSAParameterSpec ml_dsa_87 = new MLDSAParameterSpec("ML-DSA-87", false);
 
 
-    private static Map parameters = new HashMap();
+    private static final Map<String, MLDSAParameterSpec> parameters = new HashMap<>();
 
     static
     {

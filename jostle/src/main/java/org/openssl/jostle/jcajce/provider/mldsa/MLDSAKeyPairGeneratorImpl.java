@@ -14,8 +14,10 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Strings;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
@@ -94,18 +96,31 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
     @Override
     public void initialize(AlgorithmParameterSpec params, SecureRandom rand) throws InvalidAlgorithmParameterException
     {
-        if (!(params instanceof MLDSAParameterSpec))
+        if (params == null)
         {
-            throw new InvalidAlgorithmParameterException("only MLDSAParameterSpec is supported");
+            throw new InvalidAlgorithmParameterException("parameter spec cannot be null");
         }
 
-        MLDSAParameterSpec spec = (MLDSAParameterSpec) params;
+        // Resolve the parameter-set name: use the name directly for our own
+        // MLDSAParameterSpec, otherwise reflect on getName() so a foreign spec
+        // (e.g. BouncyCastle's MLDSAParameterSpec) is accepted too.
+        String specName;
+        if (params instanceof MLDSAParameterSpec)
+        {
+            specName = ((MLDSAParameterSpec) params).getName();
+        }
+        else
+        {
+            String reflected = SpecUtil.getNameFrom(params);
+            specName = (reflected == null) ? null : Strings.toUpperCase(reflected);
+        }
 
-        OSSLKeyType newType = paramToTypeMap.get(spec.getName());
+        OSSLKeyType newType = (specName == null) ? null : paramToTypeMap.get(specName);
 
         if (newType == null)
         {
-            throw new InvalidAlgorithmParameterException("unknown algorithm: " + spec.getName());
+            throw new InvalidAlgorithmParameterException(
+                    "unknown algorithm: " + (specName != null ? specName : params.getClass().getName()));
         }
 
         if (keyType == OSSLKeyType.NONE)
@@ -131,7 +146,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         {
             throw new InvalidAlgorithmParameterException(
                     "supplied SecureRandom reports " + suppliedStrength
-                            + "-bit strength but " + spec.getName()
+                            + "-bit strength but " + specName
                             + " requires " + strengthBits);
         }
 
