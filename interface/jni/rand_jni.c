@@ -9,21 +9,25 @@
 #include "org_openssl_jostle_jcajce_provider_rand_RandServiceJNI.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
 #include "../util/ops.h"
 #include "../util/rand.h"
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
  * Method:    ni_randomBytes
- * Signature: ([BII)I
+ * Signature: ([BIIZ[B)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1randomBytes
-(JNIEnv *env, jobject jo, jbyteArray _output, jint output_len, jint strength) {
+(JNIEnv *env, jobject jo, jbyteArray _output, jint output_len, jint strength,
+ jboolean prediction_resistant, jbyteArray _additional_input) {
     UNUSED(jo);
 
     int32_t ret_code = JO_FAIL;
     java_bytearray_ctx output;
+    java_bytearray_ctx additional_input;
     init_bytearray_ctx(&output);
+    init_bytearray_ctx(&additional_input);
 
     if (_output == NULL) {
         ret_code = JO_OUTPUT_IS_NULL;
@@ -50,14 +54,23 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
         goto exit;
     }
 
+    if (_additional_input != NULL && !load_bytearray_ctx(&additional_input, env, _additional_input)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
     if ((size_t) output_len > output.size) {
         ret_code = JO_OUTPUT_OUT_OF_RANGE;
         goto exit;
     }
 
-    ret_code = rand_random_bytes(output.bytearray, output_len, strength);
+    ret_code = rand_random_bytes(output.bytearray, output_len, strength,
+                                 prediction_resistant == JNI_TRUE,
+                                 additional_input.bytearray,
+                                 additional_input.size);
 
 exit:
+    release_bytearray_ctx(&additional_input);
     release_bytearray_ctx(&output);
     return ret_code;
 }
@@ -65,35 +78,230 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
  * Method:    ni_instantiate
- * Signature: (IZ)I
+ * Signature: (IZ[B)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1instantiate
-  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant)
+  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant, jbyteArray _personalization_string)
 {
-    UNUSED(env);
     UNUSED(jo);
 
+    int32_t ret_code = JO_FAIL;
+    java_bytearray_ctx personalization_string;
+    init_bytearray_ctx(&personalization_string);
+
     if (strength < 0) {
-        return JO_RAND_INSUFFICIENT_STRENGTH;
+        ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
+        goto exit;
     }
 
-    return rand_instantiate(strength, prediction_resistant == JNI_TRUE);
+    if (_personalization_string != NULL
+        && !load_bytearray_ctx(&personalization_string, env, _personalization_string)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    ret_code = rand_instantiate(strength, prediction_resistant == JNI_TRUE,
+                                personalization_string.bytearray,
+                                personalization_string.size);
+
+exit:
+    release_bytearray_ctx(&personalization_string);
+    return ret_code;
 }
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
  * Method:    ni_reseed
- * Signature: (IZ)I
+ * Signature: (IZ[B)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1reseed
-  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant)
+  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant, jbyteArray _additional_input)
+{
+    UNUSED(jo);
+
+    int32_t ret_code = JO_FAIL;
+    java_bytearray_ctx additional_input;
+    init_bytearray_ctx(&additional_input);
+
+    if (strength < 0) {
+        ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
+        goto exit;
+    }
+
+    if (_additional_input != NULL && !load_bytearray_ctx(&additional_input, env, _additional_input)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    ret_code = rand_reseed(strength, prediction_resistant == JNI_TRUE,
+                           additional_input.bytearray,
+                           additional_input.size);
+
+exit:
+    release_bytearray_ctx(&additional_input);
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_createContext
+ * Signature: (IZ[B[I)J
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1createContext
+  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant,
+   jbyteArray _personalization_string, jintArray _err)
+{
+    UNUSED(jo);
+
+    int32_t *err = NULL;
+    JO_RAND_CTX *ctx = NULL;
+    java_bytearray_ctx personalization_string;
+    init_bytearray_ctx(&personalization_string);
+
+    jo_assert(_err != NULL);
+    err = (*env)->GetIntArrayElements(env, _err, NULL);
+    jo_assert(err != NULL);
+
+    if (strength < 0) {
+        err[0] = JO_RAND_INSUFFICIENT_STRENGTH;
+        goto exit;
+    }
+
+    if (_personalization_string != NULL
+        && !load_bytearray_ctx(&personalization_string, env, _personalization_string)) {
+        err[0] = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    ctx = rand_ctx_create(strength, prediction_resistant == JNI_TRUE,
+                          personalization_string.bytearray,
+                          personalization_string.size, err);
+
+exit:
+    release_bytearray_ctx(&personalization_string);
+    (*env)->ReleaseIntArrayElements(env, _err, err, 0);
+    return (jlong) ctx;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_disposeContext
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1disposeContext
+  (JNIEnv *env, jobject jo, jlong ref)
 {
     UNUSED(env);
     UNUSED(jo);
 
-    if (strength < 0) {
-        return JO_RAND_INSUFFICIENT_STRENGTH;
+    rand_ctx_destroy((JO_RAND_CTX *) ref);
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_contextRandomBytes
+ * Signature: (J[BIIZ[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1contextRandomBytes
+  (JNIEnv *env, jobject jo, jlong ref, jbyteArray _output, jint output_len, jint strength,
+   jboolean prediction_resistant, jbyteArray _additional_input)
+{
+    UNUSED(jo);
+
+    int32_t ret_code = JO_FAIL;
+    java_bytearray_ctx output;
+    java_bytearray_ctx additional_input;
+    init_bytearray_ctx(&output);
+    init_bytearray_ctx(&additional_input);
+
+    if (ref == 0) {
+        ret_code = JO_NOT_INITIALIZED;
+        goto exit;
     }
 
-    return rand_reseed(strength, prediction_resistant == JNI_TRUE);
+    if (_output == NULL) {
+        ret_code = JO_OUTPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (output_len < 0) {
+        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (strength < 0) {
+        ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
+        goto exit;
+    }
+
+    if (output_len == 0) {
+        ret_code = JO_SUCCESS;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    if (_additional_input != NULL && !load_bytearray_ctx(&additional_input, env, _additional_input)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if ((size_t) output_len > output.size) {
+        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    ret_code = rand_ctx_random_bytes((JO_RAND_CTX *) ref, output.bytearray,
+                                     output_len, strength,
+                                     prediction_resistant == JNI_TRUE,
+                                     additional_input.bytearray,
+                                     additional_input.size);
+
+exit:
+    release_bytearray_ctx(&additional_input);
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_contextReseed
+ * Signature: (JIZ[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1contextReseed
+  (JNIEnv *env, jobject jo, jlong ref, jint strength, jboolean prediction_resistant,
+   jbyteArray _additional_input)
+{
+    UNUSED(jo);
+
+    int32_t ret_code = JO_FAIL;
+    java_bytearray_ctx additional_input;
+    init_bytearray_ctx(&additional_input);
+
+    if (ref == 0) {
+        ret_code = JO_NOT_INITIALIZED;
+        goto exit;
+    }
+
+    if (strength < 0) {
+        ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
+        goto exit;
+    }
+
+    if (_additional_input != NULL && !load_bytearray_ctx(&additional_input, env, _additional_input)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    ret_code = rand_ctx_reseed((JO_RAND_CTX *) ref, strength,
+                               prediction_resistant == JNI_TRUE,
+                               additional_input.bytearray,
+                               additional_input.size);
+
+exit:
+    release_bytearray_ctx(&additional_input);
+    return ret_code;
 }

@@ -18,6 +18,7 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
@@ -28,6 +29,10 @@ import java.security.Security;
 
 public class BridgeRandOpsTest
 {
+    private static final int JO_OPENSSL_ERROR = -2;
+    private static final int JO_UNEXPECTED_STATE = -40;
+    private static final int JO_RAND_RESEED = -100;
+
     //
     // The Java 8 version of this test.,
     // SecureRandom at Java level, does not have attributes, so strength assertion is not possible
@@ -36,6 +41,7 @@ public class BridgeRandOpsTest
 
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
     MLKEMServiceNI mldsaServiceNI = TestNISelector.getMLKEMNI();
+    RandServiceNI randServiceNI = TestNISelector.getRandNI();
 
     @BeforeAll
     public static void beforeAll()
@@ -201,5 +207,158 @@ public class BridgeRandOpsTest
         }
     }
 
+    @Test
+    public void instantiateRandGetPrivateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:218
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+        int code = randServiceNI.ni_instantiate(0, false);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3000, code);
+    }
+
+    @Test
+    public void instantiateEvpInstantiateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:226
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+        // Exercises interface/util/rand.c:227
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+        int code = randServiceNI.ni_instantiate(0, false);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3001, code);
+    }
+
+    @Test
+    public void instantiatePredictionResistantReseedFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:236
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
+        // Exercises interface/util/rand.c:238
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+        int code = randServiceNI.ni_instantiate(0, true);
+
+        Assertions.assertEquals(JO_RAND_RESEED - 3002, code);
+    }
+
+    @Test
+    public void instantiateUnexpectedStateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:223
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+        int code = randServiceNI.ni_instantiate(0, false);
+
+        Assertions.assertEquals(JO_UNEXPECTED_STATE, code);
+    }
+
+    @Test
+    public void reseedRandGetPrivateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:261
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+        int code = randServiceNI.ni_reseed(0, false);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3010, code);
+    }
+
+    @Test
+    public void reseedEvpInstantiateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:269
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+        // Exercises interface/util/rand.c:270
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+        int code = randServiceNI.ni_reseed(0, false);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3011, code);
+    }
+
+    @Test
+    public void reseedEvpReseedFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:277
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
+        // Exercises interface/util/rand.c:278
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+        int code = randServiceNI.ni_reseed(0, false);
+
+        Assertions.assertEquals(JO_RAND_RESEED - 3012, code);
+    }
+
+    @Test
+    public void reseedUnexpectedStateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:266
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+        int code = randServiceNI.ni_reseed(0, false);
+
+        Assertions.assertEquals(JO_UNEXPECTED_STATE, code);
+    }
+
+    @Test
+    public void parameterizedRandomBytesRandGetPrivateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:168
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+        int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3020, code);
+    }
+
+    @Test
+    public void parameterizedRandomBytesInstantiateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:176
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+        // Exercises interface/util/rand.c:177
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
+        int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3021, code);
+    }
+
+    @Test
+    public void parameterizedRandomBytesGenerateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:190
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+        int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
+
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3022, code);
+    }
+
+    @Test
+    public void parameterizedRandomBytesUnexpectedStateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        // Exercises interface/util/rand.c:173
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
+        int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
+
+        Assertions.assertEquals(JO_UNEXPECTED_STATE, code);
+    }
 
 }

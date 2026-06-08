@@ -114,7 +114,9 @@ class ThreadLocalSecureRandomProvider implements SecureRandomProvider
                                 + strengthBits
                                 + " bits; falling back to default SecureRandom",
                         e2);
-                return get();
+                random = get();
+                randoms.put(strengthBits, random);
+                return random;
             }
         }
     }

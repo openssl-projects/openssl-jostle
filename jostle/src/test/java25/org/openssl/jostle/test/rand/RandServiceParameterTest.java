@@ -21,7 +21,6 @@ import org.openssl.jostle.jcajce.provider.rand.RandAlgorithm;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.DrbgParameters;
-import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.security.SecureRandomParameters;
 
@@ -39,8 +38,10 @@ public class RandServiceParameterTest
     @Test
     public void drbgInstantiationParametersAreSupported() throws Exception
     {
+        byte[] personalizationString = new byte[]{ 1, 2, 3 };
         SecureRandom random = SecureRandom.getInstance("DRBG",
-                DrbgParameters.instantiation(128, DrbgParameters.Capability.PR_AND_RESEED, null),
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.PR_AND_RESEED,
+                        personalizationString),
                 JostleProvider.PROVIDER_NAME);
         byte[] output = new byte[16];
 
@@ -55,6 +56,7 @@ public class RandServiceParameterTest
         DrbgParameters.Instantiation instantiation = (DrbgParameters.Instantiation) params;
         Assertions.assertEquals(128, instantiation.getStrength());
         Assertions.assertEquals(DrbgParameters.Capability.PR_AND_RESEED, instantiation.getCapability());
+        Assertions.assertTrue(Arrays.areEqual(personalizationString, instantiation.getPersonalizationString()));
     }
 
     @Test
@@ -80,12 +82,13 @@ public class RandServiceParameterTest
     }
 
     @Test
-    public void drbgInstantiationRejectsPersonalizationString()
+    public void drbgInstantiationSupportsPersonalizationString() throws Exception
     {
-        Assertions.assertThrows(NoSuchAlgorithmException.class, () ->
-                SecureRandom.getInstance("DRBG",
-                        DrbgParameters.instantiation(128, DrbgParameters.Capability.NONE, new byte[1]),
-                        JostleProvider.PROVIDER_NAME));
+        SecureRandom random = SecureRandom.getInstance("DRBG",
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.NONE, new byte[1]),
+                JostleProvider.PROVIDER_NAME);
+
+        Assertions.assertEquals(JostleProvider.PROVIDER_NAME, random.getProvider().getName());
     }
 
     @Test
@@ -144,12 +147,14 @@ public class RandServiceParameterTest
     }
 
     @Test
-    public void nextBytesRejectsAdditionalInput() throws Exception
+    public void nextBytesSupportsAdditionalInput() throws Exception
     {
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+        byte[] output = new byte[16];
 
-        Assertions.assertThrows(UnsupportedOperationException.class, () ->
-                random.nextBytes(new byte[16], DrbgParameters.nextBytes(128, false, new byte[1])));
+        random.nextBytes(output, DrbgParameters.nextBytes(128, false, new byte[1]));
+
+        Assertions.assertFalse(Arrays.areEqual(new byte[output.length], output));
     }
 
     @Test
@@ -221,11 +226,10 @@ public class RandServiceParameterTest
     }
 
     @Test
-    public void reseedRejectsAdditionalInput() throws Exception
+    public void reseedSupportsAdditionalInput() throws Exception
     {
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
 
-        Assertions.assertThrows(UnsupportedOperationException.class, () ->
-                random.reseed(DrbgParameters.reseed(false, new byte[1])));
+        random.reseed(DrbgParameters.reseed(false, new byte[1]));
     }
 }

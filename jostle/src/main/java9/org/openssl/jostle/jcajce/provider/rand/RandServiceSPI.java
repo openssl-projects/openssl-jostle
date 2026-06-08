@@ -11,8 +11,12 @@
 
 package org.openssl.jostle.jcajce.provider.rand;
 
+import org.openssl.jostle.disposal.NativeDisposer;
+import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.Arrays;
 
+import java.lang.ref.Reference;
 import java.security.DrbgParameters;
 import java.security.SecureRandomSpi;
 import java.security.SecureRandomParameters;
@@ -21,7 +25,7 @@ import java.security.ProviderException;
 /**
  * Java 9+ variant of RandServiceSPI that accepts SecureRandomParameters
  * (notably DrbgParameters.Instantiation) and translates requested strength
- * and prediction-resistance into native-side checks/instantiation.
+ * and prediction-resistance into a native-side context.
  */
 public final class RandServiceSPI extends SecureRandomSpi
 {
@@ -31,6 +35,8 @@ public final class RandServiceSPI extends SecureRandomSpi
     private final RandAlgorithm algorithm;
     private final int instanceStrength;
     private final DrbgParameters.Capability instanceCapability;
+    private final byte[] personalizationString;
+    private final transient RandReference ref;
 
     public RandServiceSPI(RandAlgorithm algorithm)
     {
@@ -48,6 +54,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         int strength = algorithm.getStrength();
         DrbgParameters.Capability capability = DrbgParameters.Capability.RESEED_ONLY;
+        byte[] pstr = null;
 
         if (params != null)
         {
@@ -57,25 +64,24 @@ public final class RandServiceSPI extends SecureRandomSpi
             }
 
             DrbgParameters.Instantiation ins = (DrbgParameters.Instantiation) params;
-            if (ins.getPersonalizationString() != null)
-            {
-                throw new UnsupportedOperationException("personalization string is not supported");
-            }
-
             strength = normalizeStrength(ins.getStrength());
             capability = ins.getCapability();
-            boolean predRes = capability.supportsPredictionResistance();
-
-            try
-            {
-                // Ask native side to accept/validate requested instantiation.
-                randServiceNI.instantiate(strength, predRes);
-            }
-            catch (Exception e)
-            {
-                throw new ProviderException("unable to instantiate OpenSSL DRBG: " + e.getMessage(), e);
-            }
+            pstr = Arrays.clone(ins.getPersonalizationString());
         }
+
+        checkInstantiationStrength(strength);
+        boolean predRes = capability.supportsPredictionResistance();
+        try
+        {
+            this.ref = new RandReference(randServiceNI.createContext(strength, predRes, pstr),
+                    algorithm.getJcaName());
+        }
+        catch (Exception e)
+        {
+            throw new ProviderException("unable to instantiate OpenSSL DRBG: " + e.getMessage(), e);
+        }
+
+        this.personalizationString = pstr;
 
         this.instanceStrength = strength;
         this.instanceCapability = capability;
@@ -96,7 +102,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         byte[] bytes = new byte[numBytes];
-        randServiceNI.randomBytes(bytes, bytes.length, instanceStrength);
+        contextRandomBytes(bytes, instanceStrength, false, null);
         return bytes;
     }
 
@@ -109,8 +115,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         boolean predictionResistant = instanceCapability.supportsPredictionResistance();
-        randServiceNI.instantiate(instanceStrength, predictionResistant);
-        randServiceNI.randomBytes(bytes, bytes.length, instanceStrength);
+        contextRandomBytes(bytes, instanceStrength, predictionResistant, null);
     }
 
     @Override
@@ -133,18 +138,13 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         DrbgParameters.NextBytes nextBytes = (DrbgParameters.NextBytes) params;
-        if (nextBytes.getAdditionalInput() != null)
-        {
-            throw new UnsupportedOperationException("additional input is not supported");
-        }
-
         int strength = normalizeStrength(nextBytes.getStrength(), instanceStrength);
         boolean predictionResistant = nextBytes.getPredictionResistance();
+        byte[] additionalInput = nextBytes.getAdditionalInput();
 
         checkStrength(strength);
         checkPredictionResistance(predictionResistant);
-        randServiceNI.instantiate(strength, predictionResistant);
-        randServiceNI.randomBytes(bytes, bytes.length, strength);
+        contextRandomBytes(bytes, strength, predictionResistant, additionalInput);
     }
 
     @Override
@@ -153,7 +153,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         if (params == null)
         {
             checkReseeding();
-            randServiceNI.reseed(instanceStrength, false);
+            contextReseed(instanceStrength, false, null);
             return;
         }
 
@@ -163,20 +163,16 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         DrbgParameters.Reseed reseed = (DrbgParameters.Reseed) params;
-        if (reseed.getAdditionalInput() != null)
-        {
-            throw new UnsupportedOperationException("additional input is not supported");
-        }
-
         checkReseeding();
         checkPredictionResistance(reseed.getPredictionResistance());
-        randServiceNI.reseed(instanceStrength, reseed.getPredictionResistance());
+        contextReseed(instanceStrength, reseed.getPredictionResistance(), reseed.getAdditionalInput());
     }
 
     @Override
     protected SecureRandomParameters engineGetParameters()
     {
-        return DrbgParameters.instantiation(instanceStrength, instanceCapability, null);
+        return DrbgParameters.instantiation(instanceStrength, instanceCapability,
+                Arrays.clone(personalizationString));
     }
 
     private Object readResolve()
@@ -212,6 +208,14 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
     }
 
+    private void checkInstantiationStrength(int strength)
+    {
+        if (strength > algorithm.getStrength())
+        {
+            throw new IllegalArgumentException("requested strength exceeds algorithm strength");
+        }
+    }
+
     private void checkPredictionResistance(boolean predictionResistant)
     {
         if (predictionResistant && !instanceCapability.supportsPredictionResistance())
@@ -225,6 +229,63 @@ public final class RandServiceSPI extends SecureRandomSpi
         if (!instanceCapability.supportsReseeding())
         {
             throw new UnsupportedOperationException("reseeding is not supported");
+        }
+    }
+
+    private synchronized void contextRandomBytes(byte[] bytes, int strength,
+                                                boolean predictionResistant,
+                                                byte[] additionalInput)
+    {
+        try
+        {
+            randServiceNI.contextRandomBytes(ref.getReference(), bytes, bytes.length,
+                    strength, predictionResistant, additionalInput);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    private synchronized void contextReseed(int strength, boolean predictionResistant,
+                                            byte[] additionalInput)
+    {
+        try
+        {
+            randServiceNI.contextReseed(ref.getReference(), strength,
+                    predictionResistant, additionalInput);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    private static class Disposer extends NativeDisposer
+    {
+        Disposer(long reference)
+        {
+            super(reference);
+        }
+
+        @Override
+        protected void dispose(long reference)
+        {
+            randServiceNI.disposeContext(reference);
+        }
+    }
+
+    private static class RandReference extends NativeReference
+    {
+        RandReference(long reference, String name)
+        {
+            super(reference, name);
+        }
+
+        @Override
+        protected Runnable createAction()
+        {
+            return new Disposer(reference);
         }
     }
 }

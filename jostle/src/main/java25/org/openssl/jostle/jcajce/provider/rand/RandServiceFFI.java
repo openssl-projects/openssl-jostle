@@ -36,6 +36,18 @@ public class RandServiceFFI implements RandServiceNI
     private static final MemorySegment reseedFunc;
     private static final MethodHandle reseedFuncHandle;
 
+    private static final MemorySegment createContextFunc;
+    private static final MethodHandle createContextFuncHandle;
+
+    private static final MemorySegment disposeContextFunc;
+    private static final MethodHandle disposeContextFuncHandle;
+
+    private static final MemorySegment contextRandomBytesFunc;
+    private static final MethodHandle contextRandomBytesFuncHandle;
+
+    private static final MemorySegment contextReseedFunc;
+    private static final MethodHandle contextReseedFuncHandle;
+
     static
     {
         randomBytesFunc = lookup.find("JoRand_randomBytes").orElseThrow();
@@ -45,7 +57,10 @@ public class RandServiceFFI implements RandServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
                 )
         );
 
@@ -54,7 +69,9 @@ public class RandServiceFFI implements RandServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_BYTE
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
                 )
         );
 
@@ -63,13 +80,60 @@ public class RandServiceFFI implements RandServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_BYTE
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
+                )
+        );
+
+        createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
+        createContextFuncHandle = linker.downcallHandle(createContextFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS
+                )
+        );
+
+        disposeContextFunc = lookup.find("JoRand_disposeContext").orElseThrow();
+        disposeContextFuncHandle = linker.downcallHandle(disposeContextFunc,
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+        );
+
+        contextRandomBytesFunc = lookup.find("JoRand_contextRandomBytes").orElseThrow();
+        contextRandomBytesFuncHandle = linker.downcallHandle(contextRandomBytesFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
+                )
+        );
+
+        contextReseedFunc = lookup.find("JoRand_contextReseed").orElseThrow();
+        contextReseedFuncHandle = linker.downcallHandle(contextReseedFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
                 )
         );
     }
 
     @Override
-    public int ni_randomBytes(byte[] output, int outputLen, int strength)
+    public int ni_randomBytes(byte[] output, int outputLen, int strength,
+                              boolean predictionResistant, byte[] additionalInput)
     {
         if (output != null && outputLen == 0 && strength >= 0)
         {
@@ -81,12 +145,16 @@ public class RandServiceFFI implements RandServiceNI
             MemorySegment outputSeg = output == null ?
                     MemorySegment.NULL :
                     a.allocate(output.length);
+            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
 
             int code = (int) randomBytesFuncHandle.invokeExact(
                     outputSeg,
                     outputSeg.byteSize(),
                     outputLen,
-                    strength
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    additionalInputSeg,
+                    additionalInputSeg.byteSize()
             );
 
             if (code >= 0 && output != null && outputLen > 0)
@@ -104,13 +172,17 @@ public class RandServiceFFI implements RandServiceNI
     }
 
     @Override
-    public int ni_instantiate(int strength, boolean predictionResistant)
+    public int ni_instantiate(int strength, boolean predictionResistant, byte[] personalizationString)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
+            MemorySegment personalizationStringSeg = byteArraySegment(a, personalizationString);
+
             return (int) instantiateFuncHandle.invokeExact(
                     strength,
-                    (byte) (predictionResistant ? 1 : 0)
+                    (byte) (predictionResistant ? 1 : 0),
+                    personalizationStringSeg,
+                    personalizationStringSeg.byteSize()
             );
         }
         catch (Throwable t)
@@ -121,13 +193,17 @@ public class RandServiceFFI implements RandServiceNI
     }
 
     @Override
-    public int ni_reseed(int strength, boolean predictionResistant)
+    public int ni_reseed(int strength, boolean predictionResistant, byte[] additionalInput)
     {
-        try
+        try (Arena a = Arena.ofConfined())
         {
+            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
+
             return (int) reseedFuncHandle.invokeExact(
                     strength,
-                    (byte) (predictionResistant ? 1 : 0)
+                    (byte) (predictionResistant ? 1 : 0),
+                    additionalInputSeg,
+                    additionalInputSeg.byteSize()
             );
         }
         catch (Throwable t)
@@ -135,5 +211,121 @@ public class RandServiceFFI implements RandServiceNI
             L.log(Level.WARNING, "FFI JoRand_reseed", t);
             throw new RuntimeException(t.getMessage(), t);
         }
+    }
+
+    @Override
+    public long ni_createContext(int strength, boolean predictionResistant,
+                                 byte[] personalizationString, int[] err)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment personalizationStringSeg = byteArraySegment(a, personalizationString);
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+
+            MemorySegment ctx = (MemorySegment) createContextFuncHandle.invokeExact(
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    personalizationStringSeg,
+                    personalizationStringSeg.byteSize(),
+                    errSeg
+            );
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+            return ctx.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_createContext", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void ni_disposeContext(long reference)
+    {
+        try
+        {
+            disposeContextFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_disposeContext", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_contextRandomBytes(long reference, byte[] output, int outputLen, int strength,
+                                     boolean predictionResistant, byte[] additionalInput)
+    {
+        if (output != null && outputLen == 0 && strength >= 0)
+        {
+            return 0;
+        }
+
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment outputSeg = output == null ?
+                    MemorySegment.NULL :
+                    a.allocate(output.length);
+            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
+
+            int code = (int) contextRandomBytesFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(reference),
+                    outputSeg,
+                    outputSeg.byteSize(),
+                    outputLen,
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    additionalInputSeg,
+                    additionalInputSeg.byteSize()
+            );
+
+            if (code >= 0 && output != null && outputLen > 0)
+            {
+                outputSeg.asSlice(0, outputLen).asByteBuffer().get(output, 0, outputLen);
+            }
+
+            return code;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_contextRandomBytes", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_contextReseed(long reference, int strength, boolean predictionResistant,
+                                byte[] additionalInput)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
+
+            return (int) contextReseedFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(reference),
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    additionalInputSeg,
+                    additionalInputSeg.byteSize()
+            );
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_contextReseed", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    private static MemorySegment byteArraySegment(Arena a, byte[] bytes)
+    {
+        if (bytes == null || bytes.length == 0)
+        {
+            return MemorySegment.NULL;
+        }
+
+        MemorySegment seg = a.allocate(bytes.length);
+        seg.asByteBuffer().put(bytes);
+        return seg;
     }
 }

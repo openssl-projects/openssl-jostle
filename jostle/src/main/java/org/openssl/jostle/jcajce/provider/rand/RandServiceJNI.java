@@ -13,7 +13,15 @@ package org.openssl.jostle.jcajce.provider.rand;
 
 public class RandServiceJNI implements RandServiceNI
 {
-    public native int ni_randomBytes(byte[] output, int outputLen, int strength);
-    public native int ni_instantiate(int strength, boolean predictionResistant);
-    public native int ni_reseed(int strength, boolean predictionResistant);
+    public native int ni_randomBytes(byte[] output, int outputLen, int strength,
+                                     boolean predictionResistant, byte[] additionalInput);
+    public native int ni_instantiate(int strength, boolean predictionResistant, byte[] personalizationString);
+    public native int ni_reseed(int strength, boolean predictionResistant, byte[] additionalInput);
+    public native long ni_createContext(int strength, boolean predictionResistant,
+                                        byte[] personalizationString, int[] err);
+    public native void ni_disposeContext(long reference);
+    public native int ni_contextRandomBytes(long reference, byte[] output, int outputLen, int strength,
+                                            boolean predictionResistant, byte[] additionalInput);
+    public native int ni_contextReseed(long reference, int strength, boolean predictionResistant,
+                                       byte[] additionalInput);
 }
