@@ -1580,6 +1580,71 @@ public class RSATest
         return m;
     }
 
+    /**
+     * The RSA KeyFactory must import an {@code id-RSASSA-PSS}-tagged
+     * key (OID 1.2.840.113549.1.1.10) — the encoding TLS 1.3
+     * {@code rsa_pss_pss_*} certificates carry — treating it as a plain RSA
+     * key, as BC/SunRsaSign do (JCA/TLS gap #7). An RSASSA-PSS key is
+     * structurally identical to an rsaEncryption one.
+     */
+    @Test
+    public void testKeyFactory_importsIdRSASSAPSSEncodedKey() throws Exception
+    {
+        // Base keypair from BC so the encodings are proper PKCS#8 / X.509 that
+        // BC's ASN.1 can re-wrap (JSL's RSA getEncoded for the private key is
+        // traditional PKCS#1, which PrivateKeyInfo.getInstance won't parse).
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcKpg.initialize(2048);
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        // Re-wrap the same key bits under the id-RSASSA-PSS OID (params absent),
+        // the form TLS rsa_pss_pss_* certificates carry.
+        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo spki =
+                org.bouncycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(bcKp.getPublic().getEncoded());
+        byte[] pssPub = new org.bouncycastle.asn1.x509.SubjectPublicKeyInfo(
+                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                        org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.id_RSASSA_PSS),
+                spki.getPublicKeyData().getBytes()).getEncoded();
+
+        org.bouncycastle.asn1.pkcs.PrivateKeyInfo pki =
+                org.bouncycastle.asn1.pkcs.PrivateKeyInfo.getInstance(bcKp.getPrivate().getEncoded());
+        byte[] pssPriv = new org.bouncycastle.asn1.pkcs.PrivateKeyInfo(
+                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                        org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.id_RSASSA_PSS),
+                pki.parsePrivateKey()).getEncoded();
+
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        PublicKey jslPub = kf.generatePublic(new X509EncodedKeySpec(pssPub));
+        PrivateKey jslPriv = kf.generatePrivate(new PKCS8EncodedKeySpec(pssPriv));
+
+        Assertions.assertTrue(jslPub instanceof RSAPublicKey, "imported key is not an RSA public key");
+        Assertions.assertEquals(((RSAPublicKey) bcKp.getPublic()).getModulus(),
+                ((RSAPublicKey) jslPub).getModulus(), "public modulus differs after import");
+        Assertions.assertEquals(
+                ((java.security.interfaces.RSAPrivateKey) bcKp.getPrivate()).getModulus(),
+                ((java.security.interfaces.RSAPrivateKey) jslPriv).getModulus(),
+                "private modulus differs after import");
+
+        // The imported key is a plain RSA key: it re-encodes identically to a
+        // JSL import of the equivalent rsaEncryption SPKI (PSS OID is dropped).
+        PublicKey jslPlain = kf.generatePublic(new X509EncodedKeySpec(bcKp.getPublic().getEncoded()));
+        Assertions.assertArrayEquals(jslPlain.getEncoded(), jslPub.getEncoded(),
+                "imported id-RSASSA-PSS key did not canonicalise to plain rsaEncryption");
+
+        // ...and it functions: a PSS round-trip with the imported keys verifies.
+        SecureRandom sr = seededRandom("testKeyFactory_importsIdRSASSAPSSEncodedKey");
+        byte[] msg = randomMessage(sr, 1 + sr.nextInt(256));
+        Signature signer = Signature.getInstance("SHA256withRSAandMGF1", JostleProvider.PROVIDER_NAME);
+        signer.initSign(jslPriv);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("SHA256withRSAandMGF1", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(jslPub);
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), "PSS round-trip with imported id-RSASSA-PSS key failed");
+    }
+
     private static byte[] randomMessage(SecureRandom sr, int len)
     {
         byte[] m = new byte[len];

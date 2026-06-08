@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import java.math.BigInteger;
 import java.security.Key;
@@ -37,7 +38,11 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     {
         if (keySpec instanceof X509EncodedKeySpec)
         {
-            byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
+            // An id-RSASSA-PSS SPKI is a structurally-identical RSA key; rewrite
+            // it to rsaEncryption (as BC/SunRsaSign do) so it imports under RSA.
+            // A plain rsaEncryption key is returned unchanged.
+            byte[] encoded = KeyInfoCanonicalizer.rsaSubjectPublicKeyInfo(
+                    ((X509EncodedKeySpec) keySpec).getEncoded());
             PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
             requireRSA(spec);
             return new JORSAPublicKey(spec);
@@ -60,7 +65,10 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     {
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
-            byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
+            // See engineGeneratePublic: rewrite an id-RSASSA-PSS PrivateKeyInfo to
+            // rsaEncryption; a plain rsaEncryption key is returned unchanged.
+            byte[] encoded = KeyInfoCanonicalizer.rsaPrivateKeyInfo(
+                    ((PKCS8EncodedKeySpec) keySpec).getEncoded());
             PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
             requireRSA(spec);
             return new JORSAPrivateKey(spec);
