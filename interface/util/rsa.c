@@ -496,8 +496,106 @@ void rsa_ctx_destroy(rsa_ctx *ctx) {
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);
     }
+    if (ctx->raw_pctx != NULL) {
+        EVP_PKEY_CTX_free(ctx->raw_pctx);
+    }
+    if (ctx->raw_buf != NULL) {
+        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
+    }
 
     OPENSSL_clear_free(ctx, sizeof(*ctx));
+}
+
+
+/*
+ * Free all per-session state on the ctx and return it to the "freshly
+ * created" state (opp == 0, padding_mode == 0, no digest_ctx, no raw
+ * session). Called at the top of init_sign / init_verify so a failed
+ * (re-)init can't leave a half-configured context behind, and from
+ * rsa_ctx_destroy. NULL-tolerant on every field.
+ */
+static void rsa_ctx_clear_session(rsa_ctx *ctx) {
+    if (ctx->digest_ctx != NULL) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
+        ctx->digest_ctx = NULL;
+    }
+    if (ctx->raw_pctx != NULL) {
+        EVP_PKEY_CTX_free(ctx->raw_pctx);
+        ctx->raw_pctx = NULL;
+    }
+    if (ctx->raw_buf != NULL) {
+        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
+        ctx->raw_buf = NULL;
+    }
+    ctx->raw_buf_len = 0;
+    ctx->raw_buf_cap = 0;
+    ctx->opp = 0;
+    ctx->padding_mode = 0;
+}
+
+/*
+ * Initialise the raw PKCS#1 v1.5 ("NoneWithRSA") session: an EVP_PKEY_CTX
+ * set up for EVP_PKEY_sign / EVP_PKEY_verify with RSA_PKCS1_PADDING and NO
+ * signature md, so OpenSSL pads the caller-supplied bytes directly. Caller
+ * has already cleared prior session state via rsa_ctx_clear_session.
+ */
+static int32_t rsa_raw_init(rsa_ctx *ctx, OSSL_LIB_CTX *libctx,
+                            EVP_PKEY *key, int op) {
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL);
+    if (pctx == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    int init_rc = (op == RSA_OP_SIGN)
+                      ? EVP_PKEY_sign_init(pctx)
+                      : EVP_PKEY_verify_init(pctx);
+    if (1 != init_rc) {
+        EVP_PKEY_CTX_free(pctx);
+        return JO_OPENSSL_ERROR;
+    }
+
+    if (1 != EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING)) {
+        EVP_PKEY_CTX_free(pctx);
+        return JO_OPENSSL_ERROR;
+    }
+
+    ctx->raw_pctx = pctx;
+    ctx->opp = op;
+    ctx->padding_mode = RSA_PADDING_PKCS1_NONE;
+    return JO_SUCCESS;
+}
+
+/*
+ * Append caller-supplied bytes to the raw-mode buffer (the TBS that
+ * EVP_PKEY_sign / EVP_PKEY_verify will consume one-shot). Grows the buffer
+ * geometrically; the total is bounded to INT32_MAX so the eventual cast to
+ * int on the Java return path can't overflow.
+ */
+static int32_t rsa_raw_append(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
+    if (in_len > (size_t) INT_MAX) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+    if (ctx->raw_buf_len > (size_t) INT_MAX - in_len) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+
+    size_t need = ctx->raw_buf_len + in_len;
+    if (need > ctx->raw_buf_cap) {
+        size_t new_cap = ctx->raw_buf_cap != 0 ? ctx->raw_buf_cap : 64;
+        while (new_cap < need) {
+            new_cap *= 2;
+        }
+        uint8_t *nb = OPENSSL_realloc(ctx->raw_buf, new_cap);
+        jo_assert(nb != NULL);
+        ctx->raw_buf = nb;
+        ctx->raw_buf_cap = new_cap;
+    }
+
+    if (in_len > 0) {
+        memcpy(ctx->raw_buf + ctx->raw_buf_len, in, in_len);
+    }
+    ctx->raw_buf_len = need;
+    return JO_SUCCESS;
 }
 
 
@@ -576,14 +674,16 @@ int32_t rsa_ctx_init_sign(rsa_ctx *ctx, const key_spec *key,
     EVP_PKEY_CTX *pctx = NULL;       // not owned — owned by md_ctx
 
     // Free any prior session state up-front. If init then fails partway,
-    // ctx->digest_ctx stays NULL so subsequent rsa_ctx_update / _sign /
-    // _verify return JO_NOT_INITIALIZED rather than dispatching into a
-    // half-configured digest_ctx (undefined behaviour inside libcrypto).
-    if (ctx->digest_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->digest_ctx);
-        ctx->digest_ctx = NULL;
+    // ctx stays cleared so subsequent rsa_ctx_update / _sign / _verify
+    // return JO_NOT_INITIALIZED rather than dispatching into a
+    // half-configured context (undefined behaviour inside libcrypto).
+    rsa_ctx_clear_session(ctx);
+
+    // Raw PKCS#1 v1.5 ("NoneWithRSA") has no streaming digest — set up an
+    // EVP_PKEY_CTX and buffer input until rsa_ctx_sign.
+    if (padding_mode == RSA_PADDING_PKCS1_NONE) {
+        return rsa_raw_init(ctx, libctx, key->key, RSA_OP_SIGN);
     }
-    ctx->opp = 0;
 
     md_ctx = EVP_MD_CTX_new();
     if (OPS_OPENSSL_ERROR_1 md_ctx == NULL) {
@@ -646,11 +746,12 @@ int32_t rsa_ctx_init_verify(rsa_ctx *ctx, const key_spec *key,
     EVP_PKEY_CTX *pctx = NULL;       // not owned — owned by md_ctx
 
     // Clear prior session state up-front (see rsa_ctx_init_sign for why).
-    if (ctx->digest_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->digest_ctx);
-        ctx->digest_ctx = NULL;
+    rsa_ctx_clear_session(ctx);
+
+    // Raw PKCS#1 v1.5 ("NoneWithRSA") verify path — buffer + EVP_PKEY_verify.
+    if (padding_mode == RSA_PADDING_PKCS1_NONE) {
+        return rsa_raw_init(ctx, libctx, key->key, RSA_OP_VERIFY);
     }
-    ctx->opp = 0;
 
     md_ctx = EVP_MD_CTX_new();
     if (OPS_OPENSSL_ERROR_1 md_ctx == NULL) {
@@ -690,6 +791,17 @@ int32_t rsa_ctx_update(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
     jo_assert(ctx != NULL);
     jo_assert(in != NULL);
 
+    // Raw PKCS#1 v1.5: accumulate into the buffer, no streaming digest.
+    if (ctx->padding_mode == RSA_PADDING_PKCS1_NONE) {
+        if (ctx->raw_pctx == NULL) {
+            return JO_NOT_INITIALIZED;
+        }
+        if (ctx->opp != RSA_OP_SIGN && ctx->opp != RSA_OP_VERIFY) {
+            return JO_UNEXPECTED_STATE;
+        }
+        return rsa_raw_append(ctx, in, in_len);
+    }
+
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;
     }
@@ -728,6 +840,45 @@ int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
 
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    // Raw PKCS#1 v1.5 ("NoneWithRSA"): one-shot EVP_PKEY_sign over the
+    // buffered caller-supplied bytes. PKCS#1 v1.5 signing is deterministic,
+    // so rnd_src is unused beyond the bridge's null check.
+    if (ctx->padding_mode == RSA_PADDING_PKCS1_NONE) {
+        if (ctx->raw_pctx == NULL) {
+            return JO_NOT_INITIALIZED;
+        }
+        if (ctx->opp != RSA_OP_SIGN) {
+            return JO_UNEXPECTED_STATE;
+        }
+
+        rand_set_java_srand_call(rnd_src);
+        ERR_clear_error();
+
+        size_t raw_sig_len = 0;
+        if (1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
+                               ctx->raw_buf, ctx->raw_buf_len)) {
+            return JO_OPENSSL_ERROR;
+        }
+        if (raw_sig_len > INT32_MAX) {
+            return JO_OUTPUT_TOO_LONG_INT32;
+        }
+        if (out == NULL) {
+            return (int32_t) raw_sig_len;
+        }
+        if (raw_sig_len > out_len) {
+            return JO_OUTPUT_TOO_SMALL;
+        }
+        const size_t raw_expected = raw_sig_len;
+        if (1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
+                               ctx->raw_buf, ctx->raw_buf_len)) {
+            return JO_OPENSSL_ERROR;
+        }
+        if (raw_sig_len != raw_expected) {
+            return JO_UNEXPECTED_SIG_LEN_CHANGE;
+        }
+        return (int32_t) raw_sig_len;
     }
 
     if (ctx->digest_ctx == NULL) {
@@ -776,6 +927,35 @@ int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
 int32_t rsa_ctx_verify(rsa_ctx *ctx, const uint8_t *sig, size_t sig_len) {
     jo_assert(ctx != NULL);
     jo_assert(sig != NULL);
+
+    // Raw PKCS#1 v1.5 ("NoneWithRSA"): one-shot EVP_PKEY_verify of the
+    // signature against the buffered caller-supplied bytes.
+    if (ctx->padding_mode == RSA_PADDING_PKCS1_NONE) {
+        if (ctx->raw_pctx == NULL) {
+            return JO_NOT_INITIALIZED;
+        }
+        if (ctx->opp != RSA_OP_VERIFY) {
+            return JO_UNEXPECTED_STATE;
+        }
+        if (sig_len > (size_t) INT_MAX) {
+            return JO_INPUT_TOO_LONG_INT32;
+        }
+
+        ERR_clear_error();
+        ERR_set_mark();
+        int raw_ret = EVP_PKEY_verify(ctx->raw_pctx, sig, sig_len,
+                                      ctx->raw_buf, ctx->raw_buf_len);
+        if (raw_ret == 1) {
+            ERR_pop_to_mark();
+            return JO_SUCCESS;
+        } else if (raw_ret == 0) {
+            ERR_pop_to_mark();
+            return JO_FAIL;
+        } else {
+            ERR_clear_last_mark();
+            return JO_OPENSSL_ERROR;
+        }
+    }
 
     if (ctx->digest_ctx == NULL) {
         return JO_NOT_INITIALIZED;

@@ -31,6 +31,9 @@ public interface RSAServiceNI extends DefaultServiceNI
     // Padding modes. MUST match RSA_PADDING_* in rsa.h.
     int PADDING_PKCS1 = 1;
     int PADDING_PSS = 2;
+    // Raw PKCS#1 v1.5 ("NoneWithRSA"): caller supplies the already-formed
+    // bytes (e.g. a DigestInfo); no digest is computed in the engine.
+    int PADDING_PKCS1_NONE = 3;
 
     // Component selectors. MUST match RSA_COMP_* in rsa.h.
     int COMP_MODULUS = 0;
