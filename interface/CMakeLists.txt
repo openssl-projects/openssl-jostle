@@ -129,6 +129,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/rsa_oaep_ni_jni.c
             jni/rsa_pkcs1_ni_jni.c
             jni/ec_ni_jni.c
+            jni/xec_ni_jni.c
             util/edec.h
             util/edec.c
             util/rsa.h
@@ -139,6 +140,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/xec.h
+            util/xec.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -216,6 +219,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/rsa_oaep_ni_ffi.c
             ffi/rsa_pkcs1_ni_ffi.c
             ffi/ec_ni_ffi.c
+            ffi/xec_ni_ffi.c
             util/edec.h
             util/edec.c
             util/rsa.h
@@ -226,6 +230,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/xec.h
+            util/xec.c
     )
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
@@ -330,6 +336,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/rsa_oaep_ni_jni.c
             jni/rsa_pkcs1_ni_jni.c
             jni/ec_ni_jni.c
+            jni/xec_ni_jni.c
             util/edec.h
             util/edec.c
             util/rsa.h
@@ -340,6 +347,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/xec.h
+            util/xec.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -417,11 +426,14 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/xec.h
+            util/xec.c
             ffi/ed_ni_ffi.c
             ffi/rsa_ni_ffi.c
             ffi/rsa_oaep_ni_ffi.c
             ffi/rsa_pkcs1_ni_ffi.c
             ffi/ec_ni_ffi.c
+            ffi/xec_ni_ffi.c
     )
 
     target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
@@ -508,6 +520,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/rsa_oaep_ni_jni.c
             jni/rsa_pkcs1_ni_jni.c
             jni/ec_ni_jni.c
+            jni/xec_ni_jni.c
             util/edec.h
             util/edec.c
             util/rsa.h
@@ -518,6 +531,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/xec.h
+            util/xec.c
     )
 
     target_include_directories(interface_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
@@ -588,11 +603,14 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/xec.h
+            util/xec.c
             ffi/ed_ni_ffi.c
             ffi/rsa_ni_ffi.c
             ffi/rsa_oaep_ni_ffi.c
             ffi/rsa_pkcs1_ni_ffi.c
             ffi/ec_ni_ffi.c
+            ffi/xec_ni_ffi.c
 
     )
 

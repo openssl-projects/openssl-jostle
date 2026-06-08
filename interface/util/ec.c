@@ -43,6 +43,27 @@ static int32_t check_is_ec(const EVP_PKEY *pkey) {
 }
 
 
+/*
+ * Widened predicate for the key-agreement path: accepts EC plus the
+ * Montgomery XDH key types (X25519 / X448). The ec_kex_* functions are
+ * type-agnostic at the EVP_PKEY_derive level, so the XDH KeyAgreement
+ * reuses them — only the type gate differs. ECDSA sign/verify and the
+ * EC component getters keep the stricter check_is_ec.
+ */
+static int32_t check_is_ec_or_xec(const EVP_PKEY *pkey) {
+    const char *algo = EVP_PKEY_get0_type_name(pkey);
+    if (algo == NULL) {
+        return JO_INCORRECT_KEY_TYPE;
+    }
+    if (strcmp(algo, "EC") == 0
+        || strcmp(algo, "X25519") == 0
+        || strcmp(algo, "X448") == 0) {
+        return JO_SUCCESS;
+    }
+    return JO_INCORRECT_KEY_TYPE;
+}
+
+
 // =============================================================
 // Curve introspection
 // =============================================================
@@ -719,7 +740,7 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-    int32_t check = check_is_ec(my_priv->key);
+    int32_t check = check_is_ec_or_xec(my_priv->key);
     if (check != JO_SUCCESS) {
         return check;
     }
@@ -765,7 +786,7 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-    int32_t check = check_is_ec(peer_pub->key);
+    int32_t check = check_is_ec_or_xec(peer_pub->key);
     if (check != JO_SUCCESS) {
         return check;
     }

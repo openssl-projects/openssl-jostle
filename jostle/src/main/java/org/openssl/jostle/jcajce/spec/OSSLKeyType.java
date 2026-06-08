@@ -45,7 +45,12 @@ public enum OSSLKeyType
     ED448ph(23,  "Ed448ph","ED448PH"),
     ED448(24, "Ed448", "ED448"),
     RSA(25, "RSA", "1.2.840.113549.1.1.1"),
-    EC(26, "EC", "1.2.840.10045.2.1");
+    EC(26, "EC", "1.2.840.10045.2.1"),
+    // XDH key agreement (RFC 8410). First alias is the OpenSSL EVP_PKEY
+    // type name (what EVP_PKEY_get0_type_name returns), so decode-by-name
+    // through PKEYKeySpec(long) maps to these.
+    X25519(27, "X25519", "1.3.101.110", "id-X25519"),
+    X448(28, "X448", "1.3.101.111", "id-X448");
 
     private final String[] aliases;
     int ksType;
