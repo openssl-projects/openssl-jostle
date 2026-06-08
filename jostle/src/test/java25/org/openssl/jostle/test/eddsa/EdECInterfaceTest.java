@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -279,7 +280,7 @@ public class EdECInterfaceTest
         Assertions.assertTrue(joVerifier.verify(sunSig),
                 alg + ": JSL failed to verify a SunEC signature using SunEC's public key");
 
-        byte[] tampered = msg.clone();
+        byte[] tampered = Arrays.clone(msg);
         tampered[0] ^= 1;
         Signature joVerifier2 = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
         joVerifier2.initVerify(sunKp.getPublic());

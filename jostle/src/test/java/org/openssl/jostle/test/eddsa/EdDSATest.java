@@ -35,6 +35,7 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Pack;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
@@ -1740,7 +1741,7 @@ public class EdDSATest
 
         // Negative: a tampered message must not verify (guards against a
         // stub that accepts anything once the foreign key is adopted).
-        byte[] tampered = msg.clone();
+        byte[] tampered = Arrays.clone(msg);
         tampered[0] ^= 1;
         Signature joVerifier2 = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
         joVerifier2.initVerify(bcKp.getPublic());

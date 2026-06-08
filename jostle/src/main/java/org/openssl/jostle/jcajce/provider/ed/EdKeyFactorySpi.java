@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.ed;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.*;
@@ -101,25 +102,37 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
 
+            // PKCS8EncodedKeySpec.getEncoded() returns a fresh copy carrying
+            // the private scalar — scrub it once the native key is built.
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
 
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-
-            if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+            try
             {
-                throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType());
-            }
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
 
-            switch (pkeySpec.getType())
+                if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+                {
+                    throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType());
+                }
+
+                switch (pkeySpec.getType())
+                {
+                    case ED25519:
+                    case ED448:
+                        break;
+                    default:
+                        throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
+                }
+
+                return new JOEdPrivateKey(pkeySpec);
+            }
+            finally
             {
-                case ED25519:
-                case ED448:
-                    break;
-                default:
-                    throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
+                if (encoded != null)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
             }
-
-            return new JOEdPrivateKey(pkeySpec);
         }
         else
         {
@@ -133,13 +146,25 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
+                // getPrivateData() returns Arrays.clone(...) — a fresh copy of
+                // the raw scalar — so scrubbing it can't corrupt the caller's spec.
                 byte[] encoded = spec.getPrivateData();
 
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.EDServiceNI.decode_privateKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length);
-                return new JOEdPrivateKey(pkeySpec);
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    NISelector.EDServiceNI.decode_privateKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(),
+                            encoded, 0, encoded.length);
+                    return new JOEdPrivateKey(pkeySpec);
+                }
+                finally
+                {
+                    if (encoded != null)
+                    {
+                        Arrays.fill(encoded, (byte) 0);
+                    }
+                }
             }
         }
 
@@ -302,6 +327,14 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         {
             throw new InvalidKeyException(
                     "unable to import EdDSA private key from its encoding", e);
+        }
+        finally
+        {
+            // The PKCS#8 encoding carries the private scalar — scrub our copy
+            // once the native key has been built. getEncoded() returned a
+            // fresh array (non-null, checked above), so this can't corrupt the
+            // caller's key. Arrays.fill is not null-safe, but encoded != null.
+            Arrays.fill(encoded, (byte) 0);
         }
     }
 
