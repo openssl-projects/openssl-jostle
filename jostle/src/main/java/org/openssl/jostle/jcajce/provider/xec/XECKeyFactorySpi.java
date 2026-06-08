@@ -13,7 +13,7 @@ package org.openssl.jostle.jcajce.provider.xec;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -29,7 +29,7 @@ import java.security.spec.X509EncodedKeySpec;
  * KeyFactorySpi for X25519 / X448. Supports the encoded key-spec forms:
  * <ol>
  *   <li>{@link X509EncodedKeySpec} for public keys — decoded via the
- *       generic {@link ASNEncoder} (OpenSSL auto-detects the X25519 / X448
+ *       generic {@link ASN1Encoder} (OpenSSL auto-detects the X25519 / X448
  *       type from the SubjectPublicKeyInfo algorithm OID);</li>
  *   <li>{@link PKCS8EncodedKeySpec} for private keys — same path.</li>
  * </ol>
@@ -46,7 +46,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
             requireXEC(spec);
             return new JOXECPublicKey(spec);
         }
@@ -60,7 +60,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASNEncoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
             requireXEC(spec);
             return new JOXECPrivateKey(spec);
         }

@@ -15,14 +15,14 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.XDHKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.security.PrivateKey;
 
 /**
  * X25519 / X448 private key. Encodes as PKCS#8 PrivateKeyInfo via the
- * generic {@link ASNEncoder}; the concrete algorithm comes from the key's
+ * generic {@link ASN1Encoder}; the concrete algorithm comes from the key's
  * {@link org.openssl.jostle.jcajce.spec.OSSLKeyType}.
  */
 class JOXECPrivateKey extends AsymmetricKeyImpl implements PrivateKey, XDHKey, OSSLKey
@@ -49,7 +49,7 @@ class JOXECPrivateKey extends AsymmetricKeyImpl implements PrivateKey, XDHKey, O
     {
         synchronized (this)
         {
-            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
         }
     }
 

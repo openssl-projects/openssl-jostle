@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.XDHKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.PublicKey;
 
@@ -49,7 +49,7 @@ class JOXECPublicKey extends AsymmetricKeyImpl implements PublicKey, XDHKey, OSS
     {
         synchronized (this)
         {
-            return ASNEncoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
         }
     }
 
