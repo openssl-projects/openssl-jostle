@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
@@ -110,6 +111,7 @@ public class ECOpsTest
 {
     private static final int JO_OPENSSL_ERROR = -2;
     private static final int JO_OUTPUT_TOO_LONG_INT32 = -20;
+    private static final int JO_UNABLE_TO_ACCESS_NAME = -89;
 
     private final ECServiceNI ec = TestNISelector.getECNi();
     private final SpecNI specNI = TestNISelector.getSpecNI();
@@ -1131,6 +1133,143 @@ public class ECOpsTest
             ec.disposeKex(kexRef);
             specNI.dispose(keyRef);
             specNI.dispose(peerRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only
+    //
+    // These tests fault-inject GetStringUTFChars failure on curve / digest
+    // name strings at the JNI bridge layer. FFI doesn't take a JVM access
+    // path so the tests are guarded by Loader.isFFI().
+    // -----------------------------------------------------------------
+
+    /**
+     * Target: {@code interface/jni/ec_ni_jni.c:42} — fault-injects the
+     * {@code GetStringUTFChars(curveName)} failure inside {@code ni_curveSupported}.
+     */
+    @Test
+    public void ec_curveSupported_accessCurveName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        try
+        {
+            // Exercises interface/jni/ec_ni_jni.c:42
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = ec.ni_curveSupported("P-256");
+            Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    /**
+     * Target: {@code interface/jni/ec_ni_jni.c:77} — fault-injects the
+     * {@code GetStringUTFChars(curveName)} failure inside {@code ni_generateKeyPair}.
+     */
+    @Test
+    public void ec_generateKeyPair_accessCurveName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        try
+        {
+            // Exercises interface/jni/ec_ni_jni.c:77
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int[] err = new int[1];
+            long ref = ec.ni_generateKeyPair("P-256", err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    /**
+     * Target: {@code interface/jni/ec_ni_jni.c:136} — fault-injects the
+     * {@code GetStringUTFChars(curveName)} failure inside
+     * {@code ni_makePrivateFromComponents}. Uses {@code OPS_FAILED_ACCESS_2}
+     * because slot {@code _1} is used by the scalar byte-array load further
+     * down the same function.
+     */
+    @Test
+    public void ec_makePrivateFromComponents_accessCurveName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        // Any non-zero 32-byte scalar — OPS short-circuits before validation.
+        byte[] scalar = new byte[32];
+        scalar[31] = 0x01;
+        try
+        {
+            // Exercises interface/jni/ec_ni_jni.c:136
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int[] err = new int[1];
+            long ref = ec.ni_makePrivateFromComponents("P-256", scalar, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    /**
+     * Target: {@code interface/jni/ec_ni_jni.c:270} — fault-injects the
+     * {@code GetStringUTFChars(digest)} failure inside {@code ni_initSign}.
+     */
+    @Test
+    public void ec_initSign_accessDigestName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        long sigRef = ec.allocateSigner();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/jni/ec_ni_jni.c:270
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = ec.ni_initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
+            Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /**
+     * Target: {@code interface/jni/ec_ni_jni.c:302} — fault-injects the
+     * {@code GetStringUTFChars(digest)} failure inside {@code ni_initVerify}.
+     */
+    @Test
+    public void ec_initVerify_accessDigestName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        long sigRef = ec.allocateSigner();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/jni/ec_ni_jni.c:302
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = ec.ni_initVerify(sigRef, keyRef, "SHA-256");
+            Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
         }
     }
 }

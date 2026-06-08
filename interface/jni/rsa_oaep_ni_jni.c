@@ -81,13 +81,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
     int32_t ret_code = JO_FAIL;
 
     oaep_md = (*env)->GetStringUTFChars(env, _oaep_md, NULL);
-    if (oaep_md == NULL) {
+    if (OPS_FAILED_ACCESS_2 oaep_md == NULL) {
         ret_code = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
     if (_mgf1_md != NULL) {
         mgf1_md = (*env)->GetStringUTFChars(env, _mgf1_md, NULL);
-        if (mgf1_md == NULL) {
+        if (OPS_FAILED_ACCESS_3 mgf1_md == NULL) {
             ret_code = JO_UNABLE_TO_ACCESS_NAME;
             goto exit;
         }

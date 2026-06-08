@@ -126,6 +126,7 @@ public class MacOpsTest
         long ref = 0;
         try
         {
+            // Exercises interface/util/mac.c:106
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int[] err = new int[1];
             ref = MacServiceNI.ni_allocateMac("HMAC", "SHA-256", err);
@@ -201,6 +202,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
+            // Exercises interface/util/mac.c:106
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = MacServiceNI.ni_init(ref, new byte[16]);
             Assertions.assertEquals(-1002, code);
@@ -248,6 +250,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16]);
+            // Exercises interface/util/mac.c:220
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = MacServiceNI.ni_updateBytes(ref, new byte[10], 1, 9);
             Assertions.assertEquals(-1002, code);
@@ -294,6 +297,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16]);
+            // Exercises interface/util/mac.c:220
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = MacServiceNI.ni_doFinal(ref, new byte[32], 0);
             Assertions.assertEquals(-1002, code);
@@ -375,6 +379,87 @@ public class MacOpsTest
         catch (OverflowException e)
         {
             Assertions.assertEquals("output too long int32", e.getMessage());
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+
+    @Test
+    public void macLengthMeta_fetchMd_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            // Exercises interface/util/mac.c:247
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            int code = MacServiceNI.ni_macLengthMeta(ref);
+            Assertions.assertEquals(-1012, code);
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void macLengthMeta_fetchCipher_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("CMAC", "aes-cbc");
+        try
+        {
+            // Exercises interface/util/mac.c:268
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            int code = MacServiceNI.ni_macLengthMeta(ref);
+            Assertions.assertEquals(-1013, code);
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void macLengthMeta_mdSize_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            // Exercises interface/util/mac.c:252
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+            int code = MacServiceNI.ni_macLengthMeta(ref);
+            Assertions.assertEquals(-1014, code);
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void macLengthMeta_cipherBlock_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("CMAC", "aes-cbc");
+        try
+        {
+            // Exercises interface/util/mac.c:273
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+            int code = MacServiceNI.ni_macLengthMeta(ref);
+            Assertions.assertEquals(-1015, code);
         }
         finally
         {

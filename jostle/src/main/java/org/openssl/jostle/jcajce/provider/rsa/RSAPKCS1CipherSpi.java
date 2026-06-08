@@ -394,6 +394,23 @@ public class RSAPKCS1CipherSpi extends CipherSpi
                 throw (InvalidKeyException) new InvalidKeyException(
                         "unable to reconstruct unwrapped " + wrappedKeyAlgorithm + " key").initCause(e);
             }
+            catch (IllegalArgumentException e)
+            {
+                // SecretKeySpec rejects empty / null key bytes with
+                // IllegalArgumentException. This fires when PKCS#1
+                // implicit rejection returns a zero-length synthetic
+                // plaintext for a tampered ciphertext on OpenSSL
+                // versions / platforms where the synthetic length
+                // collapses (observed on OpenSSL 3.6 on ARM under
+                // unitTest17). Per JCE convention,
+                // Cipher.unwrap must surface ALL unwrap failures as
+                // InvalidKeyException — letting IllegalArgumentException
+                // leak would break callers' typed catch clauses and
+                // would also act as a side-channel signalling
+                // "implicit rejection fired".
+                throw (InvalidKeyException) new InvalidKeyException(
+                        "unable to reconstruct unwrapped " + wrappedKeyAlgorithm + " key").initCause(e);
+            }
         }
     }
 

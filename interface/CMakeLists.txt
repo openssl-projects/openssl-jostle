@@ -80,6 +80,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
+            jni/ccm_ni_jni.c
             jni/spec_ni_jni.c
             jni/mldsa_ni_jni.c
             jni/slhdsa_ni_jni.c
@@ -96,6 +97,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/encapdecap.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
+            util/ccm_ctx.h
+            util/ccm_ctx.c
             util/ctr_u128_t.h
             util/ctr_u128_t.c
             util/bc_err_codes.h
@@ -172,6 +175,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/openssl_ffi.h
             ffi/openssl_ffi.c
             ffi/block_cipher_ni_ffi.c
+            ffi/ccm_ni_ffi.c
             ffi/spec_ni_ffi.c
             ffi/mldsa_ni_ffi.c
             ffi/mlkem_ni_ffi.c
@@ -188,6 +192,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/encapdecap.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
+            util/ccm_ctx.h
+            util/ccm_ctx.c
             util/ctr_u128_t.h
             util/ctr_u128_t.c
             util/bc_err_codes.h
@@ -282,6 +288,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
+            jni/ccm_ni_jni.c
             jni/spec_ni_jni.c
             jni/mldsa_ni_jni.c
             jni/slhdsa_ni_jni.c
@@ -289,6 +296,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/asn1_ni_jni.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
+            util/ccm_ctx.h
+            util/ccm_ctx.c
             util/bc_err_codes.h
             jni/byte_array_critical.c
             jni/byte_array_critical.h
@@ -368,6 +377,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/openssl_ffi.h
             ffi/openssl_ffi.c
             ffi/block_cipher_ni_ffi.c
+            ffi/ccm_ni_ffi.c
             ffi/spec_ni_ffi.c
             ffi/mldsa_ni_ffi.c
             ffi/slh_dsa_ni_ffi.c
@@ -384,6 +394,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/encapdecap.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
+            util/ccm_ctx.h
+            util/ccm_ctx.c
             util/ctr_u128_t.h
             util/ctr_u128_t.c
             util/bc_err_codes.h
@@ -459,6 +471,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/native_info_jni.c
             jni/open_ssl_jni.c
             jni/block_cipher_ni_jni.c
+            jni/ccm_ni_jni.c
             jni/spec_ni_jni.c
             jni/mldsa_ni_jni.c
             jni/slhdsa_ni_jni.c
@@ -475,6 +488,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/encapdecap.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
+            util/ccm_ctx.h
+            util/ccm_ctx.c
             util/ctr_u128_t.h
             util/ctr_u128_t.c
             util/bc_err_codes.h
@@ -536,6 +551,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/openssl_ffi.h
             ffi/openssl_ffi.c
             ffi/block_cipher_ni_ffi.c
+            ffi/ccm_ni_ffi.c
             ffi/spec_ni_ffi.c
             ffi/mldsa_ni_ffi.c
             ffi/mlkem_ni_ffi.c
@@ -555,6 +571,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/encapdecap.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
+            util/ccm_ctx.h
+            util/ccm_ctx.c
             util/ctr_u128_t.h
             util/ctr_u128_t.c
             util/bc_err_codes.h

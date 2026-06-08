@@ -81,5 +81,32 @@ class ProvSLHDSA
             provider.addAlgorithmImplementation("Signature", algName, PREFIX + "SLHDSASignatureSpi$" + algName.replace("-", "_"), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(SLHDSAParameterSpec.fromName(algName).getKeyType()));
         }
 
+        // SPKI / signature-algorithm OID aliases (NIST CSOR id-slh-dsa-*, RFC 9814),
+        // aligned 1:1 with algNames above. Required so an X.509 certificate whose
+        // SubjectPublicKeyInfo / signature carries the OID resolves to the JSL
+        // KeyFactory and Signature (see JSLKeyX509Certificate), rather than falling
+        // back to the JDK default.
+        String[] oids = new String[]
+                {
+                        "2.16.840.1.101.3.4.3.20",  // SLH-DSA-SHA2-128S
+                        "2.16.840.1.101.3.4.3.21",  // SLH-DSA-SHA2-128F
+                        "2.16.840.1.101.3.4.3.22",  // SLH-DSA-SHA2-192S
+                        "2.16.840.1.101.3.4.3.23",  // SLH-DSA-SHA2-192F
+                        "2.16.840.1.101.3.4.3.24",  // SLH-DSA-SHA2-256S
+                        "2.16.840.1.101.3.4.3.25",  // SLH-DSA-SHA2-256F
+                        "2.16.840.1.101.3.4.3.26",  // SLH-DSA-SHAKE-128S
+                        "2.16.840.1.101.3.4.3.27",  // SLH-DSA-SHAKE-128F
+                        "2.16.840.1.101.3.4.3.28",  // SLH-DSA-SHAKE-192S
+                        "2.16.840.1.101.3.4.3.29",  // SLH-DSA-SHAKE-192F
+                        "2.16.840.1.101.3.4.3.30",  // SLH-DSA-SHAKE-256S
+                        "2.16.840.1.101.3.4.3.31"   // SLH-DSA-SHAKE-256F
+                };
+
+        for (int i = 0; i < algNames.length; i++)
+        {
+            provider.addAlias("KeyFactory", algNames[i], new ASN1ObjectIdentifier(oids[i]));
+            provider.addAlias("Signature", algNames[i], new ASN1ObjectIdentifier(oids[i]));
+        }
+
     }
 }

@@ -126,6 +126,38 @@ public class SLHDSAParameterSpec implements AlgorithmParameterSpec
         return keyType;
     }
 
+    /**
+     * NIST security strength (in bits) per FIPS 205 Table 2:
+     * <ul>
+     *   <li>SLH-DSA-*-128{s,f} — security category 1, 128-bit strength</li>
+     *   <li>SLH-DSA-*-192{s,f} — security category 3, 192-bit strength</li>
+     *   <li>SLH-DSA-*-256{s,f} — security category 5, 256-bit strength</li>
+     * </ul>
+     *
+     * <p>Drives the JCE SPI's default-SecureRandom selection when the
+     * caller doesn't supply one explicitly. See {@link MLKEMParameterSpec#getRequiredStrengthBits}
+     * for the rationale (GH issue #34).
+     */
+    public int getRequiredStrengthBits()
+    {
+        // Name carries the strength directly (e.g. "SLH-DSA-SHA2-192F").
+        // Match against the substring between the second and third dash.
+        if (name.contains("-128"))
+        {
+            return 128;
+        }
+        if (name.contains("-192"))
+        {
+            return 192;
+        }
+        if (name.contains("-256"))
+        {
+            return 256;
+        }
+        // Unknown — conservative.
+        return 256;
+    }
+
 
     public static SLHDSAParameterSpec fromName(String name)
     {

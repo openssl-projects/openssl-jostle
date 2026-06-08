@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.blockcipher.SM4BlockCipherSpi;
+import org.openssl.jostle.jcajce.provider.blockcipher.SM4CCMCipherSpi;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +32,8 @@ class ProvSM4
     {
         provider.addAlgorithmImplementation("Cipher", "SM4", PREFIX + "Base", generalAttributes, (arg) -> new SM4BlockCipherSpi());
 
-
+        // SM4/CCM — see ProvAES note on the dedicated CCM SPI.
+        provider.addAlgorithmImplementation("Cipher", "SM4/CCM/NoPadding",
+                PREFIX + "SM4CCM", generalAttributes, (arg) -> new SM4CCMCipherSpi());
     }
 }

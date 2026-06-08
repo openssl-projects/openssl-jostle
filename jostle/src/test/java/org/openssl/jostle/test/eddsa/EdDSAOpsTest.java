@@ -80,6 +80,89 @@ public class EdDSAOpsTest
         }
     }
 
+    // -----------------------------------------------------------------
+    // edec_generate_key — additional EVP failure points.
+    //
+    // The existing openSSLError test (above) exercises OPS_OPENSSL_ERROR_1
+    // which forces the post-keygen spec->key == NULL trick. The three
+    // tests below cover the actual EVP call failure paths that were
+    // previously uninstrumented:
+    //
+    //   1. EVP_PKEY_CTX_new_from_name (ctx allocation) — slot _2, offset 1010
+    //   2. EVP_PKEY_keygen_init                       — slot _3, offset 1011
+    //   3. EVP_PKEY_keygen                            — slot _4, offset 1012
+    //
+    // Slots _2/_3/_4 are reused — they currently fire in edec_get_*_encoded
+    // and edec_ctx_* paths, none of which are reachable during
+    // edec_generate_key (which only calls EVP, not the other helpers).
+    // -----------------------------------------------------------------
+
+    @Test
+    public void testEDDSAGenerateKeyPair_ctxNewFromName_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        try
+        {
+            // Exercises interface/util/edec.c:52
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            int[] err = new int[1];
+            long ref = edDSAServiceNI.ni_generateKeyPair(
+                    OSSLKeyType.ED25519.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            // -2 + (-1010) = -1012.
+            Assertions.assertEquals(-1012, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void testEDDSAGenerateKeyPair_keygenInit_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        try
+        {
+            // Exercises interface/util/edec.c:58
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            int[] err = new int[1];
+            long ref = edDSAServiceNI.ni_generateKeyPair(
+                    OSSLKeyType.ED25519.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            // -2 + (-1011) = -1013.
+            Assertions.assertEquals(-1013, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void testEDDSAGenerateKeyPair_evpKeygen_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        try
+        {
+            // Exercises interface/util/edec.c:64
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            int[] err = new int[1];
+            long ref = edDSAServiceNI.ni_generateKeyPair(
+                    OSSLKeyType.ED25519.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            // -2 + (-1012) = -1014.
+            Assertions.assertEquals(-1014, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
     @Test()
     public void EDDSAServiceJNI__initSign_accessContextArray() throws Exception
     {
@@ -131,6 +214,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/edec.c:405
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = edDSAServiceNI.ni_initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
@@ -160,6 +244,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/edec.c:426
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
@@ -225,6 +310,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/edec.c:470
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1005, code); // OpenSSL error with offset
@@ -254,6 +340,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
+            // Exercises interface/util/edec.c:496
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1006, code); // OpenSSL error with offset

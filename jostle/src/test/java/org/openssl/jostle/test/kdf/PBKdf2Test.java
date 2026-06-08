@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.SecretKey;
@@ -30,7 +31,26 @@ import java.security.Security;
 
 public class PBKdf2Test
 {
-    static SecureRandom secRand = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     @BeforeAll
     static void before()
@@ -45,10 +65,10 @@ public class PBKdf2Test
         }
     }
 
-    private static byte[] random(int length)
+    private static byte[] random(int length, SecureRandom sr)
     {
         byte[] bytes = new byte[length];
-        secRand.nextBytes(bytes);
+        sr.nextBytes(bytes);
         return bytes;
     }
 
@@ -56,6 +76,7 @@ public class PBKdf2Test
     @Test
     public void testBCAgreement() throws Exception
     {
+        SecureRandom sr = seededRandom("testBCAgreement");
         // "PBKDF2"
         for (String prf : new String[]{
                 "PBKDF2",
@@ -79,8 +100,8 @@ public class PBKdf2Test
             // real world viability, please do not cut and paste this into anything important.
             //
 
-            char[] passphrase = new String(random(8)).toCharArray();
-            byte[] salt = random(16);
+            char[] passphrase = new String(random(8, sr)).toCharArray();
+            byte[] salt = random(16, sr);
             SecretKeyFactory kfJostle = SecretKeyFactory.getInstance(prf, JostleProvider.PROVIDER_NAME);
             SecretKeyFactory kfBc = SecretKeyFactory.getInstance(prf, BouncyCastleProvider.PROVIDER_NAME);
 
@@ -97,8 +118,9 @@ public class PBKdf2Test
         //
         // We need to use the low level api to get some of the variations on the BC side
         //
-        char[] passphrase = new String(random(8)).toCharArray();
-        byte[] salt = random(16);
+        SecureRandom sr = seededRandom("testBCAgreementLowLevel");
+        char[] passphrase = new String(random(8, sr)).toCharArray();
+        byte[] salt = random(16, sr);
         byte[] passphraseAsBytes = Strings.toUTF8ByteArray(passphrase);
 
 
@@ -178,6 +200,52 @@ public class PBKdf2Test
             Assertions.assertArrayEquals(llBC.getKey(), sk.getEncoded());
         }
 
+    }
+
+    /**
+     * Negative path per CLAUDE.md "Tests must exercise the negative
+     * path". The BC-agreement tests above prove Jostle produces the
+     * same output as BC for a given input — but they don't prove that
+     * the output actually depends on each input. A stub KDF that
+     * returned a fixed buffer would fail BC agreement, but a buggy
+     * KDF that, say, ignored the salt would silently produce the same
+     * output for distinct salts. This test confirms each input
+     * (password, salt, iteration count) actually influences the
+     * derived key.
+     */
+    @Test
+    public void testInputsActuallyInfluenceDerivedKey() throws Exception
+    {
+        SecureRandom sr = seededRandom("testInputsActuallyInfluenceDerivedKey");
+        SecretKeyFactory kf = SecretKeyFactory.getInstance(
+                "PBKDF2WITHHMACSHA256", JostleProvider.PROVIDER_NAME);
+
+        char[] pwd1 = new String(random(8, sr)).toCharArray();
+        char[] pwd2 = new String(random(8, sr)).toCharArray();
+        byte[] salt1 = random(16, sr);
+        byte[] salt2 = random(16, sr);
+
+        byte[] base = kf.generateSecret(new PBEKeySpec(pwd1, salt1, 1000, 256)).getEncoded();
+
+        // Different password → different key.
+        byte[] diffPwd = kf.generateSecret(new PBEKeySpec(pwd2, salt1, 1000, 256)).getEncoded();
+        Assertions.assertFalse(Arrays.areEqual(base, diffPwd),
+                "different password must produce a different derived key");
+
+        // Different salt → different key.
+        byte[] diffSalt = kf.generateSecret(new PBEKeySpec(pwd1, salt2, 1000, 256)).getEncoded();
+        Assertions.assertFalse(Arrays.areEqual(base, diffSalt),
+                "different salt must produce a different derived key");
+
+        // Different iteration count → different key.
+        byte[] diffIter = kf.generateSecret(new PBEKeySpec(pwd1, salt1, 2000, 256)).getEncoded();
+        Assertions.assertFalse(Arrays.areEqual(base, diffIter),
+                "different iteration count must produce a different derived key");
+
+        // Same inputs → same key (PBKDF2 is deterministic).
+        byte[] repeat = kf.generateSecret(new PBEKeySpec(pwd1, salt1, 1000, 256)).getEncoded();
+        Assertions.assertArrayEquals(base, repeat,
+                "same inputs must produce the same derived key (PBKDF2 is deterministic)");
     }
 
 

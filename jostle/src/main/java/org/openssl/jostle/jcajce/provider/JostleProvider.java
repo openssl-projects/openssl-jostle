@@ -120,6 +120,7 @@ public class JostleProvider
         new ProvCAMELLIA().configure(this);
         new ProvARIA().configure(this);
         new ProvSM4().configure(this);
+        new ProvDESede().configure(this);
         new ProvMLDSA().configure(this);
         new ProvSLHDSA().configure(this);
         new ProvMLKEM().configure(this);
@@ -131,6 +132,7 @@ public class JostleProvider
         new ProvRSA().configure(this);
         new ProvEC().configure(this);
         new ProvMac().configure(this);
+        new ProvX509().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)

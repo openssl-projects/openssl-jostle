@@ -69,6 +69,35 @@ public class CryptoServicesRegistrar
         return null == secureRandom ? getSecureRandom() : secureRandom;
     }
 
+    /**
+     * Return a {@link SecureRandom} whose reported security strength is
+     * at least {@code requiredStrengthBits}.
+     *
+     * <p>Delegates to the current {@link SecureRandomProvider}'s
+     * {@link SecureRandomProvider#get(int)} — the default
+     * {@link ThreadLocalSecureRandomProvider} has a Java 9+ override
+     * that constructs a DRBG via {@code DrbgParameters.instantiation}.
+     * The Java 8 baseline inherits the default {@code get(int)} which
+     * returns the regular {@link #getSecureRandom()} default.
+     *
+     * <p>Used by the post-quantum SPIs (ML-KEM, ML-DSA, SLH-DSA) to
+     * obtain a default RNG that satisfies the algorithm's required
+     * security category — without this, ML-KEM-768 (192-bit strength)
+     * and ML-KEM-1024 (256-bit strength) keygen / encap calls fail
+     * against the JDK's default 128-bit DRBG (GH issue #34).
+     *
+     * @param requiredStrengthBits desired minimum strength in bits
+     *                             (typically 128, 192, or 256).
+     * @return a SecureRandom suitable for use as the default source
+     *         of randomness for an operation requiring at least the
+     *         given strength.
+     */
+    public static SecureRandom getSecureRandom(int requiredStrengthBits)
+    {
+        defaultSecureRandomProvider.compareAndSet(null, defaultRandomProviderImpl);
+        return defaultSecureRandomProvider.get().get(requiredStrengthBits);
+    }
+
 
     /**
      * Set a default secure random provider to be used where none is otherwise provided.
@@ -102,24 +131,6 @@ public class CryptoServicesRegistrar
                     return secureRandom;
                 }
             });
-        }
-    }
-
-
-    private static class ThreadLocalSecureRandomProvider
-            implements SecureRandomProvider
-    {
-        final ThreadLocal<SecureRandom> defaultRandoms = new ThreadLocal<SecureRandom>();
-
-        public SecureRandom get()
-        {
-            if (defaultRandoms.get() == null)
-            {
-                SecureRandom rand = new SecureRandom();
-                defaultRandoms.set(rand);
-            }
-
-            return defaultRandoms.get();
         }
     }
 }

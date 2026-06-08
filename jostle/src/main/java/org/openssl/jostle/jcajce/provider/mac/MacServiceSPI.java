@@ -13,23 +13,52 @@ package org.openssl.jostle.jcajce.provider.mac;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 
 import javax.crypto.MacSpi;
 import javax.crypto.SecretKey;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 
 public class MacServiceSPI extends MacSpi
 {
     private static final MacServiceNI macServiceNI = NISelector.MacServiceNI;
 
+    // OpenSSL-probed MAC lengths, memoized once per (macName, function) (see NativeLengthCache).
+    private static final NativeLengthCache<String> macLengths = new NativeLengthCache<String>();
+
     private final MacReference ref;
+    private final String cacheKey;
 
     public MacServiceSPI(String macName, String function)
     {
+        // Composite cache key: a space cannot appear in a real mac/digest/cipher
+        // name (e.g. "HMAC", "SHA2-256", "aes-cbc"), so it is unambiguous.
+        this.cacheKey = macName + ' ' + function;
         this.ref = new MacReference(macServiceNI.allocateMac(macName, function), function);
+    }
+
+    /**
+     * MAC output length for this (macName, function), memoized cross-instance.
+     * On a cache miss we ask OpenSSL via the keyless native metadata query
+     * (digest output size for HMAC, cipher block size for CMAC) — it answers
+     * before init, so getMacLength works on a freshly-constructed SPI — and
+     * record whatever OpenSSL reported. OpenSSL stays the source of truth; the
+     * cache only saves the repeat native round-trip. Callers must hold the
+     * monitor (the native ref is dereferenced).
+     */
+    private int macLength()
+    {
+        int len = macLengths.get(cacheKey);
+        if (len == NativeLengthCache.UNKNOWN)
+        {
+            len = macServiceNI.macLengthMeta(ref.getReference());
+            macLengths.cache(cacheKey, len);
+        }
+        return len;
     }
 
     @Override
@@ -37,7 +66,7 @@ public class MacServiceSPI extends MacSpi
     {
         synchronized (this)
         {
-            return macServiceNI.getMacLength(ref.getReference());
+            return macLength();
         }
     }
 
@@ -94,7 +123,7 @@ public class MacServiceSPI extends MacSpi
     {
         synchronized (this)
         {
-            byte[] out = new byte[engineGetMacLength()];
+            byte[] out = new byte[macLength()];
             int written = macServiceNI.doFinal(ref.getReference(), out, 0);
             macServiceNI.reset(ref.getReference());
             if (written == out.length)
@@ -102,9 +131,7 @@ public class MacServiceSPI extends MacSpi
                 return out;
             }
 
-            byte[] exact = new byte[written];
-            System.arraycopy(out, 0, exact, 0, written);
-            return exact;
+            throw new ProviderException("MAC length mismatch");
         }
     }
 

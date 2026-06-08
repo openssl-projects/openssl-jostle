@@ -192,6 +192,12 @@ public class BridgeRandLimitTest
         {
             return null;
         }
+
+        @Override
+        public int getStrength()
+        {
+            return 0;
+        }
     }
 
     public static class ShortRandSource implements RandSource
@@ -209,6 +215,12 @@ public class BridgeRandLimitTest
         public SecureRandom getRandom()
         {
             return null;
+        }
+
+        @Override
+        public int getStrength()
+        {
+            return 0;
         }
     }
 
@@ -228,6 +240,12 @@ public class BridgeRandLimitTest
         {
             return null;
         }
+
+        @Override
+        public int getStrength()
+        {
+            return 0;
+        }
     }
 
     public static class ThrowingRandSource implements RandSource
@@ -242,6 +260,12 @@ public class BridgeRandLimitTest
         public SecureRandom getRandom()
         {
             return null;
+        }
+
+        @Override
+        public int getStrength()
+        {
+            return 0;
         }
     }
 

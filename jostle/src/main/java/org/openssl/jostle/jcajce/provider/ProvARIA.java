@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider;
 
 
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIABlockCipherSpi;
+import org.openssl.jostle.jcajce.provider.blockcipher.ARIACCMCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 
@@ -36,14 +37,18 @@ class ProvARIA
 
         provider.addAlgorithmImplementation("Cipher", "ARIA128", PREFIX + "ARIA128", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA128, OSSLMode.ECB));
         provider.addAlias("Cipher", "ARIA128", NSRIObjectIdentifiers.id_aria128_ecb);
-        provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria128_cbc, PREFIX + "ARIA128CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA128, OSSLMode.ECB));
+        provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria128_cbc, PREFIX + "ARIA128CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA128, OSSLMode.CBC));
 
-        provider.addAlgorithmImplementation("Cipher", "ARIA192", PREFIX + "ARIA192", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.AES192, OSSLMode.ECB));
+        provider.addAlgorithmImplementation("Cipher", "ARIA192", PREFIX + "ARIA192", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA192, OSSLMode.ECB));
         provider.addAlias("Cipher", "ARIA192", NSRIObjectIdentifiers.id_aria192_ecb);
         provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria192_cbc, PREFIX + "ARIA192CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA192, OSSLMode.CBC));
 
         provider.addAlgorithmImplementation("Cipher", "ARIA256", PREFIX + "ARIA256", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA256, OSSLMode.ECB));
         provider.addAlias("Cipher", "ARIA256", NSRIObjectIdentifiers.id_aria256_ecb);
         provider.addAlgorithmImplementation("Cipher", NSRIObjectIdentifiers.id_aria256_cbc, PREFIX + "ARIA256CBC", generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA256, OSSLMode.CBC));
+
+        // ARIA/CCM — see ProvAES note on the dedicated CCM SPI.
+        provider.addAlgorithmImplementation("Cipher", "ARIA/CCM/NoPadding",
+                PREFIX + "ARIACCM", generalAttributes, (arg) -> new ARIACCMCipherSpi());
     }
 }

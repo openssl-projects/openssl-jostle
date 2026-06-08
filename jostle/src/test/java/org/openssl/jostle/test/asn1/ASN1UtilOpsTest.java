@@ -460,7 +460,11 @@ public class ASN1UtilOpsTest
         }
         catch (org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException e)
         {
-            // expected
+            // baseErrorHandler maps JO_UNEXPECTED_POINTER_CHANGE to this
+            // typed exception with a fixed message. Pin it — a silent
+            // re-mapping (to a different error arm whose message format
+            // differs) would otherwise slip through.
+            Assertions.assertEquals("a returned pointer changed unexpectedly", e.getMessage());
         }
         finally
         {
@@ -489,7 +493,11 @@ public class ASN1UtilOpsTest
         }
         catch (org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException e)
         {
-            // expected
+            // baseErrorHandler maps JO_UNEXPECTED_POINTER_CHANGE to this
+            // typed exception with a fixed message. Pin it — a silent
+            // re-mapping (to a different error arm whose message format
+            // differs) would otherwise slip through.
+            Assertions.assertEquals("a returned pointer changed unexpectedly", e.getMessage());
         }
         finally
         {

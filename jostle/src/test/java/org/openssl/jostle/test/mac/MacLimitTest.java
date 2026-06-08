@@ -333,6 +333,64 @@ public class MacLimitTest
     }
 
 
+    // macLengthMeta is the keyless counterpart to getMacLength: it reads the
+    // length from OpenSSL algorithm metadata (digest output size / cipher
+    // block size) and so MUST answer before init, where getMacLength above
+    // returns JO_NOT_INITIALIZED. These are the positive contract tests.
+    @Test
+    public void macLengthMeta_hmac_beforeInit_returnsDigestSize()
+    {
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            // No engineInit: keyless query must still succeed.
+            Assertions.assertEquals(32, macNI.macLengthMeta(ref));
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void macLengthMeta_cmac_beforeInit_returnsBlockSize()
+    {
+        long ref = macNI.allocateMac("CMAC", "aes-cbc");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            // CMAC length == AES block size (16), independent of key length,
+            // so it is answerable before a key is supplied.
+            Assertions.assertEquals(16, macNI.macLengthMeta(ref));
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void macLengthMeta_hmac_unknownDigest_opensslError()
+    {
+        long ref = macNI.allocateMac("HMAC", "NOT-A-REAL-DIGEST");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            macNI.macLengthMeta(ref);
+            Assertions.fail();
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:") && e.getMessage().contains("NOT-A-REAL-DIGEST"), e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
     @Test
     public void reset_notInitialised()
     {

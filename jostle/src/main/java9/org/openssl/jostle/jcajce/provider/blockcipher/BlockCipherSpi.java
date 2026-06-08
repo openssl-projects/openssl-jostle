@@ -10,20 +10,25 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 
 class BlockCipherSpi extends CipherSpi
@@ -39,9 +44,26 @@ class BlockCipherSpi extends CipherSpi
     int blockSize;
     int opMode;
 
+    // IV / AEAD parameters in effect for the current init, retained so that
+    // engineGetIV() and engineGetParameters() can report them — including IVs
+    // this SPI generates itself when init is called without parameters (which
+    // the JCE contract requires for encryption/wrapping, and which CMS relies
+    // on to recover the content-encryption IV).
+    private byte[] ivBytes;
+    private int tagLen;
+
+    // Nonce-reuse guard (mirrors SunJCE's GCM behaviour and CCMCipherSpi): set
+    // true after a successful AEAD (GCM/OCB) encryption so any further data fed
+    // to this instance — which would reuse the nonce, catastrophic for GCM/OCB —
+    // is rejected until re-init establishes a fresh nonce.
+    private boolean encryptionReinitRequired;
+
     private static int BUF_SIZE = 1024;
 
     private static final BlockCipherNI blockCipherNi = NISelector.BlockCipherNI;
+
+    // OpenSSL-probed block sizes, memoized once per cipher (see NativeLengthCache).
+    private static final NativeLengthCache<OSSLCipher> blockSizes = new NativeLengthCache<OSSLCipher>();
 
     Class[] availableSpecs = new Class[]{
             IvParameterSpec.class,
@@ -66,6 +88,14 @@ class BlockCipherSpi extends CipherSpi
     {
         mandatedCipher = osslCipher;
         mandatedMode = osslMode;
+        // Seed the active osslMode field with the mandated mode. JCE
+        // form-1 OID-alias lookup (e.g. Cipher.getInstance(some_oid))
+        // resolves a primary that pre-locks the mode here and does NOT
+        // call engineSetMode — without this assignment, ensureNativeReference
+        // NPEs on osslMode.ordinal(). The shadowing of the field by
+        // the same-named parameter is the reason this was easy to miss;
+        // the explicit `this.` qualifier is intentional.
+        this.osslMode = osslMode;
         this.keyAlgorithm = expectedKeyAlgorithm;
     }
 
@@ -82,6 +112,19 @@ class BlockCipherSpi extends CipherSpi
             // Translate to the JCE-contracted exception type for unknown
             // modes; valueOf throws IllegalArgumentException directly.
             throw new NoSuchAlgorithmException("cipher mode " + mode + " not supported");
+        }
+
+        if (osslMode == OSSLMode.CCM)
+        {
+            // CCM is one-shot (total length up-front, single AAD/payload
+            // update) and does not fit this streaming SPI. It is only valid
+            // via its dedicated transformation, e.g. "AES/CCM/NoPadding"
+            // (AESCCMCipherSpi). Reject it here so a valid-format but
+            // unregistered transformation (e.g. "AES/CCM/PKCS5Padding")
+            // cannot fall through to this generic SPI and run CCM on the
+            // wrong code path.
+            throw new NoSuchAlgorithmException(
+                    "CCM mode is only available via the dedicated <cipher>/CCM/NoPadding transformation");
         }
 
         if (mandatedMode != null && mandatedMode != osslMode)
@@ -120,6 +163,20 @@ class BlockCipherSpi extends CipherSpi
         }
     }
 
+    /**
+     * SunJCE/CCMCipherSpi-style nonce-reuse guard for AEAD encryption. Once a
+     * GCM/OCB encryption has completed, the nonce is spent; reject further data
+     * input until the cipher is re-initialised (which draws a fresh nonce).
+     */
+    private void checkEncryptReuse()
+    {
+        if (encryptionReinitRequired)
+        {
+            throw new IllegalStateException(
+                    osslMode + " encryption cannot be reused with the same nonce; re-initialise the cipher");
+        }
+    }
+
     @Override
     protected int engineGetBlockSize()
     {
@@ -129,7 +186,13 @@ class BlockCipherSpi extends CipherSpi
 
             if (blockSize == 0)
             {
-                blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
+                blockSize = blockSizes.get(osslCipher);
+                if (blockSize == NativeLengthCache.UNKNOWN)
+                {
+                    blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
+                    // Memoize OpenSSL's reported block size for this cipher.
+                    blockSizes.cache(osslCipher, blockSize);
+                }
             }
 
             return blockSize;
@@ -157,41 +220,68 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected byte[] engineGetIV()
     {
-        throw new IllegalStateException("not implemented");
+        try
+        {
+            return Arrays.clone(ivBytes);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     @Override
     protected AlgorithmParameters engineGetParameters()
     {
-        throw new IllegalStateException("not implemented");
+        try
+        {
+            if (ivBytes == null)
+            {
+                // ECB (and any mode initialised without an IV) carries no parameters.
+                return null;
+            }
+
+            try
+            {
+                AlgorithmParameters params;
+                if (osslMode == OSSLMode.GCM)
+                {
+                    params = AlgorithmParameters.getInstance("GCM");
+                    params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
+                }
+                else
+                {
+                    params = AlgorithmParameters.getInstance(keyAlgorithm);
+                    params.init(new IvParameterSpec(ivBytes));
+                }
+                return params;
+            }
+            catch (GeneralSecurityException e)
+            {
+                throw new IllegalStateException("unable to create AlgorithmParameters: " + e.getMessage(), e);
+            }
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
-        validateKeyAlg(key);
+        // Delegate to the parameter-spec form with no parameters; for
+        // encryption/wrapping it will generate any required IV/nonce itself.
         try
         {
-            ensureNativeReference();
-
-            blockSize = 0;
-            this.opMode = opmode;
-
-            byte[] keyBytes = key.getEncoded();
-            try
-            {
-                blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, null, 0);
-            }
-            catch (InvalidAlgorithmParameterException e)
-            {
-                throw new RuntimeException(e);
-            }
-
-            engineGetBlockSize();
+            engineInit(opmode, key, (AlgorithmParameterSpec) null, random);
         }
-        finally
+        catch (InvalidAlgorithmParameterException e)
         {
-            Reference.reachabilityFence(this);
+            // No parameters were supplied and none could be generated (e.g. a
+            // decrypt for a mode that requires an IV) — surface per JCE as an
+            // InvalidKeyException for this entry point.
+            throw new InvalidKeyException(e.getMessage(), e);
         }
     }
 
@@ -203,39 +293,67 @@ class BlockCipherSpi extends CipherSpi
         try
         {
             ensureNativeReference();
-            byte[] keyBytes = key.getEncoded();
-            ErrorCode codes;
-            final byte[] ivBytes;
-            int tagLen;
+            final byte[] iv;
+            final int tag;
             blockSize = 0;
-            this.opMode = opmode;
+            // The native layer only knows ENCRYPT/DECRYPT. WRAP/UNWRAP (used for
+            // key-wrap modes) map onto encrypt/decrypt respectively.
+            final int nativeOpMode = (opmode == Cipher.WRAP_MODE) ? Cipher.ENCRYPT_MODE
+                : (opmode == Cipher.UNWRAP_MODE) ? Cipher.DECRYPT_MODE : opmode;
+            this.opMode = nativeOpMode;
 
             if (params == null)
             {
-                ivBytes = null;
-                tagLen = 0;
+                // No parameters supplied. For encryption/wrapping the JCE
+                // contract is that the provider generates any required IV/nonce
+                // at random; engineGetIV()/engineGetParameters() then expose it
+                // so the recipient can decrypt. For decryption/unwrapping we
+                // cannot invent the IV, so leave it null and let the native
+                // layer reject the missing IV for modes that require one.
+                int ivLen = (opmode == Cipher.ENCRYPT_MODE || opmode == Cipher.WRAP_MODE) ? autoIvLength() : 0;
+                if (ivLen > 0)
+                {
+                    iv = new byte[ivLen];
+                    SecureRandom rng = (random != null) ? random : CryptoServicesRegistrar.getSecureRandom();
+                    rng.nextBytes(iv);
+                    tag = (osslMode == OSSLMode.GCM) ? 16 : 0;
+                }
+                else
+                {
+                    iv = null;
+                    tag = 0;
+                }
             }
             else
             {
                 if (params instanceof IvParameterSpec)
                 {
-                    ivBytes = ((IvParameterSpec) params).getIV();
+                    iv = ((IvParameterSpec) params).getIV();
                     if (osslMode == OSSLMode.GCM)
                     {
-                        tagLen = 16;
+                        tag = 16;
                     }
                     else
                     {
-                        tagLen = 0;
+                        tag = 0;
                     }
-
                 }
                 else
                 {
                     if (params instanceof GCMParameterSpec)
                     {
-                        ivBytes = ((GCMParameterSpec) params).getIV();
-                        tagLen = (((GCMParameterSpec) params).getTLen() + 7) / 8;
+                        int tLen = ((GCMParameterSpec) params).getTLen();
+                        // Reject malformed AEAD tag lengths at the JCE boundary —
+                        // BouncyCastle's 32–128-bit, multiple-of-8 range, which the
+                        // cross-provider agreement tests rely on — rather than
+                        // passing an out-of-spec length down to OpenSSL.
+                        if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                        {
+                            throw new InvalidAlgorithmParameterException(
+                                    "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                        }
+                        iv = ((GCMParameterSpec) params).getIV();
+                        tag = tLen / 8;
                     }
                     else
                     {
@@ -244,13 +362,53 @@ class BlockCipherSpi extends CipherSpi
                 }
             }
 
-            blockCipherNi.init(refWrapper.getReference(), opmode, keyBytes, ivBytes, tagLen);
+            this.ivBytes = iv;
+            this.tagLen = tag;
+            this.encryptionReinitRequired = false;
+
+            byte[] keyBytes = key.getEncoded();
+            try
+            {
+                blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, iv, tag);
+            }
+            finally
+            {
+                // Zeroize the plaintext key material once OpenSSL has copied it
+                // into the EVP context. SecretKeySpec.getEncoded() returns a
+                // fresh copy, so clearing it cannot corrupt the caller's key.
+                if (keyBytes != null)
+                {
+                    Arrays.fill(keyBytes, (byte) 0);
+                }
+            }
 
             engineGetBlockSize();
         }
         finally
         {
             Reference.reachabilityFence(this);
+        }
+    }
+
+    /**
+     * The IV/nonce length, in bytes, this mode needs when the caller supplies
+     * no parameters. ECB and the key-wrap modes take none; GCM/OCB use the
+     * standard 12-byte nonce; remaining block/stream modes use the cipher's
+     * block size. Returns 0 when no IV is required.
+     */
+    private int autoIvLength()
+    {
+        switch (osslMode)
+        {
+        case ECB:
+        case WRAP:
+        case WRAP_PAD:
+            return 0;
+        case GCM:
+        case OCB:
+            return 12;
+        default:
+            return engineGetBlockSize();
         }
     }
 
@@ -295,6 +453,7 @@ class BlockCipherSpi extends CipherSpi
         try
         {
             requireInitialized();
+            checkEncryptReuse();
             blockCipherNi.updateAAD(refWrapper.getReference(), src, offset, len);
         }
         finally
@@ -351,6 +510,7 @@ class BlockCipherSpi extends CipherSpi
         try
         {
             requireInitialized();
+            checkEncryptReuse();
             int len = blockCipherNi.getUpdateSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
 
@@ -472,6 +632,7 @@ class BlockCipherSpi extends CipherSpi
         try
         {
             requireInitialized();
+            checkEncryptReuse();
             int k = engineGetOutputSize(inputLen);
             if (output.length - outputOffset < k)
             {
@@ -543,6 +704,7 @@ class BlockCipherSpi extends CipherSpi
         try
         {
             requireInitialized();
+            checkEncryptReuse();
             int k = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
 
             if (outputOffset + k > output.length)
@@ -554,7 +716,7 @@ class BlockCipherSpi extends CipherSpi
             byte[] workingInput = input;
 
 
-            if (input == output) // same array
+            if (input != null && input == output) // same array
             {
                 if (overlap(inputOffset, inputLen, outputOffset, k))
                 {
@@ -566,13 +728,28 @@ class BlockCipherSpi extends CipherSpi
 
 
             int written = 0;
-            int code = blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
+
+            // Cipher.doFinal() (no-args) lands here with input=null,
+            // inputLen=0. Skip the NI.update call entirely — the EVP
+            // layer treats a zero-length update as a no-op, but the
+            // NI bridge null-checks workingInput up front and would
+            // throw NullPointerException. Only call update when there
+            // are bytes to feed.
+            if (inputLen > 0)
+            {
+                written += blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
+            }
+
+            int code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
 
             written += code;
 
-            code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
+            if (opMode == Cipher.ENCRYPT_MODE && (osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB))
+            {
+                // A successful AEAD encryption consumes the nonce; block reuse until re-init.
+                encryptionReinitRequired = true;
+            }
 
-            written += code;
             return written;
         }
         finally
@@ -581,6 +758,69 @@ class BlockCipherSpi extends CipherSpi
         }
     }
 
+
+    @Override
+    protected byte[] engineWrap(Key key)
+        throws IllegalBlockSizeException, InvalidKeyException
+    {
+        byte[] encoded = key.getEncoded();
+        if (encoded == null || encoded.length == 0)
+        {
+            throw new InvalidKeyException("cannot wrap key with null or empty encoding");
+        }
+        try
+        {
+            return engineDoFinal(encoded, 0, encoded.length);
+        }
+        catch (BadPaddingException e)
+        {
+            // wrapping is an encryption operation; a padding error is not expected.
+            throw new IllegalBlockSizeException(e.getMessage());
+        }
+        finally
+        {
+            Arrays.fill(encoded, (byte) 0);
+        }
+    }
+
+    @Override
+    protected Key engineUnwrap(byte[] wrappedKey, String wrappedKeyAlgorithm, int wrappedKeyType)
+        throws InvalidKeyException, NoSuchAlgorithmException
+    {
+        final byte[] encoded;
+        try
+        {
+            encoded = engineDoFinal(wrappedKey, 0, wrappedKey.length);
+        }
+        catch (IllegalBlockSizeException | BadPaddingException e)
+        {
+            throw new InvalidKeyException("unable to unwrap key: " + e.getMessage(), e);
+        }
+
+        try
+        {
+            switch (wrappedKeyType)
+            {
+            case Cipher.SECRET_KEY:
+                return new SecretKeySpec(encoded, wrappedKeyAlgorithm);
+            case Cipher.PUBLIC_KEY:
+                return KeyFactory.getInstance(wrappedKeyAlgorithm).generatePublic(new X509EncodedKeySpec(encoded));
+            case Cipher.PRIVATE_KEY:
+                return KeyFactory.getInstance(wrappedKeyAlgorithm).generatePrivate(new PKCS8EncodedKeySpec(encoded));
+            default:
+                throw new InvalidKeyException("unknown wrapped key type: " + wrappedKeyType);
+            }
+        }
+        catch (InvalidKeySpecException e)
+        {
+            throw new InvalidKeyException("unable to reconstruct unwrapped key: " + e.getMessage(), e);
+        }
+        finally
+        {
+            // SecretKeySpec / the key specs copy the bytes, so clear our copy.
+            Arrays.fill(encoded, (byte) 0);
+        }
+    }
 
     /**
      * Ensure a valid native reference
@@ -652,11 +892,26 @@ class BlockCipherSpi extends CipherSpi
 
     protected void validateKeyAlg(Key key) throws InvalidKeyException
     {
-        if (keyAlgorithm.equals(key.getAlgorithm()))
+        String alg = key.getAlgorithm();
+        if (alg != null)
         {
-            return;
+            String a = Strings.toUpperCase(alg);
+            String expected = Strings.toUpperCase(keyAlgorithm);
+            // Accept the cipher's own key algorithm, and the JCE key-wrap
+            // spellings of it whose key material is still an <alg> key — e.g.
+            // "AES" also matches "AESWrap"/"AESWRAP"/"AESKW". A CEK recovered via
+            // a key-wrap Cipher.unwrap(...) is commonly tagged with the wrap name
+            // rather than the bare cipher name (notably on the CMS KEM/KTS
+            // recipient path, RFC 9629), so a strict equals would reject it. A
+            // genuinely different algorithm (e.g. "ARIA" for an AES cipher) does
+            // not share the prefix and is still rejected; key length is validated
+            // by the native layer regardless.
+            if (a.equals(expected) || a.startsWith(expected))
+            {
+                return;
+            }
         }
-        throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
+        throw new InvalidKeyException("unsupported key algorithm " + alg);
     }
 
 }

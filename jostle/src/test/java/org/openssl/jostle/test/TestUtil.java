@@ -119,6 +119,12 @@ public class TestUtil
         {
             return random;
         }
+
+        @Override
+        public int getStrength()
+        {
+            return 0;
+        }
     }
 
 

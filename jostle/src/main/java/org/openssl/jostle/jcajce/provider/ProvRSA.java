@@ -67,6 +67,22 @@ class ProvRSA
                 (arg) -> new RSAPSSSignatureSpi());
         provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
 
+        // Per-digest RSASSA-PSS convenience names. BouncyCastle's PKIX/CMS layer
+        // derives "<digest>WITHRSAANDMGF1" from an id-RSASSA-PSS AlgorithmIdentifier
+        // (with "<digest>WITHRSASSA-PSS" as the fallback name) and, for default PSS
+        // parameters, does NOT call setParameter — so each name must carry its own
+        // digest default (with MGF1 over the same hash). Non-default parameters are
+        // still applied via engineSetParameter, overriding the name's default.
+        registerPssSignature(provider, attr, "SHA1", "SHA-1");
+        registerPssSignature(provider, attr, "SHA224", "SHA-224");
+        registerPssSignature(provider, attr, "SHA256", "SHA-256");
+        registerPssSignature(provider, attr, "SHA384", "SHA-384");
+        registerPssSignature(provider, attr, "SHA512", "SHA-512");
+        registerPssSignature(provider, attr, "SHA3-224", "SHA3-224");
+        registerPssSignature(provider, attr, "SHA3-256", "SHA3-256");
+        registerPssSignature(provider, attr, "SHA3-384", "SHA3-384");
+        registerPssSignature(provider, attr, "SHA3-512", "SHA3-512");
+
         // RSA-OAEP cipher. The provider registers only the bare "RSA"
         // primary; transformation strings like
         //   "RSA/ECB/OAEPPadding"
@@ -97,6 +113,27 @@ class ProvRSA
                 PREFIX + "RSAPKCS1CipherSpi", pkcs1Attr,
                 (arg) -> new RSAPKCS1CipherSpi());
         provider.addAlias("Cipher", "RSA/ECB/PKCS1Padding", "RSA/None/PKCS1Padding");
+    }
+
+    /**
+     * Register a {@code <digest>WITHRSAANDMGF1} PSS Signature whose digest (and
+     * MGF1 hash) default to {@code opensslDigest}, plus the equivalent
+     * {@code <digest>WITHRSASSA-PSS} alias.
+     */
+    private static void registerPssSignature(JostleProvider provider,
+                                             Map<String, String> attr,
+                                             String digestJcaName,
+                                             String opensslDigest)
+    {
+        String mgf1Name = digestJcaName + "WITHRSAANDMGF1";
+        // Unique creatorMap key per digest (the map is keyed by this class-name
+        // string; reusing the bare SPI name collides with the generic RSASSA-PSS
+        // registration and the other per-digest entries).
+        String implName = PREFIX + "RSAPSSSignatureSpi$" + digestJcaName.replace("-", "_");
+        provider.addAlgorithmImplementation("Signature", mgf1Name,
+                implName, attr,
+                (arg) -> new RSAPSSSignatureSpi(opensslDigest));
+        provider.addAlias("Signature", mgf1Name, digestJcaName + "WITHRSASSA-PSS");
     }
 
     private static void registerPkcs1Signature(JostleProvider provider,

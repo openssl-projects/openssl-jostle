@@ -61,6 +61,7 @@ class ThreadLocalSecureRandomProvider implements SecureRandomProvider
      *         or the regular {@link #get()} default on platform
      *         failure.
      */
+    @Override
     public SecureRandom get(int strengthBits)
     {
         try

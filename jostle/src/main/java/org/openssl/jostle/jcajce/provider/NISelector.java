@@ -14,14 +14,16 @@ import org.openssl.jostle.NativeServiceJNI;
 import org.openssl.jostle.NativeServiceNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherJNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherJNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceJNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceJNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
-import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceJNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceJNI;
@@ -30,12 +32,7 @@ import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceJNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherJNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherJNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAServiceJNI;
-import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
+import org.openssl.jostle.jcajce.provider.rsa.*;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceJNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecJNI;
@@ -52,6 +49,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 public class NISelector
 {
     public static final BlockCipherNI BlockCipherNI;
+    public static final CCMCipherNI CCMCipherNI;
     public static final OpenSSLNI OpenSSLNI;
     public static final OperationsTestNI OperationsTestNI;
 
@@ -74,6 +72,7 @@ public class NISelector
     static
     {
         BlockCipherNI = new BlockCipherJNI();
+        CCMCipherNI = new CCMCipherJNI();
         OpenSSLNI = new OpenSSLJNI();
         NativeServiceNI = new NativeServiceJNI();
         MLDSAServiceNI = new MLDSAServiceJNI();

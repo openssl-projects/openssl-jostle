@@ -13,6 +13,7 @@ package org.openssl.jostle.test.crypto;
 
 import org.openssl.jostle.NativeServiceNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
@@ -39,6 +40,11 @@ public class TestNISelector extends NISelector
     static BlockCipherNI getBlockCipher()
     {
         return BlockCipherNI;
+    }
+
+    static CCMCipherNI getCCMCipher()
+    {
+        return CCMCipherNI;
     }
 
     public static OpenSSLNI getOpenSSLNI()

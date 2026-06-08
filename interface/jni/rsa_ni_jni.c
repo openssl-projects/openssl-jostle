@@ -363,13 +363,13 @@ static int32_t rsa_init_strings_load(JNIEnv *env, jstring digest_str, jstring mg
     }
 
     out->digest = (*env)->GetStringUTFChars(env, digest_str, NULL);
-    if (out->digest == NULL) {
+    if (OPS_FAILED_ACCESS_1 out->digest == NULL) {
         return JO_UNABLE_TO_ACCESS_NAME;
     }
 
     if (mgf1_str != NULL) {
         out->mgf1 = (*env)->GetStringUTFChars(env, mgf1_str, NULL);
-        if (out->mgf1 == NULL) {
+        if (OPS_FAILED_ACCESS_2 out->mgf1 == NULL) {
             return JO_UNABLE_TO_ACCESS_NAME;
         }
     }

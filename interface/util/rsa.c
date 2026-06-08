@@ -146,8 +146,10 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
     BIGNUM *e_bn = NULL;
 
     ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "RSA", NULL);
-    if (ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    // OPS slot _6 is reused — currently fires in configure_padding's
+    // PSS-saltlen branch, which is unreachable from rsa_generate_key.
+    if (OPS_OPENSSL_ERROR_6 ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(1044);
         goto exit;
     }
 
@@ -173,8 +175,11 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
         goto exit;
     }
 
-    if (1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
-        ret_code = JO_OPENSSL_ERROR;
+    // OPS slot _7 is reused — currently fires in fromdata_construct's
+    // OSSL_PARAM_BLD_to_param branch, which is unreachable from
+    // rsa_generate_key (this function uses EVP_PKEY_keygen directly).
+    if (OPS_OPENSSL_ERROR_7 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(1045);
         goto exit;
     }
 
@@ -427,8 +432,14 @@ int32_t rsa_get_component(const key_spec *spec, int32_t component,
     // For private-only components on a public key, this fails — return the
     // OpenSSL error code; the SPI layer maps that to a null-component
     // return per the JCE contract.
-    if (1 != EVP_PKEY_get_bn_param(spec->key, param_name, &bn)) {
-        ret_code = JO_OPENSSL_ERROR;
+    //
+    // OPS slot _8 is reused — currently fires in fromdata_construct's
+    // EVP_PKEY_CTX_new_from_name branch, which is unreachable from
+    // rsa_get_component. The OPS-injected return code (-1072) differs
+    // from a real "component absent" failure (bare -2), so a test can
+    // tell them apart.
+    if (OPS_OPENSSL_ERROR_8 1 != EVP_PKEY_get_bn_param(spec->key, param_name, &bn)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(1070);
         goto exit;
     }
 
@@ -690,12 +701,18 @@ int32_t rsa_ctx_update(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
     ERR_clear_error();
 
     if (ctx->opp == RSA_OP_SIGN) {
-        if (1 != EVP_DigestSignUpdate(ctx->digest_ctx, in, in_len)) {
-            return JO_OPENSSL_ERROR;
+        // OPS slot _9 is reused — currently fires in fromdata_construct's
+        // EVP_PKEY_fromdata_init branch, which is unreachable from
+        // rsa_ctx_update (this function operates on an already-initialised
+        // EVP_MD_CTX, not a key-construction pipeline).
+        if (OPS_OPENSSL_ERROR_9 1 != EVP_DigestSignUpdate(ctx->digest_ctx, in, in_len)) {
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(1010);
         }
     } else if (ctx->opp == RSA_OP_VERIFY) {
-        if (1 != EVP_DigestVerifyUpdate(ctx->digest_ctx, in, in_len)) {
-            return JO_OPENSSL_ERROR;
+        // OPS slot _10 is reused — currently fires in fromdata_construct's
+        // EVP_PKEY_fromdata branch, unreachable from rsa_ctx_update.
+        if (OPS_OPENSSL_ERROR_10 1 != EVP_DigestVerifyUpdate(ctx->digest_ctx, in, in_len)) {
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(1011);
         }
     } else {
         return JO_UNEXPECTED_STATE;

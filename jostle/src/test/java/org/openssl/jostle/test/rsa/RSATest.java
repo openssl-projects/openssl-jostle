@@ -630,6 +630,134 @@ public class RSATest
         Assertions.assertTrue(verifier.verify(sig));
     }
 
+    /**
+     * Streaming chunking matrix per CLAUDE.md — PSS edition. PSS is
+     * randomized (each call uses a fresh salt), so we cannot byte-compare
+     * signatures. Instead, sign each chunking pattern and verify each
+     * resulting signature with the one-shot verify path; then sign once
+     * and verify the SAME signature through every chunking strategy.
+     * SHA-256 block size = 64 bytes.
+     */
+    @Test
+    public void testPss_SHA256_ChunkingMatrix_allVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testPss_SHA256_ChunkingMatrix_allVerify");
+        PSSParameterSpec params = new PSSParameterSpec(
+                "SHA-256", "MGF1", new MGF1ParameterSpec("SHA-256"), 32, 1);
+        byte[] msg = randomMessage(sr, 1024);
+
+        // Sign-side: prove every chunking pattern produces a signature
+        // that verifies against the one-shot verify path.
+        int[] chunks = {1, 63, 64, 65, 127, 128, 129, msg.length};
+        for (int chunk : chunks)
+        {
+            byte[] sig = signWithChunking_PSS(params, msg, chunk);
+            Assertions.assertTrue(verifyOneShot_PSS(params, msg, sig),
+                    "sign-chunk=" + chunk + ": chunked-signed signature did not verify");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            byte[] sig = signWithRandomSplits_PSS(params, sr, msg);
+            Assertions.assertTrue(verifyOneShot_PSS(params, msg, sig),
+                    "random-split trial=" + trial + ": signature did not verify");
+        }
+
+        // Verify-side: pin one signature, then verify it through every
+        // chunking strategy. Catches divergence between bulk and
+        // partial-block verify paths independent of the sign-side path.
+        byte[] oneSig = signOneShot_PSS(params, msg);
+        for (int chunk : chunks)
+        {
+            Assertions.assertTrue(verifyWithChunking_PSS(params, msg, oneSig, chunk),
+                    "verify-chunk=" + chunk + ": chunked verify diverged from one-shot");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertTrue(verifyWithRandomSplits_PSS(params, sr, msg, oneSig),
+                    "random-split verify trial=" + trial + ": verify diverged");
+        }
+    }
+
+    private byte[] signOneShot_PSS(PSSParameterSpec params, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        signer.setParameter(params);
+        signer.initSign(sharedKeyPair.getPrivate());
+        signer.update(msg);
+        return signer.sign();
+    }
+
+    private byte[] signWithChunking_PSS(PSSParameterSpec params, byte[] msg, int chunk) throws Exception
+    {
+        Signature signer = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        signer.setParameter(params);
+        signer.initSign(sharedKeyPair.getPrivate());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            signer.update(msg, off, len);
+        }
+        return signer.sign();
+    }
+
+    private byte[] signWithRandomSplits_PSS(PSSParameterSpec params, SecureRandom sr, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        signer.setParameter(params);
+        signer.initSign(sharedKeyPair.getPrivate());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            signer.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return signer.sign();
+    }
+
+    private boolean verifyOneShot_PSS(PSSParameterSpec params, byte[] msg, byte[] sig) throws Exception
+    {
+        Signature verifier = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        verifier.setParameter(params);
+        verifier.initVerify(sharedKeyPair.getPublic());
+        verifier.update(msg);
+        return verifier.verify(sig);
+    }
+
+    private boolean verifyWithChunking_PSS(PSSParameterSpec params, byte[] msg, byte[] sig, int chunk)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        verifier.setParameter(params);
+        verifier.initVerify(sharedKeyPair.getPublic());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            verifier.update(msg, off, len);
+        }
+        return verifier.verify(sig);
+    }
+
+    private boolean verifyWithRandomSplits_PSS(PSSParameterSpec params, SecureRandom sr, byte[] msg, byte[] sig)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        verifier.setParameter(params);
+        verifier.initVerify(sharedKeyPair.getPublic());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            verifier.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return verifier.verify(sig);
+    }
+
     @Test
     public void testPkcs1_VerifierReuseAfterVerify() throws Exception
     {
@@ -1449,6 +1577,13 @@ public class RSATest
     {
         byte[] m = new byte[len];
         RANDOM.nextBytes(m);
+        return m;
+    }
+
+    private static byte[] randomMessage(SecureRandom sr, int len)
+    {
+        byte[] m = new byte[len];
+        sr.nextBytes(m);
         return m;
     }
 

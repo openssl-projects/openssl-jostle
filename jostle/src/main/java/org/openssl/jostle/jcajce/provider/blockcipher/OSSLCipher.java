@@ -48,7 +48,8 @@ public enum OSSLCipher
     CHACHA20(STREAM),
     CHACHA20_POLY1305(AEAD),
     SEED(BLOCK, ECB, CBC, CFB128, OFB),
-    SM4(BLOCK, ECB, CBC, CFB128, OFB, CTR);
+    SM4(BLOCK, ECB, CBC, CFB128, OFB, CTR),
+    DES_EDE3(BLOCK, ECB, CBC); // 3-key Triple DES (24-byte key), default-provider modes only
 
     Set<OSSLMode> modes;
     OSSLCipherType type;

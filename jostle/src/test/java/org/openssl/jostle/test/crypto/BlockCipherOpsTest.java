@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
@@ -97,7 +98,11 @@ public class BlockCipherOpsTest
             catch (OpenSSLException ex)
             {
                 // JO_OPENSSL_ERROR from the failed init — surfaces as
-                // OpenSSLException via baseErrorHandler.
+                // OpenSSLException via baseErrorHandler. Pin the
+                // formatted message ("OpenSSL Error: null" because the
+                // OPS-injected failure leaves the real OpenSSL error
+                // queue empty).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             // Clear the OPS flag so subsequent calls would normally succeed.
@@ -168,7 +173,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             // Reset; init failure should leave the ctx un-poisoned and the
@@ -202,7 +212,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -233,7 +248,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -264,7 +284,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -301,7 +326,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             // Clear flag — poison must outlast it.
@@ -349,7 +379,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -397,7 +432,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -410,6 +450,81 @@ public class BlockCipherOpsTest
             catch (IllegalStateException ex)
             {
                 Assertions.assertTrue(ex.getMessage().contains("poisoned"));
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testOcbSetTagOnInitFailure_encrypt() throws Exception
+    {
+        // OPS_OPENSSL_ERROR_8 forces the OCB-init EVP_CTRL_AEAD_SET_TAG
+        // (length-only, NULL buffer) call to look failed. RFC 7253
+        // permits OCB tag lengths other than 16; OpenSSL needs the
+        // non-default length set before key/IV — Jostle calls
+        // EVP_CIPHER_CTX_ctrl(..., EVP_CTRL_AEAD_SET_TAG, tag_len, NULL).
+        // Triggers only when mode is OCB AND tag_len != 16.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+
+            try
+            {
+                // Exercises interface/util/block_cipher_ctx.c:755
+                // Tag length 12 bytes (96 bits) — non-default for OCB,
+                // so the SET_TAG control fires (and short-circuits under
+                // OPS_OPENSSL_ERROR_8).
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 12);
+                Assertions.fail("expected OCB SET_TAG (encrypt-init) failure");
+            }
+            catch (OpenSSLException ex)
+            {
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testOcbSetTagOnInitFailure_decrypt() throws Exception
+    {
+        // OPS_OPENSSL_ERROR_8 also gates the decrypt-init SET_TAG call.
+        // Same fault, separate code path — independent test confirms the
+        // decrypt side also error-handles correctly.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+
+            try
+            {
+                // Exercises interface/util/block_cipher_ctx.c:790
+                blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 12);
+                Assertions.fail("expected OCB SET_TAG (decrypt-init) failure");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -445,7 +560,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -496,7 +616,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -540,7 +665,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -584,7 +714,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -627,7 +762,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             // Recoverable: clearing the flag and retrying should succeed.
@@ -661,7 +801,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -697,7 +842,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             operationsTestNI.resetFlags();
@@ -730,7 +880,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -759,7 +914,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -789,7 +949,12 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }
         finally
@@ -821,13 +986,110 @@ public class BlockCipherOpsTest
             }
             catch (OpenSSLException ex)
             {
-                // expected
+                // OPS-injected JO_OPENSSL_ERROR without anything in the
+                // real OpenSSL error queue → baseErrorHandler formats
+                // "OpenSSL Error: null". Pinning the message catches a
+                // silent re-map of the code (e.g. to a different error
+                // arm whose message format differs).
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
 
             // Clear flag; init failure should leave the ctx un-poisoned and
             // the user can retry init successfully.
             operationsTestNI.resetFlags();
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testGetUpdateSize_inputOverflow() throws Exception
+    {
+        // OPS_INT32_OVERFLOW_1 forces block_cipher_get_update_size's
+        // input-side `len > INT32_MAX` gate to fire. The error code
+        // JO_OUTPUT_SIZE_INT_OVERFLOW maps to OverflowException. This
+        // verifies the C-side overflow check is wired up — the gate
+        // would otherwise be unreachable from Java without passing a
+        // 2GB+ length across the bridge.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE,
+                    sequentialKey(16), sequentialIv(16), 0));
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+
+            try
+            {
+                blockCipherNI.getUpdateSize(ref, 16);
+                Assertions.fail("OPS_INT32_OVERFLOW_1 must trip the input-side overflow gate");
+            }
+            catch (OverflowException ex)
+            {
+                // The message comes from DefaultServiceNI.baseErrorHandler's
+                // JO_OUTPUT_SIZE_INT_OVERFLOW arm — pinning it catches a
+                // silent re-mapping of the error code to a different message.
+                Assertions.assertEquals("output too long int32", ex.getMessage());
+            }
+
+            // Clear flag; getUpdateSize should work normally again. This
+            // also confirms the ctx wasn't poisoned by the failure.
+            operationsTestNI.resetFlags();
+            Assertions.assertEquals(16, blockCipherNI.getUpdateSize(ref, 16));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testGetUpdateSize_outputOverflow() throws Exception
+    {
+        // OPS_INT32_OVERFLOW_2 forces the post-computation
+        // `result > INT32_MAX` gate at the end of
+        // block_cipher_get_update_size to fire. Same surfaced exception
+        // type as the input-side gate, but a different code path —
+        // proves the second overflow check is reachable and that
+        // overflow on the computed `aligned` value is handled rather
+        // than silently truncated by the cast to int32_t.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE,
+                    sequentialKey(16), sequentialIv(16), 0));
+
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
+
+            try
+            {
+                blockCipherNI.getUpdateSize(ref, 16);
+                Assertions.fail("OPS_INT32_OVERFLOW_2 must trip the output-side overflow gate");
+            }
+            catch (OverflowException ex)
+            {
+                // Same JO_OUTPUT_SIZE_INT_OVERFLOW code, same surfaced
+                // message as the input-side gate. Pinning it confirms
+                // the post-computation branch wires through to the
+                // expected error-handler arm rather than (e.g.) a
+                // truncation-style silent success.
+                Assertions.assertEquals("output too long int32", ex.getMessage());
+            }
+
+            // Clear flag; getUpdateSize should work normally again.
+            operationsTestNI.resetFlags();
+            Assertions.assertEquals(16, blockCipherNI.getUpdateSize(ref, 16));
         }
         finally
         {

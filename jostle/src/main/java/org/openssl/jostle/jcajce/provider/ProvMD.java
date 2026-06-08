@@ -89,7 +89,15 @@ public class ProvMD
             provider.addAlias("MessageDigest", name, keyAliasMap.get(name));
         }
 
-
+        //
+        // Fixed-output SHAKE variants. BouncyCastle's CMS/PKIX layer requests these
+        // by name (e.g. JcaDigestCalculatorProviderBuilder for SHA3 / ML-DSA signer
+        // info), treating SHAKE as a plain hash squeezed to a fixed length. OpenSSL
+        // has no digest with these names, so map them onto the SHAKE-128 / SHAKE-256
+        // primitives with the corresponding fixed XOF output length (256 / 512 bits).
+        //
+        provider.addAlgorithmImplementation("MessageDigest", "SHAKE128-256", PREFIX + "MDServiceSPI$SHAKE128_256", attr, (arg) -> new MDServiceSPI("SHAKE-128", 32));
+        provider.addAlgorithmImplementation("MessageDigest", "SHAKE256-512", PREFIX + "MDServiceSPI$SHAKE256_512", attr, (arg) -> new MDServiceSPI("SHAKE-256", 64));
     }
 
 

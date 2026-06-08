@@ -35,7 +35,26 @@ import java.util.Map;
 public class SLHDSATest
 {
 
-    private static SecureRandom random = new SecureRandom();
+    /**
+     * Class-level seeding random — used to derive each test's local
+     * SHA1PRNG seed. Per CLAUDE.md: "cache one SecureRandom per test
+     * class, not per @Test method."
+     */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Per-test seeded random. The seed is logged on every call so a
+     * flaky failure can be reproduced by re-running with the same
+     * seed (per CLAUDE.md).
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
 
     private static SLHDSAParameterSpec[] joSpec = new SLHDSAParameterSpec[]{
             SLHDSAParameterSpec.slh_dsa_sha2_128f,
@@ -261,12 +280,13 @@ public class SLHDSATest
     @Test
     public void testSignVerifyWithReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithReuse");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -308,16 +328,17 @@ public class SLHDSATest
     @Test
     public void testSignVerifyWithContextAndReuse() throws Exception
     {
+        SecureRandom sr = seededRandom("testSignVerifyWithContextAndReuse");
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx = new byte[129];
-        random.nextBytes(ctx);
+        sr.nextBytes(ctx);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         //
@@ -362,6 +383,7 @@ public class SLHDSATest
     @Test
     public void testSingleByteUpdateSign() throws Exception
     {
+        SecureRandom sr = seededRandom("testSingleByteUpdateSign");
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
@@ -375,7 +397,7 @@ public class SLHDSATest
         PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         Signature signatureJo = Signature.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         signatureJo.initSign(keyPair.getPrivate());
@@ -409,6 +431,7 @@ public class SLHDSATest
     @Test
     public void testSingleByteUpdateVerify() throws Exception
     {
+        SecureRandom sr = seededRandom("testSingleByteUpdateVerify");
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
@@ -423,7 +446,7 @@ public class SLHDSATest
 
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
 
         Signature signatureBc = Signature.getInstance("SLH-DSA", "BC");
@@ -461,9 +484,138 @@ public class SLHDSATest
     }
 
 
+    /**
+     * Streaming chunking matrix per CLAUDE.md. SLH-DSA is randomized
+     * (a per-signature pseudo-random nonce R is sampled), so we can't
+     * byte-compare signatures across runs. Instead, sign each chunking
+     * pattern and verify each resulting signature through the one-shot
+     * verify path; then sign once and verify the SAME signature
+     * through every chunking strategy. The SHA-2 variants absorb the
+     * message via SHA-256 (block = 64 bytes); use 64 as the adversarial
+     * pivot. We exercise one of the "fast" variants to keep CI time
+     * reasonable — the streaming-input path is the same shape across
+     * every parameter set.
+     */
+    @Test
+    public void testSLHDSA_ChunkingMatrix_allVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testSLHDSA_ChunkingMatrix_allVerify");
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128f);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] msg = new byte[1024];
+        sr.nextBytes(msg);
+
+        int[] chunks = {1, 63, 64, 65, 127, 128, 129, msg.length};
+
+        // Sign-side chunking matrix.
+        for (int chunk : chunks)
+        {
+            byte[] sig = signWithChunking("SLHDSA", keyPair, msg, chunk);
+            Assertions.assertTrue(verifyOneShot("SLHDSA", keyPair, msg, sig),
+                    "sign-chunk=" + chunk + ": chunked-signed signature did not verify");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            byte[] sig = signWithRandomSplits("SLHDSA", sr, keyPair, msg);
+            Assertions.assertTrue(verifyOneShot("SLHDSA", keyPair, msg, sig),
+                    "random-split trial=" + trial + ": signature did not verify");
+        }
+
+        // Verify-side chunking matrix.
+        byte[] oneSig = signOneShot("SLHDSA", keyPair, msg);
+        for (int chunk : chunks)
+        {
+            Assertions.assertTrue(verifyWithChunking("SLHDSA", keyPair, msg, oneSig, chunk),
+                    "verify-chunk=" + chunk + ": chunked verify diverged from one-shot");
+        }
+        for (int trial = 0; trial < 5; trial++)
+        {
+            Assertions.assertTrue(verifyWithRandomSplits("SLHDSA", sr, keyPair, msg, oneSig),
+                    "random-split verify trial=" + trial + ": verify diverged");
+        }
+    }
+
+    private static byte[] signOneShot(String alg, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        return signer.sign();
+    }
+
+    private static byte[] signWithChunking(String alg, KeyPair kp, byte[] msg, int chunk) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            signer.update(msg, off, len);
+        }
+        return signer.sign();
+    }
+
+    private static byte[] signWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            signer.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return signer.sign();
+    }
+
+    private static boolean verifyOneShot(String alg, KeyPair kp, byte[] msg, byte[] sig) throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithChunking(String alg, KeyPair kp, byte[] msg, byte[] sig, int chunk)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        for (int off = 0; off < msg.length; off += chunk)
+        {
+            int len = Math.min(chunk, msg.length - off);
+            verifier.update(msg, off, len);
+        }
+        return verifier.verify(sig);
+    }
+
+    private static boolean verifyWithRandomSplits(String alg, SecureRandom sr, KeyPair kp, byte[] msg, byte[] sig)
+            throws Exception
+    {
+        Signature verifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        int pos = 0;
+        while (pos < msg.length)
+        {
+            int remaining = msg.length - pos;
+            int chunk = 1 + sr.nextInt(Math.max(1, remaining));
+            chunk = Math.min(chunk, remaining);
+            verifier.update(msg, pos, chunk);
+            pos += chunk;
+        }
+        return verifier.verify(sig);
+    }
+
+
     @Test
     public void testKeyGen() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyGen");
 
         for (SLHDSAParameterSpec spec : joSpec)
         {
@@ -484,7 +636,7 @@ public class SLHDSATest
 
             byte[] msg = new byte[65];
 
-            random.nextBytes(msg);
+            sr.nextBytes(msg);
 
             Signature signatureBC = Signature.getInstance("SLH-DSA", "BC");
             signatureBC.initSign(privKeyBC);
@@ -502,6 +654,7 @@ public class SLHDSATest
     @Test
     public void testKeyRecovery() throws Exception
     {
+        SecureRandom sr = seededRandom("testKeyRecovery");
         for (org.bouncycastle.jcajce.spec.SLHDSAParameterSpec spec : bcSpec)
         {
 
@@ -519,7 +672,7 @@ public class SLHDSATest
 
 
             byte[] msg = new byte[65];
-            random.nextBytes(msg);
+            sr.nextBytes(msg);
 
             Signature signature = Signature.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
             signature.initSign(privateKey);
@@ -575,19 +728,19 @@ public class SLHDSATest
         // Automatic reuse of the key but change the context before taking
         // the second signatur
 
-
+        SecureRandom sr = seededRandom("testChangeContextAfterTakingSignature");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx1 = new byte[129];
-        random.nextBytes(ctx1);
+        sr.nextBytes(ctx1);
 
         byte[] ctx2 = new byte[65];
-        random.nextBytes(ctx2);
+        sr.nextBytes(ctx2);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         //
         // Take first signature on a fresh instance that is fully set up
@@ -635,15 +788,16 @@ public class SLHDSATest
     @Test
     public void testChangeContextToNullAfterTakingSignature() throws Exception
     {
+        SecureRandom sr = seededRandom("testChangeContextToNullAfterTakingSignature");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         byte[] ctx1 = new byte[129];
-        random.nextBytes(ctx1);
+        sr.nextBytes(ctx1);
 
         byte[] message = new byte[1025];
-        random.nextBytes(message);
+        sr.nextBytes(message);
 
         //
         // Take first signature on a fresh instance that is fully set up
@@ -838,6 +992,7 @@ public class SLHDSATest
     @Test
     public void testDeterministic() throws Exception
     {
+        SecureRandom sr = seededRandom("testDeterministic");
 
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("SLH-DSA", JostleProvider.PROVIDER_NAME);
         keyPairGenerator.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
@@ -848,7 +1003,7 @@ public class SLHDSATest
         signature.initSign(keyPair.getPrivate());
 
         byte[] messageBytes = new byte[65];
-        random.nextBytes(messageBytes);
+        sr.nextBytes(messageBytes);
         signature.update(messageBytes, 0, messageBytes.length);
         byte[] signatureByte1 = signature.sign();
 
@@ -870,6 +1025,7 @@ public class SLHDSATest
     @Test
     public void testNondeterministicByDefault() throws Exception
     {
+        SecureRandom sr = seededRandom("testNondeterministicByDefault");
         for (SLHDSAParameterSpec spec : SLHDSAParameterSpec.getParameterSpecs())
         {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
@@ -877,7 +1033,7 @@ public class SLHDSATest
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
             byte[] messageBytes = new byte[65];
-            random.nextBytes(messageBytes);
+            sr.nextBytes(messageBytes);
 
             Signature signature = Signature.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
             signature.initSign(keyPair.getPrivate());
@@ -894,7 +1050,7 @@ public class SLHDSATest
     }
 
 
-    private void crossProviderVerification(String algoName, SLHDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.SLHDSAParameterSpec specBC) throws Exception
+    private void crossProviderVerification(String algoName, SLHDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.SLHDSAParameterSpec specBC, SecureRandom sr) throws Exception
     {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLH-DSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(specJostle);
@@ -909,7 +1065,7 @@ public class SLHDSATest
         PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
 
         byte[] msg = new byte[2049];
-        random.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Signature bcSigner = Signature.getInstance(algoName, "BC");
         bcSigner.initSign(privKeyBC);
@@ -954,7 +1110,7 @@ public class SLHDSATest
 
     }
 
-    private void crossProviderVerificationWithContext(String algoName, SLHDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.SLHDSAParameterSpec specBC, byte[] ctx) throws Exception
+    private void crossProviderVerificationWithContext(String algoName, SLHDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.SLHDSAParameterSpec specBC, byte[] ctx, SecureRandom sr) throws Exception
     {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLH-DSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(specJostle);
@@ -970,7 +1126,7 @@ public class SLHDSATest
 
 
         byte[] msg = new byte[2049];
-        random.nextBytes(msg);
+        sr.nextBytes(msg);
 
         Signature bcSigner = Signature.getInstance(algoName, "BC");
         bcSigner.initSign(privKeyBC);
@@ -1038,21 +1194,22 @@ public class SLHDSATest
     @Test
     public void testSLHDSASignature() throws Exception
     {
+        SecureRandom sr = seededRandom("testSLHDSASignature");
 
         for (int t = 0; t < joSpec.length; t++)
         {
-            crossProviderVerification("SLH-DSA", joSpec[t], bcSpec[t]);
+            crossProviderVerification("SLH-DSA", joSpec[t], bcSpec[t], sr);
         }
 
 
         for (int ctxLen : new int[]{0, 1, 255})
         {
             byte[] ctx = new byte[ctxLen];
-            random.nextBytes(ctx);
+            sr.nextBytes(ctx);
 
             for (int t = 0; t < joSpec.length; t++)
             {
-                crossProviderVerificationWithContext("SLH-DSA", joSpec[t], bcSpec[t], ctx);
+                crossProviderVerificationWithContext("SLH-DSA", joSpec[t], bcSpec[t], ctx, sr);
             }
         }
     }

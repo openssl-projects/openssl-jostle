@@ -22,6 +22,28 @@
 #define REQUIRE_IV_LEN(expected) if (iv_len != (expected)) return JO_INVALID_IV_LEN;
 
 
+/**
+ * AEAD-mode discriminator. GCM and OCB both:
+ *   1. require EVP_CTRL_AEAD_SET_IVLEN (the unified OpenSSL control)
+ *      before the key/IV are set,
+ *   2. append a 16-byte authentication tag to the ciphertext, and
+ *   3. expose AAD through EVP_EncryptUpdate(NULL, ...) /
+ *      EVP_DecryptUpdate(NULL, ...).
+ *
+ * The rest of the file gates AEAD-specific code paths on this helper
+ * instead of comparing `mode_id == GCM`, so adding a new AEAD mode
+ * means (a) adding it here and (b) wiring the matching EVP_CIPHER_fetch
+ * in the per-cipher switch.
+ *
+ * CCM is intentionally NOT here — CCM requires the total plaintext
+ * length to be set BEFORE AAD is processed, which doesn't fit the
+ * current streaming model. A separate code path is needed for CCM.
+ */
+static inline int is_aead_mode(uint32_t mode_id) {
+    return mode_id == GCM || mode_id == OCB;
+}
+
+
 static inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 
     if (iv_len > block_len) {
@@ -119,6 +141,11 @@ int32_t block_cipher_ctx_init(
 
     switch (ctx->mode_id) {
         case ECB:
+        case WRAP:
+        case WRAP_PAD:
+            // ECB takes no IV. AES key-wrap (RFC 3394) and key-wrap-with-padding
+            // (RFC 5649) use a fixed default integrity check value, so no IV is
+            // accepted here either.
             if (iv_len != 0) {
                 return JO_MODE_TAKES_NO_IV;
             }
@@ -141,6 +168,7 @@ int32_t block_cipher_ctx_init(
         case CTR:
         case OFB:
         case GCM:
+        case OCB:
             ctx->streaming = 1;
             break;
         default:
@@ -196,11 +224,23 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-XTS",NULL);
                     break;
 
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP-PAD",NULL);
+                    break;
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes (strictly
+                    // less than the AES block size). OpenSSL enforces
+                    // the same range.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -248,11 +288,21 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CTR",NULL);
 
                     break;
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP-PAD",NULL);
+                    break;
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -307,11 +357,21 @@ int32_t block_cipher_ctx_init(
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-XTS",NULL);
                     break;
 
-                // case WRAP:
-                // case WRAP_PAD:
+                case WRAP:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP",NULL);
+                    break;
+                case WRAP_PAD:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP-PAD",NULL);
+                    break;
 
-                // case OCB: Authenticated
-                // case CCM: Authenticated
+                // case CCM: Authenticated (requires upfront-length streaming model)
+                case OCB:
+                    // RFC 7253: OCB nonce MUST be 1..15 bytes.
+                    if (iv_len < 1 || iv_len > 15) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-OCB",NULL);
+                    break;
                 case GCM:
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
@@ -358,9 +418,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-128-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -402,9 +467,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-192-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -446,9 +516,14 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_ARIA)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-OFB",NULL);
                     break;
+                case GCM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ARIA-256-GCM",NULL);
+                    break;
 
                 // case CCM: Authenticated
-                // case GCM: Authenticated
                 default:
                     return JO_INVALID_MODE;
             }
@@ -608,6 +683,27 @@ int32_t block_cipher_ctx_init(
                     return JO_INVALID_MODE;
             }
             break; // SM4
+        case DES_EDE3:
+            // 3-key Triple DES (DES-EDE3). 24-byte key, 8-byte block.
+            // Only ECB and CBC are in OpenSSL 3.5's default provider;
+            // other DES-EDE3 modes (CFB*, OFB) live in legacy and are
+            // intentionally not exposed here.
+            ctx->cipher_block_size = BLOCK_SIZE_DES_EDE3;
+            if (key_len != 24) {
+                return JO_INVALID_KEY_LEN;
+            }
+            switch (ctx->mode_id) {
+                case ECB:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "DES-EDE3-ECB",NULL);
+                    break;
+                case CBC:
+                    REQUIRE_IV_LEN(BLOCK_SIZE_DES_EDE3)
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "DES-EDE3-CBC",NULL);
+                    break;
+                default:
+                    return JO_INVALID_MODE;
+            }
+            break; // DES_EDE3
         default:
             return JO_INVALID_CIPHER; // Cipher mode
     }
@@ -651,10 +747,16 @@ int32_t block_cipher_ctx_init(
         iv_for_openssl = iv;
     }
 
+    // OpenSSL refuses to initialise a key-wrap cipher unless the context
+    // explicitly opts in via EVP_CIPHER_CTX_FLAG_WRAP_ALLOW.
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        EVP_CIPHER_CTX_set_flags(ctx->evp, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    }
+
 
     switch (opp_mode) {
         case ENCRYPT_MODE:
-            if (ctx->mode_id == GCM) {
+            if (is_aead_mode(ctx->mode_id)) {
 
                 if (OPS_FAILED_INIT_2 1 != EVP_EncryptInit_ex(ctx->evp, evp_cipher, NULL, NULL, NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -664,6 +766,19 @@ int32_t block_cipher_ctx_init(
                                                                  NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
+                }
+                // OCB requires the tag length to be set BEFORE the key
+                // (RFC 7253 permits non-default tag lengths; OpenSSL
+                // defaults to 16 and applies EVP_CTRL_AEAD_SET_TAG with
+                // a NULL buffer + the desired length to override).
+                // GCM's tag length is enforced at doFinal-time by
+                // Jostle's own buffer rather than via OpenSSL, so this
+                // call is OCB-only.
+                if (ctx->mode_id == OCB && ctx->tag_len > 0 && ctx->tag_len != 16) {
+                    if (OPS_OPENSSL_ERROR_8 1 != EVP_CIPHER_CTX_ctrl(ctx->evp, EVP_CTRL_AEAD_SET_TAG, (int) ctx->tag_len, NULL)) {
+                        ret_code = JO_OPENSSL_ERROR;
+                        goto exit;
+                    }
                 }
                 if (OPS_FAILED_INIT_1 1 != EVP_EncryptInit_ex(ctx->evp, NULL, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -679,7 +794,7 @@ int32_t block_cipher_ctx_init(
             break;
 
         case DECRYPT_MODE:
-            if (ctx->mode_id == GCM) {
+            if (is_aead_mode(ctx->mode_id)) {
                 // Same three-step pattern as encrypt; see comment above.
                 if (OPS_FAILED_INIT_2 1 != EVP_DecryptInit_ex(ctx->evp, evp_cipher, NULL, NULL, NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -689,6 +804,16 @@ int32_t block_cipher_ctx_init(
                                                                  NULL)) {
                     ret_code = JO_OPENSSL_ERROR;
                     goto exit;
+                }
+                // See OCB tag-length note on the encrypt path above —
+                // the same NULL-buffer SET_TAG call is needed on decrypt
+                // so OpenSSL knows how many ciphertext bytes are the
+                // payload vs. the tag.
+                if (ctx->mode_id == OCB && ctx->tag_len > 0 && ctx->tag_len != 16) {
+                    if (OPS_OPENSSL_ERROR_8 1 != EVP_CIPHER_CTX_ctrl(ctx->evp, EVP_CTRL_AEAD_SET_TAG, (int) ctx->tag_len, NULL)) {
+                        ret_code = JO_OPENSSL_ERROR;
+                        goto exit;
+                    }
                 }
                 if (OPS_FAILED_INIT_1 1 != EVP_DecryptInit_ex(ctx->evp, NULL, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;
@@ -744,7 +869,7 @@ int32_t block_cipher_ctx_updateAAD(
     }
 
 
-    if (ctx->mode_id != GCM) {
+    if (!is_aead_mode(ctx->mode_id)) {
         return JO_INVALID_MODE;
     }
 
@@ -826,7 +951,11 @@ int32_t block_cipher_ctx_update(
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
-    if (ctx->op_mode == ENCRYPT_MODE || ctx->tag_len == 0) {
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        // Key-wrap output differs from the input by the 8-byte integrity block
+        // in either direction. The output buffer is sized by get_update_size /
+        // final_size, and OpenSSL fails closed on a short buffer.
+    } else if (ctx->op_mode == ENCRYPT_MODE || ctx->tag_len == 0) {
         if (out_len < in_len) {
             return JO_OUTPUT_TOO_SMALL;
         }
@@ -845,7 +974,11 @@ int32_t block_cipher_ctx_update(
     }
 
     if (ctx->streaming == 0 && ctx->padding == NO_PADDING) {
-        if (ctx->mode_id == XTS) {
+        if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+            // RFC 3394 (KW) requires input that is a multiple of 8 bytes and at
+            // least 16; RFC 5649 (KWP) accepts any length >= 1. OpenSSL enforces
+            // these per-algorithm, so don't impose the 16-byte block alignment.
+        } else if (ctx->mode_id == XTS) {
             if (in_len < ctx->cipher_block_size) {
                 return JO_NOT_BLOCK_ALIGNED;
             }
@@ -895,7 +1028,7 @@ int32_t block_cipher_ctx_update(
             return JO_OPENSSL_ERROR;
         }
     } else if (ctx->op_mode == DECRYPT_MODE) {
-        if (ctx->mode_id == GCM) {
+        if (is_aead_mode(ctx->mode_id)) {
             //
             // Fill tag buffer
             //
@@ -979,9 +1112,31 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        // Key wrap is one-shot: the whole result is produced from the single
+        // EVP update, so size the buffer for the complete operation here.
+        size_t out;
+        if (ctx->op_mode == ENCRYPT_MODE) {
+            // KW appends one 8-byte integrity block; KWP first pads the
+            // plaintext up to a multiple of 8, then appends the block.
+            size_t padded = (ctx->mode_id == WRAP_PAD) ? (((len + 7u) / 8u) * 8u) : len;
+            out = padded + 8u;
+        } else {
+            // Decrypt upper bound: strip the 8-byte integrity block. KWP may
+            // remove a further 0-7 padding bytes; the Java SPI trims the buffer
+            // to the actual decrypted length.
+            out = (len >= 8u) ? (len - 8u) : 0u;
+        }
+        if (out > INT32_MAX) {
+            return JO_OUTPUT_SIZE_INT_OVERFLOW;
+        }
+        return (int32_t) out;
+    }
+
     if (ctx->streaming == 1) {
         switch (ctx->mode_id) {
             case GCM:
+            case OCB:
 
                 if (ctx->tag_len > 0) {
                     if (ctx->op_mode == ENCRYPT_MODE) {
@@ -1104,7 +1259,7 @@ int32_t block_cipher_ctx_final(
             goto failed;
         }
 
-        if (ctx->mode_id == GCM) {
+        if (is_aead_mode(ctx->mode_id)) {
 
             if ((size_t) written + ctx->tag_len > out_len) {
                 ctx->poisoned = 1;
@@ -1138,7 +1293,7 @@ int32_t block_cipher_ctx_final(
             goto failed;
         }
 
-        if (ctx->mode_id == GCM) {
+        if (is_aead_mode(ctx->mode_id)) {
             //
             // Roll in last tag
             //
@@ -1152,7 +1307,7 @@ int32_t block_cipher_ctx_final(
 
 
         if (OPS_OPENSSL_ERROR_4 1 != EVP_DecryptFinal_ex(ctx->evp, output, &written)) {
-            if (ctx->mode_id == GCM) {
+            if (is_aead_mode(ctx->mode_id)) {
                 written = JO_TAG_INVALID;
             } else {
                 written = JO_INVALID_CIPHER_TEXT;
@@ -1218,8 +1373,18 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     }
 
 
-    if (len > INT32_MAX) {
+    // Input overflow gate — `len` is a size_t from the caller, so on
+    // 64-bit platforms it can exceed INT32_MAX. OPS_INT32_OVERFLOW_1
+    // lets tests fault-inject the overflow path without having to
+    // actually pass a 2GB+ value across the JNI/FFI boundary.
+    if (OPS_INT32_OVERFLOW_1 len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    // Key wrap is one-shot — the entire wrapped/unwrapped result is written by
+    // the single update call, so size it exactly as the final operation.
+    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        return final_size(ctx, len);
     }
 
     size_t result;
@@ -1229,14 +1394,32 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     if (ctx->streaming || ctx->mode_id == XTS) {
         result = len;
     } else {
-        size_t remaining = 0;
-        if (ctx->padding == PADDED) {
-            remaining = ctx->processed % ctx->cipher_block_size;
-        }
-        result = ctx->cipher_block_size * ((remaining + len) / ctx->cipher_block_size);
+        // Block-cipher modes (padded or unpadded): the upper bound on
+        // bytes that this update may write is one block per "completed"
+        // block from buffered+new bytes. The buffered-bytes term applies
+        // to BOTH padded and unpadded modes — unpadded mode also buffers
+        // partial blocks at the EVP layer, even though Jostle currently
+        // rejects sub-block update input via JO_NOT_BLOCK_ALIGNED.
+        //
+        // The auto-allocating Cipher.update(byte[], int, int) path
+        // calls this with `len` and then invokes block_cipher_ctx_update
+        // with the allocated buffer; that function's safety guard
+        // `if (out_len < in_len) return JO_OUTPUT_TOO_SMALL` would
+        // reject any sub-block update whose precise required output is
+        // 0 bytes. Return max(aligned, len) so the auto-allocating
+        // caller always passes the guard. The Java SPI trims the
+        // returned buffer to the actually-written length.
+        size_t remaining = ctx->processed % ctx->cipher_block_size;
+        size_t aligned = ctx->cipher_block_size * ((remaining + len) / ctx->cipher_block_size);
+        result = aligned > len ? aligned : len;
     }
 
-    if (result > INT32_MAX) {
+    // Output overflow gate — `aligned` is `block_size * ((remaining + len)
+    // / block_size)`, which can in principle exceed `len` (and thus
+    // INT32_MAX) when `remaining` is non-zero and `len` is close to the
+    // limit. OPS_INT32_OVERFLOW_2 lets tests exercise this branch even
+    // when the input passed the first gate.
+    if (OPS_INT32_OVERFLOW_2 result > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
     return (int32_t) result;

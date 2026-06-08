@@ -281,6 +281,90 @@ public class RSAOpsTest
 
 
     // -----------------------------------------------------------------
+    // initSign / initVerify — JNI access faults (digest / mgf1 string fetch).
+    // These exercise rsa_init_strings_load in interface/jni/rsa_ni_jni.c,
+    // shared by both initSign and initVerify. JNI-only.
+    // -----------------------------------------------------------------
+
+    /**
+     * Target: {@code interface/jni/rsa_ni_jni.c:366} — fault-injects the
+     * {@code GetStringUTFChars(digest)} failure inside {@code rsa_init_strings_load},
+     * the helper shared by {@code ni_initSign} and {@code ni_initVerify}.
+     */
+    @Test
+    public void RSA_initSign_accessDigestName_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+
+        long rsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            rsaRef = rsaServiceNI.allocateSigner();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            Assertions.assertTrue(rsaRef > 0);
+            Assertions.assertTrue(keyRef > 0);
+
+            // Exercises interface/jni/rsa_ni_jni.c:366
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("unable to access name", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /**
+     * Target: {@code interface/jni/rsa_ni_jni.c:372} — fault-injects the
+     * {@code GetStringUTFChars(mgf1)} failure inside {@code rsa_init_strings_load}.
+     * PSS padding is used so {@code mgf1_str} is non-null and the mgf1 fetch
+     * actually runs.
+     */
+    @Test
+    public void RSA_initSign_accessMgf1Name_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI());
+
+        long rsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            rsaRef = rsaServiceNI.allocateSigner();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            Assertions.assertTrue(rsaRef > 0);
+            Assertions.assertTrue(keyRef > 0);
+
+            // Exercises interface/jni/rsa_ni_jni.c:372
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("unable to access name", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
     // initSign — distinguishable failure paths via offset codes
     // -----------------------------------------------------------------
 
@@ -298,6 +382,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:589
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -326,6 +411,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:594
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -359,6 +445,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:515
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -387,6 +474,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:522
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -415,6 +503,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:531
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -443,6 +532,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:537
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -474,6 +564,7 @@ public class RSAOpsTest
             rsaRef = rsaServiceNI.allocateSigner();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
+            // Exercises interface/util/rsa.c:522
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1);
@@ -505,6 +596,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:79
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -529,6 +621,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:85
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -552,6 +645,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:90
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -575,6 +669,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:95
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -620,6 +715,7 @@ public class RSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
 
             // Second init: forced to fail at EVP_DigestSignInit_ex.
+            // Exercises interface/util/rsa.c:594
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -665,6 +761,7 @@ public class RSAOpsTest
             rsaServiceNI.initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
 
+            // Exercises interface/util/rsa.c:661
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -703,6 +800,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:656
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -730,6 +828,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:661
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -1095,6 +1194,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:231
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -1119,6 +1219,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:236
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -1143,6 +1244,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:241
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -1171,6 +1273,7 @@ public class RSAOpsTest
             // and configure_padding (PKCS1 set_rsa_padding); within the
             // decode-private code path it fires on the BN-allocation
             // chain (n_bn || e_bn || d_bn == NULL).
+            // Exercises interface/util/rsa.c:283
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = rsaServiceNI.ni_decodePrivateComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4, new byte[]{0x01});
@@ -1195,6 +1298,7 @@ public class RSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
+            // Exercises interface/util/rsa.c:287
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_decodePrivateComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4, new byte[]{0x01});
@@ -1204,6 +1308,158 @@ public class RSAOpsTest
         finally
         {
             operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // rsa_generate_key — additional EVP failure points.
+    //
+    // Existing tests already cover keygen_init, set_rsa_keygen_bits,
+    // BN_bin2bn, set1_rsa_keygen_pubexp, and the post-keygen NULL
+    // check. The two below add the remaining EVP calls:
+    //
+    //   1. EVP_PKEY_CTX_new_from_name (line 148) — context allocation.
+    //   2. EVP_PKEY_keygen (line 176) — the actual keygen call (distinct
+    //      from the post-keygen NULL-trick path the existing
+    //      RSA_generateKeyPair_opensslError test covers via OPS_OPENSSL_ERROR_1).
+    //
+    // Slots _6 / _7 are reused — they currently fire in
+    // configure_padding (PSS saltlen) and fromdata_construct (BLD_to_param)
+    // respectively, neither of which is reached from rsa_generate_key.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void RSA_generateKeyPair_ctxNewFromName_failure() throws Exception
+    {
+        runGenerateKeyPairOpsCodeAssertion(
+                OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6, -1046);
+    }
+
+    @Test
+    public void RSA_generateKeyPair_evpKeygen_failure() throws Exception
+    {
+        runGenerateKeyPairOpsCodeAssertion(
+                OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7, -1047);
+    }
+
+
+    // -----------------------------------------------------------------
+    // rsa_get_component — EVP_PKEY_get_bn_param failure.
+    //
+    // The real failure path here is "component absent on this key"
+    // (e.g. requesting d on a public-only key), which returns a bare
+    // JO_OPENSSL_ERROR = -2 that the SPI's RSAComponents.getOptional
+    // maps to a null component. The OPS injection returns a
+    // distinguishable -1072 so the test can pin exactly which call
+    // site fired.
+    //
+    // Slot _8 is reused — it currently fires in fromdata_construct
+    // (EVP_PKEY_CTX_new_from_name), which is not reached from
+    // rsa_get_component.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void RSA_getComponent_getBnParam_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = 0;
+        try
+        {
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            // Exercises interface/util/rsa.c:441
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+            // 256-byte buffer is comfortably larger than any RSA-2048
+            // component; size doesn't matter because the OPS flag short-
+            // circuits the EVP_PKEY_get_bn_param call.
+            int code = rsaServiceNI.ni_getComponent(keyRef,
+                    RSAServiceNI.COMP_MODULUS, new byte[256]);
+            // -2 + (-1070) = -1072.
+            Assertions.assertEquals(-1072, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // rsa_ctx_update — sign and verify update paths.
+    //
+    // These are the two EVP_Digest*Update calls that consume input
+    // bytes between init and final. Slots _9 / _10 are reused — they
+    // currently fire in fromdata_construct (fromdata_init / fromdata),
+    // neither of which is called during the init→update→final pipeline.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void RSA_update_sign_digestSignUpdate_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long rsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            rsaRef = rsaServiceNI.allocateSigner();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            Assertions.assertTrue(rsaRef > 0);
+            Assertions.assertTrue(keyRef > 0);
+
+            // Init without OPS flag — must succeed cleanly so update is
+            // the only operation the OPS flag affects.
+            int initCode = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(0, initCode);
+
+            // Exercises interface/util/rsa.c:708
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
+            int code = rsaServiceNI.ni_update(rsaRef, new byte[]{0x01, 0x02, 0x03}, 0, 3);
+            // -2 + (-1010) = -1012.
+            Assertions.assertEquals(-1012, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void RSA_update_verify_digestVerifyUpdate_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long rsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            rsaRef = rsaServiceNI.allocateSigner();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            Assertions.assertTrue(rsaRef > 0);
+            Assertions.assertTrue(keyRef > 0);
+
+            int initCode = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
+                    RSAServiceNI.PADDING_PKCS1, null, 0);
+            Assertions.assertEquals(0, initCode);
+
+            // Exercises interface/util/rsa.c:714
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
+            int code = rsaServiceNI.ni_update(rsaRef, new byte[]{0x01, 0x02, 0x03}, 0, 3);
+            // -2 + (-1011) = -1013.
+            Assertions.assertEquals(-1013, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
             specNI.dispose(keyRef);
         }
     }

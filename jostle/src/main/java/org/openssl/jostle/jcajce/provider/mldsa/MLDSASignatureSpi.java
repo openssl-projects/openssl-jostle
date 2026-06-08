@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.util.SpecUtil;
@@ -38,6 +39,11 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         INTERNAL, EXTERNAL_MU, CALCULATE_MU
     }
+
+    // OpenSSL-probed signature lengths, memoized once per parameter set (see
+    // NativeLengthCache). Only the fixed-length internal/external-mu paths are
+    // cached; the CALCULATE_MU path is variable-length and never cached.
+    private static final NativeLengthCache<OSSLKeyType> signatureLengths = new NativeLengthCache<OSSLKeyType>();
 
     private final OSSLKeyType forcedType;
     private MLDSARef ref = null;
@@ -159,9 +165,29 @@ public class MLDSASignatureSpi extends SignatureSpi
         byte[] sig = null;
         try
         {
-            long len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
-            sig = new byte[(int) len];
-            NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            // The CALCULATE_MU path is variable-length, so it is neither read
+            // from nor written to the fixed-length cache.
+            boolean fixedLength = lastKey != null && muHandling != MuHandling.CALCULATE_MU;
+            int len = NativeLengthCache.UNKNOWN;
+            if (fixedLength)
+            {
+                len = signatureLengths.get(lastKey.getSpec().getType());
+            }
+            if (len == NativeLengthCache.UNKNOWN)
+            {
+                len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
+                if (fixedLength)
+                {
+                    // Memoize OpenSSL's reported length for this parameter set.
+                    signatureLengths.cache(lastKey.getSpec().getType(), len);
+                }
+            }
+            sig = new byte[len];
+            int written = NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            if (written != sig.length)
+            {
+                throw new SignatureException("signature length mismatch");
+            }
             return sig;
         }
         finally

@@ -29,7 +29,8 @@
     CHACHA20(STREAM),
     CHACHA20_POLY1305(AEAD),
     SEED(BLOCK, ECB, CBC, CFB128, OFB),
-    SM4(BLOCK, ECB, CBC, CFB128, OFB, CTR);
+    SM4(BLOCK, ECB, CBC, CFB128, OFB, CTR),
+    DES_EDE3(BLOCK, ECB, CBC);
  */
 
 #define RC4 0
@@ -53,6 +54,7 @@
 #define CHACHA20_POLY1305 18
 #define SEED 19
 #define SM4 20
+#define DES_EDE3 21
 
 
 /* Modes */
@@ -86,5 +88,6 @@
 #define BLOCK_SIZE_ARIA 16
 #define BLOCK_SIZE_CAMELLIA 16
 #define BLOCK_SIZE_SM4 16
+#define BLOCK_SIZE_DES_EDE3 8
 
 #endif //CIPHER_MODE_PAD_H
