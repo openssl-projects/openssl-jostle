@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyPairGenerator;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -68,16 +69,16 @@ class ProvEC
                 "1.2.840.10045.4.3.4");
         registerEcdsaSignature(provider, attr,
                 "SHA3-224withECDSA", ECDSASignatureSpi.SHA3_224.class,
-                "2.16.840.1.101.3.4.3.9");
+                NISTObjectIdentifiers.id_ecdsa_with_sha3_224.getId());
         registerEcdsaSignature(provider, attr,
                 "SHA3-256withECDSA", ECDSASignatureSpi.SHA3_256.class,
-                "2.16.840.1.101.3.4.3.10");
+                NISTObjectIdentifiers.id_ecdsa_with_sha3_256.getId());
         registerEcdsaSignature(provider, attr,
                 "SHA3-384withECDSA", ECDSASignatureSpi.SHA3_384.class,
-                "2.16.840.1.101.3.4.3.11");
+                NISTObjectIdentifiers.id_ecdsa_with_sha3_384.getId());
         registerEcdsaSignature(provider, attr,
                 "SHA3-512withECDSA", ECDSASignatureSpi.SHA3_512.class,
-                "2.16.840.1.101.3.4.3.12");
+                NISTObjectIdentifiers.id_ecdsa_with_sha3_512.getId());
 
         // ECDH KeyAgreement. The OID 1.3.132.1.12 is id-ecDH from SECG
         // (RFC 5480 §2.1.2 / SEC 1 §C.4); RFC 5480 also permits the

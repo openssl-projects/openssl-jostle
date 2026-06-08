@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSAKeyFactorySpiImpl;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAKeyPairGeneratorImpl;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,9 +58,9 @@ class ProvMLDSA
         // Required so X.509 certs whose SubjectPublicKeyInfo / signature carries
         // the OID resolve to the JSL Signature, rather than falling back to the
         // JDK default.
-        provider.addAlias("Signature", "ML-DSA-44", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.17"));
-        provider.addAlias("Signature", "ML-DSA-65", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.18"));
-        provider.addAlias("Signature", "ML-DSA-87", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.19"));
+        provider.addAlias("Signature", "ML-DSA-44", NISTObjectIdentifiers.id_ml_dsa_44);
+        provider.addAlias("Signature", "ML-DSA-65", NISTObjectIdentifiers.id_ml_dsa_65);
+        provider.addAlias("Signature", "ML-DSA-87", NISTObjectIdentifiers.id_ml_dsa_87);
 
 
         final Map<String, String> mldsaKfAttr = new HashMap<>();
@@ -72,9 +73,9 @@ class ProvMLDSA
         // SPKI OID aliases (NIST CSOR id-ml-dsa-44/65/87) so a certificate's
         // public key can be re-derived through the JSL KeyFactory keyed on the
         // SubjectPublicKeyInfo algorithm OID (see JSLKeyX509Certificate).
-        provider.addAlias("KeyFactory", "ML-DSA-44", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.17"));
-        provider.addAlias("KeyFactory", "ML-DSA-65", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.18"));
-        provider.addAlias("KeyFactory", "ML-DSA-87", new ASN1ObjectIdentifier("2.16.840.1.101.3.4.3.19"));
+        provider.addAlias("KeyFactory", "ML-DSA-44", NISTObjectIdentifiers.id_ml_dsa_44);
+        provider.addAlias("KeyFactory", "ML-DSA-65", NISTObjectIdentifiers.id_ml_dsa_65);
+        provider.addAlias("KeyFactory", "ML-DSA-87", NISTObjectIdentifiers.id_ml_dsa_87);
 
 
     }

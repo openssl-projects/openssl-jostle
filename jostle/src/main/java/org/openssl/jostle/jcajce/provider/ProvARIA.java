@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.ARIABlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIACCMCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
+import org.openssl.jostle.util.asn1.oids.NSRIObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;

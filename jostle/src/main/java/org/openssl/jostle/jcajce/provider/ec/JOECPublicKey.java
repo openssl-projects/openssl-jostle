@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.ECKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECParameterSpec;
@@ -45,7 +45,7 @@ class JOECPublicKey extends AsymmetricKeyImpl implements ECPublicKey, ECKey, OSS
     {
         synchronized (this)
         {
-            return ASNEncoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
         }
     }
 

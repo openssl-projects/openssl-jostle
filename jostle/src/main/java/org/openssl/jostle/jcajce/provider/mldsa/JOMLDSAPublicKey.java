@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
 {
@@ -41,7 +41,7 @@ class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
     public byte[] getEncoded()
     {
         // ASN1
-        return ASNEncoder.asSubjectPublicKeyInfo(spec);
+        return ASN1Encoder.asSubjectPublicKeyInfo(spec);
     }
 
     @Override

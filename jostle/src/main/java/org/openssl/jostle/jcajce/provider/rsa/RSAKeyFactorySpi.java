@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.math.BigInteger;
 import java.security.Key;
@@ -38,7 +38,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASNEncoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
             requireRSA(spec);
             return new JORSAPublicKey(spec);
         }
@@ -61,7 +61,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASNEncoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
             requireRSA(spec);
             return new JORSAPrivateKey(spec);
         }

@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.rsa.*;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -53,13 +54,13 @@ class ProvRSA
         registerPkcs1Signature(provider, attr,
                 "SHA512withRSA", "SHA-512", RSASignatureSpi.SHA512.class, "1.2.840.113549.1.1.13");
         registerPkcs1Signature(provider, attr,
-                "SHA3-224withRSA", "SHA3-224", RSASignatureSpi.SHA3_224.class, "2.16.840.1.101.3.4.3.13");
+                "SHA3-224withRSA", "SHA3-224", RSASignatureSpi.SHA3_224.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_224.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA3-256withRSA", "SHA3-256", RSASignatureSpi.SHA3_256.class, "2.16.840.1.101.3.4.3.14");
+                "SHA3-256withRSA", "SHA3-256", RSASignatureSpi.SHA3_256.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_256.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA3-384withRSA", "SHA3-384", RSASignatureSpi.SHA3_384.class, "2.16.840.1.101.3.4.3.15");
+                "SHA3-384withRSA", "SHA3-384", RSASignatureSpi.SHA3_384.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_384.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA3-512withRSA", "SHA3-512", RSASignatureSpi.SHA3_512.class, "2.16.840.1.101.3.4.3.16");
+                "SHA3-512withRSA", "SHA3-512", RSASignatureSpi.SHA3_512.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId());
 
         // RSASSA-PSS — parameters carried via PSSParameterSpec.
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",

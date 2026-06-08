@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
 {
@@ -42,7 +42,7 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
     {
         synchronized (this)
         {
-            return ASNEncoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
         }
     }
 

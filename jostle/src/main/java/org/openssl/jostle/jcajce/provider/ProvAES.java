@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider;
 
 
 import org.openssl.jostle.jcajce.provider.blockcipher.*;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;

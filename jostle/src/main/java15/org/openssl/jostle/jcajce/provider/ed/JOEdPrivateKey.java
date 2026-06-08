@@ -19,7 +19,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
-import org.openssl.jostle.util.asn1.ASNEncoder;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.lang.ref.Reference;
@@ -59,7 +59,7 @@ public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey
     {
         try
         {
-            return ASNEncoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
         }
         finally
         {

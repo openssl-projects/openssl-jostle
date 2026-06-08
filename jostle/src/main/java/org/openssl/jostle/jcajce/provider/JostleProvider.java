@@ -15,6 +15,7 @@ import org.openssl.jostle.util.AccessSupplier;
 import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.Properties;
 import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 
 import java.lang.ref.WeakReference;
 import java.security.NoSuchAlgorithmException;
