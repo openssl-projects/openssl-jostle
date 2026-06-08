@@ -1792,6 +1792,27 @@ public class EdDSATest
     }
 
 
+    /**
+     * {@code getAlgorithm()} on JSL Ed keys must return the canonical mixed-case
+     * JCA name ("Ed25519"/"Ed448") — matching SunEC/BC — not the upper-case
+     * "ED25519"/"ED448" (JCA/TLS gap #9). Consumers like BC's TLS
+     * {@code JcaTlsCertificate.getPubKeyEd25519} dispatch on this exact string.
+     */
+    @Test
+    public void testEdKey_getAlgorithm_isCanonicalMixedCase() throws Exception
+    {
+        for (String alg : new String[]{"Ed25519", "Ed448"})
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            KeyPair kp = kpg.generateKeyPair();
+            Assertions.assertEquals(alg, kp.getPublic().getAlgorithm(),
+                    alg + ": public getAlgorithm() must be canonical mixed-case");
+            Assertions.assertEquals(alg, kp.getPrivate().getAlgorithm(),
+                    alg + ": private getAlgorithm() must be canonical mixed-case");
+        }
+    }
+
+
     public static class TestAlgorithmParameterSpec implements AlgorithmParameterSpec
     {
         private final byte[] ctx;
