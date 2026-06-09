@@ -248,3 +248,120 @@ exit:
 
     return ret_code;
 }
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI
+ * Method:    hkdf
+ * Signature: ([B[B[BLjava/lang/String;[BII)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
+(JNIEnv *env, jobject jo, jbyteArray _ikm, jbyteArray _salt, jbyteArray _info, jstring digest, jbyteArray _out,
+ jint out_offset, jint out_len) {
+    UNUSED(jo);
+
+    int ret_code = JO_FAIL;
+    const char *digest_str = NULL;
+    jsize digest_str_len = 0;
+
+    java_bytearray_ctx ikm;
+    java_bytearray_ctx salt;
+    java_bytearray_ctx info;
+    java_bytearray_ctx output;
+
+    init_bytearray_ctx(&ikm);
+    init_bytearray_ctx(&salt);
+    init_bytearray_ctx(&info);
+    init_bytearray_ctx(&output);
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&ikm, env, _ikm)) {
+        ret_code = JO_KDF_HKDF_IKM_FAILED_ACCESS;
+        goto exit;
+    }
+
+    if (ikm.array == NULL) {
+        ret_code = JO_KDF_HKDF_IKM_NULL;
+        goto exit;
+    }
+
+
+    // salt is optional; a null array means "use HashLen zeros" (RFC 5869).
+    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&salt, env, _salt)) {
+        ret_code = JO_KDF_SALT_FAILED_ACCESS;
+        goto exit;
+    }
+
+
+    // info is optional; a null array means "no context info".
+    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&info, env, _info)) {
+        ret_code = JO_KDF_HKDF_INFO_FAILED_ACCESS;
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&output, env, _out)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    if (output.array == NULL) {
+        ret_code = JO_OUTPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (out_offset < 0) {
+        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (out_len < 0) {
+        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&output, out_offset, out_len)) {
+        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    if (digest == NULL) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    digest_str_len = (*env)->GetStringUTFLength(env, digest);
+    if (digest_str_len <= 0) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    digest_str = (*env)->GetStringUTFChars(env, digest, NULL);
+    if (digest_str == NULL) {
+        ret_code = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    // out_offset is not negative by this point
+    uint8_t *out = output.bytearray + out_offset;
+
+    ret_code = hkdf(
+        ikm.bytearray, ikm.size,
+        salt.bytearray, salt.size,
+        info.bytearray, info.size,
+        (uint8_t *) digest_str,
+        digest_str_len,
+        out, out_len);
+
+
+exit:
+    release_bytearray_ctx(&ikm);
+    release_bytearray_ctx(&salt);
+    release_bytearray_ctx(&info);
+    release_bytearray_ctx(&output);
+
+    if (digest_str != NULL) {
+        (*env)->ReleaseStringUTFChars(env, digest, digest_str);
+    }
+
+    return ret_code;
+}

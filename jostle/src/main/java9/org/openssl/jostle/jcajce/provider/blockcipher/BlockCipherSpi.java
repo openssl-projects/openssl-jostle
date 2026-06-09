@@ -245,8 +245,12 @@ class BlockCipherSpi extends CipherSpi
             try
             {
                 AlgorithmParameters params;
-                if (osslMode == OSSLMode.GCM)
+                if (isAeadMode())
                 {
+                    // GCM AlgorithmParameters is the de-facto JCE holder for any
+                    // AEAD tag+nonce; OCB has no JCE-standard parameters type, so
+                    // it reuses GCM's. The tag length is preserved on round-trip
+                    // (a plain IvParameterSpec would drop it).
                     params = AlgorithmParameters.getInstance("GCM");
                     params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
                 }
@@ -317,7 +321,7 @@ class BlockCipherSpi extends CipherSpi
                     iv = new byte[ivLen];
                     SecureRandom rng = (random != null) ? random : CryptoServicesRegistrar.getSecureRandom();
                     rng.nextBytes(iv);
-                    tag = (osslMode == OSSLMode.GCM) ? 16 : 0;
+                    tag = isAeadMode() ? 16 : 0;
                 }
                 else
                 {
@@ -330,14 +334,7 @@ class BlockCipherSpi extends CipherSpi
                 if (params instanceof IvParameterSpec)
                 {
                     iv = ((IvParameterSpec) params).getIV();
-                    if (osslMode == OSSLMode.GCM)
-                    {
-                        tag = 16;
-                    }
-                    else
-                    {
-                        tag = 0;
-                    }
+                    tag = isAeadMode() ? 16 : 0;
                 }
                 else
                 {
@@ -411,6 +408,20 @@ class BlockCipherSpi extends CipherSpi
         default:
             return engineGetBlockSize();
         }
+    }
+
+    /**
+     * True for the AEAD modes this SPI drives (GCM and OCB). Both append an
+     * authentication tag and default to a 16-byte tag when the caller doesn't
+     * specify one via a {@link GCMParameterSpec}. CCM is handled by a dedicated
+     * SPI and is not seen here. The default-16 applies to OCB as well as GCM:
+     * leaving OCB's tag length at 0 left OpenSSL's OCB cipher with no tag length
+     * established, which surfaced as {@code aes_ocb_get_ctx_params: invalid tag
+     * length} at the {@code EVP_CTRL_AEAD_GET_TAG} step on encrypt.
+     */
+    private boolean isAeadMode()
+    {
+        return osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB;
     }
 
 

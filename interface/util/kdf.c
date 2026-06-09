@@ -131,3 +131,68 @@ exit:
     return ret;
 }
 
+
+int32_t hkdf(
+    uint8_t *ikm, size_t ikm_len,
+    uint8_t *salt, size_t salt_len,
+    uint8_t *info, size_t info_len,
+    uint8_t *digest, size_t digest_len,
+    uint8_t *out, size_t out_len
+) {
+    // IKM, digest and out are mandatory and validated by the bridge.
+    // salt and info are optional: a NULL salt means "use HashLen zeros"
+    // (RFC 5869), a NULL/empty info means "no context info".
+    jo_assert(ikm != NULL);
+    jo_assert(digest != NULL);
+    jo_assert(out != NULL);
+
+    int ret = JO_FAIL;
+    EVP_KDF *kdf = NULL;
+    EVP_KDF_CTX *kctx = NULL;
+
+    ERR_clear_error();
+
+    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "HKDF", NULL);
+    if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
+        ret = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+    kctx = EVP_KDF_CTX_new(kdf);
+
+    if (OPS_OPENSSL_ERROR_2 !kctx) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3000);
+        goto exit;
+    }
+
+    // Hard-code the HKDF mode to RFC 5869 extract-and-expand. This is the
+    // EVP_KDF "HKDF" default, but set it explicitly so the one-shot semantics
+    // the consumers rely on survive a default change or a custom provider.
+    // DO NOT change this value.
+    int mode = EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND;
+
+    OSSL_PARAM params[6];
+    int idx = 0;
+    params[idx++] = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode);
+    params[idx++] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char *) digest, digest_len);
+    params[idx++] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, ikm, ikm_len);
+    if (salt != NULL) {
+        params[idx++] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len);
+    }
+    if (info != NULL && info_len > 0) {
+        params[idx++] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, info, info_len);
+    }
+    params[idx++] = OSSL_PARAM_construct_end();
+
+    if (OPS_OPENSSL_ERROR_3 EVP_KDF_derive(kctx, out, out_len, params) <= 0) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3001);
+        goto exit;
+    }
+
+    ret = JO_SUCCESS;
+exit:
+    EVP_KDF_free(kdf);
+    EVP_KDF_CTX_free(kctx);
+    return ret;
+}
+

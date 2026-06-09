@@ -30,6 +30,9 @@ public class KdfNIFFI implements KdfNI
     private static final MemorySegment scrypt;
     private static final MethodHandle scryptFuncHandle;
 
+    private static final MemorySegment hkdf;
+    private static final MethodHandle hkdfFuncHandle;
+
     static
     {
 
@@ -62,6 +65,25 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.JAVA_INT, // n
                         ValueLayout.JAVA_INT, // r
                         ValueLayout.JAVA_INT, // p
+                        ValueLayout.ADDRESS, // output
+                        ValueLayout.JAVA_LONG, // output_size -- total length of output array
+                        ValueLayout.JAVA_INT, // output offset
+                        ValueLayout.JAVA_INT // output length wanted
+                ), Linker.Option.critical(true));
+
+
+        hkdf = lookup.find("KDF_HKDF").orElseThrow();
+        hkdfFuncHandle = linker.downcallHandle(hkdf,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // ikm
+                        ValueLayout.JAVA_LONG, // ikm_len
+                        ValueLayout.ADDRESS, // salt
+                        ValueLayout.JAVA_LONG, // salt_len
+                        ValueLayout.ADDRESS, // info
+                        ValueLayout.JAVA_LONG, // info_len
+                        ValueLayout.ADDRESS, // digest name as bytes
+                        ValueLayout.JAVA_LONG, // length of digest name + null terminus
                         ValueLayout.ADDRESS, // output
                         ValueLayout.JAVA_LONG, // output_size -- total length of output array
                         ValueLayout.JAVA_INT, // output offset
@@ -130,6 +152,38 @@ public class KdfNIFFI implements KdfNI
         {
             L.log(Level.WARNING,
                     "FFI KDF_PBKDF2", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int hkdf(byte[] ikm, byte[] salt, byte[] info, String digest, byte[] out, int outOffset, int outLen)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment ikmSeg = (ikm == null) ? MemorySegment.NULL : MemorySegment.ofArray(ikm);
+            MemorySegment saltSeg = (salt == null) ? MemorySegment.NULL : MemorySegment.ofArray(salt);
+            MemorySegment infoSeg = (info == null) ? MemorySegment.NULL : MemorySegment.ofArray(info);
+            MemorySegment digestName = (digest == null) ? MemorySegment.NULL : a.allocateFrom(digest);
+            MemorySegment output = (out == null) ? MemorySegment.NULL : MemorySegment.ofArray(out);
+
+            return (int) hkdfFuncHandle.invokeExact(
+                    ikmSeg, ikmSeg.byteSize(),
+                    saltSeg, saltSeg.byteSize(),
+                    infoSeg, infoSeg.byteSize(),
+                    digestName,
+                    digest == null ? 0L : digestName.byteSize() - 1, // less null terminus
+                    output,
+                    output.byteSize(),
+                    outOffset,
+                    outLen
+            );
+
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING,
+                    "FFI KDF_HKDF", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

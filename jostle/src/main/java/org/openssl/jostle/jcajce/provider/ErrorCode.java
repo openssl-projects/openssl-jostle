@@ -149,6 +149,15 @@ public enum ErrorCode
     // EVP_MD_CTX_copy_ex failed while cloning a digest context.
     JO_MD_COPY_FAILED(-115),
 
+    // HKDF input keying material (IKM) is null.
+    JO_KDF_HKDF_IKM_NULL(-116),
+
+    // JVM access of the HKDF IKM byte array failed.
+    JO_KDF_HKDF_IKM_FAILED_ACCESS(-117),
+
+    // JVM access of the HKDF info byte array failed.
+    JO_KDF_HKDF_INFO_FAILED_ACCESS(-118),
+
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;
