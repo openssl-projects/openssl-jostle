@@ -121,6 +121,14 @@ int32_t ec_make_private_from_components(key_spec *spec,
 typedef struct ec_ctx {
     EVP_MD_CTX *digest_ctx;
     int opp;            // EC_OP_SIGN | EC_OP_VERIFY
+    // Raw ECDSA ("NoneWithECDSA", digest name "NONE") session state: the
+    // caller supplies an already-computed digest, which is buffered and
+    // signed/verified one-shot via EVP_PKEY_sign/EVP_PKEY_verify (no EVP_MD).
+    // Mutually exclusive with digest_ctx — exactly one is set after init.
+    EVP_PKEY_CTX *raw_pctx;
+    uint8_t *raw_buf;
+    size_t raw_buf_len;
+    size_t raw_buf_cap;
 } ec_ctx;
 
 ec_ctx *ec_ctx_create(int32_t *err);

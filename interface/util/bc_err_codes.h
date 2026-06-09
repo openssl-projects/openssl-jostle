@@ -161,6 +161,14 @@
  */
 #define JO_CURVE_NOT_SUPPORTED -114
 
+/*
+ * EVP_MD_CTX_copy_ex failed while cloning a digest context (md_ctx_copy).
+ * Distinct from JO_MD_CREATE_FAILED (EVP_MD_CTX_new failure) so the clone
+ * path's failure is identifiable. Surfaces as the CloneNotSupportedException
+ * cause at the MessageDigest.clone() boundary.
+ */
+#define JO_MD_COPY_FAILED -115
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x

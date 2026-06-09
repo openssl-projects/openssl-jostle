@@ -1580,6 +1580,113 @@ public class RSATest
         return m;
     }
 
+    /**
+     * The RSA KeyFactory must import an {@code id-RSASSA-PSS}-tagged
+     * key (OID 1.2.840.113549.1.1.10) — the encoding TLS 1.3
+     * {@code rsa_pss_pss_*} certificates carry — treating it as a plain RSA
+     * key, as BC/SunRsaSign do (JCA/TLS gap #7). An RSASSA-PSS key is
+     * structurally identical to an rsaEncryption one.
+     */
+    @Test
+    public void testKeyFactory_importsIdRSASSAPSSEncodedKey() throws Exception
+    {
+        // Base keypair from BC so the encodings are proper PKCS#8 / X.509 that
+        // BC's ASN.1 can re-wrap (JSL's RSA getEncoded for the private key is
+        // traditional PKCS#1, which PrivateKeyInfo.getInstance won't parse).
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcKpg.initialize(2048);
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        // Re-wrap the same key bits under the id-RSASSA-PSS OID (params absent),
+        // the form TLS rsa_pss_pss_* certificates carry.
+        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo spki =
+                org.bouncycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(bcKp.getPublic().getEncoded());
+        byte[] pssPub = new org.bouncycastle.asn1.x509.SubjectPublicKeyInfo(
+                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                        org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.id_RSASSA_PSS),
+                spki.getPublicKeyData().getBytes()).getEncoded();
+
+        org.bouncycastle.asn1.pkcs.PrivateKeyInfo pki =
+                org.bouncycastle.asn1.pkcs.PrivateKeyInfo.getInstance(bcKp.getPrivate().getEncoded());
+        byte[] pssPriv = new org.bouncycastle.asn1.pkcs.PrivateKeyInfo(
+                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                        org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.id_RSASSA_PSS),
+                pki.parsePrivateKey()).getEncoded();
+
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        PublicKey jslPub = kf.generatePublic(new X509EncodedKeySpec(pssPub));
+        PrivateKey jslPriv = kf.generatePrivate(new PKCS8EncodedKeySpec(pssPriv));
+
+        Assertions.assertTrue(jslPub instanceof RSAPublicKey, "imported key is not an RSA public key");
+        Assertions.assertEquals(((RSAPublicKey) bcKp.getPublic()).getModulus(),
+                ((RSAPublicKey) jslPub).getModulus(), "public modulus differs after import");
+        Assertions.assertEquals(
+                ((java.security.interfaces.RSAPrivateKey) bcKp.getPrivate()).getModulus(),
+                ((java.security.interfaces.RSAPrivateKey) jslPriv).getModulus(),
+                "private modulus differs after import");
+
+        // The imported key is a plain RSA key: it re-encodes identically to a
+        // JSL import of the equivalent rsaEncryption SPKI (PSS OID is dropped).
+        PublicKey jslPlain = kf.generatePublic(new X509EncodedKeySpec(bcKp.getPublic().getEncoded()));
+        Assertions.assertArrayEquals(jslPlain.getEncoded(), jslPub.getEncoded(),
+                "imported id-RSASSA-PSS key did not canonicalise to plain rsaEncryption");
+
+        // ...and it functions: a PSS round-trip with the imported keys verifies.
+        SecureRandom sr = seededRandom("testKeyFactory_importsIdRSASSAPSSEncodedKey");
+        byte[] msg = randomMessage(sr, 1 + sr.nextInt(256));
+        Signature signer = Signature.getInstance("SHA256withRSAandMGF1", JostleProvider.PROVIDER_NAME);
+        signer.initSign(jslPriv);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("SHA256withRSAandMGF1", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(jslPub);
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), "PSS round-trip with imported id-RSASSA-PSS key failed");
+
+        // Negative: a tampered message must not verify — proves the imported
+        // public key actually checks the signature (not a stub that accepts all).
+        byte[] tampered = Arrays.clone(msg);
+        tampered[sr.nextInt(tampered.length)] ^= 0x01;
+        Signature badVerifier = Signature.getInstance("SHA256withRSAandMGF1", JostleProvider.PROVIDER_NAME);
+        badVerifier.initVerify(jslPub);
+        badVerifier.update(tampered);
+        Assertions.assertFalse(badVerifier.verify(sig),
+                "imported id-RSASSA-PSS key verified a tampered message");
+    }
+
+    /**
+     * {@code RSAPrivateKey.getEncoded()} must be a real PKCS#8 PrivateKeyInfo —
+     * matching the {@code getFormat() == "PKCS#8"} contract — not the
+     * traditional PKCS#1 RSAPrivateKey (JCA/TLS gap #8). A strict PKCS#8 parser
+     * (BC's {@code PrivateKeyInfo.getInstance}) must accept it, and the
+     * privateKeyAlgorithm must be rsaEncryption.
+     */
+    @Test
+    public void testPrivateKeyEncoding_isPkcs8NotPkcs1() throws Exception
+    {
+        PrivateKey priv = sharedKeyPair.getPrivate();
+        Assertions.assertEquals("PKCS#8", priv.getFormat(), "getFormat() should advertise PKCS#8");
+
+        byte[] encoded = priv.getEncoded();
+
+        // Strict PKCS#8 parse — would throw on a traditional PKCS#1 RSAPrivateKey
+        // (its second SEQUENCE element is the modulus INTEGER, not an AlgorithmIdentifier).
+        org.bouncycastle.asn1.pkcs.PrivateKeyInfo pki =
+                org.bouncycastle.asn1.pkcs.PrivateKeyInfo.getInstance(encoded);
+        Assertions.assertEquals(
+                org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.rsaEncryption,
+                pki.getPrivateKeyAlgorithm().getAlgorithm(),
+                "PKCS#8 privateKeyAlgorithm should be rsaEncryption");
+
+        // Re-decode through JSL and confirm the key still functions.
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        PrivateKey roundTripped = kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+        Assertions.assertEquals(
+                ((java.security.interfaces.RSAPrivateKey) priv).getModulus(),
+                ((java.security.interfaces.RSAPrivateKey) roundTripped).getModulus());
+    }
+
     private static byte[] randomMessage(SecureRandom sr, int len)
     {
         byte[] m = new byte[len];
@@ -1617,5 +1724,24 @@ public class RSATest
             default:
                 throw new IllegalArgumentException("unknown digest: " + name);
         }
+    }
+
+    /**
+     * Malformed encoded key bytes must surface as InvalidKeySpecException (the
+     * KeyFactory contract) rather than a leaked OpenSSLException /
+     * IllegalArgumentException from the ASN.1 decoder.
+     */
+    @Test
+    public void testRsaKeyFactory_malformedEncoding_throwsInvalidKeySpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        // Valid DER (SEQUENCE { INTEGER 42 }) but not a valid SPKI / PKCS#8 key.
+        byte[] garbage = {(byte) 0x30, (byte) 0x03, (byte) 0x02, (byte) 0x01, (byte) 0x2A};
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(garbage)),
+                "malformed X.509 must throw InvalidKeySpecException");
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)),
+                "malformed PKCS#8 must throw InvalidKeySpecException");
     }
 }

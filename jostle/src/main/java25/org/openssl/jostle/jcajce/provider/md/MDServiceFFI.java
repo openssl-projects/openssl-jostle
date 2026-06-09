@@ -26,6 +26,9 @@ public class MDServiceFFI implements MDServiceNI
     private static final MemorySegment allocateDigestFunc;
     private static final MethodHandle allocateDigestFuncHandle;
 
+    private static final MemorySegment copyDigestFunc;
+    private static final MethodHandle copyDigestFuncHandle;
+
     private static final MemorySegment updateByteFunc;
     private static final MethodHandle updateByteFuncHandle;
 
@@ -53,6 +56,15 @@ public class MDServiceFFI implements MDServiceNI
                         ValueLayout.ADDRESS, // *md_dtx
                         ValueLayout.ADDRESS, // const char *name
                         ValueLayout.JAVA_INT,// xof_len
+                        ValueLayout.ADDRESS // int *err
+                ), Linker.Option.critical(true)
+        );
+
+        copyDigestFunc = lookup.find("MD_Copy").orElseThrow();
+        copyDigestFuncHandle = linker.downcallHandle(copyDigestFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS, // *md_ctx (the clone)
+                        ValueLayout.ADDRESS, // md_ctx *src
                         ValueLayout.ADDRESS // int *err
                 ), Linker.Option.critical(true)
         );
@@ -127,6 +139,24 @@ public class MDServiceFFI implements MDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MD_Allocate", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public long ni_copyDigest(long ref, int[] err)
+    {
+        try
+        {
+            var errSeg = MemorySegment.ofArray(err);
+            var ctxSeg = (MemorySegment) copyDigestFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(ref),
+                    errSeg);
+            return ctxSeg.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI MD_Copy", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

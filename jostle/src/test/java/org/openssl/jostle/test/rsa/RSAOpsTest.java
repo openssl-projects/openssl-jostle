@@ -1463,4 +1463,135 @@ public class RSAOpsTest
             specNI.dispose(keyRef);
         }
     }
+
+
+    // -----------------------------------------------------------------
+    // Raw PKCS#1 v1.5 (NoneWithRSA) — rsa_raw_init / raw sign / raw verify
+    // -----------------------------------------------------------------
+
+    @Test
+    public void RSA_noneRawInitSign_opensslError() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long rsaRef = rsaServiceNI.allocateSigner();
+        long keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+        try
+        {
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/rsa.c:545
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
+            // -2 + (-1100) = -1102.
+            Assertions.assertEquals(-1102, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void RSA_noneRawSign_opensslError() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long rsaRef = rsaServiceNI.allocateSigner();
+        long keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+        try
+        {
+            int initCode = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(0, initCode);
+            rsaServiceNI.ni_update(rsaRef, new byte[32], 0, 32);
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/rsa.c:860
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
+            int code = rsaServiceNI.ni_sign(rsaRef, null, 0, TestUtil.RNDSrc);
+            // -2 + (-1101) = -1103.
+            Assertions.assertEquals(-1103, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void RSA_noneRawVerify_opensslError() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long rsaRef = rsaServiceNI.allocateSigner();
+        long keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+        try
+        {
+            int initCode = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0);
+            Assertions.assertEquals(0, initCode);
+            rsaServiceNI.ni_update(rsaRef, new byte[32], 0, 32);
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/rsa.c:949
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            int code = rsaServiceNI.ni_verify(rsaRef, new byte[256], 256);
+            // -2 + (-1102) = -1104.
+            Assertions.assertEquals(-1104, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void RSA_noneRawInitSign_signInitError() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long rsaRef = rsaServiceNI.allocateSigner();
+        long keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+        try
+        {
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/rsa.c:552
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+            int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
+            // -2 + (-1103) = -1105.
+            Assertions.assertEquals(-1105, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void RSA_noneRawInitSign_setPaddingError() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long rsaRef = rsaServiceNI.allocateSigner();
+        long keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+        try
+        {
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/rsa.c:557
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+            int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
+            // -2 + (-1104) = -1106.
+            Assertions.assertEquals(-1106, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
 }

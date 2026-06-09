@@ -23,9 +23,11 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec;
 import org.openssl.jostle.jcajce.spec.MLKEMPublicKeySpec;
+import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyGenerator;
@@ -571,6 +573,27 @@ public class MLKEMTest
             Assertions.assertArrayEquals(secretKey.getEncoded(), recoveredKey.getEncoded());
             Assertions.assertArrayEquals(secretKey.getEncapsulation(), recoveredKey.getEncapsulation());
         }
+    }
+
+    /**
+     * Cross-spec parity guard: all three PQC {@code ParameterSpec.fromName}
+     * methods must share one contract — {@code null} → NullPointerException,
+     * an unknown name → IllegalArgumentException. Locks the consistency so a
+     * future edit to one spec can't silently diverge from the other two.
+     */
+    @Test
+    public void fromName_nullAndUnknown_contractAcrossPqcSpecs()
+    {
+        Assertions.assertThrows(NullPointerException.class, () -> MLKEMParameterSpec.fromName(null));
+        Assertions.assertThrows(NullPointerException.class, () -> MLDSAParameterSpec.fromName(null));
+        Assertions.assertThrows(NullPointerException.class, () -> SLHDSAParameterSpec.fromName(null));
+
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> MLKEMParameterSpec.fromName("not-a-real-parameter-set"));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> MLDSAParameterSpec.fromName("not-a-real-parameter-set"));
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> SLHDSAParameterSpec.fromName("not-a-real-parameter-set"));
     }
 
 }

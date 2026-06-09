@@ -90,6 +90,46 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     return ctx;
 }
 
+md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
+    // The bridge validates the source handle; util asserts it as an invariant.
+    jo_assert(src != NULL);
+    jo_assert(src->mdctx != NULL);
+    jo_assert(src->md_type != NULL);
+    ERR_clear_error();
+
+    EVP_MD_CTX *new_mdctx = EVP_MD_CTX_new();
+    if (OPS_FAILED_CREATE_2 new_mdctx == NULL) {
+        *err = JO_MD_CREATE_FAILED;
+        return NULL;
+    }
+
+    // EVP_MD_CTX_copy_ex snapshots the in-progress digest state (the absorbed
+    // bytes), which is exactly what a MessageDigest.clone() needs.
+    if (OPS_OPENSSL_ERROR_11 !EVP_MD_CTX_copy_ex(new_mdctx, src->mdctx)) {
+        EVP_MD_CTX_free(new_mdctx);
+        *err = JO_MD_COPY_FAILED;
+        return NULL;
+    }
+
+    // The copy carries its own reference to the algorithm descriptor so the
+    // clone's md_ctx_destroy is balanced (md_ctx_destroy frees md_type).
+    if (OPS_OPENSSL_ERROR_12 !EVP_MD_up_ref((EVP_MD *) src->md_type)) {
+        EVP_MD_CTX_free(new_mdctx);
+        *err = JO_MD_COPY_FAILED;
+        return NULL;
+    }
+
+    md_ctx *ctx = OPENSSL_zalloc(sizeof(md_ctx));
+    jo_assert(ctx != NULL);
+    ctx->md_type = src->md_type;
+    ctx->mdctx = new_mdctx;
+    ctx->digest_byte_length = src->digest_byte_length;
+    ctx->xof = src->xof;
+
+    *err = JO_SUCCESS;
+    return ctx;
+}
+
 void md_ctx_destroy(md_ctx *ctx) {
     if (ctx == NULL) {
         return;

@@ -25,6 +25,7 @@ import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -74,12 +75,17 @@ import java.util.Map;
  *       name through {@code ECGenParameterSpec} instead.</li>
  *   <li>{@link #initialize(AlgorithmParameterSpec)} with
  *       {@link ECGenParameterSpec} — preferred. The curve name is
- *       passed straight through to OpenSSL.</li>
+ *       canonicalised (so SECG / OID aliases OpenSSL doesn't recognise
+ *       directly, e.g. {@code secp256r1}, resolve) and passed to
+ *       OpenSSL.</li>
+ *   <li>{@link #initialize(AlgorithmParameterSpec)} with an explicit
+ *       {@link ECParameterSpec} — the supplied domain parameters are
+ *       reverse-resolved to a named curve OpenSSL recognises (standard
+ *       JCA callers build an {@code ECParameterSpec} from a named
+ *       curve). Custom curves matching no known named curve are
+ *       rejected with {@link InvalidAlgorithmParameterException}, since
+ *       OpenSSL key generation here is named-curve only.</li>
  * </ul>
- *
- * <p>Explicit-parameters form ({@code java.security.spec.ECParameterSpec})
- * is not supported in this initial cut; callers that need a non-named
- * curve should use OpenSSL directly.
  */
 public class ECKeyPairGenerator extends KeyPairGenerator
 {
@@ -146,27 +152,48 @@ public class ECKeyPairGenerator extends KeyPairGenerator
         {
             throw new InvalidAlgorithmParameterException("AlgorithmParameterSpec is null");
         }
-        if (!(params instanceof ECGenParameterSpec))
+
+        String resolved;
+        if (params instanceof ECGenParameterSpec)
         {
-            // ECParameterSpec (explicit-parameters form) is not supported
-            // in this cut. Tell callers what to do instead.
-            throw new InvalidAlgorithmParameterException(
-                    "expected ECGenParameterSpec (got " + params.getClass().getName()
-                            + "). Explicit-parameter ECParameterSpec is not supported "
-                            + "— use a named curve.");
+            String name = ((ECGenParameterSpec) params).getName();
+            if (name == null || name.isEmpty())
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "ECGenParameterSpec name is null or empty");
+            }
+            // Canonicalise so SECG/OID aliases OpenSSL doesn't recognise
+            // directly (e.g. "secp256r1", "1.2.840.10045.3.1.7") resolve
+            // to a name it accepts.
+            resolved = ECComponents.toOpenSSLCurveName(name);
+            if (resolved == null)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "curve '" + name + "' is not supported by the loaded OpenSSL build");
+            }
         }
-        String name = ((ECGenParameterSpec) params).getName();
-        if (name == null || name.isEmpty())
+        else if (params instanceof ECParameterSpec)
+        {
+            // Explicit-parameters form. OpenSSL key generation here is
+            // named-curve only, so reverse-resolve the supplied domain
+            // parameters to a curve name OpenSSL recognises.
+            resolved = ECComponents.findCurveName((ECParameterSpec) params);
+            if (resolved == null)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "explicit EC parameters do not match any named curve "
+                                + "supported by the loaded OpenSSL build; "
+                                + "use a named curve via ECGenParameterSpec");
+            }
+        }
+        else
         {
             throw new InvalidAlgorithmParameterException(
-                    "ECGenParameterSpec name is null or empty");
+                    "expected ECGenParameterSpec or ECParameterSpec (got "
+                            + params.getClass().getName() + ")");
         }
-        if (!ecServiceNI.curveSupported(name))
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "curve '" + name + "' is not supported by the loaded OpenSSL build");
-        }
-        this.curveName = name;
+
+        this.curveName = resolved;
         this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 

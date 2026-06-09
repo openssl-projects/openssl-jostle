@@ -146,6 +146,9 @@ public enum ErrorCode
     // Curve name not recognised by the loaded OpenSSL build.
     JO_CURVE_NOT_SUPPORTED(-114),
 
+    // EVP_MD_CTX_copy_ex failed while cloning a digest context.
+    JO_MD_COPY_FAILED(-115),
+
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

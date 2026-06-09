@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 
 import java.math.BigInteger;
+import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
@@ -33,9 +34,11 @@ import java.security.Signature;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECFieldFp;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
+import java.security.spec.EllipticCurve;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
@@ -255,6 +258,115 @@ public class ECTest
             Assertions.assertTrue(
                     expected.getMessage().contains("ECGenParameterSpec"),
                     "expected ECGenParameterSpec in message, got: " + expected.getMessage());
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // Curve-name aliasing: names OpenSSL doesn't accept directly must
+    // still resolve via canonicalisation (TLS / SECG callers use these)
+    // -----------------------------------------------------------------
+
+    /**
+     * OpenSSL registers P-256 only under {@code prime256v1}/{@code P-256}
+     * — NOT the SECG {@code secp256r1} nor the X9.62 OID. TLS
+     * ({@code NamedGroup.getCurveName(secp256r1)}) and SECG callers use
+     * {@code secp256r1}, so the provider must canonicalise it. Both forms
+     * must produce a working P-256 key (256-bit field).
+     */
+    @Test
+    public void testKeyPairGenerator_ecGenParameterSpec_secp256r1Alias() throws Exception
+    {
+        Assumptions.assumeTrue(NISelector.ECServiceNI.curveSupported("P-256"));
+        for (String name : new String[]{"secp256r1", "1.2.840.10045.3.1.7"})
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+            kpg.initialize(new ECGenParameterSpec(name));
+            ECPublicKey pub = (ECPublicKey) kpg.generateKeyPair().getPublic();
+            Assertions.assertEquals(256, pub.getParams().getCurve().getField().getFieldSize(),
+                    name + " did not resolve to P-256");
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Explicit-parameters ECParameterSpec acceptance
+    // -----------------------------------------------------------------
+
+    /**
+     * The generator accepts an explicit {@link ECParameterSpec} (standard
+     * JCA), reverse-resolving the supplied domain parameters to a named
+     * curve OpenSSL recognises. Drive it with the parameters of a real
+     * P-256 key and prove the resulting key is a usable P-256 key via a
+     * sign/verify round-trip (with a tampered-message negative check).
+     */
+    @Test
+    public void testKeyPairGenerator_explicitECParameterSpec_P256() throws Exception
+    {
+        Assumptions.assumeTrue(NISelector.ECServiceNI.curveSupported("P-256"));
+        SecureRandom sr = seededRandom("testKeyPairGenerator_explicitECParameterSpec_P256");
+
+        // Source a genuine P-256 ECParameterSpec from a named-curve key.
+        KeyPairGenerator seed = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        seed.initialize(new ECGenParameterSpec("P-256"));
+        ECParameterSpec p256 = ((ECPublicKey) seed.generateKeyPair().getPublic()).getParams();
+
+        // Now generate using the explicit-parameters surface.
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(p256);
+        KeyPair kp = kpg.generateKeyPair();
+        Assertions.assertEquals(256,
+                ((ECPublicKey) kp.getPublic()).getParams().getCurve().getField().getFieldSize(),
+                "explicit P-256 parameters did not resolve to a 256-bit curve");
+
+        Signature signer = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        byte[] msg = new byte[16 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig),
+                "key from explicit ECParameterSpec produced an unverifiable signature");
+
+        msg[0] ^= 1;
+        Signature tampered = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+        tampered.initVerify(kp.getPublic());
+        tampered.update(msg);
+        Assertions.assertFalse(tampered.verify(sig),
+                "verification passed on a tampered message");
+    }
+
+    /**
+     * An explicit {@link ECParameterSpec} that matches no named curve
+     * OpenSSL recognises must be rejected with
+     * {@link InvalidAlgorithmParameterException} — key generation here is
+     * named-curve only.
+     */
+    @Test
+    public void testKeyPairGenerator_explicitECParameterSpec_unknownCurveRejected() throws Exception
+    {
+        // A small, made-up prime-field curve that matches no standard curve.
+        EllipticCurve curve = new EllipticCurve(
+                new ECFieldFp(BigInteger.valueOf(23)),
+                BigInteger.valueOf(1), BigInteger.valueOf(1));
+        ECParameterSpec bogus = new ECParameterSpec(
+                curve, new ECPoint(BigInteger.valueOf(3), BigInteger.valueOf(10)),
+                BigInteger.valueOf(7), 1);
+
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            kpg.initialize(bogus);
+            Assertions.fail("expected rejection of an unknown explicit EC curve");
+        }
+        catch (InvalidAlgorithmParameterException expected)
+        {
+            Assertions.assertTrue(
+                    expected.getMessage().contains("do not match any named curve"),
+                    "unexpected message: " + expected.getMessage());
         }
     }
 
@@ -535,6 +647,62 @@ public class ECTest
         KeyFactory kf = KeyFactory.getInstance("1.2.840.10045.2.1",
                 JostleProvider.PROVIDER_NAME);
         Assertions.assertNotNull(kf);
+    }
+
+
+    // -----------------------------------------------------------------
+    // AlgorithmParameters("EC") — required by BC's TLS JceTlsECDomain
+    // -----------------------------------------------------------------
+
+    /**
+     * {@code AlgorithmParameters.getInstance("EC", "JSL")} must resolve
+     * and yield a usable {@link ECParameterSpec} for a named curve. This
+     * is the call BouncyCastle's {@code JceTlsECDomain} makes (via
+     * {@code helper.createAlgorithmParameters("EC")}) to obtain NIST-curve
+     * domain parameters before a TLS group can be negotiated.
+     */
+    @Test
+    public void testAlgorithmParameters_EC_resolvesNamedCurve() throws Exception
+    {
+        AlgorithmParameters ap = AlgorithmParameters.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        ap.init(new ECGenParameterSpec("secp256r1"));
+        ECParameterSpec spec = ap.getParameterSpec(ECParameterSpec.class);
+        Assertions.assertEquals(256, spec.getCurve().getField().getFieldSize(),
+                "AlgorithmParameters(\"EC\") did not yield P-256 parameters");
+    }
+
+    /**
+     * Resolvable by the id-ecPublicKey OID too — callers that key off the
+     * OID (e.g. ASN.1 decoders) must reach the same implementation.
+     */
+    @Test
+    public void testAlgorithmParameters_EC_resolvesByOID() throws Exception
+    {
+        AlgorithmParameters ap = AlgorithmParameters.getInstance("1.2.840.10045.2.1",
+                JostleProvider.PROVIDER_NAME);
+        ap.init(new ECGenParameterSpec("P-384"));
+        ECParameterSpec spec = ap.getParameterSpec(ECParameterSpec.class);
+        Assertions.assertEquals(384, spec.getCurve().getField().getFieldSize());
+    }
+
+    /**
+     * Encode → decode round-trip through the JSL AlgorithmParameters must
+     * be byte-stable, proving the delegate's ASN.1 codec is wired through.
+     */
+    @Test
+    public void testAlgorithmParameters_EC_encodeDecodeRoundTrip() throws Exception
+    {
+        AlgorithmParameters ap = AlgorithmParameters.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        ap.init(new ECGenParameterSpec("P-256"));
+        byte[] encoded = ap.getEncoded();
+        Assertions.assertNotNull(encoded);
+
+        AlgorithmParameters ap2 = AlgorithmParameters.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        ap2.init(encoded);
+        ECParameterSpec spec = ap2.getParameterSpec(ECParameterSpec.class);
+        Assertions.assertEquals(256, spec.getCurve().getField().getFieldSize());
+        Assertions.assertArrayEquals(encoded, ap2.getEncoded(),
+                "EC AlgorithmParameters encode/decode round-trip changed bytes");
     }
 
 

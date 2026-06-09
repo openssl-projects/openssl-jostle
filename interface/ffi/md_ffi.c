@@ -28,6 +28,13 @@ md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
     return ctx;
 }
 
+md_ctx *MD_Copy(md_ctx *src, int32_t *err) {
+    jo_assert(err != NULL);
+    jo_assert(src != NULL);
+
+    return md_ctx_copy(src, err);
+}
+
 void MD_Dispose(md_ctx *ctx) {
     if (ctx == NULL) {
         return;

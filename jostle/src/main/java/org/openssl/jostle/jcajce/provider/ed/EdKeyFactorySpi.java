@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.ed;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.*;
@@ -54,7 +55,17 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec;
+            try
+            {
+                pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            }
+            catch (RuntimeException e)
+            {
+                // Malformed encoding surfaces as OpenSSLException / IllegalArgumentException;
+                // the KeyFactory contract requires InvalidKeySpecException.
+                throw new InvalidKeySpecException("unable to decode Ed public key", e);
+            }
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
                 throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
@@ -101,25 +112,41 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
 
+            // PKCS8EncodedKeySpec.getEncoded() returns a fresh copy carrying
+            // the private scalar — scrub it once the native key is built.
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
 
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-
-            if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+            try
             {
-                throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType());
-            }
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
 
-            switch (pkeySpec.getType())
+                if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+                {
+                    throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType());
+                }
+
+                switch (pkeySpec.getType())
+                {
+                    case ED25519:
+                    case ED448:
+                        break;
+                    default:
+                        throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
+                }
+
+                return new JOEdPrivateKey(pkeySpec);
+            }
+            catch (RuntimeException e)
             {
-                case ED25519:
-                case ED448:
-                    break;
-                default:
-                    throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
+                throw new InvalidKeySpecException("unable to decode Ed private key", e);
             }
-
-            return new JOEdPrivateKey(pkeySpec);
+            finally
+            {
+                if (encoded != null)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
+            }
         }
         else
         {
@@ -133,13 +160,25 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
+                // getPrivateData() returns Arrays.clone(...) — a fresh copy of
+                // the raw scalar — so scrubbing it can't corrupt the caller's spec.
                 byte[] encoded = spec.getPrivateData();
 
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.EDServiceNI.decode_privateKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length);
-                return new JOEdPrivateKey(pkeySpec);
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    NISelector.EDServiceNI.decode_privateKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(),
+                            encoded, 0, encoded.length);
+                    return new JOEdPrivateKey(pkeySpec);
+                }
+                finally
+                {
+                    if (encoded != null)
+                    {
+                        Arrays.fill(encoded, (byte) 0);
+                    }
+                }
             }
         }
 
@@ -196,7 +235,121 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
+        if (key instanceof PublicKey)
+        {
+            return importPublicKey((PublicKey) key);
+        }
+        if (key instanceof PrivateKey)
+        {
+            return importPrivateKey((PrivateKey) key);
+        }
         throw new InvalidKeyException("Invalid Key: " + key);
+    }
+
+    /**
+     * Adopt an EdDSA public key produced by another provider (SunEC's
+     * {@code EdECPublicKey}, BouncyCastle's EdDSA key, etc.) as a
+     * Jostle-native {@link JOEdPublicKey} by re-decoding its X.509
+     * SubjectPublicKeyInfo. Jostle keys are returned unchanged. This is
+     * what lets {@code Signature.getInstance("Ed25519","JSL").initVerify(k)}
+     * accept a foreign-decoded public key — the case BouncyCastle's TLS
+     * layer hits when a peer certificate's key was decoded by a different
+     * provider (GH issue: JCA/TLS gap #5).
+     */
+    static JOEdPublicKey importPublicKey(PublicKey key) throws InvalidKeyException
+    {
+        if (key == null)
+        {
+            throw new InvalidKeyException("public key is null");
+        }
+        if (key instanceof JOEdPublicKey)
+        {
+            return (JOEdPublicKey) key;
+        }
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException(
+                    "cannot import EdDSA public key: no X.509 encoding available from "
+                            + key.getClass().getName());
+        }
+        try
+        {
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            switch (pkeySpec.getType())
+            {
+                case ED25519:
+                case ED448:
+                    return new JOEdPublicKey(pkeySpec);
+                default:
+                    throw new InvalidKeyException(
+                            "not an EdDSA public key: " + pkeySpec.getType());
+            }
+        }
+        catch (InvalidKeyException e)
+        {
+            throw e;
+        }
+        catch (RuntimeException e)
+        {
+            throw new InvalidKeyException(
+                    "unable to import EdDSA public key from its encoding", e);
+        }
+    }
+
+    /**
+     * Counterpart of {@link #importPublicKey(PublicKey)} for private
+     * keys: re-decodes a foreign EdDSA private key's PKCS#8
+     * PrivateKeyInfo into a Jostle-native {@link JOEdPrivateKey}. Jostle
+     * keys are returned unchanged.
+     */
+    static JOEdPrivateKey importPrivateKey(PrivateKey key) throws InvalidKeyException
+    {
+        if (key == null)
+        {
+            throw new InvalidKeyException("private key is null");
+        }
+        if (key instanceof JOEdPrivateKey)
+        {
+            return (JOEdPrivateKey) key;
+        }
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException(
+                    "cannot import EdDSA private key: no PKCS#8 encoding available from "
+                            + key.getClass().getName());
+        }
+        try
+        {
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            switch (pkeySpec.getType())
+            {
+                case ED25519:
+                case ED448:
+                    return new JOEdPrivateKey(pkeySpec);
+                default:
+                    throw new InvalidKeyException(
+                            "not an EdDSA private key: " + pkeySpec.getType());
+            }
+        }
+        catch (InvalidKeyException e)
+        {
+            throw e;
+        }
+        catch (RuntimeException e)
+        {
+            throw new InvalidKeyException(
+                    "unable to import EdDSA private key from its encoding", e);
+        }
+        finally
+        {
+            // The PKCS#8 encoding carries the private scalar — scrub our copy
+            // once the native key has been built. getEncoded() returned a
+            // fresh array (non-null, checked above), so this can't corrupt the
+            // caller's key. Arrays.fill is not null-safe, but encoded != null.
+            Arrays.fill(encoded, (byte) 0);
+        }
     }
 
     public static class ED25519 extends EdKeyFactorySpi

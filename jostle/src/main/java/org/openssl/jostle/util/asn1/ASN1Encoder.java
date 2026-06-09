@@ -60,6 +60,29 @@ public class ASN1Encoder
         }
     }
 
+    /**
+     * As {@link #asSubjectPublicKeyInfo(PKEYKeySpec)} but with the
+     * AlgorithmIdentifier {@code parameters} guaranteed absent — for FIPS
+     * 203/204/205 keys (ML-KEM, ML-DSA, SLH-DSA), where an explicit NULL is
+     * forbidden. Strips a stray NULL the underlying encoder may emit so the
+     * output is conformant regardless of OpenSSL version or provider install
+     * state. Mirrors the input-side {@link KeyInfoCanonicalizer} the PQC
+     * KeyFactories already apply. MUST NOT be used for RSA (rsaEncryption
+     * requires the NULL).
+     */
+    public static byte[] asCanonicalSubjectPublicKeyInfo(PKEYKeySpec spec)
+    {
+        return KeyInfoCanonicalizer.subjectPublicKeyInfo(asSubjectPublicKeyInfo(spec));
+    }
+
+    /**
+     * Private-key counterpart of {@link #asCanonicalSubjectPublicKeyInfo(PKEYKeySpec)}.
+     */
+    public static byte[] asCanonicalPrivateKeyInfo(PKEYKeySpec spec, PrivateKeyOptions option)
+    {
+        return KeyInfoCanonicalizer.privateKeyInfo(asPrivateKeyInfo(spec, option));
+    }
+
     public static PKEYKeySpec fromPrivateKeyInfo(byte[] data, int start, int len)
     {
         long ref = NISelector.Asn1NI.fromPrivateKeyInfo(data, start, len);

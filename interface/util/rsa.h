@@ -21,6 +21,12 @@
 // RSA_PKCS1_PSS_PADDING inside rsa.c.
 #define RSA_PADDING_PKCS1 1
 #define RSA_PADDING_PSS   2
+// Raw PKCS#1 v1.5 ("NoneWithRSA"): no streaming digest — the caller
+// supplies the already-formed bytes (typically a DigestInfo), which are
+// buffered and signed/verified one-shot via EVP_PKEY_sign/EVP_PKEY_verify
+// with RSA_PKCS1_PADDING and NO signature md (OpenSSL pads the input
+// directly). Used by TLS's externally-hashed CertificateVerify path.
+#define RSA_PADDING_PKCS1_NONE 3
 
 // Component selectors for rsa_get_component(). Stable identifiers
 // across the FFI/JNI boundary — do NOT renumber.
@@ -38,6 +44,12 @@ typedef struct rsa_ctx {
     EVP_MD_CTX *digest_ctx;
     int opp;            // RSA_OP_SIGN | RSA_OP_VERIFY
     int padding_mode;   // RSA_PADDING_*
+    // Raw PKCS#1 v1.5 (RSA_PADDING_PKCS1_NONE) session state. Unused by the
+    // digest-based modes (digest_ctx stays NULL when these are populated).
+    EVP_PKEY_CTX *raw_pctx;   // sign/verify ctx, padding pre-configured
+    uint8_t *raw_buf;         // accumulated caller-supplied input (the TBS)
+    size_t raw_buf_len;       // bytes used
+    size_t raw_buf_cap;       // bytes allocated
 } rsa_ctx;
 
 

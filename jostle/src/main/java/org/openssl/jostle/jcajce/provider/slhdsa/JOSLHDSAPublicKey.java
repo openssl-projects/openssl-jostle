@@ -40,8 +40,8 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
     @Override
     public byte[] getEncoded()
     {
-        // ASN1
-        return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+        // FIPS 205: AlgorithmIdentifier parameters MUST be absent.
+        return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
     }
 
     public PKEYKeySpec getSpec()
