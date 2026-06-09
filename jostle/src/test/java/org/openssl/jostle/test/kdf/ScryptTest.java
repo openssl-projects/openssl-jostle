@@ -95,6 +95,34 @@ public class ScryptTest
 
     }
 
+    /**
+     * JSL's SCRYPT {@code SecretKeyFactory} must accept a foreign (BouncyCastle)
+     * {@code ScryptKeySpec} — resolved reflectively via the shared structural
+     * accessor contract, with no compile-time dependency on BC's type — and
+     * derive the identical key it derives from its own {@code ScryptKeySpec}.
+     * Exercises the reflective foreign-spec branch of
+     * {@code ScryptSecretKeyFactory.engineGenerateSecret} (the reason that
+     * branch exists: high-level PBES2/PKCS#8 builders construct BC's spec).
+     */
+    @Test
+    public void scryptFactoryAcceptsForeignKeySpec() throws Exception
+    {
+        SecureRandom sr = seededRandom("scryptFactoryAcceptsForeignKeySpec");
+        char[] passphrase = new String(random(8, sr)).toCharArray();
+        byte[] salt = random(16, sr);
+
+        SecretKeyFactory kfJostle = SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME);
+
+        byte[] viaNativeSpec = kfJostle.generateSecret(
+                new ScryptKeySpec(passphrase, salt, 2, 1, 1, 512)).getEncoded();
+        byte[] viaForeignSpec = kfJostle.generateSecret(
+                new org.bouncycastle.jcajce.spec.ScryptKeySpec(passphrase, salt, 2, 1, 1, 512)).getEncoded();
+
+        Assertions.assertEquals(64, viaNativeSpec.length, "512-bit key expected");
+        Assertions.assertArrayEquals(viaNativeSpec, viaForeignSpec,
+                "JSL SCRYPT factory derived a different key from a BouncyCastle ScryptKeySpec");
+    }
+
 
     /**
      * Negative path per CLAUDE.md "Tests must exercise the negative

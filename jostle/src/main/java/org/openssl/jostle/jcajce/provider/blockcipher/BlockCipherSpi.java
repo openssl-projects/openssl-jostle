@@ -19,6 +19,7 @@ import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.*;
+import javax.crypto.interfaces.PBEKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -845,6 +846,18 @@ class BlockCipherSpi extends CipherSpi
 
     protected void validateKeyAlg(Key key) throws InvalidKeyException
     {
+        // A password/KDF-derived key (PBKDF2 or scrypt — a javax.crypto PBEKey)
+        // is generic RAW key material whose owning algorithm is the PBES2 /
+        // PKCS#8 EncryptionScheme, not a competing cipher; accept it for any
+        // cipher (the native layer still validates the key length). A key
+        // explicitly tagged for a different cipher family — e.g. an "ARIA"
+        // SecretKeySpec on an AES cipher — is not a PBEKey and is still rejected
+        // by the name check below.
+        if (key instanceof PBEKey)
+        {
+            return;
+        }
+
         String alg = key.getAlgorithm();
         if (alg != null)
         {

@@ -18,10 +18,14 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 
+import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
+
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
@@ -50,6 +54,9 @@ public class AESParametersTest
     private static final String CBC = "AES/CBC/NoPadding";
     private static final String ECB = "AES/ECB/NoPadding";
     private static final String AES256_GCM_OID = "2.16.840.1.101.3.4.1.46";
+    private static final String AES128_CBC_OID = "2.16.840.1.101.3.4.1.2";
+    private static final String AES192_CBC_OID = "2.16.840.1.101.3.4.1.22";
+    private static final String AES256_CBC_OID = "2.16.840.1.101.3.4.1.42";
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -186,6 +193,90 @@ public class AESParametersTest
         Cipher bcDec = Cipher.getInstance(CBC, BouncyCastleProvider.PROVIDER_NAME);
         bcDec.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
         Assertions.assertArrayEquals(msg, bcDec.doFinal(ct));
+    }
+
+    @Test
+    public void cbcAlgorithmParametersResolveByOid() throws Exception
+    {
+        // The decrypt-side path BC's PBES2 / PKCS#8 / PKCS#12 decryptors take:
+        // resolve AES-CBC parameters by OID through JSL to recover the stored IV.
+        // All three AES-CBC OIDs (128/192/256) must resolve and codec the IV.
+        SecureRandom random = seededRandom("cbcAlgorithmParametersResolveByOid");
+
+        for (String oid : new String[]{AES128_CBC_OID, AES192_CBC_OID, AES256_CBC_OID})
+        {
+            byte[] iv = new byte[16];
+            random.nextBytes(iv);
+
+            AlgorithmParameters params = AlgorithmParameters.getInstance(oid, JostleProvider.PROVIDER_NAME);
+            params.init(new IvParameterSpec(iv));
+
+            // Encode → decode round-trip (the IV OCTET STRING) preserves the IV.
+            byte[] encoded = params.getEncoded();
+            AlgorithmParameters reparsed = AlgorithmParameters.getInstance(oid, JostleProvider.PROVIDER_NAME);
+            reparsed.init(encoded);
+            Assertions.assertArrayEquals(iv, reparsed.getParameterSpec(IvParameterSpec.class).getIV(),
+                    oid + ": AES-CBC AlgorithmParameters did not round-trip the IV");
+
+            // The encoded form must be portable: BouncyCastle parses JSL's encoding.
+            AlgorithmParameters bcParams = AlgorithmParameters.getInstance(oid, BouncyCastleProvider.PROVIDER_NAME);
+            bcParams.init(encoded);
+            Assertions.assertArrayEquals(iv, bcParams.getParameterSpec(IvParameterSpec.class).getIV(),
+                    oid + ": BC could not parse JSL's AES-CBC parameter encoding");
+
+            // ...and the resolved parameters drive a real CBC decrypt (init purely
+            // from AlgorithmParameters, as the PBES2 receiving side does). The IV
+            // size is independent of the OID's key size, so a 256-bit key is fine.
+            SecretKey key = aes256Key(random);
+            byte[] msg = new byte[48];
+            random.nextBytes(msg);
+            Cipher enc = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+            enc.init(Cipher.ENCRYPT_MODE, key, params);
+            byte[] ct = enc.doFinal(msg);
+
+            Cipher dec = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+            dec.init(Cipher.DECRYPT_MODE, key, reparsed);
+            Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                    oid + ": CBC decrypt initialised from AlgorithmParameters failed");
+        }
+    }
+
+    @Test
+    public void cbcAcceptsKdfDerivedKeys() throws Exception
+    {
+        // PBES2 / PKCS#8 hands a KDF-derived key straight to the cipher; the
+        // cipher must accept it despite its non-"AES" algorithm name
+        // (CBC_AUTO_IV_GAP item 2 — validateKeyAlg now accepts PBEKeys).
+        SecureRandom random = seededRandom("cbcAcceptsKdfDerivedKeys");
+        byte[] msg = new byte[48];
+        random.nextBytes(msg);
+        byte[] iv = new byte[16];
+        random.nextBytes(iv);
+        byte[] salt = new byte[16];
+        random.nextBytes(salt);
+        char[] pwd = "password".toCharArray();
+
+        // scrypt-derived key (JOScryptKey, algorithm "ScryptWithUTF8") → AES-256.
+        SecretKey scryptKey = SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME)
+                .generateSecret(new ScryptKeySpec(pwd, salt, 1024, 8, 1, 256));
+        Assertions.assertFalse("AES".equalsIgnoreCase(scryptKey.getAlgorithm()),
+                "precondition: scrypt-derived key is not AES-named");
+        cbcRoundTrip(scryptKey, iv, msg);
+
+        // PBKDF2-derived key (JOPBEKey).
+        SecretKey pbeKey = SecretKeyFactory.getInstance("PBKDF2WITHHMACSHA256", JostleProvider.PROVIDER_NAME)
+                .generateSecret(new PBEKeySpec(pwd, salt, 4096, 256));
+        cbcRoundTrip(pbeKey, iv, msg);
+    }
+
+    private static void cbcRoundTrip(SecretKey key, byte[] iv, byte[] msg) throws Exception
+    {
+        Cipher enc = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));   // must not throw "unsupported key algorithm"
+        byte[] ct = enc.doFinal(msg);
+        Cipher dec = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct), "round-trip with KDF-derived key failed");
     }
 
     @Test

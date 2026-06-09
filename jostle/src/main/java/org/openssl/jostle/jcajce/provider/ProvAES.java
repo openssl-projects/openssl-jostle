@@ -75,6 +75,14 @@ class ProvAES
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes192_GCM, PREFIX + "AES192GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_GCM, PREFIX + "AES256GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
 
+        // AES-CBC AlgorithmParameters, registered under the CBC OIDs only (see
+        // CBCAlgorithmParameters). Lets OID-driven callers — notably BC's PBES2 /
+        // PKCS#8 / PKCS#12 decryptors — recover the stored IV via
+        // AlgorithmParameters.getInstance(<aes-cbc-oid>, "JSL").
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes128_CBC, PREFIX + "AES128CBCParameters", generalAesAttributes, (arg) -> new CBCAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes192_CBC, PREFIX + "AES192CBCParameters", generalAesAttributes, (arg) -> new CBCAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_CBC, PREFIX + "AES256CBCParameters", generalAesAttributes, (arg) -> new CBCAlgorithmParameters());
+
         // AES/CCM — separate SPI because CCM is one-shot at the
         // OpenSSL layer (total plaintext length must be known up-front,
         // AAD must be passed in a single call). Registering with the
