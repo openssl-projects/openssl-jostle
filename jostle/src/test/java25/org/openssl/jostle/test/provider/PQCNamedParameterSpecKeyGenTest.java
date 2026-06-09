@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.provider;
 
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.junit.jupiter.api.Assertions;
@@ -64,6 +65,33 @@ public class PQCNamedParameterSpecKeyGenTest
     public void slhdsa_acceptsNamedParameterSpec() throws Exception
     {
         assertNamedSpecSelectsParamSet("SLH-DSA", "SLH-DSA-SHA2-128F", SLH_DSA_SHA2_128F_OID);
+    }
+
+    // --- High-strength (>= 192/256-bit category) sets. ---------------------
+    // generateKeyPair() succeeding proves the NamedParameterSpec name resolved
+    // AND a strength-appropriate (>= 256-bit) default RandSource was wired for
+    // the resolved type — else the C RAND gate rejects with
+    // JO_RAND_INSUFFICIENT_STRENGTH (GH #34).
+
+    @Test
+    public void mlkem_acceptsHighStrengthNamedParameterSpec() throws Exception
+    {
+        assertNamedSpecSelectsParamSet("ML-KEM", "ML-KEM-1024",
+                NISTObjectIdentifiers.id_alg_ml_kem_1024.getId());
+    }
+
+    @Test
+    public void mldsa_acceptsHighStrengthNamedParameterSpec() throws Exception
+    {
+        assertNamedSpecSelectsParamSet("ML-DSA", "ML-DSA-87",
+                NISTObjectIdentifiers.id_ml_dsa_87.getId());
+    }
+
+    @Test
+    public void slhdsa_acceptsHighStrengthNamedParameterSpec() throws Exception
+    {
+        assertNamedSpecSelectsParamSet("SLH-DSA", "SLH-DSA-SHA2-256F",
+                NISTObjectIdentifiers.id_slh_dsa_sha2_256f.getId());
     }
 
     private static void assertNamedSpecSelectsParamSet(String genName, String paramSetName, String expectedOid)

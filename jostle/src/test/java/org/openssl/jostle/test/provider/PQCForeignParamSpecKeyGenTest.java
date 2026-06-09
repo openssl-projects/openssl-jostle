@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.provider;
 
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.jcajce.spec.MLDSAParameterSpec;
@@ -73,6 +74,35 @@ public class PQCForeignParamSpecKeyGenTest
     public void slhdsa_acceptsBouncyCastleParameterSpec() throws Exception
     {
         assertForeignSpecSelectsParamSet("SLH-DSA", SLHDSAParameterSpec.slh_dsa_sha2_128f, SLH_DSA_SHA2_128F_OID);
+    }
+
+    // --- High-strength (>= 192/256-bit category) sets. ---------------------
+    // These exercise the strength gate, NOT just name resolution: ML-KEM-1024,
+    // ML-DSA-87 and SLH-DSA-SHA2-256f require an RNG above the JDK default
+    // 128-bit DRBG. generateKeyPair() succeeding proves the foreign-spec init
+    // resolved the name AND wired a strength-appropriate default RandSource for
+    // the resolved type — otherwise the C RAND gate rejects keygen with
+    // JO_RAND_INSUFFICIENT_STRENGTH (GH #34).
+
+    @Test
+    public void mlkem_acceptsHighStrengthBouncyCastleParameterSpec() throws Exception
+    {
+        assertForeignSpecSelectsParamSet("ML-KEM", MLKEMParameterSpec.ml_kem_1024,
+                NISTObjectIdentifiers.id_alg_ml_kem_1024.getId());
+    }
+
+    @Test
+    public void mldsa_acceptsHighStrengthBouncyCastleParameterSpec() throws Exception
+    {
+        assertForeignSpecSelectsParamSet("ML-DSA", MLDSAParameterSpec.ml_dsa_87,
+                NISTObjectIdentifiers.id_ml_dsa_87.getId());
+    }
+
+    @Test
+    public void slhdsa_acceptsHighStrengthBouncyCastleParameterSpec() throws Exception
+    {
+        assertForeignSpecSelectsParamSet("SLH-DSA", SLHDSAParameterSpec.slh_dsa_sha2_256f,
+                NISTObjectIdentifiers.id_slh_dsa_sha2_256f.getId());
     }
 
     @Test

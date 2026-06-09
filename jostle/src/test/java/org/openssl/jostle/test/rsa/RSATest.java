@@ -1725,4 +1725,23 @@ public class RSATest
                 throw new IllegalArgumentException("unknown digest: " + name);
         }
     }
+
+    /**
+     * Malformed encoded key bytes must surface as InvalidKeySpecException (the
+     * KeyFactory contract) rather than a leaked OpenSSLException /
+     * IllegalArgumentException from the ASN.1 decoder.
+     */
+    @Test
+    public void testRsaKeyFactory_malformedEncoding_throwsInvalidKeySpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        // Valid DER (SEQUENCE { INTEGER 42 }) but not a valid SPKI / PKCS#8 key.
+        byte[] garbage = {(byte) 0x30, (byte) 0x03, (byte) 0x02, (byte) 0x01, (byte) 0x2A};
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(garbage)),
+                "malformed X.509 must throw InvalidKeySpecException");
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)),
+                "malformed PKCS#8 must throw InvalidKeySpecException");
+    }
 }

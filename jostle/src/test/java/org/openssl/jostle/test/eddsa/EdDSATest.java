@@ -42,6 +42,7 @@ import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
@@ -1831,6 +1832,25 @@ public class EdDSATest
         {
             return ctx;
         }
+    }
+
+    /**
+     * Malformed encoded key bytes must surface as InvalidKeySpecException (the
+     * KeyFactory contract) rather than a leaked OpenSSLException /
+     * IllegalArgumentException from the ASN.1 decoder.
+     */
+    @Test
+    public void testEdKeyFactory_malformedEncoding_throwsInvalidKeySpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        // Valid DER (SEQUENCE { INTEGER 42 }) but not a valid SPKI / PKCS#8 key.
+        byte[] garbage = {(byte) 0x30, (byte) 0x03, (byte) 0x02, (byte) 0x01, (byte) 0x2A};
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(garbage)),
+                "malformed X.509 must throw InvalidKeySpecException");
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)),
+                "malformed PKCS#8 must throw InvalidKeySpecException");
     }
 
 }

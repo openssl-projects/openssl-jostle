@@ -549,14 +549,14 @@ static int32_t rsa_raw_init(rsa_ctx *ctx, OSSL_LIB_CTX *libctx,
     int init_rc = (op == RSA_OP_SIGN)
                       ? EVP_PKEY_sign_init(pctx)
                       : EVP_PKEY_verify_init(pctx);
-    if (1 != init_rc) {
+    if (OPS_FAILED_INIT_1 1 != init_rc) {
         EVP_PKEY_CTX_free(pctx);
-        return JO_OPENSSL_ERROR;
+        return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_1(1103);
     }
 
-    if (1 != EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING)) {
+    if (OPS_FAILED_SET_1 1 != EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING)) {
         EVP_PKEY_CTX_free(pctx);
-        return JO_OPENSSL_ERROR;
+        return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_SET_1(1104);
     }
 
     ctx->raw_pctx = pctx;
@@ -572,10 +572,10 @@ static int32_t rsa_raw_init(rsa_ctx *ctx, OSSL_LIB_CTX *libctx,
  * int on the Java return path can't overflow.
  */
 static int32_t rsa_raw_append(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
-    if (in_len > (size_t) INT_MAX) {
+    if (in_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
-    if (ctx->raw_buf_len > (size_t) INT_MAX - in_len) {
+    if (ctx->raw_buf_len > (size_t) INT32_MAX - in_len) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -861,7 +861,7 @@ int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
             return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(1101);
         }
-        if (raw_sig_len > INT32_MAX) {
+        if (raw_sig_len > (size_t) INT32_MAX) {
             return JO_OUTPUT_TOO_LONG_INT32;
         }
         if (out == NULL) {
@@ -937,7 +937,7 @@ int32_t rsa_ctx_verify(rsa_ctx *ctx, const uint8_t *sig, size_t sig_len) {
         if (ctx->opp != RSA_OP_VERIFY) {
             return JO_UNEXPECTED_STATE;
         }
-        if (sig_len > (size_t) INT_MAX) {
+        if (sig_len > (size_t) INT32_MAX) {
             return JO_INPUT_TOO_LONG_INT32;
         }
 

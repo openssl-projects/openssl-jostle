@@ -1257,6 +1257,89 @@ public class RSALimitTest
         }
     }
 
+    /**
+     * Offset-write contract for the RAW PKCS#1 v1.5 path (NoneWithRSA,
+     * {@code PADDING_PKCS1_NONE}) — a distinct C function ({@code rsa_ctx_sign}'s
+     * raw branch) from the hashed path covered above. Same 4-step structure:
+     * random fill, prefix snapshot, prefix-untouched, signature-at-offset
+     * verifies, shifted-by-one window does NOT verify. (The bridge-level
+     * offset / length / negative-int validation is shared with the hashed path
+     * and is covered by the RSAServiceNI_sign_offset* / _update_* tests above.)
+     */
+    @Test
+    public void RSAServiceNI_signRaw_writesAtOffsetWithoutClobberingPrefix() throws Exception
+    {
+        long signRef = 0;
+        long verifyRef = 0;
+        long keyRef = 0;
+        try
+        {
+            signRef = rsaServiceNI.allocateSigner();
+            verifyRef = rsaServiceNI.allocateSigner();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+
+            // A pre-formed TBS (e.g. a 32-byte digest) — well under k - 11 = 245.
+            byte[] tbs = new byte[32];
+            new SecureRandom().nextBytes(tbs);
+
+            rsaServiceNI.initSign(signRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
+            rsaServiceNI.update(signRef, tbs, 0, tbs.length);
+
+            int needed = rsaServiceNI.sign(signRef, null, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(256, needed);
+
+            int prefix = 7;
+            byte[] big = new byte[needed + prefix];
+            new SecureRandom().nextBytes(big);
+            byte[] expectedPrefix = new byte[prefix];
+            System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+
+            int written = rsaServiceNI.sign(signRef, big, prefix, TestUtil.RNDSrc);
+            Assertions.assertEquals(needed, written);
+
+            // (1) Prefix untouched.
+            byte[] actualPrefix = new byte[prefix];
+            System.arraycopy(big, 0, actualPrefix, 0, prefix);
+            Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                    "raw sign modified bytes preceding outOff");
+
+            // (2) Signature at big[prefix..] verifies (raw).
+            byte[] sig = new byte[needed];
+            System.arraycopy(big, prefix, sig, 0, needed);
+            rsaServiceNI.initVerify(verifyRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0);
+            rsaServiceNI.update(verifyRef, tbs, 0, tbs.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(),
+                    rsaServiceNI.verify(verifyRef, sig, sig.length),
+                    "raw signature at offset " + prefix + " did not verify");
+
+            // (3) Shifted-by-one window must NOT verify.
+            byte[] shiftedSig = new byte[needed];
+            System.arraycopy(big, prefix - 1, shiftedSig, 0, needed);
+            rsaServiceNI.initVerify(verifyRef, keyRef, "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE, null, 0);
+            rsaServiceNI.update(verifyRef, tbs, 0, tbs.length);
+            int shiftedResult;
+            try
+            {
+                shiftedResult = rsaServiceNI.verify(verifyRef, shiftedSig, shiftedSig.length);
+            }
+            catch (Exception expected)
+            {
+                shiftedResult = ErrorCode.JO_FAIL.getCode();
+            }
+            Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), shiftedResult,
+                    "raw signature window shifted by 1 verified — wrote at outOff-1");
+        }
+        finally
+        {
+            rsaServiceNI.disposeSigner(signRef);
+            rsaServiceNI.disposeSigner(verifyRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
     private byte[] fetchComponent(long keyRef, int component)
     {
         int len = rsaServiceNI.getComponent(keyRef, component, null);

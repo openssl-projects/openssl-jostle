@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
@@ -211,21 +212,37 @@ public class RSANoneWithRSASignatureTest
 
     /**
      * PKCS#1 v1.5 signing requires the TBS to fit: {@code len <= k - 11}
-     * (245 bytes for a 2048-bit modulus). An over-long input must be rejected
-     * (OpenSSL's {@code EVP_PKEY_sign} fails) and surface as a typed exception,
-     * not silently truncate or corrupt.
+     * (245 bytes for a 2048-bit modulus). Probe the exact boundary — 245
+     * bytes must round-trip, 246 must be rejected — and confirm the rejection
+     * surfaces as the typed {@link OpenSSLException} (OpenSSL's
+     * {@code EVP_PKEY_sign} failing), not a silent truncation or a bare
+     * {@code RuntimeException}.
      */
     @Test
-    public void testNoneWithRSA_inputTooLongIsRejected() throws Exception
+    public void testNoneWithRSA_inputLengthBoundary() throws Exception
     {
-        byte[] tooLong = new byte[256]; // > k - 11 = 245 for RSA-2048
-        new SecureRandom().nextBytes(tooLong);
+        SecureRandom sr = seededRandom("testNoneWithRSA_inputLengthBoundary");
 
+        // k - 11 = 245 for RSA-2048: the largest TBS PKCS#1 v1.5 accepts.
+        byte[] maxFit = new byte[245];
+        sr.nextBytes(maxFit);
+        Signature ok = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
+        ok.initSign(joKeyPair.getPrivate());
+        ok.update(maxFit);
+        byte[] sig = ok.sign();
+        Signature v = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
+        v.initVerify(joKeyPair.getPublic());
+        v.update(maxFit);
+        Assertions.assertTrue(v.verify(sig), "245-byte TBS (k - 11) failed to round-trip");
+
+        // 246 bytes is one past the limit — must be rejected, typed.
+        byte[] tooLong = new byte[246];
+        sr.nextBytes(tooLong);
         Signature signer = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(joKeyPair.getPrivate());
         signer.update(tooLong);
-        Assertions.assertThrows(RuntimeException.class, signer::sign,
-                "NoneWithRSA accepted a TBS longer than the PKCS#1 v1.5 limit");
+        Assertions.assertThrows(OpenSSLException.class, signer::sign,
+                "NoneWithRSA accepted a TBS one byte past the PKCS#1 v1.5 limit");
     }
 
     /**
@@ -260,5 +277,35 @@ public class RSANoneWithRSASignatureTest
 
         Assertions.assertFalse(Arrays.areEqual(sigA, sigB),
                 "distinct messages produced identical signatures (stale buffer?)");
+    }
+
+    /**
+     * A valid signature must NOT verify under an unrelated public key — proves
+     * verify() actually consults the key, not merely the PKCS#1/DigestInfo
+     * structure. A message-tamper test alone can pass an implementation that
+     * ignores the public key entirely.
+     */
+    @Test
+    public void testNoneWithRSA_wrongKeyRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("testNoneWithRSA_wrongKeyRejected");
+        byte[] tbs = new byte[1 + sr.nextInt(200)];
+        sr.nextBytes(tbs);
+
+        Signature signer = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(joKeyPair.getPrivate());
+        signer.update(tbs);
+        byte[] sig = signer.sign();
+
+        // A second, unrelated RSA-2048 keypair.
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(2048);
+        KeyPair other = kpg.generateKeyPair();
+
+        Signature verifier = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(other.getPublic());
+        verifier.update(tbs);
+        Assertions.assertFalse(verifier.verify(sig),
+                "NoneWithRSA verified a signature under the wrong public key");
     }
 }

@@ -488,12 +488,22 @@ public class MDTest
         sr.nextBytes(prefix);
         byte[] suffix = new byte[16 + sr.nextInt(64)];
         sr.nextBytes(suffix);
+        byte[] suffixOrig = new byte[16 + sr.nextInt(64)];
+        sr.nextBytes(suffixOrig);
+        // Force the two post-split branches to differ so the independence
+        // check below is meaningful even if the random lengths coincide.
+        suffixOrig[0] ^= 0x01;
 
         MessageDigest md = MessageDigest.getInstance("SHAKE256-512", JostleProvider.PROVIDER_NAME);
         md.update(prefix);
         MessageDigest copy = (MessageDigest) md.clone();
+
+        // Drive the original and the clone with DIFFERENT post-split data:
+        // a clone that shared the underlying EVP_MD_CTX would cross-talk.
+        md.update(suffixOrig);
         copy.update(suffix);
         byte[] cloneOut = copy.digest();
+        byte[] origOut = md.digest();
 
         Assertions.assertEquals(64, cloneOut.length, "SHAKE256-512 must squeeze 64 bytes");
 
@@ -502,6 +512,14 @@ public class MDTest
         ref.update(suffix);
         Assertions.assertArrayEquals(ref.digest(), cloneOut,
                 "cloned XOF digest did not match the equivalent direct digest");
+
+        ref.update(prefix);
+        ref.update(suffixOrig);
+        Assertions.assertArrayEquals(ref.digest(), origOut,
+                "original XOF digest changed by the clone (cross-talk)");
+
+        Assertions.assertFalse(Arrays.areEqual(origOut, cloneOut),
+                "distinct post-split inputs produced identical XOF digests (shared ctx?)");
     }
 
 

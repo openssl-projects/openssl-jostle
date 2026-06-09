@@ -1,0 +1,23 @@
+{
+  "skill_name": "add-jce-transformation",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "I want to add ConcatKDF (NIST SP 800-56A §5.8.1) as a SecretKeyFactory in Jostle. ConcatKDF is similar in shape to the X9.63 KDF — given a shared secret Z, an optional fixed-info bitstring, a digest, and an output length, it iterates Hash(counter || Z || FixedInfo) and concatenates. OpenSSL exposes it via the EVP_KDF \"X963KDF\" entry actually — but treat this as a fresh addition for the exercise. Walk me through what files I'll need to create or modify and in what order. Be concrete about file paths, layers, and the verification gates I should check off.",
+      "expected_output": "Complete layer-by-layer plan covering native util (kdf.c addition or new file), JNI bridge, FFI bridge, NI surface, KeySpec, SecretKeyFactory SPI, ProvHKDF/new Prov class, JostleProvider.setup wiring, tests (unit/limit/ops/BC-agreement), error code additions, CMakeLists.txt, OPS instrumentation. Should name canonical references (e.g. X963KDFSecretKeyFactory) to model from.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "I need to expose ChaCha20 as a JCE Cipher transformation in Jostle. Just the stream cipher for now — Poly1305 AEAD comes later. Give me a complete plan with file paths and the order I should tackle them. Highlight anything subtle about ChaCha20 vs the existing AES/ARIA/Camellia/SM4 ciphers (e.g. it isn't a block cipher, the IV is 96 bits, OpenSSL spells it ChaCha20).",
+      "expected_output": "Plan covering: extending OSSLCipher / OSSLMode enums for ChaCha20, native block_cipher_ctx.c switch case addition with the EVP_CIPHER_fetch(\"ChaCha20\") call, IV-length validation (12-byte nonce + 4-byte counter or 16-byte total depending on OpenSSL build), AESBlockCipherSpi-style SPI extension or new ChaCha20BlockCipherSpi, ProvChaCha20.configure, JostleProvider.setup wiring, tests at all levels, OPS instrumentation reuse. Should note that ChaCha20 has no key-size ambiguity (fixed 256 bits) and no block alignment requirement.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Add HMAC-SHA512/256 as a Mac transformation. What do I need to do? Be precise about which layers actually need new code vs which are already in place.",
+      "expected_output": "Lightweight plan since HMAC infrastructure already exists: register the new transformation name (HmacSHA512/256) in ProvMac.configure, ensure the digest name (SHA-512/256) is recognised by DigestUtil, add tests against BC. Should explicitly call out that this is a 'lightweight: registration only' case — no new native util, no new SPI, no new error codes. Should also mention the OID alias (id-hmacWithSHA512-256 = 1.2.840.113549.2.13) and the case-insensitive registration constraint.",
+      "files": []
+    }
+  ]
+}
