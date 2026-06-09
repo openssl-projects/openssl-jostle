@@ -536,6 +536,55 @@ public class AESParametersTest
                 "CCM decrypt initialised from AlgorithmParameters failed");
     }
 
+    /**
+     * Negative path for the hand-rolled RFC 5084 {@code CCMParameters} decoder:
+     * malformed DER must be rejected with {@code IOException}, never silently
+     * accepted (a parser that swallows any bytes would sail through a
+     * positive-only KAT). Covers every rejection branch of the codec's reader.
+     */
+    @Test
+    public void ccmAlgorithmParameters_rejectsMalformedEncodings() throws Exception
+    {
+        // OCTET STRING of a valid 12-byte nonce: 04 0C 00..0B
+        byte[] octetString = {0x04, 0x0c, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b};
+        // A well-formed baseline (ICV default omitted): 30 0E <octetString>.
+        byte[] valid = concat(new byte[]{0x30, 0x0e}, octetString);
+
+        byte[][] malformed = {
+                // wrong outer tag (SET 0x31 instead of SEQUENCE 0x30)
+                concat(new byte[]{0x31, 0x0e}, octetString),
+                // trailing byte after a complete CCMParameters
+                concat(valid, new byte[]{0x00}),
+                // truncated content: SEQUENCE claims 0x0e but only the OCTET STRING header follows
+                {0x30, 0x0e, 0x04, 0x0c, 0x00, 0x01},
+                // unsupported long-form length on the outer SEQUENCE
+                concat(new byte[]{0x30, (byte) 0x81, 0x0e}, octetString),
+                // wrong inner tag (INTEGER 0x02 where an OCTET STRING is required)
+                concat(new byte[]{0x30, 0x0e}, concat(new byte[]{0x02, 0x0c}, java.util.Arrays.copyOfRange(octetString, 2, 14))),
+                // nonce too short (4 bytes < CCM minimum of 7): 30 06 04 04 00 01 02 03
+                {0x30, 0x06, 0x04, 0x04, 0x00, 0x01, 0x02, 0x03},
+                // invalid ICV length (INTEGER 5 is not in {4,6,8,10,12,14,16})
+                concat(concat(new byte[]{0x30, 0x11}, octetString), new byte[]{0x02, 0x01, 0x05}),
+                // empty input
+                new byte[0],
+        };
+
+        for (int i = 0; i < malformed.length; i++)
+        {
+            final byte[] bad = malformed[i];
+            AlgorithmParameters params = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+            final int idx = i;
+            Assertions.assertThrows(java.io.IOException.class, () -> params.init(bad),
+                    "malformed CCMParameters encoding #" + idx + " must be rejected");
+        }
+
+        // Sanity: the baseline the malformed cases derive from IS accepted.
+        AlgorithmParameters ok = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        ok.init(valid);
+        Assertions.assertEquals(12, ok.getParameterSpec(GCMParameterSpec.class).getIV().length,
+                "the well-formed baseline encoding must parse");
+    }
+
     private static byte[] concat(byte[] a, byte[] b)
     {
         byte[] out = new byte[a.length + b.length];
