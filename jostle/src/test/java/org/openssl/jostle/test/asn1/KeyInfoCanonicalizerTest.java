@@ -162,6 +162,31 @@ public class KeyInfoCanonicalizerTest
     }
 
     @Test
+    public void pkcs8_malformed_returnedUnchanged()
+    {
+        byte[] notASequence = {0x02, 0x01, 0x00};                           // INTEGER, not a SEQUENCE
+        Assertions.assertArrayEquals(notASequence, KeyInfoCanonicalizer.privateKeyInfo(notASequence),
+                "non-SEQUENCE PrivateKeyInfo must be returned unchanged");
+        byte[] truncated = {0x30, 0x20, 0x02, 0x01, 0x00};                  // SEQUENCE claims 32 bytes, 3 present
+        Assertions.assertArrayEquals(truncated, KeyInfoCanonicalizer.privateKeyInfo(truncated),
+                "truncated PrivateKeyInfo must be returned unchanged");
+    }
+
+    @Test
+    public void lengthOverrun_returnedUnchanged()
+    {
+        // SEQUENCE with a 4-octet long-form length of 0x7FFFFFFF — far beyond
+        // the buffer. The canonicaliser's length reader must not index out of
+        // bounds; both paths fall back to returning the input unchanged.
+        byte[] overrun = {0x30, (byte) 0x84, 0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                0x06, 0x03, 0x55, 0x04, 0x03};
+        Assertions.assertArrayEquals(overrun, KeyInfoCanonicalizer.subjectPublicKeyInfo(overrun),
+                "SPKI length-overrun must be returned unchanged (no AIOOBE)");
+        Assertions.assertArrayEquals(overrun, KeyInfoCanonicalizer.privateKeyInfo(overrun),
+                "PrivateKeyInfo length-overrun must be returned unchanged (no AIOOBE)");
+    }
+
+    @Test
     public void pkcs8_nullParameters_stripped()
     {
         byte[] version = {0x02, 0x01, 0x00};                                // INTEGER 0

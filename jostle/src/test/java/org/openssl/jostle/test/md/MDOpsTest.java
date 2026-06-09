@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.MessageDigest;
 import java.security.Security;
 
 public class MDOpsTest
@@ -273,6 +274,51 @@ public class MDOpsTest
             if (ref > 0) {
                 mdNI.dispose(ref);
             }
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void copyDigest_upRefFailed() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try {
+            // Exercises interface/util/md.c:116
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
+            mdNI.copyDigest(ref);
+            Assertions.fail("Expected operation to fail but did not");
+        } catch (IllegalStateException e) {
+            Assertions.assertEquals("md copy failed", e.getMessage());
+        } finally {
+            if (ref > 0) {
+                mdNI.dispose(ref);
+            }
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    /**
+     * At the JCE {@code MessageDigest.clone()} boundary a native copy failure
+     * must surface as {@link CloneNotSupportedException} (honouring the
+     * declared contract), not the raw {@link IllegalStateException} that the
+     * NI layer throws — with the native failure preserved as the cause.
+     */
+    @Test
+    public void clone_copyFailed_surfacesAsCloneNotSupported() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+        MessageDigest md = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
+        md.update((byte) 0x01);
+        try {
+            // Exercises interface/util/md.c:108
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            md.clone();
+            Assertions.fail("Expected clone() to fail but did not");
+        } catch (CloneNotSupportedException e) {
+            Assertions.assertEquals("unable to clone digest", e.getMessage());
+            Assertions.assertTrue(e.getCause() instanceof IllegalStateException,
+                    "native copy failure should be the cause");
+            Assertions.assertEquals("md copy failed", e.getCause().getMessage());
+        } finally {
             operationsTestNI.resetFlags();
         }
     }

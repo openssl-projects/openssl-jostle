@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
@@ -43,9 +44,20 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             // A plain rsaEncryption key is returned unchanged.
             byte[] encoded = KeyInfoCanonicalizer.rsaSubjectPublicKeyInfo(
                     ((X509EncodedKeySpec) keySpec).getEncoded());
-            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
-            requireRSA(spec);
-            return new JORSAPublicKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                requireRSA(spec);
+                return new JORSAPublicKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                // Malformed encoding surfaces from the decoder as OpenSSLException
+                // / IllegalArgumentException; the KeyFactory contract requires
+                // InvalidKeySpecException. requireRSA's InvalidKeySpecException is
+                // checked, so it propagates unwrapped.
+                throw new InvalidKeySpecException("unable to decode RSA public key", e);
+            }
         }
         if (keySpec instanceof RSAPublicKeySpec)
         {
@@ -67,11 +79,32 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         {
             // See engineGeneratePublic: rewrite an id-RSASSA-PSS PrivateKeyInfo to
             // rsaEncryption; a plain rsaEncryption key is returned unchanged.
-            byte[] encoded = KeyInfoCanonicalizer.rsaPrivateKeyInfo(
-                    ((PKCS8EncodedKeySpec) keySpec).getEncoded());
-            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-            requireRSA(spec);
-            return new JORSAPrivateKey(spec);
+            // getEncoded() returns a fresh copy carrying the RSA private key
+            // material — scrub it (and any rewritten copy the canonicalizer
+            // allocated) once the native key is built, matching EdKeyFactorySpi.
+            byte[] pkcs8 = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
+            byte[] encoded = KeyInfoCanonicalizer.rsaPrivateKeyInfo(pkcs8);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                requireRSA(spec);
+                return new JORSAPrivateKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode RSA private key", e);
+            }
+            finally
+            {
+                if (pkcs8 != null)
+                {
+                    Arrays.fill(pkcs8, (byte) 0);
+                }
+                if (encoded != null && encoded != pkcs8)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
+            }
         }
         if (keySpec instanceof RSAPrivateCrtKeySpec)
         {

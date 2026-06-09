@@ -195,6 +195,7 @@ public class EdSignatureSpi extends SignatureSpi
     @Override
     protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
     {
+        requireInitialised();
         try
         {
             updateCalled = true;
@@ -209,6 +210,7 @@ public class EdSignatureSpi extends SignatureSpi
     @Override
     protected byte[] engineSign() throws SignatureException
     {
+        requireInitialised();
         byte[] sig = null;
         try
         {
@@ -244,6 +246,7 @@ public class EdSignatureSpi extends SignatureSpi
     @Override
     protected boolean engineVerify(byte[] sigBytes) throws SignatureException
     {
+        requireInitialised();
         try
         {
             int code = edServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
@@ -340,6 +343,22 @@ public class EdSignatureSpi extends SignatureSpi
     protected Object engineGetParameter(String param) throws InvalidParameterException
     {
         throw new UnsupportedOperationException();
+    }
+
+
+    /**
+     * Defensive guard, matching {@code ECDSASignatureSpi}: surfaces pre-init
+     * misuse as {@link IllegalStateException} rather than an NPE on a null
+     * native ref. (The JDK {@code Signature} state machine normally rejects
+     * update/sign/verify before init, so this is belt-and-suspenders for any
+     * path that reaches the SPI without that guard.)
+     */
+    private void requireInitialised()
+    {
+        if (ref == null)
+        {
+            throw new IllegalStateException("signature not initialised");
+        }
     }
 
 

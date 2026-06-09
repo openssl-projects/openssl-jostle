@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -1332,6 +1333,96 @@ public class ECLimitTest
             if (ref != 0)
             {
                 ec.disposeKex(ref);
+            }
+            if (keyRef != 0)
+            {
+                NISelectorDispose.disposeSpec(keyRef);
+            }
+        }
+    }
+
+
+    /**
+     * Offset-write contract for the RAW ECDSA path (NoneWithECDSA, digest
+     * name "NONE") — a distinct C function ({@code ec_ctx_sign}'s raw branch)
+     * from the digest path. 4-step structure adapted for ECDSA's variable DER
+     * length: random fill, prefix snapshot, prefix-untouched, signature window
+     * at offset verifies, shifted-by-one window does NOT. (Bridge-level
+     * offset / length / negative-int validation is shared with the digest path
+     * and covered by the ECServiceNI_sign_* / _update_* tests above.)
+     */
+    @Test
+    public void ECServiceNI_signRaw_writesAtOffsetWithoutClobberingPrefix() throws Exception
+    {
+        long signRef = 0;
+        long verifyRef = 0;
+        long keyRef = 0;
+        try
+        {
+            signRef = ec.allocateSigner();
+            verifyRef = ec.allocateSigner();
+            keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+
+            // Raw ECDSA ("NONE"): the caller supplies a pre-computed digest.
+            byte[] digest = new byte[32];
+            new SecureRandom().nextBytes(digest);
+
+            ec.initSign(signRef, keyRef, "NONE", TestUtil.RNDSrc);
+            ec.update(signRef, digest, 0, digest.length);
+            // ECDSA DER length varies; the probe returns an upper bound.
+            int needed = ec.sign(signRef, null, 0, TestUtil.RNDSrc);
+
+            int prefix = 7;
+            byte[] big = new byte[needed + prefix];
+            new SecureRandom().nextBytes(big);
+            byte[] expectedPrefix = new byte[prefix];
+            System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+
+            int written = ec.sign(signRef, big, prefix, TestUtil.RNDSrc);
+            Assertions.assertTrue(written > 0 && written <= needed,
+                    "unexpected raw ECDSA DER length " + written);
+
+            // (1) Prefix untouched.
+            byte[] actualPrefix = new byte[prefix];
+            System.arraycopy(big, 0, actualPrefix, 0, prefix);
+            Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                    "raw ECDSA sign modified bytes preceding outOff");
+
+            // (2) The signature window at big[prefix..prefix+written] verifies.
+            byte[] sig = new byte[written];
+            System.arraycopy(big, prefix, sig, 0, written);
+            ec.initVerify(verifyRef, keyRef, "NONE");
+            ec.update(verifyRef, digest, 0, digest.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(),
+                    ec.verify(verifyRef, sig, sig.length, TestUtil.RNDSrc),
+                    "raw ECDSA signature at offset " + prefix + " did not verify");
+
+            // (3) A window shifted one byte into the prefix must NOT verify.
+            byte[] shifted = new byte[written];
+            System.arraycopy(big, prefix - 1, shifted, 0, written);
+            ec.initVerify(verifyRef, keyRef, "NONE");
+            ec.update(verifyRef, digest, 0, digest.length);
+            int shiftedResult;
+            try
+            {
+                shiftedResult = ec.verify(verifyRef, shifted, shifted.length, TestUtil.RNDSrc);
+            }
+            catch (Exception expected)
+            {
+                shiftedResult = ErrorCode.JO_FAIL.getCode();
+            }
+            Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), shiftedResult,
+                    "raw ECDSA window shifted by 1 verified — wrote at outOff-1");
+        }
+        finally
+        {
+            if (signRef != 0)
+            {
+                ec.disposeSigner(signRef);
+            }
+            if (verifyRef != 0)
+            {
+                ec.disposeSigner(verifyRef);
             }
             if (keyRef != 0)
             {

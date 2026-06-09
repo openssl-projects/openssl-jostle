@@ -1347,4 +1347,26 @@ public class ECOpsTest
             specNI.dispose(keyRef);
         }
     }
+
+    @Test
+    public void ec_noneRawInitSign_signInitError()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long sigRef = ec.allocateSigner();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/util/ec.c:501
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+            int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
+            Assertions.assertEquals(errorAt(3103), code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
 }

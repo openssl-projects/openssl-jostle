@@ -151,9 +151,25 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
     {
         try
         {
-            long clonedRef = mdServiceNI.copyDigest(ref.getReference());
-            return new MDServiceSPI(algorithm, new MDReference(clonedRef, algorithm));
-        } finally {
+            try
+            {
+                long clonedRef = mdServiceNI.copyDigest(ref.getReference());
+                return new MDServiceSPI(algorithm, new MDReference(clonedRef, algorithm));
+            }
+            catch (RuntimeException e)
+            {
+                // See the Java 8 baseline: a native copy failure surfaces from
+                // copyDigest as an unchecked exception; honour the declared
+                // clone() contract by reporting it as CloneNotSupportedException
+                // with the failure as the cause.
+                CloneNotSupportedException cnse =
+                        new CloneNotSupportedException("unable to clone digest");
+                cnse.initCause(e);
+                throw cnse;
+            }
+        }
+        finally
+        {
             Reference.reachabilityFence(this);
         }
     }

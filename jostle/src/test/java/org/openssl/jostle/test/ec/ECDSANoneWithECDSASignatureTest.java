@@ -269,6 +269,53 @@ public class ECDSANoneWithECDSASignatureTest
     }
 
     /**
+     * Fuller chunking matrix for the buffering layer: adversarial split points
+     * and a random multi-chunk split. ECDSA is randomised, so each chunking
+     * yields a distinct signature — the contract is that every one verifies.
+     */
+    @Test
+    public void testNoneWithECDSA_chunkingMatrix() throws Exception
+    {
+        SecureRandom sr = seededRandom("testNoneWithECDSA_chunkingMatrix");
+        byte[] digest = new byte[32];
+        sr.nextBytes(digest);
+
+        // Adversarial two-way splits (1|rest, halves, rest|1).
+        int[][] splits = {{1, 31}, {16, 16}, {31, 1}};
+        for (int[] split : splits)
+        {
+            Signature s = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+            s.initSign(joKeyPair.getPrivate());
+            s.update(digest, 0, split[0]);
+            s.update(digest, split[0], split[1]);
+            byte[] sig = s.sign();
+
+            Signature v = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+            v.initVerify(joKeyPair.getPublic());
+            v.update(digest);
+            Assertions.assertTrue(v.verify(sig),
+                    "split [" + split[0] + "," + split[1] + "] produced an unverifiable signature");
+        }
+
+        // Random multi-chunk split.
+        Signature rnd = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+        rnd.initSign(joKeyPair.getPrivate());
+        int off = 0;
+        while (off < digest.length)
+        {
+            int chunk = 1 + sr.nextInt(digest.length - off);
+            rnd.update(digest, off, chunk);
+            off += chunk;
+        }
+        byte[] rndSig = rnd.sign();
+        Signature rv = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+        rv.initVerify(joKeyPair.getPublic());
+        rv.update(digest);
+        Assertions.assertTrue(rv.verify(rndSig),
+                "random-split chunking produced an unverifiable signature");
+    }
+
+    /**
      * Reuse after a terminal op: the same instance signs two distinct digests,
      * each verifying (proves the native buffer is cleared on re-init).
      */
@@ -302,5 +349,34 @@ public class ECDSANoneWithECDSASignatureTest
         v.initVerify(joKeyPair.getPublic());
         v.update(d2);
         Assertions.assertFalse(v.verify(sig1), "sig over d1 wrongly verified against d2");
+    }
+
+    /**
+     * A valid signature must NOT verify under an unrelated public key — proves
+     * verify() consults the key, not merely the digest. A digest-tamper test
+     * alone can pass an implementation that ignores the public key entirely.
+     */
+    @Test
+    public void testNoneWithECDSA_wrongKeyRejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("testNoneWithECDSA_wrongKeyRejected");
+        byte[] digest = new byte[32];
+        sr.nextBytes(digest);
+
+        Signature signer = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(joKeyPair.getPrivate());
+        signer.update(digest);
+        byte[] sig = signer.sign();
+
+        // A second, unrelated P-256 keypair.
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair other = kpg.generateKeyPair();
+
+        Signature verifier = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(other.getPublic());
+        verifier.update(digest);
+        Assertions.assertFalse(verifier.verify(sig),
+                "NoneWithECDSA verified a signature under the wrong public key");
     }
 }

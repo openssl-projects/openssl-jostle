@@ -498,9 +498,9 @@ static int32_t ec_raw_init(ec_ctx *ctx, OSSL_LIB_CTX *libctx,
     int init_rc = (op == EC_OP_SIGN)
                       ? EVP_PKEY_sign_init(pctx)
                       : EVP_PKEY_verify_init(pctx);
-    if (1 != init_rc) {
+    if (OPS_FAILED_INIT_1 1 != init_rc) {
         EVP_PKEY_CTX_free(pctx);
-        return JO_OPENSSL_ERROR;
+        return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_1(3103);
     }
 
     ctx->raw_pctx = pctx;

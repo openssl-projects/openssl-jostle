@@ -55,7 +55,17 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec;
+            try
+            {
+                pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            }
+            catch (RuntimeException e)
+            {
+                // Malformed encoding surfaces as OpenSSLException / IllegalArgumentException;
+                // the KeyFactory contract requires InvalidKeySpecException.
+                throw new InvalidKeySpecException("unable to decode Ed public key", e);
+            }
             if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
             {
                 throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
@@ -125,6 +135,10 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 }
 
                 return new JOEdPrivateKey(pkeySpec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode Ed private key", e);
             }
             finally
             {
