@@ -416,4 +416,131 @@ public class AESParametersTest
             Assertions.assertNotNull(c.getIV(), okBits + "-bit GCM tag must be accepted");
         }
     }
+
+    /**
+     * AES-GCM {@code AlgorithmParameters} must now resolve from JSL by the bare
+     * name "GCM" (not just by OID) — the lookup a JSL-bound BC helper performs
+     * via {@code createAlgorithmParameters("GCM")}. Constructing it must NOT
+     * recurse (the delegate is resolved from a non-Jostle provider), the IV/tag
+     * must round-trip, and the encoding must interoperate with BouncyCastle.
+     */
+    @Test
+    public void gcmAlgorithmParametersResolveByName() throws Exception
+    {
+        SecureRandom random = seededRandom("gcmAlgorithmParametersResolveByName");
+        byte[] iv = new byte[12];
+        random.nextBytes(iv);
+
+        AlgorithmParameters params = AlgorithmParameters.getInstance("GCM", JostleProvider.PROVIDER_NAME);
+        params.init(new GCMParameterSpec(128, iv));
+        byte[] encoded = params.getEncoded();
+
+        // Round-trip through JSL's bare-name "GCM".
+        AlgorithmParameters reparsed = AlgorithmParameters.getInstance("GCM", JostleProvider.PROVIDER_NAME);
+        reparsed.init(encoded);
+        GCMParameterSpec spec = reparsed.getParameterSpec(GCMParameterSpec.class);
+        Assertions.assertArrayEquals(iv, spec.getIV(), "GCM name params did not round-trip the nonce");
+        Assertions.assertEquals(128, spec.getTLen(), "GCM name params did not round-trip the tag length");
+
+        // Encoding is portable: the platform GCM AlgorithmParameters (SunJCE,
+        // which is what JSL delegates to) parses JSL's "GCM" encoding back to
+        // the same nonce/tag.
+        AlgorithmParameters platform = AlgorithmParameters.getInstance("GCM");
+        platform.init(encoded);
+        GCMParameterSpec platformSpec = platform.getParameterSpec(GCMParameterSpec.class);
+        Assertions.assertArrayEquals(iv, platformSpec.getIV(),
+                "platform GCM could not parse JSL's bare-name GCM parameter encoding");
+        Assertions.assertEquals(128, platformSpec.getTLen(),
+                "platform GCM read a different tag length from JSL's encoding");
+    }
+
+    /**
+     * AES-CCM {@code AlgorithmParameters} — JSL is the only provider that ships
+     * one (no JDK provider does), so it codes RFC 5084 {@code CCMParameters}
+     * itself. The encoding is pinned to known-answer DER vectors (the gold
+     * standard for a hand-rolled codec): the {@code aes-ICVlen} INTEGER is
+     * omitted at the DEFAULT of 12 bytes and present otherwise. Resolves both by
+     * the bare name "CCM" and the AES-256-CCM OID.
+     */
+    @Test
+    public void ccmAlgorithmParameters_rfc5084Encoding() throws Exception
+    {
+        // Fixed 12-byte nonce so the expected DER is deterministic.
+        byte[] nonce = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b};
+        byte[] octetString = {0x04, 0x0c, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b};
+
+        // SEQUENCE { OCTET STRING nonce }                 -- ICV 12 (DEFAULT, omitted)
+        byte[] expectDefault = concat(new byte[]{0x30, 0x0e}, octetString);
+        // SEQUENCE { OCTET STRING nonce, INTEGER 16 }     -- ICV 16, INTEGER present
+        byte[] expect16 = concat(concat(new byte[]{0x30, 0x11}, octetString), new byte[]{0x02, 0x01, 0x10});
+        // SEQUENCE { OCTET STRING nonce, INTEGER 8 }      -- ICV 8, INTEGER present
+        byte[] expect8 = concat(concat(new byte[]{0x30, 0x11}, octetString), new byte[]{0x02, 0x01, 0x08});
+
+        String aes256CcmOid = "2.16.840.1.101.3.4.1.47";
+        for (String name : new String[]{"CCM", aes256CcmOid})
+        {
+            assertCcmEncoding(name, nonce, 96, expectDefault);   // 96-bit tag => 12-byte ICV (DEFAULT)
+            assertCcmEncoding(name, nonce, 128, expect16);
+            assertCcmEncoding(name, nonce, 64, expect8);
+        }
+    }
+
+    private static void assertCcmEncoding(String name, byte[] nonce, int tagBits, byte[] expectedDer)
+            throws Exception
+    {
+        AlgorithmParameters jsl = AlgorithmParameters.getInstance(name, JostleProvider.PROVIDER_NAME);
+        jsl.init(new GCMParameterSpec(tagBits, nonce));
+        byte[] der = jsl.getEncoded();
+        Assertions.assertArrayEquals(expectedDer, der,
+                name + " tagBits=" + tagBits + ": CCMParameters DER does not match the RFC 5084 vector");
+
+        // Decode round-trip: a fresh instance parses the encoding back.
+        AlgorithmParameters reparsed = AlgorithmParameters.getInstance(name, JostleProvider.PROVIDER_NAME);
+        reparsed.init(der);
+        GCMParameterSpec spec = reparsed.getParameterSpec(GCMParameterSpec.class);
+        Assertions.assertArrayEquals(nonce, spec.getIV(),
+                name + " tagBits=" + tagBits + ": CCMParameters did not round-trip the nonce");
+        Assertions.assertEquals(tagBits, spec.getTLen(),
+                name + " tagBits=" + tagBits + ": CCMParameters did not round-trip the tag length");
+    }
+
+    /**
+     * The CCM {@code AlgorithmParameters} resolved from JSL must drive a real
+     * AES-CCM decrypt — init the cipher purely from the parsed
+     * {@code AlgorithmParameters}, as an OID/params-driven receiver does.
+     */
+    @Test
+    public void ccmAlgorithmParameters_driveCipher() throws Exception
+    {
+        SecureRandom random = seededRandom("ccmAlgorithmParameters_driveCipher");
+        SecretKey key = aes256Key(random);
+        byte[] nonce = new byte[12];
+        random.nextBytes(nonce);
+        byte[] msg = new byte[40];
+        random.nextBytes(msg);
+
+        AlgorithmParameters params = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        params.init(new GCMParameterSpec(128, nonce));
+
+        Cipher enc = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, params);
+        byte[] ct = enc.doFinal(msg);
+
+        // Re-encode then re-parse the parameters to exercise the codec end-to-end.
+        AlgorithmParameters reparsed = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        reparsed.init(params.getEncoded());
+
+        Cipher dec = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, key, reparsed);
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                "CCM decrypt initialised from AlgorithmParameters failed");
+    }
+
+    private static byte[] concat(byte[] a, byte[] b)
+    {
+        byte[] out = new byte[a.length + b.length];
+        System.arraycopy(a, 0, out, 0, a.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
 }

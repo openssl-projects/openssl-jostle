@@ -300,6 +300,9 @@ class BlockCipherSpi extends CipherSpi
             ensureNativeReference();
             final byte[] iv;
             final int tag;
+            // Associated data carried by a BC AEADParameterSpec, fed to the
+            // native layer after a successful init (see below). Null otherwise.
+            byte[] aeadAssociatedData = null;
             blockSize = 0;
             // The native layer only knows ENCRYPT/DECRYPT. WRAP/UNWRAP (used for
             // key-wrap modes) map onto encrypt/decrypt respectively.
@@ -329,35 +332,46 @@ class BlockCipherSpi extends CipherSpi
                     tag = 0;
                 }
             }
+            else if (isAeadMode() && AEADParameterSpecAccessor.matches(params))
+            {
+                // BC's AEADParameterSpec extends IvParameterSpec; unwrap it here,
+                // BEFORE the IvParameterSpec branch, so its tag length and
+                // associated data are honoured rather than silently dropped (the
+                // dropped-AAD case produces a wrong-but-valid-looking tag).
+                AEADParameterSpecAccessor acc = AEADParameterSpecAccessor.extract(params);
+                int tLen = acc.getMacSizeInBits();
+                if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                {
+                    throw new InvalidAlgorithmParameterException(
+                            "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                }
+                iv = acc.getIV();
+                tag = tLen / 8;
+                aeadAssociatedData = acc.getAssociatedData();
+            }
+            else if (params instanceof IvParameterSpec)
+            {
+                iv = ((IvParameterSpec) params).getIV();
+                tag = isAeadMode() ? 16 : 0;
+            }
+            else if (params instanceof GCMParameterSpec)
+            {
+                int tLen = ((GCMParameterSpec) params).getTLen();
+                // Reject malformed AEAD tag lengths at the JCE boundary —
+                // BouncyCastle's 32–128-bit, multiple-of-8 range, which the
+                // cross-provider agreement tests rely on — rather than
+                // passing an out-of-spec length down to OpenSSL.
+                if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                {
+                    throw new InvalidAlgorithmParameterException(
+                            "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                }
+                iv = ((GCMParameterSpec) params).getIV();
+                tag = tLen / 8;
+            }
             else
             {
-                if (params instanceof IvParameterSpec)
-                {
-                    iv = ((IvParameterSpec) params).getIV();
-                    tag = isAeadMode() ? 16 : 0;
-                }
-                else
-                {
-                    if (params instanceof GCMParameterSpec)
-                    {
-                        int tLen = ((GCMParameterSpec) params).getTLen();
-                        // Reject malformed AEAD tag lengths at the JCE boundary —
-                        // BouncyCastle's 32–128-bit, multiple-of-8 range, which the
-                        // cross-provider agreement tests rely on — rather than
-                        // passing an out-of-spec length down to OpenSSL.
-                        if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
-                        {
-                            throw new InvalidAlgorithmParameterException(
-                                    "AEAD tag length must be 32 to 128 bits and a multiple of 8");
-                        }
-                        iv = ((GCMParameterSpec) params).getIV();
-                        tag = tLen / 8;
-                    }
-                    else
-                    {
-                        throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
-                    }
-                }
+                throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
             }
 
             this.ivBytes = iv;
@@ -378,6 +392,15 @@ class BlockCipherSpi extends CipherSpi
                 {
                     Arrays.fill(keyBytes, (byte) 0);
                 }
+            }
+
+            // Init succeeded: feed any AEADParameterSpec-supplied associated data
+            // now — after init, before any plaintext — so it's authenticated.
+            // This is the same native call engineUpdateAAD makes; the reuse guard
+            // is unnecessary here because the cipher was just (re)initialised.
+            if (aeadAssociatedData != null && aeadAssociatedData.length > 0)
+            {
+                blockCipherNi.updateAAD(refWrapper.getReference(), aeadAssociatedData, 0, aeadAssociatedData.length);
             }
 
             engineGetBlockSize();

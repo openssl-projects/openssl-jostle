@@ -67,13 +67,25 @@ class ProvAES
         provider.addAlgorithmImplementation("KeyGenerator", "AES256", PREFIX + "AESKeyGen256", generalAesAttributes, (arg) -> new AESKeyGenerator(256));
         provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad);
 
-        // AES-GCM AlgorithmParameters, registered under the GCM OIDs only (see
-        // GCMAlgorithmParameters). Lets OID-driven callers — notably CMS
-        // EnvelopedData decryption — parse the stored GCMParameters (nonce/ICV)
-        // via AlgorithmParameters.getInstance(<aes-gcm-oid>, "JSL").
+        // AES-GCM AlgorithmParameters, registered under the bare name "GCM" and
+        // the GCM OIDs (see GCMAlgorithmParameters). Lets OID-driven callers —
+        // notably CMS EnvelopedData decryption — parse the stored GCMParameters
+        // (nonce/ICV) via AlgorithmParameters.getInstance(<aes-gcm-oid>, "JSL"),
+        // and name-driven callers resolve it via getInstance("GCM", "JSL"). The
+        // delegate is resolved from a non-Jostle provider so the bare name can't
+        // recurse.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "GCM", PREFIX + "GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes128_GCM, PREFIX + "AES128GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes192_GCM, PREFIX + "AES192GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_GCM, PREFIX + "AES256GCMParameters", generalAesAttributes, (arg) -> new GCMAlgorithmParameters());
+
+        // AES-CCM AlgorithmParameters, registered under the bare name "CCM" and
+        // the CCM OIDs (see CCMAlgorithmParameters). No JDK provider ships a CCM
+        // AlgorithmParameters, so this one is self-contained (RFC 5084 codec).
+        provider.addAlgorithmImplementation("AlgorithmParameters", "CCM", PREFIX + "CCMParameters", generalAesAttributes, (arg) -> new CCMAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes128_CCM, PREFIX + "AES128CCMParameters", generalAesAttributes, (arg) -> new CCMAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes192_CCM, PREFIX + "AES192CCMParameters", generalAesAttributes, (arg) -> new CCMAlgorithmParameters());
+        provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_CCM, PREFIX + "AES256CCMParameters", generalAesAttributes, (arg) -> new CCMAlgorithmParameters());
 
         // AES-CBC AlgorithmParameters, registered under the CBC OIDs only (see
         // CBCAlgorithmParameters). Lets OID-driven callers — notably BC's PBES2 /
