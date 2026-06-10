@@ -23,7 +23,7 @@ import java.security.Security;
 
 public class RandServiceLimitTest
 {
-    private static final int DRBG_STRENGTH = RandAlgorithm.DRBG.getStrength();
+    private static final int DRBG_STRENGTH = RandAlgorithm.DRBG.getMaxStrength();
     private final RandServiceNI randServiceNI = TestNISelector.getRandNI();
 
     @BeforeAll

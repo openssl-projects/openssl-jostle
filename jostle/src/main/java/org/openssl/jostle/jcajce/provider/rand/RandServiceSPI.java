@@ -81,7 +81,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         if (seed.length > 0)
         {
-            randServiceNI.reseed(algorithm.getStrength(), false, seed);
+            randServiceNI.reseed(algorithm.getMaxStrength(), false, seed);
         }
     }
 
@@ -94,7 +94,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         byte[] bytes = new byte[numBytes];
-        randServiceNI.randomBytes(bytes, bytes.length, algorithm.getStrength());
+        randServiceNI.randomBytes(bytes, bytes.length, algorithm.getMaxStrength());
         return bytes;
     }
 
@@ -106,7 +106,7 @@ public final class RandServiceSPI extends SecureRandomSpi
             throw new NullPointerException("bytes cannot be null");
         }
 
-        randServiceNI.randomBytes(bytes, bytes.length, algorithm.getStrength());
+        randServiceNI.randomBytes(bytes, bytes.length, algorithm.getMaxStrength());
     }
 
     private Object readResolve()

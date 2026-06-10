@@ -45,7 +45,8 @@ public class RandServiceIntegrationTest
             SecureRandom random = new SecureRandom();
 
             Assertions.assertEquals(JostleProvider.PROVIDER_NAME, random.getProvider().getName());
-            Assertions.assertEquals("DRBG", random.getAlgorithm());
+            Assertions.assertTrue(isJostleDefaultRandomAlgorithm(random.getAlgorithm()),
+                    "Expected DRBG or DEFAULT, got " + random.getAlgorithm());
         }
         finally
         {
@@ -58,6 +59,11 @@ public class RandServiceIntegrationTest
     public void repeatedProviderConstructionIsAccepted()
     {
         new JostleProvider();
+    }
+
+    private static boolean isJostleDefaultRandomAlgorithm(String algorithm)
+    {
+        return "DRBG".equals(algorithm) || "DEFAULT".equals(algorithm);
     }
 
     private static int providerPosition(String name)

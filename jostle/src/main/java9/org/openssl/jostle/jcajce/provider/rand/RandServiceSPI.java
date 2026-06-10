@@ -89,7 +89,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         this.algorithm = algorithm;
 
-        int strength = algorithm.getStrength();
+        int strength = algorithm.getMaxStrength();
         DrbgParameters.Capability capability = DrbgParameters.Capability.RESEED_ONLY;
         byte[] pstr = null;
 
@@ -259,7 +259,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private int normalizeStrength(int strength)
     {
-        return normalizeStrength(strength, algorithm.getStrength());
+        return normalizeStrength(strength, algorithm.getMaxStrength());
     }
 
     private int normalizeStrength(int strength, int defaultStrength)
@@ -287,7 +287,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private void checkInstantiationStrength(int strength)
     {
-        if (strength > algorithm.getStrength())
+        if (strength > algorithm.getMaxStrength())
         {
             throw new IllegalArgumentException("requested strength exceeds algorithm strength");
         }

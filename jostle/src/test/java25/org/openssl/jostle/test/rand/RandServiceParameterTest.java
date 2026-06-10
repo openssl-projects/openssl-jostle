@@ -86,7 +86,7 @@ public class RandServiceParameterTest
 
         DrbgParameters.Instantiation params = (DrbgParameters.Instantiation) random.getParameters();
 
-        Assertions.assertEquals(RandAlgorithm.DRBG.getStrength(), params.getStrength());
+        Assertions.assertEquals(RandAlgorithm.DRBG.getMaxStrength(), params.getStrength());
         Assertions.assertEquals(DrbgParameters.Capability.NONE, params.getCapability());
     }
 

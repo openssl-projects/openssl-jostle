@@ -22,22 +22,22 @@ public enum RandAlgorithm
     DRBG("DRBG", 256);
 
     private final String jcaName;
-    private final int strength;
+    private final int maxStrength;
 
-    RandAlgorithm(String jcaName, int strength)
+    RandAlgorithm(String jcaName, int maxStrength)
     {
         if (jcaName == null)
         {
             throw new NullPointerException("jcaName cannot be null");
         }
 
-        if (strength < 0)
+        if (maxStrength < 0)
         {
-            throw new IllegalArgumentException("strength cannot be negative");
+            throw new IllegalArgumentException("maxStrength cannot be negative");
         }
 
         this.jcaName = jcaName;
-        this.strength = strength;
+        this.maxStrength = maxStrength;
     }
 
     /**
@@ -55,8 +55,8 @@ public enum RandAlgorithm
      *
      * @return strength in bits
      */
-    public int getStrength()
+    public int getMaxStrength()
     {
-        return strength;
+        return maxStrength;
     }
 }

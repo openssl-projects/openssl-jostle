@@ -116,7 +116,7 @@ public interface DefaultServiceNI
             case JO_UNEXPECTED_POINTER_CHANGE:
                 throw new UnexpectedPointerChangeException("a returned pointer changed unexpectedly");
 
-            case JO_RAND_NO_RAND_METHOD:
+            case JO_RAND_NO_RAND_UP_CALL:
                 throw new IllegalArgumentException("supplied random source was null");
             case JO_SIGNER_CTX_IS_NULL:
                 throw new IllegalArgumentException("signer context is null");
