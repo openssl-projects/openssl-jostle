@@ -16,12 +16,13 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import java.security.SecureRandomSpi;
 
 /**
- * SecureRandomSpi backed by OpenSSL RAND.
+ * {@link SecureRandomSpi} backed by OpenSSL RAND.
  * <p>
  * OpenSSL owns entropy collection for this implementation. Caller-supplied
  * seed bytes supplement the native RAND state but are not treated as
- * deterministic input. JDK 9+ parameterized DRBG operations are not supported
- * by this SPI.
+ * deterministic input. The Java 8 baseline implementation accepts only
+ * unparameterized construction; the Java 9+ multi-release implementation adds
+ * support for {@code DrbgParameters}.
  * </p>
  */
 public final class RandServiceSPI extends SecureRandomSpi
@@ -31,11 +32,30 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private final RandAlgorithm algorithm;
 
+    /**
+     * Constructs an OpenSSL-backed SecureRandom SPI for the supplied algorithm.
+     *
+     * @param algorithm the registered SecureRandom algorithm
+     * @throws NullPointerException if {@code algorithm} is {@code null}
+     */
     public RandServiceSPI(RandAlgorithm algorithm)
     {
         this(algorithm, null);
     }
 
+    /**
+     * Constructs an OpenSSL-backed SecureRandom SPI.
+     * <p>
+     * The Java 8 baseline implementation rejects non-null parameters. The
+     * Java 9+ multi-release implementation accepts
+     * {@code DrbgParameters.Instantiation}.
+     * </p>
+     *
+     * @param algorithm the registered SecureRandom algorithm
+     * @param params construction parameters, or {@code null}
+     * @throws NullPointerException if {@code algorithm} is {@code null}
+     * @throws UnsupportedOperationException if {@code params} is non-null
+     */
     public RandServiceSPI(RandAlgorithm algorithm, Object params)
     {
         if (params != null)

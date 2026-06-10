@@ -11,8 +11,14 @@
 
 package org.openssl.jostle.jcajce.provider.rand;
 
+/**
+ * SecureRandom algorithms registered by the Jostle provider.
+ */
 public enum RandAlgorithm
 {
+    /**
+     * OpenSSL-backed DRBG service advertised through the JCA SecureRandom API.
+     */
     DRBG("DRBG", 256);
 
     private final String jcaName;
@@ -34,11 +40,21 @@ public enum RandAlgorithm
         this.strength = strength;
     }
 
+    /**
+     * Returns the JCA algorithm name used during provider registration.
+     *
+     * @return the JCA SecureRandom algorithm name
+     */
     public String getJcaName()
     {
         return jcaName;
     }
 
+    /**
+     * Returns the maximum security strength advertised by this algorithm.
+     *
+     * @return strength in bits
+     */
     public int getStrength()
     {
         return strength;

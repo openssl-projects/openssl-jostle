@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.rand.RandAlgorithm;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.DrbgParameters;
+import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.security.SecureRandomParameters;
 
@@ -60,6 +61,23 @@ public class RandServiceParameterTest
     }
 
     @Test
+    public void defaultAliasInstantiationParametersAreSupported() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DEFAULT",
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.RESEED_ONLY, null),
+                JostleProvider.PROVIDER_NAME);
+        byte[] output = new byte[16];
+
+        random.nextBytes(output);
+
+        Assertions.assertEquals(JostleProvider.PROVIDER_NAME, random.getProvider().getName());
+        Assertions.assertFalse(Arrays.areEqual(new byte[output.length], output));
+        DrbgParameters.Instantiation params = (DrbgParameters.Instantiation) random.getParameters();
+        Assertions.assertEquals(128, params.getStrength());
+        Assertions.assertEquals(DrbgParameters.Capability.RESEED_ONLY, params.getCapability());
+    }
+
+    @Test
     public void drbgInstantiationDefaultStrengthUsesAlgorithmStrength() throws Exception
     {
         SecureRandom random = SecureRandom.getInstance("DRBG",
@@ -78,6 +96,14 @@ public class RandServiceParameterTest
         Assertions.assertThrows(IllegalArgumentException.class, () ->
                 SecureRandom.getInstance("DRBG",
                         DrbgParameters.instantiation(-2, DrbgParameters.Capability.NONE, null),
+                        JostleProvider.PROVIDER_NAME));
+    }
+
+    @Test
+    public void drbgInstantiationRejectsUnsupportedParameters()
+    {
+        Assertions.assertThrows(NoSuchAlgorithmException.class, () ->
+                SecureRandom.getInstance("DRBG", unsupportedParameters(),
                         JostleProvider.PROVIDER_NAME));
     }
 
@@ -153,6 +179,24 @@ public class RandServiceParameterTest
 
         Assertions.assertThrows(IllegalArgumentException.class, () ->
                 random.nextBytes(new byte[16], null));
+    }
+
+    @Test
+    public void nextBytesRejectsNullBytesWithParameters() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+
+        Assertions.assertThrows(NullPointerException.class, () ->
+                random.nextBytes(null, DrbgParameters.nextBytes(128, false, null)));
+    }
+
+    @Test
+    public void nextBytesRejectsUnsupportedParameters() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+
+        Assertions.assertThrows(UnsupportedOperationException.class, () ->
+                random.nextBytes(new byte[16], unsupportedParameters()));
     }
 
     @Test
@@ -235,6 +279,15 @@ public class RandServiceParameterTest
     }
 
     @Test
+    public void reseedRejectsUnsupportedParameters() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+
+        Assertions.assertThrows(UnsupportedOperationException.class, () ->
+                random.reseed(unsupportedParameters()));
+    }
+
+    @Test
     public void reseedPredictionResistanceIsSupportedWithCapability() throws Exception
     {
         SecureRandom random = SecureRandom.getInstance("DRBG",
@@ -261,5 +314,12 @@ public class RandServiceParameterTest
 
         random.setSeed(new byte[]{ 1, 2, 3, 4 });
         random.nextBytes(new byte[16]);
+    }
+
+    private static SecureRandomParameters unsupportedParameters()
+    {
+        return new SecureRandomParameters()
+        {
+        };
     }
 }

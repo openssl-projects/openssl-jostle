@@ -29,6 +29,7 @@ class ProvRand
         attr.put("ThreadSafe", "true");
 
         addRand(provider, RandAlgorithm.DRBG, attr);
+        provider.addAlias("SecureRandom", RandAlgorithm.DRBG.getJcaName(), "DEFAULT");
     }
 
     private static void addRand(final JostleProvider provider, RandAlgorithm algorithm, Map<String, String> attr)

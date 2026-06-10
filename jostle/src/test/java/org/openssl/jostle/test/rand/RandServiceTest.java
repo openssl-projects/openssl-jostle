@@ -52,15 +52,21 @@ public class RandServiceTest
     }
 
     @Test
-    public void noAliasesAreRegistered()
+    public void defaultAliasIsRegistered() throws Exception
     {
         Provider provider = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        SecureRandom random = SecureRandom.getInstance("DEFAULT", JostleProvider.PROVIDER_NAME);
+        byte[] output = new byte[32];
+
+        random.nextBytes(output);
 
         Assertions.assertNotNull(provider.getService("SecureRandom", "DRBG"));
+        Assertions.assertNotNull(provider.getService("SecureRandom", "DEFAULT"));
+        Assertions.assertEquals(JostleProvider.PROVIDER_NAME, random.getProvider().getName());
+        Assertions.assertFalse(Arrays.areEqual(new byte[output.length], output));
         Assertions.assertNull(provider.getService("SecureRandom", "NativePRNG"));
         Assertions.assertNull(provider.getService("SecureRandom", "NativePRNGNonBlocking"));
         Assertions.assertNull(provider.getService("SecureRandom", "SHA1PRNG"));
-        Assertions.assertNull(provider.getService("SecureRandom", "Default"));
         Assertions.assertNull(provider.getService("SecureRandom", "DefaultRandom"));
     }
 

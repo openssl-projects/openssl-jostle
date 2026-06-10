@@ -23,9 +23,21 @@ import java.security.SecureRandomParameters;
 import java.security.ProviderException;
 
 /**
- * Java 9+ variant of RandServiceSPI that accepts SecureRandomParameters
- * (notably DrbgParameters.Instantiation) and translates requested strength
- * and prediction-resistance into a native-side context.
+ * Java 9+ {@link SecureRandomSpi} backed by an OpenSSL RAND context.
+ * <p>
+ * This implementation supports the JDK DRBG parameter model for the
+ * OpenSSL-backed {@code DRBG} service:
+ * </p>
+ * <ul>
+ *     <li>{@link DrbgParameters.Instantiation} during construction</li>
+ *     <li>{@link DrbgParameters.NextBytes} for per-call generation controls</li>
+ *     <li>{@link DrbgParameters.Reseed} for explicit reseeding</li>
+ * </ul>
+ * <p>
+ * Requested strength is capped at the instantiated strength and prediction
+ * resistance must be enabled by the instance capability before it can be used
+ * for generation or reseeding.
+ * </p>
  */
 public final class RandServiceSPI extends SecureRandomSpi
 {
@@ -38,11 +50,36 @@ public final class RandServiceSPI extends SecureRandomSpi
     private final byte[] personalizationString;
     private final transient RandReference ref;
 
+    /**
+     * Constructs an OpenSSL-backed SecureRandom SPI using the algorithm's
+     * default strength and {@link DrbgParameters.Capability#RESEED_ONLY}.
+     *
+     * @param algorithm the registered SecureRandom algorithm
+     * @throws NullPointerException if {@code algorithm} is {@code null}
+     */
     public RandServiceSPI(RandAlgorithm algorithm)
     {
         this(algorithm, null);
     }
 
+    /**
+     * Constructs an OpenSSL-backed SecureRandom SPI.
+     * <p>
+     * The only supported non-null parameter type is
+     * {@link DrbgParameters.Instantiation}. A strength of {@code -1} selects
+     * the algorithm default. Personalization bytes are copied before being
+     * passed to the native context.
+     * </p>
+     *
+     * @param algorithm the registered SecureRandom algorithm
+     * @param params construction parameters, or {@code null}
+     * @throws NullPointerException if {@code algorithm} is {@code null}
+     * @throws IllegalArgumentException if the requested strength is invalid
+     *         or exceeds the algorithm strength
+     * @throws UnsupportedOperationException if {@code params} is not
+     *         {@link DrbgParameters.Instantiation}
+     * @throws ProviderException if the native DRBG context cannot be created
+     */
     public RandServiceSPI(RandAlgorithm algorithm, Object params)
     {
         if (algorithm == null)
@@ -126,6 +163,20 @@ public final class RandServiceSPI extends SecureRandomSpi
                 instanceCapability.supportsPredictionResistance(), null);
     }
 
+    /**
+     * Generates bytes using per-call DRBG parameters.
+     *
+     * @param bytes the destination buffer
+     * @param params generation parameters; must be
+     *        {@link DrbgParameters.NextBytes}
+     * @throws NullPointerException if {@code bytes} is {@code null}
+     * @throws IllegalArgumentException if {@code params} is {@code null}, the
+     *         requested strength is invalid, the requested strength exceeds the
+     *         instantiated strength, or prediction resistance is requested for
+     *         an instance that does not support it
+     * @throws UnsupportedOperationException if {@code params} is not
+     *         {@link DrbgParameters.NextBytes}
+     */
     @Override
     protected void engineNextBytes(byte[] bytes, SecureRandomParameters params)
     {
@@ -154,6 +205,18 @@ public final class RandServiceSPI extends SecureRandomSpi
         contextRandomBytes(bytes, strength, predictionResistant, additionalInput);
     }
 
+    /**
+     * Reseeds this OpenSSL DRBG context.
+     *
+     * @param params reseed parameters; must be
+     *        {@link DrbgParameters.Reseed}, or {@code null} to reseed with the
+     *        instance defaults
+     * @throws IllegalArgumentException if prediction resistance is requested
+     *         for an instance that does not support it
+     * @throws UnsupportedOperationException if reseeding is disabled by the
+     *         instance capability or {@code params} is not
+     *         {@link DrbgParameters.Reseed}
+     */
     @Override
     protected void engineReseed(SecureRandomParameters params)
     {
@@ -176,6 +239,12 @@ public final class RandServiceSPI extends SecureRandomSpi
         contextReseed(instanceStrength, reseed.getPredictionResistance(), reseed.getAdditionalInput());
     }
 
+    /**
+     * Returns the effective instantiation parameters for this SPI.
+     *
+     * @return a {@link DrbgParameters.Instantiation} describing strength,
+     *         capability, and a defensive copy of the personalization string
+     */
     @Override
     protected SecureRandomParameters engineGetParameters()
     {
