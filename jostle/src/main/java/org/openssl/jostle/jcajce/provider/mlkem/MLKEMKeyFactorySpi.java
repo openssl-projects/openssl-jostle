@@ -228,7 +228,30 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
-        throw new InvalidKeyException("Invalid Key: " + key);
+        if (key == null)
+        {
+            throw new InvalidKeyException("Invalid Key: null");
+        }
+        // Foreign ML-KEM key (e.g. the JDK's NamedX509Key from a parsed
+        // certificate) — re-encode and decode through us so we own the
+        // EVP_PKEY. Mirrors ECKeyFactorySpi / XECKeyFactorySpi.
+        try
+        {
+            byte[] encoded = key.getEncoded();
+            if (encoded == null)
+            {
+                throw new InvalidKeyException("foreign key has no encoded form");
+            }
+            if (key instanceof PrivateKey)
+            {
+                return engineGeneratePrivate(new PKCS8EncodedKeySpec(encoded));
+            }
+            return engineGeneratePublic(new X509EncodedKeySpec(encoded));
+        }
+        catch (InvalidKeySpecException e)
+        {
+            throw new InvalidKeyException(e.getMessage(), e);
+        }
     }
 
 }

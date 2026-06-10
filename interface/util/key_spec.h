@@ -49,6 +49,10 @@
 #define KS_X25519 27
 #define KS_X448 28
 
+#define KS_DSA 29
+
+#define KS_DH 30
+
 
 typedef struct key_spec {
     EVP_PKEY *key;

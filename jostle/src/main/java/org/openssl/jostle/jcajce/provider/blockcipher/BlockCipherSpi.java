@@ -14,7 +14,6 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -41,7 +40,6 @@ class BlockCipherSpi extends CipherSpi
     OSSLMode osslMode;
     int padding;
     OSSLBlockCipherRefWrapper refWrapper;
-    int blockSize;
     int opMode;
 
     // IV / AEAD parameters in effect for the current init, retained so that
@@ -61,9 +59,6 @@ class BlockCipherSpi extends CipherSpi
     private static int BUF_SIZE = 1024;
 
     private static final BlockCipherNI blockCipherNi = NISelector.BlockCipherNI;
-
-    // OpenSSL-probed block sizes, memoized once per cipher (see NativeLengthCache).
-    private static final NativeLengthCache<OSSLCipher> blockSizes = new NativeLengthCache<OSSLCipher>();
 
     Class[] availableSpecs = new Class[]{
             IvParameterSpec.class,
@@ -184,18 +179,12 @@ class BlockCipherSpi extends CipherSpi
         {
             requireInitialized();
 
-            if (blockSize == 0)
-            {
-                blockSize = blockSizes.get(osslCipher);
-                if (blockSize == NativeLengthCache.UNKNOWN)
-                {
-                    blockSize = blockCipherNi.getBlockSize(refWrapper.getReference());
-                    // Memoize OpenSSL's reported block size for this cipher.
-                    blockSizes.cache(osslCipher, blockSize);
-                }
-            }
-
-            return blockSize;
+            // Block size is an algorithm invariant (independent of key/IV/init
+            // state), so source it from the cipher descriptor rather than the
+            // native EVP_CIPHER_CTX. Querying the context here during the
+            // auto-IV branch of engineInit — before EVP_CipherInit_ex has run —
+            // reported "not initialized" on a cold cache (CBC_AUTO_IV_COLD_CACHE_GAP.md).
+            return osslCipher.getBlockSize();
         }
     }
 
@@ -286,7 +275,6 @@ class BlockCipherSpi extends CipherSpi
             // Associated data carried by a BC AEADParameterSpec, fed to the
             // native layer after a successful init (see below). Null otherwise.
             byte[] aeadAssociatedData = null;
-            blockSize = 0;
             // The native layer only knows ENCRYPT/DECRYPT. WRAP/UNWRAP (used for
             // key-wrap modes) map onto encrypt/decrypt respectively.
             final int nativeOpMode = (opmode == Cipher.WRAP_MODE) ? Cipher.ENCRYPT_MODE
@@ -920,8 +908,35 @@ class BlockCipherSpi extends CipherSpi
             {
                 return;
             }
+            // A content-encryption key recovered from a CMS structure (e.g. the
+            // CEK unwrapped on a KeyAgreeRecipientInfo / KeyTransRecipientInfo
+            // path) is tagged with the content algorithm OID, not the bare
+            // cipher name — an AES-128-GCM CEK arrives as "2.16.840.1.101.3.4.1.6".
+            // Accept an OID under this cipher family's arc; a foreign family's
+            // OID does not match, so the cross-algorithm guard is preserved and
+            // the native layer still validates key length.
+            if (isContentOidForFamily(alg))
+            {
+                return;
+            }
         }
         throw new InvalidKeyException("unsupported key algorithm " + alg);
+    }
+
+    /**
+     * True when {@code alg} is a content-encryption algorithm OID belonging to
+     * this cipher's family — the form a CMS CEK is tagged with. Currently only
+     * the NIST AES arc ({@code 2.16.840.1.101.3.4.1.*}) is recognised, which is
+     * the dominant CMS content cipher; other families fall through to the name
+     * check and are unaffected.
+     */
+    private boolean isContentOidForFamily(String alg)
+    {
+        if ("AES".equalsIgnoreCase(keyAlgorithm))
+        {
+            return alg.startsWith("2.16.840.1.101.3.4.1.");
+        }
+        return false;
     }
 
 }

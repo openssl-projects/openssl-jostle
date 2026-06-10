@@ -28,8 +28,6 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 
 /**
@@ -45,6 +43,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
     private KexRef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
     private Object pinnedPriv = null;
+    private Object pinnedPeer = null;
     private boolean peerSet = false;
 
 
@@ -76,16 +75,11 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
 
         try
         {
-            if (!(key instanceof ECPrivateKey))
-            {
-                throw new InvalidKeyException("ECDH init: expected an ECPrivateKey");
-            }
-            if (!(key instanceof JOECPrivateKey))
-            {
-                throw new InvalidKeyException("ECDH init: expected a Jostle-provider ECPrivateKey");
-            }
-
-            JOECPrivateKey privateKey = (JOECPrivateKey) key;
+            // Foreign EC keys (e.g. sun.security.ec.* from a certificate)
+            // are translated to JSL keys; only non-EC / untranslatable keys
+            // are rejected.
+            JOECPrivateKey privateKey = ECKeyImport.importPrivate(key,
+                    "ECDH init: expected an ECPrivateKey");
             pinnedPriv = privateKey;
             peerSet = false;
 
@@ -113,16 +107,12 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                         "ECDH is a single-phase protocol; lastPhase must be true");
             }
 
-            if (!(key instanceof ECPublicKey))
-            {
-                throw new InvalidKeyException("ECDH doPhase: expected an ECPublicKey");
-            }
-            if (!(key instanceof JOECPublicKey))
-            {
-                throw new InvalidKeyException("ECDH doPhase: expected a Jostle-provider ECPublicKey");
-            }
-
-            JOECPublicKey peer = (JOECPublicKey) key;
+            JOECPublicKey peer = ECKeyImport.importPublic(key,
+                    "ECDH doPhase: expected an ECPublicKey");
+            // Pin the (possibly KeyFactory-translated) peer so its native
+            // EVP_PKEY cannot be GC-disposed during the set-peer call — the
+            // translated key is otherwise method-local with no later use.
+            pinnedPeer = peer;
             try
             {
                 // randSource required for binary-field curves —

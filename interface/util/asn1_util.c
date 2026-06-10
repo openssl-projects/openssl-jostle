@@ -349,7 +349,7 @@ int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t
 
     switch (encoding_option) {
         case PRIVATE_KEY_DEFAULT_ENCODING:
-            // EC and RSA keys go through the OSSL_ENCODER PKCS#8 path so the
+            // EC, RSA, DSA and DH keys go through the OSSL_ENCODER PKCS#8 path so the
             // emitted bytes are an actual PKCS#8 PrivateKeyInfo (matching
             // getFormat()="PKCS#8") rather than the "traditional" form that
             // i2d_PrivateKey_bio defaults to — SEC1 ECPrivateKey for EC, and
@@ -357,7 +357,10 @@ int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t
             // types have no traditional form, so i2d_PrivateKey already emits
             // PKCS#8 for them and they stay on the legacy path.
             if (EVP_PKEY_is_a(key_spec->key, "EC")
-                || EVP_PKEY_is_a(key_spec->key, "RSA")) {
+                || EVP_PKEY_is_a(key_spec->key, "RSA")
+                || EVP_PKEY_is_a(key_spec->key, "DSA")
+                || EVP_PKEY_is_a(key_spec->key, "DH")
+                || EVP_PKEY_is_a(key_spec->key, "DHX")) {
                 if (OPS_OPENSSL_ERROR_4 1 != encode_private_key_pkcs8(ctx, key_spec)) {
                     return 0;
                 }

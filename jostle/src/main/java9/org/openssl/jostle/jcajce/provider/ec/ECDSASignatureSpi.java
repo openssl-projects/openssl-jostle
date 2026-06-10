@@ -56,56 +56,8 @@ public class ECDSASignatureSpi extends SignatureSpi
     }
 
 
-    /**
-     * Coerce an arbitrary public key to a JSL EC public key. JSL keys are
-     * used directly; foreign EC keys (e.g. a {@code sun.*} key from a
-     * JDK-parsed certificate, as the CMS/PKIX verifiers hand us) are
-     * re-imported through {@link ECKeyFactorySpi#engineTranslateKey} so
-     * external callers interoperate without having to pre-convert keys.
-     * Anything that isn't EC surfaces as {@link InvalidKeyException}.
-     */
-    private static JOECPublicKey importPublic(PublicKey publicKey) throws InvalidKeyException
-    {
-        if (publicKey instanceof JOECPublicKey)
-        {
-            return (JOECPublicKey) publicKey;
-        }
-        try
-        {
-            Key translated = new ECKeyFactorySpi().engineTranslateKey(publicKey);
-            if (translated instanceof JOECPublicKey)
-            {
-                return (JOECPublicKey) translated;
-            }
-        }
-        catch (InvalidKeyException e)
-        {
-            // Wrong-algorithm or unparseable key — fall through to the canonical message.
-        }
-        throw new InvalidKeyException("expected an ECPublicKey from the Jostle provider");
-    }
-
-    /** Private-key counterpart to {@link #importPublic}. */
-    private static JOECPrivateKey importPrivate(PrivateKey privateKey) throws InvalidKeyException
-    {
-        if (privateKey instanceof JOECPrivateKey)
-        {
-            return (JOECPrivateKey) privateKey;
-        }
-        try
-        {
-            Key translated = new ECKeyFactorySpi().engineTranslateKey(privateKey);
-            if (translated instanceof JOECPrivateKey)
-            {
-                return (JOECPrivateKey) translated;
-            }
-        }
-        catch (InvalidKeyException e)
-        {
-            // Wrong-algorithm or unparseable key — fall through to the canonical message.
-        }
-        throw new InvalidKeyException("expected an ECPrivateKey from the Jostle provider");
-    }
+    // Foreign-key translation lives in ECKeyImport (shared with the
+    // key-agreement SPIs); see ECKeyImport.importPublic / importPrivate.
 
 
     @Override
@@ -113,7 +65,7 @@ public class ECDSASignatureSpi extends SignatureSpi
     {
         try
         {
-            JOECPublicKey key = importPublic(publicKey);
+            JOECPublicKey key = ECKeyImport.importPublic(publicKey);
             lastKey = key;
 
             ensureRef();
@@ -138,7 +90,7 @@ public class ECDSASignatureSpi extends SignatureSpi
 
         try
         {
-            JOECPrivateKey key = importPrivate(privateKey);
+            JOECPrivateKey key = ECKeyImport.importPrivate(privateKey);
             lastKey = key;
 
             ensureRef();

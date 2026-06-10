@@ -486,7 +486,7 @@ public class XDHTest
         }
         catch (InvalidKeyException expected)
         {
-            Assertions.assertEquals("XDH init: expected a Jostle-provider XDH private key",
+            Assertions.assertEquals("XDH init: expected an XDH private key",
                     expected.getMessage());
         }
     }
@@ -508,7 +508,7 @@ public class XDHTest
         }
         catch (InvalidKeyException expected)
         {
-            Assertions.assertEquals("XDH doPhase: expected a Jostle-provider XDH public key",
+            Assertions.assertEquals("XDH doPhase: expected an XDH public key",
                     expected.getMessage());
         }
     }

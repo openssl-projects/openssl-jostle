@@ -955,6 +955,39 @@ int32_t block_cipher_ctx_update(
         // Key-wrap output differs from the input by the 8-byte integrity block
         // in either direction. The output buffer is sized by get_update_size /
         // final_size, and OpenSSL fails closed on a short buffer.
+    } else if (ctx->streaming == 0 && ctx->mode_id != XTS && ctx->tag_len == 0) {
+        if (!ctx->initialized) {
+            // cipher_block_size is unset (0) before init — the block-aware
+            // check below would divide by zero. Keep the legacy in_len check
+            // so the error-code precedence is unchanged; the
+            // JO_NOT_INITIALIZED return below fires before any EVP call.
+            if (out_len < in_len) {
+                return JO_OUTPUT_TOO_SMALL;
+            }
+        } else {
+            // Non-streaming block modes (ECB/CBC): EVP buffers partial blocks
+            // across update calls, so a single update can emit MORE than
+            // in_len (previously buffered bytes complete a block). Padded
+            // decrypt additionally flushes the held-back final block and
+            // writes the new candidate block before retracting it from the
+            // reported count. Require the same bound
+            // block_cipher_get_update_size advertises — a plain
+            // `out_len < in_len` check let direct callers hand EVP a window
+            // it writes past.
+            size_t remaining = ctx->processed % ctx->cipher_block_size;
+            size_t need = ctx->cipher_block_size * ((remaining + in_len) / ctx->cipher_block_size);
+            if (ctx->op_mode == DECRYPT_MODE && ctx->padding == PADDED
+                && ctx->processed >= ctx->cipher_block_size && remaining == 0) {
+                // Held-back final block gets flushed ahead of the new data.
+                need += ctx->cipher_block_size;
+            }
+            if (need < in_len) {
+                need = in_len;
+            }
+            if (out_len < need) {
+                return JO_OUTPUT_TOO_SMALL;
+            }
+        }
     } else if (ctx->op_mode == ENCRYPT_MODE || ctx->tag_len == 0) {
         if (out_len < in_len) {
             return JO_OUTPUT_TOO_SMALL;
@@ -1162,8 +1195,26 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         size_t total = len + partial_block;
         size_t left_over = total % ctx->cipher_block_size;
 
-        if (left_over == 0) {
-            len = (ctx->op_mode == ENCRYPT_MODE) ? total + ctx->cipher_block_size : total;
+        if (ctx->op_mode == DECRYPT_MODE) {
+            // Padded decrypt: EVP retains the final ciphertext block across
+            // update calls (released only by DecryptFinal after the padding
+            // strip), and DecryptUpdate both flushes that held block to the
+            // output AND writes the new candidate block before retracting it
+            // from the reported count. The bytes the update+final pair may
+            // touch are exactly `aligned` (whole blocks completed from
+            // buffered + new input — written even when retracted from the
+            // count) plus one block when a held-back block exists from a
+            // prior update (processed a positive block multiple). The
+            // encrypt-shaped formula said `total` and let EVP write past the
+            // staged buffer (CBC_DECRYPT_UPDATE_BUFFERING_GAP.md). No
+            // unconditional +block: one-shot callers legitimately size the
+            // output at the ciphertext length, as SunJCE/BC permit.
+            size_t aligned = total - left_over;
+            size_t flush = (ctx->processed >= ctx->cipher_block_size && partial_block == 0)
+                                   ? ctx->cipher_block_size : 0;
+            len = aligned + flush;
+        } else if (left_over == 0) {
+            len = total + ctx->cipher_block_size;
         } else {
             len = total - left_over + ctx->cipher_block_size;
         }
@@ -1185,13 +1236,21 @@ int32_t internal_final_size(block_cipher_ctx *ctx) {
     // Padding-block accounting only applies to non-streaming PADDED modes.
     if (ctx->padding == PADDED && ctx->streaming == 0) {
         size_t partial_block = ctx->processed % ctx->cipher_block_size;
-        size_t total = partial_block;
-        size_t left_over = total % ctx->cipher_block_size;
 
-        if (left_over == 0) {
-            len = (ctx->op_mode == ENCRYPT_MODE) ? total + ctx->cipher_block_size : total;
+        if (ctx->op_mode == DECRYPT_MODE) {
+            // DecryptFinal releases the held-back final block (minus padding,
+            // so up to block_size - 1 bytes) — but ONLY when the ciphertext
+            // consumed so far is a whole number of blocks. A misaligned or
+            // empty ciphertext makes DecryptFinal fail without writing, and
+            // requiring capacity then would mask the JO_INVALID_CIPHER_TEXT
+            // the caller should see.
+            if (ctx->processed >= ctx->cipher_block_size && partial_block == 0) {
+                len = ctx->cipher_block_size;
+            }
         } else {
-            len = total - left_over + ctx->cipher_block_size;
+            // Encrypt: EncryptFinal emits the buffered partial block plus
+            // padding — always exactly one block.
+            len = ctx->cipher_block_size;
         }
     }
 
@@ -1412,6 +1471,22 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
         size_t remaining = ctx->processed % ctx->cipher_block_size;
         size_t aligned = ctx->cipher_block_size * ((remaining + len) / ctx->cipher_block_size);
         result = aligned > len ? aligned : len;
+
+        if (ctx->op_mode == DECRYPT_MODE && ctx->padding == PADDED) {
+            // Padded decrypt writes more than the encrypt-shaped `aligned`
+            // bound: EVP flushes the held-back final block from a previous
+            // update (one extra block at the head of the output, present
+            // exactly when `processed` is a positive block multiple) and
+            // writes the new candidate block before retracting it from the
+            // reported count (covered by `aligned`). Without the flush term
+            // EVP wrote past the staged buffer
+            // (CBC_DECRYPT_UPDATE_BUFFERING_GAP.md).
+            if (ctx->processed >= ctx->cipher_block_size && remaining == 0) {
+                result = aligned + ctx->cipher_block_size;
+            } else {
+                result = aligned > len ? aligned : len;
+            }
+        }
     }
 
     // Output overflow gate — `aligned` is `block_size * ((remaining + len)

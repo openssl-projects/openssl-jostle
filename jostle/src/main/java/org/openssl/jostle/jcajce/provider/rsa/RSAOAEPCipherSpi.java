@@ -15,8 +15,6 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.RSAKey;
-import org.openssl.jostle.jcajce.interfaces.RSAPrivateKey;
-import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
@@ -246,24 +244,21 @@ public class RSAOAEPCipherSpi extends CipherSpi
             long keyRef;
             if (opmode == Cipher.ENCRYPT_MODE || opmode == Cipher.WRAP_MODE)
             {
-                if (!(key instanceof RSAPublicKey))
-                {
-                    throw new InvalidKeyException("encrypt/wrap requires an RSAPublicKey");
-                }
-                lastKey = (RSAKey) key; // pin reachable across native call
-                keyRef = ((JORSAPublicKey) key).getSpec().getReference();
-                modulusBytes = bigIntByteLen(((java.security.interfaces.RSAPublicKey) key).getModulus());
+                // Accept any RSAPublicKey (incl. a foreign cert key) by
+                // translating to a JSL key; pin the JSL key, which owns the
+                // native handle, reachable across the native call.
+                JORSAPublicKey pub = RSAKeyImport.importPublic(key, "encrypt/wrap requires an RSAPublicKey");
+                lastKey = pub;
+                keyRef = pub.getSpec().getReference();
+                modulusBytes = bigIntByteLen(pub.getModulus());
                 this.opMode = RSAOAEPCipherNI.OP_ENCRYPT;
             }
             else if (opmode == Cipher.DECRYPT_MODE || opmode == Cipher.UNWRAP_MODE)
             {
-                if (!(key instanceof RSAPrivateKey))
-                {
-                    throw new InvalidKeyException("decrypt/unwrap requires an RSAPrivateKey");
-                }
-                lastKey = (RSAKey) key; // pin reachable across native call
-                keyRef = ((JORSAPrivateKey) key).getSpec().getReference();
-                modulusBytes = bigIntByteLen(((RSAKey) key).getModulus());
+                JORSAPrivateKey priv = RSAKeyImport.importPrivate(key, "decrypt/unwrap requires an RSAPrivateKey");
+                lastKey = priv;
+                keyRef = priv.getSpec().getReference();
+                modulusBytes = bigIntByteLen(priv.getModulus());
                 this.opMode = RSAOAEPCipherNI.OP_DECRYPT;
             }
             else

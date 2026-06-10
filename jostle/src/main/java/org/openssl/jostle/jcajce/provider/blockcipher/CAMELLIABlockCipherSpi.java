@@ -81,6 +81,14 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
         determineOSSLCipher(key.getEncoded().length);
         // TODO: we should have a list of ParameterSpec to try here.
 
+        if (params == null)
+        {
+            // JCE auto-IV pattern: init with no parameters — the base SPI
+            // generates the IV for encryption (DESEDE_AUTO_IV_GAP.md covers
+            // the identical NPE this guard prevents).
+            super.engineInit(opmode, key, (AlgorithmParameterSpec) null, random);
+            return;
+        }
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
