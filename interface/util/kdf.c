@@ -132,7 +132,7 @@ exit:
 }
 
 
-int32_t hkdf(
+int32_t kdf_hkdf(
     uint8_t *ikm, size_t ikm_len,
     uint8_t *salt, size_t salt_len,
     uint8_t *info, size_t info_len,
@@ -154,7 +154,7 @@ int32_t hkdf(
 
     kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "HKDF", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
-        ret = JO_OPENSSL_ERROR;
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3002);
         goto exit;
     }
 
@@ -176,7 +176,11 @@ int32_t hkdf(
     params[idx++] = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode);
     params[idx++] = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, (char *) digest, digest_len);
     params[idx++] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, ikm, ikm_len);
-    if (salt != NULL) {
+    // Uniform guards: a zero-length salt/info is deliberately treated the same
+    // as an absent one. For the salt the two forms are RFC-equivalent anyway —
+    // an empty HMAC key is padded to HashLen zeros, which is exactly the
+    // RFC 5869 default-salt behaviour the omitted param produces.
+    if (salt != NULL && salt_len > 0) {
         params[idx++] = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt, salt_len);
     }
     if (info != NULL && info_len > 0) {

@@ -585,6 +585,295 @@ public class AESParametersTest
                 "the well-formed baseline encoding must parse");
     }
 
+    /**
+     * Cross-provider agreement for the hand-rolled CCM codec: BouncyCastle
+     * ships {@code AlgorithmParameters "CCM"}, so validate both directions per
+     * ICV value — a wrong-but-self-consistent codec passes its own round-trip
+     * but not this. The BC→JSL direction is what catches DEFAULT-omission
+     * disagreements (BC may emit the explicit-default ICV INTEGER).
+     */
+    @Test
+    public void ccmAlgorithmParameters_agreeWithBouncyCastle() throws Exception
+    {
+        SecureRandom random = seededRandom("ccmAlgorithmParameters_agreeWithBouncyCastle");
+
+        for (int icvBytes : new int[]{8, 12, 16})
+        {
+            byte[] nonce = new byte[7 + random.nextInt(7)]; // 7..13
+            random.nextBytes(nonce);
+            int tagBits = icvBytes * 8;
+
+            // JSL encodes → BC parses.
+            AlgorithmParameters jsl = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+            jsl.init(new GCMParameterSpec(tagBits, nonce));
+            AlgorithmParameters bc = AlgorithmParameters.getInstance("CCM", BouncyCastleProvider.PROVIDER_NAME);
+            bc.init(jsl.getEncoded());
+            GCMParameterSpec bcSpec = bc.getParameterSpec(GCMParameterSpec.class);
+            Assertions.assertArrayEquals(nonce, bcSpec.getIV(),
+                    "icv=" + icvBytes + ": BC read a different nonce from JSL's CCM encoding");
+            Assertions.assertEquals(tagBits, bcSpec.getTLen(),
+                    "icv=" + icvBytes + ": BC read a different ICV from JSL's CCM encoding");
+
+            // BC encodes → JSL parses.
+            AlgorithmParameters bcOut = AlgorithmParameters.getInstance("CCM", BouncyCastleProvider.PROVIDER_NAME);
+            bcOut.init(new GCMParameterSpec(tagBits, nonce));
+            AlgorithmParameters jslIn = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+            jslIn.init(bcOut.getEncoded());
+            GCMParameterSpec jslSpec = jslIn.getParameterSpec(GCMParameterSpec.class);
+            Assertions.assertArrayEquals(nonce, jslSpec.getIV(),
+                    "icv=" + icvBytes + ": JSL read a different nonce from BC's CCM encoding");
+            Assertions.assertEquals(tagBits, jslSpec.getTLen(),
+                    "icv=" + icvBytes + ": JSL read a different ICV from BC's CCM encoding");
+        }
+    }
+
+    /**
+     * The motivating CBC use case is the REVERSE of {@code
+     * cbcAlgorithmParametersResolveByOid}: JSL parsing IV bytes another
+     * provider produced (BC's PBES2 / PKCS#8 / PKCS#12 decrypt side).
+     */
+    @Test
+    public void cbcAlgorithmParameters_parseForeignEncoding() throws Exception
+    {
+        SecureRandom random = seededRandom("cbcAlgorithmParameters_parseForeignEncoding");
+        byte[] iv = new byte[16];
+        random.nextBytes(iv);
+
+        // BC produces the encoding; JSL (by OID) parses it.
+        AlgorithmParameters bc = AlgorithmParameters.getInstance(AES256_CBC_OID, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(new IvParameterSpec(iv));
+        AlgorithmParameters jsl = AlgorithmParameters.getInstance(AES256_CBC_OID, JostleProvider.PROVIDER_NAME);
+        jsl.init(bc.getEncoded());
+        Assertions.assertArrayEquals(iv, jsl.getParameterSpec(IvParameterSpec.class).getIV(),
+                "JSL could not parse BC's AES-CBC parameter encoding");
+
+        // ...and the parsed parameters drive a real decrypt of a BC ciphertext.
+        SecretKey key = aes256Key(random);
+        byte[] msg = new byte[48];
+        random.nextBytes(msg);
+        Cipher bcEnc = Cipher.getInstance(CBC, BouncyCastleProvider.PROVIDER_NAME);
+        bcEnc.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+        byte[] ct = bcEnc.doFinal(msg);
+
+        Cipher jslDec = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+        jslDec.init(Cipher.DECRYPT_MODE, key, jsl);
+        Assertions.assertArrayEquals(msg, jslDec.doFinal(ct),
+                "CBC decrypt from a foreign-encoded IV failed");
+    }
+
+    /**
+     * GCM bare-name params, reverse direction: JSL parses bytes the PLATFORM
+     * produced (the existing name test only proves the platform parses JSL's).
+     */
+    @Test
+    public void gcmAlgorithmParameters_parsePlatformEncoding() throws Exception
+    {
+        SecureRandom random = seededRandom("gcmAlgorithmParameters_parsePlatformEncoding");
+        byte[] iv = new byte[12];
+        random.nextBytes(iv);
+
+        AlgorithmParameters platform = AlgorithmParameters.getInstance("GCM");
+        platform.init(new GCMParameterSpec(96, iv));
+
+        AlgorithmParameters jsl = AlgorithmParameters.getInstance("GCM", JostleProvider.PROVIDER_NAME);
+        jsl.init(platform.getEncoded());
+        GCMParameterSpec spec = jsl.getParameterSpec(GCMParameterSpec.class);
+        Assertions.assertArrayEquals(iv, spec.getIV(), "JSL read a different nonce from the platform encoding");
+        Assertions.assertEquals(96, spec.getTLen(), "JSL read a different tag length from the platform encoding");
+    }
+
+    /**
+     * CCM nonce boundary probes at exactly min-1 / min / max / max+1 (7..13
+     * valid), on BOTH the spec-init side and the DER decode side, plus the
+     * invalid-ICV, null-nonce and wrong-type spec-init negatives the decode
+     * tests can't reach.
+     */
+    @Test
+    public void ccmAlgorithmParameters_boundariesAndSpecNegatives() throws Exception
+    {
+        SecureRandom random = seededRandom("ccmAlgorithmParameters_boundariesAndSpecNegatives");
+
+        // Spec-init side: 6 rejected, 7 and 13 accepted, 14 rejected.
+        for (int len : new int[]{7, 13})
+        {
+            byte[] nonce = new byte[len];
+            random.nextBytes(nonce);
+            AlgorithmParameters ok = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+            ok.init(new GCMParameterSpec(96, nonce));
+            Assertions.assertEquals(len, ok.getParameterSpec(GCMParameterSpec.class).getIV().length);
+        }
+        for (int len : new int[]{6, 14})
+        {
+            byte[] nonce = new byte[len];
+            random.nextBytes(nonce);
+            AlgorithmParameters bad = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+            Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+                    () -> bad.init(new GCMParameterSpec(96, nonce)),
+                    len + "-byte CCM nonce must be rejected at spec init");
+        }
+
+        // Decode side at the same boundaries: 6-byte nonce rejected, 7 accepted,
+        // 13 accepted, 14 rejected.
+        Assertions.assertThrows(java.io.IOException.class,
+                () -> decodeCcm(derCcm(6)), "6-byte nonce DER must be rejected");
+        Assertions.assertEquals(7, decodeCcm(derCcm(7)).getIV().length);
+        Assertions.assertEquals(13, decodeCcm(derCcm(13)).getIV().length);
+        Assertions.assertThrows(java.io.IOException.class,
+                () -> decodeCcm(derCcm(14)), "14-byte nonce DER must be rejected");
+
+        // ICV negatives at spec init: 40 bits (icv 5) and 24 bits (icv 3) are
+        // byte-aligned but not in the RFC 5084 set.
+        byte[] nonce = new byte[12];
+        random.nextBytes(nonce);
+        for (int badBits : new int[]{24, 40})
+        {
+            AlgorithmParameters bad = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+            Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+                    () -> bad.init(new GCMParameterSpec(badBits, nonce)),
+                    badBits + "-bit CCM ICV must be rejected");
+        }
+
+        // Null spec / wrong-type spec. (A null NONCE can't be probed through
+        // the public spec types — GCMParameterSpec and IvParameterSpec both
+        // reject a null IV in their own constructors, so the codec's null-nonce
+        // branch is defensive only.)
+        AlgorithmParameters p2 = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+                () -> p2.init((java.security.spec.AlgorithmParameterSpec) null));
+        AlgorithmParameters p3 = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+                () -> p3.init(new javax.crypto.spec.PBEParameterSpec(new byte[8], 1)));
+    }
+
+    /** Build SEQUENCE { OCTET STRING nonce(len) } with the default (omitted) ICV. */
+    private static byte[] derCcm(int nonceLen)
+    {
+        byte[] out = new byte[4 + nonceLen];
+        out[0] = 0x30;
+        out[1] = (byte) (2 + nonceLen);
+        out[2] = 0x04;
+        out[3] = (byte) nonceLen;
+        for (int i = 0; i < nonceLen; i++)
+        {
+            out[4 + i] = (byte) i;
+        }
+        return out;
+    }
+
+    private static GCMParameterSpec decodeCcm(byte[] der) throws Exception
+    {
+        AlgorithmParameters params = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        params.init(der);
+        return params.getParameterSpec(GCMParameterSpec.class);
+    }
+
+    /**
+     * BER-permissive decode pin: an encoding that carries the explicit-DEFAULT
+     * {@code INTEGER 12} (which strict DER omits, but a foreign encoder may
+     * emit) is accepted and reads back as ICV 12. Locks the tolerant-decode /
+     * strict-encode posture so a future "tighten the decoder" change is
+     * deliberate.
+     */
+    @Test
+    public void ccmAlgorithmParameters_acceptsExplicitDefaultIcv() throws Exception
+    {
+        byte[] octetString = {0x04, 0x0c, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b};
+        byte[] explicitDefault = concat(concat(new byte[]{0x30, 0x11}, octetString), new byte[]{0x02, 0x01, 0x0c});
+
+        GCMParameterSpec spec = decodeCcm(explicitDefault);
+        Assertions.assertEquals(96, spec.getTLen(), "explicit-DEFAULT ICV 12 must decode to 96 bits");
+
+        // ...and re-encoding produces the canonical (DEFAULT-omitted) DER form.
+        AlgorithmParameters params = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        params.init(explicitDefault);
+        byte[] reEncoded = params.getEncoded();
+        byte[] canonical = concat(new byte[]{0x30, 0x0e}, octetString);
+        Assertions.assertArrayEquals(canonical, reEncoded,
+                "re-encode of an explicit-DEFAULT input must produce the canonical omitted form");
+    }
+
+    /** IvParameterSpec extraction + uninitialised-state guards on the CCM params. */
+    @Test
+    public void ccmAlgorithmParameters_ivSpecAndGuards() throws Exception
+    {
+        SecureRandom random = seededRandom("ccmAlgorithmParameters_ivSpecAndGuards");
+        byte[] nonce = new byte[13];
+        random.nextBytes(nonce);
+
+        AlgorithmParameters params = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        params.init(new GCMParameterSpec(128, nonce));
+        Assertions.assertArrayEquals(nonce, params.getParameterSpec(IvParameterSpec.class).getIV(),
+                "IvParameterSpec extraction must return the nonce");
+
+        AlgorithmParameters fresh = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+                () -> fresh.getParameterSpec(GCMParameterSpec.class),
+                "getParameterSpec before init must throw InvalidParameterSpecException");
+        Assertions.assertThrows(java.io.IOException.class, fresh::getEncoded,
+                "getEncoded before init must throw IOException");
+    }
+
+    /**
+     * Cipher integration for the newly-wired {@code CCMCipherSpi.engineGetParameters}:
+     * the returned parameters must carry the ACTUAL session nonce + ICV (not
+     * defaults) and drive the decrypt — mirroring the GCM/OCB round-trip tests.
+     */
+    @Test
+    public void ccmCipherExposesParameters() throws Exception
+    {
+        SecureRandom random = seededRandom("ccmCipherExposesParameters");
+        SecretKey key = aes256Key(random);
+        byte[] nonce = new byte[7 + random.nextInt(7)];
+        random.nextBytes(nonce);
+        byte[] msg = new byte[37];
+        random.nextBytes(msg);
+
+        Cipher enc = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(64, nonce));
+        AlgorithmParameters params = enc.getParameters();
+        Assertions.assertNotNull(params, "CCM cipher must expose AlgorithmParameters after init");
+        GCMParameterSpec spec = params.getParameterSpec(GCMParameterSpec.class);
+        Assertions.assertArrayEquals(nonce, spec.getIV(), "exposed params must carry the session nonce");
+        Assertions.assertEquals(64, spec.getTLen(), "exposed params must carry the session ICV");
+
+        byte[] ct = enc.doFinal(msg);
+        Cipher dec = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, key, params);
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                "CCM round-trip via getParameters() failed");
+    }
+
+    /**
+     * An AEAD-shaped spec (BC's {@code AEADParameterSpec}) on a NON-AEAD mode
+     * must be rejected — silently falling into the IvParameterSpec branch would
+     * drop its tag length and AAD, the exact failure mode the reflective
+     * accessor exists to prevent. BC rejects this combination too.
+     */
+    @Test
+    public void aeadSpecRejectedOnNonAeadMode() throws Exception
+    {
+        SecureRandom random = seededRandom("aeadSpecRejectedOnNonAeadMode");
+        SecretKey key = aes256Key(random);
+        byte[] iv = new byte[16];
+        random.nextBytes(iv);
+        byte[] aad = new byte[8];
+        random.nextBytes(aad);
+
+        Cipher cbc = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+        try
+        {
+            cbc.init(Cipher.ENCRYPT_MODE, key,
+                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, aad), random);
+            Assertions.fail("AEADParameterSpec on AES/CBC must be rejected");
+        }
+        catch (InvalidAlgorithmParameterException expected)
+        {
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith("AEAD parameter spec cannot be used with non-AEAD mode"),
+                    "unexpected message: " + expected.getMessage());
+        }
+    }
+
     private static byte[] concat(byte[] a, byte[] b)
     {
         byte[] out = new byte[a.length + b.length];

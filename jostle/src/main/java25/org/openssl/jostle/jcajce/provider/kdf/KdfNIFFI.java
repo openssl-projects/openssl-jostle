@@ -46,7 +46,7 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.JAVA_LONG, // salt_len
                         ValueLayout.JAVA_INT, // iter
                         ValueLayout.ADDRESS, // digest name as bytes
-                        ValueLayout.JAVA_LONG, // length of digest name + null terminus
+                        ValueLayout.JAVA_LONG, // length of digest name (excluding null terminus)
                         ValueLayout.ADDRESS, // output
                         ValueLayout.JAVA_LONG, // output_size -- total length of output array
                         ValueLayout.JAVA_INT, // output offset
@@ -72,7 +72,7 @@ public class KdfNIFFI implements KdfNI
                 ), Linker.Option.critical(true));
 
 
-        hkdf = lookup.find("KDF_HKDF").orElseThrow();
+        hkdf = lookup.find("JoKDF_HKDF").orElseThrow();
         hkdfFuncHandle = linker.downcallHandle(hkdf,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -83,7 +83,7 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.ADDRESS, // info
                         ValueLayout.JAVA_LONG, // info_len
                         ValueLayout.ADDRESS, // digest name as bytes
-                        ValueLayout.JAVA_LONG, // length of digest name + null terminus
+                        ValueLayout.JAVA_LONG, // length of digest name (excluding null terminus)
                         ValueLayout.ADDRESS, // output
                         ValueLayout.JAVA_LONG, // output_size -- total length of output array
                         ValueLayout.JAVA_INT, // output offset

@@ -214,4 +214,197 @@ public class HkdfTest
         Assertions.assertFalse(Arrays.areEqual(base, sha512),
                 "different digest must produce a different derived key");
     }
+
+    /**
+     * RFC 5869 Test Case 2 (HMAC-SHA-256, longer inputs/output) — exercises the
+     * long-input HMAC paths the short vector cannot. The expected bytes are
+     * cross-checked against BouncyCastle first so a transcription error in the
+     * pinned vector is distinguishable from an implementation bug.
+     */
+    @Test
+    public void testRFC5869Vector2() throws Exception
+    {
+        byte[] ikm = new byte[80];
+        byte[] salt = new byte[80];
+        byte[] info = new byte[80];
+        for (int i = 0; i < 80; i++)
+        {
+            ikm[i] = (byte) i;            // 0x00..0x4f
+            salt[i] = (byte) (0x60 + i);  // 0x60..0xaf
+            info[i] = (byte) (0xb0 + i);  // 0xb0..0xff
+        }
+        int len = 82;
+        byte[] expected = Hex.decode(
+                "b11e398dc80327a1c8e7f78c596a4934" +
+                "4f012eda2d4efad8a050cc4c19afa97c" +
+                "59045a99cac7827271cb41c65e590e09" +
+                "da3275600c2f09b8367793a9aca3db71" +
+                "cc30c58179ec3e87c14c01d5c1f3434f" +
+                "1d87");
+
+        Assertions.assertArrayEquals(expected, bcHkdf(new SHA256Digest(), ikm, salt, info, len),
+                "RFC 5869 Test Case 2: BC disagrees with the pinned vector (vector transcription?)");
+        Assertions.assertArrayEquals(expected, jostleHkdf("HKDF-SHA256", ikm, salt, info, len),
+                "RFC 5869 Test Case 2 mismatch");
+    }
+
+    /**
+     * RFC 5869 Test Case 3 (HMAC-SHA-256, zero-length salt AND zero-length
+     * info) — the published pin for exactly the code paths this surface
+     * hand-rolls: the spec's empty-salt → null normalisation and the C-side
+     * conditional omission of the SALT / INFO params.
+     */
+    @Test
+    public void testRFC5869Vector3() throws Exception
+    {
+        byte[] ikm = Hex.decode("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
+        int len = 42;
+        byte[] expected = Hex.decode(
+                "8da4e775a563c18f715f802a063c5a31" +
+                "b8a11f5c5ee1879ec3454e5f3c738d2d" +
+                "9d201395faa4b61a96c8");
+
+        Assertions.assertArrayEquals(expected, bcHkdf(new SHA256Digest(), ikm, null, new byte[0], len),
+                "RFC 5869 Test Case 3: BC disagrees with the pinned vector (vector transcription?)");
+        Assertions.assertArrayEquals(expected, jostleHkdf("HKDF-SHA256", ikm, new byte[0], new byte[0], len),
+                "RFC 5869 Test Case 3 mismatch");
+        Assertions.assertArrayEquals(expected, jostleHkdf("HKDF-SHA256", ikm, null, null, len),
+                "RFC 5869 Test Case 3 (null salt/info form) mismatch");
+    }
+
+    /**
+     * JCE-surface negative paths: every rejection must surface as the checked
+     * {@link java.security.spec.InvalidKeySpecException} from
+     * {@code SecretKeyFactory.generateSecret} — never an unchecked exception
+     * leaking from the NI layer.
+     */
+    @Test
+    public void testNegativePaths() throws Exception
+    {
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", JostleProvider.PROVIDER_NAME);
+
+        try
+        {
+            kf.generateSecret(null);
+            Assertions.fail("null KeySpec must be rejected");
+        } catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("unsupported KeySpec null", e.getMessage());
+        }
+
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(null, new byte[4], new byte[4], 32));
+            Assertions.fail("null IKM must be rejected");
+        } catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("ikm is null", e.getMessage());
+        }
+
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(new byte[16], null, null, 0));
+            Assertions.fail("zero output length must be rejected");
+        } catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("output length must be positive", e.getMessage());
+        }
+
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(new byte[16], null, null, -1));
+            Assertions.fail("negative output length must be rejected");
+        } catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("output length must be positive", e.getMessage());
+        }
+
+        // A spec without the HKDF accessor contract must be rejected with the
+        // checked type, not a reflective unchecked failure.
+        try
+        {
+            kf.generateSecret(new javax.crypto.spec.PBEKeySpec("pwd".toCharArray()));
+            Assertions.fail("structurally-incompatible KeySpec must be rejected");
+        } catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("unsupported KeySpec "),
+                    "unexpected message: " + e.getMessage());
+        }
+    }
+
+    /**
+     * RFC 5869 expand-limit boundary: 255 * HashLen (8160 bytes for SHA-256)
+     * must derive (and agree with BC); 8161 must be rejected with the checked
+     * exception — not an allocation followed by an opaque native error.
+     */
+    @Test
+    public void testOutputLengthBoundary() throws Exception
+    {
+        SecureRandom sr = seededRandom("testOutputLengthBoundary");
+        byte[] ikm = random(32, sr);
+        byte[] salt = random(16, sr);
+
+        int max = 255 * 32; // 8160 for SHA-256
+        byte[] jo = jostleHkdf("HKDF-SHA256", ikm, salt, null, max);
+        byte[] bc = bcHkdf(new SHA256Digest(), ikm, salt, null, max);
+        Assertions.assertArrayEquals(bc, jo, "255 * HashLen output disagreed with BC");
+
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(ikm, salt, null, max + 1));
+            Assertions.fail("output length past 255 * HashLen must be rejected");
+        } catch (java.security.spec.InvalidKeySpecException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("output length exceeds RFC 5869 limit"),
+                    "unexpected message: " + e.getMessage());
+        }
+    }
+
+    /**
+     * The reflective foreign-spec branch must accept BouncyCastle's
+     * {@code org.bouncycastle.jcajce.spec.HKDFParameterSpec} (same accessor
+     * contract, output length in bytes) and derive byte-identically to the
+     * Jostle spec for the same inputs.
+     */
+    @Test
+    public void testForeignBCSpecAccepted() throws Exception
+    {
+        SecureRandom sr = seededRandom("testForeignBCSpecAccepted");
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", JostleProvider.PROVIDER_NAME);
+
+        for (int trial = 0; trial < 10; trial++)
+        {
+            byte[] ikm = random(1 + sr.nextInt(64), sr);
+            byte[] salt = random(sr.nextInt(32), sr);
+            byte[] info = random(sr.nextInt(32), sr);
+            int len = 1 + sr.nextInt(96);
+
+            byte[] viaForeign = kf.generateSecret(
+                    new org.bouncycastle.jcajce.spec.HKDFParameterSpec(ikm, salt, info, len)).getEncoded();
+            byte[] viaNative = jostleHkdf("HKDF-SHA256", ikm, salt, info, len);
+
+            Assertions.assertArrayEquals(viaNative, viaForeign,
+                    "BC HKDFParameterSpec derived differently from the Jostle spec (trial " + trial + ")");
+        }
+    }
+
+    /**
+     * Zero-length IKM is RFC-legal (HMAC pads an empty key) and must agree
+     * with BC — and, critically, behave identically on the JNI and FFI bridges
+     * (this pins the FFI marshaling of a zero-length heap array; the suite
+     * runs this test on both bridges).
+     */
+    @Test
+    public void testEmptyIkmAgreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("testEmptyIkmAgreesWithBC");
+        byte[] salt = random(16, sr);
+        byte[] info = random(16, sr);
+        int len = 42;
+
+        byte[] bc = bcHkdf(new SHA256Digest(), new byte[0], salt, info, len);
+        byte[] jo = jostleHkdf("HKDF-SHA256", new byte[0], salt, info, len);
+        Assertions.assertArrayEquals(bc, jo, "empty-IKM HKDF disagreed with BouncyCastle");
+    }
 }

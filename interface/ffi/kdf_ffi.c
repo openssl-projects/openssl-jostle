@@ -178,7 +178,10 @@ exit:
 }
 
 
-int32_t KDF_HKDF(
+// Jo-prefixed per the FFI symbol-collision rule (native-code.md): "HKDF" is a
+// generic enough name that an unprefixed export risks shadowing/being shadowed
+// by another in-process library. (KDF_PBKDF2 / KDF_SCRYPT predate the rule.)
+int32_t JoKDF_HKDF(
     uint8_t *ikm, size_t ikm_len,
     uint8_t *salt, size_t salt_len,
     uint8_t *info, size_t info_len,
@@ -228,7 +231,7 @@ int32_t KDF_HKDF(
 
     uint8_t *out = output + out_offset;
 
-    ret_code = hkdf(
+    ret_code = kdf_hkdf(
         ikm, ikm_len,
         salt, salt_len,
         info, info_len,
