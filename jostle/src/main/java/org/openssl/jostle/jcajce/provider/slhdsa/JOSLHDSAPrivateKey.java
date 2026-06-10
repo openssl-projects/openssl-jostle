@@ -46,7 +46,8 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
     @Override
     public byte[] getEncoded()
     {
-        return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+        // FIPS 205: AlgorithmIdentifier parameters MUST be absent.
+        return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getDirectEncoding()

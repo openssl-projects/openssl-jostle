@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.util.Strings;
+
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.*;
 
@@ -20,7 +22,7 @@ public class MLKEMParameterSpec implements AlgorithmParameterSpec
     public static final MLKEMParameterSpec ml_kem_768 = new MLKEMParameterSpec("ML-KEM-768", OSSLKeyType.ML_KEM_768);
     public static final MLKEMParameterSpec ml_kem_1024 = new MLKEMParameterSpec("ML-KEM-1024", OSSLKeyType.ML_KEM_1024);
 
-    private static final Map parameters = new HashMap();
+    private static final Map<String, MLKEMParameterSpec> parameters = new HashMap<>();
 
     private static final Set<MLKEMParameterSpec> parameterSpecs = Collections.unmodifiableSet(new HashSet<MLKEMParameterSpec>()
     {
@@ -45,15 +47,11 @@ public class MLKEMParameterSpec implements AlgorithmParameterSpec
         parameters.put("ml-kem-768", MLKEMParameterSpec.ml_kem_768);
         parameters.put("ml-kem-1024", MLKEMParameterSpec.ml_kem_1024);
 
-        parameters.put("kyber512", MLKEMParameterSpec.ml_kem_512);
-        parameters.put("kyber768", MLKEMParameterSpec.ml_kem_768);
-        parameters.put("kyber1024", MLKEMParameterSpec.ml_kem_1024);
-
-        parameters.put(OSSLKeyType.ML_KEM_512, ml_kem_512);
-        parameters.put(OSSLKeyType.ML_KEM_768, ml_kem_768);
-        parameters.put(OSSLKeyType.ML_KEM_1024, ml_kem_1024);
-
-
+        // Short aliases (no hyphens), matching the "MLKEM512" alias form used by
+        // OSSLKeyType. Looked up case-insensitively via fromName's toLowerCase.
+        parameters.put("mlkem512", MLKEMParameterSpec.ml_kem_512);
+        parameters.put("mlkem768", MLKEMParameterSpec.ml_kem_768);
+        parameters.put("mlkem1024", MLKEMParameterSpec.ml_kem_1024);
     }
 
     private final String name;
@@ -113,14 +111,17 @@ public class MLKEMParameterSpec implements AlgorithmParameterSpec
     {
         if (name == null)
         {
-            throw new IllegalArgumentException("name cannot be null");
+            throw new NullPointerException("name cannot be null");
         }
-        MLKEMParameterSpec spec = (MLKEMParameterSpec) parameters.get(name);
-        if (spec == null)
+
+        MLKEMParameterSpec parameterSpec = (MLKEMParameterSpec)parameters.get(Strings.toLowerCase(name));
+
+        if (parameterSpec == null)
         {
-            throw new IllegalArgumentException("Unknown MLKEM parameter spec: " + name);
+            throw new IllegalArgumentException("unknown parameter name: " + name);
         }
-        return spec;
+
+        return parameterSpec;
     }
 
     public static Set<MLKEMParameterSpec> getParameterSpecs()

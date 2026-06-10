@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKey;
+import javax.crypto.interfaces.PBEKey;
 import javax.security.auth.DestroyFailedException;
 import javax.security.auth.Destroyable;
 import java.io.Serializable;
@@ -22,7 +23,7 @@ import java.security.spec.KeySpec;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class JOScryptKey implements KeySpec, SecretKey, Destroyable, Serializable
+class JOScryptKey implements KeySpec, PBEKey, Destroyable, Serializable
 {
     private final AtomicBoolean hasBeenDestroyed = new AtomicBoolean(false);
     private static final long serialVersionUID = 658060872465898190L;
@@ -82,6 +83,21 @@ class JOScryptKey implements KeySpec, SecretKey, Destroyable, Serializable
     {
         checkDestroyed(this);
         return p;
+    }
+
+    /**
+     * PBEKey contract. scrypt has no PBKDF-style iteration count; the closest
+     * analogue is the CPU/memory cost parameter N (also available, unambiguously,
+     * via {@link #getCostParameter()}). Implementing {@link PBEKey} marks this as
+     * password-derived key material so a block cipher accepts it directly in a
+     * PBES2 flow; the value is informational — the raw key bytes are already
+     * derived and used via {@link #getEncoded()}.
+     */
+    @Override
+    public int getIterationCount()
+    {
+        checkDestroyed(this);
+        return n;
     }
 
     @Override

@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.spec;
 
 // ksType values must match macros in key_spec.h
 
+import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
@@ -51,8 +52,8 @@ public enum OSSLKeyType
     // XDH key agreement (RFC 8410). First alias is the OpenSSL EVP_PKEY
     // type name (what EVP_PKEY_get0_type_name returns), so decode-by-name
     // through PKEYKeySpec(long) maps to these.
-    X25519(27, "X25519", "1.3.101.110", "id-X25519"),
-    X448(28, "X448", "1.3.101.111", "id-X448");
+    X25519(27, "X25519", EdECObjectIdentifiers.id_X25519.getId(), "id-X25519"),
+    X448(28, "X448", EdECObjectIdentifiers.id_X448.getId(), "id-X448");
 
     private final String[] aliases;
     int ksType;

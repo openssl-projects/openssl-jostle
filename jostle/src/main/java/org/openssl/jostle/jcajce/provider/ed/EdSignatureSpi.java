@@ -78,49 +78,46 @@ public class EdSignatureSpi extends SignatureSpi
 
         synchronized (this)
         {
-            if ((publicKey instanceof EdDSAPublicKey))
+            // Accept Jostle-native keys directly and adopt foreign EdDSA
+            // keys (SunEC/BC) by re-decoding their X.509 encoding, so a
+            // verify with a public key decoded by another provider works
+            // (JCA/TLS gap #5).
+            JOEdPublicKey key = EdKeyFactorySpi.importPublicKey(publicKey);
+
+            updateCalled = false;
+            lastKey = key;
+
+            if (!matchForcedType(key.getType()))
             {
-
-                updateCalled = false;
-
-
-                JOEdPublicKey key = (JOEdPublicKey) publicKey;
-                lastKey = key;
-
-                if (!matchForcedType(key.getType()))
-                {
-                    throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
-                }
-
-                if (ref == null)
-                {
-                    ref = new EdDsaRef(edServiceNI.allocateSigner(), publicKey.getAlgorithm());
-                }
-
-                byte[] context = null;
-                int contextLen = 0;
-
-                if (algorithmParameterSpec instanceof ContextParameterSpec)
-                {
-                    switch (forcedType)
-                    {
-                        case Ed25519ctx:
-                        case Ed25519ph:
-                        case ED448ph:
-                            context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                            contextLen = context.length;
-                            break;
-                        default:
-                            throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
-                    }
-                }
-
-                String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
-
-                edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), name, context, contextLen);
-                return;
+                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
             }
-            throw new InvalidKeyException("expected only EdDSAPublicKey");
+
+            if (ref == null)
+            {
+                ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
+            }
+
+            byte[] context = null;
+            int contextLen = 0;
+
+            if (algorithmParameterSpec instanceof ContextParameterSpec)
+            {
+                switch (forcedType)
+                {
+                    case Ed25519ctx:
+                    case Ed25519ph:
+                    case ED448ph:
+                        context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                        contextLen = context.length;
+                        break;
+                    default:
+                        throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
+                }
+            }
+
+            String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
+
+            edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), name, context, contextLen);
         }
     }
 
@@ -135,52 +132,49 @@ public class EdSignatureSpi extends SignatureSpi
     {
         this.randSource = DefaultRandSource.replaceWith(this.randSource, secureRandom);
 
-        if (privateKey instanceof EdDSAPrivateKey)
+        synchronized (this)
         {
-            synchronized (this)
+            // Accept Jostle-native keys directly and adopt foreign EdDSA
+            // keys (SunEC/BC) by re-decoding their PKCS#8 encoding
+            // (JCA/TLS gap #5).
+            JOEdPrivateKey key = EdKeyFactorySpi.importPrivateKey(privateKey);
+            lastKey = key;
+            updateCalled = false;
+
+            if (!matchForcedType(key.getType()))
             {
-
-                JOEdPrivateKey key = (JOEdPrivateKey) privateKey;
-                lastKey = key;
-                updateCalled = false;
-
-                if (!matchForcedType(key.getType()))
-                {
-                    throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
-                }
-
-                if (ref == null)
-                {
-                    ref = new EdDsaRef(edServiceNI.allocateSigner(), privateKey.getAlgorithm());
-                }
-
-                byte[] context = null;
-                int contextLen = 0;
-
-                if (algorithmParameterSpec instanceof ContextParameterSpec)
-                {
-                    switch (forcedType)
-                    {
-                        case Ed25519ctx:
-                        case Ed25519ph:
-                        case ED448ph:
-                            context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                            contextLen = context.length;
-                            break;
-                        default:
-                            throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
-                    }
-                }
-
-                String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
-
-                edServiceNI.initSign(
-                        ref.getReference(),
-                        key.getSpec().getReference(), name, context, contextLen, randSource);
-                return;
+                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
             }
+
+            if (ref == null)
+            {
+                ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
+            }
+
+            byte[] context = null;
+            int contextLen = 0;
+
+            if (algorithmParameterSpec instanceof ContextParameterSpec)
+            {
+                switch (forcedType)
+                {
+                    case Ed25519ctx:
+                    case Ed25519ph:
+                    case ED448ph:
+                        context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                        contextLen = context.length;
+                        break;
+                    default:
+                        throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
+                }
+            }
+
+            String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
+
+            edServiceNI.initSign(
+                    ref.getReference(),
+                    key.getSpec().getReference(), name, context, contextLen, randSource);
         }
-        throw new InvalidKeyException("expected only EdDSAPrivateKey");
     }
 
     @Override
@@ -194,6 +188,7 @@ public class EdSignatureSpi extends SignatureSpi
     {
         synchronized (this)
         {
+            requireInitialised();
             updateCalled = true;
             edServiceNI.update(ref.getReference(), b, off, len);
         }
@@ -204,6 +199,7 @@ public class EdSignatureSpi extends SignatureSpi
     {
         synchronized (this)
         {
+            requireInitialised();
             byte[] sig = null;
             try
             {
@@ -241,6 +237,7 @@ public class EdSignatureSpi extends SignatureSpi
     {
         synchronized (this)
         {
+            requireInitialised();
             try
             {
                 int code = edServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
@@ -334,6 +331,22 @@ public class EdSignatureSpi extends SignatureSpi
     protected Object engineGetParameter(String param) throws InvalidParameterException
     {
         throw new UnsupportedOperationException();
+    }
+
+
+    /**
+     * Defensive guard, matching {@code ECDSASignatureSpi}: surfaces pre-init
+     * misuse as {@link IllegalStateException} rather than an NPE on a null
+     * native ref. (The JDK {@code Signature} state machine normally rejects
+     * update/sign/verify before init, so this is belt-and-suspenders for any
+     * path that reaches the SPI without that guard.)
+     */
+    private void requireInitialised()
+    {
+        if (ref == null)
+        {
+            throw new IllegalStateException("signature not initialised");
+        }
     }
 
 

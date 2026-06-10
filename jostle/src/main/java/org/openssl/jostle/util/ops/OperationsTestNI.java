@@ -118,6 +118,11 @@ public interface OperationsTestNI
         OPS_OPENSSL_ERROR_10,
         OPS_OPENSSL_ERROR_11,
         OPS_OPENSSL_ERROR_12,
+
+        // Appended out of family order deliberately: setFlag uses ordinal()
+        // as the native slot index, so new flags MUST go at the end to match
+        // their is_ops_set(N) slot in interface/util/ops.h.
+        OPS_FAILED_ACCESS_5,
     }
 
 }

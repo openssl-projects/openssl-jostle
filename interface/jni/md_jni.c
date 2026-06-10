@@ -63,6 +63,32 @@ exit:
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_md_MDServiceJNI
+ * Method:    ni_copyDigest
+ * Signature: (J[I)J
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1copyDigest
+(JNIEnv *env, jobject jo, jlong ref, jintArray _err) {
+    UNUSED(jo);
+
+    int32_t *err = NULL;
+    md_ctx *new_ctx = NULL;
+
+    jo_assert(_err != NULL);
+    err = (*env)->GetIntArrayElements(env, _err, NULL);
+    jo_assert(err != NULL);
+
+    md_ctx *ctx = (md_ctx *) ref;
+    jo_assert(ctx != NULL);
+
+    new_ctx = md_ctx_copy(ctx, err);
+
+    (*env)->ReleaseIntArrayElements(env, _err, err, 0);
+
+    return (jlong) new_ctx;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_md_MDServiceJNI
  * Method:    ni_updateByte
  * Signature: (JB)I
  */

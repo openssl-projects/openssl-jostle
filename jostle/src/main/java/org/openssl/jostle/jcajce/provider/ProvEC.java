@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
@@ -48,6 +49,15 @@ class ProvEC
                 (arg) -> new ECKeyFactorySpi());
         provider.addAlias("KeyFactory", "EC", EC_PUBLIC_KEY_OID);
 
+        // AlgorithmParameters EC — delegates curve-parameter resolution to
+        // the platform (SunEC). Needed by BouncyCastle's TLS JceTlsECDomain,
+        // which resolves NIST-curve domain parameters via
+        // createAlgorithmParameters("EC") on the JSL-bound helper.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "EC",
+                PREFIX + "ECAlgorithmParameters", new HashMap<>(),
+                (arg) -> new ECAlgorithmParameters());
+        provider.addAlias("AlgorithmParameters", "EC", EC_PUBLIC_KEY_OID);
+
         // ECDSA Signature variants. The signature OIDs come from
         // RFC 5758 (SHA-2) and RFC 5754 / NIST CSOR (SHA-3). The digest
         // is fixed at SPI construction time — no AlgorithmParameter
@@ -79,6 +89,14 @@ class ProvEC
         registerEcdsaSignature(provider, attr,
                 "SHA3-512withECDSA", ECDSASignatureSpi.SHA3_512.class,
                 NISTObjectIdentifiers.id_ecdsa_with_sha3_512.getId());
+
+        // Raw ECDSA ("NoneWithECDSA"): the caller supplies an already-computed
+        // digest, so there is no per-digest OID to alias. Required by TLS 1.3's
+        // externally-hashed ECDSA CertificateVerify (BouncyCastle's
+        // JcaTlsECDSA13Signer.generateRawSignature).
+        provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
+                PREFIX + "ECDSASignatureSpi$None", attr,
+                (arg) -> new ECDSASignatureSpi.None());
 
         // ECDH KeyAgreement. The OID 1.3.132.1.12 is id-ecDH from SECG
         // (RFC 5480 §2.1.2 / SEC 1 §C.4); RFC 5480 also permits the

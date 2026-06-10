@@ -20,6 +20,8 @@ public interface MDServiceNI extends DefaultServiceNI
 
     long ni_allocateDigest(String name, int xofLen, int[] err);
 
+    long ni_copyDigest(long ref, int[] err);
+
     int ni_updateByte(long ref, byte b);
 
     int ni_updateBytes(long ref, byte[] input, int offset, int len);
@@ -38,6 +40,17 @@ public interface MDServiceNI extends DefaultServiceNI
     {
         int[] err = new int[1];
         long v = ni_allocateDigest(name, xofLen, err);
+        handleErrors(err[0]);
+        return v;
+    }
+
+
+    // Clone the native digest state (EVP_MD_CTX_copy_ex). Returns a fresh
+    // native handle that the caller wraps in its own NativeReference/Disposer.
+    default long copyDigest(long ref)
+    {
+        int[] err = new int[1];
+        long v = ni_copyDigest(ref, err);
         handleErrors(err[0]);
         return v;
     }
@@ -95,6 +108,8 @@ public interface MDServiceNI extends DefaultServiceNI
                 throw new IllegalStateException("md unable to set param");
             case JO_MD_XOF_LEN_INVALID:
                 throw new IllegalArgumentException("xof length inconsistent with algorithm");
+            case JO_MD_COPY_FAILED:
+                throw new IllegalStateException("md copy failed");
             default:
                 return baseErrorHandler(code);
         }

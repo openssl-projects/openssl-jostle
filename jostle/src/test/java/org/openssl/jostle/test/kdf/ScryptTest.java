@@ -95,6 +95,47 @@ public class ScryptTest
 
     }
 
+    /**
+     * JSL's SCRYPT {@code SecretKeyFactory} must accept a foreign (BouncyCastle)
+     * {@code ScryptKeySpec} — resolved reflectively via the shared structural
+     * accessor contract, with no compile-time dependency on BC's type — and
+     * derive the identical key it derives from its own {@code ScryptKeySpec}.
+     * Exercises the reflective foreign-spec branch of
+     * {@code ScryptSecretKeyFactory.engineGenerateSecret} (the reason that
+     * branch exists: high-level PBES2/PKCS#8 builders construct BC's spec).
+     */
+    @Test
+    public void scryptFactoryAcceptsForeignKeySpec() throws Exception
+    {
+        SecureRandom sr = seededRandom("scryptFactoryAcceptsForeignKeySpec");
+        char[] passphrase = new String(random(8, sr)).toCharArray();
+        byte[] salt = random(16, sr);
+
+        // Distinct N / r / p so a transposition of the reflective
+        // getBlockSize / getParallelizationParameter reads cannot derive the
+        // same key (with r == p the swap is invisible).
+        int n = 4, r = 2, p = 3;
+
+        SecretKeyFactory kfJostle = SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME);
+
+        byte[] viaNativeSpec = kfJostle.generateSecret(
+                new ScryptKeySpec(passphrase, salt, n, r, p, 512)).getEncoded();
+        byte[] viaForeignSpec = kfJostle.generateSecret(
+                new org.bouncycastle.jcajce.spec.ScryptKeySpec(passphrase, salt, n, r, p, 512)).getEncoded();
+
+        Assertions.assertEquals(64, viaNativeSpec.length, "512-bit key expected");
+        Assertions.assertArrayEquals(viaNativeSpec, viaForeignSpec,
+                "JSL SCRYPT factory derived a different key from a BouncyCastle ScryptKeySpec");
+
+        // Anchor the foreign-spec output to BC truth — not merely to Jostle's
+        // other branch (which would hide a shared parameter-mapping bug).
+        byte[] viaBc = SecretKeyFactory.getInstance("SCRYPT", BouncyCastleProvider.PROVIDER_NAME)
+                .generateSecret(new org.bouncycastle.jcajce.spec.ScryptKeySpec(passphrase, salt, n, r, p, 512))
+                .getEncoded();
+        Assertions.assertArrayEquals(viaBc, viaForeignSpec,
+                "JSL foreign-spec scrypt output disagrees with BC's own derivation");
+    }
+
 
     /**
      * Negative path per CLAUDE.md "Tests must exercise the negative

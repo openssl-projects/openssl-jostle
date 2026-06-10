@@ -36,7 +36,10 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey, 
     @Override
     public String getAlgorithm()
     {
-        return getType().getAlgorithmName();
+        // Canonical JCA name ("Ed25519"/"Ed448", mixed case) — matches SunEC/BC
+        // so consumers that dispatch on getAlgorithm() (e.g. BC's TLS
+        // JcaTlsCertificate.getPubKeyEd25519) recognise the key.
+        return getType().getTypeName();
     }
 
     @Override

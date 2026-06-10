@@ -152,7 +152,9 @@ public class MLDSATest
             Assertions.fail();
         } catch (InvalidAlgorithmParameterException e)
         {
-            Assertions.assertEquals("only MLDSAParameterSpec is supported", e.getMessage());
+            // A foreign spec with no resolvable getName() is rejected. (The
+            // suffix is the anonymous class name, so match only the prefix.)
+            Assertions.assertTrue(e.getMessage().startsWith("unknown algorithm:"), e.getMessage());
         }
     }
 

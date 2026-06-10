@@ -132,4 +132,40 @@ public class RSASignatureSpi extends RSASignatureSpiBase
             super("SHA3-512");
         }
     }
+
+    /**
+     * Raw PKCS#1 v1.5 — "NoneWithRSA". The engine performs no hashing; the
+     * caller-supplied bytes (typically a pre-formed DigestInfo) are buffered
+     * and signed/verified with PKCS#1 v1.5 block-type-1 padding directly.
+     * Required by TLS 1.3's externally-hashed CertificateVerify path
+     * (BouncyCastle's {@code JcaTlsRSASigner.getRawSigner()}).
+     */
+    public static class None extends RSASignatureSpi
+    {
+        public None()
+        {
+            super("NONE");
+        }
+
+        @Override
+        protected void nativeInitSign(long ref, long keyRef, RandSource rnd)
+        {
+            rsaServiceNI.initSign(ref, keyRef,
+                    "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE,
+                    null,
+                    0,
+                    rnd);
+        }
+
+        @Override
+        protected void nativeInitVerify(long ref, long keyRef)
+        {
+            rsaServiceNI.initVerify(ref, keyRef,
+                    "NONE",
+                    RSAServiceNI.PADDING_PKCS1_NONE,
+                    null,
+                    0);
+        }
+    }
 }

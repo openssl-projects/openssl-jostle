@@ -35,12 +35,14 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Pack;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
@@ -254,7 +256,10 @@ public class EdDSATest
         }
         catch (InvalidKeyException e)
         {
-            Assertions.assertEquals("expected only EdDSAPublicKey", e.getMessage());
+            // The SPI now tries to adopt foreign keys by re-decoding their
+            // X.509 encoding (gap #5). This fake key's encoding isn't valid
+            // SubjectPublicKeyInfo, so import fails — still InvalidKeyException.
+            Assertions.assertEquals("unable to import EdDSA public key from its encoding", e.getMessage());
         }
     }
 
@@ -290,7 +295,10 @@ public class EdDSATest
         }
         catch (InvalidKeyException e)
         {
-            Assertions.assertEquals("expected only EdDSAPrivateKey", e.getMessage());
+            // The SPI now tries to adopt foreign keys by re-decoding their
+            // PKCS#8 encoding (gap #5). This fake key's encoding isn't valid
+            // PrivateKeyInfo, so import fails — still InvalidKeyException.
+            Assertions.assertEquals("unable to import EdDSA private key from its encoding", e.getMessage());
         }
     }
 
@@ -1688,6 +1696,124 @@ public class EdDSATest
     }
 
 
+    // -----------------------------------------------------------------
+    // Cross-provider key interop (JCA/TLS gap #5)
+    //
+    // JSL's Ed Signature must accept EdDSA keys decoded by a *different*
+    // provider — the case BouncyCastle's TLS layer hits when a peer
+    // certificate's public key was decoded elsewhere. Before the fix the
+    // SPI rejected any non-Jostle key with "expected only EdDSAPublicKey".
+    // -----------------------------------------------------------------
+
+    @Test
+    public void testForeignKeyInterop_BC_Ed25519() throws Exception
+    {
+        runForeignKeyInterop("Ed25519");
+    }
+
+    @Test
+    public void testForeignKeyInterop_BC_Ed448() throws Exception
+    {
+        runForeignKeyInterop("Ed448");
+    }
+
+    private void runForeignKeyInterop(String alg) throws Exception
+    {
+        SecureRandom sr = seededRandom("foreignKeyInterop_" + alg);
+
+        // Foreign keypair — generated and owned by BouncyCastle.
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance(alg, BouncyCastleProvider.PROVIDER_NAME);
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        byte[] msg = new byte[16 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        // 1) Sign with BC, verify with JSL using BC's (foreign) public key.
+        Signature bcSigner = Signature.getInstance(alg, BouncyCastleProvider.PROVIDER_NAME);
+        bcSigner.initSign(bcKp.getPrivate());
+        bcSigner.update(msg);
+        byte[] bcSig = bcSigner.sign();
+
+        Signature joVerifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        joVerifier.initVerify(bcKp.getPublic());
+        joVerifier.update(msg);
+        Assertions.assertTrue(joVerifier.verify(bcSig),
+                alg + ": JSL failed to verify a BC signature using BC's public key");
+
+        // Negative: a tampered message must not verify (guards against a
+        // stub that accepts anything once the foreign key is adopted).
+        byte[] tampered = Arrays.clone(msg);
+        tampered[0] ^= 1;
+        Signature joVerifier2 = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        joVerifier2.initVerify(bcKp.getPublic());
+        joVerifier2.update(tampered);
+        Assertions.assertFalse(joVerifier2.verify(bcSig),
+                alg + ": JSL verified a tampered message");
+
+        // 2) Sign with JSL using BC's (foreign) private key, verify with BC.
+        Signature joSigner = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        joSigner.initSign(bcKp.getPrivate());
+        joSigner.update(msg);
+        byte[] joSig = joSigner.sign();
+
+        Signature bcVerifier = Signature.getInstance(alg, BouncyCastleProvider.PROVIDER_NAME);
+        bcVerifier.initVerify(bcKp.getPublic());
+        bcVerifier.update(msg);
+        Assertions.assertTrue(bcVerifier.verify(joSig),
+                alg + ": BC failed to verify a JSL signature made with BC's private key");
+
+        // EdDSA (RFC 8032) is deterministic — same key + message must yield
+        // byte-identical signatures regardless of which provider produced them.
+        Assertions.assertArrayEquals(bcSig, joSig,
+                alg + ": deterministic EdDSA signatures disagree between BC and JSL");
+    }
+
+    /**
+     * {@code KeyFactory.translateKey} on the JSL Ed factory must adopt a
+     * foreign EdDSA key, returning a Jostle-native key with the same
+     * encoding.
+     */
+    @Test
+    public void testKeyFactory_translateForeignEdKey_BC() throws Exception
+    {
+        KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("Ed25519", BouncyCastleProvider.PROVIDER_NAME);
+        KeyPair bcKp = bcKpg.generateKeyPair();
+
+        KeyFactory joKf = KeyFactory.getInstance("Ed25519", JostleProvider.PROVIDER_NAME);
+
+        Key joPub = joKf.translateKey(bcKp.getPublic());
+        Assertions.assertTrue(joPub instanceof org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey,
+                "translateKey should yield a Jostle EdDSA public key");
+        Assertions.assertArrayEquals(bcKp.getPublic().getEncoded(), joPub.getEncoded(),
+                "translateKey must preserve the X.509 encoding");
+
+        Key joPriv = joKf.translateKey(bcKp.getPrivate());
+        Assertions.assertTrue(joPriv instanceof org.openssl.jostle.jcajce.interfaces.EdDSAPrivateKey,
+                "translateKey should yield a Jostle EdDSA private key");
+    }
+
+
+    /**
+     * {@code getAlgorithm()} on JSL Ed keys must return the canonical mixed-case
+     * JCA name ("Ed25519"/"Ed448") — matching SunEC/BC — not the upper-case
+     * "ED25519"/"ED448" (JCA/TLS gap #9). Consumers like BC's TLS
+     * {@code JcaTlsCertificate.getPubKeyEd25519} dispatch on this exact string.
+     */
+    @Test
+    public void testEdKey_getAlgorithm_isCanonicalMixedCase() throws Exception
+    {
+        for (String alg : new String[]{"Ed25519", "Ed448"})
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            KeyPair kp = kpg.generateKeyPair();
+            Assertions.assertEquals(alg, kp.getPublic().getAlgorithm(),
+                    alg + ": public getAlgorithm() must be canonical mixed-case");
+            Assertions.assertEquals(alg, kp.getPrivate().getAlgorithm(),
+                    alg + ": private getAlgorithm() must be canonical mixed-case");
+        }
+    }
+
+
     public static class TestAlgorithmParameterSpec implements AlgorithmParameterSpec
     {
         private final byte[] ctx;
@@ -1706,6 +1832,25 @@ public class EdDSATest
         {
             return ctx;
         }
+    }
+
+    /**
+     * Malformed encoded key bytes must surface as InvalidKeySpecException (the
+     * KeyFactory contract) rather than a leaked OpenSSLException /
+     * IllegalArgumentException from the ASN.1 decoder.
+     */
+    @Test
+    public void testEdKeyFactory_malformedEncoding_throwsInvalidKeySpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        // Valid DER (SEQUENCE { INTEGER 42 }) but not a valid SPKI / PKCS#8 key.
+        byte[] garbage = {(byte) 0x30, (byte) 0x03, (byte) 0x02, (byte) 0x01, (byte) 0x2A};
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(garbage)),
+                "malformed X.509 must throw InvalidKeySpecException");
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)),
+                "malformed PKCS#8 must throw InvalidKeySpecException");
     }
 
 }

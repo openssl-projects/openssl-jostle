@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -236,5 +237,71 @@ public class EdECInterfaceTest
         Assertions.assertTrue(verifier.verify(sig),
                 "Jostle must verify a signature made by the reconstructed " + algorithm + " key ("
                         + (targetProv == null ? "default" : targetProv) + " provider)");
+    }
+
+    //
+    // Foreign-key acceptance (JCA/TLS gap #5): JSL's Ed Signature must
+    // accept a SunEC-decoded key directly — the exact scenario the TLS
+    // 1.3 CertificateVerify path hit, where the peer key was decoded by
+    // SunEC and handed to Signature.getInstance("Ed25519","JSL").
+    //
+    @Test
+    public void testForeignKeyInterop_SunEC_Ed25519() throws Exception
+    {
+        foreignKeyInteropViaSunEC("Ed25519");
+    }
+
+    @Test
+    public void testForeignKeyInterop_SunEC_Ed448() throws Exception
+    {
+        foreignKeyInteropViaSunEC("Ed448");
+    }
+
+    private void foreignKeyInteropViaSunEC(String alg) throws Exception
+    {
+        SecureRandom sr = seededRandom("foreignKeyInteropViaSunEC_" + alg);
+
+        // SunEC-owned keypair (EdECPublicKey / EdECPrivateKey instances).
+        KeyPairGenerator sunKpg = KeyPairGenerator.getInstance(alg, "SunEC");
+        KeyPair sunKp = sunKpg.generateKeyPair();
+
+        byte[] msg = new byte[16 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        // Sign with SunEC, verify with JSL using SunEC's (foreign) public key.
+        Signature sunSigner = Signature.getInstance(alg, "SunEC");
+        sunSigner.initSign(sunKp.getPrivate());
+        sunSigner.update(msg);
+        byte[] sunSig = sunSigner.sign();
+
+        Signature joVerifier = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        joVerifier.initVerify(sunKp.getPublic());
+        joVerifier.update(msg);
+        Assertions.assertTrue(joVerifier.verify(sunSig),
+                alg + ": JSL failed to verify a SunEC signature using SunEC's public key");
+
+        byte[] tampered = Arrays.clone(msg);
+        tampered[0] ^= 1;
+        Signature joVerifier2 = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        joVerifier2.initVerify(sunKp.getPublic());
+        joVerifier2.update(tampered);
+        Assertions.assertFalse(joVerifier2.verify(sunSig),
+                alg + ": JSL verified a tampered message");
+
+        // Sign with JSL using SunEC's (foreign) private key, verify with SunEC.
+        Signature joSigner = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        joSigner.initSign(sunKp.getPrivate());
+        joSigner.update(msg);
+        byte[] joSig = joSigner.sign();
+
+        Signature sunVerifier = Signature.getInstance(alg, "SunEC");
+        sunVerifier.initVerify(sunKp.getPublic());
+        sunVerifier.update(msg);
+        Assertions.assertTrue(sunVerifier.verify(joSig),
+                alg + ": SunEC failed to verify a JSL signature made with SunEC's private key");
+
+        // EdDSA is deterministic — signatures must match byte-for-byte.
+        Assertions.assertArrayEquals(sunSig, joSig,
+                alg + ": deterministic EdDSA signatures disagree between SunEC and JSL");
     }
 }

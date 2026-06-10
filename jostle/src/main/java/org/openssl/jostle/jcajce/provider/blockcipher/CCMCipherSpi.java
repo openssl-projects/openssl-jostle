@@ -174,9 +174,25 @@ public class CCMCipherSpi extends CipherSpi
     @Override
     protected AlgorithmParameters engineGetParameters()
     {
-        // Following the same convention as RSAOAEPCipherSpi — return
-        // null. Callers retrieve params via the spec class.
-        return null;
+        // Return the session nonce + ICV length as "CCM" AlgorithmParameters
+        // (RFC 5084 CCMParameters codec — CCMAlgorithmParameters here, or BC's
+        // equivalent if it resolves first) so params-driven receivers can
+        // recover them, mirroring the GCM/OCB path in BlockCipherSpi. Null
+        // before init, per the JCE convention.
+        if (iv == null)
+        {
+            return null;
+        }
+        try
+        {
+            AlgorithmParameters params = AlgorithmParameters.getInstance("CCM");
+            params.init(new GCMParameterSpec(tagLenBytes * 8, iv));
+            return params;
+        }
+        catch (GeneralSecurityException e)
+        {
+            throw new ProviderException("unable to build CCM AlgorithmParameters", e);
+        }
     }
 
     @Override
@@ -196,11 +212,25 @@ public class CCMCipherSpi extends CipherSpi
     {
         int tagBits;
         byte[] nonce;
+        // Associated data carried by a BC AEADParameterSpec, buffered after init
+        // (see end of method). Null for the other spec types.
+        byte[] aeadAssociatedData = null;
         if (params instanceof GCMParameterSpec)
         {
             GCMParameterSpec spec = (GCMParameterSpec) params;
             tagBits = spec.getTLen();
             nonce = spec.getIV();
+        }
+        else if (AEADParameterSpecAccessor.matches(params))
+        {
+            // BC's AEADParameterSpec extends IvParameterSpec; unwrap it BEFORE the
+            // IvParameterSpec branch so its tag length and associated data are
+            // honoured rather than silently dropped (the dropped-AAD case yields
+            // a wrong-but-valid-looking tag and a bad-tag on decrypt).
+            AEADParameterSpecAccessor acc = AEADParameterSpecAccessor.extract(params);
+            tagBits = acc.getMacSizeInBits();
+            nonce = acc.getIV();
+            aeadAssociatedData = acc.getAssociatedData();
         }
         else if (params instanceof IvParameterSpec)
         {
@@ -279,6 +309,15 @@ public class CCMCipherSpi extends CipherSpi
         this.encryptionReinitRequired = false;
         this.aadBuffer.reset();
         this.dataBuffer.reset();
+
+        // Buffer any AEADParameterSpec-supplied associated data now (before any
+        // payload), concatenated at doFinal like AAD from engineUpdateAAD. Left
+        // with aadRejected == false so a caller may still append once via
+        // engineUpdateAAD, matching BouncyCastle's spec-AAD-then-updateAAD order.
+        if (aeadAssociatedData != null && aeadAssociatedData.length > 0)
+        {
+            this.aadBuffer.write(aeadAssociatedData, 0, aeadAssociatedData.length);
+        }
     }
 
     @Override

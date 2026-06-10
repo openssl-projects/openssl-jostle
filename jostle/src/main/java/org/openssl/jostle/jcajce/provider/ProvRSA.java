@@ -62,6 +62,14 @@ class ProvRSA
         registerPkcs1Signature(provider, attr,
                 "SHA3-512withRSA", "SHA3-512", RSASignatureSpi.SHA3_512.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId());
 
+        // Raw PKCS#1 v1.5 ("NoneWithRSA"): the caller has already formed the
+        // bytes to sign (e.g. a DigestInfo), so there is no per-digest OID to
+        // alias. Required by TLS 1.3's externally-hashed RSA CertificateVerify
+        // (BouncyCastle's JcaTlsRSASigner.getRawSigner()).
+        provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
+                PREFIX + "RSASignatureSpi$None", attr,
+                (arg) -> new RSASignatureSpi.None());
+
         // RSASSA-PSS — parameters carried via PSSParameterSpec.
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 PREFIX + "RSAPSSSignatureSpi", attr,

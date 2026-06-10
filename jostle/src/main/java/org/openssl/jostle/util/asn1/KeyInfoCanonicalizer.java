@@ -100,6 +100,117 @@ public final class KeyInfoCanonicalizer
     }
 
     /**
+     * id-RSASSA-PSS OBJECT IDENTIFIER (1.2.840.113549.1.1.10) as a DER TLV.
+     * Differs from rsaEncryption (1.2.840.113549.1.1.1) only in the final byte.
+     */
+    private static final byte[] ID_RSASSA_PSS_OID = {
+            0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D, 0x01, 0x01, 0x0A
+    };
+
+    /**
+     * Canonical rsaEncryption (1.2.840.113549.1.1.1) AlgorithmIdentifier:
+     * {@code SEQUENCE { OBJECT IDENTIFIER rsaEncryption, NULL }}. PKCS#1 requires
+     * the NULL parameters for rsaEncryption.
+     */
+    private static final byte[] RSA_ENCRYPTION_ALG_ID = {
+            0x30, 0x0D, 0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D,
+            0x01, 0x01, 0x01, 0x05, 0x00
+    };
+
+    /**
+     * Rewrite an {@code id-RSASSA-PSS} SubjectPublicKeyInfo to {@code rsaEncryption}
+     * so OpenSSL decodes it as a plain RSA key. An RSASSA-PSS public key is
+     * structurally identical to an rsaEncryption one (the OID merely restricts the
+     * key to PSS); BC and SunRsaSign import both under "RSA". The whole
+     * AlgorithmIdentifier (OID and any RSASSA-PSS-params) is replaced with the
+     * canonical rsaEncryption identifier; the BIT STRING key bits are preserved.
+     * <p>
+     * Any input whose algorithm is not id-RSASSA-PSS is returned unchanged — in
+     * particular a genuine rsaEncryption key keeps its required NULL parameters
+     * (this is NOT the FIPS NULL-stripping path).
+     */
+    public static byte[] rsaSubjectPublicKeyInfo(byte[] spki)
+    {
+        try
+        {
+            int[] pos = {0};
+            int end = readSequenceHeader(spki, pos);        // SubjectPublicKeyInfo
+            int[] algPos = {pos[0]};
+            int algEnd = readSequenceHeader(spki, algPos);  // AlgorithmIdentifier
+
+            if (!isRsaPssOid(spki, algPos[0], algEnd))
+            {
+                return spki;
+            }
+
+            byte[] subjectPublicKey = Arrays.copyOfRange(spki, algEnd, end);
+            return derSequence(Arrays.concatenate(RSA_ENCRYPTION_ALG_ID, subjectPublicKey));
+        }
+        catch (RuntimeException e)
+        {
+            return spki;
+        }
+    }
+
+    /**
+     * Private-key counterpart of {@link #rsaSubjectPublicKeyInfo(byte[])}: rewrite
+     * an {@code id-RSASSA-PSS} PrivateKeyInfo to {@code rsaEncryption}. The version
+     * INTEGER and the privateKey OCTET STRING (plus any trailing fields) are
+     * preserved; only the privateKeyAlgorithm is replaced.
+     */
+    public static byte[] rsaPrivateKeyInfo(byte[] pki)
+    {
+        try
+        {
+            int[] pos = {0};
+            int end = readSequenceHeader(pki, pos);         // PrivateKeyInfo
+            int versionStart = pos[0];
+            int[] versionPos = {versionStart};
+            skipTlv(pki, versionPos);                       // version INTEGER
+            int algStart = versionPos[0];
+            int[] algPos = {algStart};
+            int algEnd = readSequenceHeader(pki, algPos);   // privateKeyAlgorithm
+
+            if (!isRsaPssOid(pki, algPos[0], algEnd))
+            {
+                return pki;
+            }
+
+            byte[] version = Arrays.copyOfRange(pki, versionStart, algStart);
+            byte[] rest = Arrays.copyOfRange(pki, algEnd, end);  // OCTET STRING + optional fields
+            return derSequence(Arrays.concatenate(version, RSA_ENCRYPTION_ALG_ID, rest));
+        }
+        catch (RuntimeException e)
+        {
+            return pki;
+        }
+    }
+
+    /**
+     * True if the AlgorithmIdentifier content spanning {@code [algContentStart, algEnd)}
+     * begins with the id-RSASSA-PSS OBJECT IDENTIFIER.
+     */
+    private static boolean isRsaPssOid(byte[] data, int algContentStart, int algEnd)
+    {
+        int[] pos = {algContentStart};
+        int oidStart = pos[0];
+        skipTlv(data, pos);                                 // algorithm OBJECT IDENTIFIER
+        int oidEnd = pos[0];
+        if (oidEnd > algEnd || oidEnd - oidStart != ID_RSASSA_PSS_OID.length)
+        {
+            return false;
+        }
+        for (int i = 0; i < ID_RSASSA_PSS_OID.length; i++)
+        {
+            if (data[oidStart + i] != ID_RSASSA_PSS_OID[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * If the AlgorithmIdentifier whose content spans {@code [algContentStart, algEnd)}
      * carries exactly an OBJECT IDENTIFIER followed by a NULL, return a rebuilt
      * AlgorithmIdentifier TLV ({@code SEQUENCE { OID }}) with the NULL removed;

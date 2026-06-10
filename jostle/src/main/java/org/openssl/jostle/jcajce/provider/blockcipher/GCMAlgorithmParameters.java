@@ -10,26 +10,33 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.JostleProvider;
+
 import java.io.IOException;
 import java.security.AlgorithmParameters;
 import java.security.AlgorithmParametersSpi;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
 /**
- * {@code AlgorithmParameters} for AES-GCM, registered under the AES-GCM OIDs so
- * that callers which resolve parameters by OID (notably the CMS EnvelopedData
- * decryption path, which does {@code AlgorithmParameters.getInstance(<aes-gcm-oid>, "JSL")}
- * then loads the stored {@code GCMParameters} to recover the nonce/ICV length)
- * can obtain a working instance from this provider. The ASN.1 codec and the
- * {@code GCMParameterSpec} translation are delegated to the JDK's own "GCM"
- * {@code AlgorithmParameters}.
- * <p>
- * Deliberately NOT registered under the bare name "GCM": the delegate is looked
- * up via {@code AlgorithmParameters.getInstance("GCM")} (no provider), so
- * claiming that name here could resolve back to this class and recurse. Resolving
- * only by OID keeps the delegate pointing at the JDK provider.
+ * {@code AlgorithmParameters} for AES-GCM, registered under the bare name
+ * {@code "GCM"} and the AES-GCM OIDs so callers can resolve GCM parameters from
+ * this provider either way — by OID (notably the CMS EnvelopedData decryption
+ * path, {@code AlgorithmParameters.getInstance(<aes-gcm-oid>, "JSL")}, recovering
+ * the stored nonce/ICV length) or by name (a JSL-bound helper doing
+ * {@code helper.createAlgorithmParameters("GCM")}). The ASN.1 codec and the
+ * {@code GCMParameterSpec} translation are delegated to a platform GCM
+ * {@code AlgorithmParameters} (SunJCE on a standard JDK).
+ *
+ * <p>Because this IS registered under the bare name {@code "GCM"}, the delegate
+ * must be resolved from a provider that is NOT Jostle, or
+ * {@code getInstance("GCM")} could route back into this class and recurse.
+ * {@link #resolveDelegate()} walks the installed providers and skips Jostle for
+ * exactly that reason — the same approach as
+ * {@link org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters}.
  */
 public class GCMAlgorithmParameters
     extends AlgorithmParametersSpi
@@ -38,14 +45,37 @@ public class GCMAlgorithmParameters
 
     public GCMAlgorithmParameters()
     {
-        try
+        this.delegate = resolveDelegate();
+    }
+
+    /**
+     * Find a platform GCM {@code AlgorithmParameters} that is not this
+     * provider's, so delegation cannot recurse into this class.
+     */
+    private static AlgorithmParameters resolveDelegate()
+    {
+        for (Provider p : Security.getProviders())
         {
-            this.delegate = AlgorithmParameters.getInstance("GCM");
+            if (JostleProvider.PROVIDER_NAME.equals(p.getName()))
+            {
+                continue;
+            }
+            if (p.getService("AlgorithmParameters", "GCM") == null)
+            {
+                continue;
+            }
+            try
+            {
+                return AlgorithmParameters.getInstance("GCM", p);
+            }
+            catch (NoSuchAlgorithmException e)
+            {
+                // Service advertised but not constructible from this
+                // provider — keep looking.
+            }
         }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new IllegalStateException("no GCM AlgorithmParameters available from the platform", e);
-        }
+        throw new IllegalStateException(
+                "no non-Jostle AlgorithmParameters(\"GCM\") available from the platform");
     }
 
     @Override

@@ -19,6 +19,8 @@ public interface KdfNI extends DefaultServiceNI
 
     int pbkdf2(byte[] password, byte[] salt, int iter, String digest, byte[] out, int outOffset, int outLen);
 
+    int hkdf(byte[] ikm, byte[] salt, byte[] info, String digest, byte[] out, int outOffset, int outLen);
+
     default long handleErrorCodes(int code)
     {
         if (code >= 0)
@@ -50,6 +52,12 @@ public interface KdfNI extends DefaultServiceNI
                 throw new IllegalArgumentException("r is negative");
             case JO_KDF_SCRYPT_P_NEGATIVE:
                 throw new IllegalArgumentException("p is negative");
+            case JO_KDF_HKDF_IKM_NULL:
+                throw new IllegalArgumentException("ikm is null");
+            case JO_KDF_HKDF_IKM_FAILED_ACCESS:
+                throw new AccessException("unable to access ikm array");
+            case JO_KDF_HKDF_INFO_FAILED_ACCESS:
+                throw new AccessException("unable to access info array");
             default:
         }
         return baseErrorHandler(code);

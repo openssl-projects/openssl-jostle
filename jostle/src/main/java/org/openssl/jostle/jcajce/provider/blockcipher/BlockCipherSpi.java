@@ -19,6 +19,7 @@ import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.*;
+import javax.crypto.interfaces.PBEKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -231,8 +232,12 @@ class BlockCipherSpi extends CipherSpi
             try
             {
                 AlgorithmParameters params;
-                if (osslMode == OSSLMode.GCM)
+                if (isAeadMode())
                 {
+                    // GCM AlgorithmParameters is the de-facto JCE holder for any
+                    // AEAD tag+nonce; OCB has no JCE-standard parameters type, so
+                    // it reuses GCM's. The tag length is preserved on round-trip
+                    // (a plain IvParameterSpec would drop it).
                     params = AlgorithmParameters.getInstance("GCM");
                     params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
                 }
@@ -278,6 +283,9 @@ class BlockCipherSpi extends CipherSpi
             ensureNativeReference();
             final byte[] iv;
             final int tag;
+            // Associated data carried by a BC AEADParameterSpec, fed to the
+            // native layer after a successful init (see below). Null otherwise.
+            byte[] aeadAssociatedData = null;
             blockSize = 0;
             // The native layer only knows ENCRYPT/DECRYPT. WRAP/UNWRAP (used for
             // key-wrap modes) map onto encrypt/decrypt respectively.
@@ -299,7 +307,7 @@ class BlockCipherSpi extends CipherSpi
                     iv = new byte[ivLen];
                     SecureRandom rng = (random != null) ? random : CryptoServicesRegistrar.getSecureRandom();
                     rng.nextBytes(iv);
-                    tag = (osslMode == OSSLMode.GCM) ? 16 : 0;
+                    tag = isAeadMode() ? 16 : 0;
                 }
                 else
                 {
@@ -307,42 +315,56 @@ class BlockCipherSpi extends CipherSpi
                     tag = 0;
                 }
             }
+            else if (isAeadMode() && AEADParameterSpecAccessor.matches(params))
+            {
+                // BC's AEADParameterSpec extends IvParameterSpec; unwrap it here,
+                // BEFORE the IvParameterSpec branch, so its tag length and
+                // associated data are honoured rather than silently dropped (the
+                // dropped-AAD case produces a wrong-but-valid-looking tag).
+                AEADParameterSpecAccessor acc = AEADParameterSpecAccessor.extract(params);
+                int tLen = acc.getMacSizeInBits();
+                if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                {
+                    throw new InvalidAlgorithmParameterException(
+                            "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                }
+                iv = acc.getIV();
+                tag = tLen / 8;
+                aeadAssociatedData = acc.getAssociatedData();
+            }
+            else if (AEADParameterSpecAccessor.matches(params))
+            {
+                // AEAD-shaped spec on a non-AEAD mode: it cannot be honoured,
+                // and letting it fall into the IvParameterSpec branch would
+                // silently drop its tag length and associated data — exactly
+                // the failure mode the accessor exists to prevent. BC rejects
+                // this combination too.
+                throw new InvalidAlgorithmParameterException(
+                        "AEAD parameter spec cannot be used with non-AEAD mode " + osslMode);
+            }
+            else if (params instanceof IvParameterSpec)
+            {
+                iv = ((IvParameterSpec) params).getIV();
+                tag = isAeadMode() ? 16 : 0;
+            }
+            else if (params instanceof GCMParameterSpec)
+            {
+                int tLen = ((GCMParameterSpec) params).getTLen();
+                // Reject malformed AEAD tag lengths at the JCE boundary —
+                // BouncyCastle's 32–128-bit, multiple-of-8 range, which the
+                // cross-provider agreement tests rely on — rather than
+                // passing an out-of-spec length down to OpenSSL.
+                if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                {
+                    throw new InvalidAlgorithmParameterException(
+                            "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                }
+                iv = ((GCMParameterSpec) params).getIV();
+                tag = tLen / 8;
+            }
             else
             {
-                if (params instanceof IvParameterSpec)
-                {
-                    iv = ((IvParameterSpec) params).getIV();
-                    if (osslMode == OSSLMode.GCM)
-                    {
-                        tag = 16;
-                    }
-                    else
-                    {
-                        tag = 0;
-                    }
-                }
-                else
-                {
-                    if (params instanceof GCMParameterSpec)
-                    {
-                        int tLen = ((GCMParameterSpec) params).getTLen();
-                        // Reject malformed AEAD tag lengths at the JCE boundary —
-                        // BouncyCastle's 32–128-bit, multiple-of-8 range, which the
-                        // cross-provider agreement tests rely on — rather than
-                        // passing an out-of-spec length down to OpenSSL.
-                        if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
-                        {
-                            throw new InvalidAlgorithmParameterException(
-                                    "AEAD tag length must be 32 to 128 bits and a multiple of 8");
-                        }
-                        iv = ((GCMParameterSpec) params).getIV();
-                        tag = tLen / 8;
-                    }
-                    else
-                    {
-                        throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
-                    }
-                }
+                throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
             }
 
             this.ivBytes = iv;
@@ -363,6 +385,15 @@ class BlockCipherSpi extends CipherSpi
                 {
                     Arrays.fill(keyBytes, (byte) 0);
                 }
+            }
+
+            // Init succeeded: feed any AEADParameterSpec-supplied associated data
+            // now — after init, before any plaintext — so it's authenticated.
+            // This is the same native call engineUpdateAAD makes; the reuse guard
+            // is unnecessary here because the cipher was just (re)initialised.
+            if (aeadAssociatedData != null && aeadAssociatedData.length > 0)
+            {
+                blockCipherNi.updateAAD(refWrapper.getReference(), aeadAssociatedData, 0, aeadAssociatedData.length);
             }
 
             engineGetBlockSize();
@@ -389,6 +420,20 @@ class BlockCipherSpi extends CipherSpi
         default:
             return engineGetBlockSize();
         }
+    }
+
+    /**
+     * True for the AEAD modes this SPI drives (GCM and OCB). Both append an
+     * authentication tag and default to a 16-byte tag when the caller doesn't
+     * specify one via a {@link GCMParameterSpec}. CCM is handled by a dedicated
+     * SPI and is not seen here. The default-16 applies to OCB as well as GCM:
+     * leaving OCB's tag length at 0 left OpenSSL's OCB cipher with no tag length
+     * established, which surfaced as {@code aes_ocb_get_ctx_params: invalid tag
+     * length} at the {@code EVP_CTRL_AEAD_GET_TAG} step on encrypt.
+     */
+    private boolean isAeadMode()
+    {
+        return osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB;
     }
 
 
@@ -845,6 +890,18 @@ class BlockCipherSpi extends CipherSpi
 
     protected void validateKeyAlg(Key key) throws InvalidKeyException
     {
+        // A password/KDF-derived key (PBKDF2 or scrypt — a javax.crypto PBEKey)
+        // is generic RAW key material whose owning algorithm is the PBES2 /
+        // PKCS#8 EncryptionScheme, not a competing cipher; accept it for any
+        // cipher (the native layer still validates the key length). A key
+        // explicitly tagged for a different cipher family — e.g. an "ARIA"
+        // SecretKeySpec on an AES cipher — is not a PBEKey and is still rejected
+        // by the name check below.
+        if (key instanceof PBEKey)
+        {
+            return;
+        }
+
         String alg = key.getAlgorithm();
         if (alg != null)
         {

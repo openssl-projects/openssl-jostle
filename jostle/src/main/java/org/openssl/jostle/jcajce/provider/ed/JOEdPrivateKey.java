@@ -39,7 +39,8 @@ public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey
     @Override
     public String getAlgorithm()
     {
-        return getType().getAlgorithmName();
+        // Canonical JCA name ("Ed25519"/"Ed448", mixed case) — matches SunEC/BC.
+        return getType().getTypeName();
     }
 
     @Override

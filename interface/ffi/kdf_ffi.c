@@ -176,3 +176,69 @@ int32_t KDF_SCRYPT(
 exit:
     return ret_code;
 }
+
+
+// Jo-prefixed per the FFI symbol-collision rule (native-code.md): "HKDF" is a
+// generic enough name that an unprefixed export risks shadowing/being shadowed
+// by another in-process library. (KDF_PBKDF2 / KDF_SCRYPT predate the rule.)
+int32_t JoKDF_HKDF(
+    uint8_t *ikm, size_t ikm_len,
+    uint8_t *salt, size_t salt_len,
+    uint8_t *info, size_t info_len,
+    uint8_t *digest_name, size_t digest_name_len,
+    uint8_t *output, size_t out_size,
+    int32_t out_offset,
+    int32_t out_len
+) {
+    int32_t ret_code = JO_FAIL;
+
+    if (ikm == NULL) {
+        ret_code = JO_KDF_HKDF_IKM_NULL;
+        goto exit;
+    }
+
+    // salt and info are optional (NULL accepted); no null-check here.
+
+    if (output == NULL) {
+        ret_code = JO_OUTPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (out_offset < 0) {
+        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (out_len < 0) {
+        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_in_range(out_size, out_offset, out_len)) {
+        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    if (digest_name == NULL) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    if (digest_name_len == 0) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    uint8_t *out = output + out_offset;
+
+    ret_code = kdf_hkdf(
+        ikm, ikm_len,
+        salt, salt_len,
+        info, info_len,
+        digest_name, digest_name_len,
+        out, out_len);
+
+
+exit:
+    return ret_code;
+}

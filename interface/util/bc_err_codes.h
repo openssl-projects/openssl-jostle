@@ -162,6 +162,33 @@
  */
 #define JO_CURVE_NOT_SUPPORTED -114
 
+/*
+ * EVP_MD_CTX_copy_ex failed while cloning a digest context (md_ctx_copy).
+ * Distinct from JO_MD_CREATE_FAILED (EVP_MD_CTX_new failure) so the clone
+ * path's failure is identifiable. Surfaces as the CloneNotSupportedException
+ * cause at the MessageDigest.clone() boundary.
+ */
+#define JO_MD_COPY_FAILED -115
+
+/*
+ * HKDF input keying material (IKM) is null. The IKM is mandatory for
+ * HKDF-Extract; the bridge rejects a null IKM array. Distinct from the
+ * password/salt KDF codes so the HKDF surface reports the correct field.
+ */
+#define JO_KDF_HKDF_IKM_NULL -116
+
+/*
+ * The JNI critical/array load of the HKDF IKM byte array failed.
+ */
+#define JO_KDF_HKDF_IKM_FAILED_ACCESS -117
+
+/*
+ * The JNI critical/array load of the HKDF info byte array failed. The info
+ * field is optional (a null array is accepted as "no info"); this code only
+ * fires on a genuine JVM access failure of a supplied array.
+ */
+#define JO_KDF_HKDF_INFO_FAILED_ACCESS -118
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x

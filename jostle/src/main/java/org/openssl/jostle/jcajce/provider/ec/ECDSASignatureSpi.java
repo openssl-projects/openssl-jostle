@@ -374,4 +374,19 @@ public class ECDSASignatureSpi extends SignatureSpi
             super("SHA3-512");
         }
     }
+
+    /**
+     * Raw ECDSA — "NoneWithECDSA". The engine performs no hashing; the
+     * caller-supplied bytes (an already-computed digest) are buffered and
+     * signed/verified directly, producing/consuming a DER-encoded ECDSA
+     * signature. Required by TLS 1.3's externally-hashed ECDSA
+     * CertificateVerify (BouncyCastle's JcaTlsECDSA13Signer).
+     */
+    public static class None extends ECDSASignatureSpi
+    {
+        public None()
+        {
+            super("NONE");
+        }
+    }
 }

@@ -1783,6 +1783,62 @@ public class AESAgreementTest
         return enc.doFinal(msg);
     }
 
+    /**
+     * Reuse a single JSL GCM {@code Cipher} instance across several chunks, each
+     * with its own nonce (the OpenPGP SEIPDv2 / RFC 9580 per-chunk pattern:
+     * re-init → updateAAD → doFinal, repeated). Every chunk must agree byte-for-byte
+     * with a fresh BouncyCastle GCM cipher on the same inputs, proving the re-init
+     * path resets the AEAD state (no nonce/AAD/tag carry-over between chunks). This
+     * is the JSL-side half of the OpenPGP GCM chunked-mode investigation in
+     * docs/PGP_AEAD_CIPHER_GAP.md — it isolates whether the bc-jostle-libs "bad tag"
+     * failure is a JSL GCM re-init bug (it is not) or lives in the consumer framing.
+     */
+    @Test
+    public void aesGCM_reInitWithSuccessiveNonces_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesGCM_reInitWithSuccessiveNonces_agreesWithBC");
+        String xform = "AES/GCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        byte[] baseIv = new byte[12];
+        sr.nextBytes(baseIv);
+
+        // One JSL cipher instance, re-initialised per chunk.
+        Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+
+        for (int chunk = 0; chunk < 6; chunk++)
+        {
+            // Per-chunk nonce: low byte of the base IV XOR chunk index.
+            byte[] iv = Arrays.clone(baseIv);
+            iv[iv.length - 1] ^= (byte) chunk;
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+            byte[] aad = new byte[sr.nextInt(40)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(256)];
+            sr.nextBytes(msg);
+
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            bcEnc.updateAAD(aad);
+            byte[] bcCT = bcEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcCT, jostleCT,
+                    "chunk=" + chunk + ": re-init GCM ciphertext+tag diverged from BC");
+
+            // And the reused instance must still decrypt correctly.
+            jostleEnc.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleEnc.doFinal(jostleCT),
+                    "chunk=" + chunk + ": re-init GCM roundtrip failed");
+        }
+    }
+
 
     // -----------------------------------------------------------------
     // AES-OCB (AEAD, RFC 7253) — agreement with BouncyCastle, tag-length
@@ -2012,6 +2068,265 @@ public class AESAgreementTest
             Assertions.fail("AES-OCB must reject tampered AAD");
         }
         catch (AEADBadTagException expected) { }
+    }
+
+    /**
+     * OCB initialised with a plain {@link IvParameterSpec} (no tag length
+     * supplied) must default to a 128-bit tag and agree byte-for-byte with
+     * BouncyCastle's OCB on the same path. This is the path that was broken:
+     * OCB defaulted its tag length to 0 (only GCM defaulted to 16), leaving
+     * OpenSSL's OCB cipher with no tag length and failing at GET_TAG with
+     * {@code aes_ocb_get_ctx_params: invalid tag length}.
+     */
+    @Test
+    public void aesOCB_ivParameterSpec_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_ivParameterSpec_agreesWithBC");
+        String xform = "AES/OCB/NoPadding";
+        for (int trial = 0; trial < 10; trial++)
+        {
+            byte[] key = new byte[32];
+            sr.nextBytes(key);
+            // OCB accepts 1..15-byte nonces — vary the length per trial so the
+            // default-tag path is exercised across the whole range, not just 12.
+            byte[] iv = new byte[1 + sr.nextInt(15)];
+            sr.nextBytes(iv);
+            byte[] aad = new byte[sr.nextInt(48)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(256)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+            IvParameterSpec spec = new IvParameterSpec(iv);
+
+            Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            bcEnc.updateAAD(aad);
+            byte[] bcCT = bcEnc.doFinal(msg);
+
+            Cipher jostleEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            jostleEnc.updateAAD(aad);
+            byte[] jostleCT = jostleEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcCT, jostleCT,
+                    "trial=" + trial + ": AES-OCB (IvParameterSpec) ciphertext+tag diverged from BC");
+
+            Cipher jostleDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            jostleDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            jostleDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jostleDec.doFinal(jostleCT),
+                    "trial=" + trial + ": AES-OCB (IvParameterSpec) roundtrip failed");
+        }
+    }
+
+    /**
+     * OCB with no parameters at all: the SPI must auto-generate the nonce and
+     * default the tag to 128 bits (the same contract GCM already honoured), then
+     * round-trip through the parameters it exposes via {@code engineGetParameters}.
+     * Proves the tag-default fix on the no-spec path without depending on BC's
+     * default.
+     */
+    @Test
+    public void aesOCB_noParams_roundTripsThroughExposedParameters() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_noParams_roundTripsThroughExposedParameters");
+        String xform = "AES/OCB/NoPadding";
+        for (int trial = 0; trial < 10; trial++)
+        {
+            byte[] key = new byte[32];
+            sr.nextBytes(key);
+            byte[] aad = new byte[sr.nextInt(48)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(256)];
+            sr.nextBytes(msg);
+
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+            Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            enc.init(Cipher.ENCRYPT_MODE, secretKey);
+            enc.updateAAD(aad);
+            byte[] ct = enc.doFinal(msg);
+
+            // The SPI must have generated a nonce and exposed the AEAD parameters.
+            java.security.AlgorithmParameters params = enc.getParameters();
+            Assertions.assertNotNull(params, "trial=" + trial + ": OCB must expose generated parameters");
+
+            Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            dec.init(Cipher.DECRYPT_MODE, secretKey, params);
+            dec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                    "trial=" + trial + ": AES-OCB no-params roundtrip failed");
+        }
+    }
+
+    /**
+     * BouncyCastle's {@code AEADParameterSpec} carries the AAD inside the spec
+     * (not via {@code updateAAD}). Since it extends {@code IvParameterSpec}, the
+     * SPI used to swallow it through the IvParameterSpec branch and silently drop
+     * the AAD — computing a tag over no AAD, which then failed to decrypt against
+     * a counterpart that did apply the AAD. This test pins that the AAD is now
+     * honoured for both AEAD modes (GCM and OCB):
+     * <ol>
+     *   <li>JSL encrypt with {@code AEADParameterSpec(iv, 128, aad)} agrees
+     *       byte-for-byte with BouncyCastle on the same spec — proving the AAD is
+     *       folded into the tag identically;</li>
+     *   <li>JSL decrypt via the same spec round-trips;</li>
+     *   <li>decrypting the same ciphertext WITHOUT the AAD fails with
+     *       {@code AEADBadTagException} — the regression guard proving the AAD
+     *       actually participated in authentication (a dropped-AAD implementation
+     *       would decrypt fine here).</li>
+     * </ol>
+     */
+    @Test
+    public void aesAEADParameterSpec_aadHonoured_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesAEADParameterSpec_aadHonoured_agreesWithBC");
+        for (String xform : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding"})
+        {
+            for (int trial = 0; trial < 10; trial++)
+            {
+                byte[] key = new byte[32];
+                sr.nextBytes(key);
+                byte[] iv = new byte[12];
+                sr.nextBytes(iv);
+                byte[] aad = new byte[1 + sr.nextInt(48)];   // non-empty so the no-AAD guard is meaningful
+                sr.nextBytes(aad);
+                byte[] msg = new byte[1 + sr.nextInt(256)];
+                sr.nextBytes(msg);
+                SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+                org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
+                        new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, aad);
+
+                Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                byte[] bcCT = bcEnc.doFinal(msg);
+
+                Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                byte[] joCT = joEnc.doFinal(msg);
+
+                Assertions.assertArrayEquals(bcCT, joCT,
+                        xform + " trial=" + trial + ": AEADParameterSpec AAD not honoured (diverged from BC)");
+
+                Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+                Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
+                        xform + " trial=" + trial + ": AEADParameterSpec roundtrip failed");
+
+                // Regression guard: same nonce/tag but no AAD must fail.
+                Cipher joDecNoAad = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joDecNoAad.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(128, iv));
+                try
+                {
+                    joDecNoAad.doFinal(joCT);
+                    Assertions.fail(xform + " trial=" + trial
+                            + ": decrypt without the AAD must fail when AAD was authenticated");
+                }
+                catch (AEADBadTagException expected)
+                {
+                    // expected — the AAD was folded into the tag
+                }
+            }
+        }
+    }
+
+    /**
+     * The AEADParameterSpec's tag length must be honoured, not silently
+     * replaced by the IvParameterSpec-branch default. At 128 bits the two are
+     * indistinguishable (128 IS the default), so vary the tag across 96/112/128
+     * and pin the ciphertext length ({@code msg + tagBits/8}) plus BC agreement
+     * — an implementation that ignores {@code getMacSizeInBits()} fails the
+     * length assert at 96/112.
+     */
+    @Test
+    public void aesAEADParameterSpec_tagLengthHonoured_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesAEADParameterSpec_tagLengthHonoured_agreesWithBC");
+        for (String xform : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding"})
+        {
+            for (int tagBits : new int[]{96, 112, 128})
+            {
+                byte[] key = new byte[32];
+                sr.nextBytes(key);
+                byte[] iv = new byte[12];
+                sr.nextBytes(iv);
+                byte[] aad = new byte[1 + sr.nextInt(32)];
+                sr.nextBytes(aad);
+                byte[] msg = new byte[1 + sr.nextInt(128)];
+                sr.nextBytes(msg);
+                SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+                org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
+                        new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
+
+                Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                byte[] joCT = joEnc.doFinal(msg);
+
+                Assertions.assertEquals(msg.length + tagBits / 8, joCT.length,
+                        xform + " tagBits=" + tagBits + ": ciphertext length shows the tag length was not honoured");
+
+                Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                Assertions.assertArrayEquals(bcEnc.doFinal(msg), joCT,
+                        xform + " tagBits=" + tagBits + ": diverged from BC");
+
+                Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+                Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
+                        xform + " tagBits=" + tagBits + ": roundtrip failed");
+            }
+        }
+    }
+
+    /**
+     * The documented BC ordering — AAD carried in the {@code AEADParameterSpec}
+     * PLUS a further {@code updateAAD} call before the payload — must
+     * concatenate identically to BouncyCastle on all three AEAD modes
+     * (GCM / OCB via {@code BlockCipherSpi}, CCM via its one-shot buffer).
+     */
+    @Test
+    public void aesAEADParameterSpec_specAadThenUpdateAad_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesAEADParameterSpec_specAadThenUpdateAad_agreesWithBC");
+        for (String xform : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding", "AES/CCM/NoPadding"})
+        {
+            byte[] key = new byte[32];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] specAad = new byte[1 + sr.nextInt(24)];
+            sr.nextBytes(specAad);
+            byte[] extraAad = new byte[1 + sr.nextInt(24)];
+            sr.nextBytes(extraAad);
+            byte[] msg = new byte[1 + sr.nextInt(128)];
+            sr.nextBytes(msg);
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+            org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
+                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, specAad);
+
+            Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            bcEnc.updateAAD(extraAad);
+            byte[] bcCT = bcEnc.doFinal(msg);
+
+            Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            joEnc.updateAAD(extraAad);
+            byte[] joCT = joEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcCT, joCT,
+                    xform + ": spec-AAD + updateAAD concatenation diverged from BC");
+
+            Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+            joDec.updateAAD(extraAad);
+            Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
+                    xform + ": spec-AAD + updateAAD roundtrip failed");
+        }
     }
 
 
@@ -2873,6 +3188,66 @@ public class AESAgreementTest
         joDec.init(Cipher.DECRYPT_MODE, secretKey, spec);
         joDec.updateAAD(aad);
         Assertions.assertArrayEquals(msg, joDec.doFinal(joCt), "AES-CCM IvParameterSpec roundtrip failed");
+    }
+
+    /**
+     * CCM must honour a BouncyCastle {@code AEADParameterSpec}'s tag length AND
+     * associated data, not silently treat it as a plain {@code IvParameterSpec}
+     * (which it extends) and drop the AAD. Mirrors the GCM/OCB
+     * {@code aesAEADParameterSpec_aadHonoured_agreesWithBC} test for the separate
+     * CCM SPI: byte-for-byte agreement with BC on the spec-carried-AAD path, a
+     * decrypt round-trip, and a guard that decrypting without the AAD fails.
+     */
+    @Test
+    public void aesCCM_aeadParameterSpec_aadHonoured_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_aeadParameterSpec_aadHonoured_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        for (int trial = 0; trial < 10; trial++)
+        {
+            byte[] key = new byte[32];
+            sr.nextBytes(key);
+            byte[] nonce = new byte[7 + sr.nextInt(7)];   // RFC 3610 / CCM: 7..13 bytes
+            sr.nextBytes(nonce);
+            byte[] aad = new byte[1 + sr.nextInt(48)];    // non-empty so the no-AAD guard is meaningful
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(256)];
+            sr.nextBytes(msg);
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+            org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
+                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(nonce, 128, aad);
+
+            Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            byte[] bcCt = bcEnc.doFinal(msg);
+
+            Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            byte[] joCt = joEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcCt, joCt,
+                    "trial=" + trial + ": CCM AEADParameterSpec AAD not honoured (diverged from BC)");
+
+            Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+            Assertions.assertArrayEquals(msg, joDec.doFinal(joCt),
+                    "trial=" + trial + ": CCM AEADParameterSpec roundtrip failed");
+
+            // Regression guard: same nonce/tag but no AAD must fail.
+            Cipher joDecNoAad = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joDecNoAad.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(128, nonce));
+            try
+            {
+                joDecNoAad.doFinal(joCt);
+                Assertions.fail("trial=" + trial
+                        + ": CCM decrypt without the AAD must fail when AAD was authenticated");
+            }
+            catch (AEADBadTagException expected)
+            {
+                // expected — the AAD was folded into the tag
+            }
+        }
     }
 
     /**
