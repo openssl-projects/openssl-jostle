@@ -174,9 +174,25 @@ public class CCMCipherSpi extends CipherSpi
     @Override
     protected AlgorithmParameters engineGetParameters()
     {
-        // Following the same convention as RSAOAEPCipherSpi — return
-        // null. Callers retrieve params via the spec class.
-        return null;
+        // Return the session nonce + ICV length as "CCM" AlgorithmParameters
+        // (RFC 5084 CCMParameters codec — CCMAlgorithmParameters here, or BC's
+        // equivalent if it resolves first) so params-driven receivers can
+        // recover them, mirroring the GCM/OCB path in BlockCipherSpi. Null
+        // before init, per the JCE convention.
+        if (iv == null)
+        {
+            return null;
+        }
+        try
+        {
+            AlgorithmParameters params = AlgorithmParameters.getInstance("CCM");
+            params.init(new GCMParameterSpec(tagLenBytes * 8, iv));
+            return params;
+        }
+        catch (GeneralSecurityException e)
+        {
+            throw new ProviderException("unable to build CCM AlgorithmParameters", e);
+        }
     }
 
     @Override

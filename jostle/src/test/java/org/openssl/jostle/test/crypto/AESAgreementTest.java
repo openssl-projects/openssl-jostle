@@ -2087,7 +2087,9 @@ public class AESAgreementTest
         {
             byte[] key = new byte[32];
             sr.nextBytes(key);
-            byte[] iv = new byte[12];
+            // OCB accepts 1..15-byte nonces — vary the length per trial so the
+            // default-tag path is exercised across the whole range, not just 12.
+            byte[] iv = new byte[1 + sr.nextInt(15)];
             sr.nextBytes(iv);
             byte[] aad = new byte[sr.nextInt(48)];
             sr.nextBytes(aad);
@@ -2227,6 +2229,103 @@ public class AESAgreementTest
                     // expected — the AAD was folded into the tag
                 }
             }
+        }
+    }
+
+    /**
+     * The AEADParameterSpec's tag length must be honoured, not silently
+     * replaced by the IvParameterSpec-branch default. At 128 bits the two are
+     * indistinguishable (128 IS the default), so vary the tag across 96/112/128
+     * and pin the ciphertext length ({@code msg + tagBits/8}) plus BC agreement
+     * — an implementation that ignores {@code getMacSizeInBits()} fails the
+     * length assert at 96/112.
+     */
+    @Test
+    public void aesAEADParameterSpec_tagLengthHonoured_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesAEADParameterSpec_tagLengthHonoured_agreesWithBC");
+        for (String xform : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding"})
+        {
+            for (int tagBits : new int[]{96, 112, 128})
+            {
+                byte[] key = new byte[32];
+                sr.nextBytes(key);
+                byte[] iv = new byte[12];
+                sr.nextBytes(iv);
+                byte[] aad = new byte[1 + sr.nextInt(32)];
+                sr.nextBytes(aad);
+                byte[] msg = new byte[1 + sr.nextInt(128)];
+                sr.nextBytes(msg);
+                SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+                org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
+                        new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
+
+                Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                byte[] joCT = joEnc.doFinal(msg);
+
+                Assertions.assertEquals(msg.length + tagBits / 8, joCT.length,
+                        xform + " tagBits=" + tagBits + ": ciphertext length shows the tag length was not honoured");
+
+                Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                Assertions.assertArrayEquals(bcEnc.doFinal(msg), joCT,
+                        xform + " tagBits=" + tagBits + ": diverged from BC");
+
+                Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+                Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
+                        xform + " tagBits=" + tagBits + ": roundtrip failed");
+            }
+        }
+    }
+
+    /**
+     * The documented BC ordering — AAD carried in the {@code AEADParameterSpec}
+     * PLUS a further {@code updateAAD} call before the payload — must
+     * concatenate identically to BouncyCastle on all three AEAD modes
+     * (GCM / OCB via {@code BlockCipherSpi}, CCM via its one-shot buffer).
+     */
+    @Test
+    public void aesAEADParameterSpec_specAadThenUpdateAad_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesAEADParameterSpec_specAadThenUpdateAad_agreesWithBC");
+        for (String xform : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding", "AES/CCM/NoPadding"})
+        {
+            byte[] key = new byte[32];
+            sr.nextBytes(key);
+            byte[] iv = new byte[12];
+            sr.nextBytes(iv);
+            byte[] specAad = new byte[1 + sr.nextInt(24)];
+            sr.nextBytes(specAad);
+            byte[] extraAad = new byte[1 + sr.nextInt(24)];
+            sr.nextBytes(extraAad);
+            byte[] msg = new byte[1 + sr.nextInt(128)];
+            sr.nextBytes(msg);
+            SecretKey secretKey = new SecretKeySpec(key, "AES");
+
+            org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
+                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, specAad);
+
+            Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            bcEnc.updateAAD(extraAad);
+            byte[] bcCT = bcEnc.doFinal(msg);
+
+            Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            joEnc.updateAAD(extraAad);
+            byte[] joCT = joEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcCT, joCT,
+                    xform + ": spec-AAD + updateAAD concatenation diverged from BC");
+
+            Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+            joDec.updateAAD(extraAad);
+            Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
+                    xform + ": spec-AAD + updateAAD roundtrip failed");
         }
     }
 

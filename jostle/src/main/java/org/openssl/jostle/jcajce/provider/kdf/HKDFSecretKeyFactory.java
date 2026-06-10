@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactorySpi;
@@ -30,10 +31,31 @@ import java.security.spec.KeySpec;
 public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
 {
     private final String digestAlgorithm;
+    private final int maxOutputLength;
 
     public HKDFSecretKeyFactory(String digestAlgorithm)
     {
         this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digestAlgorithm);
+        // RFC 5869: HKDF-Expand caps the output at 255 * HashLen. Enforced at
+        // the JCE boundary so an over-long (or DoS-scale) request fails fast
+        // with a typed exception instead of an allocation + opaque native error.
+        this.maxOutputLength = 255 * hashLengthBytes(this.digestAlgorithm);
+    }
+
+    private static int hashLengthBytes(String canonicalDigest)
+    {
+        // DigestUtil canonicalises to the OpenSSL names ("SHA2-256" etc.).
+        switch (canonicalDigest)
+        {
+            case "SHA2-256":
+                return 32;
+            case "SHA2-384":
+                return 48;
+            case "SHA2-512":
+                return 64;
+            default:
+                throw new IllegalArgumentException("unsupported HKDF digest: " + canonicalDigest);
+        }
     }
 
     @Override
@@ -77,21 +99,45 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
             throw new InvalidKeySpecException("unsupported KeySpec null");
         }
 
+        if (ikm == null)
+        {
+            // Reject here with the checked KeyFactory exception type rather than
+            // letting the NI layer's unchecked IllegalArgumentException escape
+            // SecretKeyFactory.generateSecret.
+            throw new InvalidKeySpecException("ikm is null");
+        }
+
         if (outputLength <= 0)
         {
             throw new InvalidKeySpecException("output length must be positive");
         }
 
+        if (outputLength > maxOutputLength)
+        {
+            throw new InvalidKeySpecException("output length exceeds RFC 5869 limit of 255 * HashLen ("
+                    + maxOutputLength + " bytes for " + digestAlgorithm + ")");
+        }
+
         byte[] rawKey = new byte[outputLength];
 
-        NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.hkdf(
-                ikm,
-                salt,
-                info,
-                digestAlgorithm,
-                rawKey, 0, rawKey.length));
+        try
+        {
+            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.hkdf(
+                    ikm,
+                    salt,
+                    info,
+                    digestAlgorithm,
+                    rawKey, 0, rawKey.length));
 
-        return new SecretKeySpec(rawKey, "HKDF");
+            return new SecretKeySpec(rawKey, "HKDF");
+        }
+        finally
+        {
+            // The IKM copy and the derived bytes (SecretKeySpec took its own
+            // copy) are secret material — scrub both, on failure paths too.
+            Arrays.fill(ikm, (byte) 0);
+            Arrays.fill(rawKey, (byte) 0);
+        }
     }
 
     @Override

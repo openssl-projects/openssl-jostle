@@ -11,6 +11,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.SecretKey;
@@ -69,13 +70,26 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
 
         byte[] rawKey = new byte[keyLengthBits >> 3];
 
-        NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.scrypt(
-                Strings.toUTF8ByteArray(password),
-                salt,
-                costParameter,
-                blockSize,
-                parallelizationParameter,
-                rawKey, 0, rawKey.length));
+        // The UTF-8 password bytes are secret material — scrub the temporary
+        // copy once the native call has consumed it, on failure paths too.
+        byte[] passwordBytes = Strings.toUTF8ByteArray(password);
+        try
+        {
+            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.scrypt(
+                    passwordBytes,
+                    salt,
+                    costParameter,
+                    blockSize,
+                    parallelizationParameter,
+                    rawKey, 0, rawKey.length));
+        }
+        finally
+        {
+            if (passwordBytes != null)
+            {
+                Arrays.fill(passwordBytes, (byte) 0);
+            }
+        }
 
         return new JOScryptKey("ScryptWithUTF8", password, salt, costParameter, blockSize, parallelizationParameter, rawKey);
     }

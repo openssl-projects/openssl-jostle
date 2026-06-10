@@ -336,7 +336,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
     }
 
     digest_str = (*env)->GetStringUTFChars(env, digest, NULL);
-    if (digest_str == NULL) {
+    if (OPS_FAILED_ACCESS_5 digest_str == NULL) {
         ret_code = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
@@ -344,7 +344,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
     // out_offset is not negative by this point
     uint8_t *out = output.bytearray + out_offset;
 
-    ret_code = hkdf(
+    ret_code = kdf_hkdf(
         ikm.bytearray, ikm.size,
         salt.bytearray, salt.size,
         info.bytearray, info.size,

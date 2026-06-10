@@ -349,6 +349,16 @@ class BlockCipherSpi extends CipherSpi
                 tag = tLen / 8;
                 aeadAssociatedData = acc.getAssociatedData();
             }
+            else if (AEADParameterSpecAccessor.matches(params))
+            {
+                // AEAD-shaped spec on a non-AEAD mode: it cannot be honoured,
+                // and letting it fall into the IvParameterSpec branch would
+                // silently drop its tag length and associated data — exactly
+                // the failure mode the accessor exists to prevent. BC rejects
+                // this combination too.
+                throw new InvalidAlgorithmParameterException(
+                        "AEAD parameter spec cannot be used with non-AEAD mode " + osslMode);
+            }
             else if (params instanceof IvParameterSpec)
             {
                 iv = ((IvParameterSpec) params).getIV();
