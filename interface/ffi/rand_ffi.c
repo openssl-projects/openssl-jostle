@@ -9,6 +9,10 @@
 #include "../util/bc_err_codes.h"
 #include "../util/rand.h"
 
+static int rand_strength_supported(int32_t strength) {
+    return strength >= 0 && strength <= JO_RAND_MAX_STRENGTH;
+}
+
 int32_t JoRand_randomBytes(uint8_t *output, size_t output_size, int32_t output_len, int32_t strength,
                            uint8_t prediction_resistant, uint8_t *additional_input,
                            size_t additional_input_size) {
@@ -20,7 +24,7 @@ int32_t JoRand_randomBytes(uint8_t *output, size_t output_size, int32_t output_l
         return JO_OUTPUT_LEN_IS_NEGATIVE;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         return JO_RAND_INSUFFICIENT_STRENGTH;
     }
 
@@ -43,7 +47,7 @@ int32_t JoRand_randomBytes(uint8_t *output, size_t output_size, int32_t output_l
 int32_t JoRand_instantiate(int32_t strength, uint8_t prediction_resistant,
                            uint8_t *personalization_string,
                            size_t personalization_string_size) {
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         return JO_RAND_INSUFFICIENT_STRENGTH;
     }
 
@@ -57,7 +61,7 @@ int32_t JoRand_instantiate(int32_t strength, uint8_t prediction_resistant,
 
 int32_t JoRand_reseed(int32_t strength, uint8_t prediction_resistant,
                       uint8_t *additional_input, size_t additional_input_size) {
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         return JO_RAND_INSUFFICIENT_STRENGTH;
     }
 
@@ -77,7 +81,7 @@ JO_RAND_CTX *JoRand_createContext(int32_t strength, uint8_t prediction_resistant
         return NULL;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         *err = JO_RAND_INSUFFICIENT_STRENGTH;
         return NULL;
     }
@@ -113,7 +117,7 @@ int32_t JoRand_contextRandomBytes(JO_RAND_CTX *ctx, uint8_t *output,
         return JO_OUTPUT_LEN_IS_NEGATIVE;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         return JO_RAND_INSUFFICIENT_STRENGTH;
     }
 
@@ -142,7 +146,7 @@ int32_t JoRand_contextReseed(JO_RAND_CTX *ctx, int32_t strength,
         return JO_NOT_INITIALIZED;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         return JO_RAND_INSUFFICIENT_STRENGTH;
     }
 

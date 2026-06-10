@@ -135,11 +135,6 @@ public class RandServiceFFI implements RandServiceNI
     public int ni_randomBytes(byte[] output, int outputLen, int strength,
                               boolean predictionResistant, byte[] additionalInput)
     {
-        if (output != null && outputLen == 0 && strength >= 0)
-        {
-            return 0;
-        }
-
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment outputSeg = output == null ?
@@ -257,11 +252,6 @@ public class RandServiceFFI implements RandServiceNI
     public int ni_contextRandomBytes(long reference, byte[] output, int outputLen, int strength,
                                      boolean predictionResistant, byte[] additionalInput)
     {
-        if (output != null && outputLen == 0 && strength >= 0)
-        {
-            return 0;
-        }
-
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment outputSeg = output == null ?

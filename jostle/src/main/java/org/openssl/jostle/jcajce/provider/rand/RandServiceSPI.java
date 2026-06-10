@@ -18,10 +18,10 @@ import java.security.SecureRandomSpi;
 /**
  * SecureRandomSpi backed by OpenSSL RAND.
  * <p>
- * OpenSSL owns seeding and reseeding for this implementation. Caller-supplied
- * seed bytes are accepted for SecureRandom API compatibility, but they are not
- * treated as deterministic input or additional entropy. JDK 9+ parameterized
- * DRBG operations are not supported by this SPI.
+ * OpenSSL owns entropy collection for this implementation. Caller-supplied
+ * seed bytes supplement the native RAND state but are not treated as
+ * deterministic input. JDK 9+ parameterized DRBG operations are not supported
+ * by this SPI.
  * </p>
  */
 public final class RandServiceSPI extends SecureRandomSpi
@@ -54,7 +54,15 @@ public final class RandServiceSPI extends SecureRandomSpi
     @Override
     protected void engineSetSeed(byte[] seed)
     {
-        // See the class-level seeding contract.
+        if (seed == null)
+        {
+            throw new NullPointerException("seed cannot be null");
+        }
+
+        if (seed.length > 0)
+        {
+            randServiceNI.reseed(algorithm.getStrength(), false, seed);
+        }
     }
 
     @Override

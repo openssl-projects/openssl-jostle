@@ -38,34 +38,48 @@ public class RandServiceLimitTest
     @Test
     public void randomBytesRejectsNullOutput()
     {
-        Assertions.assertThrows(NullPointerException.class, () -> randServiceNI.randomBytes(null, 1, DRBG_STRENGTH));
+        assertNullPointer("output is null", () -> randServiceNI.randomBytes(null, 1, DRBG_STRENGTH));
     }
 
     @Test
     public void randomBytesRejectsNegativeLength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class,
+        assertIllegalArgument("output len negative",
                 () -> randServiceNI.randomBytes(new byte[1], -1, DRBG_STRENGTH));
     }
 
     @Test
     public void randomBytesRejectsMinimumNegativeLength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class,
+        assertIllegalArgument("output len negative",
                 () -> randServiceNI.randomBytes(new byte[1], Integer.MIN_VALUE, DRBG_STRENGTH));
     }
 
     @Test
     public void randomBytesRejectsNegativeStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> randServiceNI.randomBytes(new byte[1], 1, -1));
+        assertIllegalArgument("insufficient random strength", () -> randServiceNI.randomBytes(new byte[1], 1, -1));
     }
 
     @Test
     public void randomBytesRejectsMinimumNegativeStrength()
     {
-        Assertions.assertThrows(IllegalArgumentException.class,
+        assertIllegalArgument("insufficient random strength",
                 () -> randServiceNI.randomBytes(new byte[1], 1, Integer.MIN_VALUE));
+    }
+
+    @Test
+    public void randomBytesRejectsInsufficientStrength()
+    {
+        assertIllegalArgument("insufficient random strength",
+                () -> randServiceNI.randomBytes(new byte[1], 1, Integer.MAX_VALUE));
+    }
+
+    @Test
+    public void randomBytesRejectsInsufficientStrengthWithZeroLength()
+    {
+        assertIllegalArgument("insufficient random strength",
+                () -> randServiceNI.randomBytes(new byte[0], 0, Integer.MAX_VALUE));
     }
 
     @Test
@@ -121,7 +135,7 @@ public class RandServiceLimitTest
     @Test
     public void randomBytesRejectsLengthPastOutput()
     {
-        Assertions.assertThrows(IllegalArgumentException.class,
+        assertIllegalArgument("output offset + length is out of range",
                 () -> randServiceNI.randomBytes(new byte[8], 9, DRBG_STRENGTH));
     }
 
@@ -139,9 +153,28 @@ public class RandServiceLimitTest
         randServiceNI.randomBytes(output, output.length, DRBG_STRENGTH);
     }
 
+    @Test
+    public void contextRandomBytesRejectsUninitializedBeforeZeroLength()
+    {
+        assertIllegalState("not initialized",
+                () -> randServiceNI.contextRandomBytes(0, new byte[0], 0, 0, false, null));
+    }
+
     private static void assertIllegalArgument(String message, Runnable action)
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class, action::run);
+        Assertions.assertEquals(message, e.getMessage());
+    }
+
+    private static void assertIllegalState(String message, Runnable action)
+    {
+        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, action::run);
+        Assertions.assertEquals(message, e.getMessage());
+    }
+
+    private static void assertNullPointer(String message, Runnable action)
+    {
+        NullPointerException e = Assertions.assertThrows(NullPointerException.class, action::run);
         Assertions.assertEquals(message, e.getMessage());
     }
 }

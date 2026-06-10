@@ -13,6 +13,10 @@
 #include "../util/ops.h"
 #include "../util/rand.h"
 
+static int rand_strength_supported(int32_t strength) {
+    return strength >= 0 && strength <= JO_RAND_MAX_STRENGTH;
+}
+
 /*
  * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
  * Method:    ni_randomBytes
@@ -39,7 +43,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
         goto exit;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
         goto exit;
     }
@@ -89,7 +93,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
     java_bytearray_ctx personalization_string;
     init_bytearray_ctx(&personalization_string);
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
         goto exit;
     }
@@ -123,7 +127,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
     java_bytearray_ctx additional_input;
     init_bytearray_ctx(&additional_input);
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
         goto exit;
     }
@@ -162,7 +166,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandService
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         err[0] = JO_RAND_INSUFFICIENT_STRENGTH;
         goto exit;
     }
@@ -229,7 +233,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
         goto exit;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
         goto exit;
     }
@@ -286,7 +290,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
         goto exit;
     }
 
-    if (strength < 0) {
+    if (!rand_strength_supported(strength)) {
         ret_code = JO_RAND_INSUFFICIENT_STRENGTH;
         goto exit;
     }

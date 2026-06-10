@@ -86,14 +86,14 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:93
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, attach thread: -99"));
+            assertOpenSSLMessageContains(t, "handler fail, attach thread: -99");
         }
     }
 
@@ -105,14 +105,14 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, create bytearray: -99"));
+            assertOpenSSLMessageContains(t, "handler fail, create bytearray: -99");
         }
     }
 
@@ -123,14 +123,15 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:67
+            // Exercises interface/ffi/rand_upcall_ffi.c:35
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("out_len > INT_MAX"));
+            assertOpenSSLMessageContains(t, "out_len > INT_MAX");
         }
     }
 
@@ -141,14 +142,15 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:72
+            // Exercises interface/ffi/rand_upcall_ffi.c:40
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("strength > INT_MAX"));
+            assertOpenSSLMessageContains(t, "strength > INT_MAX");
         }
     }
 
@@ -159,14 +161,15 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:132
+            // Exercises interface/ffi/rand_upcall_ffi.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -96"));
+            assertOpenSSLMessageContains(t, "handler fail, short output: -96");
         }
     }
 
@@ -178,14 +181,14 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:146
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, access bytearray: -101"));
+            assertOpenSSLMessageContains(t, "handler fail, access bytearray: -101");
         }
     }
 
@@ -196,15 +199,23 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:61
+            // Exercises interface/ffi/rand_upcall_ffi.c:29
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -98"));
+            assertOpenSSLMessageContains(t, "handler fail, rand up call is null: -98");
         }
+    }
+
+    private static void assertOpenSSLMessageContains(Exception t, String message)
+    {
+        Assertions.assertEquals(OpenSSLException.class, t.getClass());
+        Assertions.assertTrue(t.getMessage().startsWith("OpenSSL Error:"));
+        Assertions.assertTrue(t.getMessage().contains(message));
     }
 
     @Test
@@ -212,7 +223,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:218
+        // Exercises interface/util/rand.c:173
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
         int code = randServiceNI.ni_instantiate(0, false);
 
@@ -224,9 +235,9 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:226
+        // Exercises interface/util/rand.c:181
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
-        // Exercises interface/util/rand.c:227
+        // Exercises interface/util/rand.c:182
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
         int code = randServiceNI.ni_instantiate(0, false);
 
@@ -238,9 +249,9 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:236
+        // Exercises interface/util/rand.c:191
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
-        // Exercises interface/util/rand.c:238
+        // Exercises interface/util/rand.c:193
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
         int code = randServiceNI.ni_instantiate(0, true);
 
@@ -252,7 +263,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:223
+        // Exercises interface/util/rand.c:178
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
         int code = randServiceNI.ni_instantiate(0, false);
 
@@ -264,7 +275,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:261
+        // Exercises interface/util/rand.c:213
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
         int code = randServiceNI.ni_reseed(0, false);
 
@@ -276,9 +287,9 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:269
+        // Exercises interface/util/rand.c:221
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
-        // Exercises interface/util/rand.c:270
+        // Exercises interface/util/rand.c:222
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
         int code = randServiceNI.ni_reseed(0, false);
 
@@ -290,9 +301,9 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:277
+        // Exercises interface/util/rand.c:231
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
-        // Exercises interface/util/rand.c:278
+        // Exercises interface/util/rand.c:232
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
         int code = randServiceNI.ni_reseed(0, false);
 
@@ -304,7 +315,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:266
+        // Exercises interface/util/rand.c:218
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
         int code = randServiceNI.ni_reseed(0, false);
 
@@ -316,7 +327,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:168
+        // Exercises interface/util/rand.c:126
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
         int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
 
@@ -328,9 +339,9 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:176
+        // Exercises interface/util/rand.c:134
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
-        // Exercises interface/util/rand.c:177
+        // Exercises interface/util/rand.c:135
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
         int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
 
@@ -342,7 +353,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:190
+        // Exercises interface/util/rand.c:148
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
         int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
 
@@ -354,7 +365,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        // Exercises interface/util/rand.c:173
+        // Exercises interface/util/rand.c:131
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
         int code = randServiceNI.ni_randomBytes(new byte[1], 1, 0, false, new byte[1]);
 

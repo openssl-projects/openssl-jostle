@@ -147,6 +147,15 @@ public class RandServiceParameterTest
     }
 
     @Test
+    public void nextBytesRejectsNullParameters() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () ->
+                random.nextBytes(new byte[16], null));
+    }
+
+    @Test
     public void nextBytesSupportsAdditionalInput() throws Exception
     {
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
@@ -196,6 +205,16 @@ public class RandServiceParameterTest
     }
 
     @Test
+    public void reseedNoParametersSupportsPredictionResistanceCapability() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DRBG",
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.PR_AND_RESEED, null),
+                JostleProvider.PROVIDER_NAME);
+
+        random.reseed();
+    }
+
+    @Test
     public void reseedRejectsCapabilityNone() throws Exception
     {
         SecureRandom random = SecureRandom.getInstance("DRBG",
@@ -231,5 +250,16 @@ public class RandServiceParameterTest
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
 
         random.reseed(DrbgParameters.reseed(false, new byte[1]));
+    }
+
+    @Test
+    public void setSeedSupplementsParameterizedInstance() throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance("DRBG",
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.NONE, null),
+                JostleProvider.PROVIDER_NAME);
+
+        random.setSeed(new byte[]{ 1, 2, 3, 4 });
+        random.nextBytes(new byte[16]);
     }
 }

@@ -90,7 +90,15 @@ public final class RandServiceSPI extends SecureRandomSpi
     @Override
     protected void engineSetSeed(byte[] seed)
     {
-        // OpenSSL owns seeding and reseeding for this implementation — no-op.
+        if (seed == null)
+        {
+            throw new NullPointerException("seed cannot be null");
+        }
+
+        if (seed.length > 0)
+        {
+            contextReseed(instanceStrength, false, seed);
+        }
     }
 
     @Override
@@ -114,8 +122,8 @@ public final class RandServiceSPI extends SecureRandomSpi
             throw new NullPointerException("bytes cannot be null");
         }
 
-        boolean predictionResistant = instanceCapability.supportsPredictionResistance();
-        contextRandomBytes(bytes, instanceStrength, predictionResistant, null);
+        contextRandomBytes(bytes, instanceStrength,
+                instanceCapability.supportsPredictionResistance(), null);
     }
 
     @Override
@@ -128,8 +136,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         if (params == null)
         {
-            engineNextBytes(bytes);
-            return;
+            throw new IllegalArgumentException("params cannot be null");
         }
 
         if (!(params instanceof DrbgParameters.NextBytes))
@@ -153,7 +160,8 @@ public final class RandServiceSPI extends SecureRandomSpi
         if (params == null)
         {
             checkReseeding();
-            contextReseed(instanceStrength, false, null);
+            contextReseed(instanceStrength,
+                    instanceCapability.supportsPredictionResistance(), null);
             return;
         }
 

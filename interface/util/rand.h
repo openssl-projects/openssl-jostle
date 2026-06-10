@@ -13,6 +13,8 @@
 
 typedef struct jo_rand_ctx_st JO_RAND_CTX;
 
+#define JO_RAND_MAX_STRENGTH ((int32_t) 256)
+
 int32_t rand_init(const char *provider_name, int32_t *created);
 
 void rand_destroy(void);
