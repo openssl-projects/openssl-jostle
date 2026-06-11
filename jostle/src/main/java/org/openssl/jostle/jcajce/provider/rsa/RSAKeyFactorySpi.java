@@ -198,6 +198,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         }
         // Foreign RSA key — re-encode and decode through us so we
         // own the EVP_PKEY.
+        byte[] encoded = null;
         try
         {
             if (key instanceof java.security.interfaces.RSAPrivateCrtKey)
@@ -219,7 +220,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                         rsa.getModulus(), rsa.getPublicExponent()));
             }
             // Fall through to encoded form.
-            byte[] encoded = key.getEncoded();
+            encoded = key.getEncoded();
             if (encoded == null)
             {
                 throw new java.security.InvalidKeyException("foreign key has no encoded form");
@@ -233,6 +234,21 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         catch (InvalidKeySpecException e)
         {
             throw new java.security.InvalidKeyException(e.getMessage(), e);
+        }
+        catch (RuntimeException e)
+        {
+            // A hostile/broken foreign key can throw from getEncoded();
+            // surface the typed exception the translate contract requires.
+            throw new java.security.InvalidKeyException("unable to translate key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material — scrub it
+            // (engineGeneratePrivate scrubbed only its own inner clone).
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
         }
     }
 

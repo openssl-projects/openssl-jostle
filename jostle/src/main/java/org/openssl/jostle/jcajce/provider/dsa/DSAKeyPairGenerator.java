@@ -63,6 +63,19 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
     private static final int DEFAULT_KEY_SIZE = 2048;
 
     /**
+     * Bounds for explicitly-supplied {@link DSAParameterSpec} domain
+     * parameters (the {@link #initialize(int)} path is already restricted to
+     * the FIPS 186-4 sizes). {@code p} below 1024 is broken; the 3072 ceiling
+     * matches the largest size FIPS defines and caps the keygen cost. {@code q}
+     * must be one of the FIPS 186-4 subgroup sizes (160/224/256) and strictly
+     * smaller than {@code p}.
+     */
+    private static final int MIN_P_BITS = 1024;
+    private static final int MAX_P_BITS = 3072;
+    private static final int MIN_Q_BITS = 160;
+    private static final int MAX_Q_BITS = 256;
+
+    /**
      * Per-JVM cache of generated domain parameters, keyed by modulus
      * bit size. The cached {@link PKEYKeySpec} owns a parameters-only
      * EVP_PKEY; keygen runs against it without re-deriving (p, q, g).
@@ -139,6 +152,26 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
         {
             throw new InvalidAlgorithmParameterException(
                     "DSAParameterSpec p, q and g must all be positive");
+        }
+        int pBits = dsaSpec.getP().bitLength();
+        int qBits = dsaSpec.getQ().bitLength();
+        if (pBits < MIN_P_BITS || pBits > MAX_P_BITS)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DSA prime size " + pBits + " bits is out of range ["
+                            + MIN_P_BITS + ", " + MAX_P_BITS + "]");
+        }
+        if (qBits < MIN_Q_BITS || qBits > MAX_Q_BITS)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DSA subgroup size " + qBits + " bits is out of range ["
+                            + MIN_Q_BITS + ", " + MAX_Q_BITS + "]");
+        }
+        if (qBits >= pBits)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DSA subgroup q (" + qBits + " bits) must be smaller than p ("
+                            + pBits + " bits)");
         }
         this.explicitParams = dsaSpec;
         this.random = DefaultRandSource.replaceWith(this.random, random);

@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import javax.crypto.spec.DHParameterSpec;
@@ -55,9 +56,19 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
-            requireDH(spec);
-            return new JODHPublicKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                requireDH(spec);
+                return new JODHPublicKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                // Malformed encoding surfaces from the decoder as OpenSSLException
+                // / IllegalArgumentException; the KeyFactory contract requires
+                // InvalidKeySpecException (RSAKeyFactorySpi precedent).
+                throw new InvalidKeySpecException("unable to decode DH public key", e);
+            }
         }
         if (keySpec instanceof DHPublicKeySpec)
         {
@@ -77,10 +88,26 @@ public class DHKeyFactorySpi extends KeyFactorySpi
     {
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
+            // getEncoded() returns a fresh copy carrying the private value x —
+            // scrub it once the native key is built (Ed/RSA precedent).
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-            requireDH(spec);
-            return new JODHPrivateKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                requireDH(spec);
+                return new JODHPrivateKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode DH private key", e);
+            }
+            finally
+            {
+                if (encoded != null)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
+            }
         }
         if (keySpec instanceof DHPrivateKeySpec)
         {
@@ -141,11 +168,16 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
+        if (key == null)
+        {
+            throw new java.security.InvalidKeyException("key is null");
+        }
         // Foreign DH key — re-encode and decode through us so we
         // own the EVP_PKEY.
+        byte[] encoded = null;
         try
         {
-            byte[] encoded = key.getEncoded();
+            encoded = key.getEncoded();
             if (encoded == null)
             {
                 throw new java.security.InvalidKeyException("foreign key has no encoded form");
@@ -160,6 +192,21 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         {
             throw new java.security.InvalidKeyException(e.getMessage(), e);
         }
+        catch (RuntimeException e)
+        {
+            // A hostile/broken foreign key can throw from getEncoded();
+            // surface the typed exception the translate contract requires.
+            throw new java.security.InvalidKeyException("unable to translate key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material — scrub it
+            // (engineGeneratePrivate scrubbed only its own inner clone).
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
+        }
     }
 
 
@@ -168,6 +215,14 @@ public class DHKeyFactorySpi extends KeyFactorySpi
      * unsigned magnitude. DH components are all positive integers; a
      * null or non-positive value is a malformed spec.
      */
+    /**
+     * Upper bound on any imported DH component, matching
+     * {@code DHKeyPairGenerator.MAX_KEY_SIZE_BITS}. DoS protection: the
+     * private import eagerly computes y = g^x mod p natively, which is
+     * O(bits^3) — an unbounded p turns the KeyFactory into a CPU sink.
+     */
+    private static final int MAX_COMPONENT_BITS = 16384;
+
     private static byte[] magnitude(BigInteger value, String name)
             throws InvalidKeySpecException
     {
@@ -178,6 +233,11 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         if (value.signum() <= 0)
         {
             throw new InvalidKeySpecException("DH component '" + name + "' must be positive");
+        }
+        if (value.bitLength() > MAX_COMPONENT_BITS)
+        {
+            throw new InvalidKeySpecException("DH component '" + name + "' exceeds "
+                    + MAX_COMPONENT_BITS + " bits");
         }
         return DHComponents.unsignedMagnitude(value);
     }

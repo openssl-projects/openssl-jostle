@@ -290,15 +290,15 @@ int32_t rsa_decode_private_components(key_spec *spec,
     }
 
     bld = OSSL_PARAM_BLD_new();
-    if (bld == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 bld == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(1062);
         goto exit;
     }
 
-    if (1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_N, n_bn) ||
+    if (OPS_OPENSSL_ERROR_6 1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_N, n_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_E, e_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_D, d_bn)) {
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(1063);
         goto exit;
     }
 
@@ -350,30 +350,30 @@ int32_t rsa_decode_private_components_crt(key_spec *spec,
     dq_bn = BN_secure_new();
     qi_bn = BN_secure_new();
 
-    if (n_bn == NULL || e_bn == NULL || d_bn == NULL ||
+    if (OPS_OPENSSL_ERROR_1 n_bn == NULL || e_bn == NULL || d_bn == NULL ||
         p_bn == NULL || q_bn == NULL ||
         dp_bn == NULL || dq_bn == NULL || qi_bn == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1064);
         goto exit;
     }
 
-    if (BN_bin2bn(d,    (int) d_len,    d_bn)  == NULL ||
+    if (OPS_OPENSSL_ERROR_2 BN_bin2bn(d,    (int) d_len,    d_bn)  == NULL ||
         BN_bin2bn(p,    (int) p_len,    p_bn)  == NULL ||
         BN_bin2bn(q,    (int) q_len,    q_bn)  == NULL ||
         BN_bin2bn(dp,   (int) dp_len,   dp_bn) == NULL ||
         BN_bin2bn(dq,   (int) dq_len,   dq_bn) == NULL ||
         BN_bin2bn(qinv, (int) qinv_len, qi_bn) == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1065);
         goto exit;
     }
 
     bld = OSSL_PARAM_BLD_new();
-    if (bld == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 bld == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(1066);
         goto exit;
     }
 
-    if (1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_N, n_bn) ||
+    if (OPS_OPENSSL_ERROR_4 1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_N, n_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_E, e_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_D, d_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_FACTOR1,    p_bn)  ||
@@ -381,7 +381,7 @@ int32_t rsa_decode_private_components_crt(key_spec *spec,
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_EXPONENT1,  dp_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_EXPONENT2,  dq_bn) ||
         1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_RSA_COEFFICIENT1, qi_bn)) {
-        ret_code = JO_OPENSSL_ERROR;
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(1067);
         goto exit;
     }
 
@@ -460,8 +460,8 @@ int32_t rsa_get_component(const key_spec *spec, int32_t component,
     }
 
     int written = BN_bn2bin(bn, out);
-    if (written < 0) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_9 written < 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(1071);
         goto exit;
     }
 

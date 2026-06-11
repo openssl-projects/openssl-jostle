@@ -848,12 +848,20 @@ public class DSALimitTest
         {
             ref = dsa.allocateSigner();
             dsa.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
-            dsa.update(ref, new byte[16], -1, 0);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException expected)
-        {
-            Assertions.assertEquals("input offset is negative", expected.getMessage());
+            // -1 catches a "> 0" vs ">= 0" check; MIN_VALUE catches
+            // Math.abs / negation tricks that stay negative.
+            for (int off : new int[]{-1, Integer.MIN_VALUE})
+            {
+                try
+                {
+                    dsa.update(ref, new byte[16], off, 0);
+                    Assertions.fail("expected IllegalArgumentException for inOff=" + off);
+                }
+                catch (IllegalArgumentException expected)
+                {
+                    Assertions.assertEquals("input offset is negative", expected.getMessage());
+                }
+            }
         }
         finally
         {
@@ -872,12 +880,18 @@ public class DSALimitTest
         {
             ref = dsa.allocateSigner();
             dsa.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
-            dsa.update(ref, new byte[16], 0, -1);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException expected)
-        {
-            Assertions.assertEquals("input len is negative", expected.getMessage());
+            for (int len : new int[]{-1, Integer.MIN_VALUE})
+            {
+                try
+                {
+                    dsa.update(ref, new byte[16], 0, len);
+                    Assertions.fail("expected IllegalArgumentException for inLen=" + len);
+                }
+                catch (IllegalArgumentException expected)
+                {
+                    Assertions.assertEquals("input len is negative", expected.getMessage());
+                }
+            }
         }
         finally
         {

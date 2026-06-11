@@ -54,6 +54,17 @@ public class DHKeyPairGenerator extends KeyPairGenerator
     /** Default modulus size when no init is performed before generateKeyPair. */
     private static final int DEFAULT_KEY_SIZE = 2048;
 
+    /**
+     * Security floor / DoS ceiling for an explicitly-supplied {@code p}
+     * (the {@link #initialize(int)} path is already restricted to the RFC 7919
+     * named groups). 1024 is the absolute floor — DH below it is broken
+     * cryptographically; 16384 caps the modexp cost so a multi-million-bit
+     * modulus can't turn keygen into a CPU sink. Mirrors
+     * {@code RSAKeyPairGenerator}'s named bounds.
+     */
+    private static final int MIN_P_BITS = 1024;
+    private static final int MAX_P_BITS = 16384;
+
 
     private int keySize = DEFAULT_KEY_SIZE;
     private DHParameterSpec explicitParams = null;
@@ -134,6 +145,16 @@ public class DHKeyPairGenerator extends KeyPairGenerator
         {
             throw new InvalidAlgorithmParameterException(
                     "DHParameterSpec p and g must both be positive");
+        }
+        int pBits = dhSpec.getP().bitLength();
+        if (pBits < MIN_P_BITS || pBits > MAX_P_BITS)
+        {
+            // Reject here rather than driving an unbounded (or worthless)
+            // native modexp at generateKeyPair, where no typed exception
+            // could be raised.
+            throw new InvalidAlgorithmParameterException(
+                    "DH prime size " + pBits + " bits is out of range ["
+                            + MIN_P_BITS + ", " + MAX_P_BITS + "]");
         }
         this.explicitParams = dhSpec;
         this.random = DefaultRandSource.replaceWith(this.random, random);

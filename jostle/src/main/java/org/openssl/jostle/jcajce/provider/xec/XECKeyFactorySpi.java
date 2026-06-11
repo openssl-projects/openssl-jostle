@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.xec;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.security.InvalidKeyException;
@@ -46,9 +47,19 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
-            requireXEC(spec);
-            return new JOXECPublicKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                requireXEC(spec);
+                return new JOXECPublicKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                // Malformed encoding surfaces from the decoder as OpenSSLException
+                // / IllegalArgumentException; the KeyFactory contract requires
+                // InvalidKeySpecException (RSAKeyFactorySpi precedent).
+                throw new InvalidKeySpecException("unable to decode XDH public key", e);
+            }
         }
         throw new InvalidKeySpecException(
                 "unsupported key spec: " + keySpec + ". Use X509EncodedKeySpec.");
@@ -59,10 +70,26 @@ public class XECKeyFactorySpi extends KeyFactorySpi
     {
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
+            // getEncoded() returns a fresh copy carrying the private key bytes —
+            // scrub it once the native key is built (Ed/RSA precedent).
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-            requireXEC(spec);
-            return new JOXECPrivateKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                requireXEC(spec);
+                return new JOXECPrivateKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode XDH private key", e);
+            }
+            finally
+            {
+                if (encoded != null)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
+            }
         }
         throw new InvalidKeySpecException(
                 "unsupported key spec: " + keySpec + ". Use PKCS8EncodedKeySpec.");
@@ -98,10 +125,15 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
+        if (key == null)
+        {
+            throw new InvalidKeyException("key is null");
+        }
         // Foreign XDH key — re-encode and decode through us so we own the EVP_PKEY.
+        byte[] encoded = null;
         try
         {
-            byte[] encoded = key.getEncoded();
+            encoded = key.getEncoded();
             if (encoded == null)
             {
                 throw new InvalidKeyException("foreign key has no encoded form");
@@ -115,6 +147,21 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         catch (InvalidKeySpecException e)
         {
             throw new InvalidKeyException(e.getMessage(), e);
+        }
+        catch (RuntimeException e)
+        {
+            // A hostile/broken foreign key can throw from getEncoded();
+            // surface the typed exception the translate contract requires.
+            throw new InvalidKeyException("unable to translate key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material — scrub it
+            // (engineGeneratePrivate scrubbed only its own inner clone).
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
         }
     }
 

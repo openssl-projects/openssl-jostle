@@ -34,15 +34,25 @@ import java.security.spec.AlgorithmParameterSpec;
  * {@code AlgorithmParameters("DH")} instance initialised with the
  * resulting {@link DHParameterSpec}.
  *
- * <p>Sizes follow the legacy JCA contract: 512–8192 bits, a multiple
- * of 64. Safe-prime generation is a prime search — slow at 2048 bits
- * and above. For the RFC 7919 named groups use
+ * <p>Sizes range 1024–8192 bits, a multiple of 64. The floor is 1024
+ * rather than the legacy JCA 512: 512/768-bit DH is export-grade and
+ * trivially broken (Logjam), so this provider refuses to generate it —
+ * matching the modern-floor policy in {@code DHKeyPairGenerator} /
+ * {@code RSAKeyPairGenerator}. Safe-prime generation is a prime search —
+ * slow at 2048 bits and above. For the RFC 7919 named groups use
  * {@code KeyPairGenerator.initialize(int)} instead, which is instant.
  */
 public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSpi
 {
     /** Default modulus size when no engineInit is performed. */
     private static final int DEFAULT_KEY_SIZE = 2048;
+
+    /**
+     * Security floor — DH below 1024 bits (Logjam-grade export DH) is
+     * refused outright — and DoS ceiling on the prime search.
+     */
+    private static final int MIN_P_BITS = 1024;
+    private static final int MAX_P_BITS = 8192;
 
     private int pBits = DEFAULT_KEY_SIZE;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -53,11 +63,12 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     {
         // AlgorithmParameterGenerator.init(int) throws
         // InvalidParameterException (RuntimeException) per the JCA contract.
-        if (size < 512 || size > 8192 || (size % 64) != 0)
+        if (size < MIN_P_BITS || size > MAX_P_BITS || (size % 64) != 0)
         {
             throw new InvalidParameterException(
                     "DH parameter size " + size + " is not supported. "
-                            + "Sizes must be 512..8192 and a multiple of 64.");
+                            + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS
+                            + " and a multiple of 64.");
         }
         this.pBits = size;
         this.random = DefaultRandSource.replaceWith(this.random, random);

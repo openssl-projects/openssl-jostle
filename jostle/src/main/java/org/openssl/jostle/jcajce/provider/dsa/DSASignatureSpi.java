@@ -20,8 +20,6 @@ import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
 import java.security.*;
-import java.security.interfaces.DSAPrivateKey;
-import java.security.interfaces.DSAPublicKey;
 
 /**
  * DSA Signature SPI for the standard {@code SHAxxxwithDSA} family.
@@ -116,9 +114,7 @@ public class DSASignatureSpi extends SignatureSpi
         {
             JODSAPublicKey key = importPublic(publicKey);
             lastKey = key;
-
-            ensureRef();
-            dsaServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
+            initVerifyInternal(key);
         }
     }
 
@@ -137,11 +133,29 @@ public class DSASignatureSpi extends SignatureSpi
         {
             JODSAPrivateKey key = importPrivate(privateKey);
             lastKey = key;
-
-            ensureRef();
-            dsaServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
-                    digestName, randSource);
+            initSignInternal(key);
         }
+    }
+
+    /**
+     * Bind an already-imported private key for signing using the SPI's
+     * current {@code randSource}. Separated from {@link #engineInitSign}
+     * so {@link #reInit} can re-bind after a terminal op WITHOUT replacing
+     * the caller-supplied SecureRandom (which {@code engineInitSign(key,
+     * random)} would do via {@code replaceWith}).
+     */
+    private void initSignInternal(JODSAPrivateKey key)
+    {
+        ensureRef();
+        dsaServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
+                digestName, randSource);
+    }
+
+    /** Verify-side counterpart to {@link #initSignInternal}. */
+    private void initVerifyInternal(JODSAPublicKey key)
+    {
+        ensureRef();
+        dsaServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
     }
 
     @Override
@@ -245,20 +259,23 @@ public class DSASignatureSpi extends SignatureSpi
 
     /**
      * Re-initialise after a sign or verify so the next streaming
-     * update starts fresh against the same key. Mirrors the pattern
-     * in {@code ECDSASignatureSpi}.
+     * update starts fresh against the same key. Re-binds via the
+     * {@code *Internal} helpers so the caller-supplied {@code randSource}
+     * survives — re-entering {@code engineInitSign(key)} here would
+     * silently swap it for the project default. Mirrors
+     * {@code ECDSASignatureSpi}.
      */
     private void reInit()
     {
         try
         {
-            if (lastKey instanceof DSAPublicKey)
+            if (lastKey instanceof JODSAPublicKey)
             {
-                engineInitVerify((PublicKey) lastKey);
+                initVerifyInternal((JODSAPublicKey) lastKey);
             }
-            else if (lastKey instanceof DSAPrivateKey)
+            else if (lastKey instanceof JODSAPrivateKey)
             {
-                engineInitSign((PrivateKey) lastKey);
+                initSignInternal((JODSAPrivateKey) lastKey);
             }
         }
         catch (Exception e)

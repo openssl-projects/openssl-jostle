@@ -256,6 +256,133 @@ public class DSATest
         Assertions.assertTrue(verifier.verify(sig));
     }
 
+    /**
+     * Explicit-parameter bounds (JCE-boundary DoS / security floor): a
+     * {@code DSAParameterSpec} whose p is below the 1024 floor or above the
+     * 3072 ceiling, or whose q is out of the 160..256 subgroup range, or where
+     * q is not smaller than p, must be rejected at {@code initialize} with
+     * {@link InvalidAlgorithmParameterException} — not driven into native
+     * keygen.
+     */
+    @Test
+    public void testInitialize_outOfRangeParams_rejected() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", JostleProvider.PROVIDER_NAME);
+        BigInteger g = BigInteger.valueOf(2);
+
+        // p below the floor (768 bits), q valid.
+        BigInteger pSmall = BigInteger.ONE.shiftLeft(767);
+        BigInteger q160 = BigInteger.ONE.shiftLeft(159);
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new DSAParameterSpec(pSmall, q160, g)),
+                "sub-1024-bit p must be rejected");
+
+        // p valid (2048), q above 256 (512 bits).
+        BigInteger p2048 = BigInteger.ONE.shiftLeft(2047);
+        BigInteger qBig = BigInteger.ONE.shiftLeft(511);
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new DSAParameterSpec(p2048, qBig, g)),
+                "oversized q must be rejected");
+
+        // q not smaller than p.
+        BigInteger p1024 = BigInteger.ONE.shiftLeft(1023);
+        BigInteger qEqP = BigInteger.ONE.shiftLeft(1023);
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new DSAParameterSpec(p1024, qEqP, g)),
+                "q >= p must be rejected");
+    }
+
+    /**
+     * Malformed DER fed to the KeyFactory must surface as the checked
+     * {@link InvalidKeySpecException} (the contract the PR's decoder-wrapping
+     * fix establishes), not an unchecked {@code OpenSSLException}.
+     */
+    @Test
+    public void testKeyFactory_malformedDer_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("testKeyFactory_malformedDer_rejected");
+        KeyFactory kf = KeyFactory.getInstance("DSA", JostleProvider.PROVIDER_NAME);
+
+        byte[] garbage = new byte[40];
+        sr.nextBytes(garbage);
+        byte[] truncated = {0x30, (byte) 0x82, 0x04, 0x00, 0x02, 0x01, 0x00}; // SEQUENCE claims 1024 bytes
+
+        for (byte[] bad : new byte[][]{garbage, truncated})
+        {
+            InvalidKeySpecException pub = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePublic(new X509EncodedKeySpec(bad)),
+                    "malformed SPKI must throw InvalidKeySpecException");
+            Assertions.assertTrue(pub.getMessage().startsWith("unable to decode DSA public key"),
+                    "unexpected message: " + pub.getMessage());
+
+            InvalidKeySpecException priv = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePrivate(new PKCS8EncodedKeySpec(bad)),
+                    "malformed PKCS#8 must throw InvalidKeySpecException");
+            Assertions.assertTrue(priv.getMessage().startsWith("unable to decode DSA private key"),
+                    "unexpected message: " + priv.getMessage());
+        }
+    }
+
+    /**
+     * {@code Signature.initVerify(null)} / {@code initSign(null)} on the DSA
+     * SPI must surface as {@link java.security.InvalidKeyException}, not an NPE
+     * leaking from the translate path.
+     */
+    @Test
+    public void testSignature_nullKey_rejected() throws Exception
+    {
+        Signature s = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(java.security.InvalidKeyException.class,
+                () -> s.initVerify((PublicKey) null), "initVerify(null) must throw InvalidKeyException");
+        Assertions.assertThrows(java.security.InvalidKeyException.class,
+                () -> s.initSign((PrivateKey) null), "initSign(null) must throw InvalidKeyException");
+    }
+
+    /**
+     * Cross-provider BC agreement on a 2048/256 key (q = 256) — the existing
+     * BC-agreement tests only exercise the legacy 1024/160 pairing, so a
+     * q=256-specific encoding or signature divergence from BC would otherwise
+     * be invisible. Uses the per-JVM-cached 2048 domain parameters, so the
+     * keygen cost is paid once. Both directions, SHA-256.
+     */
+    @Test
+    public void testDsa_2048_256_BCAgreement() throws Exception
+    {
+        SecureRandom sr = seededRandom("testDsa_2048_256_BCAgreement");
+
+        KeyPair joKp = generateKeyPair(2048);
+        Assertions.assertEquals(256, ((DSAPublicKey) joKp.getPublic()).getParams().getQ().bitLength(),
+                "expected a 256-bit q for a 2048-bit DSA key");
+
+        // Export both halves to BC.
+        KeyFactory bcKf = KeyFactory.getInstance("DSA", BouncyCastleProvider.PROVIDER_NAME);
+        PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(joKp.getPublic().getEncoded()));
+        PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(joKp.getPrivate().getEncoded()));
+
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        // Jostle signs, BC verifies.
+        Signature joSign = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
+        joSign.initSign(joKp.getPrivate());
+        joSign.update(msg);
+        byte[] joSig = joSign.sign();
+        Signature bcVerify = Signature.getInstance("SHA256withDSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcVerify.initVerify(bcPub);
+        bcVerify.update(msg);
+        Assertions.assertTrue(bcVerify.verify(joSig), "BC could not verify Jostle's 2048/256 signature");
+
+        // BC signs, Jostle verifies.
+        Signature bcSign = Signature.getInstance("SHA256withDSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcSign.initSign(bcPriv);
+        bcSign.update(msg);
+        byte[] bcSig = bcSign.sign();
+        Signature joVerify = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
+        joVerify.initVerify(joKp.getPublic());
+        joVerify.update(msg);
+        Assertions.assertTrue(joVerify.verify(bcSig), "Jostle could not verify BC's 2048/256 signature");
+    }
+
 
     // -----------------------------------------------------------------
     // Encoded round-trips with BouncyCastle (both directions)

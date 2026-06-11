@@ -27,8 +27,6 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.SignatureException;
 import java.security.SignatureSpi;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 
 /**
  * ECDSA Signature SPI for the standard {@code SHAxxxwithECDSA} family.
@@ -67,9 +65,7 @@ public class ECDSASignatureSpi extends SignatureSpi
         {
             JOECPublicKey key = ECKeyImport.importPublic(publicKey);
             lastKey = key;
-
-            ensureRef();
-            ecServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
+            initVerifyInternal(key);
         }
         finally
         {
@@ -92,10 +88,7 @@ public class ECDSASignatureSpi extends SignatureSpi
         {
             JOECPrivateKey key = ECKeyImport.importPrivate(privateKey);
             lastKey = key;
-
-            ensureRef();
-            ecServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
-                    digestName, randSource);
+            initSignInternal(key);
         }
         finally
         {
@@ -213,20 +206,44 @@ public class ECDSASignatureSpi extends SignatureSpi
     }
 
     /**
+     * Bind an already-imported private key for signing using the SPI's
+     * current {@code randSource}. Separated from {@link #engineInitSign}
+     * so {@link #reInit} can re-bind after a terminal op WITHOUT replacing
+     * the caller-supplied SecureRandom (which {@code engineInitSign(key,
+     * random)} would do via {@code replaceWith}).
+     */
+    private void initSignInternal(JOECPrivateKey key)
+    {
+        ensureRef();
+        ecServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
+                digestName, randSource);
+    }
+
+    /** Verify-side counterpart to {@link #initSignInternal}. */
+    private void initVerifyInternal(JOECPublicKey key)
+    {
+        ensureRef();
+        ecServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
+    }
+
+    /**
      * Re-initialise after a sign or verify so the next streaming
-     * update starts fresh against the same key.
+     * update starts fresh against the same key. Re-binds via the
+     * {@code *Internal} helpers so the caller-supplied {@code randSource}
+     * survives — re-entering {@code engineInitSign(key)} here would
+     * silently swap it for the project default.
      */
     private void reInit()
     {
         try
         {
-            if (lastKey instanceof ECPublicKey)
+            if (lastKey instanceof JOECPublicKey)
             {
-                engineInitVerify((PublicKey) lastKey);
+                initVerifyInternal((JOECPublicKey) lastKey);
             }
-            else if (lastKey instanceof ECPrivateKey)
+            else if (lastKey instanceof JOECPrivateKey)
             {
-                engineInitSign((PrivateKey) lastKey);
+                initSignInternal((JOECPrivateKey) lastKey);
             }
         }
         catch (Exception e)

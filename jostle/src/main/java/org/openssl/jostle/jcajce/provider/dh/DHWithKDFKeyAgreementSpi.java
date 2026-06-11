@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.kdf.KeyAgreementKDF;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKey;
+import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -53,9 +54,12 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     protected void engineInit(Key key, AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-        // Capture the optional UKM (partyAInfo), then run the standard DH init.
-        this.ukm = KeyAgreementKDF.extractUkm(params);
+        // Capture the optional UKM (partyAInfo) — this also validates the spec
+        // type — but only commit it once the standard DH init has succeeded, so
+        // a failed init can't leave stale keying material bound to the SPI.
+        byte[] newUkm = KeyAgreementKDF.extractUkm(params);
         super.engineInit(key, random);
+        this.ukm = newUkm;
     }
 
     @Override
@@ -63,6 +67,29 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     {
         this.ukm = null;
         super.engineInit(key, random);
+    }
+
+    /**
+     * BC parity: the raw pre-KDF shared secret must never escape a KDF
+     * agreement — keys are only produced via
+     * {@link #engineGenerateSecret(String)}.
+     */
+    @Override
+    protected byte[] engineGenerateSecret() throws IllegalStateException
+    {
+        throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
+    }
+
+    /**
+     * BC parity: the raw pre-KDF shared secret must never escape a KDF
+     * agreement — keys are only produced via
+     * {@link #engineGenerateSecret(String)}.
+     */
+    @Override
+    protected int engineGenerateSecret(byte[] sharedSecret, int offset)
+            throws IllegalStateException, ShortBufferException
+    {
+        throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
     @Override
@@ -82,15 +109,26 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
             throw new NoSuchAlgorithmException("unknown algorithm encountered: " + algorithm);
         }
 
-        byte[] zz = engineGenerateSecret();
+        // super: the local raw-form override deliberately throws.
+        byte[] zz = super.engineGenerateSecret();
+        byte[] kek = null;
         try
         {
-            byte[] kek = KeyAgreementKDF.x942(digest, zz, algorithm, keyLen, ukm);
+            // Raw KDF output verbatim, including DESede — matches BouncyCastle
+            // byte-for-byte (BC's KeyAgreement surface does not odd-parity-adjust
+            // the 3DES KEK; DES wrapping ignores the parity bits). An earlier
+            // parity adjustment here broke BC agreement and was removed.
+            kek = KeyAgreementKDF.x942(digest, zz, algorithm, keyLen, ukm);
             return new SecretKeySpec(kek, keyAlg);
         }
         finally
         {
             Arrays.fill(zz, (byte) 0);
+            // SecretKeySpec copies the bytes — scrub our working copy.
+            if (kek != null)
+            {
+                Arrays.fill(kek, (byte) 0);
+            }
         }
     }
 }

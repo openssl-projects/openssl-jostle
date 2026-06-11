@@ -200,7 +200,7 @@ int32_t md_ctx_reset(md_ctx *ctx) {
     };
     const OSSL_PARAM *params_ptr = ctx->xof ? params : NULL;
 
-    if (!EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params_ptr)) {
+    if (OPS_OPENSSL_ERROR_3 !EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params_ptr)) {
         return JO_OPENSSL_ERROR;
     }
 

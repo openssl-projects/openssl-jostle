@@ -810,6 +810,31 @@ public class DHOpsTest
         }
     }
 
+    @Test
+    public void dh_kexDerive_writtenOverflow_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        long ref = dh.allocateKex();
+        try
+        {
+            dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
+            dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
+            // A real output buffer (not the probe path) so the actual
+            // EVP_PKEY_derive runs and the post-derive overflow guard at
+            // dh.c:761 is reached.
+            // Exercises interface/util/dh.c:761
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
+            int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, code);
+        }
+        finally
+        {
+            ops.resetFlags();
+            dh.disposeKex(ref);
+        }
+    }
+
 
     // -----------------------------------------------------------------
     // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only. The FFI
@@ -900,6 +925,52 @@ public class DHOpsTest
     }
 
     @Test
+    public void dh_makePrivate_accessP_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DHServiceNI.COMP_P);
+        byte[] g = component(DHServiceNI.COMP_G);
+        byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
+        try
+        {
+            // Exercises interface/jni/dh_ni_jni.c:264
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int[] err = new int[1];
+            long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dh_makePrivate_accessG_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DHServiceNI.COMP_P);
+        byte[] g = component(DHServiceNI.COMP_G);
+        byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
+        try
+        {
+            // Exercises interface/jni/dh_ni_jni.c:268
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int[] err = new int[1];
+            long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
     public void dh_makePrivate_accessX_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
@@ -913,6 +984,52 @@ public class DHOpsTest
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dh_makePublic_accessP_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DHServiceNI.COMP_P);
+        byte[] g = component(DHServiceNI.COMP_G);
+        byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
+        try
+        {
+            // Exercises interface/jni/dh_ni_jni.c:327
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int[] err = new int[1];
+            long ref = dh.ni_makePublicFromComponents(p, g, y, err);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dh_makePublic_accessG_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DHServiceNI.COMP_P);
+        byte[] g = component(DHServiceNI.COMP_G);
+        byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
+        try
+        {
+            // Exercises interface/jni/dh_ni_jni.c:331
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int[] err = new int[1];
+            long ref = dh.ni_makePublicFromComponents(p, g, y, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }

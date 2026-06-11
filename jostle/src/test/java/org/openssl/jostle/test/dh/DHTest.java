@@ -55,6 +55,19 @@ public class DHTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Per-test seeded random; the seed is logged so a flaky failure can be
+     * reproduced. Per CLAUDE.md "cache one SecureRandom per test class".
+     */
+    private static SecureRandom seededRandom(String testName) throws Exception
+    {
+        long seed = RANDOM.nextLong();
+        System.out.println(testName + " seed=" + seed);
+        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+        sr.setSeed(seed);
+        return sr;
+    }
+
     @BeforeAll
     public static void beforeAll()
     {
@@ -208,6 +221,77 @@ public class DHTest
 
         Assertions.assertArrayEquals(secretA, secretB,
                 "both sides must derive the same shared secret");
+    }
+
+    /**
+     * Explicit-parameter bounds (JCE-boundary DoS / security floor): a
+     * {@code DHParameterSpec} whose prime is below the 1024 floor or above the
+     * 16384 ceiling must be rejected at {@code initialize} with
+     * {@link InvalidAlgorithmParameterException} rather than driving an
+     * unbounded (or worthless) native modexp at keygen.
+     */
+    @Test
+    public void testInitialize_outOfRangePrime_rejected() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        java.math.BigInteger g = java.math.BigInteger.valueOf(2);
+
+        java.math.BigInteger pSmall = java.math.BigInteger.ONE.shiftLeft(767); // 768-bit
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new DHParameterSpec(pSmall, g)),
+                "sub-1024-bit DH prime must be rejected");
+
+        java.math.BigInteger pHuge = java.math.BigInteger.ONE.shiftLeft(16385); // > 16384
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new DHParameterSpec(pHuge, g)),
+                "over-16384-bit DH prime must be rejected");
+    }
+
+    /**
+     * The AlgorithmParameterGenerator floor is 1024, not the legacy JCA 512:
+     * export-grade (Logjam) sizes are refused with
+     * {@link InvalidParameterException}.
+     */
+    @Test
+    public void testAlgorithmParameterGenerator_belowFloor_rejected() throws Exception
+    {
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance(
+                "DH", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(InvalidParameterException.class,
+                () -> apg.init(512), "512-bit DH paramgen must be rejected (Logjam floor)");
+        Assertions.assertThrows(InvalidParameterException.class,
+                () -> apg.init(768), "768-bit DH paramgen must be rejected");
+    }
+
+    /**
+     * Malformed DER fed to the KeyFactory must surface as the checked
+     * {@link InvalidKeySpecException} (the PR's decoder-wrapping contract),
+     * not an unchecked {@code OpenSSLException}.
+     */
+    @Test
+    public void testKeyFactory_malformedDer_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("testKeyFactory_malformedDer_rejected");
+        KeyFactory kf = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME);
+
+        byte[] garbage = new byte[40];
+        sr.nextBytes(garbage);
+        byte[] truncated = {0x30, (byte) 0x82, 0x04, 0x00, 0x02, 0x01, 0x00}; // SEQUENCE claims 1024 bytes
+
+        for (byte[] bad : new byte[][]{garbage, truncated})
+        {
+            InvalidKeySpecException pub = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePublic(new X509EncodedKeySpec(bad)),
+                    "malformed SPKI must throw InvalidKeySpecException");
+            Assertions.assertTrue(pub.getMessage().startsWith("unable to decode DH public key"),
+                    "unexpected message: " + pub.getMessage());
+
+            InvalidKeySpecException priv = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePrivate(new PKCS8EncodedKeySpec(bad)),
+                    "malformed PKCS#8 must throw InvalidKeySpecException");
+            Assertions.assertTrue(priv.getMessage().startsWith("unable to decode DH private key"),
+                    "unexpected message: " + priv.getMessage());
+        }
     }
 
 
@@ -438,15 +522,16 @@ public class DHTest
     @Test
     public void testAlgorithmParameterGenerator_generatesUsableParams() throws Exception
     {
-        // 512-bit safe-prime generation keeps the prime search fast;
-        // larger sizes use the same code path.
+        // 1024 is the smallest size the generator now accepts (the 512/768
+        // export-grade sizes are refused per the Logjam floor); the safe-prime
+        // search is still sub-second and larger sizes use the same code path.
         AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance(
                 "DH", JostleProvider.PROVIDER_NAME);
-        apg.init(512, RANDOM);
+        apg.init(1024, RANDOM);
         AlgorithmParameters params = apg.generateParameters();
 
         DHParameterSpec spec = params.getParameterSpec(DHParameterSpec.class);
-        Assertions.assertEquals(512, spec.getP().bitLength());
+        Assertions.assertEquals(1024, spec.getP().bitLength());
         // Safe prime: (p - 1) / 2 must also be prime.
         BigInteger q = spec.getP().subtract(BigInteger.ONE).shiftRight(1);
         Assertions.assertTrue(q.isProbablePrime(64),

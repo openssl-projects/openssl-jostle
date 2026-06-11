@@ -991,6 +991,78 @@ public class DSAOpsTest
     }
 
     @Test
+    public void dsa_makePrivate_accessP_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DSAServiceNI.COMP_P);
+        byte[] q = component(DSAServiceNI.COMP_Q);
+        byte[] g = component(DSAServiceNI.COMP_G);
+        byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
+        try
+        {
+            // Exercises interface/jni/dsa_ni_jni.c:208
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int[] err = new int[1];
+            long ref = dsa.ni_makePrivateFromComponents(p, q, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dsa_makePrivate_accessQ_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DSAServiceNI.COMP_P);
+        byte[] q = component(DSAServiceNI.COMP_Q);
+        byte[] g = component(DSAServiceNI.COMP_G);
+        byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
+        try
+        {
+            // Exercises interface/jni/dsa_ni_jni.c:212
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int[] err = new int[1];
+            long ref = dsa.ni_makePrivateFromComponents(p, q, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dsa_makePrivate_accessG_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DSAServiceNI.COMP_P);
+        byte[] q = component(DSAServiceNI.COMP_Q);
+        byte[] g = component(DSAServiceNI.COMP_G);
+        byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
+        try
+        {
+            // Exercises interface/jni/dsa_ni_jni.c:216
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            int[] err = new int[1];
+            long ref = dsa.ni_makePrivateFromComponents(p, q, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
     public void dsa_makePrivate_accessX_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
@@ -1005,6 +1077,78 @@ public class DSAOpsTest
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             int[] err = new int[1];
             long ref = dsa.ni_makePrivateFromComponents(p, q, g, x, err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dsa_makePublic_accessP_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DSAServiceNI.COMP_P);
+        byte[] q = component(DSAServiceNI.COMP_Q);
+        byte[] g = component(DSAServiceNI.COMP_G);
+        byte[] y = component(DSAServiceNI.COMP_PUBLIC_VALUE);
+        try
+        {
+            // Exercises interface/jni/dsa_ni_jni.c:283
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int[] err = new int[1];
+            long ref = dsa.ni_makePublicFromComponents(p, q, g, y, err);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dsa_makePublic_accessQ_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DSAServiceNI.COMP_P);
+        byte[] q = component(DSAServiceNI.COMP_Q);
+        byte[] g = component(DSAServiceNI.COMP_G);
+        byte[] y = component(DSAServiceNI.COMP_PUBLIC_VALUE);
+        try
+        {
+            // Exercises interface/jni/dsa_ni_jni.c:287
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int[] err = new int[1];
+            long ref = dsa.ni_makePublicFromComponents(p, q, g, y, err);
+            Assertions.assertEquals(0L, ref);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void dsa_makePublic_accessG_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        byte[] p = component(DSAServiceNI.COMP_P);
+        byte[] q = component(DSAServiceNI.COMP_Q);
+        byte[] g = component(DSAServiceNI.COMP_G);
+        byte[] y = component(DSAServiceNI.COMP_PUBLIC_VALUE);
+        try
+        {
+            // Exercises interface/jni/dsa_ni_jni.c:291
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            int[] err = new int[1];
+            long ref = dsa.ni_makePublicFromComponents(p, q, g, y, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
