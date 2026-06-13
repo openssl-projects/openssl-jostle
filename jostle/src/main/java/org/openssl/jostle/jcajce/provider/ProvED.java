@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.ed.EdKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.ed.EdSignatureSpi;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +51,9 @@ class ProvED
 
         provider.addAlgorithmImplementation("Signature", "ED25519", PREFIX + "EdSignatureSpi$ED25519", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED25519));
         provider.addAlias("Signature", "ED25519", "Ed25519");
+        // Curve OID alias so Signature.getInstance("1.3.101.112", ...) resolves
+        // (OID-keyed callers; the latent counterpart to the KeyFactory OID gap).
+        provider.addAlias("Signature", "ED25519", EdECObjectIdentifiers.id_Ed25519);
         provider.addAlgorithmImplementation("Signature", "ED25519PH", PREFIX + "EdSignatureSpi$ED25519ph", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.Ed25519ph));
         provider.addAlias("Signature", "ED25519PH", "Ed25519ph");
         provider.addAlgorithmImplementation("Signature", "ED25519CTX", PREFIX + "EdSignatureSpi$ED25519ctx", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.Ed25519ctx));
@@ -57,6 +61,7 @@ class ProvED
 
         provider.addAlgorithmImplementation("Signature", "ED448", PREFIX + "EdSignatureSpi$ED448", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED448));
         provider.addAlias("Signature", "ED448", "Ed448");
+        provider.addAlias("Signature", "ED448", EdECObjectIdentifiers.id_Ed448);
         provider.addAlgorithmImplementation("Signature", "ED448PH", PREFIX + "EdSignatureSpi$ED448ph", sigAttr, (arg) -> new EdSignatureSpi(OSSLKeyType.ED448ph));
         provider.addAlias("Signature", "ED448PH", "Ed448ph");
 
@@ -66,8 +71,12 @@ class ProvED
         provider.addAlias("KeyFactory", "ED", "EDDSA", "EdDSA");
         provider.addAlgorithmImplementation("KeyFactory", "ED25519", PREFIX + "EdKeyFactorySpi$ED25519", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED25519));
         provider.addAlias("KeyFactory", "ED25519", "Ed25519");
+        // Curve OID alias — fixes RFC 7250 raw-public-key verification, which
+        // resolves the KeyFactory by the SPKI algorithm OID rather than by name.
+        provider.addAlias("KeyFactory", "ED25519", EdECObjectIdentifiers.id_Ed25519);
         provider.addAlgorithmImplementation("KeyFactory", "ED448", PREFIX + "EdKeyFactorySpi$ED448", kfAttr, (arg) -> new EdKeyFactorySpi(OSSLKeyType.ED448));
         provider.addAlias("KeyFactory", "ED448", "Ed448");
+        provider.addAlias("KeyFactory", "ED448", EdECObjectIdentifiers.id_Ed448);
 
     }
 
