@@ -16,6 +16,8 @@ import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
+import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
+import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
@@ -119,6 +121,14 @@ public class TestNISelector extends NISelector
 
     public static ECServiceNI getECNi() {
         return ECServiceNI;
+    }
+
+    public static DSAServiceNI getDSANi() {
+        return DSAServiceNI;
+    }
+
+    public static DHServiceNI getDHNi() {
+        return DHServiceNI;
     }
 
     public static XECServiceNI getXECNi() {

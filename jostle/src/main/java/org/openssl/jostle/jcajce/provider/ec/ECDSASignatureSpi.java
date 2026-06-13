@@ -20,8 +20,6 @@ import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
 import java.security.*;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 
 /**
  * ECDSA Signature SPI for the standard {@code SHAxxxwithECDSA} family.
@@ -58,56 +56,8 @@ public class ECDSASignatureSpi extends SignatureSpi
     }
 
 
-    /**
-     * Coerce an arbitrary public key to a JSL EC public key. JSL keys are
-     * used directly; foreign EC keys (e.g. a {@code sun.*} key from a
-     * JDK-parsed certificate, as the CMS/PKIX verifiers hand us) are
-     * re-imported through {@link ECKeyFactorySpi#engineTranslateKey} so
-     * external callers interoperate without having to pre-convert keys.
-     * Anything that isn't EC surfaces as {@link InvalidKeyException}.
-     */
-    private static JOECPublicKey importPublic(PublicKey publicKey) throws InvalidKeyException
-    {
-        if (publicKey instanceof JOECPublicKey)
-        {
-            return (JOECPublicKey) publicKey;
-        }
-        try
-        {
-            Key translated = new ECKeyFactorySpi().engineTranslateKey(publicKey);
-            if (translated instanceof JOECPublicKey)
-            {
-                return (JOECPublicKey) translated;
-            }
-        }
-        catch (InvalidKeyException e)
-        {
-            // Wrong-algorithm or unparseable key — fall through to the canonical message.
-        }
-        throw new InvalidKeyException("expected an ECPublicKey from the Jostle provider");
-    }
-
-    /** Private-key counterpart to {@link #importPublic}. */
-    private static JOECPrivateKey importPrivate(PrivateKey privateKey) throws InvalidKeyException
-    {
-        if (privateKey instanceof JOECPrivateKey)
-        {
-            return (JOECPrivateKey) privateKey;
-        }
-        try
-        {
-            Key translated = new ECKeyFactorySpi().engineTranslateKey(privateKey);
-            if (translated instanceof JOECPrivateKey)
-            {
-                return (JOECPrivateKey) translated;
-            }
-        }
-        catch (InvalidKeyException e)
-        {
-            // Wrong-algorithm or unparseable key — fall through to the canonical message.
-        }
-        throw new InvalidKeyException("expected an ECPrivateKey from the Jostle provider");
-    }
+    // Foreign-key translation lives in ECKeyImport (shared with the
+    // key-agreement SPIs); see ECKeyImport.importPublic / importPrivate.
 
 
     @Override
@@ -115,11 +65,9 @@ public class ECDSASignatureSpi extends SignatureSpi
     {
         synchronized (this)
         {
-            JOECPublicKey key = importPublic(publicKey);
+            JOECPublicKey key = ECKeyImport.importPublic(publicKey);
             lastKey = key;
-
-            ensureRef();
-            ecServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
+            initVerifyInternal(key);
         }
     }
 
@@ -136,13 +84,31 @@ public class ECDSASignatureSpi extends SignatureSpi
 
         synchronized (this)
         {
-            JOECPrivateKey key = importPrivate(privateKey);
+            JOECPrivateKey key = ECKeyImport.importPrivate(privateKey);
             lastKey = key;
-
-            ensureRef();
-            ecServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
-                    digestName, randSource);
+            initSignInternal(key);
         }
+    }
+
+    /**
+     * Bind an already-imported private key for signing using the SPI's
+     * current {@code randSource}. Separated from {@link #engineInitSign}
+     * so {@link #reInit} can re-bind after a terminal op WITHOUT replacing
+     * the caller-supplied SecureRandom (which {@code engineInitSign(key,
+     * random)} would do via {@code replaceWith}).
+     */
+    private void initSignInternal(JOECPrivateKey key)
+    {
+        ensureRef();
+        ecServiceNI.initSign(ref.getReference(), key.getSpec().getReference(),
+                digestName, randSource);
+    }
+
+    /** Verify-side counterpart to {@link #initSignInternal}. */
+    private void initVerifyInternal(JOECPublicKey key)
+    {
+        ensureRef();
+        ecServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), digestName);
     }
 
     @Override
@@ -247,20 +213,23 @@ public class ECDSASignatureSpi extends SignatureSpi
 
     /**
      * Re-initialise after a sign or verify so the next streaming
-     * update starts fresh against the same key. Mirrors the pattern
-     * in {@code RSASignatureSpiBase}.
+     * update starts fresh against the same key. Re-binds via the
+     * {@code *Internal} helpers so the caller-supplied {@code randSource}
+     * survives — re-entering {@code engineInitSign(key)} here would
+     * silently swap it for the project default. Mirrors
+     * {@code RSASignatureSpiBase}.
      */
     private void reInit()
     {
         try
         {
-            if (lastKey instanceof ECPublicKey)
+            if (lastKey instanceof JOECPublicKey)
             {
-                engineInitVerify((PublicKey) lastKey);
+                initVerifyInternal((JOECPublicKey) lastKey);
             }
-            else if (lastKey instanceof ECPrivateKey)
+            else if (lastKey instanceof JOECPrivateKey)
             {
-                engineInitSign((PrivateKey) lastKey);
+                initSignInternal((JOECPrivateKey) lastKey);
             }
         }
         catch (Exception e)

@@ -478,7 +478,7 @@ public class BlockCipherOpsTest
 
             try
             {
-                // Exercises interface/util/block_cipher_ctx.c:755
+                // Exercises interface/util/block_cipher_ctx.c:778
                 // Tag length 12 bytes (96 bits) — non-default for OCB,
                 // so the SET_TAG control fires (and short-circuits under
                 // OPS_OPENSSL_ERROR_8).
@@ -518,7 +518,7 @@ public class BlockCipherOpsTest
 
             try
             {
-                // Exercises interface/util/block_cipher_ctx.c:790
+                // Exercises interface/util/block_cipher_ctx.c:813
                 blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 12);
                 Assertions.fail("expected OCB SET_TAG (decrypt-init) failure");
             }

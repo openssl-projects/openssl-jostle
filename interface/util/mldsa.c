@@ -224,13 +224,16 @@ int derive_mu(const mldsa_ctx *ctx, uint8_t *mu, int32_t *ret_code) {
          * The shake instance is then used as the target of the update function.
          */
 
-        if (1 != EVP_DigestFinalXOF(ctx->hash, mu, Mu_BYTES)) {
-            *ret_code = JO_OPENSSL_ERROR;
+        if (OPS_OPENSSL_ERROR_6 1 != EVP_DigestFinalXOF(ctx->hash, mu, Mu_BYTES)) {
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(2040);
             return 0;
         }
 
-        if (1 != EVP_MD_CTX_reset(ctx->hash)) {
-            *ret_code = JO_OPENSSL_ERROR;
+        // Slot _3 (not _2): _2 is the actual-sign site (EVP_PKEY_sign) later
+        // on this same sign call path, so reusing it here would shadow that
+        // site's test. _3 does not appear on the sign/verify path.
+        if (OPS_OPENSSL_ERROR_3 1 != EVP_MD_CTX_reset(ctx->hash)) {
+            *ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2041);
             return 0;
         }
     } else {
@@ -288,18 +291,18 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
     }
 
 
-    if (ctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_2 ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2030);
         goto exit;
     }
 
-    if (1 != EVP_PKEY_keygen_init(ctx)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_keygen_init(ctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2031);
         goto exit;
     }
 
-    if (1 != EVP_PKEY_CTX_set_params(ctx, params)) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_CTX_set_params(ctx, params)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(2032);
         goto exit;
     }
 
@@ -309,8 +312,8 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
         spec->key = NULL;
     }
 
-    if (1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
-        ret_code = JO_OPENSSL_ERROR;
+    if (OPS_OPENSSL_ERROR_5 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(2033);
         goto exit;
     }
 

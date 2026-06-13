@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
+import org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyPairGenerator;
@@ -106,6 +107,35 @@ class ProvEC
                 PREFIX + "ECDHKeyAgreementSpi", attr,
                 (arg) -> new ECDHKeyAgreementSpi());
         provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
+
+        // CMS EC key agreement with the X9.63 KDF (dhSinglePass-stdDH-sha*kdf-
+        // scheme). One registration per digest; the scheme OID aliases onto it
+        // so KeyAgreeRecipientInfo for EC recipients resolves. Cofactor
+        // (dhSinglePass-cofactorDH) and MQV schemes are intentionally absent —
+        // they need native cofactor/MQV agreement Jostle does not yet expose.
+        // The creatorMap is keyed by the implementation-class string, so each
+        // digest variant needs a distinct key — disambiguate with a digest
+        // suffix (instantiation is via the lambda, not reflection on the name).
+        final String ecKdfSpi = PREFIX + "ECWithKDFKeyAgreementSpi";
+        provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA1KDF",
+                ecKdfSpi + "$SHA1", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-1"));
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA1KDF", "1.3.133.16.840.63.0.2");
+
+        provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA224KDF",
+                ecKdfSpi + "$SHA224", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-224"));
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA224KDF", "1.3.132.1.11.0");
+
+        provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA256KDF",
+                ecKdfSpi + "$SHA256", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-256"));
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA256KDF", "1.3.132.1.11.1");
+
+        provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA384KDF",
+                ecKdfSpi + "$SHA384", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-384"));
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA384KDF", "1.3.132.1.11.2");
+
+        provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA512KDF",
+                ecKdfSpi + "$SHA512", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-512"));
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", "1.3.132.1.11.3");
     }
 
 

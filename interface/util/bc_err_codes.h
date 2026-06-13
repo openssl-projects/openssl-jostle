@@ -188,6 +188,24 @@
  */
 #define JO_KDF_HKDF_INFO_FAILED_ACCESS -118
 
+/*
+ * A DSA domain-parameter bit size (p bits / q bits) supplied to the
+ * paramgen entry point is out of range — zero or negative. The Java
+ * SPI applies the policy bounds (FIPS 186-4 size pairs); this code is
+ * the bridge-level backstop that keeps a nonsensical size from
+ * reaching the util layer, whose precondition is bits > 0.
+ */
+#define JO_DSA_BITS_OUT_OF_RANGE -119
+
+/*
+ * A DH safe-prime modulus bit size supplied to the paramgen entry
+ * point is out of range — zero or negative. The Java SPI applies the
+ * policy bounds (512..8192, multiple of 64); this code is the
+ * bridge-level backstop that keeps a nonsensical size from reaching
+ * the util layer, whose precondition is bits > 0.
+ */
+#define JO_DH_BITS_OUT_OF_RANGE -120
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x

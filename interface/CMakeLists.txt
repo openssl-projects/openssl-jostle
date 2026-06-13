@@ -129,6 +129,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/rsa_oaep_ni_jni.c
             jni/rsa_pkcs1_ni_jni.c
             jni/ec_ni_jni.c
+            jni/dsa_ni_jni.c
+            jni/dh_ni_jni.c
             jni/xec_ni_jni.c
             util/edec.h
             util/edec.c
@@ -140,6 +142,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/dsa.h
+            util/dsa.c
+            util/dh.h
+            util/dh.c
             util/xec.h
             util/xec.c
     )
@@ -219,6 +225,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/rsa_oaep_ni_ffi.c
             ffi/rsa_pkcs1_ni_ffi.c
             ffi/ec_ni_ffi.c
+            ffi/dsa_ni_ffi.c
+            ffi/dh_ni_ffi.c
             ffi/xec_ni_ffi.c
             util/edec.h
             util/edec.c
@@ -230,6 +238,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/dsa.h
+            util/dsa.c
+            util/dh.h
+            util/dh.c
             util/xec.h
             util/xec.c
     )
@@ -336,6 +348,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/rsa_oaep_ni_jni.c
             jni/rsa_pkcs1_ni_jni.c
             jni/ec_ni_jni.c
+            jni/dsa_ni_jni.c
+            jni/dh_ni_jni.c
             jni/xec_ni_jni.c
             util/edec.h
             util/edec.c
@@ -347,6 +361,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/dsa.h
+            util/dsa.c
+            util/dh.h
+            util/dh.c
             util/xec.h
             util/xec.c
     )
@@ -426,6 +444,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/dsa.h
+            util/dsa.c
+            util/dh.h
+            util/dh.c
             util/xec.h
             util/xec.c
             ffi/ed_ni_ffi.c
@@ -433,6 +455,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/rsa_oaep_ni_ffi.c
             ffi/rsa_pkcs1_ni_ffi.c
             ffi/ec_ni_ffi.c
+            ffi/dsa_ni_ffi.c
+            ffi/dh_ni_ffi.c
             ffi/xec_ni_ffi.c
     )
 
@@ -520,6 +544,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/rsa_oaep_ni_jni.c
             jni/rsa_pkcs1_ni_jni.c
             jni/ec_ni_jni.c
+            jni/dsa_ni_jni.c
+            jni/dh_ni_jni.c
             jni/xec_ni_jni.c
             util/edec.h
             util/edec.c
@@ -531,6 +557,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/dsa.h
+            util/dsa.c
+            util/dh.h
+            util/dh.c
             util/xec.h
             util/xec.c
     )
@@ -603,6 +633,10 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rsa_pkcs1.c
             util/ec.h
             util/ec.c
+            util/dsa.h
+            util/dsa.c
+            util/dh.h
+            util/dh.c
             util/xec.h
             util/xec.c
             ffi/ed_ni_ffi.c
@@ -610,6 +644,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/rsa_oaep_ni_ffi.c
             ffi/rsa_pkcs1_ni_ffi.c
             ffi/ec_ni_ffi.c
+            ffi/dsa_ni_ffi.c
+            ffi/dh_ni_ffi.c
             ffi/xec_ni_ffi.c
 
     )

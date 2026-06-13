@@ -141,6 +141,31 @@ public class MDOpsTest
         }
     }
 
+    @Test
+    public void reset_openSSLErrorOnDigestInit() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+        long ref = 0;
+        try
+        {
+            ref = mdNI.allocateDigest("SHA256", 0);
+            // Exercises interface/util/md.c:203
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            mdNI.reset(ref);
+            Assertions.fail("Expected operation to fail but did not");
+        } catch (OpenSSLException e)
+        {
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        } finally
+        {
+            if (ref != 0)
+            {
+                mdNI.dispose(ref);
+            }
+            operationsTestNI.resetFlags();
+        }
+    }
+
 
     @Test
     public void updateBytes_array_access() throws Exception {

@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
@@ -60,24 +61,34 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         {
             byte[] encoded = KeyInfoCanonicalizer.subjectPublicKeyInfo(((X509EncodedKeySpec) keySpec).getEncoded());
 
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
-
-            if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+            try
             {
-                throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
-            }
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
 
-            switch (pkeySpec.getType())
+                if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+                {
+                    throw new InvalidKeySpecException("expected " + fixedType.getAlgorithmName() + " but got " + pkeySpec.getType().getAlgorithmName());
+                }
+
+                switch (pkeySpec.getType())
+                {
+                    case ML_KEM_512:
+                    case ML_KEM_768:
+                    case ML_KEM_1024:
+                        break;
+                    default:
+                        throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
+                }
+
+                return new JOMLKEMPublicKey(pkeySpec);
+            }
+            catch (RuntimeException e)
             {
-                case ML_KEM_512:
-                case ML_KEM_768:
-                case ML_KEM_1024:
-                    break;
-                default:
-                    throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
+                // Malformed encoding surfaces from the decoder as OpenSSLException
+                // / IllegalArgumentException; the KeyFactory contract requires
+                // InvalidKeySpecException (RSAKeyFactorySpi precedent).
+                throw new InvalidKeySpecException("unable to decode ML-KEM public key", e);
             }
-
-            return new JOMLKEMPublicKey(pkeySpec);
         }
         else
         {
@@ -109,27 +120,48 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
     {
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
+            // getEncoded() returns a fresh copy carrying the private key
+            // material — scrub it (and any rewritten copy the canonicalizer
+            // allocated) once the native key is built (Ed/RSA precedent).
+            byte[] pkcs8 = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
+            byte[] encoded = KeyInfoCanonicalizer.privateKeyInfo(pkcs8);
 
-            byte[] encoded = KeyInfoCanonicalizer.privateKeyInfo(((PKCS8EncodedKeySpec) keySpec).getEncoded());
-
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-
-            if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+            try
             {
-                throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType().getAlgorithmName());
-            }
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
 
-            switch (pkeySpec.getType())
+                if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
+                {
+                    throw new InvalidKeySpecException("expected " + fixedType + " but got " + pkeySpec.getType().getAlgorithmName());
+                }
+
+                switch (pkeySpec.getType())
+                {
+                    case ML_KEM_512:
+                    case ML_KEM_768:
+                    case ML_KEM_1024:
+                        break;
+                    default:
+                        throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
+                }
+
+                return new JOMLKEMPrivateKey(pkeySpec);
+            }
+            catch (RuntimeException e)
             {
-                case ML_KEM_512:
-                case ML_KEM_768:
-                case ML_KEM_1024:
-                    break;
-                default:
-                    throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
+                throw new InvalidKeySpecException("unable to decode ML-KEM private key", e);
             }
-
-            return new JOMLKEMPrivateKey(pkeySpec);
+            finally
+            {
+                if (pkcs8 != null)
+                {
+                    Arrays.fill(pkcs8, (byte) 0);
+                }
+                if (encoded != null && encoded != pkcs8)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
+            }
         }
         else
         {
@@ -228,7 +260,46 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
-        throw new InvalidKeyException("Invalid Key: " + key);
+        if (key == null)
+        {
+            throw new InvalidKeyException("Invalid Key: null");
+        }
+        // Foreign ML-KEM key (e.g. the JDK's NamedX509Key from a parsed
+        // certificate) — re-encode and decode through us so we own the
+        // EVP_PKEY. Mirrors ECKeyFactorySpi / XECKeyFactorySpi.
+        byte[] encoded = null;
+        try
+        {
+            encoded = key.getEncoded();
+            if (encoded == null)
+            {
+                throw new InvalidKeyException("foreign key has no encoded form");
+            }
+            if (key instanceof PrivateKey)
+            {
+                return engineGeneratePrivate(new PKCS8EncodedKeySpec(encoded));
+            }
+            return engineGeneratePublic(new X509EncodedKeySpec(encoded));
+        }
+        catch (InvalidKeySpecException e)
+        {
+            throw new InvalidKeyException(e.getMessage(), e);
+        }
+        catch (RuntimeException e)
+        {
+            // A hostile/broken foreign key can throw from getEncoded();
+            // surface the typed exception the translate contract requires.
+            throw new InvalidKeyException("unable to translate key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material — scrub it
+            // (engineGeneratePrivate scrubbed only its own inner clone).
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
+        }
     }
 
 }

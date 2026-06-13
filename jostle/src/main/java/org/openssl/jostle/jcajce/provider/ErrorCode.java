@@ -158,6 +158,10 @@ public enum ErrorCode
     // JVM access of the HKDF info byte array failed.
     JO_KDF_HKDF_INFO_FAILED_ACCESS(-118),
 
+    JO_DSA_BITS_OUT_OF_RANGE(-119),
+
+    JO_DH_BITS_OUT_OF_RANGE(-120),
+
     JO_UNKNOWN(Integer.MIN_VALUE);
 
     private final int code;

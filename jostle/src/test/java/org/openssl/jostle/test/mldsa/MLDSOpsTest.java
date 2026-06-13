@@ -1439,5 +1439,154 @@ public class MLDSOpsTest
     {
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12, JO_OPENSSL_ERROR - 2023);
     }
+
+
+    // -----------------------------------------------------------------
+    // Key-generation EVP failure points (mldsa_generate_key_pair). The
+    // ni_generateKeyPair surface returns the ref and writes the error
+    // code into err[0], so each site's offset code is pinned exactly.
+    // Util-layer OPS — run on both bridges.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void MLDSA_generateKeyPair_ctxNull_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+        try
+        {
+            int[] err = new int[1];
+            // Exercises interface/util/mldsa.c:294
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            keyRef = mldsaServiceNI.ni_generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, keyRef);
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 2030, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void MLDSA_generateKeyPair_keygenInit_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+        try
+        {
+            int[] err = new int[1];
+            // Exercises interface/util/mldsa.c:299
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            keyRef = mldsaServiceNI.ni_generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, keyRef);
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 2031, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void MLDSA_generateKeyPair_setParams_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+        try
+        {
+            int[] err = new int[1];
+            // Exercises interface/util/mldsa.c:304
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            keyRef = mldsaServiceNI.ni_generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, keyRef);
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 2032, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void MLDSA_generateKeyPair_keygen_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = 0;
+        try
+        {
+            int[] err = new int[1];
+            // Exercises interface/util/mldsa.c:315
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+            keyRef = mldsaServiceNI.ni_generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), err, TestUtil.RNDSrc);
+            Assertions.assertEquals(0L, keyRef);
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 2033, err[0]);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // derive_mu EVP failure points, reached during a standard (HASH_NONE)
+    // ML-DSA sign: EVP_DigestFinalXOF then EVP_MD_CTX_reset. Util-layer
+    // OPS — run on both bridges. ni_sign returns the offset code directly.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void MLDSA_deriveMu_digestFinalXof_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            mldsaRef = mldsaServiceNI.allocateSigner();
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
+            mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10);
+            // Exercises interface/util/mldsa.c:227
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+            int code = mldsaServiceNI.ni_sign(mldsaRef, new byte[4096], 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 2040, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void MLDSA_deriveMu_mdCtxReset_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long mldsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            mldsaRef = mldsaServiceNI.allocateSigner();
+            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+            mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
+            mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10);
+            // Exercises interface/util/mldsa.c:235
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            int code = mldsaServiceNI.ni_sign(mldsaRef, new byte[4096], 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 2041, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            mldsaServiceNI.disposeSigner(mldsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
 }
 

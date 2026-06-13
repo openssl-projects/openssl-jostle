@@ -53,7 +53,14 @@ public enum OSSLKeyType
     // type name (what EVP_PKEY_get0_type_name returns), so decode-by-name
     // through PKEYKeySpec(long) maps to these.
     X25519(27, "X25519", EdECObjectIdentifiers.id_X25519.getId(), "id-X25519"),
-    X448(28, "X448", EdECObjectIdentifiers.id_X448.getId(), "id-X448");
+    X448(28, "X448", EdECObjectIdentifiers.id_X448.getId(), "id-X448"),
+    // First alias is the OpenSSL EVP_PKEY type name (what
+    // EVP_PKEY_get0_type_name returns); the OID is id-dsa (X9.57).
+    DSA(29, "DSA", "1.2.840.10040.4.1"),
+    // Finite-field Diffie-Hellman. "DH" is the PKCS#3 EVP_PKEY type
+    // name, "DHX" the X9.42 variant — both map to the same Jostle key
+    // type. OIDs: PKCS#3 dhKeyAgreement and X9.42 dhpublicnumber.
+    DH(30, "DH", "DHX", "1.2.840.113549.1.3.1", "1.2.840.10046.2.1");
 
     private final String[] aliases;
     int ksType;

@@ -17,6 +17,7 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.math.BigInteger;
@@ -71,9 +72,19 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
-            requireEC(spec);
-            return new JOECPublicKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                requireEC(spec);
+                return new JOECPublicKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                // Malformed encoding surfaces from the decoder as OpenSSLException
+                // / IllegalArgumentException; the KeyFactory contract requires
+                // InvalidKeySpecException (RSAKeyFactorySpi precedent).
+                throw new InvalidKeySpecException("unable to decode EC public key", e);
+            }
         }
         if (keySpec instanceof ECPublicKeySpec)
         {
@@ -84,9 +95,16 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             // handles the OID/parameter encoding the same way OpenSSL's
             // SPKI parser expects.
             byte[] encoded = encodeViaSunEC((ECPublicKeySpec) keySpec);
-            PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
-            requireEC(spec);
-            return new JOECPublicKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                requireEC(spec);
+                return new JOECPublicKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode EC public key", e);
+            }
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use X509EncodedKeySpec or ECPublicKeySpec.");
@@ -97,10 +115,26 @@ public class ECKeyFactorySpi extends KeyFactorySpi
     {
         if (keySpec instanceof PKCS8EncodedKeySpec)
         {
+            // getEncoded() returns a fresh copy carrying the private scalar —
+            // scrub it once the native key is built (Ed/RSA precedent).
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
-            PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
-            requireEC(spec);
-            return new JOECPrivateKey(spec);
+            try
+            {
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                requireEC(spec);
+                return new JOECPrivateKey(spec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode EC private key", e);
+            }
+            finally
+            {
+                if (encoded != null)
+                {
+                    Arrays.fill(encoded, (byte) 0);
+                }
+            }
         }
         if (keySpec instanceof ECPrivateKeySpec)
         {
@@ -264,11 +298,16 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         {
             return key;
         }
+        if (key == null)
+        {
+            throw new java.security.InvalidKeyException("key is null");
+        }
         // Foreign EC key — re-encode and decode through us so we
         // own the EVP_PKEY.
+        byte[] encoded = null;
         try
         {
-            byte[] encoded = key.getEncoded();
+            encoded = key.getEncoded();
             if (encoded == null)
             {
                 throw new java.security.InvalidKeyException("foreign key has no encoded form");
@@ -282,6 +321,21 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         catch (InvalidKeySpecException e)
         {
             throw new java.security.InvalidKeyException(e.getMessage(), e);
+        }
+        catch (RuntimeException e)
+        {
+            // A hostile/broken foreign key can throw from getEncoded();
+            // surface the typed exception the translate contract requires.
+            throw new java.security.InvalidKeyException("unable to translate key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material — scrub it
+            // (engineGeneratePrivate scrubbed only its own inner clone).
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
         }
     }
 

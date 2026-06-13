@@ -52,6 +52,7 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
 
     /** Pinned to keep the {@code PKEYKeySpec} reachable across native calls. */
     private Object pinnedPriv = null;
+    private Object pinnedPeer = null;
 
     private boolean peerSet = false;
 
@@ -83,12 +84,11 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
 
         synchronized (this)
         {
-            if (!(key instanceof JOXECPrivateKey))
-            {
-                throw new InvalidKeyException("XDH init: expected a Jostle-provider XDH private key");
-            }
-
-            JOXECPrivateKey privateKey = (JOXECPrivateKey) key;
+            // Foreign XDH keys (e.g. the JDK's XDH KeyFactory or a
+            // certificate) are translated to JSL keys; only non-XDH /
+            // untranslatable keys are rejected.
+            JOXECPrivateKey privateKey = XDHKeyImport.importPrivate(key,
+                    "XDH init: expected an XDH private key");
             pinnedPriv = privateKey;
             peerSet = false;
 
@@ -113,12 +113,12 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                         "XDH is a single-phase protocol; lastPhase must be true");
             }
 
-            if (!(key instanceof JOXECPublicKey))
-            {
-                throw new InvalidKeyException("XDH doPhase: expected a Jostle-provider XDH public key");
-            }
-
-            JOXECPublicKey peer = (JOXECPublicKey) key;
+            JOXECPublicKey peer = XDHKeyImport.importPublic(key,
+                    "XDH doPhase: expected an XDH public key");
+            // Pin the (possibly KeyFactory-translated) peer so its native
+            // EVP_PKEY cannot be GC-disposed during the set-peer call — the
+            // translated key is otherwise method-local with no later use.
+            pinnedPeer = peer;
             try
             {
                 ecServiceNI.kexSetPeer(ref.getReference(),

@@ -104,7 +104,23 @@ public class MLKEMKTSCipherSpi
         }
         if (!(key instanceof OSSLKey))
         {
-            throw new InvalidKeyException("not a JSL ML-KEM key: " + (key == null ? "null" : key.getClass().getName()));
+            // Foreign ML-KEM key (e.g. sun.security.x509.NamedX509Key from a
+            // parsed certificate, which is what the CMS KEMRecipientInfo path
+            // hands us) — translate to a JSL key via the KeyFactory; only
+            // non-ML-KEM / untranslatable keys are rejected.
+            if (key == null)
+            {
+                throw new InvalidKeyException("not an ML-KEM key: null");
+            }
+            try
+            {
+                key = new MLKEMKeyFactorySpi().engineTranslateKey(key);
+            }
+            catch (InvalidKeyException e)
+            {
+                throw new InvalidKeyException(
+                        "not an ML-KEM key: " + key.getClass().getName(), e);
+            }
         }
         if (opmode == Cipher.WRAP_MODE && !(key instanceof PublicKey))
         {

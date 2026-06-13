@@ -95,6 +95,13 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
     {
         validateKeyAlg(key);
         determineOSSLCipher(key.getEncoded().length);
+        if (params == null)
+        {
+            // JCE auto-IV pattern: init with no parameters — the base SPI
+            // generates the IV for encryption (DESEDE_AUTO_IV_GAP.md).
+            super.engineInit(opmode, key, (AlgorithmParameterSpec) null, random);
+            return;
+        }
         try
         {
             super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
