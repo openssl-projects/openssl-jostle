@@ -54,8 +54,7 @@ public class BridgeRandLimitTest
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -96"));
+            assertOpenSSLMessageContains(t, "handler fail, short output: -96");
         }
     }
 
@@ -72,8 +71,7 @@ public class BridgeRandLimitTest
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("rand up call returned"));
+            assertOpenSSLMessageContains(t, "rand up call returned");
             Assertions.assertTrue(t.getMessage().contains("> requested"));
         }
     }
@@ -91,8 +89,7 @@ public class BridgeRandLimitTest
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("rand up call threw an exception"));
+            assertOpenSSLMessageContains(t, "rand up call threw an exception");
         }
     }
 
@@ -112,7 +109,7 @@ public class BridgeRandLimitTest
         }
         catch (OpenSSLException e)
         {
-            Assertions.assertTrue(e.getMessage().contains("-999"));
+            assertOpenSSLMessageContains(e, "-999");
         }
 
 
@@ -132,8 +129,15 @@ public class BridgeRandLimitTest
         }
         catch (OpenSSLException e)
         {
-            Assertions.assertTrue(e.getMessage().contains("-99"));
+            assertOpenSSLMessageContains(e, "-99");
         }
+    }
+
+    private static void assertOpenSSLMessageContains(Exception t, String message)
+    {
+        Assertions.assertEquals(OpenSSLException.class, t.getClass());
+        Assertions.assertTrue(t.getMessage().startsWith("OpenSSL Error:"));
+        Assertions.assertTrue(t.getMessage().contains(message));
     }
 
     @Test
@@ -157,20 +161,21 @@ public class BridgeRandLimitTest
     @Test
     public void testInvalidProviderName() throws Exception
     {
-        // OSSL_PROVIDER_load fails — exercises the rollback in
-        // setup_bridge_prov_and_rand (libctx + bridge provider freed before
-        // returning). Doesn't mutate global state because the failure
-        // happens inside jostle_ctx_init_new, before set_global_jostle_lib_ctx.
+        // Provider is already initialised by JostleProvider's @BeforeAll.
+        // Native RAND state is process-wide and bound to the first provider
+        // name, so a different name is rejected by the run-once guard before
+        // OpenSSL attempts to load it.
         int rc = TestNISelector.getOpenSSLNI().setOSSLProviderModule("this-provider-does-not-exist");
-        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), rc);
+        Assertions.assertEquals(ErrorCode.JO_UNEXPECTED_STATE.getCode(), rc);
     }
 
     @Test
     public void testSecondCallRejection() throws Exception
     {
         // Provider is already initialised by JostleProvider's @BeforeAll.
-        // A second call with any valid name reaches set_global_jostle_lib_ctx
-        // and gets rejected by the run-once guard.
+        // A second call with the same name gets past RAND and reaches
+        // set_global_jostle_lib_ctx, which raises an OpenSSL provider init error
+        // while rejecting repeated initialisation.
         int rc = TestNISelector.getOpenSSLNI().setOSSLProviderModule("default");
         Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), rc);
 

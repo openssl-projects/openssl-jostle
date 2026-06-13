@@ -13,6 +13,8 @@ package org.openssl.jostle;
 import java.security.DrbgParameters;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -31,6 +33,8 @@ class ThreadLocalSecureRandomProvider implements SecureRandomProvider
     private static final Logger LOG = Logger.getLogger(ThreadLocalSecureRandomProvider.class.getName());
 
     final ThreadLocal<SecureRandom> defaultRandoms = new ThreadLocal<SecureRandom>();
+    final ThreadLocal<Map<Integer, SecureRandom>> strengthRandoms =
+            new ThreadLocal<Map<Integer, SecureRandom>>();
 
     @Override
     public SecureRandom get()
@@ -45,8 +49,8 @@ class ThreadLocalSecureRandomProvider implements SecureRandomProvider
     }
 
     /**
-     * Construct a fresh DRBG-backed {@link SecureRandom} at the
-     * requested strength via {@code DrbgParameters.instantiation}.
+     * Return a cached DRBG-backed {@link SecureRandom} at the requested
+     * strength via {@code DrbgParameters.instantiation}.
      *
      * <p>Tries {@code PR_AND_RESEED} first, falls back to {@code NONE}
      * if the platform DRBG doesn't expose prediction-resistance at
@@ -64,24 +68,41 @@ class ThreadLocalSecureRandomProvider implements SecureRandomProvider
     @Override
     public SecureRandom get(int strengthBits)
     {
+        Map<Integer, SecureRandom> randoms = strengthRandoms.get();
+        if (randoms == null)
+        {
+            randoms = new HashMap<Integer, SecureRandom>();
+            strengthRandoms.set(randoms);
+        }
+
+        SecureRandom random = randoms.get(strengthBits);
+        if (random != null)
+        {
+            return random;
+        }
+
         try
         {
-            return SecureRandom.getInstance("DRBG",
+            random = SecureRandom.getInstance("DRBG",
                     DrbgParameters.instantiation(
                             strengthBits,
                             DrbgParameters.Capability.PR_AND_RESEED,
                             null));
+            randoms.put(strengthBits, random);
+            return random;
         }
         catch (NoSuchAlgorithmException e)
         {
             // First fallback: DRBG without prediction resistance.
             try
             {
-                return SecureRandom.getInstance("DRBG",
+                random = SecureRandom.getInstance("DRBG",
                         DrbgParameters.instantiation(
                                 strengthBits,
                                 DrbgParameters.Capability.NONE,
                                 null));
+                randoms.put(strengthBits, random);
+                return random;
             }
             catch (NoSuchAlgorithmException e2)
             {
@@ -93,7 +114,9 @@ class ThreadLocalSecureRandomProvider implements SecureRandomProvider
                                 + strengthBits
                                 + " bits; falling back to default SecureRandom",
                         e2);
-                return get();
+                random = get();
+                randoms.put(strengthBits, random);
+                return random;
             }
         }
     }
