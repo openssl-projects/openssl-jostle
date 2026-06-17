@@ -19,17 +19,6 @@ int32_t rand_init(const char *provider_name, int32_t *created);
 
 void rand_destroy(void);
 
-int32_t rand_random_bytes(uint8_t *output, int32_t output_len, int32_t strength,
-                          int prediction_resistant, const uint8_t *additional_input,
-                          size_t additional_input_len);
-
-int32_t rand_instantiate(int32_t strength, int prediction_resistant,
-                         const uint8_t *personalization_string,
-                         size_t personalization_string_len);
-
-int32_t rand_reseed(int32_t strength, int prediction_resistant,
-                    const uint8_t *additional_input, size_t additional_input_len);
-
 JO_RAND_CTX *rand_ctx_create(int32_t strength, int prediction_resistant,
                              const uint8_t *personalization_string,
                              size_t personalization_string_len,

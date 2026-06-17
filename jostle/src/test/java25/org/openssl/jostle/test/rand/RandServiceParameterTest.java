@@ -316,6 +316,42 @@ public class RandServiceParameterTest
         random.nextBytes(new byte[16]);
     }
 
+    @Test
+    public void nextBytesWithParametersProducesDifferentOutputAcrossCalls() throws Exception
+    {
+        // Two parameterized draws from one instance must differ — guards against
+        // a stub that returns a fixed (non-zero) buffer.
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+        byte[] first = new byte[32];
+        byte[] second = new byte[32];
+
+        random.nextBytes(first, DrbgParameters.nextBytes(128, false, null));
+        random.nextBytes(second, DrbgParameters.nextBytes(128, false, null));
+
+        Assertions.assertFalse(Arrays.areEqual(first, second));
+    }
+
+    @Test
+    public void independentParameterizedInstancesProduceDifferentStreams() throws Exception
+    {
+        // Identical instantiation parameters: the streams must still differ
+        // because each context is seeded from the OS-seeded parent DRBG.
+        byte[] personalizationString = new byte[]{ 1, 2, 3 };
+        SecureRandom first = SecureRandom.getInstance("DRBG",
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.PR_AND_RESEED, personalizationString),
+                JostleProvider.PROVIDER_NAME);
+        SecureRandom second = SecureRandom.getInstance("DRBG",
+                DrbgParameters.instantiation(128, DrbgParameters.Capability.PR_AND_RESEED, personalizationString),
+                JostleProvider.PROVIDER_NAME);
+        byte[] firstOutput = new byte[32];
+        byte[] secondOutput = new byte[32];
+
+        first.nextBytes(firstOutput);
+        second.nextBytes(secondOutput);
+
+        Assertions.assertFalse(Arrays.areEqual(firstOutput, secondOutput));
+    }
+
     private static SecureRandomParameters unsupportedParameters()
     {
         return new SecureRandomParameters()

@@ -16,12 +16,6 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 public interface RandServiceNI extends DefaultServiceNI
 {
-    int ni_randomBytes(byte[] output, int outputLen, int strength, boolean predictionResistant, byte[] additionalInput);
-
-    int ni_instantiate(int strength, boolean predictionResistant, byte[] personalizationString);
-
-    int ni_reseed(int strength, boolean predictionResistant, byte[] additionalInput);
-
     long ni_createContext(int strength, boolean predictionResistant, byte[] personalizationString, int[] err);
 
     void ni_disposeContext(long reference);
@@ -30,52 +24,6 @@ public interface RandServiceNI extends DefaultServiceNI
                               boolean predictionResistant, byte[] additionalInput);
 
     int ni_contextReseed(long reference, int strength, boolean predictionResistant, byte[] additionalInput);
-
-    default int ni_randomBytes(byte[] output, int outputLen, int strength)
-    {
-        return ni_randomBytes(output, outputLen, strength, false, null);
-    }
-
-    default int ni_instantiate(int strength, boolean predictionResistant)
-    {
-        return ni_instantiate(strength, predictionResistant, null);
-    }
-
-    default int ni_reseed(int strength, boolean predictionResistant)
-    {
-        return ni_reseed(strength, predictionResistant, null);
-    }
-
-    default void randomBytes(byte[] output, int outputLen, int strength)
-    {
-        handleErrors(ni_randomBytes(output, outputLen, strength));
-    }
-
-    default void randomBytes(byte[] output, int outputLen, int strength,
-                             boolean predictionResistant, byte[] additionalInput)
-    {
-        handleErrors(ni_randomBytes(output, outputLen, strength, predictionResistant, additionalInput));
-    }
-
-    default void instantiate(int strength, boolean predictionResistant)
-    {
-        handleErrors(ni_instantiate(strength, predictionResistant));
-    }
-
-    default void instantiate(int strength, boolean predictionResistant, byte[] personalizationString)
-    {
-        handleErrors(ni_instantiate(strength, predictionResistant, personalizationString));
-    }
-
-    default void reseed(int strength, boolean predictionResistant)
-    {
-        handleErrors(ni_reseed(strength, predictionResistant));
-    }
-
-    default void reseed(int strength, boolean predictionResistant, byte[] additionalInput)
-    {
-        handleErrors(ni_reseed(strength, predictionResistant, additionalInput));
-    }
 
     default long createContext(int strength, boolean predictionResistant, byte[] personalizationString)
     {

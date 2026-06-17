@@ -13,66 +13,6 @@ static int rand_strength_supported(int32_t strength) {
     return strength >= 0 && strength <= JO_RAND_MAX_STRENGTH;
 }
 
-int32_t JoRand_randomBytes(uint8_t *output, size_t output_size, int32_t output_len, int32_t strength,
-                           uint8_t prediction_resistant, uint8_t *additional_input,
-                           size_t additional_input_size) {
-    if (output == NULL) {
-        return JO_OUTPUT_IS_NULL;
-    }
-
-    if (output_len < 0) {
-        return JO_OUTPUT_LEN_IS_NEGATIVE;
-    }
-
-    if (!rand_strength_supported(strength)) {
-        return JO_RAND_INSUFFICIENT_STRENGTH;
-    }
-
-    if (output_len == 0) {
-        return JO_SUCCESS;
-    }
-
-    if (!check_in_range(output_size, 0, (size_t) output_len)) {
-        return JO_OUTPUT_OUT_OF_RANGE;
-    }
-
-    if (additional_input == NULL && additional_input_size > 0) {
-        return JO_INPUT_IS_NULL;
-    }
-
-    return rand_random_bytes(output, output_len, strength, prediction_resistant != 0,
-                             additional_input, additional_input_size);
-}
-
-int32_t JoRand_instantiate(int32_t strength, uint8_t prediction_resistant,
-                           uint8_t *personalization_string,
-                           size_t personalization_string_size) {
-    if (!rand_strength_supported(strength)) {
-        return JO_RAND_INSUFFICIENT_STRENGTH;
-    }
-
-    if (personalization_string == NULL && personalization_string_size > 0) {
-        return JO_INPUT_IS_NULL;
-    }
-
-    return rand_instantiate(strength, prediction_resistant != 0,
-                            personalization_string, personalization_string_size);
-}
-
-int32_t JoRand_reseed(int32_t strength, uint8_t prediction_resistant,
-                      uint8_t *additional_input, size_t additional_input_size) {
-    if (!rand_strength_supported(strength)) {
-        return JO_RAND_INSUFFICIENT_STRENGTH;
-    }
-
-    if (additional_input == NULL && additional_input_size > 0) {
-        return JO_INPUT_IS_NULL;
-    }
-
-    return rand_reseed(strength, prediction_resistant != 0,
-                       additional_input, additional_input_size);
-}
-
 JO_RAND_CTX *JoRand_createContext(int32_t strength, uint8_t prediction_resistant,
                                   uint8_t *personalization_string,
                                   size_t personalization_string_size,

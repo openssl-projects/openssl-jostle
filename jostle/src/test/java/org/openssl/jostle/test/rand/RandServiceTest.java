@@ -19,9 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.security.Provider;
 import java.security.Security;
@@ -124,20 +122,54 @@ public class RandServiceTest
     }
 
     @Test
-    public void deserializeCreatesUsableInstance() throws Exception
+    public void nextBytesProducesDifferentOutputAcrossCalls() throws Exception
     {
+        // Two draws from one instance must differ: a stub returning a fixed
+        // (non-zero) constant passes the all-zero checks above but fails here.
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ObjectOutputStream objectOut = new ObjectOutputStream(out);
-        objectOut.writeObject(random);
+        byte[] first = new byte[32];
+        byte[] second = new byte[32];
 
-        ObjectInputStream objectIn = new ObjectInputStream(new ByteArrayInputStream(out.toByteArray()));
-        SecureRandom deserialized = (SecureRandom) objectIn.readObject();
-        byte[] output = new byte[32];
-        deserialized.nextBytes(output);
+        random.nextBytes(first);
+        random.nextBytes(second);
 
-        Assertions.assertEquals(JostleProvider.PROVIDER_NAME, deserialized.getProvider().getName());
-        Assertions.assertEquals("DRBG", deserialized.getAlgorithm());
-        Assertions.assertFalse(Arrays.areEqual(new byte[32], output));
+        Assertions.assertFalse(Arrays.areEqual(first, second));
+    }
+
+    @Test
+    public void independentInstancesProduceDifferentStreams() throws Exception
+    {
+        // Two independent DRBG instances are each seeded from the OS-seeded
+        // parent, so their first draws must differ.
+        SecureRandom first = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+        SecureRandom second = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+        byte[] firstOutput = new byte[32];
+        byte[] secondOutput = new byte[32];
+
+        first.nextBytes(firstOutput);
+        second.nextBytes(secondOutput);
+
+        Assertions.assertFalse(Arrays.areEqual(firstOutput, secondOutput));
+    }
+
+    @Test
+    public void serializationIsNotSupported() throws Exception
+    {
+        // A native-backed DRBG instance holds an EVP_RAND_CTX handle that cannot
+        // be persisted, so serialization is deliberately forbidden: writeObject
+        // throws and SecureRandom serialization fails deterministically.
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+        ObjectOutputStream objectOut = new ObjectOutputStream(new ByteArrayOutputStream());
+
+        Throwable thrown = Assertions.assertThrows(Throwable.class, () -> objectOut.writeObject(random));
+
+        Throwable root = thrown;
+        while (root.getCause() != null)
+        {
+            root = root.getCause();
+        }
+        Assertions.assertTrue(root instanceof UnsupportedOperationException,
+                "expected UnsupportedOperationException root cause, got " + root);
+        Assertions.assertEquals("writeObject not implemented on native rand", root.getMessage());
     }
 }

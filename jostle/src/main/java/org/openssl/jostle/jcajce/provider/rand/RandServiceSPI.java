@@ -11,18 +11,32 @@
 
 package org.openssl.jostle.jcajce.provider.rand;
 
+import org.openssl.jostle.disposal.NativeDisposer;
+import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 
+import java.io.IOException;
+import java.io.ObjectStreamException;
+import java.security.ProviderException;
 import java.security.SecureRandomSpi;
 
 /**
- * {@link SecureRandomSpi} backed by OpenSSL RAND.
+ * {@link SecureRandomSpi} backed by a per-instance OpenSSL RAND (DRBG) context.
  * <p>
- * OpenSSL owns entropy collection for this implementation. Caller-supplied
- * seed bytes supplement the native RAND state but are not treated as
+ * Each SPI owns its own native {@code EVP_RAND_CTX} (a CTR-DRBG seeded from the
+ * OpenSSL entropy source) rather than sharing the process-wide private DRBG, so
+ * instances are self-contained. OpenSSL owns entropy collection; caller-supplied
+ * seed bytes supplement the native DRBG state via reseed but are not treated as
  * deterministic input. The Java 8 baseline implementation accepts only
  * unparameterized construction; the Java 9+ multi-release implementation adds
  * support for {@code DrbgParameters}.
+ * </p>
+ * <p>
+ * Instances are not serializable: the native context handle cannot be persisted,
+ * so {@code writeObject}/{@code readObject} throw. The native call sites use
+ * {@code synchronized(this)} (the Java 8 baseline idiom) to keep this instance
+ * reachable for the duration of each native call, preventing the disposer from
+ * freeing the context mid-call.
  * </p>
  */
 public final class RandServiceSPI extends SecureRandomSpi
@@ -31,12 +45,14 @@ public final class RandServiceSPI extends SecureRandomSpi
     private static final RandServiceNI randServiceNI = NISelector.RandServiceNI;
 
     private final RandAlgorithm algorithm;
+    private final transient RandReference ref;
 
     /**
      * Constructs an OpenSSL-backed SecureRandom SPI for the supplied algorithm.
      *
      * @param algorithm the registered SecureRandom algorithm
      * @throws NullPointerException if {@code algorithm} is {@code null}
+     * @throws ProviderException    if the native DRBG context cannot be created
      */
     public RandServiceSPI(RandAlgorithm algorithm)
     {
@@ -52,9 +68,10 @@ public final class RandServiceSPI extends SecureRandomSpi
      * </p>
      *
      * @param algorithm the registered SecureRandom algorithm
-     * @param params construction parameters, or {@code null}
-     * @throws NullPointerException if {@code algorithm} is {@code null}
+     * @param params    construction parameters, or {@code null}
+     * @throws NullPointerException          if {@code algorithm} is {@code null}
      * @throws UnsupportedOperationException if {@code params} is non-null
+     * @throws ProviderException             if the native DRBG context cannot be created
      */
     public RandServiceSPI(RandAlgorithm algorithm, Object params)
     {
@@ -69,6 +86,17 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         this.algorithm = algorithm;
+
+        try
+        {
+            this.ref = new RandReference(
+                    randServiceNI.createContext(algorithm.getMaxStrength(), false, null),
+                    algorithm.getJcaName());
+        }
+        catch (Exception e)
+        {
+            throw new ProviderException("unable to instantiate OpenSSL DRBG: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -81,7 +109,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         if (seed.length > 0)
         {
-            randServiceNI.reseed(algorithm.getMaxStrength(), false, seed);
+            contextReseed(algorithm.getMaxStrength(), false, seed);
         }
     }
 
@@ -94,7 +122,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         byte[] bytes = new byte[numBytes];
-        randServiceNI.randomBytes(bytes, bytes.length, algorithm.getMaxStrength());
+        contextRandomBytes(bytes, algorithm.getMaxStrength(), false, null);
         return bytes;
     }
 
@@ -106,11 +134,72 @@ public final class RandServiceSPI extends SecureRandomSpi
             throw new NullPointerException("bytes cannot be null");
         }
 
-        randServiceNI.randomBytes(bytes, bytes.length, algorithm.getMaxStrength());
+        contextRandomBytes(bytes, algorithm.getMaxStrength(), false, null);
+    }
+
+    private synchronized void contextRandomBytes(byte[] bytes, int strength,
+                                                 boolean predictionResistant,
+                                                 byte[] additionalInput)
+    {
+        randServiceNI.contextRandomBytes(ref.getReference(), bytes, bytes.length,
+                strength, predictionResistant, additionalInput);
+    }
+
+    private synchronized void contextReseed(int strength, boolean predictionResistant,
+                                            byte[] additionalInput)
+    {
+        randServiceNI.contextReseed(ref.getReference(), strength,
+                predictionResistant, additionalInput);
     }
 
     private Object readResolve()
     {
         return new RandServiceSPI(algorithm);
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out)
+            throws IOException
+    {
+        throw new UnsupportedOperationException("writeObject not implemented on native rand");
+    }
+
+    private void readObject(java.io.ObjectInputStream in)
+            throws IOException, ClassNotFoundException
+    {
+        throw new UnsupportedOperationException("writeObject not implemented on native rand");
+    }
+
+    private void readObjectNoData()
+            throws ObjectStreamException
+    {
+        throw new UnsupportedOperationException("writeObject not implemented on native rand");
+    }
+
+    private static class Disposer extends NativeDisposer
+    {
+        Disposer(long reference)
+        {
+            super(reference);
+        }
+
+        @Override
+        protected void dispose(long reference)
+        {
+            randServiceNI.disposeContext(reference);
+        }
+    }
+
+    private static class RandReference extends NativeReference
+    {
+        RandReference(long reference, String name)
+        {
+            super(reference, name);
+        }
+
+        @Override
+        protected Runnable createAction()
+        {
+            return new Disposer(reference);
+        }
     }
 }

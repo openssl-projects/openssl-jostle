@@ -16,11 +16,13 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.util.Arrays;
 
+import java.io.IOException;
+import java.io.ObjectStreamException;
 import java.lang.ref.Reference;
 import java.security.DrbgParameters;
-import java.security.SecureRandomSpi;
-import java.security.SecureRandomParameters;
 import java.security.ProviderException;
+import java.security.SecureRandomParameters;
+import java.security.SecureRandomSpi;
 
 /**
  * Java 9+ {@link SecureRandomSpi} backed by an OpenSSL RAND context.
@@ -72,13 +74,13 @@ public final class RandServiceSPI extends SecureRandomSpi
      * </p>
      *
      * @param algorithm the registered SecureRandom algorithm
-     * @param params construction parameters, or {@code null}
-     * @throws NullPointerException if {@code algorithm} is {@code null}
-     * @throws IllegalArgumentException if the requested strength is invalid
-     *         or exceeds the algorithm strength
+     * @param params    construction parameters, or {@code null}
+     * @throws NullPointerException          if {@code algorithm} is {@code null}
+     * @throws IllegalArgumentException      if the requested strength is invalid
+     *                                       or exceeds the algorithm strength
      * @throws UnsupportedOperationException if {@code params} is not
-     *         {@link DrbgParameters.Instantiation}
-     * @throws ProviderException if the native DRBG context cannot be created
+     *                                       {@link DrbgParameters.Instantiation}
+     * @throws ProviderException             if the native DRBG context cannot be created
      */
     public RandServiceSPI(RandAlgorithm algorithm, Object params)
     {
@@ -112,8 +114,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         {
             this.ref = new RandReference(randServiceNI.createContext(strength, predRes, pstr),
                     algorithm.getJcaName());
-        }
-        catch (Exception e)
+        } catch (Exception e)
         {
             throw new ProviderException("unable to instantiate OpenSSL DRBG: " + e.getMessage(), e);
         }
@@ -166,16 +167,16 @@ public final class RandServiceSPI extends SecureRandomSpi
     /**
      * Generates bytes using per-call DRBG parameters.
      *
-     * @param bytes the destination buffer
+     * @param bytes  the destination buffer
      * @param params generation parameters; must be
-     *        {@link DrbgParameters.NextBytes}
-     * @throws NullPointerException if {@code bytes} is {@code null}
-     * @throws IllegalArgumentException if {@code params} is {@code null}, the
-     *         requested strength is invalid, the requested strength exceeds the
-     *         instantiated strength, or prediction resistance is requested for
-     *         an instance that does not support it
+     *               {@link DrbgParameters.NextBytes}
+     * @throws NullPointerException          if {@code bytes} is {@code null}
+     * @throws IllegalArgumentException      if {@code params} is {@code null}, the
+     *                                       requested strength is invalid, the requested strength exceeds the
+     *                                       instantiated strength, or prediction resistance is requested for
+     *                                       an instance that does not support it
      * @throws UnsupportedOperationException if {@code params} is not
-     *         {@link DrbgParameters.NextBytes}
+     *                                       {@link DrbgParameters.NextBytes}
      */
     @Override
     protected void engineNextBytes(byte[] bytes, SecureRandomParameters params)
@@ -209,13 +210,13 @@ public final class RandServiceSPI extends SecureRandomSpi
      * Reseeds this OpenSSL DRBG context.
      *
      * @param params reseed parameters; must be
-     *        {@link DrbgParameters.Reseed}, or {@code null} to reseed with the
-     *        instance defaults
-     * @throws IllegalArgumentException if prediction resistance is requested
-     *         for an instance that does not support it
+     *               {@link DrbgParameters.Reseed}, or {@code null} to reseed with the
+     *               instance defaults
+     * @throws IllegalArgumentException      if prediction resistance is requested
+     *                                       for an instance that does not support it
      * @throws UnsupportedOperationException if reseeding is disabled by the
-     *         instance capability or {@code params} is not
-     *         {@link DrbgParameters.Reseed}
+     *                                       instance capability or {@code params} is not
+     *                                       {@link DrbgParameters.Reseed}
      */
     @Override
     protected void engineReseed(SecureRandomParameters params)
@@ -243,7 +244,7 @@ public final class RandServiceSPI extends SecureRandomSpi
      * Returns the effective instantiation parameters for this SPI.
      *
      * @return a {@link DrbgParameters.Instantiation} describing strength,
-     *         capability, and a defensive copy of the personalization string
+     * capability, and a defensive copy of the personalization string
      */
     @Override
     protected SecureRandomParameters engineGetParameters()
@@ -310,15 +311,14 @@ public final class RandServiceSPI extends SecureRandomSpi
     }
 
     private synchronized void contextRandomBytes(byte[] bytes, int strength,
-                                                boolean predictionResistant,
-                                                byte[] additionalInput)
+                                                 boolean predictionResistant,
+                                                 byte[] additionalInput)
     {
         try
         {
             randServiceNI.contextRandomBytes(ref.getReference(), bytes, bytes.length,
                     strength, predictionResistant, additionalInput);
-        }
-        finally
+        } finally
         {
             Reference.reachabilityFence(this);
         }
@@ -331,8 +331,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         {
             randServiceNI.contextReseed(ref.getReference(), strength,
                     predictionResistant, additionalInput);
-        }
-        finally
+        } finally
         {
             Reference.reachabilityFence(this);
         }
@@ -365,4 +364,25 @@ public final class RandServiceSPI extends SecureRandomSpi
             return new Disposer(reference);
         }
     }
+
+    private void writeObject(java.io.ObjectOutputStream out)
+            throws IOException
+    {
+
+        throw new UnsupportedOperationException("writeObject not implemented on native rand");
+    }
+
+    private void readObject(java.io.ObjectInputStream in)
+            throws IOException, ClassNotFoundException
+    {
+        throw new UnsupportedOperationException("writeObject not implemented on native rand");
+    }
+
+    private void readObjectNoData()
+            throws ObjectStreamException
+    {
+        throw new UnsupportedOperationException("writeObject not implemented on native rand");
+    }
+
+
 }

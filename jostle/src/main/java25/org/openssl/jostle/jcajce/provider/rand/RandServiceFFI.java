@@ -27,15 +27,6 @@ public class RandServiceFFI implements RandServiceNI
     private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment randomBytesFunc;
-    private static final MethodHandle randomBytesFuncHandle;
-
-    private static final MemorySegment instantiateFunc;
-    private static final MethodHandle instantiateFuncHandle;
-
-    private static final MemorySegment reseedFunc;
-    private static final MethodHandle reseedFuncHandle;
-
     private static final MemorySegment createContextFunc;
     private static final MethodHandle createContextFuncHandle;
 
@@ -50,42 +41,6 @@ public class RandServiceFFI implements RandServiceNI
 
     static
     {
-        randomBytesFunc = lookup.find("JoRand_randomBytes").orElseThrow();
-        randomBytesFuncHandle = linker.downcallHandle(randomBytesFunc,
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_BYTE,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG
-                )
-        );
-
-        instantiateFunc = lookup.find("JoRand_instantiate").orElseThrow();
-        instantiateFuncHandle = linker.downcallHandle(instantiateFunc,
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_BYTE,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG
-                )
-        );
-
-        reseedFunc = lookup.find("JoRand_reseed").orElseThrow();
-        reseedFuncHandle = linker.downcallHandle(reseedFunc,
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_BYTE,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG
-                )
-        );
-
         createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
         createContextFuncHandle = linker.downcallHandle(createContextFunc,
                 FunctionDescriptor.of(
@@ -129,83 +84,6 @@ public class RandServiceFFI implements RandServiceNI
                         ValueLayout.JAVA_LONG
                 )
         );
-    }
-
-    @Override
-    public int ni_randomBytes(byte[] output, int outputLen, int strength,
-                              boolean predictionResistant, byte[] additionalInput)
-    {
-        try (Arena a = Arena.ofConfined())
-        {
-            MemorySegment outputSeg = output == null ?
-                    MemorySegment.NULL :
-                    a.allocate(output.length);
-            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
-
-            int code = (int) randomBytesFuncHandle.invokeExact(
-                    outputSeg,
-                    outputSeg.byteSize(),
-                    outputLen,
-                    strength,
-                    (byte) (predictionResistant ? 1 : 0),
-                    additionalInputSeg,
-                    additionalInputSeg.byteSize()
-            );
-
-            if (code >= 0 && output != null && outputLen > 0)
-            {
-                outputSeg.asSlice(0, outputLen).asByteBuffer().get(output, 0, outputLen);
-            }
-
-            return code;
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING, "FFI JoRand_randomBytes", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
-
-    @Override
-    public int ni_instantiate(int strength, boolean predictionResistant, byte[] personalizationString)
-    {
-        try (Arena a = Arena.ofConfined())
-        {
-            MemorySegment personalizationStringSeg = byteArraySegment(a, personalizationString);
-
-            return (int) instantiateFuncHandle.invokeExact(
-                    strength,
-                    (byte) (predictionResistant ? 1 : 0),
-                    personalizationStringSeg,
-                    personalizationStringSeg.byteSize()
-            );
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING, "FFI JoRand_instantiate", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
-
-    @Override
-    public int ni_reseed(int strength, boolean predictionResistant, byte[] additionalInput)
-    {
-        try (Arena a = Arena.ofConfined())
-        {
-            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
-
-            return (int) reseedFuncHandle.invokeExact(
-                    strength,
-                    (byte) (predictionResistant ? 1 : 0),
-                    additionalInputSeg,
-                    additionalInputSeg.byteSize()
-            );
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING, "FFI JoRand_reseed", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
     }
 
     @Override
