@@ -38,6 +38,7 @@ static char *rand_provider_name = NULL;
 
 struct jo_rand_ctx_st {
     EVP_RAND_CTX *evp_ctx;
+    size_t max_request;
 };
 
 static unsigned int rand_strength(int32_t strength) {
@@ -174,6 +175,24 @@ JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use
         return NULL;
     }
 
+    //
+    // The per-generate maximum request size is the DRBG's own runtime limit
+    // (OpenSSL enforces it in EVP_RAND_generate), so read it from the live ctx
+    // and cache it for chunking rather than hard-coding a value that could drift
+    // from a variant's or custom provider's actual limit. RAND_MAX_REQUEST is
+    // only the fallback when the query is unavailable.
+    //
+    size_t max_request = RAND_MAX_REQUEST;
+    OSSL_PARAM max_request_params[] = {
+        OSSL_PARAM_construct_size_t(OSSL_RAND_PARAM_MAX_REQUEST, &max_request),
+        OSSL_PARAM_construct_end()
+    };
+    if (1 == EVP_RAND_CTX_get_params(ctx->evp_ctx, max_request_params) && max_request > 0) {
+        ctx->max_request = max_request;
+    } else {
+        ctx->max_request = RAND_MAX_REQUEST;
+    }
+
     *err = JO_SUCCESS;
     return ctx;
 }
@@ -213,7 +232,7 @@ int32_t rand_ctx_random_bytes(JO_RAND_CTX *ctx, uint8_t *output,
     ERR_clear_error();
 
     while (remaining > 0) {
-        size_t request = remaining > RAND_MAX_REQUEST ? RAND_MAX_REQUEST : remaining;
+        size_t request = remaining > ctx->max_request ? ctx->max_request : remaining;
         const uint8_t *adin = additional_input;
         size_t adin_len = additional_input_len;
 
