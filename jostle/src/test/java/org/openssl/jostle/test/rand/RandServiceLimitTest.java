@@ -91,15 +91,19 @@ public class RandServiceLimitTest
     @Test
     public void contextRandomBytesRejectsInsufficientStrength()
     {
+        // 257 = boundary+1: the strength ceiling is 256 (JO_RAND_MAX_STRENGTH),
+        // so 257 is the smallest rejected value above it. The accepted-boundary
+        // companion (256) is contextRandomBytesAcceptsExactLength below.
         withContext(ref -> assertIllegalArgument("insufficient random strength",
-                () -> randServiceNI.contextRandomBytes(ref, new byte[1], 1, Integer.MAX_VALUE, false, null)));
+                () -> randServiceNI.contextRandomBytes(ref, new byte[1], 1, 257, false, null)));
     }
 
     @Test
     public void contextRandomBytesRejectsInsufficientStrengthWithZeroLength()
     {
+        // 257 = boundary+1; strength is checked before the zero-length short-circuit.
         withContext(ref -> assertIllegalArgument("insufficient random strength",
-                () -> randServiceNI.contextRandomBytes(ref, new byte[0], 0, Integer.MAX_VALUE, false, null)));
+                () -> randServiceNI.contextRandomBytes(ref, new byte[0], 0, 257, false, null)));
     }
 
     @Test
@@ -145,8 +149,9 @@ public class RandServiceLimitTest
     @Test
     public void contextReseedRejectsInsufficientStrength()
     {
+        // 257 = boundary+1 (256 ceiling); contextReseedAcceptsAlgorithmStrength is the 256 companion.
         withContext(ref -> assertIllegalArgument("insufficient random strength",
-                () -> randServiceNI.contextReseed(ref, Integer.MAX_VALUE, false, null)));
+                () -> randServiceNI.contextReseed(ref, 257, false, null)));
     }
 
     @Test
@@ -191,6 +196,40 @@ public class RandServiceLimitTest
         // strength cap is bypassed).
         assertOpenSSLError(
                 () -> randServiceNI.createContext("CTR-DRBG", "AES-128-CTR", true, 256, false, null));
+    }
+
+    @Test
+    public void drbgStrengthRejectsNullMechanism()
+    {
+        assertNullPointer("name is null",
+                () -> randServiceNI.drbgStrength(null, "AES-256-CTR"));
+    }
+
+    @Test
+    public void drbgStrengthRejectsNullVariant()
+    {
+        assertNullPointer("name is null",
+                () -> randServiceNI.drbgStrength("CTR-DRBG", null));
+    }
+
+    @Test
+    public void drbgStrengthRejectsUnknownMechanism()
+    {
+        assertOpenSSLError(() -> randServiceNI.drbgStrength("BOGUS-DRBG", "AES-256-CTR"));
+    }
+
+    @Test
+    public void drbgStrengthRejectsUnknownVariant()
+    {
+        assertOpenSSLError(() -> randServiceNI.drbgStrength("CTR-DRBG", "AES-999-CTR"));
+    }
+
+    @Test
+    public void drbgStrengthReturnsVariantStrength()
+    {
+        // Positive companion: the query returns OpenSSL's reported strength.
+        Assertions.assertEquals(256, randServiceNI.drbgStrength("CTR-DRBG", "AES-256-CTR"));
+        Assertions.assertEquals(128, randServiceNI.drbgStrength("HASH-DRBG", "SHA1"));
     }
 
     private static void assertOpenSSLError(Runnable action)

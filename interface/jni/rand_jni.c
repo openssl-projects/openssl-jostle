@@ -63,7 +63,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandService
     }
 
     if (_personalization_string != NULL
-        && !load_bytearray_ctx(&personalization_string, env, _personalization_string)) {
+        && (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&personalization_string, env, _personalization_string))) {
         err[0] = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -146,7 +146,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
         goto exit;
     }
 
-    if (_additional_input != NULL && !load_bytearray_ctx(&additional_input, env, _additional_input)) {
+    if (_additional_input != NULL
+        && (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&additional_input, env, _additional_input))) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -193,7 +194,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
         goto exit;
     }
 
-    if (_additional_input != NULL && !load_bytearray_ctx(&additional_input, env, _additional_input)) {
+    if (_additional_input != NULL
+        && (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&additional_input, env, _additional_input))) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }

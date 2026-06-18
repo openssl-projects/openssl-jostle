@@ -30,6 +30,8 @@ import java.security.Security;
 public class BridgeRandOpsTest
 {
     private static final int JO_OPENSSL_ERROR = -2;
+    private static final int JO_FAILED_ACCESS_INPUT = -22;
+    private static final int JO_FAILED_ACCESS_OUTPUT = -23;
     private static final int JO_UNEXPECTED_STATE = -40;
     private static final int JO_RAND_RESEED = -100;
 
@@ -380,6 +382,92 @@ public class BridgeRandOpsTest
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
             Assertions.assertEquals(JO_UNEXPECTED_STATE, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    //
+    // JNI byte-array access-failure paths (load_bytearray_ctx). JNI-only — the
+    // FFI bridge receives raw pointers and has no OPS_FAILED_ACCESS instrumentation.
+    //
+
+    @Test
+    public void createContextPersonalizationAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        int[] err = new int[1];
+        // Exercises interface/jni/rand_jni.c:66
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, new byte[1], err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+    }
+
+    @Test
+    public void contextRandomBytesOutputAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/jni/rand_jni.c:144
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
+
+            Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextRandomBytesAdditionalInputAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/jni/rand_jni.c:150
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, new byte[1]);
+
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedAdditionalInputAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/jni/rand_jni.c:198
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, new byte[1]);
+
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, code);
         }
         finally
         {
