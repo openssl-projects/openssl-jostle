@@ -16,7 +16,8 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 public interface RandServiceNI extends DefaultServiceNI
 {
-    long ni_createContext(int strength, boolean predictionResistant, byte[] personalizationString, int[] err);
+    long ni_createContext(String mechanism, String variant, boolean useDerivationFunction,
+                          int strength, boolean predictionResistant, byte[] personalizationString, int[] err);
 
     void ni_disposeContext(long reference);
 
@@ -25,10 +26,14 @@ public interface RandServiceNI extends DefaultServiceNI
 
     int ni_contextReseed(long reference, int strength, boolean predictionResistant, byte[] additionalInput);
 
-    default long createContext(int strength, boolean predictionResistant, byte[] personalizationString)
+    int ni_drbgStrength(String mechanism, String variant);
+
+    default long createContext(String mechanism, String variant, boolean useDerivationFunction,
+                               int strength, boolean predictionResistant, byte[] personalizationString)
     {
         int[] err = new int[1];
-        long reference = ni_createContext(strength, predictionResistant, personalizationString, err);
+        long reference = ni_createContext(mechanism, variant, useDerivationFunction,
+                strength, predictionResistant, personalizationString, err);
         handleErrors(err[0]);
         return reference;
     }
@@ -49,6 +54,20 @@ public interface RandServiceNI extends DefaultServiceNI
                                byte[] additionalInput)
     {
         handleErrors(ni_contextReseed(reference, strength, predictionResistant, additionalInput));
+    }
+
+    /**
+     * Returns the security strength (bits) OpenSSL reports for the given DRBG
+     * mechanism / variant, derived from the cipher key length (CTR) or digest
+     * size (HASH/HMAC). No DRBG is instantiated, so no entropy is consumed.
+     *
+     * @param mechanism the OpenSSL EVP_RAND name (CTR-DRBG / HASH-DRBG / HMAC-DRBG)
+     * @param variant   the cipher SN (CTR) or digest SN (HASH/HMAC)
+     * @return the strength in bits
+     */
+    default int drbgStrength(String mechanism, String variant)
+    {
+        return (int) handleErrors(ni_drbgStrength(mechanism, variant));
     }
 
     default long handleErrors(long code)

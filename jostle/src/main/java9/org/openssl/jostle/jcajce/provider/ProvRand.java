@@ -28,7 +28,10 @@ class ProvRand
         final Map<String, String> attr = new HashMap<String, String>();
         attr.put("ThreadSafe", "true");
 
-        addRand(provider, RandAlgorithm.DRBG, attr);
+        for (RandAlgorithm algorithm : RandAlgorithm.values())
+        {
+            addRand(provider, algorithm, attr);
+        }
         provider.addAlias("SecureRandom", RandAlgorithm.DRBG.getJcaName(), "DEFAULT");
     }
 

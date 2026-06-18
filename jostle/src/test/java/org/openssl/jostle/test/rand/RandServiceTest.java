@@ -122,6 +122,35 @@ public class RandServiceTest
     }
 
     @Test
+    public void namedMechanismsProduceUsableRandom() throws Exception
+    {
+        // Each named mechanism / variant must instantiate against the right
+        // OpenSSL EVP_RAND (a wrong digest/cipher SN would fail instantiation)
+        // and produce distinct, non-zero output across calls.
+        String[] names = {
+                "CTR-DRBG", "CTR-DRBG-AES128", "CTR-DRBG-AES192", "CTR-DRBG-AES256",
+                "HASH-DRBG", "HASH-DRBG-SHA1", "HASH-DRBG-SHA224", "HASH-DRBG-SHA256",
+                "HASH-DRBG-SHA384", "HASH-DRBG-SHA512",
+                "HMAC-DRBG", "HMAC-DRBG-SHA1", "HMAC-DRBG-SHA224", "HMAC-DRBG-SHA256",
+                "HMAC-DRBG-SHA384", "HMAC-DRBG-SHA512"
+        };
+
+        for (String name : names)
+        {
+            SecureRandom random = SecureRandom.getInstance(name, JostleProvider.PROVIDER_NAME);
+            Assertions.assertEquals(name, random.getAlgorithm());
+
+            byte[] first = new byte[32];
+            byte[] second = new byte[32];
+            random.nextBytes(first);
+            random.nextBytes(second);
+
+            Assertions.assertFalse(Arrays.areEqual(new byte[32], first), name);
+            Assertions.assertFalse(Arrays.areEqual(first, second), name);
+        }
+    }
+
+    @Test
     public void nextBytesProducesDifferentOutputAcrossCalls() throws Exception
     {
         // Two draws from one instance must differ: a stub returning a fixed

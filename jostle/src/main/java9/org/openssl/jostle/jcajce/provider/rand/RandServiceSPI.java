@@ -47,6 +47,10 @@ public final class RandServiceSPI extends SecureRandomSpi
     private static final RandServiceNI randServiceNI = NISelector.RandServiceNI;
 
     private final RandAlgorithm algorithm;
+    private final String mechanism;
+    private final String variant;
+    private final boolean useDerivationFunction;
+    private final int maxStrength;
     private final int instanceStrength;
     private final DrbgParameters.Capability instanceCapability;
     private final byte[] personalizationString;
@@ -91,7 +95,23 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         this.algorithm = algorithm;
 
-        int strength = algorithm.getMaxStrength();
+        DrbgConfig config = algorithm.honorsConfig() ? DrbgConfig.fromSecurityProperty() : null;
+        if (config != null)
+        {
+            this.mechanism = config.getMechanism();
+            this.variant = config.getVariant();
+            this.useDerivationFunction = config.usesDerivationFunction();
+            this.maxStrength = RandAlgorithm.maxStrengthFor(config.getVariant());
+        }
+        else
+        {
+            this.mechanism = algorithm.getMechanism();
+            this.variant = algorithm.getVariant();
+            this.useDerivationFunction = algorithm.usesDerivationFunction();
+            this.maxStrength = algorithm.getMaxStrength();
+        }
+
+        int strength = maxStrength;
         DrbgParameters.Capability capability = DrbgParameters.Capability.RESEED_ONLY;
         byte[] pstr = null;
 
@@ -112,7 +132,9 @@ public final class RandServiceSPI extends SecureRandomSpi
         boolean predRes = capability.supportsPredictionResistance();
         try
         {
-            this.ref = new RandReference(randServiceNI.createContext(strength, predRes, pstr),
+            this.ref = new RandReference(
+                    randServiceNI.createContext(mechanism, variant, useDerivationFunction,
+                            strength, predRes, pstr),
                     algorithm.getJcaName());
         } catch (Exception e)
         {
@@ -260,7 +282,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private int normalizeStrength(int strength)
     {
-        return normalizeStrength(strength, algorithm.getMaxStrength());
+        return normalizeStrength(strength, maxStrength);
     }
 
     private int normalizeStrength(int strength, int defaultStrength)
@@ -288,7 +310,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private void checkInstantiationStrength(int strength)
     {
-        if (strength > algorithm.getMaxStrength())
+        if (strength > maxStrength)
         {
             throw new IllegalArgumentException("requested strength exceeds algorithm strength");
         }

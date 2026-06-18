@@ -13,11 +13,17 @@ static int rand_strength_supported(int32_t strength) {
     return strength >= 0 && strength <= JO_RAND_MAX_STRENGTH;
 }
 
-JO_RAND_CTX *JoRand_createContext(int32_t strength, uint8_t prediction_resistant,
+JO_RAND_CTX *JoRand_createContext(const char *mechanism, const char *variant, uint8_t use_df,
+                                  int32_t strength, uint8_t prediction_resistant,
                                   uint8_t *personalization_string,
                                   size_t personalization_string_size,
                                   int32_t *err) {
     if (err == NULL) {
+        return NULL;
+    }
+
+    if (mechanism == NULL || variant == NULL) {
+        *err = JO_NAME_IS_NULL;
         return NULL;
     }
 
@@ -31,7 +37,8 @@ JO_RAND_CTX *JoRand_createContext(int32_t strength, uint8_t prediction_resistant
         return NULL;
     }
 
-    return rand_ctx_create(strength, prediction_resistant != 0,
+    return rand_ctx_create(mechanism, variant, use_df != 0,
+                           strength, prediction_resistant != 0,
                            personalization_string, personalization_string_size,
                            err);
 }
@@ -96,4 +103,12 @@ int32_t JoRand_contextReseed(JO_RAND_CTX *ctx, int32_t strength,
 
     return rand_ctx_reseed(ctx, strength, prediction_resistant != 0,
                            additional_input, additional_input_size);
+}
+
+int32_t JoRand_drbgStrength(const char *mechanism, const char *variant) {
+    if (mechanism == NULL || variant == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+
+    return rand_drbg_strength(mechanism, variant);
 }

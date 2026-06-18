@@ -45,6 +45,10 @@ public final class RandServiceSPI extends SecureRandomSpi
     private static final RandServiceNI randServiceNI = NISelector.RandServiceNI;
 
     private final RandAlgorithm algorithm;
+    private final String mechanism;
+    private final String variant;
+    private final boolean useDerivationFunction;
+    private final int maxStrength;
     private final transient RandReference ref;
 
     /**
@@ -87,10 +91,27 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         this.algorithm = algorithm;
 
+        DrbgConfig config = algorithm.honorsConfig() ? DrbgConfig.fromSecurityProperty() : null;
+        if (config != null)
+        {
+            this.mechanism = config.getMechanism();
+            this.variant = config.getVariant();
+            this.useDerivationFunction = config.usesDerivationFunction();
+            this.maxStrength = RandAlgorithm.maxStrengthFor(config.getVariant());
+        }
+        else
+        {
+            this.mechanism = algorithm.getMechanism();
+            this.variant = algorithm.getVariant();
+            this.useDerivationFunction = algorithm.usesDerivationFunction();
+            this.maxStrength = algorithm.getMaxStrength();
+        }
+
         try
         {
             this.ref = new RandReference(
-                    randServiceNI.createContext(algorithm.getMaxStrength(), false, null),
+                    randServiceNI.createContext(mechanism, variant, useDerivationFunction,
+                            maxStrength, false, null),
                     algorithm.getJcaName());
         }
         catch (Exception e)
@@ -109,7 +130,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         if (seed.length > 0)
         {
-            contextReseed(algorithm.getMaxStrength(), false, seed);
+            contextReseed(maxStrength, false, seed);
         }
     }
 
@@ -122,7 +143,7 @@ public final class RandServiceSPI extends SecureRandomSpi
         }
 
         byte[] bytes = new byte[numBytes];
-        contextRandomBytes(bytes, algorithm.getMaxStrength(), false, null);
+        contextRandomBytes(bytes, maxStrength, false, null);
         return bytes;
     }
 
@@ -134,7 +155,7 @@ public final class RandServiceSPI extends SecureRandomSpi
             throw new NullPointerException("bytes cannot be null");
         }
 
-        contextRandomBytes(bytes, algorithm.getMaxStrength(), false, null);
+        contextRandomBytes(bytes, maxStrength, false, null);
     }
 
     private synchronized void contextRandomBytes(byte[] bytes, int strength,

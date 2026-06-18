@@ -19,7 +19,8 @@ int32_t rand_init(const char *provider_name, int32_t *created);
 
 void rand_destroy(void);
 
-JO_RAND_CTX *rand_ctx_create(int32_t strength, int prediction_resistant,
+JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use_df,
+                             int32_t strength, int prediction_resistant,
                              const uint8_t *personalization_string,
                              size_t personalization_string_len,
                              int32_t *err);
@@ -36,5 +37,7 @@ int32_t rand_ctx_reseed(JO_RAND_CTX *ctx, int32_t strength,
                         int prediction_resistant,
                         const uint8_t *additional_input,
                         size_t additional_input_len);
+
+int32_t rand_drbg_strength(const char *mechanism, const char *variant);
 
 #endif //RAND_H

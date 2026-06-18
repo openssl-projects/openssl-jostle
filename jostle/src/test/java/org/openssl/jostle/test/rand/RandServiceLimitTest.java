@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.rand.RandAlgorithm;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
@@ -24,7 +24,10 @@ import java.util.function.LongConsumer;
 
 public class RandServiceLimitTest
 {
-    private static final int DRBG_STRENGTH = RandAlgorithm.DRBG.getMaxStrength();
+    // DRBG (= CTR-DRBG / AES-256) provides 256-bit strength. Kept as a literal
+    // so this class-level constant does not trigger a native strength query at
+    // static-init time, before the provider/native layer is initialised.
+    private static final int DRBG_STRENGTH = 256;
     private final RandServiceNI randServiceNI = TestNISelector.getRandNI();
 
     @BeforeAll
@@ -152,9 +155,53 @@ public class RandServiceLimitTest
         withContext(ref -> randServiceNI.contextReseed(ref, DRBG_STRENGTH, false, null));
     }
 
+    @Test
+    public void createContextRejectsNullMechanism()
+    {
+        assertNullPointer("name is null",
+                () -> randServiceNI.createContext(null, "AES-256-CTR", true, DRBG_STRENGTH, false, null));
+    }
+
+    @Test
+    public void createContextRejectsNullVariant()
+    {
+        assertNullPointer("name is null",
+                () -> randServiceNI.createContext("CTR-DRBG", null, true, DRBG_STRENGTH, false, null));
+    }
+
+    @Test
+    public void createContextRejectsUnknownMechanism()
+    {
+        assertOpenSSLError(
+                () -> randServiceNI.createContext("BOGUS-DRBG", "AES-256-CTR", true, DRBG_STRENGTH, false, null));
+    }
+
+    @Test
+    public void createContextRejectsUnknownVariant()
+    {
+        assertOpenSSLError(
+                () -> randServiceNI.createContext("CTR-DRBG", "AES-999-CTR", true, DRBG_STRENGTH, false, null));
+    }
+
+    @Test
+    public void createContextRejectsStrengthAboveVariantCeiling()
+    {
+        // AES-128-CTR caps at 128-bit strength; OpenSSL rejects an over-strength
+        // instantiation at the NI surface (the precise gate when the Java-side
+        // strength cap is bypassed).
+        assertOpenSSLError(
+                () -> randServiceNI.createContext("CTR-DRBG", "AES-128-CTR", true, 256, false, null));
+    }
+
+    private static void assertOpenSSLError(Runnable action)
+    {
+        OpenSSLException e = Assertions.assertThrows(OpenSSLException.class, action::run);
+        Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+    }
+
     private void withContext(LongConsumer action)
     {
-        long ref = randServiceNI.createContext(DRBG_STRENGTH, false, null);
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, DRBG_STRENGTH, false, null);
         try
         {
             action.accept(ref);

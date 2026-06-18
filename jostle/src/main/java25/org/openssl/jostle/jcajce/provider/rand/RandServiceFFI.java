@@ -39,17 +39,23 @@ public class RandServiceFFI implements RandServiceNI
     private static final MemorySegment contextReseedFunc;
     private static final MethodHandle contextReseedFuncHandle;
 
+    private static final MemorySegment drbgStrengthFunc;
+    private static final MethodHandle drbgStrengthFuncHandle;
+
     static
     {
         createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
         createContextFuncHandle = linker.downcallHandle(createContextFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_BYTE,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS
+                        ValueLayout.ADDRESS,    // JO_RAND_CTX* return
+                        ValueLayout.ADDRESS,    // mechanism
+                        ValueLayout.ADDRESS,    // variant
+                        ValueLayout.JAVA_BYTE,  // use_df
+                        ValueLayout.JAVA_INT,   // strength
+                        ValueLayout.JAVA_BYTE,  // prediction_resistant
+                        ValueLayout.ADDRESS,    // personalization_string
+                        ValueLayout.JAVA_LONG,  // personalization_string_size
+                        ValueLayout.ADDRESS     // err
                 )
         );
 
@@ -84,18 +90,33 @@ public class RandServiceFFI implements RandServiceNI
                         ValueLayout.JAVA_LONG
                 )
         );
+
+        drbgStrengthFunc = lookup.find("JoRand_drbgStrength").orElseThrow();
+        drbgStrengthFuncHandle = linker.downcallHandle(drbgStrengthFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,    // strength return
+                        ValueLayout.ADDRESS,     // mechanism
+                        ValueLayout.ADDRESS      // variant
+                )
+        );
     }
 
     @Override
-    public long ni_createContext(int strength, boolean predictionResistant,
+    public long ni_createContext(String mechanism, String variant, boolean useDerivationFunction,
+                                 int strength, boolean predictionResistant,
                                  byte[] personalizationString, int[] err)
     {
         try (Arena a = Arena.ofConfined())
         {
+            MemorySegment mechanismSeg = mechanism == null ? MemorySegment.NULL : a.allocateFrom(mechanism);
+            MemorySegment variantSeg = variant == null ? MemorySegment.NULL : a.allocateFrom(variant);
             MemorySegment personalizationStringSeg = byteArraySegment(a, personalizationString);
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
 
             MemorySegment ctx = (MemorySegment) createContextFuncHandle.invokeExact(
+                    mechanismSeg,
+                    variantSeg,
+                    (byte) (useDerivationFunction ? 1 : 0),
                     strength,
                     (byte) (predictionResistant ? 1 : 0),
                     personalizationStringSeg,
@@ -181,6 +202,23 @@ public class RandServiceFFI implements RandServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI JoRand_contextReseed", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_drbgStrength(String mechanism, String variant)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment mechanismSeg = mechanism == null ? MemorySegment.NULL : a.allocateFrom(mechanism);
+            MemorySegment variantSeg = variant == null ? MemorySegment.NULL : a.allocateFrom(variant);
+
+            return (int) drbgStrengthFuncHandle.invokeExact(mechanismSeg, variantSeg);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_drbgStrength", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

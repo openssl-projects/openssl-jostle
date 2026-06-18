@@ -28,7 +28,6 @@
  * larger SecureRandom.nextBytes() requests.
  */
 #define RAND_MAX_REQUEST ((size_t) 65536)
-#define RAND_DRBG_NAME "CTR-DRBG"
 
 /*
  * SecureRandom owns its own libctx so its lifecycle and provider-name binding
@@ -91,10 +90,13 @@ void rand_destroy(void) {
     }
 }
 
-JO_RAND_CTX *rand_ctx_create(int32_t strength, int prediction_resistant,
+JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use_df,
+                             int32_t strength, int prediction_resistant,
                              const uint8_t *personalization_string,
                              size_t personalization_string_len,
                              int32_t *err) {
+    jo_assert(mechanism != NULL);
+    jo_assert(variant != NULL);
     jo_assert(strength >= 0);
     jo_assert(strength <= JO_RAND_MAX_STRENGTH);
     jo_assert(rand_libctx != NULL);
@@ -108,7 +110,7 @@ JO_RAND_CTX *rand_ctx_create(int32_t strength, int prediction_resistant,
     JO_RAND_CTX *ctx = OPENSSL_zalloc(sizeof(*ctx));
     jo_assert(ctx != NULL);
 
-    EVP_RAND *rand = EVP_RAND_fetch(rand_libctx, RAND_DRBG_NAME, NULL);
+    EVP_RAND *rand = EVP_RAND_fetch(rand_libctx, mechanism, NULL);
     if (OPS_OPENSSL_ERROR_1 rand == NULL) {
         ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
                        "rand_ctx_create: EVP_RAND_fetch failed");
@@ -138,11 +140,29 @@ JO_RAND_CTX *rand_ctx_create(int32_t strength, int prediction_resistant,
         return NULL;
     }
 
-    OSSL_PARAM params[] = {
-        OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_CIPHER,
-                                         (char *) SN_aes_256_ctr, 0),
-        OSSL_PARAM_END
-    };
+    //
+    // The variant selector is mechanism-specific: CTR-DRBG takes a cipher
+    // (and the derivation-function flag); HASH-DRBG and HMAC-DRBG take a
+    // digest, and HMAC-DRBG additionally pins the MAC to HMAC. Passing a
+    // cipher to a hash mechanism (or vice versa) is rejected by OpenSSL, so
+    // the array is built per mechanism rather than unconditionally.
+    //
+    OSSL_PARAM params[4];
+    int n = 0;
+    int df = use_df ? 1 : 0;
+    if (strcmp(mechanism, "CTR-DRBG") == 0) {
+        params[n++] = OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_CIPHER,
+                                                       (char *) variant, 0);
+        params[n++] = OSSL_PARAM_construct_int(OSSL_DRBG_PARAM_USE_DF, &df);
+    } else {
+        params[n++] = OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_DIGEST,
+                                                       (char *) variant, 0);
+        if (strcmp(mechanism, "HMAC-DRBG") == 0) {
+            params[n++] = OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_MAC,
+                                                           (char *) "HMAC", 0);
+        }
+    }
+    params[n] = OSSL_PARAM_construct_end();
     if (OPS_OPENSSL_ERROR_10 1 != EVP_RAND_instantiate(ctx->evp_ctx, rand_strength(strength),
                                                        prediction_resistant != 0,
                                                        personalization_string,
@@ -247,4 +267,67 @@ int32_t rand_ctx_reseed(JO_RAND_CTX *ctx, int32_t strength,
     }
 
     return JO_UNEXPECTED_STATE;
+}
+
+int32_t rand_drbg_strength(const char *mechanism, const char *variant) {
+    jo_assert(mechanism != NULL);
+    jo_assert(variant != NULL);
+    jo_assert(rand_libctx != NULL);
+
+    ERR_clear_error();
+
+    EVP_RAND *rand = EVP_RAND_fetch(rand_libctx, mechanism, NULL);
+    if (rand == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    EVP_RAND_CTX *parent = RAND_get0_private(rand_libctx);
+    if (parent == NULL) {
+        EVP_RAND_free(rand);
+        return JO_OPENSSL_ERROR;
+    }
+
+    EVP_RAND_CTX *ctx = EVP_RAND_CTX_new(rand, parent);
+    EVP_RAND_free(rand);
+    if (ctx == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    //
+    // The DRBG's security strength is derived from the variant (cipher key
+    // length for CTR, digest size for HASH/HMAC) and is reported once the
+    // variant params are set — no instantiate (and so no entropy draw) is
+    // needed to read it. Mirror rand_ctx_create's per-mechanism param shape.
+    //
+    OSSL_PARAM params[3];
+    int n = 0;
+    if (strcmp(mechanism, "CTR-DRBG") == 0) {
+        params[n++] = OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_CIPHER,
+                                                       (char *) variant, 0);
+    } else {
+        params[n++] = OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_DIGEST,
+                                                       (char *) variant, 0);
+        if (strcmp(mechanism, "HMAC-DRBG") == 0) {
+            params[n++] = OSSL_PARAM_construct_utf8_string(OSSL_DRBG_PARAM_MAC,
+                                                           (char *) "HMAC", 0);
+        }
+    }
+    params[n] = OSSL_PARAM_construct_end();
+
+    int32_t result = JO_OPENSSL_ERROR;
+    if (1 == EVP_RAND_CTX_set_params(ctx, params)) {
+        unsigned int strength = 0;
+        OSSL_PARAM query[2] = {
+            OSSL_PARAM_construct_uint(OSSL_RAND_PARAM_STRENGTH, &strength),
+            OSSL_PARAM_construct_end()
+        };
+        if (1 == EVP_RAND_CTX_get_params(ctx, query)) {
+            result = strength > (unsigned int) INT32_MAX
+                     ? JO_OUTPUT_TOO_LONG_INT32
+                     : (int32_t) strength;
+        }
+    }
+
+    EVP_RAND_CTX_free(ctx);
+    return result;
 }

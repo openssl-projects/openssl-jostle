@@ -233,7 +233,7 @@ public class BridgeRandOpsTest
         int[] err = new int[1];
         // Exercises interface/util/rand.c:261
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-        long ref = randServiceNI.ni_createContext(0, false, null, err);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
         Assertions.assertEquals(0, ref);
         Assertions.assertEquals(JO_OPENSSL_ERROR - 3030, err[0]);
@@ -247,7 +247,7 @@ public class BridgeRandOpsTest
         int[] err = new int[1];
         // Exercises interface/util/rand.c:271
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
-        long ref = randServiceNI.ni_createContext(0, false, null, err);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
         Assertions.assertEquals(0, ref);
         Assertions.assertEquals(JO_OPENSSL_ERROR - 3031, err[0]);
@@ -261,7 +261,7 @@ public class BridgeRandOpsTest
         int[] err = new int[1];
         // Exercises interface/util/rand.c:282
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
-        long ref = randServiceNI.ni_createContext(0, false, null, err);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
         Assertions.assertEquals(0, ref);
         Assertions.assertEquals(JO_OPENSSL_ERROR - 3032, err[0]);
@@ -275,7 +275,7 @@ public class BridgeRandOpsTest
         int[] err = new int[1];
         // Exercises interface/util/rand.c:295
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
-        long ref = randServiceNI.ni_createContext(0, false, null, err);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
         Assertions.assertEquals(0, ref);
         Assertions.assertEquals(JO_OPENSSL_ERROR - 3033, err[0]);
@@ -286,7 +286,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long ref = randServiceNI.createContext(0, false, null);
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
             // Exercises interface/util/rand.c:349
@@ -307,7 +307,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long ref = randServiceNI.createContext(0, false, null);
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
             // Exercises interface/util/rand.c:332
@@ -328,7 +328,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long ref = randServiceNI.createContext(0, false, null);
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
             // Exercises interface/util/rand.c:379
@@ -351,7 +351,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long ref = randServiceNI.createContext(0, false, null);
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
             // Exercises interface/util/rand.c:390
@@ -372,7 +372,7 @@ public class BridgeRandOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
-        long ref = randServiceNI.createContext(0, false, null);
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
             // Exercises interface/util/rand.c:376

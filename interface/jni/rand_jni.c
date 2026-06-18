@@ -23,19 +23,39 @@ static int rand_strength_supported(int32_t strength) {
  * Signature: (IZ[B[I)J
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1createContext
-  (JNIEnv *env, jobject jo, jint strength, jboolean prediction_resistant,
+  (JNIEnv *env, jobject jo, jstring _mechanism, jstring _variant, jboolean use_df,
+   jint strength, jboolean prediction_resistant,
    jbyteArray _personalization_string, jintArray _err)
 {
     UNUSED(jo);
 
     int32_t *err = NULL;
     JO_RAND_CTX *ctx = NULL;
+    const char *mechanism = NULL;
+    const char *variant = NULL;
     java_bytearray_ctx personalization_string;
     init_bytearray_ctx(&personalization_string);
 
     jo_assert(_err != NULL);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
+
+    if (_mechanism == NULL || _variant == NULL) {
+        err[0] = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    mechanism = (*env)->GetStringUTFChars(env, _mechanism, NULL);
+    if (mechanism == NULL) {
+        err[0] = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    variant = (*env)->GetStringUTFChars(env, _variant, NULL);
+    if (variant == NULL) {
+        err[0] = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
 
     if (!rand_strength_supported(strength)) {
         err[0] = JO_RAND_INSUFFICIENT_STRENGTH;
@@ -48,12 +68,19 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandService
         goto exit;
     }
 
-    ctx = rand_ctx_create(strength, prediction_resistant == JNI_TRUE,
+    ctx = rand_ctx_create(mechanism, variant, use_df == JNI_TRUE,
+                          strength, prediction_resistant == JNI_TRUE,
                           personalization_string.bytearray,
                           personalization_string.size, err);
 
 exit:
     release_bytearray_ctx(&personalization_string);
+    if (variant != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _variant, variant);
+    }
+    if (mechanism != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _mechanism, mechanism);
+    }
     (*env)->ReleaseIntArrayElements(env, _err, err, 0);
     return (jlong) ctx;
 }
@@ -178,5 +205,48 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
 
 exit:
     release_bytearray_ctx(&additional_input);
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rand_RandServiceJNI
+ * Method:    ni_drbgStrength
+ * Signature: (Ljava/lang/String;Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJNI_ni_1drbgStrength
+  (JNIEnv *env, jobject jo, jstring _mechanism, jstring _variant)
+{
+    UNUSED(jo);
+
+    int32_t ret_code = JO_FAIL;
+    const char *mechanism = NULL;
+    const char *variant = NULL;
+
+    if (_mechanism == NULL || _variant == NULL) {
+        ret_code = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    mechanism = (*env)->GetStringUTFChars(env, _mechanism, NULL);
+    if (mechanism == NULL) {
+        ret_code = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    variant = (*env)->GetStringUTFChars(env, _variant, NULL);
+    if (variant == NULL) {
+        ret_code = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    ret_code = rand_drbg_strength(mechanism, variant);
+
+exit:
+    if (variant != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _variant, variant);
+    }
+    if (mechanism != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _mechanism, mechanism);
+    }
     return ret_code;
 }

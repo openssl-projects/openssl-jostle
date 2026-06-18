@@ -352,6 +352,142 @@ public class RandServiceParameterTest
         Assertions.assertFalse(Arrays.areEqual(firstOutput, secondOutput));
     }
 
+    @Test
+    public void drbgConfigSelectsHmacMechanism() throws Exception
+    {
+        String saved = Security.getProperty("securerandom.drbg.config");
+        try
+        {
+            Security.setProperty("securerandom.drbg.config", "HMAC_DRBG,SHA-512");
+            SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
+
+            byte[] output = new byte[32];
+            random.nextBytes(output);
+            Assertions.assertFalse(Arrays.areEqual(new byte[output.length], output));
+
+            DrbgParameters.Instantiation params = (DrbgParameters.Instantiation) random.getParameters();
+            Assertions.assertEquals(256, params.getStrength());
+        }
+        finally
+        {
+            restoreDrbgConfig(saved);
+        }
+    }
+
+    @Test
+    public void drbgConfigCtrAes128CapsStrengthAt128() throws Exception
+    {
+        String saved = Security.getProperty("securerandom.drbg.config");
+        try
+        {
+            Security.setProperty("securerandom.drbg.config", "CTR_DRBG,AES-128");
+
+            // The AES-128 variant caps strength at 128 bits, so a 256-bit
+            // instantiation request must be rejected. getInstance wraps the
+            // SPI's IllegalArgumentException in NoSuchAlgorithmException, so
+            // unwrap to the root cause.
+            Throwable thrown = Assertions.assertThrows(Throwable.class, () ->
+                    SecureRandom.getInstance("DRBG",
+                            DrbgParameters.instantiation(256, DrbgParameters.Capability.NONE, null),
+                            JostleProvider.PROVIDER_NAME));
+
+            Throwable root = thrown;
+            while (root.getCause() != null)
+            {
+                root = root.getCause();
+            }
+            Assertions.assertTrue(root instanceof IllegalArgumentException,
+                    "expected IllegalArgumentException root cause, got " + root);
+        }
+        finally
+        {
+            restoreDrbgConfig(saved);
+        }
+    }
+
+    @Test
+    public void drbgConfigRejectsMechanismAlgorithmMismatch()
+    {
+        assertConfigRejected("CTR_DRBG,SHA-256");
+    }
+
+    @Test
+    public void drbgConfigRejectsInvalidAspect()
+    {
+        assertConfigRejected("not_a_real_aspect");
+    }
+
+    @Test
+    public void namedMechanismIgnoresConfigProperty() throws Exception
+    {
+        String saved = Security.getProperty("securerandom.drbg.config");
+        try
+        {
+            Security.setProperty("securerandom.drbg.config", "HMAC_DRBG,SHA-512");
+
+            // Mechanism-named services are fixed and ignore the property: the
+            // AES-128 variant still reports its own 128-bit strength ceiling.
+            SecureRandom random = SecureRandom.getInstance("CTR-DRBG-AES128", JostleProvider.PROVIDER_NAME);
+            DrbgParameters.Instantiation params = (DrbgParameters.Instantiation) random.getParameters();
+            Assertions.assertEquals(128, params.getStrength());
+        }
+        finally
+        {
+            restoreDrbgConfig(saved);
+        }
+    }
+
+    @Test
+    public void variantStrengthsAreDerivedFromOpenSSL() throws Exception
+    {
+        // Strengths are queried from OpenSSL, not transcribed. Spot-check the
+        // variants whose strength is non-obvious (digest bits rounded down to a
+        // multiple of 64): SHA-1 -> 128, SHA-224 -> 192.
+        assertReportedStrength("CTR-DRBG-AES128", 128);
+        assertReportedStrength("CTR-DRBG-AES192", 192);
+        assertReportedStrength("CTR-DRBG-AES256", 256);
+        assertReportedStrength("HASH-DRBG-SHA1", 128);
+        assertReportedStrength("HASH-DRBG-SHA224", 192);
+        assertReportedStrength("HASH-DRBG-SHA256", 256);
+        assertReportedStrength("HMAC-DRBG-SHA1", 128);
+        assertReportedStrength("HMAC-DRBG-SHA512", 256);
+    }
+
+    private static void assertReportedStrength(String algorithm, int expected) throws Exception
+    {
+        SecureRandom random = SecureRandom.getInstance(algorithm, JostleProvider.PROVIDER_NAME);
+        DrbgParameters.Instantiation params = (DrbgParameters.Instantiation) random.getParameters();
+        Assertions.assertEquals(expected, params.getStrength(), algorithm);
+    }
+
+    private static void assertConfigRejected(String config)
+    {
+        String saved = Security.getProperty("securerandom.drbg.config");
+        try
+        {
+            Security.setProperty("securerandom.drbg.config", config);
+            Throwable thrown = Assertions.assertThrows(Throwable.class,
+                    () -> SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME));
+
+            Throwable root = thrown;
+            while (root.getCause() != null)
+            {
+                root = root.getCause();
+            }
+            Assertions.assertTrue(root instanceof IllegalArgumentException,
+                    "expected IllegalArgumentException root cause, got " + root);
+        }
+        finally
+        {
+            restoreDrbgConfig(saved);
+        }
+    }
+
+    private static void restoreDrbgConfig(String saved)
+    {
+        Security.setProperty("securerandom.drbg.config", saved == null ? "" : saved);
+    }
+
     private static SecureRandomParameters unsupportedParameters()
     {
         return new SecureRandomParameters()
