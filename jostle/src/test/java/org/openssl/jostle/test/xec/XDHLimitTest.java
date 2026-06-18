@@ -98,9 +98,7 @@ public class XDHLimitTest
         int[] err = new int[1];
         long ref = xec.ni_generateKeyPair("X25519", err, null);
         Assertions.assertEquals(0L, ref);
-        // The C side names code -98 JO_RAND_NO_RAND_UP_CALL; the Java enum
-        // names the same code JO_RAND_NO_RAND_METHOD.
-        Assertions.assertEquals(ErrorCode.JO_RAND_NO_RAND_METHOD.getCode(), err[0]);
+        Assertions.assertEquals(ErrorCode.JO_RAND_NO_RAND_UP_CALL.getCode(), err[0]);
     }
 
     /**

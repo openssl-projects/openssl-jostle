@@ -18,6 +18,7 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
@@ -28,6 +29,12 @@ import java.security.Security;
 
 public class BridgeRandOpsTest
 {
+    private static final int JO_OPENSSL_ERROR = -2;
+    private static final int JO_FAILED_ACCESS_INPUT = -22;
+    private static final int JO_FAILED_ACCESS_OUTPUT = -23;
+    private static final int JO_UNEXPECTED_STATE = -40;
+    private static final int JO_RAND_RESEED = -100;
+
     //
     // The Java 8 version of this test.,
     // SecureRandom at Java level, does not have attributes, so strength assertion is not possible
@@ -36,6 +43,7 @@ public class BridgeRandOpsTest
 
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
     MLKEMServiceNI mldsaServiceNI = TestNISelector.getMLKEMNI();
+    RandServiceNI randServiceNI = TestNISelector.getRandNI();
 
     @BeforeAll
     public static void beforeAll()
@@ -80,14 +88,14 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:93
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, attach thread: -99"));
+            assertOpenSSLMessageContains(t, "handler fail, attach thread: -99");
         }
     }
 
@@ -99,14 +107,14 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, create bytearray: -99"));
+            assertOpenSSLMessageContains(t, "handler fail, create bytearray: -99");
         }
     }
 
@@ -117,14 +125,15 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:67
+            // Exercises interface/ffi/rand_upcall_ffi.c:35
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("out_len > INT_MAX"));
+            assertOpenSSLMessageContains(t, "out_len > INT_MAX");
         }
     }
 
@@ -135,14 +144,15 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:72
+            // Exercises interface/ffi/rand_upcall_ffi.c:40
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("strength > INT_MAX"));
+            assertOpenSSLMessageContains(t, "strength > INT_MAX");
         }
     }
 
@@ -153,14 +163,15 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:132
+            // Exercises interface/ffi/rand_upcall_ffi.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, short output: -96"));
+            assertOpenSSLMessageContains(t, "handler fail, short output: -96");
         }
     }
 
@@ -172,14 +183,14 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:146
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, access bytearray: -101"));
+            assertOpenSSLMessageContains(t, "handler fail, access bytearray: -101");
         }
     }
 
@@ -190,16 +201,279 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
+            // Exercises interface/jni/rand_upcall_jni.c:61
+            // Exercises interface/ffi/rand_upcall_ffi.c:29
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
         }
         catch (Exception t)
         {
-            Assertions.assertTrue(t.getClass() == OpenSSLException.class);
-            Assertions.assertTrue(t.getMessage().contains("handler fail, rand up call is null: -98"));
+            assertOpenSSLMessageContains(t, "handler fail, rand up call is null: -98");
         }
     }
 
+    private static void assertOpenSSLMessageContains(Exception t, String message)
+    {
+        Assertions.assertEquals(OpenSSLException.class, t.getClass());
+        Assertions.assertTrue(t.getMessage().startsWith("OpenSSL Error:"));
+        Assertions.assertTrue(t.getMessage().contains(message));
+    }
+
+    //
+    // Context path (rand_ctx_*). JDK 9+ runs the SecureRandom service through
+    // these functions exclusively, so each fallible OpenSSL call gets a
+    // fault-injection site. This is the only DRBG-service path now that the
+    // global rand context has been removed.
+    //
+
+    @Test
+    public void createContextFetchFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        int[] err = new int[1];
+        // Exercises interface/util/rand.c:261
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3030, err[0]);
+    }
+
+    @Test
+    public void createContextGetPrivateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        int[] err = new int[1];
+        // Exercises interface/util/rand.c:271
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3031, err[0]);
+    }
+
+    @Test
+    public void createContextCtxNewFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        int[] err = new int[1];
+        // Exercises interface/util/rand.c:282
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3032, err[0]);
+    }
+
+    @Test
+    public void createContextInstantiateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        int[] err = new int[1];
+        // Exercises interface/util/rand.c:295
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3033, err[0]);
+    }
+
+    @Test
+    public void contextRandomBytesGenerateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/util/rand.c:349
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
+
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 3040, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextRandomBytesUnexpectedStateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/util/rand.c:332
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
+            int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
+
+            Assertions.assertEquals(JO_UNEXPECTED_STATE, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedInstantiateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/util/rand.c:379
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+            // Exercises interface/util/rand.c:380
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
+
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 3050, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedReseedFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/util/rand.c:390
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
+
+            Assertions.assertEquals(JO_RAND_RESEED - 3051, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedUnexpectedStateFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/util/rand.c:376
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
+
+            Assertions.assertEquals(JO_UNEXPECTED_STATE, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    //
+    // JNI byte-array access-failure paths (load_bytearray_ctx). JNI-only — the
+    // FFI bridge receives raw pointers and has no OPS_FAILED_ACCESS instrumentation.
+    //
+
+    @Test
+    public void createContextPersonalizationAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        int[] err = new int[1];
+        // Exercises interface/jni/rand_jni.c:66
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, new byte[1], err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
+    }
+
+    @Test
+    public void contextRandomBytesOutputAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/jni/rand_jni.c:144
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
+
+            Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextRandomBytesAdditionalInputAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/jni/rand_jni.c:150
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, new byte[1]);
+
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedAdditionalInputAccessFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/jni/rand_jni.c:198
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, new byte[1]);
+
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
 
 }

@@ -5,6 +5,7 @@ module org.openssl.jostle.prov {
 
     opens org.openssl.jostle.jcajce.provider.mldsa to java.base;
     opens org.openssl.jostle.jcajce.provider.mlkem to java.base;
+    opens org.openssl.jostle.jcajce.provider.rand to java.base;
     opens org.openssl.jostle.jcajce.provider.slhdsa to java.base;
     opens org.openssl.jostle.jcajce.provider to java.base;
 

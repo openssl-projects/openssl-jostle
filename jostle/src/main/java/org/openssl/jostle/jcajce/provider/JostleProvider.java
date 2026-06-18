@@ -17,9 +17,12 @@ import org.openssl.jostle.util.Properties;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.lang.ref.WeakReference;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.Security;
 import java.util.*;
 
 public class JostleProvider
@@ -34,10 +37,11 @@ public class JostleProvider
      */
     public static final String OPENSSL_PROVIDER_NAME = "org.openssl.jostle.ossl_prov";
 
-    private Map<String, JoService> serviceMap = new HashMap<String, JoService>();
-    private Map<String, EngineCreator> creatorMap = new HashMap<String, EngineCreator>();
+    private transient Map<String, JoService> serviceMap;
+    private transient Map<String, EngineCreator> creatorMap;
+    private transient Map<Map<String, String>, Map<String, String>> attributeMaps;
 
-    private WeakReference<Set<Service>> serviceSetCache = new WeakReference<Set<Service>>(null);
+    private transient WeakReference<Set<Service>> serviceSetCache;
 
     public JostleProvider()
     {
@@ -47,6 +51,7 @@ public class JostleProvider
     public JostleProvider(String module)
     {
         super(PROVIDER_NAME, VERSION, INFO);
+        initTransientState();
 
         if (module == null)
         {
@@ -78,6 +83,32 @@ public class JostleProvider
         });
     }
 
+    private void initTransientState()
+    {
+        serviceMap = new HashMap<String, JoService>();
+        creatorMap = new HashMap<String, EngineCreator>();
+        attributeMaps = new HashMap<Map<String, String>, Map<String, String>>();
+        serviceSetCache = new WeakReference<Set<Service>>(null);
+    }
+
+    private void readObject(ObjectInputStream in)
+        throws IOException, ClassNotFoundException
+    {
+        in.defaultReadObject();
+        initTransientState();
+    }
+
+    private Object readResolve()
+    {
+        Provider provider = Security.getProvider(PROVIDER_NAME);
+        if (provider != null)
+        {
+            return provider;
+        }
+
+        return new JostleProvider();
+    }
+
 
     public Provider configure(String configArg)
     {
@@ -98,6 +129,7 @@ public class JostleProvider
         new ProvScryptKDF().configure(this);
         new ProvHKDF().configure(this);
         new ProvMD().configure(this);
+        new ProvRand().configure(this);
         new ProvED().configure(this);
         new ProvRSA().configure(this);
         new ProvEC().configure(this);
@@ -265,7 +297,7 @@ public class JostleProvider
             Object existing = get(key);
             if (existing != null && existing.equals(name))
             {
-                // Idempotent re-registration of the same alias → target
+                // Idempotent re-registration of the same alias to target
                 // mapping. Allows providers to list mixed-case aliases that
                 // collide once normalised to upper-case.
                 return;
@@ -369,8 +401,6 @@ public class JostleProvider
 
         return bcServiceSet;
     }
-
-    private final Map<Map<String, String>, Map<String, String>> attributeMaps = new HashMap<Map<String, String>, Map<String, String>>();
 
     private Map<String, String> getAttributeMap(Map<String, String> attributeMap)
     {

@@ -666,3 +666,29 @@ tasks.withType(Test) {
         events "passed", "skipped", "failed"
     }
 }
+
+
+//
+// Coverage (added for ad-hoc coverage runs; the jacoco plugin attaches a
+// JacocoTaskExtension to every Test task automatically, so each suite emits
+// build/jacoco/<task>.exec). The classDirectories point at a single merged
+// directory (build/jacoco-merged-classes) assembled out-of-band so multi-release
+// override classes are counted once at the version actually loaded on the test JVM.
+//
+apply plugin: 'jacoco'
+jacoco {
+    toolVersion = '0.8.15'
+}
+
+tasks.register('coverageReport', JacocoReport) {
+    executionData fileTree(layout.buildDirectory).include("jacoco/*.exec")
+    classDirectories.from files(layout.buildDirectory.dir("jacoco-merged-classes"))
+    sourceDirectories.from files(
+            'src/main/java', 'src/main/java9', 'src/main/java11',
+            'src/main/java15', 'src/main/java17', 'src/main/java21', 'src/main/java25')
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = true
+    }
+}

@@ -226,11 +226,15 @@ public class ECLimitTest
         try
         {
             keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
-            // Boundary probe: P-256 X is exactly 32 bytes, so 31 is the
-            // largest size that should be rejected. A check off-by-N
-            // would let arbitrary smaller values like 4 through but
-            // reject this one.
-            ec.getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X, new byte[31]);
+            // Boundary probe: query the actual component length, then probe at
+            // exactly one byte too small. The P-256 X coordinate is at most 32
+            // bytes, but a BIGNUM's minimal encoding is shorter when the top
+            // byte happens to be zero (~1 key in 256), so a hardcoded 31 is
+            // occasionally large enough and the test flakes. Probing relative
+            // to the real length still exercises the off-by-one boundary
+            // exactly, regardless of leading-zero variation in the key.
+            int actualLen = ec.getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X, new byte[64]);
+            ec.getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X, new byte[actualLen - 1]);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)

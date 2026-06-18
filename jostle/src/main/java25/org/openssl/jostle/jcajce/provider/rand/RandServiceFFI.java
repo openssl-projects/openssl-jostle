@@ -1,0 +1,237 @@
+/*
+ *
+ *   Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
+ *
+ *   Licensed under the Apache License 2.0 (the "License"). You may not use
+ *   this file except in compliance with the License.  You can obtain a copy
+ *   in the file LICENSE in the source distribution or at
+ *   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider.rand;
+
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Arena;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+public class RandServiceFFI implements RandServiceNI
+{
+    private static final Logger L = Logger.getLogger("Rand_NI_FFI");
+    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
+    private static final Linker linker = Linker.nativeLinker();
+
+    private static final MemorySegment createContextFunc;
+    private static final MethodHandle createContextFuncHandle;
+
+    private static final MemorySegment disposeContextFunc;
+    private static final MethodHandle disposeContextFuncHandle;
+
+    private static final MemorySegment contextRandomBytesFunc;
+    private static final MethodHandle contextRandomBytesFuncHandle;
+
+    private static final MemorySegment contextReseedFunc;
+    private static final MethodHandle contextReseedFuncHandle;
+
+    private static final MemorySegment drbgStrengthFunc;
+    private static final MethodHandle drbgStrengthFuncHandle;
+
+    static
+    {
+        createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
+        createContextFuncHandle = linker.downcallHandle(createContextFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS,    // JO_RAND_CTX* return
+                        ValueLayout.ADDRESS,    // mechanism
+                        ValueLayout.ADDRESS,    // variant
+                        ValueLayout.JAVA_BYTE,  // use_df
+                        ValueLayout.JAVA_INT,   // strength
+                        ValueLayout.JAVA_BYTE,  // prediction_resistant
+                        ValueLayout.ADDRESS,    // personalization_string
+                        ValueLayout.JAVA_LONG,  // personalization_string_size
+                        ValueLayout.ADDRESS     // err
+                )
+        );
+
+        disposeContextFunc = lookup.find("JoRand_disposeContext").orElseThrow();
+        disposeContextFuncHandle = linker.downcallHandle(disposeContextFunc,
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+        );
+
+        contextRandomBytesFunc = lookup.find("JoRand_contextRandomBytes").orElseThrow();
+        contextRandomBytesFuncHandle = linker.downcallHandle(contextRandomBytesFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
+                )
+        );
+
+        contextReseedFunc = lookup.find("JoRand_contextReseed").orElseThrow();
+        contextReseedFuncHandle = linker.downcallHandle(contextReseedFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_BYTE,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG
+                )
+        );
+
+        drbgStrengthFunc = lookup.find("JoRand_drbgStrength").orElseThrow();
+        drbgStrengthFuncHandle = linker.downcallHandle(drbgStrengthFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,    // strength return
+                        ValueLayout.ADDRESS,     // mechanism
+                        ValueLayout.ADDRESS      // variant
+                )
+        );
+    }
+
+    @Override
+    public long ni_createContext(String mechanism, String variant, boolean useDerivationFunction,
+                                 int strength, boolean predictionResistant,
+                                 byte[] personalizationString, int[] err)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment mechanismSeg = mechanism == null ? MemorySegment.NULL : a.allocateFrom(mechanism);
+            MemorySegment variantSeg = variant == null ? MemorySegment.NULL : a.allocateFrom(variant);
+            MemorySegment personalizationStringSeg = byteArraySegment(a, personalizationString);
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+
+            MemorySegment ctx = (MemorySegment) createContextFuncHandle.invokeExact(
+                    mechanismSeg,
+                    variantSeg,
+                    (byte) (useDerivationFunction ? 1 : 0),
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    personalizationStringSeg,
+                    personalizationStringSeg.byteSize(),
+                    errSeg
+            );
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+            return ctx.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_createContext", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void ni_disposeContext(long reference)
+    {
+        try
+        {
+            disposeContextFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_disposeContext", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_contextRandomBytes(long reference, byte[] output, int outputLen, int strength,
+                                     boolean predictionResistant, byte[] additionalInput)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment outputSeg = output == null ?
+                    MemorySegment.NULL :
+                    a.allocate(output.length);
+            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
+
+            int code = (int) contextRandomBytesFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(reference),
+                    outputSeg,
+                    outputSeg.byteSize(),
+                    outputLen,
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    additionalInputSeg,
+                    additionalInputSeg.byteSize()
+            );
+
+            if (code >= 0 && output != null && outputLen > 0)
+            {
+                outputSeg.asSlice(0, outputLen).asByteBuffer().get(output, 0, outputLen);
+            }
+
+            return code;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_contextRandomBytes", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_contextReseed(long reference, int strength, boolean predictionResistant,
+                                byte[] additionalInput)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
+
+            return (int) contextReseedFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(reference),
+                    strength,
+                    (byte) (predictionResistant ? 1 : 0),
+                    additionalInputSeg,
+                    additionalInputSeg.byteSize()
+            );
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_contextReseed", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_drbgStrength(String mechanism, String variant)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment mechanismSeg = mechanism == null ? MemorySegment.NULL : a.allocateFrom(mechanism);
+            MemorySegment variantSeg = variant == null ? MemorySegment.NULL : a.allocateFrom(variant);
+
+            return (int) drbgStrengthFuncHandle.invokeExact(mechanismSeg, variantSeg);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI JoRand_drbgStrength", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    private static MemorySegment byteArraySegment(Arena a, byte[] bytes)
+    {
+        if (bytes == null || bytes.length == 0)
+        {
+            return MemorySegment.NULL;
+        }
+
+        MemorySegment seg = a.allocate(bytes.length);
+        seg.asByteBuffer().put(bytes);
+        return seg;
+    }
+}

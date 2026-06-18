@@ -39,7 +39,7 @@ public class AESKeyGenerator extends KeyGeneratorSpi
 
     public AESKeyGenerator(int fixedSize)
     {
-        random = CryptoServicesRegistrar.getSecureRandom();
+        this.random = CryptoServicesRegistrar.getSecureRandom();
         this.fixedKeySize = fixedSize;
         this.keySize = fixedSize;
     }
@@ -48,7 +48,7 @@ public class AESKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(SecureRandom random)
     {
-        this.random = random;
+        this.random = CryptoServicesRegistrar.getSecureRandom(random);
     }
 
     @Override
@@ -71,18 +71,13 @@ public class AESKeyGenerator extends KeyGeneratorSpi
                 throw new IllegalArgumentException("key size must be 128, 192 or 256");
         }
 
-        if (random == null)
-        {
-            throw new IllegalArgumentException("random is null");
-        }
-
         if (fixedKeySize > 0 && keysize != fixedKeySize)
         {
             throw new IllegalArgumentException("key size must be " + fixedKeySize);
         }
 
 
-        this.random = random;
+        this.random = CryptoServicesRegistrar.getSecureRandom(random);
         this.keySize = keysize;
 
     }
