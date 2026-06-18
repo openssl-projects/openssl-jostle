@@ -460,6 +460,48 @@ public class RandServiceParameterTest
         Assertions.assertEquals(expected, params.getStrength(), algorithm);
     }
 
+    @Test
+    public void perMechanismStrengthCeilingEnforced() throws Exception
+    {
+        // For every mechanism and every distinct ceiling (128/192/256): a request
+        // AT the variant's strength ceiling is accepted, and one ABOVE it is
+        // rejected. Confirms enforcement per type, not just correct reporting.
+        assertStrengthCeiling("CTR-DRBG-AES128", 128);
+        assertStrengthCeiling("CTR-DRBG-AES192", 192);
+        assertStrengthCeiling("CTR-DRBG-AES256", 256);
+        assertStrengthCeiling("HASH-DRBG-SHA1", 128);
+        assertStrengthCeiling("HASH-DRBG-SHA224", 192);
+        assertStrengthCeiling("HASH-DRBG-SHA512", 256);
+        assertStrengthCeiling("HMAC-DRBG-SHA1", 128);
+        assertStrengthCeiling("HMAC-DRBG-SHA224", 192);
+        assertStrengthCeiling("HMAC-DRBG-SHA512", 256);
+    }
+
+    private static void assertStrengthCeiling(String algorithm, int ceiling) throws Exception
+    {
+        // At the ceiling: accepted and usable.
+        SecureRandom accepted = SecureRandom.getInstance(algorithm,
+                DrbgParameters.instantiation(ceiling, DrbgParameters.Capability.NONE, null),
+                JostleProvider.PROVIDER_NAME);
+        byte[] out = new byte[16];
+        accepted.nextBytes(out);
+        Assertions.assertFalse(Arrays.areEqual(new byte[out.length], out), algorithm);
+
+        // One above the ceiling: rejected. getInstance wraps the SPI's
+        // IllegalArgumentException in NoSuchAlgorithmException, so unwrap.
+        Throwable thrown = Assertions.assertThrows(Throwable.class, () ->
+                SecureRandom.getInstance(algorithm,
+                        DrbgParameters.instantiation(ceiling + 1, DrbgParameters.Capability.NONE, null),
+                        JostleProvider.PROVIDER_NAME));
+        Throwable root = thrown;
+        while (root.getCause() != null)
+        {
+            root = root.getCause();
+        }
+        Assertions.assertTrue(root instanceof IllegalArgumentException,
+                algorithm + ": expected IllegalArgumentException root cause, got " + root);
+    }
+
     private static void assertConfigRejected(String config)
     {
         String saved = Security.getProperty("securerandom.drbg.config");

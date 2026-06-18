@@ -156,8 +156,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     endif ()
     if (DEFINED ENV{JOSTLE_COVERAGE})
         message("Coverage instrumentation enabled (JNI)")
-        target_compile_options(interface_jni PRIVATE --coverage -g)
-        target_link_options(interface_jni PRIVATE --coverage)
+        target_compile_options(interface_jni PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
+        target_link_options(interface_jni PRIVATE -fprofile-instr-generate)
     endif ()
 
     # ---
@@ -248,8 +248,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     endif ()
     if (DEFINED ENV{JOSTLE_COVERAGE})
         message("Coverage instrumentation enabled (FFI)")
-        target_compile_options(interface_ffi PRIVATE --coverage -g)
-        target_link_options(interface_ffi PRIVATE --coverage)
+        target_compile_options(interface_ffi PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
+        target_link_options(interface_ffi PRIVATE -fprofile-instr-generate)
     endif ()
 
     #
