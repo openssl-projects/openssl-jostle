@@ -15,6 +15,30 @@ When you add a class, ask which case applies:
 Symmetrically, if you delete or merge away an entire package, remove its `exports` entry. The compile-time signal that catches a missed entry — `module org.bouncycastle.lts.core does not export org.bouncycastle.crypto.foo` — only fires for modular downstream consumers, so a class-path-only test run won't surface it.
 
 
+### OpenSSL is the single source of truth for fixed values — query and cache, never transcribe
+
+Jostle delegates its cryptography to OpenSSL, so OpenSSL — not Jostle — owns every fixed numeric fact about an algorithm: digest output size and block size, XOF default length, cipher block size and IV/nonce length, valid key lengths, signature length, KEM encapsulation / ciphertext / shared-secret length, MAC length, DRBG security strength and maximum request size, EC field sizes, and so on. **Do NOT re-implement any of these as a hardcoded lookup table, `switch`/`case`, `if`-ladder, enum field, or `static final` constant — especially on the Java side.** A transcribed value is a second source of truth that drifts silently: OpenSSL changes a default between releases, a custom provider overrides it, a variant's real bound differs from the number someone typed, and the divergence is invisible to every positive test because both the table and the native layer are internally self-consistent — they just disagree, and the table is wrong.
+
+The rule, in order of preference:
+
+1. **Ask OpenSSL at the point of use.** If the value is cheap to fetch and not on a hot path, query the native layer each time (`EVP_MD_get_size`, `EVP_CIPHER_get_block_size`, `OSSL_RAND_PARAM_STRENGTH`, `OSSL_RAND_PARAM_MAX_REQUEST`, `EVP_PKEY_get_size`, etc.) and use what it returns.
+2. **Query once and cache** when the value is fixed per variant and the query is expensive or called often. The canonical helper is `org.openssl.jostle.jcajce.provider.cache.NativeLengthCache<K>` — one `static final` instance per consumer (SPI / enum), `get` returns `UNKNOWN` on a miss, the consumer probes native once and `cache`s the result, and `putIfAbsent` makes a concurrent double-probe benign (both threads compute the same fixed value). Its class Javadoc states the principle verbatim: "OpenSSL is the single source of truth … no transcribed table that can drift from native truth."
+3. **Never** hand-write the number. If you find yourself typing `case "SHA-256": return 32;` or `private static final int[] STRENGTHS = {128, 192, 256};`, stop — that is the anti-pattern this rule exists to prevent.
+
+Canonical right-way examples in this codebase, all of which replaced a transcribed table:
+
+1. `RandAlgorithm.maxStrengthFor` queries `OSSL_RAND_PARAM_STRENGTH` (via `ni_drbgStrength`) and memoizes per mechanism/variant through a `NativeLengthCache` — it used to be a hardcoded strength table that had already drifted (SHA-1 was listed at 160, OpenSSL reports 128).
+2. `rand.c` reads each DRBG's chunking bound from `OSSL_RAND_PARAM_MAX_REQUEST` on the live context — the `65536` literal survives only as a fallback when the query fails.
+3. The `*Lengths` consolidation: digest output size, MAC length, cipher block size, signature length, and KEM encapsulation length are each probed from native once and memoized in `NativeLengthCache`, rather than tabulated per algorithm.
+
+Two practical constraints when caching:
+
+1. **Query lazily, never in a static initializer or enum constructor.** Those run before `rand_libctx` / the global lib ctx exists, so the native call fails or returns garbage. Trigger the first probe at SPI-construction time or first use (the `maxStrengthFor` lazy-query lesson).
+2. **Key the cache by whatever uniquely identifies the variant** (the enum constant, the canonical algorithm name, or a composite). One cache per consumer so key spaces never collide across families.
+
+**Disambiguation from "Hard-code security-critical OpenSSL parameters" (native-code.md).** These rules sound opposite but govern opposite directions of data flow. That rule is about a value *we set* to pin a security property OpenSSL would otherwise leave to a mutable default (`implicit_rejection = 1`, the RSA padding mode, a PSS salt-length sentinel) — an **input we choose**, which must be set explicitly so the intent survives drift, and backed by a runtime hard-guard test. This rule is about a value *OpenSSL defines and reports* (a size, a strength, a limit) — an **output we read**, which must never be transcribed. The test: *are we telling OpenSSL something, or asking it something?* Telling → hard-code the value explicitly and guard it. Asking → query and cache, never tabulate. Genuinely external constants that OpenSSL does not own — JCE algorithm names, ASN.1 OID strings, a per-mode default tag length chosen for BouncyCastle parity — are outside this rule; but anything OpenSSL can be asked for must be asked, not typed.
+
+
 ### Review Java SPI and provider plumbing for the bug classes positive-only tests can't catch
 
 The JCE SPI surface is a contract-heavy state machine: subtle exception-type expectations, transition rules, parameter-handling defaults, and provider-fallback semantics that a positive-only roundtrip test never surfaces. Most of these bugs become visible only under specific use patterns — wrong exception type breaking provider fallback, mis-registered cipher transformations silently downgrading the digest, GC reclaiming a key handle mid-call, or a multi-release ABI drift only visible to downstream callers compiled against the older view. When reviewing Java in `jostle/src/main/java/`, `jostle/src/main/java<N>/`, and `jostle/src/test/java/`, look for these classes specifically.
