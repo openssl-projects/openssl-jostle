@@ -468,5 +468,52 @@ public class MacOpsTest
         }
     }
 
+    @Test
+    public void poly1305_init_branchSkipped_unexpectedState() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("POLY1305", "POLY1305");
+        try
+        {
+            // Exercises interface/util/mac.c:60
+            // OPS_ALTERNATE_3 skips the POLY1305 init branch; with the CMAC/HMAC
+            // branches not matching the name, init falls through to the final
+            // else -> JO_UNEXPECTED_STATE.
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_ALTERNATE_3);
+            MacServiceNI.engineInit(ref, new byte[32]);
+            Assertions.fail();
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals("unexpected state", e.getMessage());
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void poly1305_macLengthMeta_getMacSize_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = MacServiceNI.allocateMac("POLY1305", "POLY1305");
+        try
+        {
+            // Exercises interface/util/mac.c:296
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
+            int code = MacServiceNI.ni_macLengthMeta(ref);
+            Assertions.assertEquals(-1016, code);
+        }
+        finally
+        {
+            MacServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
 
 }
