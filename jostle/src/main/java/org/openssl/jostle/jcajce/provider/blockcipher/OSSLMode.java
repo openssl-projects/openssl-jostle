@@ -17,5 +17,8 @@ public enum OSSLMode
     // then you MUST also ensure the underlying native interface reflects that
     // change!!
     //
-    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD;
+    // STREAM (ordinal 14) is the synthetic mode for raw stream ciphers
+    // (ChaCha20): block size 1, no padding, no block alignment. Append-only —
+    // must match #define STREAM 14 in interface/util/cipher_mode_pad.h.
+    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD, STREAM;
 }

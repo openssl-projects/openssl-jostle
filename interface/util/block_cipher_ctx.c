@@ -169,6 +169,10 @@ int32_t block_cipher_ctx_init(
         case OFB:
         case GCM:
         case OCB:
+        case STREAM:
+            // STREAM = raw ChaCha20, a stream cipher (block size 1). Marking it
+            // streaming skips the block-accounting paths (which divide/modulo by
+            // cipher_block_size and would misbehave for a block size of 1).
             ctx->streaming = 1;
             break;
         default:
@@ -651,6 +655,29 @@ int32_t block_cipher_ctx_init(
                     return JO_INVALID_MODE;
             }
             break; // CAMELLIA256
+
+        case CHACHA20:
+            // Raw ChaCha20 stream cipher (RFC 8439). Block size 1: no padding,
+            // no block alignment — the STREAM mode set ctx->streaming above so
+            // the block-accounting paths are skipped. 256-bit key. The caller
+            // supplies a bare 12-byte nonce; the 16-byte EVP IV
+            // (counter || nonce) is assembled just before EVP init below.
+            ctx->cipher_block_size = 1;
+            if (key_len != 32) {
+                return JO_INVALID_KEY_LEN;
+            }
+            switch (ctx->mode_id) {
+                case STREAM:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ChaCha20",NULL);
+                    break;
+                default:
+                    return JO_INVALID_MODE;
+            }
+            break; // CHACHA20
+
         case SM4:
             ctx->cipher_block_size = BLOCK_SIZE_SM4;
             if (key_len != 16) {
@@ -739,10 +766,21 @@ int32_t block_cipher_ctx_init(
     }
     ctx->key_len = key_len;
 
+    uint8_t chacha_iv[16];
     uint8_t *iv_for_openssl = NULL;
     if (CTR == ctx->mode_id) {
         counter_init(ctx->counter, iv, iv_len);
         iv_for_openssl = ctx->counter->original_counter;
+    } else if (CHACHA20 == ctx->cipher_id) {
+        // OpenSSL's "ChaCha20" IV is 16 bytes: a 32-bit little-endian block
+        // counter followed by the 96-bit nonce (RFC 8439 sec 2.4). The bridge
+        // supplies the bare 12-byte nonce (validated == 12 above) with an
+        // implicit counter of 0 — matching BouncyCastle's CHACHA7539 and
+        // SunJCE's ChaCha20 — so prepend four zero counter bytes. last_iv still
+        // holds the 12-byte nonce, so the reset path rebuilds this correctly.
+        chacha_iv[0] = chacha_iv[1] = chacha_iv[2] = chacha_iv[3] = 0;
+        memcpy(chacha_iv + 4, iv, 12);
+        iv_for_openssl = chacha_iv;
     } else {
         iv_for_openssl = iv;
     }

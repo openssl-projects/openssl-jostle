@@ -72,6 +72,9 @@
 #define XTS 11
 #define WRAP 12
 #define WRAP_PAD 13
+// Synthetic mode for stream ciphers (block size 1, no padding/alignment).
+// Raw ChaCha20 is the only user. Append-only — must match OSSLMode ordinal 14.
+#define STREAM 14
 
 #define PADDED 1
 #define NO_PADDING 0

@@ -35,8 +35,11 @@ public enum OSSLCipher
     // 64-bit-block ciphers; 1 for the stream/AEAD ciphers OpenSSL reports as 1).
     // Holding it here lets the SPI size an auto-generated IV without an
     // initialised EVP_CIPHER_CTX (see CBC_AUTO_IV_COLD_CACHE_GAP.md).
-    RC4(STREAM, 1),
-    RC4_40(STREAM, 1),
+    // OSSLCipherType.STREAM is fully qualified because OSSLMode now also
+    // defines a STREAM constant (the raw-stream-cipher mode) — a bare STREAM
+    // would be an ambiguous static-import reference.
+    RC4(OSSLCipherType.STREAM, 1),
+    RC4_40(OSSLCipherType.STREAM, 1),
     IDEA(BLOCK, 8, ECB, CFB64, OFB, CBC),
     RC2(BLOCK, 8, ECB, CBC, CFB64, OFB),
     RC2_40(BLOCK, 8, CBC),
@@ -52,7 +55,10 @@ public enum OSSLCipher
     CAMELLIA128(BLOCK, 16, ECB, CBC, CFB1, CFB8, CFB128, OFB, CTR),
     CAMELLIA192(BLOCK, 16, ECB, CBC, CFB1, CFB8, CFB128, OFB, CTR),
     CAMELLIA256(BLOCK, 16, ECB, CBC, CFB1, CFB8, CFB128, OFB, CTR),
-    CHACHA20(STREAM, 1),
+    // Raw ChaCha20 stream cipher (RFC 8439): 256-bit key, block size 1, served
+    // through the synthetic OSSLMode.STREAM. OSSLMode.STREAM is qualified to
+    // disambiguate from OSSLCipherType.STREAM (the first argument).
+    CHACHA20(OSSLCipherType.STREAM, 1, OSSLMode.STREAM),
     CHACHA20_POLY1305(AEAD, 1),
     SEED(BLOCK, 16, ECB, CBC, CFB128, OFB),
     SM4(BLOCK, 16, ECB, CBC, CFB128, OFB, CTR),
