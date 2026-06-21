@@ -58,7 +58,7 @@ dependencies {
             sourceSets.main.output.classesDirs,
             sourceSets.java9.output.classesDirs,
             sourceSets.java11.output.classesDirs]) {
-        builtBy compileJava9Java
+        builtBy compileJava11Java
     }
 
     java17Implementation files([
@@ -169,7 +169,7 @@ jar {
     }
 
     into('META-INF/versions/11') {
-        from sourceSets.java11.allSource
+        from sourceSets.java11.output
     }
 
     into('META-INF/versions/15') {
@@ -212,6 +212,15 @@ sourceSets {
     // itest & itestXX - tests that must be run sequentially one JVM per invocation
     //
 
+    test11 {
+        java {
+            compileClasspath += main.output + test.output
+            runtimeClasspath += test.output
+            runtimeClasspath += files(jar.archiveFile)
+            srcDirs("src/test/java", "src/test/java11")
+        }
+    }
+
     test17 {
         java {
             compileClasspath += main.output + test.output
@@ -252,6 +261,14 @@ dependencies {
     testImplementation 'org.bouncycastle:bcutil-jdk18on:1.84'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
+
+    test11Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    test11Implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
+    test11Implementation 'org.bouncycastle:bcpkix-jdk18on:1.84'
+    test11Implementation 'org.bouncycastle:bcutil-jdk18on:1.84'
+    test11RuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+
     test17Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     test17Implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
     test17Implementation 'org.bouncycastle:bcpkix-jdk18on:1.84'
@@ -274,6 +291,10 @@ dependencies {
 
 compileTestJava {
     options.release = 8;
+}
+
+compileTest11Java {
+    options.release = 11
 }
 
 compileTest17Java {
@@ -329,6 +350,37 @@ tasks.register('unitTest8', Test) {
     maxHeapSize = "1536m"
 
     jvmArgs = ['-Dtest.java.version.prefix=1.8', '-Dtest.java.interface_type=jni']
+
+    filter {
+        excludeTestsMatching "*LimitTest*"
+        excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
+        includeTestsMatching "*Test*"
+    }
+}
+
+tasks.register('unitTest11', Test) {
+    onlyIf { System.getenv("BC_JDK11") != null }
+
+    dependsOn(jar)
+    useJUnitPlatform()
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test11.runtimeClasspath
+    testClassesDirs += sourceSets.test11.output.classesDirs
+    testClassesDirs += sourceSets.test.output.classesDirs
+
+    forkEvery = 1;
+    maxParallelForks = 8;
+
+    // systemProperty 'bc.test.data.home', bcTestDataHome
+    maxHeapSize = "1536m"
+
+
+    jvmArgs = ['-Dtest.java.version.prefix=11', '-Dtest.java.interface_type=jni']
 
     filter {
         excludeTestsMatching "*LimitTest*"
@@ -514,6 +566,35 @@ tasks.register('integrationTest8', Test) {
     }
 }
 
+tasks.register('integrationTest11', Test) {
+    onlyIf { System.getenv("BC_JDK11") != null }
+
+    dependsOn(jar)
+    useJUnitPlatform()
+
+
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test11.runtimeClasspath
+    testClassesDirs = sourceSets.test11.output.classesDirs
+    testClassesDirs += sourceSets.test.output.classesDirs
+
+    forkEvery = 1;
+    maxParallelForks = 1;
+
+    // systemProperty 'bc.test.data.home', bcTestDataHome
+    maxHeapSize = "1536m"
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+
+    jvmArgs = ['-Dtest.java.version.prefix=11', '-Dtest.java.interface_type=jni']
+    filter {
+        includeTestsMatching "*LimitTest*"
+        includeTestsMatching "*IntegrationTest*"
+        includeTestsMatching "*OpsTest*"
+    }
+}
+
 tasks.register('integrationTest17', Test) {
     onlyIf { System.getenv("BC_JDK17") != null }
 
@@ -638,6 +719,12 @@ if (System.getenv("BC_JDK8") != null) {
     System.out.println("${project.name}: Adding test8 as dependency for test task because BC_JDK8 is defined")
     test.dependsOn("unitTest8")
     test.dependsOn("integrationTest8")
+}
+
+if (System.getenv("BC_JDK11") != null) {
+    System.out.println("${project.name}: Adding test11 as dependency for test task because BC_JDK11 is defined")
+    test.dependsOn("unitTest11")
+    test.dependsOn("integrationTest11")
 }
 
 if (System.getenv("BC_JDK17") != null) {

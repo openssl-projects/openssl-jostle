@@ -411,9 +411,10 @@ class BlockCipherSpi extends CipherSpi
 
     /**
      * The IV/nonce length, in bytes, this mode needs when the caller supplies
-     * no parameters. ECB and the key-wrap modes take none; GCM/OCB use the
-     * standard 12-byte nonce; remaining block/stream modes use the cipher's
-     * block size. Returns 0 when no IV is required.
+     * no parameters. ECB and the key-wrap modes take none; GCM/OCB,
+     * ChaCha20-Poly1305 (POLY1305), and raw ChaCha20 (STREAM) use a 12-byte
+     * nonce; remaining block modes use the cipher's block size. Returns 0 when
+     * no IV is required.
      */
     private int autoIvLength()
     {
@@ -425,6 +426,11 @@ class BlockCipherSpi extends CipherSpi
             return 0;
         case GCM:
         case OCB:
+        case POLY1305:
+            return 12;
+        case STREAM:
+            // Raw ChaCha20 (RFC 8439) uses a 12-byte nonce; its block size is
+            // 1, so the default branch would wrongly return 1.
             return 12;
         default:
             return engineGetBlockSize();
@@ -432,7 +438,8 @@ class BlockCipherSpi extends CipherSpi
     }
 
     /**
-     * True for the AEAD modes this SPI drives (GCM and OCB). Both append an
+     * True for the AEAD modes this SPI drives (GCM, OCB, and ChaCha20-Poly1305's
+     * synthetic POLY1305 mode). All append an
      * authentication tag and default to a 16-byte tag when the caller doesn't
      * specify one via a {@link GCMParameterSpec}. CCM is handled by a dedicated
      * SPI and is not seen here. The default-16 applies to OCB as well as GCM:
@@ -442,7 +449,7 @@ class BlockCipherSpi extends CipherSpi
      */
     private boolean isAeadMode()
     {
-        return osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB;
+        return osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB || osslMode == OSSLMode.POLY1305;
     }
 
 
@@ -777,7 +784,7 @@ class BlockCipherSpi extends CipherSpi
 
             written += code;
 
-            if (opMode == Cipher.ENCRYPT_MODE && (osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB))
+            if (opMode == Cipher.ENCRYPT_MODE && (osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB || osslMode == OSSLMode.POLY1305))
             {
                 // A successful AEAD encryption consumes the nonce; block reuse until re-init.
                 encryptionReinitRequired = true;
