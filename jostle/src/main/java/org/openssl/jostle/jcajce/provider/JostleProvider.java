@@ -121,6 +121,7 @@ public class JostleProvider
         new ProvCAMELLIA().configure(this);
         new ProvARIA().configure(this);
         new ProvSM4().configure(this);
+        new ProvChaCha20().configure(this);
         new ProvDESede().configure(this);
         new ProvMLDSA().configure(this);
         new ProvSLHDSA().configure(this);

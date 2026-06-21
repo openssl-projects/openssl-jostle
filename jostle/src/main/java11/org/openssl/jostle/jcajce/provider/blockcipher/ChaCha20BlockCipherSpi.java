@@ -40,6 +40,10 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
     public ChaCha20BlockCipherSpi()
     {
         super(OSSLCipher.CHACHA20, OSSLMode.STREAM, "ChaCha20");
+        // Fixed cipher (no key-size variant selection), so set osslCipher here:
+        // the base 3-arg constructor seeds only osslMode, leaving osslCipher for
+        // subclasses (AES/ARIA/...) that resolve it from key length at init.
+        osslCipher = OSSLCipher.CHACHA20;
     }
 
     @Override

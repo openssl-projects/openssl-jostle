@@ -52,6 +52,13 @@ class ProvMac
         provider.addAlgorithmImplementation("Mac", "AESCMAC", PREFIX + "MacServiceSPI$AESCMAC",
                 generalAttributes, (arg) -> new MacServiceSPI("CMAC", "aes-cbc"));
 
+        // Poly1305 (RFC 8439) — a one-time-key MAC (32-byte key, 16-byte tag).
+        // The function name is a placeholder (Poly1305 takes no cipher/digest);
+        // the C POLY1305 branch ignores it. Uppercase "POLY1305" matches the
+        // BouncyCastle registration name.
+        provider.addAlgorithmImplementation("Mac", "POLY1305", PREFIX + "MacServiceSPI$POLY1305",
+                generalAttributes, (arg) -> new MacServiceSPI("POLY1305", "POLY1305"));
+
     }
 
     private void addMac(JostleProvider provider, String type, String name, String function)
