@@ -57,6 +57,16 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
             return JO_UNEXPECTED_STATE; // we control this
         }
         params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, mctx->function_name, 0);
+    } else if (OPS_ALTERNATE_3 0 == strncmp(mctx->mac_name, "POLY1305", sizeof("POLY1305"))) {
+        // Poly1305 (RFC 8439): a one-time 32-byte key, no cipher/digest param.
+        // The registration's function_name is a placeholder and intentionally
+        // ignored (unlike CMAC's "aes-cbc" or HMAC's digest). RFC 8439 requires
+        // each Poly1305 key be used exactly once — that is the caller's
+        // contract; the provider cannot enforce it and only checks the length.
+        // params stays {OSSL_PARAM_END, OSSL_PARAM_END}.
+        if (mctx->key_len != 32) {
+            return JO_UNKNOWN_KEY_LEN;
+        }
     } else {
         return JO_UNEXPECTED_STATE;
     }
@@ -275,6 +285,23 @@ int32_t mac_len_for(mac_ctx *mctx) {
             goto exit;
         }
         ret = (int32_t) block;
+        goto exit;
+    }
+
+    // Poly1305: fixed 128-bit output. EVP_MAC_CTX_get_mac_size answers 16 on the
+    // (unkeyed) ctx allocated in allocate_mac — query it rather than transcribe
+    // the constant (OpenSSL is the single source of truth for fixed lengths).
+    if (0 == strncmp(mctx->mac_name, "POLY1305", sizeof("POLY1305"))) {
+        size_t size = EVP_MAC_CTX_get_mac_size(mctx->ctx);
+        if (OPS_OPENSSL_ERROR_7 size == 0) {
+            ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(1014);
+            goto exit;
+        }
+        if (size > (size_t) INT32_MAX) {
+            ret = JO_OUTPUT_SIZE_INT_OVERFLOW;
+            goto exit;
+        }
+        ret = (int32_t) size;
         goto exit;
     }
 
