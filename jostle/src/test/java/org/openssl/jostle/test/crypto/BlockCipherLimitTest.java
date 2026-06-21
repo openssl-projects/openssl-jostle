@@ -276,6 +276,99 @@ public class BlockCipherLimitTest
 
     }
 
+    // Native ordinals (OSSLCipher / OSSLMode): CHACHA20=17 + STREAM mode=14;
+    // CHACHA20_POLY1305=18 + POLY1305 mode=15.
+    private static final int CHACHA20 = 17;
+    private static final int STREAM = 14;
+    private static final int CHACHA20_POLY1305 = 18;
+    private static final int POLY1305 = 15;
+
+    /**
+     * Raw ChaCha20 NI-surface init validation: 256-bit key, 96-bit nonce, no
+     * tag. Probes each boundary at exactly +/-1 with a positive companion.
+     * (The generic update/doFinal range and negative-int checks are exercised by
+     * the AES vectors above — ChaCha20 shares that block_cipher_ctx code.)
+     */
+    @Test
+    public void testChaCha20RawInitParams() throws Exception
+    {
+        // Key: only 32 bytes accepted.
+        assertInitFails(CHACHA20, STREAM, new byte[31], new byte[12], 0, InvalidKeyException.class, "invalid key length");
+        assertInitOk(CHACHA20, STREAM, new byte[32], new byte[12], 0);
+        assertInitFails(CHACHA20, STREAM, new byte[33], new byte[12], 0, InvalidKeyException.class, "invalid key length");
+
+        // Nonce: only 12 bytes accepted; null rejected.
+        assertInitFails(CHACHA20, STREAM, new byte[32], null, 0, InvalidAlgorithmParameterException.class, "iv is null");
+        assertInitFails(CHACHA20, STREAM, new byte[32], new byte[11], 0, InvalidAlgorithmParameterException.class, "invalid iv length");
+        assertInitFails(CHACHA20, STREAM, new byte[32], new byte[13], 0, InvalidAlgorithmParameterException.class, "invalid iv length");
+    }
+
+    /**
+     * ChaCha20-Poly1305 NI-surface init validation: 256-bit key, 96-bit nonce,
+     * 128-bit (16-byte) tag fixed. The tag check is the cipher-specific guard
+     * (RFC 8439); a wrong tag length must surface as "invalid tag len".
+     */
+    @Test
+    public void testChaCha20Poly1305InitParams() throws Exception
+    {
+        // Valid combination.
+        assertInitOk(CHACHA20_POLY1305, POLY1305, new byte[32], new byte[12], 16);
+
+        // Key 31/33 rejected.
+        assertInitFails(CHACHA20_POLY1305, POLY1305, new byte[31], new byte[12], 16, InvalidKeyException.class, "invalid key length");
+        assertInitFails(CHACHA20_POLY1305, POLY1305, new byte[33], new byte[12], 16, InvalidKeyException.class, "invalid key length");
+
+        // Nonce 11/13 rejected.
+        assertInitFails(CHACHA20_POLY1305, POLY1305, new byte[32], new byte[11], 16, InvalidAlgorithmParameterException.class, "invalid iv length");
+        assertInitFails(CHACHA20_POLY1305, POLY1305, new byte[32], new byte[13], 16, InvalidAlgorithmParameterException.class, "invalid iv length");
+
+        // Tag must be exactly 16: 15 (boundary-1), 8, 0, and -1 rejected; 17
+        // (boundary+1) trips the generic MAX_TAG_LEN gate. All -> "invalid tag len".
+        for (int tag : new int[]{-1, 0, 8, 15, 17})
+        {
+            assertInitFails(CHACHA20_POLY1305, POLY1305, new byte[32], new byte[12], tag,
+                    IllegalArgumentException.class, "invalid tag len");
+        }
+    }
+
+    private void assertInitFails(int cipher, int mode, byte[] key, byte[] iv, int tagLen, Class<?> exClass, String msg)
+    {
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(cipher, mode, 0);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, tagLen);
+            Assertions.fail("expected " + exClass.getSimpleName() + " for " + msg);
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals(exClass, e.getClass(), msg);
+            Assertions.assertEquals(msg, e.getMessage(), msg);
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    private void assertInitOk(int cipher, int mode, byte[] key, byte[] iv, int tagLen)
+    {
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(cipher, mode, 0);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, tagLen);
+        }
+        catch (Exception e)
+        {
+            Assertions.fail("unexpected exception: " + e);
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
     @Test
     public void testARIAInitParams() throws Exception
     {

@@ -212,6 +212,116 @@ public class MacTest
     }
 
 
+    @Test
+    public void testPoly1305AgreementWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("testPoly1305AgreementWithBC");
+        for (int trial = 0; trial < 20; trial++)
+        {
+            byte[] key = new byte[32]; // RFC 8439: one-time 32-byte key
+            sr.nextBytes(key);
+            byte[] msg = new byte[sr.nextInt(1025)];
+            sr.nextBytes(msg);
+
+            Mac jo = Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME);
+            jo.init(new SecretKeySpec(key, "Poly1305"));
+            // split updates to exercise the buffering path
+            if (msg.length > 5)
+            {
+                jo.update(msg[0]);
+                jo.update(msg, 1, 4);
+                jo.update(msg, 5, msg.length - 5);
+            }
+            else
+            {
+                jo.update(msg, 0, msg.length);
+            }
+            byte[] joOut = jo.doFinal();
+
+            Mac bc = Mac.getInstance("POLY1305", BouncyCastleProvider.PROVIDER_NAME);
+            bc.init(new SecretKeySpec(key, "Poly1305"));
+            bc.update(msg, 0, msg.length);
+            byte[] bcOut = bc.doFinal();
+
+            Assertions.assertEquals(16, joOut.length, "Poly1305 tag length");
+            Assertions.assertArrayEquals(bcOut, joOut, "trial " + trial);
+        }
+    }
+
+    @Test
+    public void testPoly1305ChunkingMatrix_byteIdentical() throws Exception
+    {
+        SecureRandom sr = seededRandom("testPoly1305ChunkingMatrix_byteIdentical");
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] msg = new byte[16 * 4 + 3];
+        sr.nextBytes(msg);
+
+        byte[] oneShot;
+        {
+            Mac m = Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME);
+            m.init(new SecretKeySpec(key, "Poly1305"));
+            oneShot = m.doFinal(msg);
+        }
+        for (int chunk : new int[]{1, 15, 16, 17, 31, 32, 33})
+        {
+            Mac m = Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME);
+            m.init(new SecretKeySpec(key, "Poly1305"));
+            for (int off = 0; off < msg.length; off += chunk)
+            {
+                m.update(msg, off, Math.min(chunk, msg.length - off));
+            }
+            Assertions.assertArrayEquals(oneShot, m.doFinal(), "chunk=" + chunk);
+        }
+    }
+
+    @Test
+    public void testPoly1305NegativePath() throws Exception
+    {
+        SecureRandom sr = seededRandom("testPoly1305NegativePath");
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] msg = new byte[64];
+        sr.nextBytes(msg);
+
+        Mac m = Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME);
+        m.init(new SecretKeySpec(key, "Poly1305"));
+        byte[] tag = m.doFinal(msg);
+
+        byte[] tampered = Arrays.clone(msg);
+        tampered[0] ^= 0x01;
+        m.init(new SecretKeySpec(key, "Poly1305"));
+        Assertions.assertFalse(Arrays.areEqual(tag, m.doFinal(tampered)), "tampered message -> different tag");
+
+        // distinct messages -> distinct tags
+        byte[] other = new byte[64];
+        sr.nextBytes(other);
+        m.init(new SecretKeySpec(key, "Poly1305"));
+        Assertions.assertFalse(Arrays.areEqual(tag, m.doFinal(other)), "distinct input -> distinct tag");
+    }
+
+    @Test
+    public void testPoly1305MacLengthAndKeyBoundary() throws Exception
+    {
+        SecureRandom sr = seededRandom("testPoly1305MacLengthAndKeyBoundary");
+        Mac m = Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME);
+        Assertions.assertEquals(16, m.getMacLength(), "Poly1305 reports 16-byte length");
+
+        // 32-byte key accepted; 31 and 33 rejected with InvalidKeyException.
+        byte[] ok = new byte[32];
+        sr.nextBytes(ok);
+        m.init(new SecretKeySpec(ok, "Poly1305"));
+        m.doFinal(new byte[10]);
+
+        for (int kl : new int[]{31, 33})
+        {
+            byte[] kb = new byte[kl];
+            sr.nextBytes(kb);
+            Mac bad = Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME);
+            Assertions.assertThrows(InvalidKeyException.class,
+                    () -> bad.init(new SecretKeySpec(kb, "Poly1305")), "key len " + kl);
+        }
+    }
 
 
 

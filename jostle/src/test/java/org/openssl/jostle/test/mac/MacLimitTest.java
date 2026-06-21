@@ -54,6 +54,41 @@ public class MacLimitTest
         }
     }
 
+    @Test
+    public void poly1305_keyLengthBoundary() throws Exception
+    {
+        // Poly1305 (RFC 8439) requires exactly a 32-byte one-time key. 31 and 33
+        // are rejected with "invalid key length for mac type" (JO_UNKNOWN_KEY_LEN
+        // from the POLY1305 branch of init_mac_ctx); 32 is accepted.
+        for (int kl : new int[]{31, 33})
+        {
+            long ref = macNI.allocateMac("POLY1305", "POLY1305");
+            try
+            {
+                macNI.engineInit(ref, new byte[kl]);
+                Assertions.fail("expected rejection for key len " + kl);
+            }
+            catch (InvalidKeyException e)
+            {
+                Assertions.assertEquals("invalid key length for mac type", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+
+        long ref = macNI.allocateMac("POLY1305", "POLY1305");
+        try
+        {
+            macNI.engineInit(ref, new byte[32]);
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
 
     @Test
     public void init_keyNull()
