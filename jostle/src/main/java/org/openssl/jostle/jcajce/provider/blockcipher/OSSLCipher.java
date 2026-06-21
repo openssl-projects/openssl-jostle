@@ -59,7 +59,11 @@ public enum OSSLCipher
     // through the synthetic OSSLMode.STREAM. OSSLMode.STREAM is qualified to
     // disambiguate from OSSLCipherType.STREAM (the first argument).
     CHACHA20(OSSLCipherType.STREAM, 1, OSSLMode.STREAM),
-    CHACHA20_POLY1305(AEAD, 1),
+    // ChaCha20-Poly1305 AEAD (RFC 8439): 256-bit key, block size 1, served
+    // through the synthetic OSSLMode.POLY1305 so it rides the generic AEAD
+    // streaming path (no buffering). OSSLMode.POLY1305 is qualified for
+    // symmetry with CHACHA20's OSSLMode.STREAM.
+    CHACHA20_POLY1305(AEAD, 1, OSSLMode.POLY1305),
     SEED(BLOCK, 16, ECB, CBC, CFB128, OFB),
     SM4(BLOCK, 16, ECB, CBC, CFB128, OFB, CTR),
     DES_EDE3(BLOCK, 8, ECB, CBC); // 3-key Triple DES (24-byte key), default-provider modes only

@@ -23,7 +23,8 @@
 
 
 /**
- * AEAD-mode discriminator. GCM and OCB both:
+ * AEAD-mode discriminator. GCM, OCB, and ChaCha20-Poly1305 (the synthetic
+ * POLY1305 mode) all:
  *   1. require EVP_CTRL_AEAD_SET_IVLEN (the unified OpenSSL control)
  *      before the key/IV are set,
  *   2. append a 16-byte authentication tag to the ciphertext, and
@@ -40,7 +41,7 @@
  * current streaming model. A separate code path is needed for CCM.
  */
 static inline int is_aead_mode(uint32_t mode_id) {
-    return mode_id == GCM || mode_id == OCB;
+    return mode_id == GCM || mode_id == OCB || mode_id == POLY1305;
 }
 
 
@@ -169,10 +170,12 @@ int32_t block_cipher_ctx_init(
         case OFB:
         case GCM:
         case OCB:
+        case POLY1305:
         case STREAM:
-            // STREAM = raw ChaCha20, a stream cipher (block size 1). Marking it
-            // streaming skips the block-accounting paths (which divide/modulo by
-            // cipher_block_size and would misbehave for a block size of 1).
+            // GCM/OCB/POLY1305 are AEAD streaming modes; STREAM is the raw
+            // ChaCha20 stream cipher (block size 1). All skip the block-
+            // accounting paths (which divide/modulo by cipher_block_size and
+            // would misbehave for a block size of 1).
             ctx->streaming = 1;
             break;
         default:
@@ -677,6 +680,39 @@ int32_t block_cipher_ctx_init(
                     return JO_INVALID_MODE;
             }
             break; // CHACHA20
+
+        case CHACHA20_POLY1305:
+            // ChaCha20-Poly1305 AEAD (RFC 8439). A stream cipher (block size 1)
+            // with a built-in Poly1305 authenticator; rides the generic AEAD
+            // streaming path (is_aead_mode includes POLY1305) so update()
+            // processes incrementally with no buffering. 256-bit key, 96-bit
+            // nonce, 128-bit tag. Unlike raw ChaCha20, OpenSSL's
+            // "ChaCha20-Poly1305" takes the 12-byte nonce directly (no counter
+            // prefix) — so this falls through to the generic iv_for_openssl = iv
+            // path below, NOT the 16-byte-IV construction.
+            ctx->cipher_block_size = 1;
+            if (key_len != 32) {
+                return JO_INVALID_KEY_LEN;
+            }
+            switch (ctx->mode_id) {
+                case POLY1305:
+                    if (iv_len != 12) {
+                        return JO_INVALID_IV_LEN;
+                    }
+                    // RFC 8439 fixes the tag at 128 bits and OpenSSL only
+                    // produces 16. Pin it at the NI surface so a truncated-tag
+                    // request cannot weaken authentication (the SPI enforces
+                    // this too). tag_len was range-checked into [0, MAX_TAG_LEN]
+                    // near the top of init.
+                    if (ctx->tag_len != 16) {
+                        return JO_INVALID_TAG_LEN;
+                    }
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ChaCha20-Poly1305",NULL);
+                    break;
+                default:
+                    return JO_INVALID_MODE;
+            }
+            break; // CHACHA20_POLY1305
 
         case SM4:
             ctx->cipher_block_size = BLOCK_SIZE_SM4;
@@ -1208,6 +1244,7 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         switch (ctx->mode_id) {
             case GCM:
             case OCB:
+            case POLY1305:
 
                 if (ctx->tag_len > 0) {
                     if (ctx->op_mode == ENCRYPT_MODE) {

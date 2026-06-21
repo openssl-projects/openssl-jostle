@@ -75,6 +75,10 @@
 // Synthetic mode for stream ciphers (block size 1, no padding/alignment).
 // Raw ChaCha20 is the only user. Append-only — must match OSSLMode ordinal 14.
 #define STREAM 14
+// Synthetic AEAD mode pairing ChaCha20 with its Poly1305 authenticator
+// (cipher CHACHA20_POLY1305). is_aead_mode() includes it, so it streams
+// through the generic AEAD path. Append-only — must match OSSLMode ordinal 15.
+#define POLY1305 15
 
 #define PADDED 1
 #define NO_PADDING 0
