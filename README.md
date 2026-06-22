@@ -514,6 +514,7 @@ of the following environmental variables to the relevant JAVA_HOME for that JVM.
 
 ```
 BC_JDK8= .. jdk8
+BC_JDK11= .. jdk11
 BC_JDK17= .. jdk17
 BC_JDK21= .. jdk21
 BC_JDK25= .. jdk25
@@ -525,6 +526,7 @@ For example, setting:
 ```
 export BC_JDK17=/usr/lib/jvm/java-17-amazon-corretto.x86_64
 export BC_JDK8=/usr/lib/jvm/java-1.8.0-amazon-corretto.x86_64
+export BC_JDK11=/usr/lib/jvm/java-11.12.34-amazon-corretto.x86_64
 export BC_JDK21=/usr/lib/jvm/java-21-amazon-corretto.x86_64
 export BC_JDK25=/usr/lib/jvm/java-25-amazon-corretto.x86_64
 ```
@@ -534,6 +536,7 @@ extra JVM specific tests tasks to the main test task.
 
 ```
 jostle: Adding test8 as dependency for test task because BC_JDK8 is defined
+jostle: Adding test11 as dependency for test task because BC_JDK11 is defined
 jostle: Adding test17 as dependency for test task because BC_JDK17 is defined
 jostle: Adding test21 as dependency for test task because BC_JDK21 is defined
 jostle: Adding test25 as dependency for test task because BC_JDK25 is defined
