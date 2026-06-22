@@ -674,6 +674,14 @@ int32_t block_cipher_ctx_init(
                     if (iv_len != 12) {
                         return JO_INVALID_IV_LEN;
                     }
+                    // Raw ChaCha20 is unauthenticated — it has no tag. Reject a
+                    // non-zero tag at the NI surface so the contract is explicit
+                    // and the tag-len-dependent size paths (internal_final_size
+                    // gates on tag_len > 0) stay consistent with the AEAD arm
+                    // below, which pins tag_len == 16.
+                    if (ctx->tag_len != 0) {
+                        return JO_INVALID_TAG_LEN;
+                    }
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "ChaCha20",NULL);
                     break;
                 default:

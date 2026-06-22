@@ -301,6 +301,11 @@ public class BlockCipherLimitTest
         assertInitFails(CHACHA20, STREAM, new byte[32], null, 0, InvalidAlgorithmParameterException.class, "iv is null");
         assertInitFails(CHACHA20, STREAM, new byte[32], new byte[11], 0, InvalidAlgorithmParameterException.class, "invalid iv length");
         assertInitFails(CHACHA20, STREAM, new byte[32], new byte[13], 0, InvalidAlgorithmParameterException.class, "invalid iv length");
+
+        // Raw ChaCha20 is unauthenticated: any non-zero tag length is rejected
+        // (tag 0 is the accepted companion, asserted above).
+        assertInitFails(CHACHA20, STREAM, new byte[32], new byte[12], 1, IllegalArgumentException.class, "invalid tag len");
+        assertInitFails(CHACHA20, STREAM, new byte[32], new byte[12], 16, IllegalArgumentException.class, "invalid tag len");
     }
 
     /**

@@ -14,6 +14,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.MacSpi;
 import javax.crypto.SecretKey;
@@ -106,6 +107,11 @@ public class MacServiceSPI extends MacSpi
         }
         finally
         {
+            // Scrub the plaintext key once OpenSSL has copied it into the
+            // EVP_MAC ctx (java-spi.md "Zeroize the byte[] from
+            // key.getEncoded()"). keyBytes is a fresh SecretKeySpec copy and is
+            // non-null (guarded above). Matters most for Poly1305's one-time key.
+            Arrays.fill(keyBytes, (byte) 0);
             Reference.reachabilityFence(this);
         }
     }
