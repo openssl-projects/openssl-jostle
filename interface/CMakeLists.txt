@@ -86,6 +86,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/slhdsa_ni_jni.c
             jni/mlkem_ni_jni.c
             jni/asn1_ni_jni.c
+            jni/ks_jni.c
             util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
@@ -110,6 +111,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             jni/bytearrays.h
             util/asn1_util.c
             util/asn1_util.h
+            util/ks.h
+            util/ks.c
             util/ops.h
             util/ops.c
             jni/ops.c
@@ -190,6 +193,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             ffi/mlkem_ni_ffi.c
             ffi/slh_dsa_ni_ffi.c
             ffi/asn1_ni_ffi.c
+            ffi/ks_ffi.c
             util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
@@ -210,6 +214,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/key_spec.h
             util/asn1_util.c
             util/asn1_util.h
+            util/ks.h
+            util/ks.c
             util/ops.h
             util/ops.c
             ffi/kdf_ffi.c
@@ -312,6 +318,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             jni/slhdsa_ni_jni.c
             jni/mlkem_ni_jni.c
             jni/asn1_ni_jni.c
+            jni/ks_jni.c
             util/block_cipher_ctx.h
             util/block_cipher_ctx.c
             util/ccm_ctx.h
@@ -335,6 +342,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/key_spec.h
             util/asn1_util.c
             util/asn1_util.h
+            util/ks.h
+            util/ks.c
             util/ops.h
             util/ops.c
             jni/ops.c
@@ -410,6 +419,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             ffi/slh_dsa_ni_ffi.c
             ffi/mlkem_ni_ffi.c
             ffi/asn1_ni_ffi.c
+            ffi/ks_ffi.c
             util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
@@ -430,6 +440,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/key_spec.h
             util/asn1_util.c
             util/asn1_util.h
+            util/ks.h
+            util/ks.c
             util/ops.h
             util/ops.c
             ffi/kdf_ffi.c
@@ -513,6 +525,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/slhdsa_ni_jni.c
             jni/mlkem_ni_jni.c
             jni/asn1_ni_jni.c
+            jni/ks_jni.c
             util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
@@ -537,6 +550,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             jni/bytearrays.h
             util/asn1_util.c
             util/asn1_util.h
+            util/ks.h
+            util/ks.c
             util/ops.h
             util/ops.c
             jni/ops.c
@@ -605,6 +620,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             ffi/md_ffi.c
             ffi/rand_ffi.c
             ffi/mac_ffi.c
+            ffi/ks_ffi.c
             util/jo_assert.h
             util/mldsa.h
             util/mldsa.c
@@ -625,6 +641,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/key_spec.h
             util/asn1_util.c
             util/asn1_util.h
+            util/ks.h
+            util/ks.c
             util/ops.h
             util/ops.c
             ffi/kdf_ffi.c
