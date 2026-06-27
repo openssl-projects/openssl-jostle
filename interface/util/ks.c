@@ -463,6 +463,8 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     jo_assert(out != NULL);
     jo_assert(out_len != NULL);
     jo_assert(password != NULL || password_len == 0);
+    jo_assert(pbe_iter >= 0);
+    jo_assert(mac_iter >= 0);
 
     *out = NULL;
     *out_len = 0;

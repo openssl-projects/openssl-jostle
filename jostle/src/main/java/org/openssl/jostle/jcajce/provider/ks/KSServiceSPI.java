@@ -66,7 +66,25 @@ public class KSServiceSPI
             0x07, 0x01
     };
 
+    // Store-time algorithm profile selectors (mirror interface/util/ks.h).
+    private static final int PBE_AES128_CBC = 2;
+    private static final int PBE_AES256_CBC = 3;
+    private static final int MAC_TRADITIONAL = 1;
+    private static final int MD_SHA256 = 2;
+    private static final int DEFAULT_ITERATIONS = 600000;
+
     private final KSReference ref;
+
+    // Modern default profile: AES-256-CBC keys + AES-128-CBC certs (both PBES2 /
+    // PBKDF2-HMAC-SHA256) under an HMAC-SHA256 integrity MAC. The BC-parity
+    // type-name registry (PKCS12-3DES-3DES, PKCS12-PBMAC1, ...) is layered on
+    // top of this in a later step.
+    private final int keyPbe = PBE_AES256_CBC;
+    private final int certPbe = PBE_AES128_CBC;
+    private final int macScheme = MAC_TRADITIONAL;
+    private final int macDigest = MD_SHA256;
+    private final int pbeIter = DEFAULT_ITERATIONS;
+    private final int macIter = DEFAULT_ITERATIONS;
 
     public KSServiceSPI()
     {
@@ -423,7 +441,8 @@ public class KSServiceSPI
             byte[] encodedPassword = encodePassword(password);
             try
             {
-                stream.write(ksServiceNI.store(ref.getReference(), encodedPassword));
+                stream.write(ksServiceNI.store(ref.getReference(), encodedPassword,
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter));
             }
             finally
             {

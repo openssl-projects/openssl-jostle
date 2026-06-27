@@ -48,7 +48,10 @@ int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *passw
     return ks_load(ctx, input, input_size, password, password_size);
 }
 
-int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size, int32_t *err) {
+int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
+                      int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
+                      int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
+                      int32_t *err) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
@@ -64,8 +67,17 @@ int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size, int3
         *err = JO_FAILED_ACCESS_KEY;
         return 0;
     }
+    if (pbe_iter < 0) {
+        *err = JO_KS_PBE_ITER_NEGATIVE;
+        return 0;
+    }
+    if (mac_iter < 0) {
+        *err = JO_KS_MAC_ITER_NEGATIVE;
+        return 0;
+    }
 
-    *err = ks_store(ctx, &out, &out_len, password, password_size);
+    *err = ks_store(ctx, &out, &out_len, password, password_size,
+            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter);
     if (UNSUCCESSFUL(*err)) {
         goto exit;
     }
@@ -80,7 +92,10 @@ exit:
     return result;
 }
 
-int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size, uint8_t *output, size_t output_size) {
+int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size,
+                   int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
+                   int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
+                   uint8_t *output, size_t output_size) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t ret;
@@ -94,8 +109,15 @@ int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size, uint8_t
     if (output == NULL) {
         return JO_OUTPUT_IS_NULL;
     }
+    if (pbe_iter < 0) {
+        return JO_KS_PBE_ITER_NEGATIVE;
+    }
+    if (mac_iter < 0) {
+        return JO_KS_MAC_ITER_NEGATIVE;
+    }
 
-    ret = ks_store(ctx, &out, &out_len, password, password_size);
+    ret = ks_store(ctx, &out, &out_len, password, password_size,
+            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter);
     if (UNSUCCESSFUL(ret) || out == NULL) {
         goto exit;
     }

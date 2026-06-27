@@ -41,11 +41,15 @@ public class KSServiceFFI
             Linker.Option.critical(true));
     private static final MethodHandle storeLenH = linker.downcallHandle(
             lookup.find("JoKS_StoreLen").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS),
             Linker.Option.critical(true));
     private static final MethodHandle storeH = linker.downcallHandle(
             lookup.find("JoKS_Store").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
             Linker.Option.critical(true));
     private static final MethodHandle getKeyLenH = linker.downcallHandle(
             lookup.find("JoKS_GetKeyLen").orElseThrow(),
@@ -157,14 +161,16 @@ public class KSServiceFFI
     }
 
     @Override
-    public byte[] ni_store(long ref, byte[] password, int[] err)
+    public byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
+                           int macDigest, int pbeIter, int macIter, int[] err)
     {
         try
         {
             MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
             MemorySegment errSeg = errSegment(err);
             MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) storeLenH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(), errSeg);
+            int len = (int) storeLenH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
+                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, errSeg);
             if (err[0] != 0 || len == 0)
             {
                 return null;
@@ -172,7 +178,8 @@ public class KSServiceFFI
 
             byte[] out = new byte[len];
             MemorySegment outSeg = MemorySegment.ofArray(out);
-            err[0] = (int) storeH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(), outSeg, outSeg.byteSize());
+            err[0] = (int) storeH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
+                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, outSeg, outSeg.byteSize());
             return err[0] == 0 ? out : null;
         }
         catch (Throwable t)

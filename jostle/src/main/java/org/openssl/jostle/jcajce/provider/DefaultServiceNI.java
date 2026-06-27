@@ -146,6 +146,10 @@ public interface DefaultServiceNI
                 throw new UnsupportedOperationException("key store load failed");
             case JO_KS_STORE_FAILED:
                 throw new UnsupportedOperationException("key store store failed");
+            case JO_KS_PBE_ITER_NEGATIVE:
+                throw new IllegalArgumentException("key store PBE iteration count is negative");
+            case JO_KS_MAC_ITER_NEGATIVE:
+                throw new IllegalArgumentException("key store MAC iteration count is negative");
             default:
                 throw new IllegalStateException("unexpected error code " + errorCode + ": " + code);
         }

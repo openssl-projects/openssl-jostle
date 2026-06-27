@@ -24,7 +24,8 @@ public interface KSServiceNI
 
     int ni_load(long ref, byte[] input, byte[] password);
 
-    byte[] ni_store(long ref, byte[] password, int[] err);
+    byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
+                    int macDigest, int pbeIter, int macIter, int[] err);
 
     byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
 
@@ -69,11 +70,14 @@ public interface KSServiceNI
         handleIoErrors(ni_load(ref, input, password));
     }
 
-    default byte[] store(long ref, byte[] password)
+    default byte[] store(long ref, byte[] password,
+                         int keyPbe, int certPbe, int macScheme, int macDigest,
+                         int pbeIter, int macIter)
         throws IOException
     {
         int[] err = new int[1];
-        byte[] out = ni_store(ref, password, err);
+        byte[] out = ni_store(ref, password, keyPbe, certPbe, macScheme,
+                macDigest, pbeIter, macIter, err);
         handleIoErrors(err[0]);
         return out;
     }

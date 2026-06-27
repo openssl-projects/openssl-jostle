@@ -459,7 +459,9 @@ public class KSServiceTest
             serviceNI.setCertificateEntry(source, "trusted",
                     trustedCertificate.getEncoded());
 
-            byte[] encoded = serviceNI.store(source, password);
+            // profile: AES-256-CBC keys, AES-128-CBC certs (PBES2), HMAC-SHA256 MAC
+            byte[] encoded = serviceNI.store(source, password,
+                    3, 2, 1, 2, 2048, 2048);
             Assertions.assertNotNull(encoded);
             Assertions.assertTrue(encoded.length > 0);
 
@@ -520,7 +522,9 @@ public class KSServiceTest
             Assertions.assertFalse(serviceNI.containsAlias(source,
                     "empty-cert"));
 
-            byte[] encoded = serviceNI.store(source, password);
+            // profile: AES-256-CBC keys, AES-128-CBC certs (PBES2), HMAC-SHA256 MAC
+            byte[] encoded = serviceNI.store(source, password,
+                    3, 2, 1, 2, 2048, 2048);
             Assertions.assertNotNull(encoded);
             Assertions.assertTrue(encoded.length > 0);
 
@@ -781,23 +785,14 @@ public class KSServiceTest
     private static byte[] encodeCertificateChain(Certificate... certificates)
         throws Exception
     {
-        int length = 4;
-        byte[][] encodedCertificates = new byte[certificates.length][];
-        for (int i = 0; i < certificates.length; i++)
+        // Concatenated DER, matching the native cert-chain marshalling.
+        ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+        for (Certificate certificate : certificates)
         {
-            encodedCertificates[i] = certificates[i].getEncoded();
-            length += 4 + encodedCertificates[i].length;
+            byte[] der = certificate.getEncoded();
+            encoded.write(der, 0, der.length);
         }
-
-        byte[] encoded = new byte[length];
-        int offset = writeInt(encoded, 0, certificates.length);
-        for (byte[] certificate : encodedCertificates)
-        {
-            offset = writeInt(encoded, offset, certificate.length);
-            System.arraycopy(certificate, 0, encoded, offset, certificate.length);
-            offset += certificate.length;
-        }
-        return encoded;
+        return encoded.toByteArray();
     }
 
     private static Set<String> decodeNativeAliases(byte[] encoded)
@@ -828,15 +823,6 @@ public class KSServiceTest
                 | (input[offset + 1] & 0xff) << 16
                 | (input[offset + 2] & 0xff) << 8
                 | (input[offset + 3] & 0xff);
-    }
-
-    private static int writeInt(byte[] output, int offset, int value)
-    {
-        output[offset++] = (byte)(value >>> 24);
-        output[offset++] = (byte)(value >>> 16);
-        output[offset++] = (byte)(value >>> 8);
-        output[offset++] = (byte)value;
-        return offset;
     }
 
     private static final class KeyCase

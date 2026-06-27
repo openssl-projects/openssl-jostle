@@ -23,7 +23,8 @@ public class KSServiceJNI
     public native int ni_load(long ref, byte[] input, byte[] password);
 
     @Override
-    public native byte[] ni_store(long ref, byte[] password, int[] err);
+    public native byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
+                                  int macDigest, int pbeIter, int macIter, int[] err);
 
     @Override
     public native byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
