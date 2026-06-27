@@ -484,6 +484,10 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     if (cert_nid == NID_undef) {
         return JO_KS_STORE_FAILED;
     }
+    if (mac_scheme != KS_MAC_NONE && mac_scheme != KS_MAC_TRADITIONAL
+            && mac_scheme != KS_MAC_PBMAC1) {
+        return JO_KS_STORE_FAILED;
+    }
     if (mac_scheme == KS_MAC_TRADITIONAL || mac_scheme == KS_MAC_PBMAC1) {
         mac_md = ks_md_to_evp(mac_digest);
         if (mac_md == NULL) {

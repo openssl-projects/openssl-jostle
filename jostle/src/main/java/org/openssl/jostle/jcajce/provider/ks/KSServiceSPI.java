@@ -67,33 +67,96 @@ public class KSServiceSPI
     };
 
     // Store-time algorithm profile selectors (mirror interface/util/ks.h).
+    private static final int PBE_3DES = 1;
     private static final int PBE_AES128_CBC = 2;
     private static final int PBE_AES256_CBC = 3;
     private static final int MAC_TRADITIONAL = 1;
+    private static final int MAC_PBMAC1 = 2;
+    private static final int MD_SHA1 = 1;
     private static final int MD_SHA256 = 2;
-    private static final int DEFAULT_ITERATIONS = 600000;
+    private static final int MD_SHA512 = 3;
+    private static final int PBE_ITERATIONS = 600000;
+    private static final int MAC_ITERATIONS = 600000;
+    private static final int PBMAC1_ITERATIONS = 65536;
+
+    // The native ks_ctx is a plain PKCS#12 container; the JCA type name only
+    // selects the store-time algorithm profile, so allocation always uses the
+    // canonical base type.
+    private static final String BASE_TYPE = "PKCS12";
 
     private final KSReference ref;
 
-    // Modern default profile: AES-256-CBC keys + AES-128-CBC certs (both PBES2 /
-    // PBKDF2-HMAC-SHA256) under an HMAC-SHA256 integrity MAC. The BC-parity
-    // type-name registry (PKCS12-3DES-3DES, PKCS12-PBMAC1, ...) is layered on
-    // top of this in a later step.
-    private final int keyPbe = PBE_AES256_CBC;
-    private final int certPbe = PBE_AES128_CBC;
-    private final int macScheme = MAC_TRADITIONAL;
-    private final int macDigest = MD_SHA256;
-    private final int pbeIter = DEFAULT_ITERATIONS;
-    private final int macIter = DEFAULT_ITERATIONS;
+    // Store-time algorithm profile, selected per registered JCA type name (see
+    // ProvKS). Default-provider algorithms only (no RC2), so BouncyCastle's
+    // RC2-cert legacy default is not reproduced; bare "PKCS12" is a modern AES
+    // profile rather than BC's legacy default.
+    private final int keyPbe;
+    private final int certPbe;
+    private final int macScheme;
+    private final int macDigest;
+    private final int pbeIter;
+    private final int macIter;
 
     public KSServiceSPI()
     {
-        this("PKCS12");
+        // Bare PKCS12: modern default -- AES-256-CBC keys, AES-128-CBC certs
+        // (PBES2 / PBKDF2-HMAC-SHA256), HMAC-SHA256 integrity MAC.
+        this(PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                PBE_ITERATIONS, MAC_ITERATIONS);
     }
 
-    public KSServiceSPI(String type)
+    protected KSServiceSPI(int keyPbe, int certPbe, int macScheme, int macDigest,
+                           int pbeIter, int macIter)
     {
-        this.ref = new KSReference(ksServiceNI.allocateKeyStore(type), type);
+        this.ref = new KSReference(ksServiceNI.allocateKeyStore(BASE_TYPE), BASE_TYPE);
+        this.keyPbe = keyPbe;
+        this.certPbe = certPbe;
+        this.macScheme = macScheme;
+        this.macDigest = macDigest;
+        this.pbeIter = pbeIter;
+        this.macIter = macIter;
+    }
+
+    /**
+     * Legacy profile, matching BouncyCastle's {@code PKCS12-3DES-3DES}: 3DES
+     * keys and certs under a traditional HMAC-SHA1 MAC (max old-reader compat).
+     */
+    public static final class PKCS12_3DES_3DES
+        extends KSServiceSPI
+    {
+        public PKCS12_3DES_3DES()
+        {
+            super(PBE_3DES, PBE_3DES, MAC_TRADITIONAL, MD_SHA1,
+                    PBE_ITERATIONS, MAC_ITERATIONS);
+        }
+    }
+
+    /**
+     * AES-256-CBC keys + AES-128-CBC certs (PBES2 / PBKDF2-HMAC-SHA256) under a
+     * traditional HMAC-SHA256 MAC.
+     */
+    public static final class PKCS12_AES256_AES128
+        extends KSServiceSPI
+    {
+        public PKCS12_AES256_AES128()
+        {
+            super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                    PBE_ITERATIONS, MAC_ITERATIONS);
+        }
+    }
+
+    /**
+     * RFC 9579 PBMAC1 (HMAC-SHA512 over PBKDF2-HMAC-SHA256) over AES-256/AES-128
+     * content, matching BouncyCastle's {@code PKCS12-PBMAC1}.
+     */
+    public static final class PKCS12_PBMAC1
+        extends KSServiceSPI
+    {
+        public PKCS12_PBMAC1()
+        {
+            super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_PBMAC1, MD_SHA512,
+                    PBE_ITERATIONS, PBMAC1_ITERATIONS);
+        }
     }
 
     @Override
