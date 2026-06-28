@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.ks;
 
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
+import org.openssl.jostle.jcajce.PKCS12LoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -24,7 +25,6 @@ import org.openssl.jostle.util.asn1.ASN1Encoder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -193,6 +193,20 @@ public class KSServiceSPI
         catch (KeyStoreException | InvalidKeySpecException e)
         {
             throw new UnrecoverableKeyException(e.getMessage());
+        }
+        catch (RuntimeException e)
+        {
+            // Defence-in-depth for the JCE contract (engineGetKey may throw only
+            // NoSuchAlgorithmException / UnrecoverableKeyException). The C layer
+            // already accepted the password, so a RuntimeException out of
+            // generatePrivateKey -- e.g. OpenSSLException / IllegalArgumentException
+            // from ASN1Encoder.fromPrivateKeyInfo on a structurally bad PKCS#8 --
+            // is an unrecoverable key, not a provider crash. Upstream load/set
+            // validation makes this currently unreachable, but the mapping keeps
+            // the contract robust against future changes (cf. RSAKeyFactorySpi).
+            UnrecoverableKeyException uke = new UnrecoverableKeyException(e.getMessage());
+            uke.initCause(e);
+            throw uke;
         }
         finally
         {
@@ -528,13 +542,13 @@ public class KSServiceSPI
     public void engineStore(KeyStore.LoadStoreParameter param)
         throws IOException, NoSuchAlgorithmException, CertificateException
     {
-        if (!(param instanceof StreamLoadStoreParameter))
+        if (!(param instanceof PKCS12LoadStoreParameter))
         {
             throw new IllegalArgumentException(
-                    "StreamLoadStoreParameter required for store");
+                    "PKCS12LoadStoreParameter required for store");
         }
 
-        StreamLoadStoreParameter streamParam = (StreamLoadStoreParameter)param;
+        PKCS12LoadStoreParameter streamParam = (PKCS12LoadStoreParameter)param;
         if (streamParam.getOutputStream() == null)
         {
             throw new IllegalArgumentException("output stream is required");
@@ -583,9 +597,9 @@ public class KSServiceSPI
     {
         InputStream stream = null;
         KeyStore.ProtectionParameter protection = null;
-        if (param instanceof StreamLoadStoreParameter)
+        if (param instanceof PKCS12LoadStoreParameter)
         {
-            StreamLoadStoreParameter streamParam = (StreamLoadStoreParameter)param;
+            PKCS12LoadStoreParameter streamParam = (PKCS12LoadStoreParameter)param;
             stream = streamParam.getInputStream();
             protection = streamParam.getProtectionParameter();
         }
@@ -618,11 +632,17 @@ public class KSServiceSPI
 
         if (engineIsCertificateEntry(alias))
         {
-            if (protParam instanceof KeyStore.PasswordProtection
-                    && ((KeyStore.PasswordProtection)protParam).getPassword() != null)
+            if (protParam != null)
             {
-                throw new UnrecoverableEntryException(
-                        "trusted certificate entries are not password-protected");
+                // Match the java.security.KeyStoreSpi base (which BouncyCastle's
+                // PKCS12 SPI inherits): a trusted-cert entry is not
+                // password-protected, so any protection parameter is
+                // unsupported; only a null parameter returns the certificate.
+                throw new UnsupportedOperationException(
+                        protParam instanceof KeyStore.PasswordProtection
+                                ? "trusted certificate entries are not password-protected"
+                                : "unsupported protection parameter: "
+                                        + protParam.getClass().getName());
             }
             return new KeyStore.TrustedCertificateEntry(engineGetCertificate(alias));
         }
@@ -631,10 +651,19 @@ public class KSServiceSPI
         {
             return null;
         }
-        if (!(protParam instanceof KeyStore.PasswordProtection))
+        if (protParam == null)
         {
             throw new UnrecoverableKeyException(
                     "requested entry requires a password");
+        }
+        if (!(protParam instanceof KeyStore.PasswordProtection))
+        {
+            // Match the java.security.KeyStoreSpi base (which BouncyCastle's
+            // PKCS12 SPI inherits): a non-null, non-PasswordProtection parameter
+            // such as CallbackHandlerProtection is unsupported here, not a
+            // missing password.
+            throw new UnsupportedOperationException(
+                    "unsupported protection parameter: " + protParam.getClass().getName());
         }
 
         KeyStore.PasswordProtection passwordProtection =
@@ -677,6 +706,14 @@ public class KSServiceSPI
         if (entry == null)
         {
             throw new KeyStoreException("entry is null");
+        }
+        if (protParam != null && !(protParam instanceof KeyStore.PasswordProtection))
+        {
+            // Match the java.security.KeyStoreSpi base (which BouncyCastle's
+            // PKCS12 SPI inherits): only a PasswordProtection (or null) is
+            // accepted; a CallbackHandlerProtection or any other type is
+            // rejected up front rather than silently accepted / mis-messaged.
+            throw new KeyStoreException("unsupported protection parameter");
         }
 
         if (entry instanceof KeyStore.TrustedCertificateEntry)
@@ -786,54 +823,14 @@ public class KSServiceSPI
             dataStream.readFully(oid);
             return Arrays.areEqual(PKCS12_AUTH_SAFE_DATA_OID, oid);
         }
-        catch (EOFException e)
+        catch (IOException e)
         {
+            // Any structural read failure -- EOF, or a malformed / over-long
+            // ASN.1 length from readAsn1Length -- means "not a PKCS#12". Return
+            // false so the JDK's cross-provider KeyStore.getInstance(stream)
+            // probing loop continues to the next provider, rather than aborting
+            // detection entirely on a thrown IOException.
             return false;
-        }
-    }
-
-    public static final class StreamLoadStoreParameter
-        implements KeyStore.LoadStoreParameter
-    {
-        private final InputStream inputStream;
-        private final OutputStream outputStream;
-        private final KeyStore.ProtectionParameter protectionParameter;
-
-        public StreamLoadStoreParameter(InputStream inputStream,
-                                        KeyStore.ProtectionParameter protectionParameter)
-        {
-            this(inputStream, null, protectionParameter);
-        }
-
-        public StreamLoadStoreParameter(OutputStream outputStream,
-                                        KeyStore.ProtectionParameter protectionParameter)
-        {
-            this(null, outputStream, protectionParameter);
-        }
-
-        public StreamLoadStoreParameter(InputStream inputStream,
-                                        OutputStream outputStream,
-                                        KeyStore.ProtectionParameter protectionParameter)
-        {
-            this.inputStream = inputStream;
-            this.outputStream = outputStream;
-            this.protectionParameter = protectionParameter;
-        }
-
-        public InputStream getInputStream()
-        {
-            return inputStream;
-        }
-
-        public OutputStream getOutputStream()
-        {
-            return outputStream;
-        }
-
-        @Override
-        public KeyStore.ProtectionParameter getProtectionParameter()
-        {
-            return protectionParameter;
         }
     }
 

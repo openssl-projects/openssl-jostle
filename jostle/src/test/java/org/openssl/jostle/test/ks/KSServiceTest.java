@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.openssl.jostle.jcajce.PKCS12LoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
@@ -617,18 +618,18 @@ public class KSServiceTest
 
         KeyStore keyStore = KeyStore.getInstance("PKCS12",
                 JostleProvider.PROVIDER_NAME);
-        keyStore.load(new KSServiceSPI.StreamLoadStoreParameter(
+        keyStore.load(new PKCS12LoadStoreParameter(
                 (ByteArrayInputStream)null, protection));
         keyStore.setKeyEntry("stream", keyPair.getPrivate(), password,
                 new Certificate[] {certificate});
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        keyStore.store(new KSServiceSPI.StreamLoadStoreParameter(out,
+        keyStore.store(new PKCS12LoadStoreParameter(out,
                 protection));
 
         KeyStore loaded = KeyStore.getInstance("PKCS12",
                 JostleProvider.PROVIDER_NAME);
-        loaded.load(new KSServiceSPI.StreamLoadStoreParameter(
+        loaded.load(new PKCS12LoadStoreParameter(
                 new ByteArrayInputStream(out.toByteArray()), protection));
 
         Assertions.assertTrue(loaded.isKeyEntry("stream"));
@@ -659,6 +660,30 @@ public class KSServiceTest
                 new ByteArrayInputStream(out.toByteArray())));
         Assertions.assertFalse(spi.engineProbe(
                 new ByteArrayInputStream(new byte[] {0x01, 0x02, 0x03})));
+    }
+
+    @Test
+    public void engineProbeReturnsFalseOnMalformedAsn1()
+        throws Exception
+    {
+        // engineProbe must never throw on bytes it does not recognise -- a thrown
+        // IOException aborts the JDK's cross-provider KeyStore.getInstance(stream)
+        // probing loop. These all begin like a PKCS#12 (0x30 ...) but are
+        // structurally invalid, so probing must return false, not throw.
+        KSServiceSPI spi = new KSServiceSPI();
+
+        // long-form length declaring 5 length bytes (> 4): used to throw
+        // IOException("ASN.1 length is too large") straight out of engineProbe.
+        Assertions.assertFalse(spi.engineProbe(new ByteArrayInputStream(
+                new byte[] {0x30, (byte) 0x85, 0x01, 0x02, 0x03, 0x04, 0x05})));
+        // long-form length with the declared length bytes truncated (EOF).
+        Assertions.assertFalse(spi.engineProbe(new ByteArrayInputStream(
+                new byte[] {0x30, (byte) 0x84, 0x00})));
+        // bare SEQUENCE tag, nothing else.
+        Assertions.assertFalse(spi.engineProbe(new ByteArrayInputStream(
+                new byte[] {0x30})));
+        // empty stream.
+        Assertions.assertFalse(spi.engineProbe(new ByteArrayInputStream(new byte[0])));
     }
 
     @Test
@@ -709,6 +734,54 @@ public class KSServiceTest
                 () -> spi.engineSetEntry("entry", null, null));
         Assertions.assertThrows(NullPointerException.class,
                 () -> spi.engineEntryInstanceOf("entry", null));
+    }
+
+    @Test
+    public void getSetEntryRejectNonPasswordProtection()
+        throws Exception
+    {
+        // Match the java.security.KeyStoreSpi base (which BouncyCastle's PKCS12
+        // SPI inherits): a non-PasswordProtection parameter such as
+        // CallbackHandlerProtection is unsupported -- engineGetEntry throws
+        // UnsupportedOperationException and engineSetEntry throws
+        // KeyStoreException, rather than honouring it or mis-reporting it as a
+        // missing password.
+        char[] password = "changeit".toCharArray();
+        KeyPair keyPair = generateRsaKeyPair();
+        X509Certificate certificate = selfSignedCertificate(keyPair,
+                "CN=Jostle Entry Protection Test", BigInteger.valueOf(21));
+
+        KeyStore keyStore = KeyStore.getInstance("PKCS12",
+                JostleProvider.PROVIDER_NAME);
+        keyStore.load(null, null);
+        keyStore.setKeyEntry("key", keyPair.getPrivate(), password,
+                new Certificate[] {certificate});
+
+        KeyStore.CallbackHandlerProtection callbackProtection =
+                new KeyStore.CallbackHandlerProtection(callbacks -> { });
+
+        Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> keyStore.getEntry("key", callbackProtection));
+
+        KeyStore.PrivateKeyEntry entry = new KeyStore.PrivateKeyEntry(
+                keyPair.getPrivate(), new Certificate[] {certificate});
+        Assertions.assertThrows(KeyStoreException.class,
+                () -> keyStore.setEntry("another", entry, callbackProtection));
+
+        // A null parameter on a key entry still reports the missing password.
+        Assertions.assertThrows(UnrecoverableKeyException.class,
+                () -> keyStore.getEntry("key", null));
+
+        // Trusted-cert entries are not password-protected: any non-null
+        // parameter is unsupported (matches the JDK/BC base); null returns it.
+        keyStore.setCertificateEntry("trusted", certificate);
+        Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> keyStore.getEntry("trusted",
+                        new KeyStore.PasswordProtection(password)));
+        Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> keyStore.getEntry("trusted", callbackProtection));
+        Assertions.assertTrue(keyStore.getEntry("trusted", null)
+                instanceof KeyStore.TrustedCertificateEntry);
     }
 
     private static KeyPair generateRsaKeyPair()

@@ -234,4 +234,133 @@ public class KSServiceAgreementTest
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(keyPair.getPrivate());
         return new JcaX509CertificateConverter().getCertificate(builder.build(signer));
     }
+
+    /**
+     * The engineGetEntry protection-parameter contract must match BouncyCastle
+     * (whose PKCS12 SPI inherits the java.security.KeyStoreSpi base). For each
+     * parameter shape on a key entry and a trusted-cert entry, Jostle and BC
+     * must throw the same exception type -- or both succeed.
+     */
+    @Test
+    public void getEntryProtectionParameterMatchesBouncyCastle()
+        throws Exception
+    {
+        char[] password = "agree-getentry".toCharArray();
+        KeyPair keyPair = newRsaKeyPair(BouncyCastleProvider.PROVIDER_NAME);
+        X509Certificate keyCert = selfSignedCertificate(keyPair,
+                "CN=Agreement getEntry key", BigInteger.valueOf(101));
+        KeyPair trustedPair = newRsaKeyPair(BouncyCastleProvider.PROVIDER_NAME);
+        X509Certificate trustedCert = selfSignedCertificate(trustedPair,
+                "CN=Agreement getEntry trusted", BigInteger.valueOf(102));
+
+        KeyStore jostle = populatedStore(JostleProvider.PROVIDER_NAME,
+                keyPair, keyCert, password, trustedCert);
+        KeyStore bc = populatedStore(BouncyCastleProvider.PROVIDER_NAME,
+                keyPair, keyCert, password, trustedCert);
+
+        KeyStore.ProtectionParameter pwd = new KeyStore.PasswordProtection(password);
+        KeyStore.ProtectionParameter cbh =
+                new KeyStore.CallbackHandlerProtection(callbacks -> { });
+
+        assertSameOutcome("getEntry(key, null)", jostle, bc,
+                ks -> ks.getEntry("key", null));
+        assertSameOutcome("getEntry(key, password)", jostle, bc,
+                ks -> ks.getEntry("key", pwd));
+        assertSameOutcome("getEntry(key, callbackHandler)", jostle, bc,
+                ks -> ks.getEntry("key", cbh));
+        assertSameOutcome("getEntry(trusted, null)", jostle, bc,
+                ks -> ks.getEntry("trusted", null));
+        assertSameOutcome("getEntry(trusted, password)", jostle, bc,
+                ks -> ks.getEntry("trusted", pwd));
+        assertSameOutcome("getEntry(trusted, callbackHandler)", jostle, bc,
+                ks -> ks.getEntry("trusted", cbh));
+    }
+
+    /**
+     * The engineSetEntry protection-parameter contract must match BouncyCastle:
+     * only a PasswordProtection (or null where the entry permits it) is
+     * accepted; other parameter types are rejected with the same exception type.
+     */
+    @Test
+    public void setEntryProtectionParameterMatchesBouncyCastle()
+        throws Exception
+    {
+        char[] password = "agree-setentry".toCharArray();
+        KeyPair keyPair = newRsaKeyPair(BouncyCastleProvider.PROVIDER_NAME);
+        X509Certificate keyCert = selfSignedCertificate(keyPair,
+                "CN=Agreement setEntry key", BigInteger.valueOf(103));
+        KeyPair trustedPair = newRsaKeyPair(BouncyCastleProvider.PROVIDER_NAME);
+        X509Certificate trustedCert = selfSignedCertificate(trustedPair,
+                "CN=Agreement setEntry trusted", BigInteger.valueOf(104));
+
+        KeyStore jostle = emptyStore(JostleProvider.PROVIDER_NAME);
+        KeyStore bc = emptyStore(BouncyCastleProvider.PROVIDER_NAME);
+
+        KeyStore.Entry keyEntry = new KeyStore.PrivateKeyEntry(
+                keyPair.getPrivate(), new Certificate[] {keyCert});
+        KeyStore.Entry certEntry = new KeyStore.TrustedCertificateEntry(trustedCert);
+        KeyStore.ProtectionParameter pwd = new KeyStore.PasswordProtection(password);
+        KeyStore.ProtectionParameter cbh =
+                new KeyStore.CallbackHandlerProtection(callbacks -> { });
+
+        assertSameOutcome("setEntry(key, password)", jostle, bc,
+                ks -> ks.setEntry("k-pwd", keyEntry, pwd));
+        assertSameOutcome("setEntry(key, callbackHandler)", jostle, bc,
+                ks -> ks.setEntry("k-cbh", keyEntry, cbh));
+        assertSameOutcome("setEntry(key, null)", jostle, bc,
+                ks -> ks.setEntry("k-null", keyEntry, null));
+        assertSameOutcome("setEntry(trusted, callbackHandler)", jostle, bc,
+                ks -> ks.setEntry("c-cbh", certEntry, cbh));
+        assertSameOutcome("setEntry(trusted, null)", jostle, bc,
+                ks -> ks.setEntry("c-null", certEntry, null));
+    }
+
+    private static KeyStore emptyStore(String provider)
+        throws Exception
+    {
+        KeyStore keyStore = KeyStore.getInstance("PKCS12", provider);
+        keyStore.load(null, null);
+        return keyStore;
+    }
+
+    private static KeyStore populatedStore(String provider, KeyPair keyPair,
+                                           X509Certificate keyCert, char[] password,
+                                           X509Certificate trustedCert)
+        throws Exception
+    {
+        KeyStore keyStore = emptyStore(provider);
+        keyStore.setKeyEntry("key", keyPair.getPrivate(), password,
+                new Certificate[] {keyCert});
+        keyStore.setCertificateEntry("trusted", trustedCert);
+        return keyStore;
+    }
+
+    private interface KsOp
+    {
+        void run(KeyStore keyStore)
+            throws Exception;
+    }
+
+    private static Class<? extends Throwable> outcome(KeyStore keyStore, KsOp op)
+    {
+        try
+        {
+            op.run(keyStore);
+            return null;
+        }
+        catch (Throwable t)
+        {
+            return t.getClass();
+        }
+    }
+
+    private static void assertSameOutcome(String label, KeyStore jostle, KeyStore bc,
+                                          KsOp op)
+    {
+        Class<? extends Throwable> bcOutcome = outcome(bc, op);
+        Class<? extends Throwable> jostleOutcome = outcome(jostle, op);
+        Assertions.assertEquals(bcOutcome, jostleOutcome,
+                label + ": BouncyCastle => " + bcOutcome
+                        + " but Jostle => " + jostleOutcome);
+    }
 }
