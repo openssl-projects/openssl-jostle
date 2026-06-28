@@ -17,6 +17,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
@@ -27,10 +28,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
@@ -38,6 +41,7 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -236,7 +240,7 @@ public class KSTest
         throws Exception
     {
         assertJostleStoredKeyReadableByBouncyCastle(
-                ecKeyPair("P-256"), "SHA256withECDSA", "CN=Jostle KS EC Interop");
+                ecKeyPair("P-256"), "EC", "CN=Jostle KS EC Interop");
     }
 
     @Test
@@ -247,12 +251,84 @@ public class KSTest
                 edKeyPair("ED25519"), "Ed25519", "CN=Jostle KS Ed25519 Interop");
     }
 
+    /**
+     * Full-fidelity EdDSA interop: a self-signed Ed25519 certificate (BC builds
+     * an Ed25519 ContentSigner from the Jostle key) plus a BC sign/verify
+     * cross-check on the recovered key. This exercises BC's foreign-EdDSA-key
+     * path, which only works on JVMs that ship the EdDSA interfaces
+     * (java.security.interfaces.EdEC*, JDK 15+), so it is skipped on older JVMs.
+     * The companion ed25519KeyEntryJostleStoresBouncyCastleReads runs on every
+     * JVM (RSA-signed cert + KeyFactory comparison) and keeps the Ed25519 key
+     * marshalling covered there.
+     */
+    @Test
+    public void ed25519EddsaInteropWhenJvmHasEdDSA()
+        throws Exception
+    {
+        Assumptions.assumeTrue(jvmHasEdDSAInterface(),
+                "JVM lacks java.security.interfaces.EdECKey (EdDSA added in JDK 15)");
+
+        char[] password = randomPassword();
+        KeyPair keyPair = edKeyPair("ED25519");
+        X509Certificate cert = selfSigned(keyPair, "Ed25519",
+                "CN=Jostle KS Ed25519 EdDSA Interop");
+
+        KeyStore jostle = jostleStore();
+        jostle.setKeyEntry("k", keyPair.getPrivate(), password,
+                new Certificate[] {cert});
+        byte[] encoded = storeToBytes(jostle, password);
+
+        KeyStore bc = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+        bc.load(new ByteArrayInputStream(encoded), password);
+
+        Assertions.assertTrue(bc.isKeyEntry("k"));
+        PrivateKey recovered = (PrivateKey) bc.getKey("k", password);
+        Assertions.assertNotNull(recovered);
+
+        // Sign with the recovered key and verify against the original public
+        // key: proves the round-tripped key is the same and usable for EdDSA.
+        byte[] data = new byte[64];
+        RANDOM.nextBytes(data);
+        Signature signer = Signature.getInstance("Ed25519", BouncyCastleProvider.PROVIDER_NAME);
+        signer.initSign(recovered);
+        signer.update(data);
+        byte[] signature = signer.sign();
+        Signature verifier = Signature.getInstance("Ed25519", BouncyCastleProvider.PROVIDER_NAME);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(data);
+        Assertions.assertTrue(verifier.verify(signature));
+
+        Certificate[] chain = bc.getCertificateChain("k");
+        Assertions.assertNotNull(chain);
+        Assertions.assertEquals(1, chain.length);
+        Assertions.assertArrayEquals(cert.getEncoded(), chain[0].getEncoded());
+    }
+
+    private static boolean jvmHasEdDSAInterface()
+    {
+        try
+        {
+            Class.forName("java.security.interfaces.EdECKey");
+            return true;
+        }
+        catch (ClassNotFoundException e)
+        {
+            return false;
+        }
+    }
+
     private static void assertJostleStoredKeyReadableByBouncyCastle(
-            KeyPair keyPair, String signatureAlgorithm, String dn)
+            KeyPair keyPair, String keyFactoryAlgorithm, String dn)
         throws Exception
     {
         char[] password = randomPassword();
-        X509Certificate cert = selfSigned(keyPair, signatureAlgorithm, dn);
+        // Sign the entry certificate with a throwaway RSA CA (SHA256withRSA),
+        // NOT the entry key's own algorithm: building a BouncyCastle ContentSigner
+        // from a foreign (Jostle) EdDSA key fails on JDKs without built-in EdDSA
+        // (8, 11), and that signing is incidental to what this test verifies. The
+        // cert still carries the entry's public key as its subject.
+        X509Certificate cert = caSignedCertificate(dn, keyPair.getPublic(),
+                rsaKeyPair().getPrivate());
 
         KeyStore jostle = jostleStore();
         jostle.setKeyEntry("k", keyPair.getPrivate(), password, new Certificate[] {cert});
@@ -265,28 +341,40 @@ public class KSTest
         Key recovered = bc.getKey("k", password);
         Assertions.assertNotNull(recovered);
 
-        // Prove BouncyCastle recovered the SAME private key, robustly: sign with
-        // the recovered key and verify against the original public key. A byte
-        // comparison of getEncoded() is too strict here -- both encodings are
-        // valid PKCS#8 for the same key, but OpenSSL omits the optional EC
-        // public-key field (RFC 5915) that BouncyCastle includes, so the bytes
-        // legitimately differ even though the key value is identical. The
-        // sign/verify pairing fails iff the curve/scalar were mis-encoded.
-        byte[] data = new byte[64];
-        RANDOM.nextBytes(data);
-        Signature signer = Signature.getInstance(signatureAlgorithm, BouncyCastleProvider.PROVIDER_NAME);
-        signer.initSign((PrivateKey) recovered);
-        signer.update(data);
-        byte[] signature = signer.sign();
-        Signature verifier = Signature.getInstance(signatureAlgorithm, BouncyCastleProvider.PROVIDER_NAME);
-        verifier.initVerify(keyPair.getPublic());
-        verifier.update(data);
-        Assertions.assertTrue(verifier.verify(signature));
+        // Prove BouncyCastle recovered the exact key. A raw getEncoded() compare
+        // is too strict (OpenSSL omits the optional EC public-key field that BC
+        // includes), and a sign/verify cross-check relies on BC handling a
+        // foreign key (fragile for EdDSA). Instead normalise BOTH the original
+        // Jostle key and the keystore-recovered key through BC's KeyFactory --
+        // which decodes PKCS#8 with BC's own EdDSA/EC, independent of JDK
+        // provider support -- so their canonical encodings are directly
+        // comparable. A mismatch means the bag mis-encoded the curve/scalar.
+        KeyFactory bcKeyFactory =
+                KeyFactory.getInstance(keyFactoryAlgorithm, BouncyCastleProvider.PROVIDER_NAME);
+        PrivateKey originalViaBc = bcKeyFactory.generatePrivate(
+                new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+        Assertions.assertArrayEquals(originalViaBc.getEncoded(),
+                ((PrivateKey)recovered).getEncoded());
 
         Certificate[] chain = bc.getCertificateChain("k");
         Assertions.assertNotNull(chain);
         Assertions.assertEquals(1, chain.length);
         Assertions.assertArrayEquals(cert.getEncoded(), chain[0].getEncoded());
+    }
+
+    private static X509Certificate caSignedCertificate(String dn, PublicKey subjectKey,
+                                                       PrivateKey caKey)
+        throws Exception
+    {
+        X500Name name = new X500Name(dn);
+        BigInteger serial = new BigInteger(64, RANDOM).abs().add(BigInteger.ONE);
+        Date notBefore = new Date(System.currentTimeMillis() - 3600_000L);
+        Date notAfter = new Date(System.currentTimeMillis() + 3600_000L);
+        JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+                name, serial, notBefore, notAfter, name, subjectKey);
+        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
+                .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(caKey);
+        return new JcaX509CertificateConverter().getCertificate(builder.build(signer));
     }
 
     // -----------------------------------------------------------------
