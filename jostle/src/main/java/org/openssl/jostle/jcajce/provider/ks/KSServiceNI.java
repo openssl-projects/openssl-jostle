@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.ks;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
+import org.openssl.jostle.rand.RandSource;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
@@ -25,7 +26,7 @@ public interface KSServiceNI
     int ni_load(long ref, byte[] input, byte[] password);
 
     byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
-                    int macDigest, int pbeIter, int macIter, int[] err);
+                    int macDigest, int pbeIter, int macIter, int[] err, RandSource randSource);
 
     byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
 
@@ -72,12 +73,12 @@ public interface KSServiceNI
 
     default byte[] store(long ref, byte[] password,
                          int keyPbe, int certPbe, int macScheme, int macDigest,
-                         int pbeIter, int macIter)
+                         int pbeIter, int macIter, RandSource randSource)
         throws IOException
     {
         int[] err = new int[1];
         byte[] out = ni_store(ref, password, keyPbe, certPbe, macScheme,
-                macDigest, pbeIter, macIter, err);
+                macDigest, pbeIter, macIter, err, randSource);
         handleIoErrors(err[0]);
         return out;
     }

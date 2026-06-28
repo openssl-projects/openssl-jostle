@@ -16,6 +16,8 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
@@ -96,6 +98,11 @@ public class KSServiceSPI
     private final int macDigest;
     private final int pbeIter;
     private final int macIter;
+
+    // KeyStore SPIs receive no SecureRandom from the JCE API, so the store path
+    // sources entropy from a cached default RandSource (PKCS#12 salts need no
+    // special strength; load/verify consume no entropy at all).
+    private final RandSource randSource = DefaultRandSource.replaceWith(null, null, 128);
 
     public KSServiceSPI()
     {
@@ -505,7 +512,7 @@ public class KSServiceSPI
             try
             {
                 stream.write(ksServiceNI.store(ref.getReference(), encodedPassword,
-                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter));
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSource));
             }
             finally
             {

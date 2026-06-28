@@ -51,7 +51,7 @@ int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *passw
 int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
                       int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                       int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                      int32_t *err) {
+                      void *rnd_src, int32_t *err) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
@@ -75,9 +75,14 @@ int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
         *err = JO_KS_MAC_ITER_NEGATIVE;
         return 0;
     }
+    if (rnd_src == NULL) {
+        *err = JO_RAND_NO_RAND_UP_CALL;
+        return 0;
+    }
 
     *err = ks_store(ctx, &out, &out_len, password, password_size,
-            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter);
+            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter,
+            rnd_src);
     if (UNSUCCESSFUL(*err)) {
         goto exit;
     }
@@ -95,7 +100,7 @@ exit:
 int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size,
                    int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                    int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                   uint8_t *output, size_t output_size) {
+                   void *rnd_src, uint8_t *output, size_t output_size) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t ret;
@@ -115,9 +120,13 @@ int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size,
     if (mac_iter < 0) {
         return JO_KS_MAC_ITER_NEGATIVE;
     }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     ret = ks_store(ctx, &out, &out_len, password, password_size,
-            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter);
+            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter,
+            rnd_src);
     if (UNSUCCESSFUL(ret) || out == NULL) {
         goto exit;
     }

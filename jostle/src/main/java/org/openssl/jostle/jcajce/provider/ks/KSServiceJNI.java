@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider.ks;
 
+import org.openssl.jostle.rand.RandSource;
+
 public class KSServiceJNI
     implements KSServiceNI
 {
@@ -24,7 +26,7 @@ public class KSServiceJNI
 
     @Override
     public native byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
-                                  int macDigest, int pbeIter, int macIter, int[] err);
+                                  int macDigest, int pbeIter, int macIter, int[] err, RandSource randSource);
 
     @Override
     public native byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);

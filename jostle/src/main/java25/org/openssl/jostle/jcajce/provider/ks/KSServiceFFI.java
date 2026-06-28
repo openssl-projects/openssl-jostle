@@ -17,8 +17,12 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.openssl.jostle.rand.RandSource;
 
 public class KSServiceFFI
     implements KSServiceNI
@@ -39,18 +43,29 @@ public class KSServiceFFI
             lookup.find("JoKS_Load").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
             Linker.Option.critical(true));
+    // storeLenH / storeH are deliberately NOT critical: ks_store generates
+    // PKCS#12 salts via the Jostle lib ctx, which up-calls Java for entropy --
+    // forbidden from a critical downcall. Buffers are passed off-heap (see
+    // ni_store), and the trailing ADDRESS before output/err is the entropy
+    // upcall stub.
     private static final MethodHandle storeLenH = linker.downcallHandle(
             lookup.find("JoKS_StoreLen").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                    ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle storeH = linker.downcallHandle(
             lookup.find("JoKS_Store").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                    ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class, MemorySegment.class, int.class, int.class, boolean.class);
     private static final MethodHandle getKeyLenH = linker.downcallHandle(
             lookup.find("JoKS_GetKeyLen").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),
@@ -162,29 +177,55 @@ public class KSServiceFFI
 
     @Override
     public byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
-                           int macDigest, int pbeIter, int macIter, int[] err)
+                           int macDigest, int pbeIter, int macIter, int[] err, RandSource randSource)
     {
-        try
+        // Non-critical downcalls (ks_store up-calls Java for entropy), so every
+        // buffer is passed off-heap from a confined arena.
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
-            MemorySegment errSeg = errSegment(err);
+            MemorySegment passwordSeg = (password == null || password.length == 0)
+                    ? MemorySegment.NULL : a.allocate(password.length);
+            if (password != null && password.length > 0)
+            {
+                passwordSeg.asByteBuffer().put(password);
+            }
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+
+            MemorySegment randSeg;
+            if (randSource == null)
+            {
+                randSeg = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(), "getRandomSegment", entropyMt).bindTo(randSource);
+                randSeg = linker.upcallStub(gHandle, entropyFd, a);
+            }
+
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             int len = (int) storeLenH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
-                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, errSeg);
+                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, errSeg);
+            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             if (err[0] != 0 || len == 0)
             {
                 return null;
             }
 
-            byte[] out = new byte[len];
-            MemorySegment outSeg = MemorySegment.ofArray(out);
+            MemorySegment outSeg = a.allocate(len);
             err[0] = (int) storeH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
-                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, outSeg, outSeg.byteSize());
-            return err[0] == 0 ? out : null;
+                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, outSeg, outSeg.byteSize());
+            if (err[0] != 0)
+            {
+                return null;
+            }
+            byte[] out = new byte[len];
+            outSeg.asByteBuffer().get(out);
+            return out;
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "FFI JoKS_StoreLen", t);
+            L.log(Level.WARNING, "FFI JoKS_Store", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

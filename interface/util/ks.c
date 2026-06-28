@@ -458,7 +458,8 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
 int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
                  const uint8_t *password, size_t password_len,
                  int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
-                 int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter) {
+                 int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
+                 void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(out != NULL);
     jo_assert(out_len != NULL);
@@ -517,6 +518,16 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     }
 
     /*
+     * The EVP calls below (key shrouding, cert-safe encryption, MAC) draw
+     * random salts from the Jostle lib ctx, which up-calls Java for entropy.
+     * rnd_src is the RandSource the bridge validated as non-NULL; bind it to
+     * the thread-local here, right before the first entropy-consuming call, so
+     * the requirement is obvious at the point of use.
+     */
+    jo_assert(rnd_src != NULL);
+    rand_set_java_srand_call(rnd_src);
+
+    /*
      * Private keys -> individually shrouded key bags (placed in a cleartext
      * safe below); certificates -> cert bags (placed in a separate, possibly
      * encrypted, safe). This mirrors the canonical / BouncyCastle PKCS#12
@@ -552,8 +563,13 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
         }
     }
 
-    /* Cleartext safe carrying the (already shrouded) key bags. */
-    if (sk_PKCS12_SAFEBAG_num(key_bags) > 0) {
+    /*
+     * Cleartext safe carrying the (already shrouded) key bags. Also emitted
+     * when there are no cert bags, so an empty keystore still produces a valid
+     * (empty) authenticated safe rather than a NULL PKCS12.
+     */
+    if (sk_PKCS12_SAFEBAG_num(key_bags) > 0
+            || sk_PKCS12_SAFEBAG_num(cert_bags) == 0) {
         if (!PKCS12_add_safe_ex(&safes, key_bags, -1, pbe_iter, pass,
                 libctx, NULL)) {
             goto end;

@@ -28,6 +28,7 @@ import org.openssl.jostle.jcajce.provider.ks.KSServiceSPI;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.Arrays;
 
 import java.io.ByteArrayInputStream;
@@ -461,7 +462,7 @@ public class KSServiceTest
 
             // profile: AES-256-CBC keys, AES-128-CBC certs (PBES2), HMAC-SHA256 MAC
             byte[] encoded = serviceNI.store(source, password,
-                    3, 2, 1, 2, 2048, 2048);
+                    3, 2, 1, 2, 2048, 2048, TestUtil.RNDSrc);
             Assertions.assertNotNull(encoded);
             Assertions.assertTrue(encoded.length > 0);
 
@@ -524,7 +525,7 @@ public class KSServiceTest
 
             // profile: AES-256-CBC keys, AES-128-CBC certs (PBES2), HMAC-SHA256 MAC
             byte[] encoded = serviceNI.store(source, password,
-                    3, 2, 1, 2, 2048, 2048);
+                    3, 2, 1, 2, 2048, 2048, TestUtil.RNDSrc);
             Assertions.assertNotNull(encoded);
             Assertions.assertTrue(encoded.length > 0);
 

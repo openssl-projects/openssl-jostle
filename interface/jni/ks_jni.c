@@ -98,7 +98,7 @@ exit:
 JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1store
 (JNIEnv *env, jobject self, jlong ref, jbyteArray _password,
  jint key_pbe, jint cert_pbe, jint mac_scheme, jint mac_digest,
- jint pbe_iter, jint mac_iter, jintArray _err) {
+ jint pbe_iter, jint mac_iter, jintArray _err, jobject _randSource) {
     UNUSED(self);
 
     ks_ctx *ctx = (ks_ctx *) ref;
@@ -134,9 +134,14 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         *err = JO_KS_MAC_ITER_NEGATIVE;
         goto exit;
     }
+    if (_randSource == NULL) {
+        *err = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     *err = ks_store(ctx, &out, &out_len, password.bytearray, password.size,
-            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter);
+            key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter,
+            _randSource);
     if (UNSUCCESSFUL(*err)) {
         goto exit;
     }
