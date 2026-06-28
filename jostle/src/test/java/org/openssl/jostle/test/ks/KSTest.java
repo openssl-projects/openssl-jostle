@@ -255,21 +255,28 @@ public class KSTest
      * Full-fidelity EdDSA interop: a self-signed Ed25519 certificate (BC builds
      * an Ed25519 ContentSigner from the Jostle key) plus a BC sign/verify
      * cross-check on the recovered key. This exercises BC's foreign-EdDSA-key
-     * path, which only works on JVMs that ship the EdDSA interfaces
-     * (java.security.interfaces.EdEC*, JDK 15+), so it is skipped on older JVMs.
-     * The companion ed25519KeyEntryJostleStoresBouncyCastleReads runs on every
-     * JVM (RSA-signed cert + KeyFactory comparison) and keeps the Ed25519 key
-     * marshalling covered there.
+     * path, which can only consume a key that implements the JDK EdEC interfaces
+     * (java.security.interfaces.EdECKey, JDK 15+). Jostle adds those on its
+     * multi-release java15 key overrides, so a Jostle Ed25519 key qualifies only
+     * when the multi-release jar is loaded on a JDK &gt;= 15 -- NOT under the
+     * plain {@code test} task, which runs against the Java 8 baseline key classes
+     * (whose keys BC rejects with "cannot identify EdDSA private key"). The gate
+     * therefore inspects the actual key, not just the JVM version. The companion
+     * ed25519KeyEntryJostleStoresBouncyCastleReads runs on every JVM (RSA-signed
+     * cert + KeyFactory comparison) and keeps the Ed25519 key marshalling covered
+     * there.
      */
     @Test
     public void ed25519EddsaInteropWhenJvmHasEdDSA()
         throws Exception
     {
-        Assumptions.assumeTrue(jvmHasEdDSAInterface(),
-                "JVM lacks java.security.interfaces.EdECKey (EdDSA added in JDK 15)");
-
         char[] password = randomPassword();
         KeyPair keyPair = edKeyPair("ED25519");
+        Assumptions.assumeTrue(
+                implementsEdEC(keyPair.getPrivate()) && implementsEdEC(keyPair.getPublic()),
+                "Jostle Ed25519 key does not implement java.security.interfaces.EdECKey "
+                        + "(needs JDK 15+ and the multi-release jar)");
+
         X509Certificate cert = selfSigned(keyPair, "Ed25519",
                 "CN=Jostle KS Ed25519 EdDSA Interop");
 
@@ -304,12 +311,11 @@ public class KSTest
         Assertions.assertArrayEquals(cert.getEncoded(), chain[0].getEncoded());
     }
 
-    private static boolean jvmHasEdDSAInterface()
+    private static boolean implementsEdEC(Key key)
     {
         try
         {
-            Class.forName("java.security.interfaces.EdECKey");
-            return true;
+            return Class.forName("java.security.interfaces.EdECKey").isInstance(key);
         }
         catch (ClassNotFoundException e)
         {
