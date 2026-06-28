@@ -186,7 +186,8 @@ static char *entry_alias_from_bag(PKCS12_SAFEBAG *bag, int fallback_index) {
 }
 
 static int32_t add_certificate_bag(STACK_OF(PKCS12_SAFEBAG) **bags,
-                                   const char *alias, X509 *cert) {
+                                   const char *alias, X509 *cert,
+                                   const char *local_key_id) {
     if (bags == NULL || alias == NULL || cert == NULL) {
         return JO_KS_STORE_FAILED;
     }
@@ -195,18 +196,32 @@ static int32_t add_certificate_bag(STACK_OF(PKCS12_SAFEBAG) **bags,
     if (bag == NULL || !PKCS12_add_friendlyname_utf8(bag, alias, -1)) {
         return JO_KS_STORE_FAILED;
     }
+    /*
+     * Tag the cert with the owning key's localKeyId so strict readers
+     * (BouncyCastle, keytool) associate the chain with the private key; Jostle
+     * itself groups by friendlyName, but the PKCS#12 convention is localKeyId.
+     */
+    if (local_key_id != NULL
+            && !PKCS12_add_localkeyid(bag, (unsigned char *) local_key_id,
+                    (int) strlen(local_key_id))) {
+        return JO_KS_STORE_FAILED;
+    }
     return JO_SUCCESS;
 }
 
 static int32_t add_certificate_chain_bags(STACK_OF(PKCS12_SAFEBAG) **bags,
                                           const char *alias,
-                                          STACK_OF(X509) *chain) {
+                                          STACK_OF(X509) *chain,
+                                          const char *local_key_id) {
     if (chain == NULL) {
         return JO_SUCCESS;
     }
 
     for (int i = 0; i < sk_X509_num(chain); i++) {
-        int32_t ret = add_certificate_bag(bags, alias, sk_X509_value(chain, i));
+        /* Only the leaf (first) cert carries the localKeyId; CA certs are
+         * chained by issuer/subject. */
+        const char *id = (i == 0) ? local_key_id : NULL;
+        int32_t ret = add_certificate_bag(bags, alias, sk_X509_value(chain, i), id);
         if (ret != JO_SUCCESS) {
             return ret;
         }
@@ -542,12 +557,14 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
             PKCS12_SAFEBAG *bag = PKCS12_add_key_ex(&key_bags, entry->key, 0,
                     pbe_iter, key_nid, pass, libctx, NULL);
             if (bag == NULL
-                    || !PKCS12_add_friendlyname_utf8(bag, entry->alias, -1)) {
+                    || !PKCS12_add_friendlyname_utf8(bag, entry->alias, -1)
+                    || !PKCS12_add_localkeyid(bag, (unsigned char *) entry->alias,
+                            (int) strlen(entry->alias))) {
                 goto end;
             }
             if (entry->certificate_chain != NULL) {
                 cret = add_certificate_chain_bags(&cert_bags, entry->alias,
-                        entry->certificate_chain);
+                        entry->certificate_chain, entry->alias);
                 if (cret != JO_SUCCESS) {
                     ret = cret;
                     goto end;
@@ -555,7 +572,7 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
             }
         } else if (entry->certificate_entry && entry->certificate_chain != NULL) {
             cret = add_certificate_chain_bags(&cert_bags, entry->alias,
-                    entry->certificate_chain);
+                    entry->certificate_chain, NULL);
             if (cret != JO_SUCCESS) {
                 ret = cret;
                 goto end;
