@@ -59,7 +59,8 @@ import java.util.Set;
  */
 public class KSTest
 {
-    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final long SEED = new SecureRandom().nextLong();
+    private static final SecureRandom RANDOM = new SecureRandom(longToBytes(SEED));
 
     @BeforeAll
     public static void beforeAll()
@@ -72,6 +73,7 @@ public class KSTest
         {
             Security.addProvider(new BouncyCastleProvider());
         }
+        System.out.println("KSTest random seed: " + SEED);
     }
 
     // -----------------------------------------------------------------
@@ -471,5 +473,16 @@ public class KSTest
             set.add(alias);
         }
         return set;
+    }
+
+    private static byte[] longToBytes(long value)
+    {
+        byte[] bytes = new byte[8];
+        for (int i = 7; i >= 0; i--)
+        {
+            bytes[i] = (byte) (value & 0xff);
+            value >>= 8;
+        }
+        return bytes;
     }
 }
