@@ -11,10 +11,12 @@
 package org.openssl.jostle.jcajce.provider.ks;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
+import java.security.UnrecoverableKeyException;
 
 public interface KSServiceNI
     extends DefaultServiceNI
@@ -68,7 +70,19 @@ public interface KSServiceNI
     default void load(long ref, byte[] input, byte[] password)
         throws IOException
     {
-        handleIoErrors(ni_load(ref, input, password));
+        int code = ni_load(ref, input, password);
+        if (ErrorCode.forCode(code) == ErrorCode.JO_KS_MAC_VERIFY_FAILED)
+        {
+            // JCE engineLoad contract: a failed integrity check (wrong password
+            // or tampered data) is an IOException whose cause is an
+            // UnrecoverableKeyException, distinct from a malformed-file failure.
+            IOException ioe = new IOException(
+                    "PKCS12 keystore integrity check failed");
+            ioe.initCause(new UnrecoverableKeyException(
+                    "keystore password incorrect or keystore data has been tampered with"));
+            throw ioe;
+        }
+        handleIoErrors(code);
     }
 
     default byte[] store(long ref, byte[] password,

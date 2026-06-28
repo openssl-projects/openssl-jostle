@@ -7,14 +7,26 @@
 
 package org.openssl.jostle.test.ks;
 
+import org.bouncycastle.asn1.DERBMPString;
+import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.OutputEncryptor;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.pkcs.PKCS12PfxPdu;
+import org.bouncycastle.pkcs.PKCS12PfxPduBuilder;
+import org.bouncycastle.pkcs.PKCS12SafeBagBuilder;
+import org.bouncycastle.pkcs.jcajce.JcaPKCS12SafeBagBuilder;
+import org.bouncycastle.pkcs.jcajce.JcePKCS12MacCalculatorBuilder;
+import org.bouncycastle.pkcs.jcajce.JcePKCSPBEOutputEncryptorBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
@@ -113,6 +125,67 @@ public class KSServiceAgreementTest
             jostle.load(new ByteArrayInputStream(encoded), password);
             assertKeyAndChain(jostle, keyPair.getPrivate(), cert, password);
         }
+    }
+
+    /**
+     * A BouncyCastle-built PKCS#12 where the certificate carries a DIFFERENT
+     * friendlyName than the key's alias but the SAME localKeyId. Jostle must
+     * associate the cert to the key by localKeyId (the convention strict readers
+     * use), not by friendlyName. friendlyName-only grouping -- the behaviour
+     * before the read-side fix -- would orphan the cert under its own name and
+     * leave getCertificateChain(keyAlias) null. This isolates the localKeyId
+     * precedence that the standard agreement tests cannot (there the two always
+     * agree, so a broken localKeyId path is masked by the friendlyName fallback).
+     */
+    @Test
+    public void bouncyCastleLocalKeyIdAssociatesCertWhenFriendlyNameDiffers()
+        throws Exception
+    {
+        char[] password = "agree-localkeyid".toCharArray();
+        KeyPair keyPair = newRsaKeyPair(JostleProvider.PROVIDER_NAME);
+        X509Certificate cert = selfSignedCertificate(keyPair,
+                "CN=Jostle localKeyId Agreement", BigInteger.valueOf(99));
+
+        byte[] keyId = new byte[20];
+        new java.security.SecureRandom().nextBytes(keyId);
+
+        OutputEncryptor keyEncryptor = new JcePKCSPBEOutputEncryptorBuilder(
+                NISTObjectIdentifiers.id_aes256_CBC)
+                .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(password);
+
+        PKCS12SafeBagBuilder keyBag =
+                new JcaPKCS12SafeBagBuilder(keyPair.getPrivate(), keyEncryptor);
+        keyBag.addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName,
+                new DERBMPString("the-key-alias"));
+        keyBag.addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_localKeyId,
+                new DEROctetString(keyId));
+
+        PKCS12SafeBagBuilder certBag = new JcaPKCS12SafeBagBuilder(cert);
+        certBag.addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName,
+                new DERBMPString("a-different-cert-name"));
+        certBag.addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_localKeyId,
+                new DEROctetString(keyId));
+
+        PKCS12PfxPduBuilder pfxBuilder = new PKCS12PfxPduBuilder();
+        pfxBuilder.addData(keyBag.build());
+        pfxBuilder.addData(certBag.build());
+        PKCS12PfxPdu pfx = pfxBuilder.build(
+                new JcePKCS12MacCalculatorBuilder()
+                        .setProvider(BouncyCastleProvider.PROVIDER_NAME), password);
+        byte[] encoded = pfx.getEncoded();
+
+        KeyStore jostle = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        jostle.load(new ByteArrayInputStream(encoded), password);
+
+        Assertions.assertEquals(1, jostle.size());
+        Assertions.assertTrue(jostle.isKeyEntry("the-key-alias"));
+        Assertions.assertFalse(jostle.containsAlias("a-different-cert-name"));
+        Assertions.assertNotNull(jostle.getKey("the-key-alias", password));
+
+        Certificate[] chain = jostle.getCertificateChain("the-key-alias");
+        Assertions.assertNotNull(chain);
+        Assertions.assertEquals(1, chain.length);
+        Assertions.assertArrayEquals(cert.getEncoded(), chain[0].getEncoded());
     }
 
     private static void assertKeyAndChain(KeyStore ks, PrivateKey expectedKey,

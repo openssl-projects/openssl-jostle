@@ -90,6 +90,16 @@ int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
         *err = JO_OUTPUT_TOO_LONG_INT32;
         goto exit;
     }
+    /*
+     * Cache the built DER so the paired JoKS_Store returns exactly these bytes
+     * without rebuilding. A second ks_store would draw Java entropy again and
+     * emit an independently-salted keystore -- correctness must not depend on
+     * two builds yielding the same length.
+     */
+    OPENSSL_clear_free(ctx->pending_store, ctx->pending_store_len);
+    ctx->pending_store = out;
+    ctx->pending_store_len = out_len;
+    out = NULL;
     result = (int32_t) out_len;
 
 exit:
@@ -122,6 +132,24 @@ int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size,
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    /*
+     * Single-build fast path: return the DER cached by the preceding
+     * JoKS_StoreLen instead of rebuilding (no second entropy draw, and the
+     * returned bytes are exactly the ones whose length was measured).
+     */
+    if (ctx->pending_store != NULL) {
+        if (output_size < ctx->pending_store_len) {
+            ret = JO_OUTPUT_TOO_SMALL;
+        } else {
+            memcpy(output, ctx->pending_store, ctx->pending_store_len);
+            ret = JO_SUCCESS;
+        }
+        OPENSSL_clear_free(ctx->pending_store, ctx->pending_store_len);
+        ctx->pending_store = NULL;
+        ctx->pending_store_len = 0;
+        return ret;
     }
 
     ret = ks_store(ctx, &out, &out_len, password, password_size,

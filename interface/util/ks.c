@@ -13,6 +13,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pkcs12.h>
 #include <openssl/pkcs7.h>
@@ -22,6 +23,7 @@
 #include "bc_err_codes.h"
 #include "jo_assert.h"
 #include "key_spec.h"
+#include "ops.h"
 #include "rand/jostle_lib_ctx.h"
 
 static int supported_type(const char *type) {
@@ -155,6 +157,7 @@ static void free_entry(ks_entry *entry) {
     EVP_PKEY_free(entry->key);
     clear_key_password(entry);
     clear_certificate_chain(entry);
+    OPENSSL_free(entry->local_key_id);
     OPENSSL_clear_free(entry, sizeof(*entry));
 }
 
@@ -183,6 +186,47 @@ static char *entry_alias_from_bag(PKCS12_SAFEBAG *bag, int fallback_index) {
     char fallback[32];
     BIO_snprintf(fallback, sizeof(fallback), "%d", fallback_index);
     return OPENSSL_strdup(fallback);
+}
+
+/*
+ * Borrowed view of a bag's PKCS#12 localKeyId attribute (an OCTET STRING). The
+ * returned pointer is owned by the bag and valid for the bag's lifetime.
+ * Returns 1 if a non-empty localKeyId is present, 0 otherwise.
+ */
+static int bag_local_key_id(const PKCS12_SAFEBAG *bag, const unsigned char **id,
+                            int *id_len) {
+    *id = NULL;
+    *id_len = 0;
+
+    const STACK_OF(X509_ATTRIBUTE) *attrs = PKCS12_SAFEBAG_get0_attrs(bag);
+    if (attrs == NULL) {
+        return 0;
+    }
+    const ASN1_TYPE *attr = PKCS12_get_attr_gen(attrs, NID_localKeyID);
+    if (attr == NULL || ASN1_TYPE_get(attr) != V_ASN1_OCTET_STRING) {
+        return 0;
+    }
+    const ASN1_OCTET_STRING *oct = attr->value.octet_string;
+    if (oct == NULL || ASN1_STRING_length(oct) <= 0) {
+        return 0;
+    }
+    *id = ASN1_STRING_get0_data(oct);
+    *id_len = ASN1_STRING_length(oct);
+    return 1;
+}
+
+static ks_entry *find_entry_by_local_key_id(ks_ctx *ctx, const unsigned char *id,
+                                            int id_len) {
+    if (id == NULL || id_len <= 0) {
+        return NULL;
+    }
+    for (ks_entry *entry = ctx->entries; entry != NULL; entry = entry->next) {
+        if (entry->local_key_id != NULL && entry->local_key_id_len == id_len
+                && memcmp(entry->local_key_id, id, (size_t) id_len) == 0) {
+            return entry;
+        }
+    }
+    return NULL;
 }
 
 static int32_t add_certificate_bag(STACK_OF(PKCS12_SAFEBAG) **bags,
@@ -327,29 +371,85 @@ static int32_t load_cert_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag
     return JO_SUCCESS;
 }
 
-static int32_t load_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
-                         const char *password, int password_len,
-                         int *fallback_index) {
-    if (bags == NULL || fallback_index == NULL) {
+/*
+ * Two-pass load over every bag collected from all safes. Pass 1 loads the key
+ * bags (each becomes an entry keyed by friendlyName, or a numeric fallback) and
+ * records each key's localKeyId. Pass 2 attaches every cert bag to the key that
+ * shares its localKeyId -- the association convention strict PKCS#12 readers
+ * (BouncyCastle, keytool, `openssl pkcs12`) use -- falling back to friendlyName
+ * grouping when no localKeyId match exists (trusted certs, or producers that
+ * associate purely by friendlyName). Processing keys before certs makes the
+ * association order-independent across bags and safes.
+ */
+static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
+                                   const char *password, int password_len) {
+    if (bags == NULL) {
         return JO_KS_LOAD_FAILED;
     }
 
+    int fallback_index = 1;
+
     for (int i = 0; i < sk_PKCS12_SAFEBAG_num(bags); i++) {
         PKCS12_SAFEBAG *bag = sk_PKCS12_SAFEBAG_value(bags, i);
-        char *alias = entry_alias_from_bag(bag, (*fallback_index)++);
+        int bag_nid = PKCS12_SAFEBAG_get_nid(bag);
+        if (bag_nid != NID_keyBag && bag_nid != NID_pkcs8ShroudedKeyBag) {
+            continue;
+        }
+
+        char *alias = entry_alias_from_bag(bag, fallback_index++);
         if (alias == NULL) {
             return JO_KS_LOAD_FAILED;
         }
 
-        int bag_nid = PKCS12_SAFEBAG_get_nid(bag);
-        int32_t ret = JO_SUCCESS;
-        if (bag_nid == NID_keyBag || bag_nid == NID_pkcs8ShroudedKeyBag) {
-            ret = load_key_bag(ctx, alias, bag, password, password_len);
-        } else if (bag_nid == NID_certBag) {
-            ret = load_cert_bag(ctx, alias, bag);
+        int32_t ret = load_key_bag(ctx, alias, bag, password, password_len);
+        if (ret == JO_SUCCESS) {
+            ks_entry *entry = find_entry(ctx, alias);
+            const unsigned char *id;
+            int id_len;
+            if (entry != NULL && entry->local_key_id == NULL
+                    && bag_local_key_id(bag, &id, &id_len)) {
+                entry->local_key_id = OPENSSL_memdup(id, (size_t) id_len);
+                jo_assert(entry->local_key_id != NULL);
+                entry->local_key_id_len = id_len;
+            }
         }
 
         OPENSSL_free(alias);
+        if (ret != JO_SUCCESS) {
+            return ret;
+        }
+    }
+
+    for (int i = 0; i < sk_PKCS12_SAFEBAG_num(bags); i++) {
+        PKCS12_SAFEBAG *bag = sk_PKCS12_SAFEBAG_value(bags, i);
+        if (PKCS12_SAFEBAG_get_nid(bag) != NID_certBag) {
+            continue;
+        }
+
+        const unsigned char *id;
+        int id_len;
+        ks_entry *owner = NULL;
+        if (bag_local_key_id(bag, &id, &id_len)) {
+            owner = find_entry_by_local_key_id(ctx, id, id_len);
+        }
+
+        char *alias;
+        int alias_owned;
+        if (owner != NULL) {
+            alias = owner->alias;
+            alias_owned = 0;
+        } else {
+            alias = entry_alias_from_bag(bag, fallback_index++);
+            alias_owned = 1;
+            if (alias == NULL) {
+                return JO_KS_LOAD_FAILED;
+            }
+        }
+
+        int32_t ret = load_cert_bag(ctx, alias, bag);
+        if (alias_owned) {
+            OPENSSL_free(alias);
+        }
         if (ret != JO_SUCCESS) {
             return ret;
         }
@@ -388,6 +488,7 @@ void ks_free(ks_ctx *ctx) {
         return;
     }
     clear_entries(ctx);
+    OPENSSL_clear_free(ctx->pending_store, ctx->pending_store_len);
     OPENSSL_clear_free(ctx->type, strlen(ctx->type) + 1);
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
@@ -409,42 +510,73 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
         return JO_INPUT_TOO_LONG_INT32;
     }
 
-    BIO *bio = BIO_new_mem_buf(input, (int) input_len);
-    if (bio == NULL) {
-        return JO_KS_LOAD_FAILED;
-    }
-
-    PKCS12 *p12 = d2i_PKCS12_bio(bio, NULL);
-    BIO_free(bio);
-    if (p12 == NULL) {
-        return JO_KS_LOAD_FAILED;
-    }
-
-    char *pass = copy_password(password, password_len);
-    if (password != NULL && password_len != 0 && pass == NULL) {
-        PKCS12_free(p12);
-        return JO_INPUT_TOO_LONG_INT32;
-    }
-
-    int pass_len = (int) password_len;
-    if (PKCS12_mac_present(p12) && !PKCS12_verify_mac(p12, pass, pass_len)) {
-        OPENSSL_clear_free(pass, password_len + 1);
-        PKCS12_free(p12);
-        return JO_KS_LOAD_FAILED;
-    }
-
-    STACK_OF(PKCS7) *safes = PKCS12_unpack_authsafes(p12);
-    if (safes == NULL) {
-        OPENSSL_clear_free(pass, password_len + 1);
-        PKCS12_free(p12);
-        return JO_KS_LOAD_FAILED;
-    }
-
+    /*
+     * Single exit: every owned resource is declared and NULL-initialised up
+     * front, and every failure path branches to the `exit` label whose
+     * NULL-tolerant freers run unconditionally. This is what makes the OpenSSL
+     * calls below OPS-instrumentable -- an OPS-forced failure branch still frees
+     * the handle the call actually returned.
+     */
+    BIO *bio = NULL;
+    PKCS12 *p12 = NULL;
+    char *pass = NULL;
+    STACK_OF(PKCS7) *safes = NULL;
+    STACK_OF(PKCS12_SAFEBAG) *all_bags = NULL;
     ks_ctx loaded;
+    int pass_len = (int) password_len;
+    int32_t ret = JO_KS_LOAD_FAILED;
+
     memset(&loaded, 0, sizeof(loaded));
 
-    int32_t ret = JO_SUCCESS;
-    int fallback_index = 1;
+    ERR_clear_error();
+
+    bio = BIO_new_mem_buf(input, (int) input_len);
+    if (bio == NULL) {
+        goto exit;
+    }
+
+    p12 = d2i_PKCS12_bio(bio, NULL);
+    if (OPS_OPENSSL_ERROR_4 p12 == NULL) {
+        goto exit;
+    }
+
+    pass = copy_password(password, password_len);
+    if (password != NULL && password_len != 0 && pass == NULL) {
+        ret = JO_INPUT_TOO_LONG_INT32;
+        goto exit;
+    }
+
+    /*
+     * A failed MAC means a wrong integrity password or tampered data -- an
+     * expected, non-error outcome -- so scrub the "mac verify failed" noise off
+     * the thread-local ERR queue (mark/pop) and surface a dedicated code the
+     * bridge maps to an UnrecoverableKeyException cause, distinct from the
+     * generic malformed-file JO_KS_LOAD_FAILED.
+     */
+    ERR_set_mark();
+    if (PKCS12_mac_present(p12) && !PKCS12_verify_mac(p12, pass, pass_len)) {
+        ERR_pop_to_mark();
+        ret = JO_KS_MAC_VERIFY_FAILED;
+        goto exit;
+    }
+    ERR_clear_last_mark();
+
+    safes = PKCS12_unpack_authsafes(p12);
+    if (OPS_OPENSSL_ERROR_5 safes == NULL) {
+        goto exit;
+    }
+
+    /*
+     * Collect every bag from every safe (decrypting encrypted safes with the
+     * password) into one stack. localKeyId-based cert<->key association needs
+     * all key bags visible before any cert is attached, so a single collected
+     * stack processed in two passes by load_collected_bags is simpler and
+     * order-independent.
+     */
+    all_bags = sk_PKCS12_SAFEBAG_new_null();
+    jo_assert(all_bags != NULL);
+
+    ret = JO_SUCCESS;
     for (int i = 0; ret == JO_SUCCESS && i < sk_PKCS7_num(safes); i++) {
         PKCS7 *p7 = sk_PKCS7_value(safes, i);
         STACK_OF(PKCS12_SAFEBAG) *bags = NULL;
@@ -455,18 +587,32 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
         }
 
         if (bags != NULL) {
-            ret = load_bags(&loaded, bags, pass, pass_len, &fallback_index);
+            while (sk_PKCS12_SAFEBAG_num(bags) > 0) {
+                PKCS12_SAFEBAG *moved = sk_PKCS12_SAFEBAG_shift(bags);
+                if (!sk_PKCS12_SAFEBAG_push(all_bags, moved)) {
+                    PKCS12_SAFEBAG_free(moved);
+                    ret = JO_FAIL;
+                    break;
+                }
+            }
             sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
         }
+    }
+
+    if (ret == JO_SUCCESS) {
+        ret = load_collected_bags(&loaded, all_bags, pass, pass_len);
     }
     if (ret == JO_SUCCESS) {
         replace_entries(ctx, &loaded);
     }
 
+exit:
     clear_entries(&loaded);
+    sk_PKCS12_SAFEBAG_pop_free(all_bags, PKCS12_SAFEBAG_free);
     sk_PKCS7_pop_free(safes, PKCS7_free);
     OPENSSL_clear_free(pass, password_len + 1);
     PKCS12_free(p12);
+    BIO_free(bio);
     return ret;
 }
 
@@ -488,6 +634,8 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     if (password_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
+
+    ERR_clear_error();
 
     int key_nid = pbe_alg_to_nid(key_pbe);
     int cert_nid = pbe_alg_to_nid(cert_pbe);
@@ -556,7 +704,7 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
         if (entry->key != NULL) {
             PKCS12_SAFEBAG *bag = PKCS12_add_key_ex(&key_bags, entry->key, 0,
                     pbe_iter, key_nid, pass, libctx, NULL);
-            if (bag == NULL
+            if (OPS_OPENSSL_ERROR_1 bag == NULL
                     || !PKCS12_add_friendlyname_utf8(bag, entry->alias, -1)
                     || !PKCS12_add_localkeyid(bag, (unsigned char *) entry->alias,
                             (int) strlen(entry->alias))) {
@@ -601,7 +749,7 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     }
 
     p12 = PKCS12_add_safes_ex(safes, NID_pkcs7_data, libctx, NULL);
-    if (p12 == NULL) {
+    if (OPS_OPENSSL_ERROR_2 p12 == NULL) {
         goto end;
     }
 
@@ -626,7 +774,7 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
 
     {
         int der_len = i2d_PKCS12(p12, &der);
-        if (der_len <= 0 || der == NULL) {
+        if (OPS_OPENSSL_ERROR_3 der_len <= 0 || der == NULL) {
             goto end;
         }
 
@@ -660,6 +808,8 @@ int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_le
 
     *out = NULL;
     *out_len = 0;
+
+    ERR_clear_error();
 
     ks_entry *entry = find_entry(ctx, alias);
     if (entry == NULL || entry->key == NULL) {
@@ -707,6 +857,8 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
     jo_assert(alias != NULL);
     jo_assert(key != NULL);
     jo_assert(password != NULL || password_len == 0);
+
+    ERR_clear_error();
 
     if (key_len == 0) {
         return JO_KS_DECODE_KEY_FAILED;

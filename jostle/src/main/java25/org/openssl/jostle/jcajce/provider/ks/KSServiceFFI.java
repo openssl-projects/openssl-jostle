@@ -185,43 +185,64 @@ public class KSServiceFFI
         {
             MemorySegment passwordSeg = (password == null || password.length == 0)
                     ? MemorySegment.NULL : a.allocate(password.length);
-            if (password != null && password.length > 0)
+            MemorySegment outSeg = MemorySegment.NULL;
+            try
             {
-                passwordSeg.asByteBuffer().put(password);
-            }
-            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+                if (password != null && password.length > 0)
+                {
+                    passwordSeg.asByteBuffer().put(password);
+                }
+                MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
 
-            MemorySegment randSeg;
-            if (randSource == null)
-            {
-                randSeg = MemorySegment.NULL;
-            }
-            else
-            {
-                var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(), "getRandomSegment", entropyMt).bindTo(randSource);
-                randSeg = linker.upcallStub(gHandle, entropyFd, a);
-            }
+                MemorySegment randSeg;
+                if (randSource == null)
+                {
+                    randSeg = MemorySegment.NULL;
+                }
+                else
+                {
+                    var gHandle = MethodHandles.lookup().findVirtual(
+                            randSource.getClass(), "getRandomSegment", entropyMt).bindTo(randSource);
+                    randSeg = linker.upcallStub(gHandle, entropyFd, a);
+                }
 
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) storeLenH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
-                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, errSeg);
-            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
-            if (err[0] != 0 || len == 0)
-            {
-                return null;
-            }
+                MemorySegment ctx = MemorySegment.ofAddress(ref);
+                int len = (int) storeLenH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, errSeg);
+                err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+                if (err[0] != 0 || len == 0)
+                {
+                    return null;
+                }
 
-            MemorySegment outSeg = a.allocate(len);
-            err[0] = (int) storeH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
-                    keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, outSeg, outSeg.byteSize());
-            if (err[0] != 0)
-            {
-                return null;
+                outSeg = a.allocate(len);
+                err[0] = (int) storeH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, outSeg, outSeg.byteSize());
+                if (err[0] != 0)
+                {
+                    return null;
+                }
+                byte[] out = new byte[len];
+                outSeg.asByteBuffer().get(out);
+                return out;
             }
-            byte[] out = new byte[len];
-            outSeg.asByteBuffer().get(out);
-            return out;
+            finally
+            {
+                // Arena.close() frees but does NOT cleanse the backing memory.
+                // Scrub the plaintext store password (and the serialized
+                // keystore, which contains the shrouded key) from the off-heap
+                // segments before the arena releases them. Any future non-critical
+                // FFI downcall that copies secret material into an Arena must do
+                // the same fill-before-close.
+                if (passwordSeg.byteSize() > 0)
+                {
+                    passwordSeg.fill((byte) 0);
+                }
+                if (outSeg.byteSize() > 0)
+                {
+                    outSeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {

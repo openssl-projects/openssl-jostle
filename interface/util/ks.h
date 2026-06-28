@@ -21,12 +21,28 @@ typedef struct ks_entry_st {
     STACK_OF(X509) *certificate_chain;
     int certificate_entry;
     int64_t creation_time;
+    /*
+     * Transient grouping aid used only during ks_load: the PKCS#12 localKeyId
+     * of the key bag, so cert bags can be associated to their owning key by
+     * localKeyId (the convention strict readers use) rather than only by
+     * friendlyName. Not part of the persisted entry identity.
+     */
+    unsigned char *local_key_id;
+    int local_key_id_len;
     struct ks_entry_st *next;
 } ks_entry;
 
 typedef struct ks_ctx_st {
     char *type;
     ks_entry *entries;
+    /*
+     * DER of a keystore built by JoKS_StoreLen and consumed by the immediately
+     * following JoKS_Store (the FFI Len-then-fetch split), so the PKCS#12 is
+     * built -- and entropy drawn -- exactly once per store rather than twice.
+     * NULL on the JNI path (which builds in a single call) and between stores.
+     */
+    uint8_t *pending_store;
+    size_t pending_store_len;
 } ks_ctx;
 
 /*
