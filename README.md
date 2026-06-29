@@ -13,6 +13,10 @@ The JOSTLE code base is released under the same license as the [OpenSSL Library]
 
 OpenSSL Jostle supports running on Java 1.8 to Java 25, and requires [Java 25](https://jdk.java.net/25/) to build.
 
+## Services
+
+See [SERVICES.md](SERVICES.md)
+
 ## Usage
 
 This section will be updated when there are published in maven central or equivalent.
@@ -294,6 +298,15 @@ The Jostle jars can be found in:
 
 ### Step 6. Running DumpInfo
 
+`DumpInfo` reports the loaded provider, OS/arch, JVM, the resolved native
+interface (JNI or FFI), and the extracted native libraries. Two optional
+arguments may be appended to the command:
+
+1. `--fine` — emit FINE-level loader logs.
+2. `--services` — also list every algorithm the provider registers, grouped by
+   service type (`KeyFactory`, `Cipher`, `Signature`, `KeyStore`, `Mac`,
+   `MessageDigest`, ...), with a count per type.
+
 #### With modules
 
 ```
@@ -329,7 +342,7 @@ Native Status:
   Native Available: true
   OpenSSL Version: 3.6.2
 .END
-Use: -fine to emit FINE level logs
+Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 -------------------------------------------------------------------------------
 ```
 
@@ -363,7 +376,7 @@ Native Status:
   Native Available: true
   OpenSSL Version: 3.6.2
 .END
-Use: -fine to emit FINE level logs
+Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 -------------------------------------------------------------------------------
 
 ```
@@ -410,7 +423,7 @@ Native Status:
   Native Available: true
   OpenSSL Version: 3.6.2
 .END
-Use: -fine to emit FINE level logs
+Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 
 ```
 

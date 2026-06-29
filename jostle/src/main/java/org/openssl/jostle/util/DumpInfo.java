@@ -14,7 +14,14 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 
+import java.security.Provider;
 import java.security.Security;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -23,17 +30,28 @@ public class DumpInfo
 {
     public static void main(String[] args) throws Exception
     {
-        ConsoleHandler handler = null;
-        if (args.length > 0)
+        boolean fine = false;
+        boolean services = false;
+        for (String arg : args)
         {
-            if (args[0].equals("-fine"))
+            if (arg.equals("--fine"))
             {
-                handler = new ConsoleHandler();
-                handler.setLevel(Level.FINE);
-                Logger root = Logger.getLogger("");
-                root.addHandler(handler);
-                root.setLevel(Level.FINE);
+                fine = true;
             }
+            else if (arg.equals("--services"))
+            {
+                services = true;
+            }
+        }
+
+        ConsoleHandler handler = null;
+        if (fine)
+        {
+            handler = new ConsoleHandler();
+            handler.setLevel(Level.FINE);
+            Logger root = Logger.getLogger("");
+            root.addHandler(handler);
+            root.setLevel(Level.FINE);
         }
 
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
@@ -107,10 +125,15 @@ public class DumpInfo
             // -DM System.out.println
             System.out.println("  OpenSSL Version: Not available");
         }
+        if (services)
+        {
+            printServices();
+        }
+
         // -DM System.out.println
         System.out.println(".END");
         // -DM System.out.println
-        System.out.println("Use: -fine to emit FINE level logs");
+        System.out.println("Use: --fine to emit FINE level logs, --services to list provider services grouped by type");
 
         // -DM System.out.println
         System.out.println("-------------------------------------------------------------------------------");
@@ -121,5 +144,39 @@ public class DumpInfo
         }
 
 
+    }
+
+    private static void printServices()
+    {
+        Provider provider = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        Set<Provider.Service> serviceSet = provider.getServices();
+
+        Map<String, List<String>> algorithmsByType = new TreeMap<String, List<String>>();
+        for (Provider.Service service : serviceSet)
+        {
+            List<String> algorithms = algorithmsByType.get(service.getType());
+            if (algorithms == null)
+            {
+                algorithms = new ArrayList<String>();
+                algorithmsByType.put(service.getType(), algorithms);
+            }
+            algorithms.add(service.getAlgorithm());
+        }
+
+        // -DM System.out.println
+        System.out.println("\nServices (" + serviceSet.size() + " total, grouped by type):");
+        for (Map.Entry<String, List<String>> entry : algorithmsByType.entrySet())
+        {
+            Collections.sort(entry.getValue());
+            // -DM System.out.println
+            System.out.println("  " + entry.getKey() + " (" + entry.getValue().size() + "):");
+            for (String algorithm : entry.getValue())
+            {
+                // -DM System.out.println
+                System.out.println("    " + algorithm);
+            }
+            // -DM System.out.println
+            System.out.println();
+        }
     }
 }
