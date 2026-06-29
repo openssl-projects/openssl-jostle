@@ -71,7 +71,7 @@ To switch the native build between OPS-instrumented and not, you must rebuild th
 3. `java11/`, `java15/`, `java17/`, `java21/`, `java25/` — replace classes that depend on APIs added/removed at those levels.
 4. `java25/` — also contains the FFI implementations of the `*NI` interfaces (`MDServiceFFI`, `BlockCipherFFI`, etc.) and the FFI-aware `NISelector`.
 
-When you change a class that has overrides in `javaN/`, you **must apply equivalent changes** to every override copy. There is no automation guarding against drift; the `DefaultRandSourceParityTest` in `src/test/java/.../rand/` is one example of a source-level parity guard.
+When you change a class that has overrides in `javaN/`, you **must apply equivalent changes** to every override copy. There is no *general* automation guarding against drift, but targeted source-level parity guards exist: `NativeReferenceParityTest` (in `src/test/java/.../multirelease/`) fails the build if a baseline class that holds a `NativeReference` under `synchronized(this)` is missing its `javaN/` `Reference.reachabilityFence(this)` override — see the native-references rule in `.claude/guides/java-spi.md`.
 
 **Test source sets follow the same split.** `src/test/java/` compiles at `release=8` — tests that use Java 9+ APIs (`DrbgParameters`, `Reference.reachabilityFence`, sealed classes, the FFI APIs) MUST live in `src/test/java25/`. The `unitTest25*` / `integrationTest25*` Gradle tasks run BOTH source sets together against a Java 25 JVM, so a test in `src/test/java25/` runs alongside everything in `src/test/java/`. Use this split to add strength-validation, DRBG, or FFI-only tests; put baseline coverage that works on every JDK in `src/test/java/`.
 
