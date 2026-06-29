@@ -37,6 +37,8 @@ public interface DefaultServiceNI
                 throw new AccessException("unable to access output array");
             case JO_FAILED_ACCESS_INPUT:
                 throw new AccessException("unable to access input array");
+            case JO_FAILED_ACCESS_KEY:
+                throw new AccessException("unable to access key array");
             case JO_OUTPUT_IS_NULL:
                 throw new NullPointerException("output is null");
             case JO_OUTPUT_SIZE_INT_OVERFLOW:
@@ -124,6 +126,38 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key-agreement context is null");
             case JO_CURVE_NOT_SUPPORTED:
                 throw new IllegalArgumentException("curve not supported by the loaded OpenSSL build");
+            case JO_KS_TYPE_IS_NULL:
+                throw new NullPointerException("key store type is null");
+            case JO_KS_TYPE_UNSUPPORTED:
+                throw new IllegalArgumentException("key store type is not supported");
+            case JO_KS_CTX_IS_NULL:
+                throw new IllegalArgumentException("key store context is null");
+            case JO_KS_ALIAS_IS_NULL:
+                throw new NullPointerException("key store alias is null");
+            case JO_KS_UNABLE_TO_ACCESS_ALIAS:
+                throw new AccessException("unable to access key store alias");
+            case JO_KS_KEY_IS_NULL:
+                throw new IllegalArgumentException("key store key is null");
+            case JO_KS_FAILED_ACCESS_KEY:
+                throw new AccessException("unable to access key store key");
+            case JO_KS_DECODE_KEY_FAILED:
+                throw new IllegalArgumentException("unable to decode key store private key");
+            case JO_KS_ENCODE_KEY_FAILED:
+                throw new IllegalStateException("unable to encode key store private key");
+            case JO_KS_LOAD_FAILED:
+                throw new UnsupportedOperationException("key store load failed");
+            case JO_KS_STORE_FAILED:
+                throw new UnsupportedOperationException("key store store failed");
+            case JO_KS_PBE_ITER_NEGATIVE:
+                throw new IllegalArgumentException("key store PBE iteration count is negative");
+            case JO_KS_MAC_ITER_NEGATIVE:
+                throw new IllegalArgumentException("key store MAC iteration count is negative");
+            case JO_KS_MAC_VERIFY_FAILED:
+                // Defensive fallback. KSServiceNI.load intercepts this code
+                // first and surfaces it as an IOException whose cause is an
+                // UnrecoverableKeyException (the JCE engineLoad contract for a
+                // wrong integrity password / tampered keystore).
+                throw new UnsupportedOperationException("key store integrity check failed");
             default:
                 throw new IllegalStateException("unexpected error code " + errorCode + ": " + code);
         }
