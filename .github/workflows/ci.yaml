@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  posix:
+  build-posix:
     strategy:
       fail-fast: false
       matrix:
@@ -50,26 +50,7 @@ jobs:
       - uses: "actions/setup-java@v5"
         with:
           distribution: "corretto"
-          java-version: '8'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '11'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '17'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '21'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
           java-version: '25'
-      - name: "Check Java version"
-        run: |
-          java -version
       - name: "Build headers"
         working-directory: "jostle"
         run: |
@@ -81,50 +62,77 @@ jobs:
           OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
         run: |
           ./interface/build.sh
-      - name: "Build jar"
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  test-posix:
+    needs: "build-posix"
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - "ubuntu-latest"
+          - "ubuntu-24.04-arm"
+          - "macos-15"
+          - "macos-15-intel"
+        config:
+          - { name: "default",   jdk: "25", bcjdk: "",   tasks: "test integrationTest" }
+          - { name: "jdk8",      jdk: "8",  bcjdk: "8",  tasks: "unitTest8 integrationTest8" }
+          - { name: "jdk11",     jdk: "11", bcjdk: "11", tasks: "unitTest11 integrationTest11" }
+          - { name: "jdk17",     jdk: "17", bcjdk: "17", tasks: "unitTest17 integrationTest17" }
+          - { name: "jdk21",     jdk: "21", bcjdk: "21", tasks: "unitTest21 integrationTest21" }
+          - { name: "jdk25-jni", jdk: "25", bcjdk: "25", tasks: "unitTest25JNI integrationTest25JNI" }
+          - { name: "jdk25-ffi", jdk: "25", bcjdk: "25", tasks: "unitTest25FFI integrationTest25FFI" }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Set up target JDK"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "${{ matrix.config.jdk }}"
+      - name: "Set up Java 25 (Gradle runtime)"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Point BC_JDK at the target toolchain"
+        if: matrix.config.bcjdk != ''
+        shell: "bash"
+        env:
+          BCJDK: "${{ matrix.config.bcjdk }}"
+        run: |
+          x64="JAVA_HOME_${BCJDK}_X64"
+          arm="JAVA_HOME_${BCJDK}_ARM64"
+          echo "BC_JDK${BCJDK}=${!x64:-${!arm}}" >> "$GITHUB_ENV"
+      - name: "Run tests"
         working-directory: "jostle"
         env:
-          BC_JDK8: "${{ env.JAVA_HOME_8_X64 }}${{ env.JAVA_HOME_8_ARM64 }}"
-          BC_JDK11: "${{ env.JAVA_HOME_11_X64 }}${{ env.JAVA_HOME_11_ARM64 }}"
-          BC_JDK17: "${{ env.JAVA_HOME_17_X64 }}${{ env.JAVA_HOME_17_ARM64 }}"
-          BC_JDK21: "${{ env.JAVA_HOME_21_X64 }}${{ env.JAVA_HOME_21_ARM64 }}"
-          BC_JDK25: "${{ env.JAVA_HOME_25_X64 }}${{ env.JAVA_HOME_25_ARM64 }}"
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
         run: |
-          ./gradlew clean build
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v6
-        if: success() || failure()
+          ./gradlew ${GRADLE_TASKS}
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: success() || failure() # always run even if the previous step fails
         with:
-          check_name: |
-            ${{ matrix.runner }} - Unit Test
-            ${{ matrix.runner }} - Unit Test 8
-            ${{ matrix.runner }} - Unit Test 11
-            ${{ matrix.runner }} - Unit Test 17
-            ${{ matrix.runner }} - Unit Test 21
-            ${{ matrix.runner }} - Unit Test 25 FFI
-            ${{ matrix.runner }} - Unit Test 25 JNI
-            ${{ matrix.runner }} - Integration Test 8
-            ${{ matrix.runner }} - Integration Test 11
-            ${{ matrix.runner }} - Integration Test 17
-            ${{ matrix.runner }} - Integration Test 21
-            ${{ matrix.runner }} - Integration Test 25 FFI
-            ${{ matrix.runner }} - Integration Test 25 JNI
-          report_paths: |
-            **/build/test-results/test/TEST-*.xml
-            **/build/test-results/unitTest8/TEST-*.xml
-            **/build/test-results/unitTest11/TEST-*.xml
-            **/build/test-results/unitTest17/TEST-*.xml
-            **/build/test-results/unitTest21/TEST-*.xml
-            **/build/test-results/unitTest25FFI/TEST-*.xml
-            **/build/test-results/unitTest25JNI/TEST-*.xml
-            **/build/test-results/integrationTest8/TEST-*.xml
-            **/build/test-results/integrationTest11/TEST-*.xml
-            **/build/test-results/integrationTest17/TEST-*.xml
-            **/build/test-results/integrationTest21/TEST-*.xml
-            **/build/test-results/integrationTest25FFI/TEST-*.xml
-            **/build/test-results/integrationTest25JNI/TEST-*.xml
+          check_name: "${{ matrix.runner }} - ${{ matrix.config.name }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
 
-  windows:
+  build-windows:
     strategy:
       fail-fast: false
       matrix:
@@ -157,10 +165,6 @@ jobs:
           nmake
           nmake install_sw
       - name: "Arrange OpenSSL layout for CMake (lib64)"
-        # The CMakeLists Windows branch expects the import lib and DLL at
-        # ${OPENSSL_PREFIX}/lib64/. A stock `nmake install_sw` puts the import
-        # lib in lib\ and the DLL in bin\, so assemble the expected layout
-        # explicitly. Fail loudly if either file is missing.
         shell: "pwsh"
         run: |
           $prefix = "${{ github.workspace }}\openssl\dist"
@@ -181,31 +185,12 @@ jobs:
       - uses: "actions/setup-java@v5"
         with:
           distribution: "corretto"
-          java-version: '8'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '11'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '17'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '21'
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
           java-version: '25'
       - name: "Set up interface build tools (clang-cl, ninja)"
         shell: "pwsh"
         run: |
           "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           choco install ninja -y
-      - name: "Check Java version"
-        run: |
-          java -version
       - name: "Build headers"
         working-directory: "jostle"
         shell: "pwsh"
@@ -220,46 +205,67 @@ jobs:
         run: |
           call "%VCVARS%"
           call interface\build.bat
-      - name: "Build jar"
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  test-windows:
+    needs: "build-windows"
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "default",   jdk: "25", bcjdk: "",   tasks: "test integrationTest" }
+          - { name: "jdk8",      jdk: "8",  bcjdk: "8",  tasks: "unitTest8 integrationTest8" }
+          - { name: "jdk11",     jdk: "11", bcjdk: "11", tasks: "unitTest11 integrationTest11" }
+          - { name: "jdk17",     jdk: "17", bcjdk: "17", tasks: "unitTest17 integrationTest17" }
+          - { name: "jdk21",     jdk: "21", bcjdk: "21", tasks: "unitTest21 integrationTest21" }
+          - { name: "jdk25-jni", jdk: "25", bcjdk: "25", tasks: "unitTest25JNI integrationTest25JNI" }
+          - { name: "jdk25-ffi", jdk: "25", bcjdk: "25", tasks: "unitTest25FFI integrationTest25FFI" }
+    runs-on: "windows-2025"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Set up target JDK"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "${{ matrix.config.jdk }}"
+      - name: "Set up Java 25 (Gradle runtime)"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Point BC_JDK at the target toolchain"
+        if: matrix.config.bcjdk != ''
+        shell: "bash"
+        env:
+          BCJDK: "${{ matrix.config.bcjdk }}"
+        run: |
+          x64="JAVA_HOME_${BCJDK}_X64"
+          echo "BC_JDK${BCJDK}=${!x64}" >> "$GITHUB_ENV"
+      - name: "Run tests"
         working-directory: "jostle"
         shell: "pwsh"
         env:
-          BC_JDK8: "${{ env.JAVA_HOME_8_X64 }}"
-          BC_JDK11: "${{ env.JAVA_HOME_11_X64 }}"
-          BC_JDK17: "${{ env.JAVA_HOME_17_X64 }}"
-          BC_JDK21: "${{ env.JAVA_HOME_21_X64 }}"
-          BC_JDK25: "${{ env.JAVA_HOME_25_X64 }}"
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
         run: |
-          .\gradlew.bat clean build
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v6
+          .\gradlew.bat ($env:GRADLE_TASKS -split ' ')
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
         if: success() || failure()
         with:
-          check_name: |
-            ${{ matrix.runner }} - Unit Test
-            ${{ matrix.runner }} - Unit Test 8
-            ${{ matrix.runner }} - Unit Test 11
-            ${{ matrix.runner }} - Unit Test 17
-            ${{ matrix.runner }} - Unit Test 21
-            ${{ matrix.runner }} - Unit Test 25 FFI
-            ${{ matrix.runner }} - Unit Test 25 JNI
-            ${{ matrix.runner }} - Integration Test 8
-            ${{ matrix.runner }} - Integration Test 11
-            ${{ matrix.runner }} - Integration Test 17
-            ${{ matrix.runner }} - Integration Test 21
-            ${{ matrix.runner }} - Integration Test 25 FFI
-            ${{ matrix.runner }} - Integration Test 25 JNI
-          report_paths: |
-            **/build/test-results/test/TEST-*.xml
-            **/build/test-results/unitTest8/TEST-*.xml
-            **/build/test-results/unitTest11/TEST-*.xml
-            **/build/test-results/unitTest17/TEST-*.xml
-            **/build/test-results/unitTest21/TEST-*.xml
-            **/build/test-results/unitTest25FFI/TEST-*.xml
-            **/build/test-results/unitTest25JNI/TEST-*.xml
-            **/build/test-results/integrationTest8/TEST-*.xml
-            **/build/test-results/integrationTest11/TEST-*.xml
-            **/build/test-results/integrationTest17/TEST-*.xml
-            **/build/test-results/integrationTest21/TEST-*.xml
-            **/build/test-results/integrationTest25FFI/TEST-*.xml
-            **/build/test-results/integrationTest25JNI/TEST-*.xml
+          check_name: "windows-2025 - ${{ matrix.config.name }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
