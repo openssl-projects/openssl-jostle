@@ -21,7 +21,14 @@ jobs:
           - "macos-15-intel"
     runs-on: ${{ matrix.runner }}
     steps:
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
@@ -29,6 +36,7 @@ jobs:
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
         working-directory: "openssl"
         run: |
           ./config --prefix=$(pwd)/dist
@@ -125,7 +133,14 @@ jobs:
     env:
       VCVARS: 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat'
     steps:
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
@@ -133,6 +148,7 @@ jobs:
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
         working-directory: "openssl"
         shell: "cmd"
         run: |
