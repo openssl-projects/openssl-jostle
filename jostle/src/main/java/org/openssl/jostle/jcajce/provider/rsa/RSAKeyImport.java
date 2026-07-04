@@ -66,16 +66,10 @@ public final class RSAKeyImport
     {
         if (key instanceof JORSAPublicKey)
         {
-            JORSAPublicKey joKey = (JORSAPublicKey) key;
-            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
-            {
-                // Keys are bound to the interface library (and OSSL_LIB_CTX)
-                // that created them; JSL and JSLFIPS keys must not cross
-                // implicitly.
-                throw new InvalidKeyException(
-                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
-            }
-            return joKey;
+            // Public keys carry no secret material and may cross between the
+            // Jostle providers freely (OpenSSL imports the public components
+            // into this library's lib ctx); only PRIVATE keys are isolated.
+            return (JORSAPublicKey) key;
         }
         if (key instanceof PublicKey)
         {
@@ -124,7 +118,7 @@ public final class RSAKeyImport
                 // that created them; JSL and JSLFIPS keys must not cross
                 // implicitly.
                 throw new InvalidKeyException(
-                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return joKey;
         }

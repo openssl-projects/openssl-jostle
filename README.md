@@ -614,11 +614,13 @@ families (ML-KEM, ML-DSA, SLH-DSA). Requests for these through `JSLFIPS` fail wi
 
 ### Key isolation
 
-Jostle keys are bound to the interface library (and `OSSL_LIB_CTX`) that created them. The operational
-services — `Signature`, `Cipher`, `KeyAgreement` — of one provider reject keys created by the other with
-`InvalidKeyException`. To move a key between `JSL` and `JSLFIPS`, encode it (`getEncoded()`) and decode it
-through the target provider's `KeyFactory`; the boundary crossing then happens explicitly in your code.
-`SecretKey`s (raw bytes, no native residency) are unaffected.
+Jostle keys are bound to the interface library (and `OSSL_LIB_CTX`) that created them. Public keys carry no
+secret material and may be used freely with either provider's services (OpenSSL imports the public
+components into the operating lib ctx). PRIVATE keys are isolated: the operational services — `Signature`,
+`Cipher`, `KeyAgreement` — of one provider reject a private key created by the other with
+`InvalidKeyException`. To move a private key between `JSL` and `JSLFIPS`, encode it (`getEncoded()`) and
+decode it through the target provider's `KeyFactory`; the boundary crossing then happens explicitly in your
+code. `SecretKey`s (raw bytes, no native residency) are unaffected.
 
 ### Entropy
 

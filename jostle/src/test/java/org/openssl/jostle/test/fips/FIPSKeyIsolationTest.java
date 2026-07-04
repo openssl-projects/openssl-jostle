@@ -25,22 +25,22 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 
 /**
- * Cross-provider key isolation: a Jostle key is bound to the interface
- * library (and OSSL_LIB_CTX) that created it, and the operational SPIs
- * (Signature, Cipher, KeyAgreement) of one provider must reject keys created
- * by the other with a typed InvalidKeyException. Sharing a key between JSL
- * and JSLFIPS is done explicitly: encode it (getEncoded()) and decode it
- * through the target provider's KeyFactory - which this test proves works.
- * Gated on JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * Cross-provider key policy: PUBLIC keys carry no secret material and may be
+ * used freely with either provider's operational services; PRIVATE keys are
+ * bound to the interface library (and OSSL_LIB_CTX) that created them and
+ * are rejected by the other provider's SPIs with a typed
+ * InvalidKeyException. Sharing a private key between JSL and JSLFIPS is done
+ * explicitly: encode it (getEncoded()) and decode it through the target
+ * provider's KeyFactory - which this test proves works. SecretKeys (raw
+ * bytes, no native residency) are unaffected. Gated on JOSTLE_TEST_FIPS_DIR;
+ * skipped when unset.
  */
 public class FIPSKeyIsolationTest
 {
@@ -68,7 +68,7 @@ public class FIPSKeyIsolationTest
     }
 
     @Test
-    public void rsaKeysDoNotCrossProviders()
+    public void rsaPrivateKeysIsolatedPublicKeysShared()
         throws Exception
     {
         ensureProviders();
@@ -76,73 +76,113 @@ public class FIPSKeyIsolationTest
         KeyPairGenerator jslKpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         jslKpg.initialize(2048);
         KeyPair jslKp = jslKpg.generateKeyPair();
-
-        // JSL private key into a JSLFIPS Signature: rejected.
-        Signature fipsSigner = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
-        assertRejected(() -> fipsSigner.initSign(jslKp.getPrivate()));
-
-        // JSL public key into a JSLFIPS Cipher (wrap direction): rejected.
-        Cipher fipsCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
-        assertRejected(() -> fipsCipher.init(Cipher.ENCRYPT_MODE, jslKp.getPublic()));
-
-        // And symmetrically: a JSLFIPS key into a JSL Signature is rejected.
         KeyPairGenerator fipsKpg = KeyPairGenerator.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         fipsKpg.initialize(2048);
         KeyPair fipsKp = fipsKpg.generateKeyPair();
-        Signature jslVerifier = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
-        assertRejected(() -> jslVerifier.initVerify(fipsKp.getPublic()));
 
-        // The sanctioned route: encode and decode through the target
-        // provider's KeyFactory, then use.
-        KeyFactory fipsKf = KeyFactory.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
-        PrivateKey crossed = fipsKf.generatePrivate(new PKCS8EncodedKeySpec(jslKp.getPrivate().getEncoded()));
-        PublicKey crossedPub = fipsKf.generatePublic(new X509EncodedKeySpec(jslKp.getPublic().getEncoded()));
         byte[] message = new byte[128];
         RANDOM.nextBytes(message);
+
+        // PRIVATE keys are isolated, in both directions.
+        Signature fipsSigner = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
+        assertRejected(() -> fipsSigner.initSign(jslKp.getPrivate()));
+        Signature jslSigner = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        assertRejected(() -> jslSigner.initSign(fipsKp.getPrivate()));
+        Cipher fipsDec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
+        assertRejected(() -> fipsDec.init(Cipher.DECRYPT_MODE, jslKp.getPrivate()));
+
+        // PUBLIC keys cross freely: sign with JSLFIPS, verify through JSL
+        // using the JSLFIPS key object directly - and vice versa.
+        fipsSigner.initSign(fipsKp.getPrivate());
+        fipsSigner.update(message);
+        byte[] fipsSig = fipsSigner.sign();
+        Signature jslVerifier = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        jslVerifier.initVerify(fipsKp.getPublic());
+        jslVerifier.update(message);
+        Assertions.assertTrue(jslVerifier.verify(fipsSig), "JSLFIPS public key must verify through JSL");
+
+        jslSigner.initSign(jslKp.getPrivate());
+        jslSigner.update(message);
+        byte[] jslSig = jslSigner.sign();
+        Signature fipsVerifier = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
+        fipsVerifier.initVerify(jslKp.getPublic());
+        fipsVerifier.update(message);
+        Assertions.assertTrue(fipsVerifier.verify(jslSig), "JSL public key must verify through JSLFIPS");
+
+        // Public-key encrypt through the other provider round-trips.
+        byte[] small = new byte[32];
+        RANDOM.nextBytes(small);
+        Cipher fipsEnc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
+        fipsEnc.init(Cipher.ENCRYPT_MODE, jslKp.getPublic());
+        byte[] ct = fipsEnc.doFinal(small);
+        Cipher jslDec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        jslDec.init(Cipher.DECRYPT_MODE, jslKp.getPrivate());
+        Assertions.assertArrayEquals(small, jslDec.doFinal(ct),
+                "JSLFIPS encrypt with JSL public key must round-trip");
+
+        // The sanctioned route for PRIVATE keys: encode and decode through
+        // the target provider's KeyFactory, then use.
+        KeyFactory fipsKf = KeyFactory.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
+        PrivateKey crossed = fipsKf.generatePrivate(new PKCS8EncodedKeySpec(jslKp.getPrivate().getEncoded()));
         fipsSigner.initSign(crossed);
         fipsSigner.update(message);
         byte[] sig = fipsSigner.sign();
-        Signature fipsVerifier = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
-        fipsVerifier.initVerify(crossedPub);
+        fipsVerifier.initVerify(jslKp.getPublic());
         fipsVerifier.update(message);
-        Assertions.assertTrue(fipsVerifier.verify(sig), "re-encoded key must work");
+        Assertions.assertTrue(fipsVerifier.verify(sig), "re-encoded private key must work");
     }
 
     @Test
-    public void ecDhAndXdhKeysDoNotCrossProviders()
+    public void ecDhAndXdhPolicy()
         throws Exception
     {
         ensureProviders();
 
-        // EC: JSLFIPS key into a JSL KeyAgreement.
+        // EC: private isolated...
         KeyPairGenerator fipsEc = KeyPairGenerator.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
         fipsEc.initialize(new ECGenParameterSpec("secp256r1"));
         KeyPair fipsEcKp = fipsEc.generateKeyPair();
         KeyAgreement jslEcdh = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         assertRejected(() -> jslEcdh.init(fipsEcKp.getPrivate()));
 
-        // ECDSA verify direction too.
+        // ... but the public half verifies through the other provider.
+        byte[] message = new byte[128];
+        RANDOM.nextBytes(message);
+        Signature fipsEcdsa = Signature.getInstance("SHA256withECDSA", JostleFIPSProvider.PROVIDER_NAME);
+        fipsEcdsa.initSign(fipsEcKp.getPrivate());
+        fipsEcdsa.update(message);
+        byte[] sig = fipsEcdsa.sign();
         Signature jslEcdsa = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
-        assertRejected(() -> jslEcdsa.initVerify(fipsEcKp.getPublic()));
+        jslEcdsa.initVerify(fipsEcKp.getPublic());
+        jslEcdsa.update(message);
+        Assertions.assertTrue(jslEcdsa.verify(sig), "JSLFIPS EC public key must verify through JSL");
 
-        // DH: JSL key into a JSLFIPS KeyAgreement.
+        // DH: private isolated.
         KeyPairGenerator jslDh = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
         jslDh.initialize(2048);
         KeyPair jslDhKp = jslDh.generateKeyPair();
         KeyAgreement fipsDh = KeyAgreement.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
         assertRejected(() -> fipsDh.init(jslDhKp.getPrivate()));
 
-        // XDH: JSL key into a JSLFIPS KeyAgreement, and the peer (doPhase)
-        // direction.
+        // XDH: private isolated; a foreign PUBLIC peer key in doPhase is
+        // fine and derives the same secret as the pure-provider path.
         KeyPairGenerator jslX = KeyPairGenerator.getInstance("X25519", JostleProvider.PROVIDER_NAME);
         KeyPair jslXKp = jslX.generateKeyPair();
+        KeyPairGenerator fipsXKpg = KeyPairGenerator.getInstance("X25519", JostleFIPSProvider.PROVIDER_NAME);
+        KeyPair fipsXKp = fipsXKpg.generateKeyPair();
+
         KeyAgreement fipsX = KeyAgreement.getInstance("X25519", JostleFIPSProvider.PROVIDER_NAME);
         assertRejected(() -> fipsX.init(jslXKp.getPrivate()));
 
-        KeyPairGenerator fipsXKpg = KeyPairGenerator.getInstance("X25519", JostleFIPSProvider.PROVIDER_NAME);
-        KeyPair fipsXKp = fipsXKpg.generateKeyPair();
         fipsX.init(fipsXKp.getPrivate());
-        assertRejected(() -> fipsX.doPhase(jslXKp.getPublic(), true));
+        fipsX.doPhase(jslXKp.getPublic(), true);
+        byte[] mixed = fipsX.generateSecret();
+
+        KeyAgreement jslX2 = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        jslX2.init(jslXKp.getPrivate());
+        jslX2.doPhase(fipsXKp.getPublic(), true);
+        Assertions.assertArrayEquals(mixed, jslX2.generateSecret(),
+                "foreign public peer keys must derive the same secret");
     }
 
     @Test
