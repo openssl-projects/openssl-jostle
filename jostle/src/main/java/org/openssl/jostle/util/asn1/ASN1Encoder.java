@@ -24,39 +24,57 @@ public class ASN1Encoder
      */
     public static byte[] asSubjectPublicKeyInfo(PKEYKeySpec spec)
     {
-        long ref = NISelector.Asn1NI.allocate();
+        return asSubjectPublicKeyInfo(NISelector.Asn1NI, spec);
+    }
+
+    /**
+     * Variant bound to a specific NI backend: FIPS-created keys must be
+     * encoded through the FIPS interface library, whose lib ctx owns the
+     * underlying EVP_PKEY (its base provider supplies the encoders).
+     */
+    public static byte[] asSubjectPublicKeyInfo(Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
+        long ref = asn1NI.allocate();
         try
         {
-            long len = NISelector.Asn1NI.encodePublicKey(ref, spec.getReference());
+            long len = asn1NI.encodePublicKey(ref, spec.getReference());
             byte[] out = new byte[(int) len];
-            NISelector.Asn1NI.getData(ref, out);
+            asn1NI.getData(ref, out);
 
             return out;
         }
         finally
         {
-            NISelector.Asn1NI.dispose(ref);
+            asn1NI.dispose(ref);
         }
     }
 
     public static byte[] asPrivateKeyInfo(PKEYKeySpec spec, PrivateKeyOptions option)
+    {
+        return asPrivateKeyInfo(NISelector.Asn1NI, spec, option);
+    }
+
+    /**
+     * Variant bound to a specific NI backend (see asSubjectPublicKeyInfo).
+     */
+    public static byte[] asPrivateKeyInfo(Asn1Ni asn1NI, PKEYKeySpec spec, PrivateKeyOptions option)
     {
         if (option == null)
         {
             option = PrivateKeyOptions.DEFAULT;
         }
 
-        long ref = NISelector.Asn1NI.allocate();
+        long ref = asn1NI.allocate();
         try
         {
-            long len = NISelector.Asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue());
+            long len = asn1NI.encodePrivateKey(ref, spec.getReference(), option.getValue());
             byte[] out = new byte[(int) len];
-            NISelector.Asn1NI.getData(ref, out);
+            asn1NI.getData(ref, out);
             return out;
         }
         finally
         {
-            NISelector.Asn1NI.dispose(ref);
+            asn1NI.dispose(ref);
         }
     }
 

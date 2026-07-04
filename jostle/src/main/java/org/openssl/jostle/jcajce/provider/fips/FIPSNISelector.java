@@ -17,6 +17,7 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 /**
  * Selector for the FIPS NI implementations, mirroring NISelector but bound to
@@ -36,6 +37,7 @@ public class FIPSNISelector
     public static final MacServiceNI MacServiceNI;
     public static final RandServiceNI RandServiceNI;
     public static final SpecNI SpecNI;
+    public static final Asn1Ni Asn1NI;
 
     static
     {
@@ -47,5 +49,6 @@ public class FIPSNISelector
         MacServiceNI = new MacServiceFIPSJNI();
         RandServiceNI = new RandServiceFIPSJNI();
         SpecNI = new SpecFIPSJNI();
+        Asn1NI = new Asn1FIPSJNI();
     }
 }

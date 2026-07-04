@@ -16,50 +16,49 @@ import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class Asn1NIFFI implements Asn1Ni
 {
 
     private static final Logger L = Logger.getLogger("ASN1_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment allocateFunc;
-    private static final MethodHandle allocateFuncHandle;
+    private final MethodHandle allocateFuncHandle;
 
-    private static final MemorySegment disposeFunc;
-    private static final MethodHandle disposeFuncHandle;
+    private final MethodHandle disposeFuncHandle;
 
-    private static final MemorySegment encodePublicKeyFunc;
-    private static final MethodHandle encodePublicKeyFuncHandle;
+    private final MethodHandle encodePublicKeyFuncHandle;
 
-    private static final MemorySegment encodePrivateKeyFunc;
-    private static final MethodHandle encodePrivateKeyFuncHandle;
+    private final MethodHandle encodePrivateKeyFuncHandle;
 
-    private static final MemorySegment getDataFunc;
-    private static final MethodHandle getDataFuncHandle;
+    private final MethodHandle getDataFuncHandle;
 
-    private static final MemorySegment fromPrivateKeyInfoFunc;
-    private static final MethodHandle fromPrivateKeyInfoFuncHandle;
+    private final MethodHandle fromPrivateKeyInfoFuncHandle;
 
-    private static final MemorySegment fromPublicKeyInfoFunc;
-    private static final MethodHandle fromPublicKeyInfoFuncHandle;
+    private final MethodHandle fromPublicKeyInfoFuncHandle;
 
-    static
+    public Asn1NIFFI()
     {
-        allocateFunc = lookup.find("ASN1_allocate").orElseThrow();
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public Asn1NIFFI(SymbolLookup lookup)
+    {
+        MemorySegment allocateFunc = lookup.find("ASN1_allocate").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,// Return ptr
                         ValueLayout.ADDRESS // err
                 ));
 
-        disposeFunc = lookup.find("ASN1_dispose").orElseThrow();
+        MemorySegment disposeFunc = lookup.find("ASN1_dispose").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // ptr
                 ));
 
-        encodePublicKeyFunc = lookup.find("ASN1_encodePublicKey").orElseThrow();
+        MemorySegment encodePublicKeyFunc = lookup.find("ASN1_encodePublicKey").orElseThrow();
         encodePublicKeyFuncHandle = linker.downcallHandle(encodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -67,7 +66,7 @@ public class Asn1NIFFI implements Asn1Ni
                         ValueLayout.ADDRESS
                 ), Linker.Option.critical(true));
 
-        encodePrivateKeyFunc = lookup.find("ASN1_encodePrivateKey").orElseThrow();
+        MemorySegment encodePrivateKeyFunc = lookup.find("ASN1_encodePrivateKey").orElseThrow();
         encodePrivateKeyFuncHandle = linker.downcallHandle(encodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -77,7 +76,7 @@ public class Asn1NIFFI implements Asn1Ni
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getDataFunc = lookup.find("ASN1_getData").orElseThrow();
+        MemorySegment getDataFunc = lookup.find("ASN1_getData").orElseThrow();
         getDataFuncHandle = linker.downcallHandle(getDataFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -87,7 +86,7 @@ public class Asn1NIFFI implements Asn1Ni
                 ), Linker.Option.critical(true));
 
 
-        fromPrivateKeyInfoFunc = lookup.find("ASN1_fromPrivateKeyInfo").orElseThrow();
+        MemorySegment fromPrivateKeyInfoFunc = lookup.find("ASN1_fromPrivateKeyInfo").orElseThrow();
         fromPrivateKeyInfoFuncHandle = linker.downcallHandle(fromPrivateKeyInfoFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // key_spec*
@@ -99,7 +98,7 @@ public class Asn1NIFFI implements Asn1Ni
                 ), Linker.Option.critical(true));
 
 
-        fromPublicKeyInfoFunc = lookup.find("ASN1_fromPublicKeyInfo").orElseThrow();
+        MemorySegment fromPublicKeyInfoFunc = lookup.find("ASN1_fromPublicKeyInfo").orElseThrow();
         fromPublicKeyInfoFuncHandle = linker.downcallHandle(fromPublicKeyInfoFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // key_spec*
