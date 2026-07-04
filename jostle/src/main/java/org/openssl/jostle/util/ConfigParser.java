@@ -31,7 +31,10 @@ import java.util.Map;
  *
  * <p><b>Value resolution.</b> Each value is resolved by its scheme prefix:
  * <ol>
- *   <li>{@code file://<uri>} — parsed as a file URI and resolved to a filesystem path.</li>
+ *   <li>{@code file:<uri>} — parsed as a file URI and resolved to a filesystem
+ *       path. All file URI forms are accepted ({@code file:///path},
+ *       {@code file://host/path}, and the single-slash {@code file:/path} form
+ *       that {@code java.io.File.toURI()} produces).</li>
  *   <li>{@code prop:<name>} — a Jostle {@link Properties} property value (java.security
  *       {@code Security} property, then thread-local override, then a {@code -D} system
  *       property).</li>
@@ -48,7 +51,9 @@ import java.util.Map;
  */
 public final class ConfigParser
 {
-    private static final String FILE_SCHEME = "file://";
+    // Any file: URI form - file:///path, file://host/path, and the
+    // single-slash file:/path that java.io.File.toURI() produces.
+    private static final String FILE_SCHEME = "file:";
     private static final String PROP_SCHEME = "prop:";
     private static final String ENV_SCHEME = "env:";
     private static final String STR_SCHEME = "str:";

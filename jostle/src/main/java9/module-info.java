@@ -1,7 +1,8 @@
 module org.openssl.jostle.prov {
     requires java.logging;
 
-    provides java.security.Provider with org.openssl.jostle.jcajce.provider.JostleProvider;
+    provides java.security.Provider with org.openssl.jostle.jcajce.provider.JostleProvider,
+            org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
     opens org.openssl.jostle.jcajce.provider.mldsa to java.base;
     opens org.openssl.jostle.jcajce.provider.mlkem to java.base;
@@ -9,6 +10,7 @@ module org.openssl.jostle.prov {
     opens org.openssl.jostle.jcajce.provider.slhdsa to java.base;
     opens org.openssl.jostle.jcajce.provider.ks to java.base;
     opens org.openssl.jostle.jcajce.provider to java.base;
+    opens org.openssl.jostle.jcajce.provider.fips to java.base;
 
 
     exports org.openssl.jostle;
@@ -25,6 +27,7 @@ module org.openssl.jostle.prov {
     exports org.openssl.jostle.jcajce;
     exports org.openssl.jostle.jcajce.spec;
     exports org.openssl.jostle.jcajce.provider;
+    exports org.openssl.jostle.jcajce.provider.fips;
     exports org.openssl.jostle.jcajce.interfaces;
     exports org.openssl.jostle.jcajce.util;
 }

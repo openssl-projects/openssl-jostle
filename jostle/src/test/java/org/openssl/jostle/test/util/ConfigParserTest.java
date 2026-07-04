@@ -117,6 +117,19 @@ public class ConfigParserTest
     }
 
     @Test
+    public void singleSlashFileUriResolvesToPath()
+    {
+        // java.io.File.toURI() produces the single-slash file:/path form -
+        // it must resolve like the file:///path form, not fall through as a
+        // raw literal.
+        java.io.File file = new java.io.File(System.getProperty("java.io.tmpdir"), "fips.dylib");
+        String url = file.toURI().toString();
+        Assertions.assertTrue(url.startsWith("file:/"));
+        Assertions.assertEquals(file.toPath().toString(),
+                ConfigParser.parse("module=" + url).get("module"));
+    }
+
+    @Test
     public void malformedFileUrlThrows()
     {
         Assertions.assertThrows(IllegalArgumentException.class,
