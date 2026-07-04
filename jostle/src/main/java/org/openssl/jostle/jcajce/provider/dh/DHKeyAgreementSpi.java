@@ -50,7 +50,22 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class DHKeyAgreementSpi extends KeyAgreementSpi
 {
-    protected static final DHServiceNI dhServiceNI = NISelector.DHServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS); foreign keys translate through the
+    // matching KeyFactory.
+    protected final DHServiceNI dhServiceNI;
+    protected final DHKeyFactorySpi keyFactory;
+
+    public DHKeyAgreementSpi()
+    {
+        this(NISelector.DHServiceNI, new DHKeyFactorySpi());
+    }
+
+    public DHKeyAgreementSpi(DHServiceNI dhServiceNI, DHKeyFactorySpi keyFactory)
+    {
+        this.dhServiceNI = dhServiceNI;
+        this.keyFactory = keyFactory;
+    }
 
     private KexRef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -71,7 +86,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
 
 
     /** Coerce an arbitrary private key to a JSL DH private key. */
-    private static JODHPrivateKey importPrivate(Key key) throws InvalidKeyException
+    private JODHPrivateKey importPrivate(Key key) throws InvalidKeyException
     {
         if (key instanceof JODHPrivateKey)
         {
@@ -79,7 +94,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         }
         if (key instanceof DHPrivateKey)
         {
-            Key translated = new DHKeyFactorySpi().engineTranslateKey(key);
+            Key translated = keyFactory.engineTranslateKey(key);
             if (translated instanceof JODHPrivateKey)
             {
                 return (JODHPrivateKey) translated;
@@ -89,7 +104,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
     }
 
     /** Coerce an arbitrary public key to a JSL DH public key. */
-    private static JODHPublicKey importPublic(Key key) throws InvalidKeyException
+    private JODHPublicKey importPublic(Key key) throws InvalidKeyException
     {
         if (key instanceof JODHPublicKey)
         {
@@ -97,7 +112,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         }
         if (key instanceof DHPublicKey)
         {
-            Key translated = new DHKeyFactorySpi().engineTranslateKey(key);
+            Key translated = keyFactory.engineTranslateKey(key);
             if (translated instanceof JODHPublicKey)
             {
                 return (JODHPublicKey) translated;
@@ -276,7 +291,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
     {
         if (ref == null)
         {
-            ref = new KexRef(dhServiceNI.allocateKex(), "DH");
+            ref = new KexRef(dhServiceNI, dhServiceNI.allocateKex(), "DH");
         }
     }
 
@@ -291,29 +306,35 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        private final DHServiceNI dhServiceNI;
+
+        Disposer(DHServiceNI dhServiceNI, long ref)
         {
             super(ref);
+            this.dhServiceNI = dhServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.DHServiceNI.disposeKex(reference);
+            dhServiceNI.disposeKex(reference);
         }
     }
 
     protected static class KexRef extends NativeReference
     {
-        protected KexRef(long reference, String name)
+        private final DHServiceNI dhServiceNI;
+
+        protected KexRef(DHServiceNI dhServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.dhServiceNI = dhServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(dhServiceNI, reference);
         }
     }
 }

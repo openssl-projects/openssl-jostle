@@ -30,37 +30,54 @@ import java.util.logging.Logger;
  * FFI binding for the {@code JoDSA_*} symbols exported by
  * {@code interface/ffi/dsa_ni_ffi.c}.
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class DSAServiceFFI implements DSAServiceNI
 {
     private static final Logger L = Logger.getLogger("DSA_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle generateParametersH;
-    private static final MethodHandle makeParamsFromComponentsH;
-    private static final MethodHandle generateKeyPairH;
-    private static final MethodHandle makePrivateFromComponentsH;
-    private static final MethodHandle makePublicFromComponentsH;
-    private static final MethodHandle getComponentH;
-    private static final MethodHandle allocSignerH;
-    private static final MethodHandle disposeSignerH;
-    private static final MethodHandle initSignH;
-    private static final MethodHandle initVerifyH;
-    private static final MethodHandle updateH;
-    private static final MethodHandle signH;
-    private static final MethodHandle verifyH;
+    private final MethodHandle generateParametersH;
+    private final MethodHandle makeParamsFromComponentsH;
+    private final MethodHandle generateKeyPairH;
+    private final MethodHandle makePrivateFromComponentsH;
+    private final MethodHandle makePublicFromComponentsH;
+    private final MethodHandle getComponentH;
+    private final MethodHandle allocSignerH;
+    private final MethodHandle disposeSignerH;
+    private final MethodHandle initSignH;
+    private final MethodHandle initVerifyH;
+    private final MethodHandle updateH;
+    private final MethodHandle signH;
+    private final MethodHandle verifyH;
 
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            boolean.class);
 
 
-    static
+    public DSAServiceFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public DSAServiceFFI(SymbolLookup lookup)
     {
         // JoDSA_generateParameters(int32_t p_bits, int32_t q_bits,
         //                          int32_t* err, void* rnd_src) -> key_spec*
         // NON-critical: paramgen's prime search draws from the Java RAND
         // upcall.
-        generateParametersH = bind("JoDSA_generateParameters",
+        generateParametersH = bind(lookup, "JoDSA_generateParameters",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,   // p_bits
@@ -70,7 +87,7 @@ public class DSAServiceFFI implements DSAServiceNI
 
         // JoDSA_makeParamsFromComponents(p, p_size, q, q_size, g, g_size,
         //                                err_out) -> key_spec*
-        makeParamsFromComponentsH = bind("JoDSA_makeParamsFromComponents",
+        makeParamsFromComponentsH = bind(lookup, "JoDSA_makeParamsFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -83,7 +100,7 @@ public class DSAServiceFFI implements DSAServiceNI
 
         // JoDSA_generateKeyPair(key_spec* params, int32_t* err,
         //                       void* rnd_src) -> key_spec*
-        generateKeyPairH = bind("JoDSA_generateKeyPair",
+        generateKeyPairH = bind(lookup, "JoDSA_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // params spec
@@ -93,7 +110,7 @@ public class DSAServiceFFI implements DSAServiceNI
         // JoDSA_makePrivateFromComponents(p, p_size, q, q_size, g, g_size,
         //                                 x, x_size, err_out, rnd_src) -> key_spec*
         // NON-critical: the entropy upcall must be allowed during import.
-        makePrivateFromComponentsH = bind("JoDSA_makePrivateFromComponents",
+        makePrivateFromComponentsH = bind(lookup, "JoDSA_makePrivateFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -109,7 +126,7 @@ public class DSAServiceFFI implements DSAServiceNI
 
         // JoDSA_makePublicFromComponents(p, p_size, q, q_size, g, g_size,
         //                                y, y_size, err_out) -> key_spec*
-        makePublicFromComponentsH = bind("JoDSA_makePublicFromComponents",
+        makePublicFromComponentsH = bind(lookup, "JoDSA_makePublicFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -123,7 +140,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS));  // err out
 
         // JoDSA_getComponent(key_spec*, int32_t, uint8_t*, size_t) -> int32_t
-        getComponentH = bind("JoDSA_getComponent",
+        getComponentH = bind(lookup, "JoDSA_getComponent",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -132,7 +149,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        allocSignerH = bind("JoDSA_allocateSigner",
+        allocSignerH = bind(lookup, "JoDSA_allocateSigner",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeSignerH = linker.downcallHandle(
@@ -140,7 +157,7 @@ public class DSAServiceFFI implements DSAServiceNI
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoDSA_initSign(dsa_ctx*, key_spec*, const char* digest, void* rnd_src) -> int
-        initSignH = bind("JoDSA_initSign",
+        initSignH = bind(lookup, "JoDSA_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -148,7 +165,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS));
 
-        initVerifyH = bind("JoDSA_initVerify",
+        initVerifyH = bind(lookup, "JoDSA_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -156,7 +173,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS));
 
         // JoDSA_update(dsa_ctx*, uint8_t* in, size_t in_size, int32_t off, int32_t len) -> int
-        updateH = bind("JoDSA_update",
+        updateH = bind(lookup, "JoDSA_update",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -171,7 +188,7 @@ public class DSAServiceFFI implements DSAServiceNI
         // NON-critical: DSA signing consumes RAND for the per-signature
         // nonce, and the entropy upcall is forbidden inside critical
         // regions.
-        signH = bind("JoDSA_sign",
+        signH = bind(lookup, "JoDSA_sign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -184,7 +201,7 @@ public class DSAServiceFFI implements DSAServiceNI
         //              void* rnd_src) -> int
         // NON-critical: the RAND upcall is bound on the verify path for
         // parity with EC (see DSAServiceNI.ni_verify).
-        verifyH = bind("JoDSA_verify",
+        verifyH = bind(lookup, "JoDSA_verify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -194,26 +211,14 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS));
 
         // Entropy upcall: int(uint8_t* buf, int len, int strength, bool predRes).
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_BOOLEAN);
-        entropyMt = MethodType.methodType(
-                int.class,
-                MemorySegment.class,
-                int.class,
-                int.class,
-                boolean.class);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd)
     {
         return linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd, boolean critical)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd, boolean critical)
     {
         return critical
                 ? linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd, Linker.Option.critical(true))

@@ -14,8 +14,10 @@ package org.openssl.jostle.jcajce.provider.dh;
 import org.openssl.jostle.jcajce.interfaces.DHKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
@@ -23,9 +25,21 @@ import java.math.BigInteger;
 
 class JODHPublicKey extends AsymmetricKeyImpl implements DHPublicKey, DHKey, OSSLKey
 {
+    // The NI backends that own the underlying PKEY (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final DHServiceNI dhServiceNI;
+    private final Asn1Ni asn1NI;
+
     JODHPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.DHServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    JODHPublicKey(DHServiceNI dhServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.dhServiceNI = dhServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -45,7 +59,7 @@ class JODHPublicKey extends AsymmetricKeyImpl implements DHPublicKey, DHKey, OSS
     {
         synchronized (this)
         {
-            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec);
         }
     }
 
@@ -58,12 +72,12 @@ class JODHPublicKey extends AsymmetricKeyImpl implements DHPublicKey, DHKey, OSS
     @Override
     public BigInteger getY()
     {
-        return DHComponents.getBigInteger(spec, DHServiceNI.COMP_PUBLIC_VALUE);
+        return DHComponents.getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_PUBLIC_VALUE);
     }
 
     @Override
     public DHParameterSpec getParams()
     {
-        return DHComponents.getParams(spec);
+        return DHComponents.getParams(dhServiceNI, spec);
     }
 }

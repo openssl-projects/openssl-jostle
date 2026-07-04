@@ -41,7 +41,11 @@ import java.security.*;
  */
 public class DSASignatureSpi extends SignatureSpi
 {
-    protected static final DSAServiceNI dsaServiceNI = NISelector.DSAServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS); foreign keys translate through the
+    // matching KeyFactory.
+    protected final DSAServiceNI dsaServiceNI;
+    protected final DSAKeyFactorySpi keyFactory;
 
     private final String digestName;
     private DSARef ref;
@@ -51,6 +55,13 @@ public class DSASignatureSpi extends SignatureSpi
 
     public DSASignatureSpi(String digestName)
     {
+        this(NISelector.DSAServiceNI, new DSAKeyFactorySpi(), digestName);
+    }
+
+    public DSASignatureSpi(DSAServiceNI dsaServiceNI, DSAKeyFactorySpi keyFactory, String digestName)
+    {
+        this.dsaServiceNI = dsaServiceNI;
+        this.keyFactory = keyFactory;
         this.digestName = digestName;
     }
 
@@ -63,7 +74,7 @@ public class DSASignatureSpi extends SignatureSpi
      * external callers interoperate without having to pre-convert keys.
      * Anything that isn't DSA surfaces as {@link InvalidKeyException}.
      */
-    private static JODSAPublicKey importPublic(PublicKey publicKey) throws InvalidKeyException
+    private JODSAPublicKey importPublic(PublicKey publicKey) throws InvalidKeyException
     {
         if (publicKey instanceof JODSAPublicKey)
         {
@@ -71,7 +82,7 @@ public class DSASignatureSpi extends SignatureSpi
         }
         try
         {
-            Key translated = new DSAKeyFactorySpi().engineTranslateKey(publicKey);
+            Key translated = keyFactory.engineTranslateKey(publicKey);
             if (translated instanceof JODSAPublicKey)
             {
                 return (JODSAPublicKey) translated;
@@ -85,7 +96,7 @@ public class DSASignatureSpi extends SignatureSpi
     }
 
     /** Private-key counterpart to {@link #importPublic}. */
-    private static JODSAPrivateKey importPrivate(PrivateKey privateKey) throws InvalidKeyException
+    private JODSAPrivateKey importPrivate(PrivateKey privateKey) throws InvalidKeyException
     {
         if (privateKey instanceof JODSAPrivateKey)
         {
@@ -93,7 +104,7 @@ public class DSASignatureSpi extends SignatureSpi
         }
         try
         {
-            Key translated = new DSAKeyFactorySpi().engineTranslateKey(privateKey);
+            Key translated = keyFactory.engineTranslateKey(privateKey);
             if (translated instanceof JODSAPrivateKey)
             {
                 return (JODSAPrivateKey) translated;
@@ -245,7 +256,7 @@ public class DSASignatureSpi extends SignatureSpi
     {
         if (ref == null)
         {
-            ref = new DSARef(dsaServiceNI.allocateSigner(), "DSA");
+            ref = new DSARef(dsaServiceNI, dsaServiceNI.allocateSigner(), "DSA");
         }
     }
 
@@ -287,29 +298,35 @@ public class DSASignatureSpi extends SignatureSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        private final DSAServiceNI dsaServiceNI;
+
+        Disposer(DSAServiceNI dsaServiceNI, long ref)
         {
             super(ref);
+            this.dsaServiceNI = dsaServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.DSAServiceNI.disposeSigner(reference);
+            dsaServiceNI.disposeSigner(reference);
         }
     }
 
     protected static class DSARef extends NativeReference
     {
-        protected DSARef(long reference, String name)
+        private final DSAServiceNI dsaServiceNI;
+
+        protected DSARef(DSAServiceNI dsaServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.dsaServiceNI = dsaServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(dsaServiceNI, reference);
         }
     }
 

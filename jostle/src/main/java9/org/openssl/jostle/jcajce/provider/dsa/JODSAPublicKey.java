@@ -14,8 +14,10 @@ package org.openssl.jostle.jcajce.provider.dsa;
 import org.openssl.jostle.jcajce.interfaces.DSAKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.lang.ref.Reference;
 import java.math.BigInteger;
@@ -30,9 +32,21 @@ import java.security.interfaces.DSAPublicKey;
  */
 class JODSAPublicKey extends AsymmetricKeyImpl implements DSAPublicKey, DSAKey, OSSLKey
 {
+    // The NI backends that own the underlying PKEY (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final DSAServiceNI dsaServiceNI;
+    private final Asn1Ni asn1NI;
+
     JODSAPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.DSAServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    JODSAPublicKey(DSAServiceNI dsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.dsaServiceNI = dsaServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -52,7 +66,7 @@ class JODSAPublicKey extends AsymmetricKeyImpl implements DSAPublicKey, DSAKey, 
     {
         try
         {
-            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec);
         }
         finally
         {
@@ -69,12 +83,12 @@ class JODSAPublicKey extends AsymmetricKeyImpl implements DSAPublicKey, DSAKey, 
     @Override
     public BigInteger getY()
     {
-        return DSAComponents.getBigInteger(spec, DSAServiceNI.COMP_PUBLIC_VALUE);
+        return DSAComponents.getBigInteger(dsaServiceNI, spec, DSAServiceNI.COMP_PUBLIC_VALUE);
     }
 
     @Override
     public DSAParams getParams()
     {
-        return DSAComponents.getParams(spec);
+        return DSAComponents.getParams(dsaServiceNI, spec);
     }
 }

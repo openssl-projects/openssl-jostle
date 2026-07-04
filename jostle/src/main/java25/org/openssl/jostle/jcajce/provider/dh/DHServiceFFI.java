@@ -30,38 +30,55 @@ import java.util.logging.Logger;
  * FFI binding for the {@code JoDH_*} symbols exported by
  * {@code interface/ffi/dh_ni_ffi.c}.
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class DHServiceFFI implements DHServiceNI
 {
     private static final Logger L = Logger.getLogger("DH_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle groupSupportedH;
-    private static final MethodHandle generateKeyPairByGroupH;
-    private static final MethodHandle generateParametersH;
-    private static final MethodHandle makeParamsFromComponentsH;
-    private static final MethodHandle generateKeyPairH;
-    private static final MethodHandle makePrivateFromComponentsH;
-    private static final MethodHandle makePublicFromComponentsH;
-    private static final MethodHandle getComponentH;
-    private static final MethodHandle allocKexH;
-    private static final MethodHandle disposeKexH;
-    private static final MethodHandle kexInitH;
-    private static final MethodHandle kexSetPeerH;
-    private static final MethodHandle kexDeriveH;
+    private final MethodHandle groupSupportedH;
+    private final MethodHandle generateKeyPairByGroupH;
+    private final MethodHandle generateParametersH;
+    private final MethodHandle makeParamsFromComponentsH;
+    private final MethodHandle generateKeyPairH;
+    private final MethodHandle makePrivateFromComponentsH;
+    private final MethodHandle makePublicFromComponentsH;
+    private final MethodHandle getComponentH;
+    private final MethodHandle allocKexH;
+    private final MethodHandle disposeKexH;
+    private final MethodHandle kexInitH;
+    private final MethodHandle kexSetPeerH;
+    private final MethodHandle kexDeriveH;
 
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            boolean.class);
 
 
-    static
+    public DHServiceFFI()
     {
-        groupSupportedH = bind("JoDH_groupSupported",
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public DHServiceFFI(SymbolLookup lookup)
+    {
+        groupSupportedH = bind(lookup, "JoDH_groupSupported",
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
 
         // JoDH_generateKeyPairByGroup(const char* group_name, int32_t* err,
         //                             void* rnd_src) -> key_spec*
-        generateKeyPairByGroupH = bind("JoDH_generateKeyPairByGroup",
+        generateKeyPairByGroupH = bind(lookup, "JoDH_generateKeyPairByGroup",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // group_name
@@ -72,7 +89,7 @@ public class DHServiceFFI implements DHServiceNI
         //                         void* rnd_src) -> key_spec*
         // NON-critical: the safe-prime search draws from the Java RAND
         // upcall.
-        generateParametersH = bind("JoDH_generateParameters",
+        generateParametersH = bind(lookup, "JoDH_generateParameters",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,   // p_bits
@@ -80,7 +97,7 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
         // JoDH_makeParamsFromComponents(p, p_size, g, g_size, err_out) -> key_spec*
-        makeParamsFromComponentsH = bind("JoDH_makeParamsFromComponents",
+        makeParamsFromComponentsH = bind(lookup, "JoDH_makeParamsFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -91,7 +108,7 @@ public class DHServiceFFI implements DHServiceNI
 
         // JoDH_generateKeyPair(key_spec* params, int32_t* err,
         //                      void* rnd_src) -> key_spec*
-        generateKeyPairH = bind("JoDH_generateKeyPair",
+        generateKeyPairH = bind(lookup, "JoDH_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // params spec
@@ -101,7 +118,7 @@ public class DHServiceFFI implements DHServiceNI
         // JoDH_makePrivateFromComponents(p, p_size, g, g_size, x, x_size,
         //                                err_out, rnd_src) -> key_spec*
         // NON-critical: the entropy upcall must be allowed during import.
-        makePrivateFromComponentsH = bind("JoDH_makePrivateFromComponents",
+        makePrivateFromComponentsH = bind(lookup, "JoDH_makePrivateFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -115,7 +132,7 @@ public class DHServiceFFI implements DHServiceNI
 
         // JoDH_makePublicFromComponents(p, p_size, g, g_size, y, y_size,
         //                               err_out) -> key_spec*
-        makePublicFromComponentsH = bind("JoDH_makePublicFromComponents",
+        makePublicFromComponentsH = bind(lookup, "JoDH_makePublicFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -127,7 +144,7 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS));  // err out
 
         // JoDH_getComponent(key_spec*, int32_t, uint8_t*, size_t) -> int32_t
-        getComponentH = bind("JoDH_getComponent",
+        getComponentH = bind(lookup, "JoDH_getComponent",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -136,7 +153,7 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        allocKexH = bind("JoDH_allocateKex",
+        allocKexH = bind(lookup, "JoDH_allocateKex",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeKexH = linker.downcallHandle(
@@ -144,7 +161,7 @@ public class DHServiceFFI implements DHServiceNI
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoDH_kexInit(dh_kex_ctx*, key_spec*, void* rnd_src) -> int
-        kexInitH = bind("JoDH_kexInit",
+        kexInitH = bind(lookup, "JoDH_kexInit",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -152,7 +169,7 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS));
 
         // JoDH_kexSetPeer(dh_kex_ctx*, key_spec*, void* rnd_src) -> int
-        kexSetPeerH = bind("JoDH_kexSetPeer",
+        kexSetPeerH = bind(lookup, "JoDH_kexSetPeer",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -162,7 +179,7 @@ public class DHServiceFFI implements DHServiceNI
         // JoDH_kexDerive(dh_kex_ctx*, uint8_t* out, size_t out_size,
         //                int32_t out_off, void* rnd_src) -> int
         // NON-critical: the entropy upcall must be allowed during derive.
-        kexDeriveH = bind("JoDH_kexDerive",
+        kexDeriveH = bind(lookup, "JoDH_kexDerive",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -172,26 +189,14 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS));
 
         // Entropy upcall: int(uint8_t* buf, int len, int strength, bool predRes).
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_BOOLEAN);
-        entropyMt = MethodType.methodType(
-                int.class,
-                MemorySegment.class,
-                int.class,
-                int.class,
-                boolean.class);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd)
     {
         return linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd, boolean critical)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd, boolean critical)
     {
         return critical
                 ? linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd, Linker.Option.critical(true))

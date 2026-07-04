@@ -44,6 +44,20 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSpi
 {
+    // Instance field, not a NISelector static (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final DHServiceNI dhServiceNI;
+
+    public DHAlgorithmParameterGenerator()
+    {
+        this(NISelector.DHServiceNI);
+    }
+
+    public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI)
+    {
+        this.dhServiceNI = dhServiceNI;
+    }
+
     /** Default modulus size when no engineInit is performed. */
     private static final int DEFAULT_KEY_SIZE = 2048;
 
@@ -89,9 +103,9 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     @Override
     protected AlgorithmParameters engineGenerateParameters()
     {
-        long paramsRef = NISelector.DHServiceNI.generateParameters(pBits, random);
+        long paramsRef = dhServiceNI.generateParameters(pBits, random);
         PKEYKeySpec paramsSpec = new PKEYKeySpec(paramsRef, OSSLKeyType.DH);
-        DHParameterSpec spec = DHComponents.getParams(paramsSpec);
+        DHParameterSpec spec = DHComponents.getParams(dhServiceNI, paramsSpec);
         try
         {
             // Resolve from the installed providers — if Jostle is

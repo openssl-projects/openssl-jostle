@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.dsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -48,6 +50,24 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class DSAKeyFactorySpi extends KeyFactorySpi
 {
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final DSAServiceNI dsaServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
+    public DSAKeyFactorySpi()
+    {
+        this(NISelector.DSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public DSAKeyFactorySpi(DSAServiceNI dsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
+        this.dsaServiceNI = dsaServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {
@@ -56,9 +76,9 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireDSA(spec);
-                return new JODSAPublicKey(spec);
+                return new JODSAPublicKey(dsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -75,8 +95,8 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             byte[] q = magnitude(pubSpec.getQ(), "q");
             byte[] g = magnitude(pubSpec.getG(), "g");
             byte[] y = magnitude(pubSpec.getY(), "y");
-            long ref = NISelector.DSAServiceNI.makePublicFromComponents(p, q, g, y);
-            return new JODSAPublicKey(new PKEYKeySpec(ref, OSSLKeyType.DSA));
+            long ref = dsaServiceNI.makePublicFromComponents(p, q, g, y);
+            return new JODSAPublicKey(dsaServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA));
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use X509EncodedKeySpec or DSAPublicKeySpec.");
@@ -92,9 +112,9 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireDSA(spec);
-                return new JODSAPrivateKey(spec);
+                return new JODSAPrivateKey(dsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -115,10 +135,10 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             byte[] q = magnitude(privSpec.getQ(), "q");
             byte[] g = magnitude(privSpec.getG(), "g");
             byte[] x = magnitude(privSpec.getX(), "x");
-            long ref = NISelector.DSAServiceNI.makePrivateFromComponents(
+            long ref = dsaServiceNI.makePrivateFromComponents(
                     p, q, g, x,
                     DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-            return new JODSAPrivateKey(new PKEYKeySpec(ref, OSSLKeyType.DSA));
+            return new JODSAPrivateKey(dsaServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA));
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use PKCS8EncodedKeySpec or DSAPrivateKeySpec.");

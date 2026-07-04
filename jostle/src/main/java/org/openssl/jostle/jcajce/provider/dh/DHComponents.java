@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.dh;
 
-import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 import javax.crypto.spec.DHParameterSpec;
@@ -28,14 +27,14 @@ final class DHComponents
     private DHComponents() {}
 
     /** Fetch a BIGNUM-valued component (p, q, g, y or x). */
-    static BigInteger getBigInteger(PKEYKeySpec spec, int component)
+    static BigInteger getBigInteger(DHServiceNI dhServiceNI, PKEYKeySpec spec, int component)
     {
         synchronized (spec)
         {
-            int len = NISelector.DHServiceNI.getComponent(
+            int len = dhServiceNI.getComponent(
                     spec.getReference(), component, null);
             byte[] raw = new byte[len];
-            int written = NISelector.DHServiceNI.getComponent(
+            int written = dhServiceNI.getComponent(
                     spec.getReference(), component, raw);
             if (written != raw.length)
             {
@@ -55,11 +54,11 @@ final class DHComponents
      * private-value length {@code l} is left at 0 (unspecified), the
      * JCE convention when no constraint was requested.
      */
-    static DHParameterSpec getParams(PKEYKeySpec spec)
+    static DHParameterSpec getParams(DHServiceNI dhServiceNI, PKEYKeySpec spec)
     {
         return new DHParameterSpec(
-                getBigInteger(spec, DHServiceNI.COMP_P),
-                getBigInteger(spec, DHServiceNI.COMP_G));
+                getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_P),
+                getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_G));
     }
 
     /**

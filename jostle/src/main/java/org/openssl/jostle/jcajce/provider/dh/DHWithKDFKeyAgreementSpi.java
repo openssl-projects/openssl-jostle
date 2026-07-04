@@ -50,6 +50,16 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
         this.digest = digest;
     }
 
+    //
+    // NI-binding constructor for the FIPS provider: identical behaviour,
+    // bound to the FIPS interface library.
+    //
+    public DHWithKDFKeyAgreementSpi(DHServiceNI dhServiceNI, DHKeyFactorySpi keyFactory, String digest)
+    {
+        super(dhServiceNI, keyFactory);
+        this.digest = digest;
+    }
+
     @Override
     protected void engineInit(Key key, AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidKeyException, InvalidAlgorithmParameterException

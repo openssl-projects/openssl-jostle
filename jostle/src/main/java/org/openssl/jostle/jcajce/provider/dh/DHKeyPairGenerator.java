@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -49,7 +51,11 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class DHKeyPairGenerator extends KeyPairGenerator
 {
-    private static final DHServiceNI dhServiceNI = NISelector.DHServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final DHServiceNI dhServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     /** Default modulus size when no init is performed before generateKeyPair. */
     private static final int DEFAULT_KEY_SIZE = 2048;
@@ -73,7 +79,15 @@ public class DHKeyPairGenerator extends KeyPairGenerator
 
     public DHKeyPairGenerator()
     {
+        this(NISelector.DHServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public DHKeyPairGenerator(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
         super("DH");
+        this.dhServiceNI = dhServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
     }
 
     /**
@@ -189,18 +203,18 @@ public class DHKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(ref, OSSLKeyType.DH);
-        return new KeyPair(new JODHPublicKey(spec), new JODHPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.DH);
+        return new KeyPair(new JODHPublicKey(dhServiceNI, asn1NI, spec), new JODHPrivateKey(dhServiceNI, asn1NI, spec));
     }
 
     /** Import explicit (p, g) as a parameters-only key spec. */
-    static PKEYKeySpec makeParamsSpec(DHParameterSpec dhSpec)
+    PKEYKeySpec makeParamsSpec(DHParameterSpec dhSpec)
     {
         BigInteger p = dhSpec.getP();
         BigInteger g = dhSpec.getG();
-        long paramsRef = NISelector.DHServiceNI.makeParamsFromComponents(
+        long paramsRef = dhServiceNI.makeParamsFromComponents(
                 DHComponents.unsignedMagnitude(p),
                 DHComponents.unsignedMagnitude(g));
-        return new PKEYKeySpec(paramsRef, OSSLKeyType.DH);
+        return new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DH);
     }
 }

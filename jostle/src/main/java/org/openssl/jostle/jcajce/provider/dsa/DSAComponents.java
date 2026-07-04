@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.dsa;
 
-import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 import java.math.BigInteger;
@@ -28,14 +27,14 @@ final class DSAComponents
     private DSAComponents() {}
 
     /** Fetch a BIGNUM-valued component (p, q, g, y or x). */
-    static BigInteger getBigInteger(PKEYKeySpec spec, int component)
+    static BigInteger getBigInteger(DSAServiceNI dsaServiceNI, PKEYKeySpec spec, int component)
     {
         synchronized (spec)
         {
-            int len = NISelector.DSAServiceNI.getComponent(
+            int len = dsaServiceNI.getComponent(
                     spec.getReference(), component, null);
             byte[] raw = new byte[len];
-            int written = NISelector.DSAServiceNI.getComponent(
+            int written = dsaServiceNI.getComponent(
                     spec.getReference(), component, raw);
             if (written != raw.length)
             {
@@ -55,12 +54,12 @@ final class DSAComponents
      * {@link java.security.interfaces.DSAParams} — the type bc-java's
      * cert/CMS code reads via {@code ((DSAKey) key).getParams()}).
      */
-    static DSAParameterSpec getParams(PKEYKeySpec spec)
+    static DSAParameterSpec getParams(DSAServiceNI dsaServiceNI, PKEYKeySpec spec)
     {
         return new DSAParameterSpec(
-                getBigInteger(spec, DSAServiceNI.COMP_P),
-                getBigInteger(spec, DSAServiceNI.COMP_Q),
-                getBigInteger(spec, DSAServiceNI.COMP_G));
+                getBigInteger(dsaServiceNI, spec, DSAServiceNI.COMP_P),
+                getBigInteger(dsaServiceNI, spec, DSAServiceNI.COMP_Q),
+                getBigInteger(dsaServiceNI, spec, DSAServiceNI.COMP_G));
     }
 
     /**

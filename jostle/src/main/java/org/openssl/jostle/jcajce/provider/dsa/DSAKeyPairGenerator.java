@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.dsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -57,7 +59,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DSAKeyPairGenerator extends KeyPairGenerator
 {
-    private static final DSAServiceNI dsaServiceNI = NISelector.DSAServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final DSAServiceNI dsaServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     /** Default modulus size when no init is performed before generateKeyPair. */
     private static final int DEFAULT_KEY_SIZE = 2048;
@@ -80,8 +86,11 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
      * bit size. The cached {@link PKEYKeySpec} owns a parameters-only
      * EVP_PKEY; keygen runs against it without re-deriving (p, q, g).
      */
-    private static final Map<Integer, PKEYKeySpec> PARAM_CACHE =
-            new ConcurrentHashMap<Integer, PKEYKeySpec>();
+    // Keyed by NI identity + key size: a params spec generated in one
+    // interface library's lib ctx (e.g. the FIPS library's) must never be
+    // served to a generator bound to the other.
+    private static final Map<String, PKEYKeySpec> PARAM_CACHE =
+            new ConcurrentHashMap<String, PKEYKeySpec>();
 
 
     private int keySize = DEFAULT_KEY_SIZE;
@@ -91,7 +100,15 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
 
     public DSAKeyPairGenerator()
     {
+        this(NISelector.DSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public DSAKeyPairGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
         super("DSA");
+        this.dsaServiceNI = dsaServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
     }
 
     /**
@@ -207,21 +224,21 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(ref, OSSLKeyType.DSA);
-        return new KeyPair(new JODSAPublicKey(spec), new JODSAPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA);
+        return new KeyPair(new JODSAPublicKey(dsaServiceNI, asn1NI, spec), new JODSAPrivateKey(dsaServiceNI, asn1NI, spec));
     }
 
     /** Import explicit (p, q, g) as a parameters-only key spec. */
-    static PKEYKeySpec makeParamsSpec(DSAParameterSpec dsaSpec)
+    PKEYKeySpec makeParamsSpec(DSAParameterSpec dsaSpec)
     {
         BigInteger p = dsaSpec.getP();
         BigInteger q = dsaSpec.getQ();
         BigInteger g = dsaSpec.getG();
-        long paramsRef = NISelector.DSAServiceNI.makeParamsFromComponents(
+        long paramsRef = dsaServiceNI.makeParamsFromComponents(
                 DSAComponents.unsignedMagnitude(p),
                 DSAComponents.unsignedMagnitude(q),
                 DSAComponents.unsignedMagnitude(g));
-        return new PKEYKeySpec(paramsRef, OSSLKeyType.DSA);
+        return new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
     }
 
     /**
@@ -229,17 +246,18 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
      * the given modulus size. The first caller per size pays the
      * paramgen cost; everyone after reuses the cached parameters.
      */
-    private static PKEYKeySpec cachedParamsSpec(final int keySize, final RandSource random)
+    private PKEYKeySpec cachedParamsSpec(final int keySize, final RandSource random)
     {
-        PKEYKeySpec cached = PARAM_CACHE.get(keySize);
+        String cacheKey = System.identityHashCode(dsaServiceNI) + ":" + keySize;
+        PKEYKeySpec cached = PARAM_CACHE.get(cacheKey);
         if (cached != null)
         {
             return cached;
         }
-        long paramsRef = NISelector.DSAServiceNI.generateParameters(
+        long paramsRef = dsaServiceNI.generateParameters(
                 keySize, qBitsFor(keySize), random);
-        PKEYKeySpec fresh = new PKEYKeySpec(paramsRef, OSSLKeyType.DSA);
-        PKEYKeySpec winner = PARAM_CACHE.putIfAbsent(keySize, fresh);
+        PKEYKeySpec fresh = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
+        PKEYKeySpec winner = PARAM_CACHE.putIfAbsent(cacheKey, fresh);
         return winner != null ? winner : fresh;
     }
 }
