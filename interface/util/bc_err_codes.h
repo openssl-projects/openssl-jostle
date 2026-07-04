@@ -222,6 +222,27 @@
 #define JO_KS_MAC_ITER_NEGATIVE -133
 #define JO_KS_MAC_VERIFY_FAILED -134
 
+/*
+ * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
+ * the Java layer can surface actionable configuration errors: a module
+ * path with no parent directory / empty module name; a config
+ * (fipsmodule.cnf) that is missing or fails to parse; the FIPS provider
+ * failing to activate after config load (module not found on the search
+ * path, integrity-MAC mismatch, or self-test failure - details on the ERR
+ * queue); the base provider not being available; and post-activation
+ * wiring failures (fips=yes default-property pinning, the post-init fetch
+ * health probe).
+ *
+ * FIPS codes occupy their own -400 block, leaving the -1xx range free for
+ * further non-FIPS codes.
+ */
+#define JO_FIPS_MODULE_PATH_INVALID -400
+#define JO_FIPS_CONFIG_LOAD_FAILED -401
+#define JO_FIPS_PROVIDER_UNAVAILABLE -402
+#define JO_FIPS_BASE_UNAVAILABLE -403
+#define JO_FIPS_ENABLE_FAILED -404
+#define JO_FIPS_FETCH_PROBE_FAILED -405
+
 
 
 #define UNSUCCESSFUL(x) JO_SUCCESS > x
