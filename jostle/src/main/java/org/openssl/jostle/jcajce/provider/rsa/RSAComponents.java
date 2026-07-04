@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
-import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 import java.math.BigInteger;
@@ -40,16 +39,16 @@ final class RSAComponents
      * Fetches a component that must exist on this key. Throws if the
      * native call fails for any reason.
      */
-    static BigInteger getRequired(PKEYKeySpec spec, int component)
+    static BigInteger getRequired(RSAServiceNI rsaServiceNI, PKEYKeySpec spec, int component)
     {
         // Synchronizing on `spec` keeps the underlying EVP_PKEY reachable
         // across both native calls — the Java 8-compatible alternative to
         // Reference.reachabilityFence().
         synchronized (spec)
         {
-            int len = NISelector.RSAServiceNI.getComponent(spec.getReference(), component, null);
+            int len = rsaServiceNI.getComponent(spec.getReference(), component, null);
             byte[] raw = new byte[len];
-            int written = NISelector.RSAServiceNI.getComponent(spec.getReference(), component, raw);
+            int written = rsaServiceNI.getComponent(spec.getReference(), component, raw);
             if (written != raw.length)
             {
                 // Component shrunk between query and fetch — should never happen.
@@ -68,17 +67,17 @@ final class RSAComponents
      * Returns null on any negative return from the native layer (which
      * is OpenSSL signalling "no such param" for a key without CRT data).
      */
-    static BigInteger getOptional(PKEYKeySpec spec, int component)
+    static BigInteger getOptional(RSAServiceNI rsaServiceNI, PKEYKeySpec spec, int component)
     {
         synchronized (spec)
         {
-            int len = NISelector.RSAServiceNI.ni_getComponent(spec.getReference(), component, null);
+            int len = rsaServiceNI.ni_getComponent(spec.getReference(), component, null);
             if (len < 0)
             {
                 return null;
             }
             byte[] raw = new byte[len];
-            int written = NISelector.RSAServiceNI.ni_getComponent(spec.getReference(), component, raw);
+            int written = rsaServiceNI.ni_getComponent(spec.getReference(), component, raw);
             if (written < 0)
             {
                 return null;

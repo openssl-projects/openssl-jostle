@@ -15,8 +15,10 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.math.BigInteger;
@@ -31,15 +33,26 @@ import java.math.BigInteger;
 class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSSLKey
 {
 
+    // The NI backends that own the underlying PKEY (see JORSAPublicKey).
+    private final RSAServiceNI rsaServiceNI;
+    private final Asn1Ni asn1NI;
+
     JORSAPrivateKey(PKEYKeySpec spec)
     {
+        this(NISelector.RSAServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    JORSAPrivateKey(RSAServiceNI rsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.rsaServiceNI = rsaServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
     public RSAPublicKey getPublicKey()
     {
-        return new JORSAPublicKey(spec);
+        return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
     }
 
     @Override
@@ -59,7 +72,7 @@ class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSS
     {
         synchronized (this)
         {
-            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT);
         }
     }
 
@@ -74,13 +87,13 @@ class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSS
     @Override
     public BigInteger getModulus()
     {
-        return RSAComponents.getRequired(spec, RSAServiceNI.COMP_MODULUS);
+        return RSAComponents.getRequired(rsaServiceNI, spec, RSAServiceNI.COMP_MODULUS);
     }
 
     @Override
     public BigInteger getPrivateExponent()
     {
-        return RSAComponents.getRequired(spec, RSAServiceNI.COMP_PRIVATE_EXPONENT);
+        return RSAComponents.getRequired(rsaServiceNI, spec, RSAServiceNI.COMP_PRIVATE_EXPONENT);
     }
 
     // --- RSAPrivateCrtKey ---
@@ -88,36 +101,36 @@ class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSS
     @Override
     public BigInteger getPublicExponent()
     {
-        return RSAComponents.getOptional(spec, RSAServiceNI.COMP_PUBLIC_EXPONENT);
+        return RSAComponents.getOptional(rsaServiceNI, spec, RSAServiceNI.COMP_PUBLIC_EXPONENT);
     }
 
     @Override
     public BigInteger getPrimeP()
     {
-        return RSAComponents.getOptional(spec, RSAServiceNI.COMP_PRIME_P);
+        return RSAComponents.getOptional(rsaServiceNI, spec, RSAServiceNI.COMP_PRIME_P);
     }
 
     @Override
     public BigInteger getPrimeQ()
     {
-        return RSAComponents.getOptional(spec, RSAServiceNI.COMP_PRIME_Q);
+        return RSAComponents.getOptional(rsaServiceNI, spec, RSAServiceNI.COMP_PRIME_Q);
     }
 
     @Override
     public BigInteger getPrimeExponentP()
     {
-        return RSAComponents.getOptional(spec, RSAServiceNI.COMP_EXPONENT_P);
+        return RSAComponents.getOptional(rsaServiceNI, spec, RSAServiceNI.COMP_EXPONENT_P);
     }
 
     @Override
     public BigInteger getPrimeExponentQ()
     {
-        return RSAComponents.getOptional(spec, RSAServiceNI.COMP_EXPONENT_Q);
+        return RSAComponents.getOptional(rsaServiceNI, spec, RSAServiceNI.COMP_EXPONENT_Q);
     }
 
     @Override
     public BigInteger getCrtCoefficient()
     {
-        return RSAComponents.getOptional(spec, RSAServiceNI.COMP_CRT_COEFFICIENT);
+        return RSAComponents.getOptional(rsaServiceNI, spec, RSAServiceNI.COMP_CRT_COEFFICIENT);
     }
 }

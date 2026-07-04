@@ -14,6 +14,8 @@ package org.openssl.jostle.jcajce.provider.rsa;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 
@@ -21,10 +23,22 @@ import java.math.BigInteger;
 
 class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
 {
+    // The NI backends that own the underlying PKEY - component reads and
+    // encoding must go through the interface library that created the key
+    // (NISelector for JSL, FIPSNISelector for JSLFIPS).
+    private final RSAServiceNI rsaServiceNI;
+    private final Asn1Ni asn1NI;
 
     JORSAPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.RSAServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    JORSAPublicKey(RSAServiceNI rsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.rsaServiceNI = rsaServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -44,7 +58,7 @@ class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
     {
         synchronized (this)
         {
-            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec);
         }
     }
 
@@ -57,12 +71,12 @@ class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
     @Override
     public BigInteger getModulus()
     {
-        return RSAComponents.getRequired(spec, RSAServiceNI.COMP_MODULUS);
+        return RSAComponents.getRequired(rsaServiceNI, spec, RSAServiceNI.COMP_MODULUS);
     }
 
     @Override
     public BigInteger getPublicExponent()
     {
-        return RSAComponents.getRequired(spec, RSAServiceNI.COMP_PUBLIC_EXPONENT);
+        return RSAComponents.getRequired(rsaServiceNI, spec, RSAServiceNI.COMP_PUBLIC_EXPONENT);
     }
 }

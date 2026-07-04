@@ -65,6 +65,23 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
         this.saltLen = -1;
     }
 
+    //
+    // NI-binding constructors for the FIPS provider: identical behaviour,
+    // bound to the FIPS interface library's RSAServiceNI.
+    //
+    public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI)
+    {
+        super(rsaServiceNI);
+    }
+
+    public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, String digest)
+    {
+        super(rsaServiceNI);
+        this.digestName = digest;
+        this.mgf1Digest = digest;
+        this.saltLen = -1;
+    }
+
     @Override
     protected void engineSetParameter(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
     {

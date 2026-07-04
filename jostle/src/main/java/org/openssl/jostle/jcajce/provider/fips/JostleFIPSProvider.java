@@ -227,5 +227,6 @@ public final class JostleFIPSProvider
         new ProvFIPSAES().configure(this);
         new ProvFIPSMac().configure(this);
         new ProvFIPSRand().configure(this);
+        new ProvFIPSRSA().configure(this);
     }
 }

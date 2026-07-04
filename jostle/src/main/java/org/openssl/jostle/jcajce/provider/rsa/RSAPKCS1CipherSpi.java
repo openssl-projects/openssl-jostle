@@ -62,7 +62,11 @@ import java.util.Locale;
  */
 public class RSAPKCS1CipherSpi extends CipherSpi
 {
-    private static final RSAPKCS1CipherNI cipherNI = NISelector.RSAPKCS1CipherNI;
+    // Instance fields, not NISelector statics: the SPI is bound to whichever
+    // NI backend its provider passes in (NISelector for JSL, FIPSNISelector
+    // for JSLFIPS); foreign keys translate through the matching KeyFactory.
+    private final RSAPKCS1CipherNI cipherNI;
+    private final RSAKeyFactorySpi keyFactory;
 
     private CipherRef ref;
     private int opMode;
@@ -81,7 +85,16 @@ public class RSAPKCS1CipherSpi extends CipherSpi
     private RSAKey lastKey = null;
 
 
-    public RSAPKCS1CipherSpi() {}
+    public RSAPKCS1CipherSpi()
+    {
+        this(NISelector.RSAPKCS1CipherNI, new RSAKeyFactorySpi());
+    }
+
+    public RSAPKCS1CipherSpi(RSAPKCS1CipherNI cipherNI, RSAKeyFactorySpi keyFactory)
+    {
+        this.cipherNI = cipherNI;
+        this.keyFactory = keyFactory;
+    }
 
 
     @Override
@@ -178,7 +191,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
                 // Accept any RSAPublicKey (incl. a foreign cert key) by
                 // translating to a JSL key; pin the JSL key, which owns the
                 // native handle, reachable across the native call.
-                JORSAPublicKey pub = RSAKeyImport.importPublic(key, "encrypt/wrap requires an RSAPublicKey");
+                JORSAPublicKey pub = RSAKeyImport.importPublic(keyFactory, key, "encrypt/wrap requires an RSAPublicKey");
                 lastKey = pub;
                 keyRef = pub.getSpec().getReference();
                 modulusBytes = bigIntByteLen(pub.getModulus());
@@ -186,7 +199,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             }
             else if (opmode == Cipher.DECRYPT_MODE || opmode == Cipher.UNWRAP_MODE)
             {
-                JORSAPrivateKey priv = RSAKeyImport.importPrivate(key, "decrypt/unwrap requires an RSAPrivateKey");
+                JORSAPrivateKey priv = RSAKeyImport.importPrivate(keyFactory, key, "decrypt/unwrap requires an RSAPrivateKey");
                 lastKey = priv;
                 keyRef = priv.getSpec().getReference();
                 modulusBytes = bigIntByteLen(priv.getModulus());
@@ -414,7 +427,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
     {
         if (ref == null)
         {
-            ref = new CipherRef(cipherNI.allocateCipher(), "RSA-PKCS1");
+            ref = new CipherRef(cipherNI, cipherNI.allocateCipher(), "RSA-PKCS1");
         }
     }
 
@@ -434,29 +447,37 @@ public class RSAPKCS1CipherSpi extends CipherSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the cipher frees it - a FIPS-allocated
+        // cipher must be disposed through the FIPS interface library.
+        private final RSAPKCS1CipherNI cipherNI;
+
+        Disposer(RSAPKCS1CipherNI cipherNI, long ref)
         {
             super(ref);
+            this.cipherNI = cipherNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.RSAPKCS1CipherNI.disposeCipher(reference);
+            cipherNI.disposeCipher(reference);
         }
     }
 
     protected static class CipherRef extends NativeReference
     {
-        protected CipherRef(long reference, String name)
+        private final RSAPKCS1CipherNI cipherNI;
+
+        protected CipherRef(RSAPKCS1CipherNI cipherNI, long reference, String name)
         {
             super(reference, name);
+            this.cipherNI = cipherNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(cipherNI, reference);
         }
     }
 }

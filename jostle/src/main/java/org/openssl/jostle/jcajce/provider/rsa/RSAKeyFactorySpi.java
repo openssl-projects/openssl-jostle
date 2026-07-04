@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.Arrays;
@@ -34,6 +36,24 @@ import java.security.spec.X509EncodedKeySpec;
 
 public class RSAKeyFactorySpi extends KeyFactorySpi
 {
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final RSAServiceNI rsaServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
+    public RSAKeyFactorySpi()
+    {
+        this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public RSAKeyFactorySpi(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
+        this.rsaServiceNI = rsaServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {
@@ -48,7 +68,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             {
                 PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
                 requireRSA(spec);
-                return new JORSAPublicKey(spec);
+                return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -62,12 +82,12 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof RSAPublicKeySpec)
         {
             RSAPublicKeySpec rsa = (RSAPublicKeySpec) keySpec;
-            PKEYKeySpec spec = new PKEYKeySpec(NISelector.SpecNI.allocate(), OSSLKeyType.RSA);
-            NISelector.RSAServiceNI.decodePublicComponents(
+            PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
+            rsaServiceNI.decodePublicComponents(
                     spec.getReference(),
                     unsignedMagnitude(rsa.getModulus()),
                     unsignedMagnitude(rsa.getPublicExponent()));
-            return new JORSAPublicKey(spec);
+            return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec);
     }
@@ -88,7 +108,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             {
                 PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
                 requireRSA(spec);
-                return new JORSAPrivateKey(spec);
+                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -110,8 +130,8 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         {
             // Test before RSAPrivateKeySpec — RSAPrivateCrtKeySpec extends it.
             RSAPrivateCrtKeySpec rsa = (RSAPrivateCrtKeySpec) keySpec;
-            PKEYKeySpec spec = new PKEYKeySpec(NISelector.SpecNI.allocate(), OSSLKeyType.RSA);
-            NISelector.RSAServiceNI.decodePrivateComponentsCrt(
+            PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
+            rsaServiceNI.decodePrivateComponentsCrt(
                     spec.getReference(),
                     unsignedMagnitude(rsa.getModulus()),
                     unsignedMagnitude(rsa.getPublicExponent()),
@@ -121,14 +141,14 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                     unsignedMagnitude(rsa.getPrimeExponentP()),
                     unsignedMagnitude(rsa.getPrimeExponentQ()),
                     unsignedMagnitude(rsa.getCrtCoefficient()));
-            return new JORSAPrivateKey(spec);
+            return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
         }
         if (keySpec instanceof RSAPrivateKeySpec)
         {
             // Non-CRT private. CRT-component getters on the resulting
             // key will return null per the JCA contract.
             RSAPrivateKeySpec rsa = (RSAPrivateKeySpec) keySpec;
-            PKEYKeySpec spec = new PKEYKeySpec(NISelector.SpecNI.allocate(), OSSLKeyType.RSA);
+            PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
             // OpenSSL needs the public exponent to construct the EVP_PKEY,
             // which RSAPrivateKeySpec doesn't supply. We can reconstruct
             // it via e = mod_inverse(d_mod_phi) but only with p and q —

@@ -40,7 +40,10 @@ import java.security.SignatureSpi;
  */
 abstract class RSASignatureSpiBase extends SignatureSpi
 {
-    protected static final RSAServiceNI rsaServiceNI = NISelector.RSAServiceNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in (NISelector for JSL, FIPSNISelector
+    // for JSLFIPS).
+    protected final RSAServiceNI rsaServiceNI;
 
     private RSARef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -53,6 +56,16 @@ abstract class RSASignatureSpiBase extends SignatureSpi
      * by defaulting to the signing hash; salt_len &lt; 0 means "use
      * digest output length".
      */
+    protected RSASignatureSpiBase()
+    {
+        this(NISelector.RSAServiceNI);
+    }
+
+    protected RSASignatureSpiBase(RSAServiceNI rsaServiceNI)
+    {
+        this.rsaServiceNI = rsaServiceNI;
+    }
+
     protected abstract void nativeInitSign(long ref, long keyRef, RandSource rnd);
 
     protected abstract void nativeInitVerify(long ref, long keyRef);
@@ -174,7 +187,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     {
         if (ref == null)
         {
-            ref = new RSARef(rsaServiceNI.allocateSigner(), algorithmName);
+            ref = new RSARef(rsaServiceNI, rsaServiceNI.allocateSigner(), algorithmName);
         }
     }
 
@@ -222,29 +235,37 @@ abstract class RSASignatureSpiBase extends SignatureSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the signer frees it - a FIPS-allocated
+        // signer must be disposed through the FIPS interface library.
+        private final RSAServiceNI rsaServiceNI;
+
+        Disposer(RSAServiceNI rsaServiceNI, long ref)
         {
             super(ref);
+            this.rsaServiceNI = rsaServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.RSAServiceNI.disposeSigner(reference);
+            rsaServiceNI.disposeSigner(reference);
         }
     }
 
     protected static class RSARef extends NativeReference
     {
-        protected RSARef(long reference, String name)
+        private final RSAServiceNI rsaServiceNI;
+
+        protected RSARef(RSAServiceNI rsaServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.rsaServiceNI = rsaServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(rsaServiceNI, reference);
         }
     }
 }

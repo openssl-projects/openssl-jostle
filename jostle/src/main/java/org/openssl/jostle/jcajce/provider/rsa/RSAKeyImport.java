@@ -48,6 +48,16 @@ public final class RSAKeyImport
      */
     public static JORSAPublicKey importPublic(Key key, String failMessage) throws InvalidKeyException
     {
+        return importPublic(new RSAKeyFactorySpi(), key, failMessage);
+    }
+
+    /**
+     * Variant bound to a specific KeyFactory (and so a specific NI backend):
+     * the FIPS provider's ciphers translate foreign keys through the FIPS
+     * interface library.
+     */
+    public static JORSAPublicKey importPublic(RSAKeyFactorySpi keyFactory, Key key, String failMessage) throws InvalidKeyException
+    {
         if (key instanceof JORSAPublicKey)
         {
             return (JORSAPublicKey) key;
@@ -56,7 +66,7 @@ public final class RSAKeyImport
         {
             try
             {
-                Key translated = new RSAKeyFactorySpi().engineTranslateKey(key);
+                Key translated = keyFactory.engineTranslateKey(key);
                 if (translated instanceof JORSAPublicKey)
                 {
                     return (JORSAPublicKey) translated;
@@ -78,6 +88,12 @@ public final class RSAKeyImport
     /** Private-key counterpart to {@link #importPublic(Key, String)}. */
     public static JORSAPrivateKey importPrivate(Key key, String failMessage) throws InvalidKeyException
     {
+        return importPrivate(new RSAKeyFactorySpi(), key, failMessage);
+    }
+
+    /** Private-key counterpart to {@link #importPublic(RSAKeyFactorySpi, Key, String)}. */
+    public static JORSAPrivateKey importPrivate(RSAKeyFactorySpi keyFactory, Key key, String failMessage) throws InvalidKeyException
+    {
         if (key instanceof JORSAPrivateKey)
         {
             return (JORSAPrivateKey) key;
@@ -86,7 +102,7 @@ public final class RSAKeyImport
         {
             try
             {
-                Key translated = new RSAKeyFactorySpi().engineTranslateKey(key);
+                Key translated = keyFactory.engineTranslateKey(key);
                 if (translated instanceof JORSAPrivateKey)
                 {
                     return (JORSAPrivateKey) translated;

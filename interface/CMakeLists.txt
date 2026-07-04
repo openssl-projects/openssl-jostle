@@ -141,6 +141,9 @@ set(FIPS_JNI_GLUE_SOURCES
         jni/rand_fips_jni.c
         jni/spec_fips_jni.c
         jni/asn1_fips_jni.c
+        jni/rsa_fips_jni.c
+        jni/rsa_oaep_fips_jni.c
+        jni/rsa_pkcs1_fips_jni.c
         jni/rand_upcall_jni.h
         jni/rand_upcall_jni.c
         jni/byte_array_critical.c

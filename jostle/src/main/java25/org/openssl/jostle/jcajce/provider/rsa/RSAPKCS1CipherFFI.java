@@ -30,22 +30,39 @@ import java.util.logging.Logger;
  * {@code interface/ffi/rsa_pkcs1_ni_ffi.c}. Mirrors {@link RSAOAEPCipherFFI}
  * but with no digest / MGF1 / label parameters — PKCS#1 v1.5 has none.
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class RSAPKCS1CipherFFI implements RSAPKCS1CipherNI
 {
     private static final Logger L = Logger.getLogger("RSA_PKCS1_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle allocCipherH;
-    private static final MethodHandle disposeCipherH;
-    private static final MethodHandle initH;
-    private static final MethodHandle doFinalH;
+    private final MethodHandle allocCipherH;
+    private final MethodHandle disposeCipherH;
+    private final MethodHandle initH;
+    private final MethodHandle doFinalH;
 
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            boolean.class);
 
 
-    static
+    public RSAPKCS1CipherFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public RSAPKCS1CipherFFI(SymbolLookup lookup)
     {
         allocCipherH = linker.downcallHandle(
                 lookup.find("JoRSAPKCS1_allocateCipher").orElseThrow(),
@@ -81,18 +98,6 @@ public class RSAPKCS1CipherFFI implements RSAPKCS1CipherNI
                         ValueLayout.JAVA_INT,   // out_off
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_BOOLEAN);
-        entropyMt = MethodType.methodType(
-                int.class,
-                MemorySegment.class,
-                int.class,
-                int.class,
-                boolean.class);
     }
 
     private static MemorySegment entropyStub(Arena arena, RandSource src)

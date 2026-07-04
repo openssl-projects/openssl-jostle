@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -73,9 +75,24 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
 
+    // Instance fields, not NISelector statics: the generator is bound to
+    // whichever NI backends its provider passes in (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final RSAServiceNI rsaServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
     public RSAKeyPairGenerator()
     {
+        this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
         super("RSA");
+        this.rsaServiceNI = rsaServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -166,13 +183,13 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
         // leading 0x00 byte (which BN_bin2bn handles correctly).
         byte[] e = publicExponent.toByteArray();
 
-        long ref = NISelector.RSAServiceNI.generateKeyPair(keySizeBits, e, random);
+        long ref = rsaServiceNI.generateKeyPair(keySizeBits, e, random);
         if (ref == 0)
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
 
-        PKEYKeySpec spec = new PKEYKeySpec(ref, OSSLKeyType.RSA);
-        return new KeyPair(new JORSAPublicKey(spec), new JORSAPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.RSA);
+        return new KeyPair(new JORSAPublicKey(rsaServiceNI, asn1NI, spec), new JORSAPrivateKey(rsaServiceNI, asn1NI, spec));
     }
 }

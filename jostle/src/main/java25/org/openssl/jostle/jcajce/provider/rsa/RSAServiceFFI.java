@@ -32,34 +32,51 @@ import java.util.logging.Logger;
  * each native call is wrapped to translate Java byte[]/String into
  * MemorySegments and convert the entropy upcall.
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class RSAServiceFFI implements RSAServiceNI
 {
     private static final Logger L = Logger.getLogger("RSA_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
     // ---- function handles ----
-    private static final MethodHandle allocSignerH;
-    private static final MethodHandle disposeSignerH;
-    private static final MethodHandle generateKeyPairH;
-    private static final MethodHandle decodePublicComponentsH;
-    private static final MethodHandle decodePrivateComponentsH;
-    private static final MethodHandle decodePrivateComponentsCrtH;
-    private static final MethodHandle getComponentH;
-    private static final MethodHandle initSignH;
-    private static final MethodHandle initVerifyH;
-    private static final MethodHandle updateH;
-    private static final MethodHandle signH;
-    private static final MethodHandle verifyH;
+    private final MethodHandle allocSignerH;
+    private final MethodHandle disposeSignerH;
+    private final MethodHandle generateKeyPairH;
+    private final MethodHandle decodePublicComponentsH;
+    private final MethodHandle decodePrivateComponentsH;
+    private final MethodHandle decodePrivateComponentsCrtH;
+    private final MethodHandle getComponentH;
+    private final MethodHandle initSignH;
+    private final MethodHandle initVerifyH;
+    private final MethodHandle updateH;
+    private final MethodHandle signH;
+    private final MethodHandle verifyH;
 
     // Entropy upcall stub descriptor (shared with EdDSA's pattern).
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            boolean.class);
 
 
-    static
+    public RSAServiceFFI()
     {
-        allocSignerH = bind("JoRSA_allocateSigner",
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public RSAServiceFFI(SymbolLookup lookup)
+    {
+        allocSignerH = bind(lookup, "JoRSA_allocateSigner",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeSignerH = linker.downcallHandle(
@@ -68,7 +85,7 @@ public class RSAServiceFFI implements RSAServiceNI
 
         // RSA_generateKeyPair(int bits, uint8_t* pubexp, size_t pubexp_len,
         //                    int32_t* err, void* rnd_src) -> key_spec*
-        generateKeyPairH = bind("JoRSA_generateKeyPair",
+        generateKeyPairH = bind(lookup, "JoRSA_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,    // bits
@@ -77,7 +94,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.ADDRESS,     // err out
                         ValueLayout.ADDRESS));   // rnd_src upcall
 
-        decodePublicComponentsH = bind("JoRSA_decodePublicComponents",
+        decodePublicComponentsH = bind(lookup, "JoRSA_decodePublicComponents",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -85,7 +102,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        decodePrivateComponentsH = bind("JoRSA_decodePrivateComponents",
+        decodePrivateComponentsH = bind(lookup, "JoRSA_decodePrivateComponents",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -95,7 +112,7 @@ public class RSAServiceFFI implements RSAServiceNI
                 /* critical */ true);
 
         // 8 (ptr,len) pairs after the spec pointer.
-        decodePrivateComponentsCrtH = bind("JoRSA_decodePrivateComponentsCrt",
+        decodePrivateComponentsCrtH = bind(lookup, "JoRSA_decodePrivateComponentsCrt",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -110,7 +127,7 @@ public class RSAServiceFFI implements RSAServiceNI
                 /* critical */ true);
 
         // RSA_getComponent(key_spec*, int32_t component, uint8_t* out, size_t out_len)
-        getComponentH = bind("JoRSA_getComponent",
+        getComponentH = bind(lookup, "JoRSA_getComponent",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -121,7 +138,7 @@ public class RSAServiceFFI implements RSAServiceNI
 
         // RSA_initSign(rsa_ctx*, key_spec*, const char* digest, int padding,
         //              const char* mgf1, int salt_len, void* rnd_src)
-        initSignH = bind("JoRSA_initSign",
+        initSignH = bind(lookup, "JoRSA_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx
@@ -132,7 +149,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.JAVA_INT,   // salt_len
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        initVerifyH = bind("JoRSA_initVerify",
+        initVerifyH = bind(lookup, "JoRSA_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -143,7 +160,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.JAVA_INT));
 
         // RSA_update(rsa_ctx*, uint8_t* in, size_t in_size, int in_off, int in_len)
-        updateH = bind("JoRSA_update",
+        updateH = bind(lookup, "JoRSA_update",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -154,7 +171,7 @@ public class RSAServiceFFI implements RSAServiceNI
                 /* critical */ true);
 
         // RSA_sign(rsa_ctx*, uint8_t* out, size_t out_size, int out_off, void* rnd_src)
-        signH = bind("JoRSA_sign",
+        signH = bind(lookup, "JoRSA_sign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -164,7 +181,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.ADDRESS));
 
         // RSA_verify(rsa_ctx*, uint8_t* sig, size_t sig_size, int sig_len)
-        verifyH = bind("JoRSA_verify",
+        verifyH = bind(lookup, "JoRSA_verify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -173,26 +190,14 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.JAVA_INT),
                 /* critical */ true);
 
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_BOOLEAN);
-        entropyMt = MethodType.methodType(
-                int.class,
-                MemorySegment.class,
-                int.class,
-                int.class,
-                boolean.class);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd)
     {
         return linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd, boolean critical)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd, boolean critical)
     {
         return critical
                 ? linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd, Linker.Option.critical(true))
