@@ -138,6 +138,7 @@ set(FIPS_JNI_GLUE_SOURCES
         jni/block_cipher_fips_jni.c
         jni/ccm_fips_jni.c
         jni/mac_fips_jni.c
+        jni/rand_fips_jni.c
         jni/rand_upcall_jni.h
         jni/rand_upcall_jni.c
         jni/byte_array_critical.c
@@ -256,6 +257,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
+            util/rand/jostle_fips_ctx.h
+            util/rand/jostle_fips_ctx.c
             jni/rand_upcall_jni.h
             jni/rand_upcall_jni.c
             jni/ed_jni.c
@@ -358,6 +361,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
+            util/rand/jostle_fips_ctx.h
+            util/rand/jostle_fips_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
             ffi/ed_ni_ffi.c
@@ -505,6 +510,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
+            util/rand/jostle_fips_ctx.h
+            util/rand/jostle_fips_ctx.c
             jni/rand_upcall_jni.h
             jni/rand_upcall_jni.c
             jni/ed_jni.c
@@ -602,6 +609,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
+            util/rand/jostle_fips_ctx.h
+            util/rand/jostle_fips_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
             util/edec.h
@@ -736,6 +745,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
+            util/rand/jostle_fips_ctx.h
+            util/rand/jostle_fips_ctx.c
             jni/rand_upcall_jni.h
             jni/rand_upcall_jni.c
             jni/ed_jni.c
@@ -826,6 +837,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             util/rand/rand_upcall.h
             util/rand/jostle_lib_ctx.h
             util/rand/jostle_lib_ctx.c
+            util/rand/jostle_fips_ctx.h
+            util/rand/jostle_fips_ctx.c
             ffi/rand_upcall_ffi.h
             ffi/rand_upcall_ffi.c
             util/edec.h

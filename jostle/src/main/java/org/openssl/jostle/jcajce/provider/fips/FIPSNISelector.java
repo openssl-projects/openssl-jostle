@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 
 /**
  * Selector for the FIPS NI implementations, mirroring NISelector but bound to
@@ -32,6 +33,7 @@ public class FIPSNISelector
     public static final BlockCipherNI BlockCipherNI;
     public static final CCMCipherNI CCMCipherNI;
     public static final MacServiceNI MacServiceNI;
+    public static final RandServiceNI RandServiceNI;
 
     static
     {
@@ -41,5 +43,6 @@ public class FIPSNISelector
         BlockCipherNI = new BlockCipherFIPSJNI();
         CCMCipherNI = new CCMCipherFIPSJNI();
         MacServiceNI = new MacServiceFIPSJNI();
+        RandServiceNI = new RandServiceFIPSJNI();
     }
 }

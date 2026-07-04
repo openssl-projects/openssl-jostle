@@ -42,7 +42,10 @@ import java.security.SecureRandomSpi;
 public final class RandServiceSPI extends SecureRandomSpi
 {
     private static final long serialVersionUID = 5952625728129925027L;
-    private static final RandServiceNI randServiceNI = NISelector.RandServiceNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in - NISelector.RandServiceNI for JSL,
+    // FIPSNISelector.RandServiceNI (the FIPS interface library) for JSLFIPS.
+    private final RandServiceNI randServiceNI;
 
     private final RandAlgorithm algorithm;
     private final String mechanism;
@@ -60,7 +63,12 @@ public final class RandServiceSPI extends SecureRandomSpi
      */
     public RandServiceSPI(RandAlgorithm algorithm)
     {
-        this(algorithm, null);
+        this(NISelector.RandServiceNI, algorithm, null);
+    }
+
+    public RandServiceSPI(RandServiceNI randServiceNI, RandAlgorithm algorithm)
+    {
+        this(randServiceNI, algorithm, null);
     }
 
     /**
@@ -79,6 +87,12 @@ public final class RandServiceSPI extends SecureRandomSpi
      */
     public RandServiceSPI(RandAlgorithm algorithm, Object params)
     {
+        this(NISelector.RandServiceNI, algorithm, params);
+    }
+
+    public RandServiceSPI(RandServiceNI randServiceNI, RandAlgorithm algorithm, Object params)
+    {
+        this.randServiceNI = randServiceNI;
         if (params != null)
         {
             throw new UnsupportedOperationException("SecureRandom parameters are not supported");
@@ -97,19 +111,19 @@ public final class RandServiceSPI extends SecureRandomSpi
             this.mechanism = config.getMechanism();
             this.variant = config.getVariant();
             this.useDerivationFunction = config.usesDerivationFunction();
-            this.maxStrength = RandAlgorithm.maxStrengthFor(config.getVariant());
+            this.maxStrength = RandAlgorithm.maxStrengthFor(randServiceNI, config.getVariant());
         }
         else
         {
             this.mechanism = algorithm.getMechanism();
             this.variant = algorithm.getVariant();
             this.useDerivationFunction = algorithm.usesDerivationFunction();
-            this.maxStrength = algorithm.getMaxStrength();
+            this.maxStrength = algorithm.getMaxStrength(randServiceNI);
         }
 
         try
         {
-            this.ref = new RandReference(
+            this.ref = new RandReference(randServiceNI,
                     randServiceNI.createContext(mechanism, variant, useDerivationFunction,
                             maxStrength, false, null),
                     algorithm.getJcaName());
@@ -175,7 +189,7 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private Object readResolve()
     {
-        return new RandServiceSPI(algorithm);
+        return new RandServiceSPI(randServiceNI, algorithm);
     }
 
     private void writeObject(java.io.ObjectOutputStream out)
@@ -198,9 +212,14 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private static class Disposer extends NativeDisposer
     {
-        Disposer(long reference)
+        // The NI that allocated the context frees it - a FIPS-allocated
+        // DRBG must be disposed through the FIPS interface library.
+        private final RandServiceNI randServiceNI;
+
+        Disposer(RandServiceNI randServiceNI, long reference)
         {
             super(reference);
+            this.randServiceNI = randServiceNI;
         }
 
         @Override
@@ -212,15 +231,18 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private static class RandReference extends NativeReference
     {
-        RandReference(long reference, String name)
+        private final RandServiceNI randServiceNI;
+
+        RandReference(RandServiceNI randServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.randServiceNI = randServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(randServiceNI, reference);
         }
     }
 }

@@ -21,6 +21,7 @@
 #include "bc_err_codes.h"
 #include "jo_assert.h"
 #include "ops.h"
+#include "rand/jostle_fips_ctx.h"
 
 /*
  * OpenSSL DRBGs are commonly configured with a 2^16-byte max request.
@@ -72,6 +73,45 @@ int32_t rand_init(const char *provider_name, int32_t *created) {
         OSSL_LIB_CTX_free(libctx);
         OPENSSL_free(provider_name_copy);
         return JO_OPENSSL_ERROR;
+    }
+
+    rand_libctx = libctx;
+    rand_provider_name = provider_name_copy;
+    *created = 1;
+    return JO_SUCCESS;
+}
+
+int32_t rand_init_fips(const char *module_dir, const char *prov_name,
+                       const char *config_path, int32_t *created) {
+    jo_assert(module_dir != NULL);
+    jo_assert(prov_name != NULL);
+    jo_assert(config_path != NULL);
+    jo_assert(created != NULL);
+
+    *created = 0;
+    if (rand_libctx != NULL) {
+        // Native RAND state is process-wide and intentionally bound to the
+        // first successfully loaded provider name (the Java layer guards the
+        // full module/config identity).
+        jo_assert(rand_provider_name != NULL);
+        if (strcmp(rand_provider_name, prov_name) != 0) {
+            return JO_UNEXPECTED_STATE;
+        }
+
+        return JO_SUCCESS;
+    }
+
+    char *provider_name_copy = OPENSSL_strdup(prov_name);
+    jo_assert(provider_name_copy != NULL);
+
+    OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
+    jo_assert(libctx != NULL);
+
+    int32_t ret_code = jostle_fips_configure_libctx(libctx, module_dir, prov_name, config_path);
+    if (UNSUCCESSFUL(ret_code)) {
+        OSSL_LIB_CTX_free(libctx);
+        OPENSSL_free(provider_name_copy);
+        return ret_code;
     }
 
     rand_libctx = libctx;

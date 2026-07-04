@@ -21,30 +21,31 @@ import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class RandServiceFFI implements RandServiceNI
 {
     private static final Logger L = Logger.getLogger("Rand_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment createContextFunc;
-    private static final MethodHandle createContextFuncHandle;
+    private final MethodHandle createContextFuncHandle;
 
-    private static final MemorySegment disposeContextFunc;
-    private static final MethodHandle disposeContextFuncHandle;
+    private final MethodHandle disposeContextFuncHandle;
 
-    private static final MemorySegment contextRandomBytesFunc;
-    private static final MethodHandle contextRandomBytesFuncHandle;
+    private final MethodHandle contextRandomBytesFuncHandle;
 
-    private static final MemorySegment contextReseedFunc;
-    private static final MethodHandle contextReseedFuncHandle;
+    private final MethodHandle contextReseedFuncHandle;
 
-    private static final MemorySegment drbgStrengthFunc;
-    private static final MethodHandle drbgStrengthFuncHandle;
+    private final MethodHandle drbgStrengthFuncHandle;
 
-    static
+    public RandServiceFFI()
     {
-        createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public RandServiceFFI(SymbolLookup lookup)
+    {
+        MemorySegment createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
         createContextFuncHandle = linker.downcallHandle(createContextFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // JO_RAND_CTX* return
@@ -59,12 +60,12 @@ public class RandServiceFFI implements RandServiceNI
                 )
         );
 
-        disposeContextFunc = lookup.find("JoRand_disposeContext").orElseThrow();
+        MemorySegment disposeContextFunc = lookup.find("JoRand_disposeContext").orElseThrow();
         disposeContextFuncHandle = linker.downcallHandle(disposeContextFunc,
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
         );
 
-        contextRandomBytesFunc = lookup.find("JoRand_contextRandomBytes").orElseThrow();
+        MemorySegment contextRandomBytesFunc = lookup.find("JoRand_contextRandomBytes").orElseThrow();
         contextRandomBytesFuncHandle = linker.downcallHandle(contextRandomBytesFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -79,7 +80,7 @@ public class RandServiceFFI implements RandServiceNI
                 )
         );
 
-        contextReseedFunc = lookup.find("JoRand_contextReseed").orElseThrow();
+        MemorySegment contextReseedFunc = lookup.find("JoRand_contextReseed").orElseThrow();
         contextReseedFuncHandle = linker.downcallHandle(contextReseedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -91,7 +92,7 @@ public class RandServiceFFI implements RandServiceNI
                 )
         );
 
-        drbgStrengthFunc = lookup.find("JoRand_drbgStrength").orElseThrow();
+        MemorySegment drbgStrengthFunc = lookup.find("JoRand_drbgStrength").orElseThrow();
         drbgStrengthFuncHandle = linker.downcallHandle(drbgStrengthFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,    // strength return

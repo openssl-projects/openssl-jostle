@@ -147,6 +147,20 @@ public enum RandAlgorithm
     }
 
     /**
+     * Variant of {@link #getMaxStrength()} that probes through a specific NI
+     * backend. The FIPS provider's SecureRandom SPIs must query the FIPS
+     * interface library's DRBG (whose rand lib ctx is the one initialised for
+     * JSLFIPS), not the base {@code NISelector} static.
+     *
+     * @param ni the NI backend to probe through
+     * @return strength in bits
+     */
+    public int getMaxStrength(RandServiceNI ni)
+    {
+        return maxStrengthFor(ni, variant);
+    }
+
+    /**
      * Returns the security strength (bits) for a DRBG variant, as reported by
      * OpenSSL — CTR-DRBG from the cipher key length, HASH/HMAC-DRBG from the
      * digest. The value is queried from the native layer (no DRBG instantiated)
@@ -159,6 +173,19 @@ public enum RandAlgorithm
      */
     static int maxStrengthFor(String variant)
     {
+        return maxStrengthFor(NISelector.RandServiceNI, variant);
+    }
+
+    //
+    // The strength of a variant is a fixed property OpenSSL reports (cipher
+    // key length / digest size), identical whichever interface library
+    // probes it - so the cache is keyed by mechanism/variant alone and shared
+    // across NI backends. The NI parameter only decides which library's
+    // (initialised) rand lib ctx answers the probe: the FIPS SPIs must probe
+    // the FIPS library, whose rand ctx is the one set up for JSLFIPS.
+    //
+    static int maxStrengthFor(RandServiceNI ni, String variant)
+    {
         String mechanism = variant != null && variant.startsWith("AES") ? "CTR-DRBG" : "HASH-DRBG";
         String key = mechanism + "/" + variant;
 
@@ -168,7 +195,7 @@ public enum RandAlgorithm
             return cached;
         }
 
-        int strength = NISelector.RandServiceNI.drbgStrength(mechanism, variant);
+        int strength = ni.drbgStrength(mechanism, variant);
         STRENGTH_CACHE.cache(key, strength);
         return strength;
     }

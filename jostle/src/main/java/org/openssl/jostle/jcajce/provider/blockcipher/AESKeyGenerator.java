@@ -44,6 +44,26 @@ public class AESKeyGenerator extends KeyGeneratorSpi
         this.keySize = fixedSize;
     }
 
+    //
+    // Default-SecureRandom-injecting constructors for the FIPS provider: the
+    // key bytes default to the supplied source (the FIPS module's DRBG via
+    // the JSLFIPS SecureRandom service) instead of the registrar default.
+    // The JCE engineInit contract is unchanged - an explicitly supplied
+    // SecureRandom still takes over.
+    //
+    public AESKeyGenerator(SecureRandom random)
+    {
+        this.random = random;
+        this.keySize = 256;
+    }
+
+    public AESKeyGenerator(int fixedSize, SecureRandom random)
+    {
+        this.random = random;
+        this.fixedKeySize = fixedSize;
+        this.keySize = fixedSize;
+    }
+
 
     @Override
     protected void engineInit(SecureRandom random)

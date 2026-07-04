@@ -65,4 +65,15 @@
 int32_t jostle_ctx_init_fips(jostle_lib_ctx **ctx, const char *module_dir,
                              const char *prov_name, const char *config_path);
 
+/**
+ * Configure an existing OSSL_LIB_CTX with the FIPS module + base provider
+ * and pin it to fips=yes default properties (the shared recipe behind
+ * jostle_ctx_init_fips, also used for the SecureRandom-backing lib ctx in
+ * rand.c). The caller owns the lib ctx; on failure it is left partially
+ * configured and should be freed (which unloads any activated providers).
+ * Returns JO_SUCCESS or the JO_FIPS_* codes documented above.
+ */
+int32_t jostle_fips_configure_libctx(OSSL_LIB_CTX *libctx, const char *module_dir,
+                                     const char *prov_name, const char *config_path);
+
 #endif //JOSTLE_FIPS_CTX_H

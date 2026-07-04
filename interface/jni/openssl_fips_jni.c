@@ -18,6 +18,7 @@
 #include "types.h"
 #include "../util/bc_err_codes.h"
 #include "../util/jo_assert.h"
+#include "../util/rand.h"
 #include "../util/rand/jostle_fips_ctx.h"
 #include "../util/rand/jostle_lib_ctx.h"
 
@@ -27,11 +28,9 @@
  * Method:    setOSSLFIPSModule
  * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I
  *
- * Initialises this library's own global lib ctx with the OpenSSL FIPS
- * module + base provider (jostle_ctx_init_fips). The FIPS module is dlopen'd
- * by libcrypto itself - never System.load'ed. No rand_init here: the FIPS
- * lib ctx runs on the module's own DRBGs, and the SecureRandom-backing
- * rand lib ctx is wired up when the FIPS Rand family lands.
+ * Initialises this library's own global lib ctx AND the SecureRandom-backing
+ * rand lib ctx, both with the OpenSSL FIPS module + base provider. The FIPS
+ * module is dlopen'd by libcrypto itself - never System.load'ed.
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI_setOSSLFIPSModule(
     JNIEnv *env, jobject jo, jstring _module_dir, jstring _prov_name, jstring _config_path) {
@@ -77,15 +76,32 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJ
         goto exit;
     }
 
+    // Operations lib ctx first: jostle_ctx_init_fips creates a fresh lib ctx
+    // per call and fails cleanly (rolled back) without touching global state,
+    // so a bad config / wrong name surfaces the exact JO_FIPS_* code
+    // regardless of whether a prior call already succeeded. The separate RAND
+    // context (backing SecureRandomSpi, mirroring the base entry) is
+    // initialised only after; its first-name-wins guard must not pre-empt the
+    // operations-ctx failure codes.
     jostle_lib_ctx *provider_ctx = NULL;
+    int32_t rand_created = 0;
 
     result = jostle_ctx_init_fips(&provider_ctx, module_dir, prov_name, config_path);
     if (UNSUCCESSFUL(result)) {
         goto exit;
     }
 
+    result = rand_init_fips(module_dir, prov_name, config_path, &rand_created);
+    if (UNSUCCESSFUL(result)) {
+        jostle_ctx_destroy(provider_ctx);
+        goto exit;
+    }
+
     result = set_global_jostle_lib_ctx(provider_ctx);
     if (UNSUCCESSFUL(result)) {
+        if (rand_created) {
+            rand_destroy();
+        }
         jostle_ctx_destroy(provider_ctx);
         goto exit;
     }

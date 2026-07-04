@@ -25,9 +25,9 @@
 // happens on the Java side, which has real path APIs; the bridge validates
 // the strings (null/empty -> JO_FIPS_MODULE_PATH_INVALID etc.) and util
 // asserts them as invariants.
-static int32_t setup_fips_provs(jostle_lib_ctx *ctx, const char *module_dir,
-                                const char *prov_name, const char *config_path) {
-    jo_assert(ctx != NULL);
+int32_t jostle_fips_configure_libctx(OSSL_LIB_CTX *libctx, const char *module_dir,
+                                     const char *prov_name, const char *config_path) {
+    jo_assert(libctx != NULL);
     jo_assert(module_dir != NULL);
     jo_assert(prov_name != NULL);
     jo_assert(config_path != NULL);
@@ -35,13 +35,9 @@ static int32_t setup_fips_provs(jostle_lib_ctx *ctx, const char *module_dir,
     int32_t ret_code = JO_SUCCESS;
     BIO *conf_bio = NULL;
     CONF *conf = NULL;
-    OSSL_LIB_CTX *libctx = NULL;
     EVP_MD *probe = NULL;
 
     ERR_clear_error();
-
-    libctx = OSSL_LIB_CTX_new();
-    jo_assert(libctx != NULL);
 
     // Tell libcrypto where to dlopen provider modules from - the compiled-in
     // MODULESDIR points at the build machine, never the deploy host.
@@ -113,21 +109,10 @@ static int32_t setup_fips_provs(jostle_lib_ctx *ctx, const char *module_dir,
         goto exit;
     }
 
-    // No java_rand_bridge in a FIPS context: entropy stays inside the FIPS
-    // boundary, served by the module's own approved DRBGs, which OpenSSL
-    // auto-instantiates for the lib ctx on first RAND use. rand_ctx stays
-    // NULL - jostle_ctx_destroy tolerates that.
-    ctx->ossl_libctx = libctx;
-    libctx = NULL; // owned by ctx now
-
 exit:
     EVP_MD_free(probe);
     NCONF_free(conf);
     BIO_free(conf_bio);
-    if (libctx != NULL) {
-        // Failure path: unloads any activated providers too.
-        OSSL_LIB_CTX_free(libctx);
-    }
     return ret_code;
 }
 
@@ -139,14 +124,24 @@ int32_t jostle_ctx_init_fips(jostle_lib_ctx **ctx, const char *module_dir,
     jostle_lib_ctx *new_ctx = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
     jo_assert(new_ctx != NULL);
 
-    int32_t ret_code = setup_fips_provs(new_ctx, module_dir, prov_name, config_path);
+    OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
+    jo_assert(libctx != NULL);
+
+    int32_t ret_code = jostle_fips_configure_libctx(libctx, module_dir, prov_name, config_path);
 
     if (UNSUCCESSFUL(ret_code)) {
+        // Failure path: freeing the lib ctx unloads any activated providers.
+        OSSL_LIB_CTX_free(libctx);
         OPENSSL_free(new_ctx);
         *ctx = NULL;
         return ret_code;
     }
 
+    // No java_rand_bridge in a FIPS context: entropy stays inside the FIPS
+    // boundary, served by the module's own approved DRBGs, which OpenSSL
+    // auto-instantiates for the lib ctx on first RAND use. rand_ctx stays
+    // NULL - jostle_ctx_destroy tolerates that.
+    new_ctx->ossl_libctx = libctx;
     *ctx = new_ctx;
 
     return JO_SUCCESS;

@@ -19,7 +19,10 @@ import org.openssl.jostle.util.Properties;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.ProviderException;
+import java.security.SecureRandom;
 import java.util.Map;
 
 /**
@@ -86,6 +89,8 @@ public final class JostleFIPSProvider
     private static final String DEFAULT_CONFIG_FILE_NAME = "fipsmodule.cnf";
 
     private final boolean configured;
+
+    private transient SecureRandom defaultSecureRandom;
 
     public JostleFIPSProvider()
     {
@@ -191,6 +196,28 @@ public final class JostleFIPSProvider
         });
     }
 
+    /**
+     * The provider's default SecureRandom - the FIPS module's DRBG via this
+     * provider's own "DEFAULT" SecureRandom service - cached because
+     * SecureRandom acquisition is expensive. Used by the ProvFIPS*
+     * registrations that need key-generation entropy.
+     */
+    synchronized SecureRandom getDefaultSecureRandom()
+    {
+        if (defaultSecureRandom == null)
+        {
+            try
+            {
+                defaultSecureRandom = SecureRandom.getInstance("DEFAULT", this);
+            }
+            catch (NoSuchAlgorithmException e)
+            {
+                throw new ProviderException("JSLFIPS DEFAULT SecureRandom unavailable", e);
+            }
+        }
+        return defaultSecureRandom;
+    }
+
     private void setup()
     {
         // FIPS-approved services only: each ProvFIPS* registers the subset of
@@ -199,5 +226,6 @@ public final class JostleFIPSProvider
         new ProvFIPSMD().configure(this);
         new ProvFIPSAES().configure(this);
         new ProvFIPSMac().configure(this);
+        new ProvFIPSRand().configure(this);
     }
 }
