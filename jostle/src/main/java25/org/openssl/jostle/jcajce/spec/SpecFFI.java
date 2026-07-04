@@ -20,48 +20,62 @@ import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class SpecFFI implements SpecNI
 {
     private static final Logger L = Logger.getLogger("SpecNI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment allocateFunc;
-    private static final MethodHandle allocateFuncHandle;
+    private final MethodHandle allocateFuncHandle;
 
-    private static final MemorySegment disposeFunc;
-    private static final MethodHandle disposeFuncHandle;
+    private final MethodHandle disposeFuncHandle;
 
-    private static final MemorySegment encapFunc;
-    private static final MethodHandle encapFuncHandle;
+    private final MethodHandle encapFuncHandle;
 
-    private static final MemorySegment decapFunc;
-    private static final MethodHandle decapFuncHandle;
+    private final MethodHandle decapFuncHandle;
 
-    private static final MemorySegment getNameFunc;
-    private static final MethodHandle getNameFuncHandle;
+    private final MethodHandle getNameFuncHandle;
 
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT, // return code
+            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
+            ValueLayout.JAVA_INT, // len
+            ValueLayout.JAVA_INT, // strength
+            ValueLayout.JAVA_BOOLEAN // pred resistance
+    );
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class, // return type
+            MemorySegment.class, // out
+            int.class, // out_len
+            int.class, // strength
+            boolean.class // pred resistance
+    );
 
-    static
+    public SpecFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public SpecFFI(SymbolLookup lookup)
     {
 
-        allocateFunc = lookup.find("SpecNI_allocateKeySpec").orElseThrow();
+        MemorySegment allocateFunc = lookup.find("SpecNI_allocateKeySpec").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return prt
                         ValueLayout.ADDRESS // err out
                 ));
 
-        disposeFunc = lookup.find("SpecNI_disposeKeySpec").orElseThrow();
+        MemorySegment disposeFunc = lookup.find("SpecNI_disposeKeySpec").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // ptr
                 ));
 
 
-        encapFunc = lookup.find("SpecNI_Encap").orElseThrow();
+        MemorySegment encapFunc = lookup.find("SpecNI_Encap").orElseThrow();
         encapFuncHandle = linker.downcallHandle(encapFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -72,7 +86,7 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS
                 ));
 
-        decapFunc = lookup.find("SpecNI_Decap").orElseThrow();
+        MemorySegment decapFunc = lookup.find("SpecNI_Decap").orElseThrow();
         decapFuncHandle = linker.downcallHandle(decapFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -83,28 +97,13 @@ public class SpecFFI implements SpecNI
                 ), Linker.Option.critical(true));
 
 
-        getNameFunc = lookup.find("SpecNI_GetName").orElseThrow();
+        MemorySegment getNameFunc = lookup.find("SpecNI_GetName").orElseThrow();
         getNameFuncHandle = linker.downcallHandle(getNameFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return
                         ValueLayout.ADDRESS, // spec
                         ValueLayout.ADDRESS // len
                 ));
-
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT, // return code
-                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-                ValueLayout.JAVA_INT, // len
-                ValueLayout.JAVA_INT, // strength
-                ValueLayout.JAVA_BOOLEAN // pred resistance
-        );
-        entropyMt = MethodType.methodType(
-                int.class, // return type
-                MemorySegment.class, // out
-                int.class, // out_len
-                int.class, // strength
-                boolean.class // pred resistance
-        );
     }
 
 

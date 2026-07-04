@@ -21,18 +21,29 @@ import org.openssl.jostle.jcajce.provider.NISelector;
  */
 public class PKEYKeySpec
 {
+    // Instance field, not a NISelector static: the spec is bound to whichever
+    // NI backend created the PKEY - NISelector.SpecNI for JSL,
+    // FIPSNISelector.SpecNI (the FIPS interface library) for JSLFIPS - so
+    // name lookup and disposal go through the library that owns the key.
+    protected final SpecNI specNI;
     protected final PKEYReference ref;
     protected final OSSLKeyType type;
 
 
     public PKEYKeySpec(long ref)
     {
+        this(NISelector.SpecNI, ref);
+    }
+
+    public PKEYKeySpec(SpecNI specNI, long ref)
+    {
         if (ref == 0)
         {
             throw new IllegalArgumentException("'ref' cannot be zero");
         }
 
-        String name = NISelector.SpecNI.getName(ref);
+        this.specNI = specNI;
+        String name = specNI.getName(ref);
         if (name == null)
         {
             throw new IllegalArgumentException("unable to determine algorithm name for ref");
@@ -42,10 +53,15 @@ public class PKEYKeySpec
         {
             throw new IllegalArgumentException("unknown algorithm: " + name);
         }
-        this.ref = new PKEYReference(ref, type.name());
+        this.ref = new PKEYReference(specNI, ref, type.name());
     }
 
     public PKEYKeySpec(long ref, OSSLKeyType type)
+    {
+        this(NISelector.SpecNI, ref, type);
+    }
+
+    public PKEYKeySpec(SpecNI specNI, long ref, OSSLKeyType type)
     {
         if (ref == 0)
         {
@@ -55,38 +71,46 @@ public class PKEYKeySpec
         {
             throw new IllegalArgumentException("'type' cannot be null");
         }
+        this.specNI = specNI;
         this.type = type;
-        this.ref = new PKEYReference(ref, type.name());
+        this.ref = new PKEYReference(specNI, ref, type.name());
     }
 
 
     protected static class Disposer
             extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the PKEY frees it - a FIPS-allocated key
+        // must be disposed through the FIPS interface library.
+        private final SpecNI specNI;
+
+        Disposer(SpecNI specNI, long ref)
         {
             super(ref);
+            this.specNI = specNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.SpecNI.dispose(reference);
+            specNI.dispose(reference);
         }
     }
 
     protected static class PKEYReference extends NativeReference
     {
+        private final SpecNI specNI;
 
-        public PKEYReference(long reference, String name)
+        public PKEYReference(SpecNI specNI, long reference, String name)
         {
             super(reference, name);
+            this.specNI = specNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new PKEYKeySpec.Disposer(reference);
+            return new PKEYKeySpec.Disposer(specNI, reference);
         }
     }
 
@@ -100,4 +124,12 @@ public class PKEYKeySpec
         return type;
     }
 
+    /**
+     * The NI backend that owns this PKEY - FIPS-aware consumers pass it on
+     * so every operation on the key stays within the library that created it.
+     */
+    public SpecNI getSpecNI()
+    {
+        return specNI;
+    }
 }
