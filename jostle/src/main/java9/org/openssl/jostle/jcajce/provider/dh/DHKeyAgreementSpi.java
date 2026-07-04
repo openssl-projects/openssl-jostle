@@ -84,7 +84,16 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
     {
         if (key instanceof JODHPrivateKey)
         {
-            return (JODHPrivateKey) key;
+            JODHPrivateKey joKey = (JODHPrivateKey) key;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         if (key instanceof DHPrivateKey)
         {
@@ -102,7 +111,16 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
     {
         if (key instanceof JODHPublicKey)
         {
-            return (JODHPublicKey) key;
+            JODHPublicKey joKey = (JODHPublicKey) key;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         if (key instanceof DHPublicKey)
         {

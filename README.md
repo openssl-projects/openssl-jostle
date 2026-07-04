@@ -612,6 +612,14 @@ RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, DESede, Poly1305, scrypt, Ed25519
 families (ML-KEM, ML-DSA, SLH-DSA). Requests for these through `JSLFIPS` fail with
 `NoSuchAlgorithmException` while `JSL` continues to serve them in the same JVM.
 
+### Key isolation
+
+Jostle keys are bound to the interface library (and `OSSL_LIB_CTX`) that created them. The operational
+services — `Signature`, `Cipher`, `KeyAgreement` — of one provider reject keys created by the other with
+`InvalidKeyException`. To move a key between `JSL` and `JSLFIPS`, encode it (`getEncoded()`) and decode it
+through the target provider's `KeyFactory`; the boundary crossing then happens explicitly in your code.
+`SecretKey`s (raw bytes, no native residency) are unaffected.
+
 ### Entropy
 
 The FIPS lib ctx does not install the java rand bridge: all entropy — DRBG seeding, key generation, signature

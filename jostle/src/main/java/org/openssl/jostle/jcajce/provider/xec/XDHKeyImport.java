@@ -39,7 +39,16 @@ public final class XDHKeyImport
     {
         if (key instanceof JOXECPublicKey)
         {
-            return (JOXECPublicKey) key;
+            JOXECPublicKey joKey = (JOXECPublicKey) key;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         if (key instanceof PublicKey)
         {
@@ -69,7 +78,16 @@ public final class XDHKeyImport
     {
         if (key instanceof JOXECPrivateKey)
         {
-            return (JOXECPrivateKey) key;
+            JOXECPrivateKey joKey = (JOXECPrivateKey) key;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         if (key instanceof PrivateKey)
         {

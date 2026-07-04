@@ -78,7 +78,16 @@ public class DSASignatureSpi extends SignatureSpi
     {
         if (publicKey instanceof JODSAPublicKey)
         {
-            return (JODSAPublicKey) publicKey;
+            JODSAPublicKey joKey = (JODSAPublicKey) publicKey;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         try
         {
@@ -100,7 +109,16 @@ public class DSASignatureSpi extends SignatureSpi
     {
         if (privateKey instanceof JODSAPrivateKey)
         {
-            return (JODSAPrivateKey) privateKey;
+            JODSAPrivateKey joKey = (JODSAPrivateKey) privateKey;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         try
         {

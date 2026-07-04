@@ -31,9 +31,9 @@ public class RSASignatureSpi extends RSASignatureSpiBase
     // NI-binding constructor for the FIPS provider: identical behaviour,
     // bound to the FIPS interface library's RSAServiceNI.
     //
-    public RSASignatureSpi(RSAServiceNI rsaServiceNI, String digestName)
+    public RSASignatureSpi(RSAServiceNI rsaServiceNI, RSAKeyFactorySpi keyFactory, String digestName)
     {
-        super(rsaServiceNI);
+        super(rsaServiceNI, keyFactory);
         this.digestName = digestName;
     }
 

@@ -69,11 +69,11 @@ class ProvFIPSRSA
 
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
                 PREFIX + "RSASignatureSpi$None", attr,
-                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, "NONE"));
+                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), "NONE"));
 
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 PREFIX + "RSAPSSSignatureSpi", attr,
-                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI));
+                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory()));
         provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
 
         registerPssSignature(provider, attr, "SHA1", "SHA-1");
@@ -114,7 +114,7 @@ class ProvFIPSRSA
     {
         provider.addAlgorithmImplementation("Signature", name,
                 PREFIX + classNameSuffix, attr,
-                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, digestName));
+                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), digestName));
         provider.addAlias("Signature", name, oid);
     }
 
@@ -127,6 +127,6 @@ class ProvFIPSRSA
         String implName = PREFIX + "RSAPSSSignatureSpi$" + digestJcaName.replace("-", "_");
         provider.addAlgorithmImplementation("Signature", mgf1Name,
                 implName, attr,
-                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, opensslDigest));
+                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), opensslDigest));
     }
 }

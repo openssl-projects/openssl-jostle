@@ -63,7 +63,16 @@ public final class ECKeyImport
     {
         if (key instanceof JOECPublicKey)
         {
-            return (JOECPublicKey) key;
+            JOECPublicKey joKey = (JOECPublicKey) key;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         if (key instanceof PublicKey)
         {
@@ -109,7 +118,16 @@ public final class ECKeyImport
     {
         if (key instanceof JOECPrivateKey)
         {
-            return (JOECPrivateKey) key;
+            JOECPrivateKey joKey = (JOECPrivateKey) key;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly.
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         if (key instanceof PrivateKey)
         {

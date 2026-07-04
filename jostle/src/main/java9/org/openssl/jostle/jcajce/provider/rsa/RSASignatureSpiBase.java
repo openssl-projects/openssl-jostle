@@ -49,6 +49,9 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     // NI backend its provider passes in (NISelector for JSL, FIPSNISelector
     // for JSLFIPS).
     protected final RSAServiceNI rsaServiceNI;
+    // Foreign keys translate (and other-provider Jostle keys are rejected)
+    // through the matching KeyFactory.
+    protected final RSAKeyFactorySpi keyFactory;
 
     private RSARef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -63,12 +66,13 @@ abstract class RSASignatureSpiBase extends SignatureSpi
      */
     protected RSASignatureSpiBase()
     {
-        this(NISelector.RSAServiceNI);
+        this(NISelector.RSAServiceNI, new RSAKeyFactorySpi());
     }
 
-    protected RSASignatureSpiBase(RSAServiceNI rsaServiceNI)
+    protected RSASignatureSpiBase(RSAServiceNI rsaServiceNI, RSAKeyFactorySpi keyFactory)
     {
         this.rsaServiceNI = rsaServiceNI;
+        this.keyFactory = keyFactory;
     }
 
     protected abstract void nativeInitSign(long ref, long keyRef, RandSource rnd);
@@ -85,7 +89,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     {
         try
         {
-            JORSAPublicKey key = RSAKeyImport.importPublic(publicKey);
+            JORSAPublicKey key = RSAKeyImport.importPublic(keyFactory, publicKey);
             lastKey = key;
 
             ensureRef(key.getAlgorithm());
@@ -110,7 +114,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
 
         try
         {
-            JORSAPrivateKey key = RSAKeyImport.importPrivate(privateKey);
+            JORSAPrivateKey key = RSAKeyImport.importPrivate(keyFactory, privateKey);
             lastKey = key;
 
             ensureRef(key.getAlgorithm());

@@ -54,6 +54,15 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         this.asn1NI = asn1NI;
     }
 
+    /**
+     * The NI backend this factory allocates keys in - used by the import
+     * helpers to reject keys created by the other Jostle provider.
+     */
+    SpecNI ownSpecNI()
+    {
+        return specNI;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {
