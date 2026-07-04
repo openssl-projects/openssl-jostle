@@ -2,3 +2,5 @@ OSSL:libcrypto-3-x64.dll
 
 JNI:interface_jni.dll
 FFI:interface_ffi.dll
+F_JNI:interface_fips_jni.dll
+F_FFI:interface_fips_ffi.dll

@@ -90,6 +90,17 @@ public class Loader
     private static boolean fixedInstallDir = false;
     private static String installDir;
 
+    // State captured by loadImpl for the lazy, provider-driven FIPS interface
+    // load (loadFipsInterface). The FIPS entries (F_JNI:/F_FFI:) are parsed
+    // with everything else but never loaded by load() itself.
+    private static File installRootDirUsed = null;
+    private static String libRootUsed = null;
+    private static List<Extractions> parsedExtractions = new ArrayList<>();
+    private static boolean fipsLoadAttempted = false;
+    private static boolean fipsLoadSuccessful = false;
+    private static String fipsMessage = null;
+    private static String fipsInterfaceLibPath = null;
+
     public static void load()
     {
         synchronized (sync)
@@ -278,7 +289,21 @@ public class Loader
                         }
                         else
                         {
-                            throw new IOException(String.format("deps file entry '%s' is invalid", depfEntry));
+                            if (depfEntry.startsWith("F_JNI:"))
+                            {
+                                extractions.add(new Extractions(depfEntry.substring(6).trim(), Extractions.Type.FIPS_JNI));
+                            }
+                            else
+                            {
+                                if (depfEntry.startsWith("F_FFI:"))
+                                {
+                                    extractions.add(new Extractions(depfEntry.substring(6).trim(), Extractions.Type.FIPS_FFI));
+                                }
+                                else
+                                {
+                                    throw new IOException(String.format("deps file entry '%s' is invalid", depfEntry));
+                                }
+                            }
                         }
                     }
                 }
@@ -294,19 +319,13 @@ public class Loader
             L.warning("No resolutions file found on classpath");
         }
 
+        libRootUsed = libRootInJar;
+        parsedExtractions = extractions;
+
         if (!extractions.isEmpty() && (extractOpenSSL || !"auto".equals(interfaceResolutionStrategy)))
         {
-            final File installRootDir;
-            if (fixedInstallDir)
-            {
-                String version = JostleProvider.INFO.substring(JostleProvider.INFO.lastIndexOf('v') + 1);
-
-                installRootDir = LoaderUtils.createVersionedTempDir(installDir, version);
-            }
-            else
-            {
-                installRootDir = LoaderUtils.createTempDir("jostle");
-            }
+            final File installRootDir = resolveInstallRootDir();
+            installRootDirUsed = installRootDir;
 
             FileOutputStream fos = null;
             FileLock lock = null;
@@ -416,11 +435,22 @@ public class Loader
         message = "Loader Finished Successfully";
     }
 
-    private static void extractAndLoad(File installRootDir, String libRootInJar, Extractions extraction)
+    private static File resolveInstallRootDir()
+            throws IOException
+    {
+        if (fixedInstallDir)
+        {
+            String version = JostleProvider.INFO.substring(JostleProvider.INFO.lastIndexOf('v') + 1);
+
+            return LoaderUtils.createVersionedTempDir(installDir, version);
+        }
+        return LoaderUtils.createTempDir("jostle");
+    }
+
+    private static File extractOnly(File installRootDir, String libRootInJar, Extractions extraction, String[] sources)
             throws Exception
     {
         String pathInJar = libRootInJar + "/" + extraction.name;
-        String[] sources = new String[2];
         File libFile = LoaderUtils.extractFromClasspath(installRootDir, pathInJar, extraction.name, sources);
         if (libFile == null)
         {
@@ -430,6 +460,14 @@ public class Loader
         {
             L.fine(String.format("Wrote %s to %s, %d bytes", extraction.name, libFile.getAbsoluteFile(), libFile.length()));
         }
+        return libFile;
+    }
+
+    private static void extractAndLoad(File installRootDir, String libRootInJar, Extractions extraction)
+            throws Exception
+    {
+        String[] sources = new String[2];
+        File libFile = extractOnly(installRootDir, libRootInJar, extraction, sources);
         System.load(libFile.getAbsolutePath());
 
 
@@ -441,6 +479,120 @@ public class Loader
         else
         {
             loadedLibs.add("Extracted: " + sources[0]);
+        }
+    }
+
+    /**
+     * Lazily extract (and for JNI, load) the FIPS interface library. Never
+     * driven by {@link #load()}: only FIPS-aware code (the FIPS NI selector,
+     * reached from the FIPS provider) triggers it, so non-FIPS deployments
+     * never touch the FIPS library. Idempotent; one attempt per JVM.
+     *
+     * <p>The flavor follows the base interface resolution (JNI or FFI). The
+     * FFI flavor is extracted but deliberately NOT System.load'ed: the FIPS
+     * library shares export names with the base interface library, so its
+     * symbols must never enter the process-global loader lookup - the FIPS
+     * FFI implementation dlopens it via a library-scoped SymbolLookup on
+     * {@link #getFipsInterfaceLibPath()} instead.
+     *
+     * <p>The OpenSSL FIPS module itself (fips.dylib / fips.so / fips.dll) is
+     * NOT bundled or extracted - libcrypto loads it from the externally
+     * configured module directory.
+     */
+    public static void loadFipsInterface()
+    {
+        synchronized (sync)
+        {
+            load();
+
+            if (fipsLoadAttempted)
+            {
+                return;
+            }
+            fipsLoadAttempted = true;
+
+            try
+            {
+                loadFipsImpl();
+                fipsLoadSuccessful = true;
+                fipsMessage = "FIPS interface loaded";
+            }
+            catch (Throwable t)
+            {
+                L.log(Level.WARNING, t.getMessage(), t);
+                fipsMessage = t.getMessage();
+                fipsLoadSuccessful = false;
+            }
+        }
+    }
+
+    private static void loadFipsImpl()
+            throws Throwable
+    {
+        if (!loadSuccessful)
+        {
+            throw new IOException(String.format("base loader failed: %s", message));
+        }
+        if (interfaceType == null)
+        {
+            throw new IOException("interface resolution strategy is 'none'; no FIPS interface flavor to load");
+        }
+
+        Extractions.Type wanted = interfaceType == Extractions.Type.FFI
+                ? Extractions.Type.FIPS_FFI : Extractions.Type.FIPS_JNI;
+
+        Extractions target = null;
+        for (Extractions extraction : parsedExtractions)
+        {
+            if (extraction.type == wanted)
+            {
+                target = extraction;
+                break;
+            }
+        }
+        if (target == null)
+        {
+            throw new IOException(String.format("deps file has no %s entry for this platform", wanted));
+        }
+
+        File installRootDir = installRootDirUsed;
+        if (installRootDir == null)
+        {
+            installRootDir = resolveInstallRootDir();
+        }
+
+        FileOutputStream fos = null;
+        FileLock lock = null;
+        try
+        {
+            fos = new FileOutputStream(LoaderUtils.makeFile(installRootDir, "jostle.lock"));
+            lock = fos.getChannel().lock();
+
+            String[] sources = new String[2];
+            File libFile = extractOnly(installRootDir, libRootUsed, target, sources);
+            if (wanted == Extractions.Type.FIPS_JNI)
+            {
+                System.load(libFile.getAbsolutePath());
+            }
+            fipsInterfaceLibPath = libFile.getAbsolutePath();
+        }
+        finally
+        {
+            try
+            {
+                lock.release();
+            }
+            catch (Throwable ignored)
+            {
+            }
+
+            try
+            {
+                fos.close();
+            }
+            catch (Throwable ignored)
+            {
+            }
         }
     }
 
@@ -494,6 +646,31 @@ public class Loader
         return fixedInstallDir;
     }
 
+    public static boolean isFipsLoadAttempted()
+    {
+        return fipsLoadAttempted;
+    }
+
+    public static boolean isFipsLoadSuccessful()
+    {
+        return fipsLoadSuccessful;
+    }
+
+    public static String getFipsMessage()
+    {
+        return fipsMessage;
+    }
+
+    /**
+     * Absolute path of the extracted FIPS interface library, or null if
+     * {@link #loadFipsInterface()} has not succeeded. The FIPS FFI
+     * implementation opens this with a library-scoped SymbolLookup.
+     */
+    public static String getFipsInterfaceLibPath()
+    {
+        return fipsInterfaceLibPath;
+    }
+
     private static class Extractions
     {
 
@@ -510,7 +687,15 @@ public class Loader
             /**
              * OpenSSL library or related
              */
-            OSSL
+            OSSL,
+            /**
+             * FIPS JNI interface library - loaded lazily by loadFipsInterface, never by load()
+             */
+            FIPS_JNI,
+            /**
+             * FIPS FFI interface library - extracted lazily by loadFipsInterface (not System.load'ed)
+             */
+            FIPS_FFI
         }
 
         final String name;

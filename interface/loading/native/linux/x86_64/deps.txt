@@ -2,3 +2,6 @@ OSSL:libcrypto.so.3
 
 JNI:libinterface_jni.so
 FFI:libinterface_ffi.so
+
+F_JNI:libinterface_fips_jni.so
+F_FFI:libinterface_fips_ffi.so
