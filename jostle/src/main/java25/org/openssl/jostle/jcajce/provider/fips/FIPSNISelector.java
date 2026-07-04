@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 
 /**
  * Java 25 override of the FIPS NI selector: picks the FFI implementations
@@ -21,6 +22,7 @@ import org.openssl.jostle.Loader;
 public class FIPSNISelector
 {
     public static final OpenSSLFIPSNI OpenSSLFIPSNI;
+    public static final MDServiceNI MDServiceNI;
 
     static
     {
@@ -28,10 +30,12 @@ public class FIPSNISelector
         if (Loader.isFFI())
         {
             OpenSSLFIPSNI = new OpenSSLFIPSFFI();
+            MDServiceNI = new MDServiceFIPSFFI();
         }
         else
         {
             OpenSSLFIPSNI = new OpenSSLFIPSJNI();
+            MDServiceNI = new MDServiceFIPSJNI();
         }
     }
 }

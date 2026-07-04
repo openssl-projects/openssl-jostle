@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 
 /**
  * Selector for the FIPS NI implementations, mirroring NISelector but bound to
@@ -24,10 +25,12 @@ import org.openssl.jostle.Loader;
 public class FIPSNISelector
 {
     public static final OpenSSLFIPSNI OpenSSLFIPSNI;
+    public static final MDServiceNI MDServiceNI;
 
     static
     {
         Loader.loadFipsInterface();
         OpenSSLFIPSNI = new OpenSSLFIPSJNI();
+        MDServiceNI = new MDServiceFIPSJNI();
     }
 }

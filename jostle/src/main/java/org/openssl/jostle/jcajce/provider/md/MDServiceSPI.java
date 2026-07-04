@@ -20,38 +20,44 @@ import java.security.MessageDigestSpi;
 
 public class MDServiceSPI extends MessageDigestSpi implements Cloneable
 {
-    private static final MDServiceNI mdServiceNI = NISelector.MDServiceNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in - NISelector.MDServiceNI for JSL,
+    // FIPSNISelector.MDServiceNI (the FIPS interface library) for JSLFIPS.
+    private final MDServiceNI mdServiceNI;
 
     private final MDReference ref;
     private final String algorithm;
 
     public MDServiceSPI(String algorithm)
     {
-
-        //
-        // algoritm name must be something that OpenSSL can resolve
-        //
-        this.algorithm = algorithm;
-        this.ref = new MDReference(mdServiceNI.allocateDigest(algorithm, 0), algorithm);
+        this(NISelector.MDServiceNI, algorithm, 0);
     }
 
     public MDServiceSPI(String algorithm, int xofLen)
     {
+        this(NISelector.MDServiceNI, algorithm, xofLen);
+    }
+
+    public MDServiceSPI(MDServiceNI mdServiceNI, String algorithm, int xofLen)
+    {
         //
         // algoritm name must be something that OpenSSL can resolve
         //
+        this.mdServiceNI = mdServiceNI;
         this.algorithm = algorithm;
-        this.ref = new MDReference(mdServiceNI.allocateDigest(algorithm, xofLen), algorithm);
+        this.ref = new MDReference(mdServiceNI, mdServiceNI.allocateDigest(algorithm, xofLen), algorithm);
     }
 
     //
     // Wrapping constructor for clone(): adopts an already-allocated native
     // digest context (a copy produced by MDServiceNI.copyDigest). Distinct
-    // from the (String, int xofLen) constructor, which *allocates* a fresh
-    // context — this one takes ownership of an existing MDReference.
+    // from the (MDServiceNI, String, int xofLen) constructor, which
+    // *allocates* a fresh context — this one takes ownership of an existing
+    // MDReference.
     //
-    private MDServiceSPI(String algorithm, MDReference clonedRef)
+    private MDServiceSPI(MDServiceNI mdServiceNI, String algorithm, MDReference clonedRef)
     {
+        this.mdServiceNI = mdServiceNI;
         this.algorithm = algorithm;
         this.ref = clonedRef;
     }
@@ -139,7 +145,7 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
             try
             {
                 long clonedRef = mdServiceNI.copyDigest(ref.getReference());
-                return new MDServiceSPI(algorithm, new MDReference(clonedRef, algorithm));
+                return new MDServiceSPI(mdServiceNI, algorithm, new MDReference(mdServiceNI, clonedRef, algorithm));
             }
             catch (RuntimeException e)
             {
@@ -157,9 +163,14 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
 
     private static class Disposer extends NativeDisposer
     {
-        public Disposer(long reference)
+        // The NI that allocated the context frees it - a FIPS-allocated
+        // digest must be disposed through the FIPS interface library.
+        private final MDServiceNI mdServiceNI;
+
+        public Disposer(MDServiceNI mdServiceNI, long reference)
         {
             super(reference);
+            this.mdServiceNI = mdServiceNI;
         }
 
         @Override
@@ -171,16 +182,18 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
 
     private static class MDReference extends NativeReference
     {
+        private final MDServiceNI mdServiceNI;
 
-        public MDReference(long reference, String name)
+        public MDReference(MDServiceNI mdServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.mdServiceNI = mdServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(mdServiceNI, reference);
         }
     }
 

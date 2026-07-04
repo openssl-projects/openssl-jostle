@@ -11,6 +11,9 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.AccessSupplier;
+import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.ConfigParser;
 import org.openssl.jostle.util.Properties;
 
@@ -56,7 +59,7 @@ import java.util.Map;
  * IllegalStateException.
  */
 public final class JostleFIPSProvider
-    extends Provider
+    extends JostleProvider
 {
     public static final String PROVIDER_NAME = "JSLFIPS";
     public static final String INFO = "Jostle FIPS Provider for OpenSSL v1.0.0-SNAPSHOT";
@@ -177,7 +180,22 @@ public final class JostleFIPSProvider
             FIPSOpenSSL.initialise(moduleDir.toString(), providerName, configPath);
         }
 
-        // Service registration (the FIPS-approved algorithm set) lands with
-        // the FIPS NI families.
+        AccessWrapper.doAction(new AccessSupplier()
+        {
+            @Override
+            public Object run()
+            {
+                setup();
+                return null;
+            }
+        });
+    }
+
+    private void setup()
+    {
+        // FIPS-approved services only: each ProvFIPS* registers the subset of
+        // its family the FIPS module serves as approved (fips=yes) - the
+        // lib ctx's fips=yes default properties are the enforcement backstop.
+        new ProvFIPSMD().configure(this);
     }
 }

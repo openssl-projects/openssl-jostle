@@ -16,42 +16,38 @@ import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * FFI implementation of MDServiceNI. Symbol resolution is parameterised by a
+ * SymbolLookup so the same marshalling serves both interface libraries: the
+ * no-arg constructor uses the process-global loader lookup (the base
+ * interface library, loaded via System.load), while the FIPS subclass passes
+ * a library-scoped lookup pinned to the FIPS interface library - both export
+ * the same C symbol names, so the lookup is what disambiguates them.
+ */
 public class MDServiceFFI implements MDServiceNI
 {
 
     private static final Logger L = Logger.getLogger("MD_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment allocateDigestFunc;
-    private static final MethodHandle allocateDigestFuncHandle;
-
-    private static final MemorySegment copyDigestFunc;
-    private static final MethodHandle copyDigestFuncHandle;
-
-    private static final MemorySegment updateByteFunc;
-    private static final MethodHandle updateByteFuncHandle;
-
-    private static final MemorySegment updateBytesFunc;
-    private static final MethodHandle updateBytesFuncHandle;
-
-    private static final MemorySegment disposeFunc;
-    private static final MethodHandle disposeFuncHandle;
-
-    private static final MemorySegment digestLenFunc;
-    private static final MethodHandle digestLenFuncHandle;
-
-    private static final MemorySegment digestBytesFunc;
-    private static final MethodHandle digestBytesFuncHandle;
-
-    private static final MemorySegment resetFunc;
-    private static final MethodHandle resetFuncHandle;
+    private final MethodHandle allocateDigestFuncHandle;
+    private final MethodHandle copyDigestFuncHandle;
+    private final MethodHandle updateByteFuncHandle;
+    private final MethodHandle updateBytesFuncHandle;
+    private final MethodHandle disposeFuncHandle;
+    private final MethodHandle digestLenFuncHandle;
+    private final MethodHandle digestBytesFuncHandle;
+    private final MethodHandle resetFuncHandle;
 
 
-    static
+    public MDServiceFFI()
     {
-        allocateDigestFunc = lookup.find("MD_Allocate").orElseThrow();
-        allocateDigestFuncHandle = linker.downcallHandle(allocateDigestFunc,
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public MDServiceFFI(SymbolLookup lookup)
+    {
+        allocateDigestFuncHandle = linker.downcallHandle(lookup.find("MD_Allocate").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // *md_dtx
                         ValueLayout.ADDRESS, // const char *name
@@ -60,8 +56,7 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        copyDigestFunc = lookup.find("MD_Copy").orElseThrow();
-        copyDigestFuncHandle = linker.downcallHandle(copyDigestFunc,
+        copyDigestFuncHandle = linker.downcallHandle(lookup.find("MD_Copy").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // *md_ctx (the clone)
                         ValueLayout.ADDRESS, // md_ctx *src
@@ -69,8 +64,7 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        updateByteFunc = lookup.find("MD_UpdateByte").orElseThrow();
-        updateByteFuncHandle = linker.downcallHandle(updateByteFunc,
+        updateByteFuncHandle = linker.downcallHandle(lookup.find("MD_UpdateByte").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS, // *md_dtx
@@ -79,8 +73,7 @@ public class MDServiceFFI implements MDServiceNI
         );
 
 
-        updateBytesFunc = lookup.find("MD_UpdateBytes").orElseThrow();
-        updateBytesFuncHandle = linker.downcallHandle(updateBytesFunc,
+        updateBytesFuncHandle = linker.downcallHandle(lookup.find("MD_UpdateBytes").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS, // md_ctx *
@@ -91,23 +84,20 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        disposeFunc = lookup.find("MD_Dispose").orElseThrow();
-        disposeFuncHandle = linker.downcallHandle(disposeFunc,
+        disposeFuncHandle = linker.downcallHandle(lookup.find("MD_Dispose").orElseThrow(),
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // md_ctx *
                 ), Linker.Option.critical(true)
         );
 
-        digestLenFunc = lookup.find("MD_GetDigestLen").orElseThrow();
-        digestLenFuncHandle = linker.downcallHandle(digestLenFunc,
+        digestLenFuncHandle = linker.downcallHandle(lookup.find("MD_GetDigestLen").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS // md_ctx *
                 )
         );
 
-        digestBytesFunc = lookup.find("MD_Digest").orElseThrow();
-        digestBytesFuncHandle = linker.downcallHandle(digestBytesFunc,
+        digestBytesFuncHandle = linker.downcallHandle(lookup.find("MD_Digest").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS, // md_ctx *
@@ -117,8 +107,7 @@ public class MDServiceFFI implements MDServiceNI
                         ValueLayout.JAVA_INT // out_len
                 ), Linker.Option.critical(true));
 
-        resetFunc = lookup.find("MD_Reset").orElseThrow();
-        resetFuncHandle = linker.downcallHandle(resetFunc,
+        resetFuncHandle = linker.downcallHandle(lookup.find("MD_Reset").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS // md_ctx *

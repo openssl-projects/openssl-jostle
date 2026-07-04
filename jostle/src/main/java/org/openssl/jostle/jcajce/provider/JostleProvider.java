@@ -48,6 +48,19 @@ public class JostleProvider
         this("default");
     }
 
+    /**
+     * Pass-through constructor for sibling providers (the FIPS provider) that
+     * reuse this class's service-registration machinery
+     * (addAlgorithmImplementation / addAlias / getService) under their own
+     * provider name but drive their own native initialisation and setup.
+     * Registers nothing and touches no native state.
+     */
+    protected JostleProvider(String providerName, double version, String info)
+    {
+        super(providerName, version, info);
+        initTransientState();
+    }
+
     public JostleProvider(String module)
     {
         super(PROVIDER_NAME, VERSION, INFO);
@@ -248,7 +261,7 @@ public class JostleProvider
         put(key, value);
     }
 
-    void addAlias(String type, String name, String... aliases)
+    public void addAlias(String type, String name, String... aliases)
     {
         name = Strings.toUpperCase(name);
         if (!containsKey(type + "." + name))

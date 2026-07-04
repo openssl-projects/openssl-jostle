@@ -12,10 +12,8 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.FFI;
-import org.openssl.jostle.Loader;
 
 import java.lang.foreign.*;
-import java.nio.file.Paths;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,13 +21,10 @@ import java.util.logging.Logger;
  * FFI implementation of {@link OpenSSLFIPSNI}, backed by the FIPS interface
  * library (libinterface_fips_ffi).
  *
- * <p>Unlike the base FFI implementations, symbols are resolved through a
- * library-scoped SymbolLookup pinned to the extracted FIPS library - NEVER
- * the process-global loaderLookup(): the FIPS library shares export names
- * with the base interface library, and the process-global lookup would
- * resolve those names by load order. The Loader extracts the FIPS FFI
- * library without System.load'ing it for the same reason; the
- * libraryLookup here is what actually opens it.
+ * <p>Unlike the base FFI implementations, symbols are resolved through the
+ * library-scoped {@link FIPSLibraryLookup} pinned to the extracted FIPS
+ * library - never the process-global loaderLookup(); see that class for the
+ * rationale.
  */
 class OpenSSLFIPSFFI implements OpenSSLFIPSNI
 {
@@ -41,13 +36,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
 
     OpenSSLFIPSFFI()
     {
-        String path = Loader.getFipsInterfaceLibPath();
-        if (path == null)
-        {
-            throw new IllegalStateException(
-                    "FIPS interface library is not available: " + Loader.getFipsMessage());
-        }
-        lookup = SymbolLookup.libraryLookup(Paths.get(path), Arena.global());
+        lookup = FIPSLibraryLookup.get();
     }
 
     @Override
