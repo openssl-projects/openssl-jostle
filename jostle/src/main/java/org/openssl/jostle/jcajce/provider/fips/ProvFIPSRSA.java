@@ -31,6 +31,13 @@ class ProvFIPSRSA
 {
     private static final String PREFIX = "org.openssl.jostle.jcajce.provider.rsa.";
 
+    /**
+     * The 3.1.2 FIPS module refuses RSA key generation below 2048 bits;
+     * enforcing the same floor at the JCE boundary surfaces a typed
+     * InvalidParameterException instead of a module error.
+     */
+    private static final int FIPS_RSA_MIN_KEY_SIZE_BITS = 2048;
+
     public void configure(final JostleFIPSProvider provider)
     {
         final Map<String, String> attr = new HashMap<>();
@@ -41,7 +48,8 @@ class ProvFIPSRSA
         provider.addAlgorithmImplementation("KeyPairGenerator", "RSA",
                 PREFIX + "RSAKeyPairGenerator", attr,
                 (arg) -> new RSAKeyPairGenerator(
-                        FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
+                        FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
+                        FIPS_RSA_MIN_KEY_SIZE_BITS));
         provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
 
         provider.addAlgorithmImplementation("KeyFactory", "RSA",

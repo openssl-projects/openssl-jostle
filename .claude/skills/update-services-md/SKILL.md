@@ -26,6 +26,18 @@ inventory to **`SERVICES.md` at the repo root** (beside `README.md`). The
 registered set is fixed by the provider's `Prov<NAME>.configure(...)` code, not
 by the DumpInfo flag, so the output is deterministic for a given build.
 
+## JSLFIPS section (optional)
+
+Pass `--fips-config "<config>"` to the script (forwarded to DumpInfo's
+`--fips-config`) to also configure the `JSLFIPS` provider and append a
+"Jostle FIPS Provider (JSLFIPS)" section to SERVICES.md. The config needs a
+real FIPS module on this machine (e.g.
+`--fips-config "fips_module='$JOSTLE_TEST_FIPS_DIR/fips.dylib'"`), but the
+registered set itself is fixed by the ProvFIPS* code, so the generated
+section is deterministic. Without the flag the JSLFIPS section is omitted -
+if SERVICES.md previously had one, regenerate WITH the flag or the section
+silently disappears.
+
 ## When to use this skill
 
 Trigger phrases (any of):

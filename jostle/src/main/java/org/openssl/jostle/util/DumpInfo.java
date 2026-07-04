@@ -12,6 +12,7 @@ package org.openssl.jostle.util;
 
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 
 import java.security.Provider;
@@ -32,15 +33,20 @@ public class DumpInfo
     {
         boolean fine = false;
         boolean services = false;
-        for (String arg : args)
+        String fipsConfig = null;
+        for (int i = 0; i < args.length; i++)
         {
-            if (arg.equals("--fine"))
+            if (args[i].equals("--fine"))
             {
                 fine = true;
             }
-            else if (arg.equals("--services"))
+            else if (args[i].equals("--services"))
             {
                 services = true;
+            }
+            else if (args[i].equals("--fips-config") && i + 1 < args.length)
+            {
+                fipsConfig = args[++i];
             }
         }
 
@@ -57,6 +63,11 @@ public class DumpInfo
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
         {
             Security.addProvider(new JostleProvider());
+        }
+
+        if (fipsConfig != null && Security.getProvider(JostleFIPSProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleFIPSProvider(fipsConfig));
         }
 
 
@@ -125,15 +136,33 @@ public class DumpInfo
             // -DM System.out.println
             System.out.println("  OpenSSL Version: Not available");
         }
+        if (fipsConfig != null)
+        {
+            // -DM System.out.println
+            System.out.println("\nFIPS Loader:");
+            // -DM System.out.println
+            System.out.println("  FIPS Load Attempted: " + Loader.isFipsLoadAttempted());
+            // -DM System.out.println
+            System.out.println("  FIPS Load Successful: " + Loader.isFipsLoadSuccessful());
+            // -DM System.out.println
+            System.out.println("  FIPS Loader Message: " + Loader.getFipsMessage());
+        }
+
         if (services)
         {
-            printServices();
+            printServices(JostleProvider.PROVIDER_NAME, "Services");
+            if (fipsConfig != null)
+            {
+                printServices(JostleFIPSProvider.PROVIDER_NAME, "FIPS Services");
+            }
         }
 
         // -DM System.out.println
         System.out.println(".END");
         // -DM System.out.println
-        System.out.println("Use: --fine to emit FINE level logs, --services to list provider services grouped by type");
+        System.out.println("Use: --fine to emit FINE level logs, --services to list provider services grouped by type,");
+        // -DM System.out.println
+        System.out.println("     --fips-config <config> to also configure the JSLFIPS provider (e.g. \"fips_module='/path/to/fips.so'\")");
 
         // -DM System.out.println
         System.out.println("-------------------------------------------------------------------------------");
@@ -146,9 +175,9 @@ public class DumpInfo
 
     }
 
-    private static void printServices()
+    private static void printServices(String providerName, String title)
     {
-        Provider provider = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        Provider provider = Security.getProvider(providerName);
         Set<Provider.Service> serviceSet = provider.getServices();
 
         Map<String, List<String>> algorithmsByType = new TreeMap<String, List<String>>();
@@ -164,7 +193,7 @@ public class DumpInfo
         }
 
         // -DM System.out.println
-        System.out.println("\nServices (" + serviceSet.size() + " total, grouped by type):");
+        System.out.println("\n" + title + " (" + serviceSet.size() + " total, grouped by type):");
         for (Map.Entry<String, List<String>> entry : algorithmsByType.entrySet())
         {
             Collections.sort(entry.getValue());

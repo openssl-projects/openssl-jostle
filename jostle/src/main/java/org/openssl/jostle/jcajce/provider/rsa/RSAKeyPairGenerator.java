@@ -82,6 +82,10 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     private final SpecNI specNI;
     private final Asn1Ni asn1NI;
 
+    // Provider-policy floor: MIN_KEY_SIZE_BITS for JSL, the module's 2048-bit
+    // generation floor for JSLFIPS.
+    private final int minKeySizeBits;
+
     public RSAKeyPairGenerator()
     {
         this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
@@ -89,10 +93,22 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
 
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
+        this(rsaServiceNI, specNI, asn1NI, MIN_KEY_SIZE_BITS);
+    }
+
+    /**
+     * Variant with a provider-policy key-size floor: the FIPS provider passes
+     * the module's own generation floor (2048) so an undersized request fails
+     * fast at the JCE boundary with a typed exception instead of an
+     * OpenSSLException from inside the module.
+     */
+    public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, int minKeySizeBits)
+    {
         super("RSA");
         this.rsaServiceNI = rsaServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
+        this.minKeySizeBits = minKeySizeBits;
     }
 
     @Override
@@ -159,12 +175,12 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
      * {@link InvalidAlgorithmParameterException} for the
      * {@code initialize(AlgorithmParameterSpec)} path.
      */
-    private static String validateKeySize(int keysize)
+    private String validateKeySize(int keysize)
     {
-        if (keysize < MIN_KEY_SIZE_BITS || keysize > MAX_KEY_SIZE_BITS)
+        if (keysize < minKeySizeBits || keysize > MAX_KEY_SIZE_BITS)
         {
             return "RSA key size " + keysize + " is out of range "
-                    + "[" + MIN_KEY_SIZE_BITS + ", " + MAX_KEY_SIZE_BITS + "]";
+                    + "[" + minKeySizeBits + ", " + MAX_KEY_SIZE_BITS + "]";
         }
         return null;
     }

@@ -564,6 +564,67 @@ If no SecureRandom is supplied the default from CryptoServicesRegistrar will be 
 
 The handling of SecureRandom in CryptoServicesRegistrar is exactly the same as Bouncy Castle's handling.
 
+## FIPS support (JSLFIPS)
+
+Alongside the standard `JostleProvider` ("JSL"), Jostle ships `JostleFIPSProvider` ("JSLFIPS") which backs its
+services with an externally supplied OpenSSL FIPS provider module (for example the FIPS-validated OpenSSL 3.1.2
+`fips.dylib` / `fips.so` / `fips.dll`). The module is loaded by libcrypto itself — its integrity MAC is verified
+against the fipsinstall-generated configuration and its self-tests run before any service is available. The JVM
+never `System.load`s the module.
+
+The two providers coexist in the same JVM: each runs on its own native interface library with its own
+`OSSL_LIB_CTX`, so `JSL` continues to serve its full algorithm set while `JSLFIPS` serves only what the FIPS
+module provides as approved (the lib ctx is pinned to `fips=yes` default properties).
+
+### Configuring
+
+The provider needs to know where the FIPS module lives. The configuration string is a comma-separated
+key=value list (values may be quoted with `"`, `'` or a backtick, and resolve via the `file:`, `prop:`,
+`env:` and `str:` schemes):
+
+1. `fips_module` — REQUIRED. Path to the FIPS provider module. The module search path is its parent directory
+   and the OpenSSL provider name is the file name minus its extension.
+2. `fips_config` — OPTIONAL. Path to the fipsinstall-generated configuration carrying the module MAC.
+   Defaults to `fipsmodule.cnf` in the module's directory.
+
+```java
+Security.addProvider(new JostleFIPSProvider("fips_module='/opt/openssl-fips/lib/ossl-modules/fips.so'"));
+
+// or via java.security static registration / Provider.configure:
+Provider p = new JostleFIPSProvider().configure("fips_module=env:MY_FIPS_MODULE");
+```
+
+The no-arg constructor consults the `org.openssl.jostle.fips.config` property (java.security property,
+thread-local override, then system property); with no configuration it stays unconfigured and registers no
+services. Initialisation is one-shot per JVM: constructing another provider with the identical configuration
+is a no-op, a different configuration throws `IllegalStateException`.
+
+### What JSLFIPS serves
+
+MessageDigest (SHA-1/SHA-2/SHA-3/SHAKE), Cipher AES (modes via the module, key wrap RFC 3394/5649, CCM),
+Mac (HMAC over the approved digests, AES-CMAC), SecureRandom (SP 800-90A DRBGs over the FIPS 140-3 approved
+digest set), KeyGenerator AES (keyed from the module's DRBG), RSA (key generation ≥ 2048, KeyFactory,
+PKCS#1 v1.5 and PSS signatures, OAEP and PKCS#1 v1.5 encryption), EC (ECDSA, ECDH — the module gates curve
+approval), DSA, DH, XDH (X25519/X448), and SecretKeyFactory PBKDF2/HKDF.
+
+Deliberately absent because the module does not serve them (or does not serve them as approved): MD5, SM3,
+RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, DESede, Poly1305, scrypt, Ed25519/Ed448, and the post-quantum
+families (ML-KEM, ML-DSA, SLH-DSA). Requests for these through `JSLFIPS` fail with
+`NoSuchAlgorithmException` while `JSL` continues to serve them in the same JVM.
+
+### Entropy
+
+The FIPS lib ctx does not install the java rand bridge: all entropy — DRBG seeding, key generation, signature
+randomness — is drawn inside the FIPS boundary from the module's own approved DRBGs. `SecureRandom`
+instances from `JSLFIPS` chain to the module's primary DRBG.
+
+### Testing
+
+The FIPS test classes (`org.openssl.jostle.test.fips.*`) are gated on the `JOSTLE_TEST_FIPS_DIR` environment
+variable, which must point at a directory containing the FIPS module and its `fipsmodule.cnf` (for example an
+OpenSSL 3.1.2 `enable-fips` build's `providers/` directory). When unset the tests skip. Operations-test fault
+injection (`JOSTLE_OPS_TEST`) is intentionally not compiled into the FIPS interface libraries.
+
 ## Provider startup
 
 During the construction, ```new JostleProvider(...)``` an optional provider can be named.

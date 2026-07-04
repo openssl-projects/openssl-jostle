@@ -237,12 +237,14 @@ public class FIPSRSATest
     {
         ensureProviders();
 
-        // The FIPS module's RSA generation floor is 2048 bits: 1024 passes
-        // the JCE-boundary check but must fail inside the module.
+        // The FIPS module's RSA generation floor is 2048 bits, enforced at
+        // the JCE boundary with a typed exception and a clear message.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
-        kpg.initialize(1024);
-        Assertions.assertThrows(Exception.class, kpg::generateKeyPair,
-                "1024-bit RSA generation must fail in the FIPS module");
+        java.security.InvalidParameterException ipe = Assertions.assertThrows(
+                java.security.InvalidParameterException.class, () -> kpg.initialize(1024),
+                "1024-bit RSA generation must be rejected at initialize");
+        Assertions.assertTrue(ipe.getMessage().contains("[2048, 16384]"),
+                "message must name the JSLFIPS range, got: " + ipe.getMessage());
 
         // MD5withRSA is not registered by JSLFIPS...
         Assertions.assertThrows(NoSuchAlgorithmException.class,

@@ -24,6 +24,7 @@ import sys
 TYPE_HEADER = re.compile(r"^ {2}(\S+) \((\d+)\):\s*$")
 ALGORITHM = re.compile(r"^ {4}(.+?)\s*$")
 SECTION_START = re.compile(r"^Services \((\d+) total")
+FIPS_SECTION_START = re.compile(r"^FIPS Services \((\d+) total")
 
 
 def find_repo_root():
@@ -50,12 +51,14 @@ def find_jar(root):
     return sorted(jars)[0] if jars else None
 
 
-def run_dumpinfo(jar):
+def run_dumpinfo(jar, fips_config=None):
     java = "java"
     if os.environ.get("JAVA_HOME"):
         java = os.path.join(os.environ["JAVA_HOME"], "bin", "java")
     cmd = [java, "--enable-native-access=ALL-UNNAMED", "-cp", jar,
            "org.openssl.jostle.util.DumpInfo", "--services"]
+    if fips_config:
+        cmd += ["--fips-config", fips_config]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True)
     except FileNotFoundError:
@@ -63,17 +66,17 @@ def run_dumpinfo(jar):
     return proc.stdout
 
 
-def parse_services(text):
-    lines = text.splitlines()
-    start = next((i for i, line in enumerate(lines) if SECTION_START.match(line)), None)
+def parse_section(lines, start_re, stop_res):
+    start = next((i for i, line in enumerate(lines) if start_re.match(line)), None)
     if start is None:
         return None, []
 
-    total = int(SECTION_START.match(lines[start]).group(1))
+    total = int(start_re.match(lines[start]).group(1))
     groups = []
     current = None
     for line in lines[start + 1:]:
-        if line.startswith(".END") or line.startswith("---"):
+        if line.startswith(".END") or line.startswith("---") \
+                or any(r.match(line) for r in stop_res):
             break
         header = TYPE_HEADER.match(line)
         if header:
@@ -86,7 +89,14 @@ def parse_services(text):
     return total, groups
 
 
-def render_markdown(total, groups):
+def parse_services(text):
+    lines = text.splitlines()
+    total, groups = parse_section(lines, SECTION_START, [FIPS_SECTION_START])
+    fips_total, fips_groups = parse_section(lines, FIPS_SECTION_START, [])
+    return total, groups, fips_total, fips_groups
+
+
+def render_markdown(total, groups, fips_total=None, fips_groups=None):
     out = [
         "# Jostle Provider — Registered Services",
         "",
@@ -104,12 +114,29 @@ def render_markdown(total, groups):
         for index, algorithm in enumerate(algorithms, 1):
             out.append("{0}. `{1}`".format(index, algorithm))
         out.append("")
+    if fips_groups:
+        out.append("# Jostle FIPS Provider (JSLFIPS) — Registered Services")
+        out.append("")
+        out.append("The Jostle FIPS (`JSLFIPS`) provider registers **{0}** services across "
+                   "**{1}** JCA service types — the subset the OpenSSL FIPS module serves as "
+                   "approved. The set is fixed by the ProvFIPS* registration code.".format(
+                       fips_total, len(fips_groups)))
+        out.append("")
+        for service_type, algorithms in fips_groups:
+            out.append("## {0} ({1})".format(service_type, len(algorithms)))
+            out.append("")
+            for index, algorithm in enumerate(algorithms, 1):
+                out.append("{0}. `{1}`".format(index, algorithm))
+            out.append("")
     return "\n".join(out).rstrip() + "\n"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Regenerate SERVICES.md from DumpInfo --services.")
     parser.add_argument("--input", help="read DumpInfo output from this file instead of running java")
+    parser.add_argument("--fips-config",
+                        help="JSLFIPS configuration string (e.g. \"fips_module='/path/to/fips.so'\") - "
+                             "adds a JSLFIPS section to SERVICES.md")
     args = parser.parse_args()
 
     root = find_repo_root()
@@ -120,17 +147,20 @@ def main():
         jar = find_jar(root)
         if not jar:
             sys.exit("error: no jar under jostle/build/libs/ -- build it first: ./gradlew :jostle:jar")
-        text = run_dumpinfo(jar)
+        text = run_dumpinfo(jar, args.fips_config)
 
-    total, groups = parse_services(text)
+    total, groups, fips_total, fips_groups = parse_services(text)
     if not groups:
         sys.exit("error: DumpInfo output had no 'Services (...)' section. The jar may predate the "
                  "--services flag -- rebuild it (./gradlew :jostle:jar) and retry.")
 
     destination = os.path.join(root, "SERVICES.md")
     with open(destination, "w", encoding="utf-8") as handle:
-        handle.write(render_markdown(total, groups))
-    print("wrote {0}: {1} services across {2} types".format(destination, total, len(groups)))
+        handle.write(render_markdown(total, groups, fips_total, fips_groups))
+    message = "wrote {0}: {1} services across {2} types".format(destination, total, len(groups))
+    if fips_groups:
+        message += "; JSLFIPS: {0} services across {1} types".format(fips_total, len(fips_groups))
+    print(message)
 
 
 if __name__ == "__main__":
