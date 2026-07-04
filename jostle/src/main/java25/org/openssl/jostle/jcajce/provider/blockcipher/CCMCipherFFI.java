@@ -22,20 +22,28 @@ import java.util.logging.Logger;
  * streaming update path; the SPI buffers everything and calls
  * {@link #ni_doFinal} once.
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries: the no-arg constructor uses
+// the process-global loader lookup (base library), the FIPS subclass passes
+// a library-scoped lookup pinned to the FIPS interface library.
 public class CCMCipherFFI implements CCMCipherNI
 {
     private static final Logger L = Logger.getLogger("CCM_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle makeInstanceH;
-    private static final MethodHandle disposeH;
-    private static final MethodHandle initH;
-    private static final MethodHandle doFinalH;
-    private static final MethodHandle getOutputSizeH;
+    private final MethodHandle makeInstanceH;
+    private final MethodHandle disposeH;
+    private final MethodHandle initH;
+    private final MethodHandle doFinalH;
+    private final MethodHandle getOutputSizeH;
 
 
-    static
+    public CCMCipherFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public CCMCipherFFI(SymbolLookup lookup)
     {
         makeInstanceH = linker.downcallHandle(
                 lookup.find("JoCCM_makeInstance").orElseThrow(),

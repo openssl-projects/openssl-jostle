@@ -197,5 +197,6 @@ public final class JostleFIPSProvider
         // its family the FIPS module serves as approved (fips=yes) - the
         // lib ctx's fips=yes default properties are the enforcement backstop.
         new ProvFIPSMD().configure(this);
+        new ProvFIPSAES().configure(this);
     }
 }

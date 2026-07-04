@@ -223,7 +223,7 @@ public class JostleProvider
         creatorMap.put(className, creator);
     }
 
-    void addAlgorithmImplementation(String type, ASN1ObjectIdentifier name, String className, Map<String, String> attributes, EngineCreator creator)
+    public void addAlgorithmImplementation(String type, ASN1ObjectIdentifier name, String className, Map<String, String> attributes, EngineCreator creator)
     {
         String key1 = type + "." + name;
         if (containsKey(key1))
@@ -290,7 +290,7 @@ public class JostleProvider
     }
 
 
-    void addAlias(String type, String name, ASN1ObjectIdentifier... oids)
+    public void addAlias(String type, String name, ASN1ObjectIdentifier... oids)
     {
         name = Strings.toUpperCase(name);
         if (!containsKey(type + "." + name))

@@ -11,6 +11,8 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 
 /**
@@ -26,11 +28,15 @@ public class FIPSNISelector
 {
     public static final OpenSSLFIPSNI OpenSSLFIPSNI;
     public static final MDServiceNI MDServiceNI;
+    public static final BlockCipherNI BlockCipherNI;
+    public static final CCMCipherNI CCMCipherNI;
 
     static
     {
         Loader.loadFipsInterface();
         OpenSSLFIPSNI = new OpenSSLFIPSJNI();
         MDServiceNI = new MDServiceFIPSJNI();
+        BlockCipherNI = new BlockCipherFIPSJNI();
+        CCMCipherNI = new CCMCipherFIPSJNI();
     }
 }

@@ -59,7 +59,10 @@ class BlockCipherSpi extends CipherSpi
 
     private static int BUF_SIZE = 1024;
 
-    private static final BlockCipherNI blockCipherNi = NISelector.BlockCipherNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in - NISelector.BlockCipherNI for JSL,
+    // FIPSNISelector.BlockCipherNI (the FIPS interface library) for JSLFIPS.
+    private final BlockCipherNI blockCipherNi;
 
     Class[] availableSpecs = new Class[]{
             IvParameterSpec.class,
@@ -68,6 +71,12 @@ class BlockCipherSpi extends CipherSpi
 
     BlockCipherSpi(Object params, String expectedKeyAlgorithm)
     {
+        this(NISelector.BlockCipherNI, params, expectedKeyAlgorithm);
+    }
+
+    BlockCipherSpi(BlockCipherNI blockCipherNi, Object params, String expectedKeyAlgorithm)
+    {
+        this.blockCipherNi = blockCipherNi;
         mandatedCipher = null;
         mandatedMode = null;
         this.keyAlgorithm = expectedKeyAlgorithm;
@@ -75,6 +84,12 @@ class BlockCipherSpi extends CipherSpi
 
     BlockCipherSpi(OSSLCipher osslCipher, String expectedKeyAlgorithm)
     {
+        this(NISelector.BlockCipherNI, osslCipher, expectedKeyAlgorithm);
+    }
+
+    BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, String expectedKeyAlgorithm)
+    {
+        this.blockCipherNi = blockCipherNi;
         mandatedCipher = osslCipher;
         mandatedMode = null;
         this.keyAlgorithm = expectedKeyAlgorithm;
@@ -82,6 +97,12 @@ class BlockCipherSpi extends CipherSpi
 
     BlockCipherSpi(OSSLCipher osslCipher, OSSLMode osslMode, String expectedKeyAlgorithm)
     {
+        this(NISelector.BlockCipherNI, osslCipher, osslMode, expectedKeyAlgorithm);
+    }
+
+    BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, OSSLMode osslMode, String expectedKeyAlgorithm)
+    {
+        this.blockCipherNi = blockCipherNi;
         mandatedCipher = osslCipher;
         mandatedMode = osslMode;
         // Seed the active osslMode field with the mandated mode. JCE
@@ -872,7 +893,7 @@ class BlockCipherSpi extends CipherSpi
             if (refWrapper == null)
             {
                 long ref = blockCipherNi.makeInstance(osslCipher.ordinal(), osslMode.ordinal(), padding);
-                refWrapper = new OSSLBlockCipherRefWrapper(ref, osslCipher.name());
+                refWrapper = new OSSLBlockCipherRefWrapper(blockCipherNi, ref, osslCipher.name());
             }
         }
         finally
@@ -885,9 +906,14 @@ class BlockCipherSpi extends CipherSpi
     protected static class Disposer
             extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the context frees it - a FIPS-allocated
+        // cipher must be disposed through the FIPS interface library.
+        private final BlockCipherNI blockCipherNi;
+
+        Disposer(BlockCipherNI blockCipherNi, long ref)
         {
             super(ref);
+            this.blockCipherNi = blockCipherNi;
         }
 
         @Override
@@ -900,21 +926,24 @@ class BlockCipherSpi extends CipherSpi
     protected static class OSSLBlockCipherRefWrapper
             extends NativeReference
     {
+        private final BlockCipherNI blockCipherNi;
 
-        public OSSLBlockCipherRefWrapper(long reference)
+        public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference)
         {
             super(reference, "");
+            this.blockCipherNi = blockCipherNi;
         }
 
-        public OSSLBlockCipherRefWrapper(long reference, String name)
+        public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference, String name)
         {
             super(reference, name);
+            this.blockCipherNi = blockCipherNi;
         }
 
         @Override
         public Runnable createAction()
         {
-            return new BlockCipherSpi.Disposer(reference);
+            return new BlockCipherSpi.Disposer(blockCipherNi, reference);
         }
     }
 

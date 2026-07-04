@@ -39,7 +39,10 @@ import java.util.Locale;
  */
 public class CCMCipherSpi extends CipherSpi
 {
-    private static final CCMCipherNI cipherNI = NISelector.CCMCipherNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in - NISelector.CCMCipherNI for JSL,
+    // FIPSNISelector.CCMCipherNI (the FIPS interface library) for JSLFIPS.
+    private final CCMCipherNI cipherNI;
 
     /** CCM nonce length range, NIST SP 800-38C §6.1: 7..13 bytes. */
     private static final int CCM_MIN_NONCE_LEN = 7;
@@ -87,6 +90,12 @@ public class CCMCipherSpi extends CipherSpi
 
     public CCMCipherSpi(CipherFamily family)
     {
+        this(NISelector.CCMCipherNI, family);
+    }
+
+    public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family)
+    {
+        this.cipherNI = cipherNI;
         this.family = family;
     }
 
@@ -278,7 +287,7 @@ public class CCMCipherSpi extends CipherSpi
         try
         {
             // Allocate a new native ctx for this cipher family + key size.
-            ref = new CCMRef(cipherNI.makeInstance(osslCipher.ordinal()), "CCM-" + osslCipher.name());
+            ref = new CCMRef(cipherNI, cipherNI.makeInstance(osslCipher.ordinal()), "CCM-" + osslCipher.name());
 
             // Init the native ctx. ni_init records key/iv/tag_len + opMode
             // and validates ranges; actual EVP work happens at doFinal.
@@ -627,29 +636,36 @@ public class CCMCipherSpi extends CipherSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the context frees it - a FIPS-allocated
+        // cipher must be disposed through the FIPS interface library.
+        private final CCMCipherNI cipherNI;
+        Disposer(CCMCipherNI cipherNI, long ref)
         {
             super(ref);
+            this.cipherNI = cipherNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.CCMCipherNI.dispose(reference);
+            cipherNI.dispose(reference);
         }
     }
 
     protected static class CCMRef extends NativeReference
     {
-        protected CCMRef(long reference, String name)
+        private final CCMCipherNI cipherNI;
+
+        protected CCMRef(CCMCipherNI cipherNI, long reference, String name)
         {
             super(reference, name);
+            this.cipherNI = cipherNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(cipherNI, reference);
         }
     }
 }

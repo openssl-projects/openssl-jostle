@@ -33,6 +33,21 @@ public class AESBlockCipherSpi extends BlockCipherSpi
         super(cipher, mode, "AES");
     }
 
+    //
+    // NI-binding constructors for the FIPS provider: identical behaviour,
+    // bound to the FIPS interface library's BlockCipherNI.
+    //
+    public AESBlockCipherSpi(BlockCipherNI blockCipherNi)
+    {
+        super(blockCipherNi, null, null, "AES");
+        osslMode = OSSLMode.ECB;
+    }
+
+    public AESBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode)
+    {
+        super(blockCipherNi, cipher, mode, "AES");
+    }
+
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
     {
 

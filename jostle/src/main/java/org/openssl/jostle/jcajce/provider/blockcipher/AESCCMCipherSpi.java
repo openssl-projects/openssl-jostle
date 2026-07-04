@@ -22,4 +22,13 @@ public class AESCCMCipherSpi extends CCMCipherSpi
     {
         super(CipherFamily.AES);
     }
+
+    //
+    // NI-binding constructor for the FIPS provider: identical behaviour,
+    // bound to the FIPS interface library's CCMCipherNI.
+    //
+    public AESCCMCipherSpi(CCMCipherNI cipherNI)
+    {
+        super(cipherNI, CipherFamily.AES);
+    }
 }

@@ -135,6 +135,8 @@ set(FIPS_UTIL_SOURCES
 set(FIPS_JNI_GLUE_SOURCES
         jni/openssl_fips_jni.c
         jni/md_fips_jni.c
+        jni/block_cipher_fips_jni.c
+        jni/ccm_fips_jni.c
         jni/rand_upcall_jni.h
         jni/rand_upcall_jni.c
         jni/byte_array_critical.c
