@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.ec;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -89,7 +91,11 @@ import java.util.Map;
  */
 public class ECKeyPairGenerator extends KeyPairGenerator
 {
-    private static final ECServiceNI ecServiceNI = NISelector.ECServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final ECServiceNI ecServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     /**
      * Bit-size → canonical curve name. Standard NIST mapping. If
@@ -119,7 +125,15 @@ public class ECKeyPairGenerator extends KeyPairGenerator
 
     public ECKeyPairGenerator()
     {
+        this(NISelector.ECServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public ECKeyPairGenerator(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
         super("EC");
+        this.ecServiceNI = ecServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -165,7 +179,7 @@ public class ECKeyPairGenerator extends KeyPairGenerator
             // Canonicalise so SECG/OID aliases OpenSSL doesn't recognise
             // directly (e.g. "secp256r1", "1.2.840.10045.3.1.7") resolve
             // to a name it accepts.
-            resolved = ECComponents.toOpenSSLCurveName(name);
+            resolved = ECComponents.toOpenSSLCurveName(ecServiceNI, name);
             if (resolved == null)
             {
                 throw new InvalidAlgorithmParameterException(
@@ -177,7 +191,7 @@ public class ECKeyPairGenerator extends KeyPairGenerator
             // Explicit-parameters form. OpenSSL key generation here is
             // named-curve only, so reverse-resolve the supplied domain
             // parameters to a curve name OpenSSL recognises.
-            resolved = ECComponents.findCurveName((ECParameterSpec) params);
+            resolved = ECComponents.findCurveName(ecServiceNI, (ECParameterSpec) params);
             if (resolved == null)
             {
                 throw new InvalidAlgorithmParameterException(
@@ -211,7 +225,7 @@ public class ECKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(ref, OSSLKeyType.EC);
-        return new KeyPair(new JOECPublicKey(spec), new JOECPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC);
+        return new KeyPair(new JOECPublicKey(ecServiceNI, asn1NI, spec), new JOECPrivateKey(ecServiceNI, asn1NI, spec));
     }
 }

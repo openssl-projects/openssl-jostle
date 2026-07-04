@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
-import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 import java.math.BigInteger;
@@ -34,14 +33,14 @@ final class ECComponents
     private ECComponents() {}
 
     /** Fetch the curve name as a UTF-8 string. */
-    static String getCurveName(PKEYKeySpec spec)
+    static String getCurveName(ECServiceNI ecServiceNI, PKEYKeySpec spec)
     {
         synchronized (spec)
         {
-            int len = NISelector.ECServiceNI.getComponent(
+            int len = ecServiceNI.getComponent(
                     spec.getReference(), ECServiceNI.COMP_CURVE_NAME, null);
             byte[] raw = new byte[len];
-            int written = NISelector.ECServiceNI.getComponent(
+            int written = ecServiceNI.getComponent(
                     spec.getReference(), ECServiceNI.COMP_CURVE_NAME, raw);
             if (written != raw.length)
             {
@@ -54,14 +53,14 @@ final class ECComponents
     }
 
     /** Fetch a BIGNUM-valued component (X, Y, or private scalar). */
-    static BigInteger getBigInteger(PKEYKeySpec spec, int component)
+    static BigInteger getBigInteger(ECServiceNI ecServiceNI, PKEYKeySpec spec, int component)
     {
         synchronized (spec)
         {
-            int len = NISelector.ECServiceNI.getComponent(
+            int len = ecServiceNI.getComponent(
                     spec.getReference(), component, null);
             byte[] raw = new byte[len];
-            int written = NISelector.ECServiceNI.getComponent(
+            int written = ecServiceNI.getComponent(
                     spec.getReference(), component, raw);
             if (written != raw.length)
             {
@@ -133,7 +132,7 @@ final class ECComponents
      * {@code ECParameterSpec}, not a curve name) into a name OpenSSL
      * accepts via {@code OSSL_PKEY_PARAM_GROUP_NAME}.
      */
-    static String findCurveName(ECParameterSpec params)
+    static String findCurveName(ECServiceNI ecServiceNI, ECParameterSpec params)
     {
         if (params == null)
         {
@@ -141,7 +140,7 @@ final class ECComponents
         }
         for (String candidate : KNOWN_CURVES)
         {
-            if (!NISelector.ECServiceNI.curveSupported(candidate))
+            if (!ecServiceNI.curveSupported(candidate))
             {
                 continue;
             }
@@ -182,13 +181,13 @@ final class ECComponents
      * if no form of the curve is supported by the loaded build, which
      * the caller surfaces as {@link java.security.InvalidAlgorithmParameterException}.
      */
-    static String toOpenSSLCurveName(String requested)
+    static String toOpenSSLCurveName(ECServiceNI ecServiceNI, String requested)
     {
         if (requested == null)
         {
             return null;
         }
-        if (NISelector.ECServiceNI.curveSupported(requested))
+        if (ecServiceNI.curveSupported(requested))
         {
             return requested;
         }
@@ -209,7 +208,7 @@ final class ECComponents
             }
             for (String candidate : family)
             {
-                if (NISelector.ECServiceNI.curveSupported(candidate))
+                if (ecServiceNI.curveSupported(candidate))
                 {
                     return candidate;
                 }

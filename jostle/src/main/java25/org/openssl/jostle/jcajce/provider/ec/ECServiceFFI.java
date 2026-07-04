@@ -30,40 +30,57 @@ import java.util.logging.Logger;
  * FFI binding for the {@code JoEC_*} symbols exported by
  * {@code interface/ffi/ec_ni_ffi.c}.
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class ECServiceFFI implements ECServiceNI
 {
     private static final Logger L = Logger.getLogger("EC_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle curveSupportedH;
-    private static final MethodHandle generateKeyPairH;
-    private static final MethodHandle makePrivateFromComponentsH;
-    private static final MethodHandle getComponentH;
-    private static final MethodHandle allocSignerH;
-    private static final MethodHandle disposeSignerH;
-    private static final MethodHandle initSignH;
-    private static final MethodHandle initVerifyH;
-    private static final MethodHandle updateH;
-    private static final MethodHandle signH;
-    private static final MethodHandle verifyH;
-    private static final MethodHandle allocKexH;
-    private static final MethodHandle disposeKexH;
-    private static final MethodHandle kexInitH;
-    private static final MethodHandle kexSetPeerH;
-    private static final MethodHandle kexDeriveH;
+    private final MethodHandle curveSupportedH;
+    private final MethodHandle generateKeyPairH;
+    private final MethodHandle makePrivateFromComponentsH;
+    private final MethodHandle getComponentH;
+    private final MethodHandle allocSignerH;
+    private final MethodHandle disposeSignerH;
+    private final MethodHandle initSignH;
+    private final MethodHandle initVerifyH;
+    private final MethodHandle updateH;
+    private final MethodHandle signH;
+    private final MethodHandle verifyH;
+    private final MethodHandle allocKexH;
+    private final MethodHandle disposeKexH;
+    private final MethodHandle kexInitH;
+    private final MethodHandle kexSetPeerH;
+    private final MethodHandle kexDeriveH;
 
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            boolean.class);
 
 
-    static
+    public ECServiceFFI()
     {
-        curveSupportedH = bind("JoEC_curveSupported",
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public ECServiceFFI(SymbolLookup lookup)
+    {
+        curveSupportedH = bind(lookup, "JoEC_curveSupported",
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
 
         // JoEC_generateKeyPair(const char* curve_name, int32_t* err, void* rnd_src) -> key_spec*
-        generateKeyPairH = bind("JoEC_generateKeyPair",
+        generateKeyPairH = bind(lookup, "JoEC_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // curve_name
@@ -75,7 +92,7 @@ public class ECServiceFFI implements ECServiceNI
         // NON-critical: OpenSSL's public-key re-derivation makes a Java
         // RAND upcall during EVP_PKEY_fromdata, same rationale as verify
         // / kex_derive.
-        makePrivateFromComponentsH = bind("JoEC_makePrivateFromComponents",
+        makePrivateFromComponentsH = bind(lookup, "JoEC_makePrivateFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // curve_name
@@ -85,7 +102,7 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
         // JoEC_getComponent(key_spec*, int32_t, uint8_t*, size_t) -> int32_t
-        getComponentH = bind("JoEC_getComponent",
+        getComponentH = bind(lookup, "JoEC_getComponent",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -94,7 +111,7 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        allocSignerH = bind("JoEC_allocateSigner",
+        allocSignerH = bind(lookup, "JoEC_allocateSigner",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeSignerH = linker.downcallHandle(
@@ -102,7 +119,7 @@ public class ECServiceFFI implements ECServiceNI
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoEC_initSign(ec_ctx*, key_spec*, const char* digest, void* rnd_src) -> int
-        initSignH = bind("JoEC_initSign",
+        initSignH = bind(lookup, "JoEC_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -110,7 +127,7 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS));
 
-        initVerifyH = bind("JoEC_initVerify",
+        initVerifyH = bind(lookup, "JoEC_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -118,7 +135,7 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS));
 
         // JoEC_update(ec_ctx*, uint8_t* in, size_t in_size, int32_t off, int32_t len) -> int
-        updateH = bind("JoEC_update",
+        updateH = bind(lookup, "JoEC_update",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -129,7 +146,7 @@ public class ECServiceFFI implements ECServiceNI
                 /* critical */ true);
 
         // JoEC_sign(ec_ctx*, uint8_t* out, size_t out_size, int32_t out_off, void* rnd_src) -> int
-        signH = bind("JoEC_sign",
+        signH = bind(lookup, "JoEC_sign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -146,7 +163,7 @@ public class ECServiceFFI implements ECServiceNI
         // through the lib-ctx-bound RAND provider. Upcalls are forbidden
         // inside critical regions, so we trade the critical-mode speedup
         // for correctness here.
-        verifyH = bind("JoEC_verify",
+        verifyH = bind(lookup, "JoEC_verify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -155,7 +172,7 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS));
 
-        allocKexH = bind("JoEC_allocateKex",
+        allocKexH = bind(lookup, "JoEC_allocateKex",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeKexH = linker.downcallHandle(
@@ -163,7 +180,7 @@ public class ECServiceFFI implements ECServiceNI
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoEC_kexInit(ec_kex_ctx*, key_spec*, void* rnd_src) -> int
-        kexInitH = bind("JoEC_kexInit",
+        kexInitH = bind(lookup, "JoEC_kexInit",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -174,7 +191,7 @@ public class ECServiceFFI implements ECServiceNI
         // NON-critical: binary-field curves trigger an internal
         // EVP_PKEY_public_check that consumes RAND. Same rationale
         // as verify / kex_derive.
-        kexSetPeerH = bind("JoEC_kexSetPeer",
+        kexSetPeerH = bind(lookup, "JoEC_kexSetPeer",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -185,7 +202,7 @@ public class ECServiceFFI implements ECServiceNI
         //                int32_t out_off, void* rnd_src) -> int
         // NON-critical: derive consumes RAND for point blinding, same
         // rationale as verify.
-        kexDeriveH = bind("JoEC_kexDerive",
+        kexDeriveH = bind(lookup, "JoEC_kexDerive",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -195,26 +212,14 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS));
 
         // Entropy upcall: int(uint8_t* buf, int len, int strength, bool predRes).
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_BOOLEAN);
-        entropyMt = MethodType.methodType(
-                int.class,
-                MemorySegment.class,
-                int.class,
-                int.class,
-                boolean.class);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd)
     {
         return linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd);
     }
 
-    private static MethodHandle bind(String symbol, FunctionDescriptor fd, boolean critical)
+    private static MethodHandle bind(SymbolLookup lookup, String symbol, FunctionDescriptor fd, boolean critical)
     {
         return critical
                 ? linker.downcallHandle(lookup.find(symbol).orElseThrow(), fd, Linker.Option.critical(true))

@@ -12,6 +12,7 @@ package org.openssl.jostle.util.asn1;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 
 public class ASN1Encoder
 {
@@ -103,14 +104,30 @@ public class ASN1Encoder
 
     public static PKEYKeySpec fromPrivateKeyInfo(byte[] data, int start, int len)
     {
-        long ref = NISelector.Asn1NI.fromPrivateKeyInfo(data, start, len);
-        return new PKEYKeySpec(ref);
+        return fromPrivateKeyInfo(NISelector.Asn1NI, NISelector.SpecNI, data, start, len);
+    }
+
+    /**
+     * Variant bound to specific NI backends (see asSubjectPublicKeyInfo):
+     * the decode allocates the PKEY in the given library's lib ctx and the
+     * returned spec is bound to that library for name lookup and disposal.
+     */
+    public static PKEYKeySpec fromPrivateKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len)
+    {
+        long ref = asn1NI.fromPrivateKeyInfo(data, start, len);
+        return new PKEYKeySpec(specNI, ref);
     }
 
     public static PKEYKeySpec fromSubjectPublicKeyInfo(byte[] data, int start, int len)
     {
-        long ref = NISelector.Asn1NI.fromPublicKeyInfo(data, start, len);
-        return new PKEYKeySpec(ref);
+        return fromSubjectPublicKeyInfo(NISelector.Asn1NI, NISelector.SpecNI, data, start, len);
+    }
+
+    /** Variant bound to specific NI backends (see fromPrivateKeyInfo). */
+    public static PKEYKeySpec fromSubjectPublicKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len)
+    {
+        long ref = asn1NI.fromPublicKeyInfo(data, start, len);
+        return new PKEYKeySpec(specNI, ref);
     }
 
 

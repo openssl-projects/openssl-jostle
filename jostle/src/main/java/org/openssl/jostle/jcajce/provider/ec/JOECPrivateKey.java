@@ -14,8 +14,10 @@ package org.openssl.jostle.jcajce.provider.ec;
 import org.openssl.jostle.jcajce.interfaces.ECKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.math.BigInteger;
@@ -24,9 +26,21 @@ import java.security.spec.ECParameterSpec;
 
 class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, OSSLKey
 {
+    // The NI backends that own the underlying PKEY (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final ECServiceNI ecServiceNI;
+    private final Asn1Ni asn1NI;
+
     JOECPrivateKey(PKEYKeySpec spec)
     {
+        this(NISelector.ECServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    JOECPrivateKey(ECServiceNI ecServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.ecServiceNI = ecServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -46,7 +60,7 @@ class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, O
     {
         synchronized (this)
         {
-            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT);
         }
     }
 
@@ -59,12 +73,12 @@ class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, O
     @Override
     public BigInteger getS()
     {
-        return ECComponents.getBigInteger(spec, ECServiceNI.COMP_PRIVATE_VALUE);
+        return ECComponents.getBigInteger(ecServiceNI, spec, ECServiceNI.COMP_PRIVATE_VALUE);
     }
 
     @Override
     public ECParameterSpec getParams()
     {
-        return ECComponents.resolveParams(ECComponents.getCurveName(spec));
+        return ECComponents.resolveParams(ECComponents.getCurveName(ecServiceNI, spec));
     }
 }

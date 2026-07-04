@@ -50,6 +50,16 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
         this.digest = digest;
     }
 
+    //
+    // NI-binding constructor for the FIPS provider: identical behaviour,
+    // bound to the FIPS interface library.
+    //
+    public ECWithKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digest)
+    {
+        super(ecServiceNI, keyFactory);
+        this.digest = digest;
+    }
+
     @Override
     protected void engineInit(Key key, AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidKeyException, InvalidAlgorithmParameterException

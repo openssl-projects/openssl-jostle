@@ -66,7 +66,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                     ((X509EncodedKeySpec) keySpec).getEncoded());
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireRSA(spec);
                 return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
             }
@@ -106,7 +106,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = KeyInfoCanonicalizer.rsaPrivateKeyInfo(pkcs8);
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireRSA(spec);
                 return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
             }

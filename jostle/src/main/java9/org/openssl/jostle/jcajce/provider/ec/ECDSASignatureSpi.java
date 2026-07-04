@@ -40,7 +40,11 @@ import java.security.SignatureSpi;
  */
 public class ECDSASignatureSpi extends SignatureSpi
 {
-    protected static final ECServiceNI ecServiceNI = NISelector.ECServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS); foreign keys translate through the
+    // matching KeyFactory.
+    protected final ECServiceNI ecServiceNI;
+    protected final ECKeyFactorySpi keyFactory;
 
     private final String digestName;
     private ECRef ref;
@@ -50,6 +54,13 @@ public class ECDSASignatureSpi extends SignatureSpi
 
     public ECDSASignatureSpi(String digestName)
     {
+        this(NISelector.ECServiceNI, new ECKeyFactorySpi(), digestName);
+    }
+
+    public ECDSASignatureSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digestName)
+    {
+        this.ecServiceNI = ecServiceNI;
+        this.keyFactory = keyFactory;
         this.digestName = digestName;
     }
 
@@ -63,7 +74,7 @@ public class ECDSASignatureSpi extends SignatureSpi
     {
         try
         {
-            JOECPublicKey key = ECKeyImport.importPublic(publicKey);
+            JOECPublicKey key = ECKeyImport.importPublic(keyFactory, publicKey);
             lastKey = key;
             initVerifyInternal(key);
         }
@@ -86,7 +97,7 @@ public class ECDSASignatureSpi extends SignatureSpi
 
         try
         {
-            JOECPrivateKey key = ECKeyImport.importPrivate(privateKey);
+            JOECPrivateKey key = ECKeyImport.importPrivate(keyFactory, privateKey);
             lastKey = key;
             initSignInternal(key);
         }
@@ -193,7 +204,7 @@ public class ECDSASignatureSpi extends SignatureSpi
     {
         if (ref == null)
         {
-            ref = new ECRef(ecServiceNI.allocateSigner(), "ECDSA");
+            ref = new ECRef(ecServiceNI, ecServiceNI.allocateSigner(), "ECDSA");
         }
     }
 
@@ -255,29 +266,35 @@ public class ECDSASignatureSpi extends SignatureSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        private final ECServiceNI ecServiceNI;
+
+        Disposer(ECServiceNI ecServiceNI, long ref)
         {
             super(ref);
+            this.ecServiceNI = ecServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.ECServiceNI.disposeSigner(reference);
+            ecServiceNI.disposeSigner(reference);
         }
     }
 
     protected static class ECRef extends NativeReference
     {
-        protected ECRef(long reference, String name)
+        private final ECServiceNI ecServiceNI;
+
+        protected ECRef(ECServiceNI ecServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.ecServiceNI = ecServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(ecServiceNI, reference);
         }
     }
 

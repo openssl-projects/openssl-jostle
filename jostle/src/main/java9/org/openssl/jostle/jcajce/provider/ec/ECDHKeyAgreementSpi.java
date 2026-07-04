@@ -38,7 +38,22 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class ECDHKeyAgreementSpi extends KeyAgreementSpi
 {
-    protected static final ECServiceNI ecServiceNI = NISelector.ECServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS); foreign keys translate through the
+    // matching KeyFactory.
+    protected final ECServiceNI ecServiceNI;
+    protected final ECKeyFactorySpi keyFactory;
+
+    public ECDHKeyAgreementSpi()
+    {
+        this(NISelector.ECServiceNI, new ECKeyFactorySpi());
+    }
+
+    public ECDHKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory)
+    {
+        this.ecServiceNI = ecServiceNI;
+        this.keyFactory = keyFactory;
+    }
 
     private KexRef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -78,7 +93,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             // Foreign EC keys (e.g. sun.security.ec.* from a certificate)
             // are translated to JSL keys; only non-EC / untranslatable keys
             // are rejected.
-            JOECPrivateKey privateKey = ECKeyImport.importPrivate(key,
+            JOECPrivateKey privateKey = ECKeyImport.importPrivate(keyFactory, key,
                     "ECDH init: expected an ECPrivateKey");
             pinnedPriv = privateKey;
             peerSet = false;
@@ -107,7 +122,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                         "ECDH is a single-phase protocol; lastPhase must be true");
             }
 
-            JOECPublicKey peer = ECKeyImport.importPublic(key,
+            JOECPublicKey peer = ECKeyImport.importPublic(keyFactory, key,
                     "ECDH doPhase: expected an ECPublicKey");
             // Pin the (possibly KeyFactory-translated) peer so its native
             // EVP_PKEY cannot be GC-disposed during the set-peer call — the
@@ -228,7 +243,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
     {
         if (ref == null)
         {
-            ref = new KexRef(ecServiceNI.allocateKex(), "ECDH");
+            ref = new KexRef(ecServiceNI, ecServiceNI.allocateKex(), "ECDH");
         }
     }
 
@@ -243,29 +258,35 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        private final ECServiceNI ecServiceNI;
+
+        Disposer(ECServiceNI ecServiceNI, long ref)
         {
             super(ref);
+            this.ecServiceNI = ecServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.ECServiceNI.disposeKex(reference);
+            ecServiceNI.disposeKex(reference);
         }
     }
 
     protected static class KexRef extends NativeReference
     {
-        protected KexRef(long reference, String name)
+        private final ECServiceNI ecServiceNI;
+
+        protected KexRef(ECServiceNI ecServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.ecServiceNI = ecServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(ecServiceNI, reference);
         }
     }
 }

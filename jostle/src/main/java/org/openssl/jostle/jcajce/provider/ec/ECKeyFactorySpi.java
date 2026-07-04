@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.ec;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -66,6 +68,24 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class ECKeyFactorySpi extends KeyFactorySpi
 {
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final ECServiceNI ecServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
+    public ECKeyFactorySpi()
+    {
+        this(NISelector.ECServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public ECKeyFactorySpi(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
+        this.ecServiceNI = ecServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {
@@ -74,9 +94,9 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireEC(spec);
-                return new JOECPublicKey(spec);
+                return new JOECPublicKey(ecServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -97,9 +117,9 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = encodeViaSunEC((ECPublicKeySpec) keySpec);
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireEC(spec);
-                return new JOECPublicKey(spec);
+                return new JOECPublicKey(ecServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -120,9 +140,9 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireEC(spec);
-                return new JOECPrivateKey(spec);
+                return new JOECPrivateKey(ecServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -181,7 +201,7 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             throw new InvalidKeySpecException("ECPrivateKeySpec params are null");
         }
 
-        String curveName = ECComponents.findCurveName(spec.getParams());
+        String curveName = ECComponents.findCurveName(ecServiceNI, spec.getParams());
         if (curveName == null)
         {
             throw new InvalidKeySpecException(
@@ -192,11 +212,11 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         int curveBytes = (fieldBits + 7) / 8;
         byte[] scalarBE = unsignedMagnitudeBE(spec.getS(), curveBytes);
 
-        long ref = NISelector.ECServiceNI.makePrivateFromComponents(
+        long ref = ecServiceNI.makePrivateFromComponents(
                 curveName, scalarBE,
                 DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-        PKEYKeySpec pkSpec = new PKEYKeySpec(ref, OSSLKeyType.EC);
-        return new JOECPrivateKey(pkSpec);
+        PKEYKeySpec pkSpec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC);
+        return new JOECPrivateKey(ecServiceNI, asn1NI, pkSpec);
     }
 
     /**
