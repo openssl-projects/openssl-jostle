@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.xec;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -40,15 +42,27 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class XECKeyPairGenerator extends KeyPairGenerator
 {
-    private static final XECServiceNI xecServiceNI = NISelector.XECServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final XECServiceNI xecServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     private final OSSLKeyType keyType;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
     public XECKeyPairGenerator(OSSLKeyType keyType)
     {
+        this(NISelector.XECServiceNI, NISelector.SpecNI, NISelector.Asn1NI, keyType);
+    }
+
+    public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType)
+    {
         super(keyType.getAlgorithmName());
         this.keyType = keyType;
+        this.xecServiceNI = xecServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -85,7 +99,7 @@ public class XECKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(ref, keyType);
-        return new KeyPair(new JOXECPublicKey(spec), new JOXECPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, keyType);
+        return new KeyPair(new JOXECPublicKey(asn1NI, spec), new JOXECPrivateKey(asn1NI, spec));
     }
 }

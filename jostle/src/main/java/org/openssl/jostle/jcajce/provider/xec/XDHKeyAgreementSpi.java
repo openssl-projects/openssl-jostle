@@ -45,7 +45,22 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class XDHKeyAgreementSpi extends KeyAgreementSpi
 {
-    protected static final ECServiceNI ecServiceNI = NISelector.ECServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS); foreign keys translate through the
+    // matching KeyFactory.
+    protected final ECServiceNI ecServiceNI;
+    protected final XECKeyFactorySpi keyFactory;
+
+    public XDHKeyAgreementSpi()
+    {
+        this(NISelector.ECServiceNI, new XECKeyFactorySpi());
+    }
+
+    public XDHKeyAgreementSpi(ECServiceNI ecServiceNI, XECKeyFactorySpi keyFactory)
+    {
+        this.ecServiceNI = ecServiceNI;
+        this.keyFactory = keyFactory;
+    }
 
     private KexRef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -87,7 +102,7 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             // Foreign XDH keys (e.g. the JDK's XDH KeyFactory or a
             // certificate) are translated to JSL keys; only non-XDH /
             // untranslatable keys are rejected.
-            JOXECPrivateKey privateKey = XDHKeyImport.importPrivate(key,
+            JOXECPrivateKey privateKey = XDHKeyImport.importPrivate(keyFactory, key,
                     "XDH init: expected an XDH private key");
             pinnedPriv = privateKey;
             peerSet = false;
@@ -113,7 +128,7 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                         "XDH is a single-phase protocol; lastPhase must be true");
             }
 
-            JOXECPublicKey peer = XDHKeyImport.importPublic(key,
+            JOXECPublicKey peer = XDHKeyImport.importPublic(keyFactory, key,
                     "XDH doPhase: expected an XDH public key");
             // Pin the (possibly KeyFactory-translated) peer so its native
             // EVP_PKEY cannot be GC-disposed during the set-peer call — the
@@ -218,7 +233,7 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
     {
         if (ref == null)
         {
-            ref = new KexRef(ecServiceNI.allocateKex(), "XDH");
+            ref = new KexRef(ecServiceNI, ecServiceNI.allocateKex(), "XDH");
         }
     }
 
@@ -233,29 +248,35 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
 
     protected static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        private final ECServiceNI ecServiceNI;
+
+        Disposer(ECServiceNI ecServiceNI, long ref)
         {
             super(ref);
+            this.ecServiceNI = ecServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.ECServiceNI.disposeKex(reference);
+            ecServiceNI.disposeKex(reference);
         }
     }
 
     protected static class KexRef extends NativeReference
     {
-        protected KexRef(long reference, String name)
+        private final ECServiceNI ecServiceNI;
+
+        protected KexRef(ECServiceNI ecServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.ecServiceNI = ecServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(ecServiceNI, reference);
         }
     }
 }

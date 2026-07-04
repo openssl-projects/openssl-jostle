@@ -27,14 +27,26 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
 
     private final String forcedDigestAlgorithm;
 
+    // Instance field, not a NISelector static (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final KdfNI kdfNI;
+
     public PBKDF2SecretKeyFactory(String forcedDigestAlgorithm)
     {
-        this.forcedDigestAlgorithm = DigestUtil.getCanonicalDigestName(forcedDigestAlgorithm);
+        this(NISelector.KdfNI, forcedDigestAlgorithm);
     }
 
     public PBKDF2SecretKeyFactory()
     {
+        this.kdfNI = NISelector.KdfNI;
         this.forcedDigestAlgorithm = null;
+    }
+
+    public PBKDF2SecretKeyFactory(KdfNI kdfNI, String forcedDigestAlgorithm)
+    {
+        this.kdfNI = kdfNI;
+        this.forcedDigestAlgorithm = forcedDigestAlgorithm == null
+                ? null : DigestUtil.getCanonicalDigestName(forcedDigestAlgorithm);
     }
 
 
@@ -68,7 +80,7 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
                 algo = DigestUtil.getCanonicalDigestName("SHA-1");
             }
 
-            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.pbkdf2(
+            kdfNI.handleErrorCodes(kdfNI.pbkdf2(
                     Strings.toUTF8ByteArray(spec.getPassword()),
                     spec.getSalt(),
                     spec.getIterationCount(),

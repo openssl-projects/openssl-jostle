@@ -32,17 +32,34 @@ import java.util.logging.Logger;
  * key agreement reuses the {@code JoEC_*} kex symbols via
  * {@code ECServiceFFI} (the C kex is type-agnostic).
  */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class XECServiceFFI implements XECServiceNI
 {
     private static final Logger L = Logger.getLogger("XEC_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle generateKeyPairH;
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    private final MethodHandle generateKeyPairH;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_INT,
+            ValueLayout.JAVA_BOOLEAN);
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class,
+            MemorySegment.class,
+            int.class,
+            int.class,
+            boolean.class);
 
-    static
+    public XECServiceFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public XECServiceFFI(SymbolLookup lookup)
     {
         // JoXEC_generateKeyPair(const char* name, int32_t* err, void* rnd_src) -> key_spec*
         generateKeyPairH = linker.downcallHandle(
@@ -53,18 +70,6 @@ public class XECServiceFFI implements XECServiceNI
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_INT,
-                ValueLayout.JAVA_BOOLEAN);
-        entropyMt = MethodType.methodType(
-                int.class,
-                MemorySegment.class,
-                int.class,
-                int.class,
-                boolean.class);
     }
 
     private static MemorySegment entropyStub(Arena arena, RandSource src)

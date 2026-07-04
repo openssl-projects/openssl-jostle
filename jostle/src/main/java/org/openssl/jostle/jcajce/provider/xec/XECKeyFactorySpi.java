@@ -12,9 +12,12 @@
 package org.openssl.jostle.jcajce.provider.xec;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -41,6 +44,22 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class XECKeyFactorySpi extends KeyFactorySpi
 {
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
+    public XECKeyFactorySpi()
+    {
+        this(NISelector.SpecNI, NISelector.Asn1NI);
+    }
+
+    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI)
+    {
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {
@@ -49,9 +68,9 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireXEC(spec);
-                return new JOXECPublicKey(spec);
+                return new JOXECPublicKey(asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -75,9 +94,9 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireXEC(spec);
-                return new JOXECPrivateKey(spec);
+                return new JOXECPrivateKey(asn1NI, spec);
             }
             catch (RuntimeException e)
             {

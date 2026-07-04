@@ -33,8 +33,18 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
     private final String digestAlgorithm;
     private final int maxOutputLength;
 
+    // Instance field, not a NISelector static (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final KdfNI kdfNI;
+
     public HKDFSecretKeyFactory(String digestAlgorithm)
     {
+        this(NISelector.KdfNI, digestAlgorithm);
+    }
+
+    public HKDFSecretKeyFactory(KdfNI kdfNI, String digestAlgorithm)
+    {
+        this.kdfNI = kdfNI;
         this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digestAlgorithm);
         // RFC 5869: HKDF-Expand caps the output at 255 * HashLen. Enforced at
         // the JCE boundary so an over-long (or DoS-scale) request fails fast
@@ -122,7 +132,7 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
 
         try
         {
-            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.hkdf(
+            kdfNI.handleErrorCodes(kdfNI.hkdf(
                     ikm,
                     salt,
                     info,

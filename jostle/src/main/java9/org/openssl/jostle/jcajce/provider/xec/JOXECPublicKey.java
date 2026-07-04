@@ -14,8 +14,10 @@ package org.openssl.jostle.jcajce.provider.xec;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.XDHKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.lang.ref.Reference;
 import java.security.PublicKey;
@@ -33,9 +35,19 @@ import java.security.PublicKey;
  */
 class JOXECPublicKey extends AsymmetricKeyImpl implements PublicKey, XDHKey, OSSLKey
 {
+    // The NI backend that encodes the underlying PKEY (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final Asn1Ni asn1NI;
+
     JOXECPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.Asn1NI, spec);
+    }
+
+    JOXECPublicKey(Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -55,7 +67,7 @@ class JOXECPublicKey extends AsymmetricKeyImpl implements PublicKey, XDHKey, OSS
     {
         try
         {
-            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec);
         }
         finally
         {

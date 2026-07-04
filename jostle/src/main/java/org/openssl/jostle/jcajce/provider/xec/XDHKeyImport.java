@@ -31,6 +31,12 @@ public final class XDHKeyImport
 
     public static JOXECPublicKey importPublic(Key key, String failMessage) throws InvalidKeyException
     {
+        return importPublic(new XECKeyFactorySpi(), key, failMessage);
+    }
+
+    /** Factory-bound variant: FIPS SPIs translate through the FIPS library. */
+    public static JOXECPublicKey importPublic(XECKeyFactorySpi keyFactory, Key key, String failMessage) throws InvalidKeyException
+    {
         if (key instanceof JOXECPublicKey)
         {
             return (JOXECPublicKey) key;
@@ -39,7 +45,7 @@ public final class XDHKeyImport
         {
             try
             {
-                Key translated = new XECKeyFactorySpi().engineTranslateKey(key);
+                Key translated = keyFactory.engineTranslateKey(key);
                 if (translated instanceof JOXECPublicKey)
                 {
                     return (JOXECPublicKey) translated;
@@ -55,6 +61,12 @@ public final class XDHKeyImport
 
     public static JOXECPrivateKey importPrivate(Key key, String failMessage) throws InvalidKeyException
     {
+        return importPrivate(new XECKeyFactorySpi(), key, failMessage);
+    }
+
+    /** Factory-bound variant: FIPS SPIs translate through the FIPS library. */
+    public static JOXECPrivateKey importPrivate(XECKeyFactorySpi keyFactory, Key key, String failMessage) throws InvalidKeyException
+    {
         if (key instanceof JOXECPrivateKey)
         {
             return (JOXECPrivateKey) key;
@@ -63,7 +75,7 @@ public final class XDHKeyImport
         {
             try
             {
-                Key translated = new XECKeyFactorySpi().engineTranslateKey(key);
+                Key translated = keyFactory.engineTranslateKey(key);
                 if (translated instanceof JOXECPrivateKey)
                 {
                     return (JOXECPrivateKey) translated;

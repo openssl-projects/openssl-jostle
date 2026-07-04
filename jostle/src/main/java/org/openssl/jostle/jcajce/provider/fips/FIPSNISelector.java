@@ -18,7 +18,9 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
+import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
+import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
@@ -50,6 +52,8 @@ public class FIPSNISelector
     public static final ECServiceNI ECServiceNI;
     public static final DSAServiceNI DSAServiceNI;
     public static final DHServiceNI DHServiceNI;
+    public static final XECServiceNI XECServiceNI;
+    public static final KdfNI KdfNI;
 
     static
     {
@@ -68,5 +72,7 @@ public class FIPSNISelector
         ECServiceNI = new ECServiceFIPSJNI();
         DSAServiceNI = new DSAServiceFIPSJNI();
         DHServiceNI = new DHServiceFIPSJNI();
+        XECServiceNI = new XECServiceFIPSJNI();
+        KdfNI = new KdfFIPSJNI();
     }
 }

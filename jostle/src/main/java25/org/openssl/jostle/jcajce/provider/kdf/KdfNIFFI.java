@@ -16,27 +16,30 @@ import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class KdfNIFFI implements KdfNI
 {
     //KDF_PBKDF2
 
     private static final Logger L = Logger.getLogger("KDF_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment pbkdf2;
-    private static final MethodHandle pbkdf2FuncHandle;
+    private final MethodHandle pbkdf2FuncHandle;
 
-    private static final MemorySegment scrypt;
-    private static final MethodHandle scryptFuncHandle;
+    private final MethodHandle scryptFuncHandle;
 
-    private static final MemorySegment hkdf;
-    private static final MethodHandle hkdfFuncHandle;
+    private final MethodHandle hkdfFuncHandle;
 
-    static
+    public KdfNIFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public KdfNIFFI(SymbolLookup lookup)
     {
 
-        pbkdf2 = lookup.find("KDF_PBKDF2").orElseThrow();
+        MemorySegment pbkdf2 = lookup.find("KDF_PBKDF2").orElseThrow();
         pbkdf2FuncHandle = linker.downcallHandle(pbkdf2,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -54,7 +57,7 @@ public class KdfNIFFI implements KdfNI
                 ), Linker.Option.critical(true));
 
 
-        scrypt = lookup.find("KDF_SCRYPT").orElseThrow();
+        MemorySegment scrypt = lookup.find("KDF_SCRYPT").orElseThrow();
         scryptFuncHandle = linker.downcallHandle(scrypt,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -72,7 +75,7 @@ public class KdfNIFFI implements KdfNI
                 ), Linker.Option.critical(true));
 
 
-        hkdf = lookup.find("JoKDF_HKDF").orElseThrow();
+        MemorySegment hkdf = lookup.find("JoKDF_HKDF").orElseThrow();
         hkdfFuncHandle = linker.downcallHandle(hkdf,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
