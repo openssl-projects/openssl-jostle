@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.fips;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
+import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 
 /**
@@ -27,6 +28,7 @@ public class FIPSNISelector
     public static final MDServiceNI MDServiceNI;
     public static final BlockCipherNI BlockCipherNI;
     public static final CCMCipherNI CCMCipherNI;
+    public static final MacServiceNI MacServiceNI;
 
     static
     {
@@ -37,6 +39,7 @@ public class FIPSNISelector
             MDServiceNI = new MDServiceFIPSFFI();
             BlockCipherNI = new BlockCipherFIPSFFI();
             CCMCipherNI = new CCMCipherFIPSFFI();
+            MacServiceNI = new MacServiceFIPSFFI();
         }
         else
         {
@@ -44,6 +47,7 @@ public class FIPSNISelector
             MDServiceNI = new MDServiceFIPSJNI();
             BlockCipherNI = new BlockCipherFIPSJNI();
             CCMCipherNI = new CCMCipherFIPSJNI();
+            MacServiceNI = new MacServiceFIPSJNI();
         }
     }
 }

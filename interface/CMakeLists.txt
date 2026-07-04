@@ -137,6 +137,7 @@ set(FIPS_JNI_GLUE_SOURCES
         jni/md_fips_jni.c
         jni/block_cipher_fips_jni.c
         jni/ccm_fips_jni.c
+        jni/mac_fips_jni.c
         jni/rand_upcall_jni.h
         jni/rand_upcall_jni.c
         jni/byte_array_critical.c

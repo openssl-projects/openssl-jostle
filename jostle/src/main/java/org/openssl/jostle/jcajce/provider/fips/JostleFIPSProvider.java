@@ -198,5 +198,6 @@ public final class JostleFIPSProvider
         // lib ctx's fips=yes default properties are the enforcement backstop.
         new ProvFIPSMD().configure(this);
         new ProvFIPSAES().configure(this);
+        new ProvFIPSMac().configure(this);
     }
 }

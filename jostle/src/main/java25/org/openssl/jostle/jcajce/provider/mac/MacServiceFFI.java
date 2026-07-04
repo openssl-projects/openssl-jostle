@@ -5,27 +5,33 @@ import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFI).
 public class MacServiceFFI implements MacServiceNI
 {
     private static final Logger L = Logger.getLogger("MAC_NI_FFI");
-    private static final SymbolLookup LOOKUP = SymbolLookup.loaderLookup();
     private static final Linker LINKER = Linker.nativeLinker();
 
-    private static final MethodHandle MH_new;
-    private static final MethodHandle MH_init;
-    private static final MethodHandle MH_updateByte;
-    private static final MethodHandle MH_update;
-    private static final MethodHandle MH_final;
-    private static final MethodHandle MH_len;
-    private static final MethodHandle MH_lenMeta;
-    private static final MethodHandle MH_reset;
-    private static final MethodHandle MH_free;
+    private final MethodHandle MH_new;
+    private final MethodHandle MH_init;
+    private final MethodHandle MH_updateByte;
+    private final MethodHandle MH_update;
+    private final MethodHandle MH_final;
+    private final MethodHandle MH_len;
+    private final MethodHandle MH_lenMeta;
+    private final MethodHandle MH_reset;
+    private final MethodHandle MH_free;
 
 
-    static
+    public MacServiceFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public MacServiceFFI(SymbolLookup lookup)
     {
         MH_new = LINKER.downcallHandle(
-                LOOKUP.find("MAC_allocate").orElseThrow(),
+                lookup.find("MAC_allocate").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
@@ -34,7 +40,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_init = LINKER.downcallHandle(
-                LOOKUP.find("MAC_init").orElseThrow(),
+                lookup.find("MAC_init").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
@@ -43,7 +49,7 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_updateByte = LINKER.downcallHandle(
-                LOOKUP.find("MAC_updateByte").orElseThrow(),
+                lookup.find("MAC_updateByte").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
@@ -51,7 +57,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_update = LINKER.downcallHandle(
-                LOOKUP.find("MAC_update").orElseThrow(),
+                lookup.find("MAC_update").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -62,7 +68,7 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_final = LINKER.downcallHandle(
-                LOOKUP.find("MAC_final").orElseThrow(),
+                lookup.find("MAC_final").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -72,28 +78,28 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_len = LINKER.downcallHandle(
-                LOOKUP.find("MAC_len").orElseThrow(),
+                lookup.find("MAC_len").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
                 ));
 
         MH_lenMeta = LINKER.downcallHandle(
-                LOOKUP.find("MAC_lenMeta").orElseThrow(),
+                lookup.find("MAC_lenMeta").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
                 ));
 
         MH_reset = LINKER.downcallHandle(
-                LOOKUP.find("MAC_reset").orElseThrow(),
+                lookup.find("MAC_reset").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS)
         );
 
         MH_free = LINKER.downcallHandle(
-                LOOKUP.find("MAC_free").orElseThrow(),
+                lookup.find("MAC_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
     }

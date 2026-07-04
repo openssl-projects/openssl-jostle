@@ -27,7 +27,10 @@ import java.security.spec.AlgorithmParameterSpec;
 
 public class MacServiceSPI extends MacSpi
 {
-    private static final MacServiceNI macServiceNI = NISelector.MacServiceNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in - NISelector.MacServiceNI for JSL,
+    // FIPSNISelector.MacServiceNI (the FIPS interface library) for JSLFIPS.
+    private final MacServiceNI macServiceNI;
 
     // OpenSSL-probed MAC lengths, memoized once per (macName, function) (see NativeLengthCache).
     private static final NativeLengthCache<String> macLengths = new NativeLengthCache<String>();
@@ -37,10 +40,16 @@ public class MacServiceSPI extends MacSpi
 
     public MacServiceSPI(String macName, String function)
     {
+        this(NISelector.MacServiceNI, macName, function);
+    }
+
+    public MacServiceSPI(MacServiceNI macServiceNI, String macName, String function)
+    {
+        this.macServiceNI = macServiceNI;
         // Composite cache key: a space cannot appear in a real mac/digest/cipher
         // name (e.g. "HMAC", "SHA2-256", "aes-cbc"), so it is unambiguous.
         this.cacheKey = macName + ' ' + function;
-        this.ref = new MacReference(macServiceNI.allocateMac(macName, function), function);
+        this.ref = new MacReference(macServiceNI, macServiceNI.allocateMac(macName, function), function);
     }
 
     /**
@@ -178,9 +187,14 @@ public class MacServiceSPI extends MacSpi
 
     private static class Disposer extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the context frees it - a FIPS-allocated
+        // MAC must be disposed through the FIPS interface library.
+        private final MacServiceNI macServiceNI;
+
+        Disposer(MacServiceNI macServiceNI, long ref)
         {
             super(ref);
+            this.macServiceNI = macServiceNI;
         }
 
         @Override
@@ -192,15 +206,18 @@ public class MacServiceSPI extends MacSpi
 
     private static class MacReference extends NativeReference
     {
-        public MacReference(long reference, String name)
+        private final MacServiceNI macServiceNI;
+
+        public MacReference(MacServiceNI macServiceNI, long reference, String name)
         {
             super(reference, name);
+            this.macServiceNI = macServiceNI;
         }
 
         @Override
         protected Runnable createAction()
         {
-            return new Disposer(reference);
+            return new Disposer(macServiceNI, reference);
         }
     }
 }
