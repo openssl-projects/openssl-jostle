@@ -29,7 +29,7 @@ import java.security.spec.X509EncodedKeySpec;
 /**
  * DSA and DH through the FIPS provider ("JSLFIPS"): DSA signatures agree
  * with BouncyCastle both directions, DH shared secrets match BC, and key
- * encodings round-trip. Gated on JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * encodings round-trip. Gated on TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSDSADHTest
 {

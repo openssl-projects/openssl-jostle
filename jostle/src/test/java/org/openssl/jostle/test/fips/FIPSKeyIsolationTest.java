@@ -39,7 +39,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
  * InvalidKeyException. Sharing a private key between JSL and JSLFIPS is done
  * explicitly: encode it (getEncoded()) and decode it through the target
  * provider's KeyFactory - which this test proves works. SecretKeys (raw
- * bytes, no native residency) are unaffected. Gated on JOSTLE_TEST_FIPS_DIR;
+ * bytes, no native residency) are unaffected. Gated on TEST_FIPS_LIB;
  * skipped when unset.
  */
 public class FIPSKeyIsolationTest

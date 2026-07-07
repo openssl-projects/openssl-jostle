@@ -31,7 +31,7 @@ import java.security.Security;
  * AES through the FIPS provider ("JSLFIPS"): CBC/GCM/CCM/CTR/ECB and
  * key-wrap agree with the non-FIPS provider and BouncyCastle in the same
  * JVM, AEAD tampering is rejected, and unapproved ciphers are absent. Gated
- * on JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * on TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSAESTest
 {

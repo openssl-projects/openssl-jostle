@@ -27,7 +27,7 @@ import java.util.Arrays;
  * SecureRandom and KeyGenerator through the FIPS provider ("JSLFIPS"): every
  * registered DRBG produces output (chained to the FIPS module's own primary
  * DRBG), distinct calls and instances diverge, reseeding works, and AES keys
- * generated from the module DRBG interoperate. Gated on JOSTLE_TEST_FIPS_DIR;
+ * generated from the module DRBG interoperate. Gated on TEST_FIPS_LIB;
  * skipped when unset.
  */
 public class FIPSRandTest

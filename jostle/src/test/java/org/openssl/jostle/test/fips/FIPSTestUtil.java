@@ -12,15 +12,16 @@ package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assumptions;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.TestUtil;
 
 import java.io.File;
-import java.security.Security;
 
 /**
- * Shared bootstrap for the env-gated FIPS tests. All tests construct the
- * provider from the SAME resolved configuration (module from
- * JOSTLE_TEST_FIPS_DIR, default fipsmodule.cnf beside it), so the one-shot
- * native initialisation dedups across test classes sharing a JVM.
+ * Shared bootstrap for the env-gated FIPS tests. The single switch is the
+ * {@code TEST_FIPS_LIB} environment variable (a full path to the FIPS module
+ * library); everything here derives from it via {@link TestUtil}. All tests
+ * construct the provider from the SAME resolved configuration, so the
+ * one-shot native initialisation dedups across test classes sharing a JVM.
  */
 final class FIPSTestUtil
 {
@@ -28,42 +29,34 @@ final class FIPSTestUtil
     {
     }
 
-    static File findFipsModule(String fipsDir)
+    /**
+     * Skip the calling test unless a FIPS module is configured
+     * ({@code TEST_FIPS_LIB}); otherwise ensure the JSLFIPS provider is
+     * registered and return it.
+     */
+    static JostleFIPSProvider assumeFipsProvider()
     {
-        String[] names = {"fips.dylib", "fips.so", "fips.dll"};
-        for (String name : names)
-        {
-            File candidate = new File(fipsDir, name);
-            if (candidate.isFile())
-            {
-                return candidate;
-            }
-        }
-        return null;
+        Assumptions.assumeFalse(TestUtil.skipFipsTests(),
+                "TEST_FIPS_LIB not set (full path to the FIPS module library)");
+        return TestUtil.addFipsProvider();
     }
 
     /**
-     * Skip the calling test unless a FIPS install is configured; otherwise
-     * ensure the JSLFIPS provider is initialised and registered, and return
-     * it.
+     * The FIPS module library file named by {@code TEST_FIPS_LIB}. Only call
+     * after {@link #assumeFipsProvider()} (or an equivalent skip guard) has
+     * established the variable is set.
      */
-    static synchronized JostleFIPSProvider assumeFipsProvider()
+    static File fipsModuleFile()
     {
-        String fipsDir = System.getenv("JOSTLE_TEST_FIPS_DIR");
-        Assumptions.assumeTrue(fipsDir != null && !fipsDir.isEmpty(),
-                "JOSTLE_TEST_FIPS_DIR not set (directory containing the FIPS module + fipsmodule.cnf)");
-        File module = findFipsModule(fipsDir);
-        Assumptions.assumeTrue(module != null, "no fips module found under " + fipsDir);
+        return new File(TestUtil.fipsLibPath());
+    }
 
-        JostleFIPSProvider registered =
-                (JostleFIPSProvider) Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
-        if (registered != null)
-        {
-            return registered;
-        }
-
-        JostleFIPSProvider provider = new JostleFIPSProvider("fips_module='" + module.getAbsolutePath() + "'");
-        Security.addProvider(provider);
-        return provider;
+    /**
+     * The directory containing the FIPS module (and, by convention, its
+     * {@code fipsmodule.cnf}).
+     */
+    static String fipsModuleDir()
+    {
+        return fipsModuleFile().getParent();
     }
 }

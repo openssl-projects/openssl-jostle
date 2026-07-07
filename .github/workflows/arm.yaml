@@ -44,7 +44,7 @@ jobs:
           path: "openssl-fips"
       - name: "Build FIPS openssl"
         # The FIPS module + its fipsinstall-generated config land together in
-        # dist/lib/ossl-modules, which is what JOSTLE_TEST_FIPS_DIR expects.
+        # dist/lib/ossl-modules; TEST_FIPS_LIB points at the module there.
         if: steps.cache-fips.outputs.cache-hit != 'true'
         working-directory: "openssl-fips"
         run: |
@@ -101,7 +101,7 @@ jobs:
           BC_JDK17: "${{ env.JAVA_HOME_17_X64 }}${{ env.JAVA_HOME_17_ARM64 }}"
           BC_JDK21: "${{ env.JAVA_HOME_21_X64 }}${{ env.JAVA_HOME_21_ARM64 }}"
           BC_JDK25: "${{ env.JAVA_HOME_25_X64 }}${{ env.JAVA_HOME_25_ARM64 }}"
-          JOSTLE_TEST_FIPS_DIR: "${{ github.workspace }}/openssl-fips/dist/lib/ossl-modules"
+          TEST_FIPS_LIB: "${{ github.workspace }}/openssl-fips/dist/lib/ossl-modules/fips.so"
         run: |
           ./gradlew clean build
       - name: Publish Test Report

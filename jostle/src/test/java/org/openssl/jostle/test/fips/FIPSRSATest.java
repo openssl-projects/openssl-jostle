@@ -38,7 +38,7 @@ import java.security.spec.X509EncodedKeySpec;
  * v1.5 and PSS signatures and OAEP/PKCS#1 encryption agree with BouncyCastle
  * in both directions, keys round-trip through BC encodings, the module's
  * 2048-bit generation floor holds, and MD5withRSA is rejected. Gated on
- * JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSRSATest
 {

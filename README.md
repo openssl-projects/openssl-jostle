@@ -635,10 +635,21 @@ instances from `JSLFIPS` chain to the module's primary DRBG.
 
 ### Testing
 
-The FIPS test classes (`org.openssl.jostle.test.fips.*`) are gated on the `JOSTLE_TEST_FIPS_DIR` environment
-variable, which must point at a directory containing the FIPS module and its `fipsmodule.cnf` (for example an
-OpenSSL 3.1.2 `enable-fips` build's `providers/` directory). When unset the tests skip. Operations-test fault
-injection (`JOSTLE_OPS_TEST`) is intentionally not compiled into the FIPS interface libraries.
+Running the FIPS tests requires an OpenSSL FIPS module to test against. Set the `TEST_FIPS_LIB` environment
+variable to the **full path of the FIPS module library** (`fips.dylib` / `fips.so` / `fips.dll`), with its
+fipsinstall-generated `fipsmodule.cnf` sitting in the same directory:
+
+```
+export TEST_FIPS_LIB=/opt/openssl-fips/lib/ossl-modules/fips.so
+```
+
+The test helpers `TestUtil.addFipsProvider()` and `TestUtil.skipFipsTests()` read this variable: when it is
+unset (or empty) the FIPS tests skip; when it is set they register the `JSLFIPS` provider against that module.
+A set-but-invalid path fails loudly rather than skipping. This is the same value the provider's
+`fips_module` configuration key expects.
+
+Operations-test fault injection (`JOSTLE_OPS_TEST`) is intentionally not compiled into the FIPS interface
+libraries.
 
 ## Provider startup
 

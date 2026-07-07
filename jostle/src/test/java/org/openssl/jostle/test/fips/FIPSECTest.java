@@ -33,7 +33,7 @@ import java.security.spec.X509EncodedKeySpec;
  * EC through the FIPS provider ("JSLFIPS"): keygen on the NIST curves,
  * ECDSA agreement with BouncyCastle both directions, ECDH shared secrets
  * matching BC, key encodings round-tripping, and the module's curve gate
- * (secp256k1 rejected). Gated on JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * (secp256k1 rejected). Gated on TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSECTest
 {

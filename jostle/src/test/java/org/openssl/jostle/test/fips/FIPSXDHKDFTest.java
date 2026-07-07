@@ -33,7 +33,7 @@ import java.util.Arrays;
  * XDH (X25519/X448) and the KDFs (PBKDF2, HKDF) through the FIPS provider
  * ("JSLFIPS"): agreement secrets and derived keys match BouncyCastle / the
  * non-FIPS provider, and unapproved variants are rejected. Gated on
- * JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSXDHKDFTest
 {

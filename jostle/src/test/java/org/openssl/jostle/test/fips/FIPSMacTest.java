@@ -26,7 +26,7 @@ import java.security.Security;
  * Mac through the FIPS provider ("JSLFIPS"): the approved HMACs and AES-CMAC
  * agree with the non-FIPS provider and BouncyCastle in the same JVM, MACs
  * differentiate on key and message changes, reuse behaves, and the
- * unapproved MACs are rejected. Gated on JOSTLE_TEST_FIPS_DIR; skipped when
+ * unapproved MACs are rejected. Gated on TEST_FIPS_LIB; skipped when
  * unset.
  */
 public class FIPSMacTest

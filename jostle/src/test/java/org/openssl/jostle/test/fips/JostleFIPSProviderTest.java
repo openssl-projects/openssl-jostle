@@ -27,8 +27,7 @@ import java.security.Security;
  * Lifecycle test of JostleFIPSProvider ("JSLFIPS"): configuration parsing and
  * path derivation, the FIPS module initialisation, JCA registration,
  * coexistence with the non-FIPS JostleProvider, and the one-shot semantics.
- * Gated on the JOSTLE_TEST_FIPS_DIR environment variable (the directory
- * containing the FIPS module + fipsmodule.cnf); skipped when unset.
+ * Gated on TEST_FIPS_LIB; skipped when unset.
  *
  * <p>All env-gated FIPS tests share the one-shot native initialisation
  * through {@link FIPSTestUtil#assumeFipsProvider()} (identical resolved
@@ -48,8 +47,8 @@ public class JostleFIPSProviderTest
         // The good initialisation (dedup'd if another FIPS test got there
         // first) - also skips the test when no FIPS install is configured.
         JostleFIPSProvider provider = FIPSTestUtil.assumeFipsProvider();
-        String fipsDir = System.getenv("JOSTLE_TEST_FIPS_DIR");
-        File module = FIPSTestUtil.findFipsModule(fipsDir);
+        File module = FIPSTestUtil.fipsModuleFile();
+        String fipsDir = module.getParent();
 
         Assertions.assertTrue(provider.isConfigured());
         Assertions.assertEquals(JostleFIPSProvider.PROVIDER_NAME, provider.getName());

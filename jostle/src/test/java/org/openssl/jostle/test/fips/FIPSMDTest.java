@@ -25,7 +25,7 @@ import java.security.Security;
  * MessageDigest through the FIPS provider ("JSLFIPS"): the approved set
  * resolves and agrees byte-for-byte with the non-FIPS provider (and
  * BouncyCastle) in the same JVM, chunking and clone/reset behave, and the
- * unapproved digests are rejected. Gated on JOSTLE_TEST_FIPS_DIR; skipped
+ * unapproved digests are rejected. Gated on TEST_FIPS_LIB; skipped
  * when unset.
  */
 public class FIPSMDTest

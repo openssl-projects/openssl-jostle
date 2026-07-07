@@ -30,7 +30,7 @@ import java.security.Security;
  * revisions). Every probe below is a bridge-validated failure that touches
  * no native state, so the test is order-independent and repeatable.
  *
- * <p>Gated on JOSTLE_TEST_FIPS_DIR; skipped when unset.
+ * <p>Gated on TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSNIParityTest
 {

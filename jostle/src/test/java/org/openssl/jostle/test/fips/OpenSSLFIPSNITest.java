@@ -23,7 +23,7 @@ import java.io.File;
 /**
  * NI-surface test of the FIPS interface library loading and the
  * setOSSLFIPSModule argument-validation / rolled-back failure paths. Gated
- * on the JOSTLE_TEST_FIPS_DIR environment variable, which must point at the
+ * on the TEST_FIPS_LIB environment variable, which must point at the
  * directory containing the FIPS provider module (fips.dylib / fips.so /
  * fips.dll) and its fipsinstall-generated fipsmodule.cnf - e.g. an OpenSSL
  * 3.1.2 enable-fips build's providers/ directory. Skipped when unset.
@@ -39,9 +39,9 @@ public class OpenSSLFIPSNITest
     @Test
     public void fipsValidationAndRolledBackFailures()
     {
-        String fipsDir = System.getenv("JOSTLE_TEST_FIPS_DIR");
-        Assumptions.assumeTrue(fipsDir != null && !fipsDir.isEmpty(),
-                "JOSTLE_TEST_FIPS_DIR not set (directory containing the FIPS module + fipsmodule.cnf)");
+        Assumptions.assumeFalse(org.openssl.jostle.test.TestUtil.skipFipsTests(),
+                "TEST_FIPS_LIB not set (full path to the FIPS module library)");
+        String fipsDir = FIPSTestUtil.fipsModuleDir();
 
         // First touch of FIPSNISelector lazily extracts/loads the FIPS
         // interface library.
