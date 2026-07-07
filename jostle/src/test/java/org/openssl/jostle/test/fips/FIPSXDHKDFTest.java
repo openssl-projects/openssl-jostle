@@ -53,43 +53,33 @@ public class FIPSXDHKDFTest
     }
 
     @Test
-    public void xdhSharedSecretsMatchBouncyCastle()
+    public void xdhIsAbsentFromJslfips()
         throws Exception
     {
         ensureProviders();
 
-        for (String curve : new String[]{"X25519", "X448"})
+        // X25519/X448 key agreement is a non-approved service of the FIPS
+        // module per its FIPS 140-3 certification (cert #4985): JSLFIPS does
+        // not register the XDH family at all...
+        for (String name : new String[]{"X25519", "X448", "XDH"})
         {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance(curve, JostleFIPSProvider.PROVIDER_NAME);
-            KeyPair alice = kpg.generateKeyPair();
-            KeyPair bob = kpg.generateKeyPair();
-
-            KeyAgreement fipsKa = KeyAgreement.getInstance(curve, JostleFIPSProvider.PROVIDER_NAME);
-            fipsKa.init(alice.getPrivate());
-            fipsKa.doPhase(bob.getPublic(), true);
-            byte[] fipsSecret = fipsKa.generateSecret();
-
-            // BC's XDH agreement requires BC/JDK key types: hop through
-            // encodings via BC's KeyFactory.
-            KeyFactory bcKf = KeyFactory.getInstance(curve, BouncyCastleProvider.PROVIDER_NAME);
-            java.security.PrivateKey bcBobPriv = bcKf.generatePrivate(
-                    new java.security.spec.PKCS8EncodedKeySpec(bob.getPrivate().getEncoded()));
-            PublicKey bcAlicePub = bcKf.generatePublic(new X509EncodedKeySpec(alice.getPublic().getEncoded()));
-
-            KeyAgreement bcKa = KeyAgreement.getInstance(curve, BouncyCastleProvider.PROVIDER_NAME);
-            bcKa.init(bcBobPriv);
-            bcKa.doPhase(bcAlicePub, true);
-            Assertions.assertArrayEquals(fipsSecret, bcKa.generateSecret(),
-                    curve + ": JSLFIPS(alice) and BC(bob) must derive the same secret");
-
-            // Encoding round-trip: JSLFIPS KeyFactory decodes BC-visible bytes.
-            KeyFactory fipsKf = KeyFactory.getInstance(curve, JostleFIPSProvider.PROVIDER_NAME);
-            PublicKey decoded = fipsKf.generatePublic(new X509EncodedKeySpec(bob.getPublic().getEncoded()));
-            fipsKa.init(alice.getPrivate());
-            fipsKa.doPhase(decoded, true);
-            Assertions.assertArrayEquals(fipsSecret, fipsKa.generateSecret(),
-                    curve + ": decoded peer key must derive the same secret");
+            Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
+                    () -> KeyPairGenerator.getInstance(name, JostleFIPSProvider.PROVIDER_NAME));
+            Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
+                    () -> KeyAgreement.getInstance(name, JostleFIPSProvider.PROVIDER_NAME));
         }
+        // ... and neither is the raw ECDSA verification component.
+        Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
+                () -> java.security.Signature.getInstance("NoneWithECDSA", JostleFIPSProvider.PROVIDER_NAME));
+
+        // ... while JSL still serves XDH in the same JVM.
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        KeyPair alice = kpg.generateKeyPair();
+        KeyPair bob = kpg.generateKeyPair();
+        KeyAgreement ka = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        ka.init(alice.getPrivate());
+        ka.doPhase(bob.getPublic(), true);
+        Assertions.assertNotNull(ka.generateSecret());
     }
 
     @Test

@@ -39,6 +39,8 @@ import java.util.Map;
  *       {@code Security} property, then thread-local override, then a {@code -D} system
  *       property).</li>
  *   <li>{@code env:<NAME>} — an environment variable value.</li>
+ *   <li>{@code classpath:<resource>} — a locator, preserved verbatim; open it
+ *       with {@link #openLocator(String)}.</li>
  *   <li>{@code str:<text>} — an explicit literal (escape hatch for text that would
  *       otherwise look like one of the schemes above).</li>
  *   <li>anything else — used verbatim as a literal string.</li>
@@ -57,6 +59,10 @@ public final class ConfigParser
     private static final String PROP_SCHEME = "prop:";
     private static final String ENV_SCHEME = "env:";
     private static final String STR_SCHEME = "str:";
+    // Locator scheme: preserved verbatim for consumers that open resources
+    // (see openLocator) - a classpath resource has no filesystem path to
+    // resolve to.
+    private static final String CLASSPATH_SCHEME = "classpath:";
 
     private ConfigParser()
     {
@@ -211,10 +217,52 @@ public final class ConfigParser
             }
             return resolved;
         }
+        if (rawValue.startsWith(CLASSPATH_SCHEME))
+        {
+            if (rawValue.length() == CLASSPATH_SCHEME.length())
+            {
+                throw new IllegalArgumentException(
+                        "config value for '" + key + "' has an empty classpath: locator");
+            }
+            // Locator, not a value: kept verbatim so consumers can open the
+            // resource via openLocator.
+            return rawValue;
+        }
         if (rawValue.startsWith(STR_SCHEME))
         {
             return rawValue.substring(STR_SCHEME.length());
         }
         return rawValue;
+    }
+
+    /**
+     * Open a resolved locator value for reading: a {@code classpath:} value
+     * (as preserved by the parser) is opened as a classpath resource via this
+     * class's class loader; anything else is treated as a filesystem path.
+     *
+     * @throws java.io.IOException if the resource or file cannot be opened
+     */
+    public static java.io.InputStream openLocator(String locator)
+            throws java.io.IOException
+    {
+        if (locator == null)
+        {
+            throw new IllegalArgumentException("locator is null");
+        }
+        if (locator.startsWith(CLASSPATH_SCHEME))
+        {
+            String resource = locator.substring(CLASSPATH_SCHEME.length());
+            if (!resource.startsWith("/"))
+            {
+                resource = "/" + resource;
+            }
+            java.io.InputStream in = ConfigParser.class.getResourceAsStream(resource);
+            if (in == null)
+            {
+                throw new java.io.IOException("classpath resource not found: " + resource);
+            }
+            return in;
+        }
+        return java.nio.file.Files.newInputStream(java.nio.file.Paths.get(locator));
     }
 }

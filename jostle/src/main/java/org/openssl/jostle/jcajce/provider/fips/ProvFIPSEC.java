@@ -63,9 +63,8 @@ class ProvFIPSEC
         registerEcdsaSignature(provider, attr, "SHA3-384withECDSA", "SHA3-384", "2.16.840.1.101.3.4.3.11");
         registerEcdsaSignature(provider, attr, "SHA3-512withECDSA", "SHA3-512", "2.16.840.1.101.3.4.3.12");
 
-        provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
-                PREFIX + "ECDSASignatureSpi$None", attr,
-                (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(), "NONE"));
+        // NoneWithECDSA (the raw ECDSA verification component) is a
+        // non-approved service of the module per cert #4985 - not registered.
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDH",
                 PREFIX + "ECDHKeyAgreementSpi", attr,

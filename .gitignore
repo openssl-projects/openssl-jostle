@@ -9,3 +9,4 @@ build
 
 # Local-only coverage helper (not committed)
 /coverage_mldsa.sh
+/notes_no_commit.txt

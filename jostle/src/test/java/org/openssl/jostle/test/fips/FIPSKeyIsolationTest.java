@@ -164,25 +164,6 @@ public class FIPSKeyIsolationTest
         KeyAgreement fipsDh = KeyAgreement.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
         assertRejected(() -> fipsDh.init(jslDhKp.getPrivate()));
 
-        // XDH: private isolated; a foreign PUBLIC peer key in doPhase is
-        // fine and derives the same secret as the pure-provider path.
-        KeyPairGenerator jslX = KeyPairGenerator.getInstance("X25519", JostleProvider.PROVIDER_NAME);
-        KeyPair jslXKp = jslX.generateKeyPair();
-        KeyPairGenerator fipsXKpg = KeyPairGenerator.getInstance("X25519", JostleFIPSProvider.PROVIDER_NAME);
-        KeyPair fipsXKp = fipsXKpg.generateKeyPair();
-
-        KeyAgreement fipsX = KeyAgreement.getInstance("X25519", JostleFIPSProvider.PROVIDER_NAME);
-        assertRejected(() -> fipsX.init(jslXKp.getPrivate()));
-
-        fipsX.init(fipsXKp.getPrivate());
-        fipsX.doPhase(jslXKp.getPublic(), true);
-        byte[] mixed = fipsX.generateSecret();
-
-        KeyAgreement jslX2 = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
-        jslX2.init(jslXKp.getPrivate());
-        jslX2.doPhase(fipsXKp.getPublic(), true);
-        Assertions.assertArrayEquals(mixed, jslX2.generateSecret(),
-                "foreign public peer keys must derive the same secret");
     }
 
     @Test

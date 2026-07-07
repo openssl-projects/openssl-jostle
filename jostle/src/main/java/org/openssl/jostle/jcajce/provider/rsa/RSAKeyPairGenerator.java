@@ -91,6 +91,15 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
         this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
     }
 
+    /**
+     * Policy variant: default NI backends with a provider-policy key-size
+     * floor (see AlgorithmPolicy keySize).
+     */
+    public RSAKeyPairGenerator(int minKeySizeBits)
+    {
+        this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, minKeySizeBits);
+    }
+
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
         this(rsaServiceNI, specNI, asn1NI, MIN_KEY_SIZE_BITS);

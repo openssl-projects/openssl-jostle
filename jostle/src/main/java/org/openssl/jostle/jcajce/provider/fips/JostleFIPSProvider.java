@@ -231,7 +231,11 @@ public final class JostleFIPSProvider
         new ProvFIPSEC().configure(this);
         new ProvFIPSDSA().configure(this);
         new ProvFIPSDH().configure(this);
-        new ProvFIPSXDH().configure(this);
         new ProvFIPSKDF().configure(this);
+        // No XDH registrar: X25519/X448 key agreement is a non-approved
+        // service of the FIPS module per its FIPS 140-3 certification
+        // (cert #4985, security policy Tables 8/13). JSL serves XDH; further
+        // restriction of either provider's surface belongs to the JVM's own
+        // mechanisms (e.g. the jdk.security.providers.filter property).
     }
 }
