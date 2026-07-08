@@ -18,6 +18,7 @@
 
 #include "../bc_err_codes.h"
 #include "../jo_assert.h"
+#include "../ops.h"
 
 
 // All file-path handling (deriving the module directory from the module
@@ -73,20 +74,20 @@ int32_t jostle_fips_configure_libctx(OSSL_LIB_CTX *libctx, const char *module_di
     // Config load activates the providers: the FIPS module is located on the
     // search path, dlopen'd by libcrypto, its integrity MAC verified against
     // module-mac and its self-tests run. Any of those failing fails the load.
-    if (0 >= NCONF_load_bio(conf, conf_bio, NULL)) {
+    if (OPS_OPENSSL_ERROR_1 0 >= NCONF_load_bio(conf, conf_bio, NULL)) {
         ret_code = JO_FIPS_CONFIG_LOAD_FAILED;
         goto exit;
     }
-    if (0 >= CONF_modules_load(conf, NULL, 0)) {
+    if (OPS_OPENSSL_ERROR_2 0 >= CONF_modules_load(conf, NULL, 0)) {
         ret_code = JO_FIPS_CONFIG_LOAD_FAILED;
         goto exit;
     }
 
-    if (1 != OSSL_PROVIDER_available(libctx, prov_name)) {
+    if (OPS_OPENSSL_ERROR_3 1 != OSSL_PROVIDER_available(libctx, prov_name)) {
         ret_code = JO_FIPS_PROVIDER_UNAVAILABLE;
         goto exit;
     }
-    if (1 != OSSL_PROVIDER_available(libctx, "base")) {
+    if (OPS_OPENSSL_ERROR_4 1 != OSSL_PROVIDER_available(libctx, "base")) {
         ret_code = JO_FIPS_BASE_UNAVAILABLE;
         goto exit;
     }
@@ -96,7 +97,7 @@ int32_t jostle_fips_configure_libctx(OSSL_LIB_CTX *libctx, const char *module_di
     // the module ships as unapproved (fips=no - e.g. Ed25519, 3DES) cannot
     // be selected. Do not weaken or remove this - it is the approved-mode
     // gate for the whole context.
-    if (1 != EVP_default_properties_enable_fips(libctx, 1)) {
+    if (OPS_OPENSSL_ERROR_5 1 != EVP_default_properties_enable_fips(libctx, 1)) {
         ret_code = JO_FIPS_ENABLE_FAILED;
         goto exit;
     }
@@ -104,7 +105,7 @@ int32_t jostle_fips_configure_libctx(OSSL_LIB_CTX *libctx, const char *module_di
     // Health probe: a fips=yes fetch must resolve through the module. Catches
     // a context that loaded but cannot actually serve approved algorithms.
     probe = EVP_MD_fetch(libctx, "SHA-256", NULL);
-    if (probe == NULL) {
+    if (OPS_OPENSSL_ERROR_6 probe == NULL) {
         ret_code = JO_FIPS_FETCH_PROBE_FAILED;
         goto exit;
     }
