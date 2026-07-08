@@ -81,12 +81,6 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 #
 set(FIPS_UTIL_SOURCES
         fips/util/jo_assert.h
-        fips/util/mldsa.h
-        fips/util/mldsa.c
-        fips/util/slhdsa.h
-        fips/util/slhdsa.c
-        fips/util/mlkem.h
-        fips/util/mlkem.c
         fips/util/encapdecap.h
         fips/util/encapdecap.c
         fips/util/block_cipher_ctx.h
@@ -100,8 +94,6 @@ set(FIPS_UTIL_SOURCES
         fips/util/key_spec.h
         fips/util/asn1_util.c
         fips/util/asn1_util.h
-        fips/util/ks.h
-        fips/util/ks.c
         fips/util/ops.h
         fips/util/ops.c
         fips/util/kdf.h
@@ -117,8 +109,6 @@ set(FIPS_UTIL_SOURCES
         fips/util/rand/jostle_lib_ctx.c
         fips/util/rand/jostle_fips_ctx.h
         fips/util/rand/jostle_fips_ctx.c
-        fips/util/edec.h
-        fips/util/edec.c
         fips/util/rsa.h
         fips/util/rsa.c
         fips/util/rsa_oaep.h
@@ -177,15 +167,10 @@ set(FIPS_FFI_GLUE_SOURCES
         fips/ffi/block_cipher_ni_ffi.c
         fips/ffi/ccm_ni_ffi.c
         fips/ffi/spec_ni_ffi.c
-        fips/ffi/mldsa_ni_ffi.c
-        fips/ffi/mlkem_ni_ffi.c
-        fips/ffi/slh_dsa_ni_ffi.c
         fips/ffi/asn1_ni_ffi.c
-        fips/ffi/ks_ffi.c
         fips/ffi/kdf_ffi.c
         fips/ffi/rand_upcall_ffi.h
         fips/ffi/rand_upcall_ffi.c
-        fips/ffi/ed_ni_ffi.c
         fips/ffi/rsa_ni_ffi.c
         fips/ffi/rsa_oaep_ni_ffi.c
         fips/ffi/rsa_pkcs1_ni_ffi.c
@@ -271,8 +256,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/util/rand/jostle_fips_ctx.h
-            nonfips/util/rand/jostle_fips_ctx.c
             nonfips/jni/rand_upcall_jni.h
             nonfips/jni/rand_upcall_jni.c
             nonfips/jni/ed_jni.c
@@ -375,8 +358,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/util/rand/jostle_fips_ctx.h
-            nonfips/util/rand/jostle_fips_ctx.c
             nonfips/ffi/rand_upcall_ffi.h
             nonfips/ffi/rand_upcall_ffi.c
             nonfips/ffi/ed_ni_ffi.c
@@ -530,8 +511,6 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/util/rand/jostle_fips_ctx.h
-            nonfips/util/rand/jostle_fips_ctx.c
             nonfips/jni/rand_upcall_jni.h
             nonfips/jni/rand_upcall_jni.c
             nonfips/jni/ed_jni.c
@@ -629,8 +608,6 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/util/rand/jostle_fips_ctx.h
-            nonfips/util/rand/jostle_fips_ctx.c
             nonfips/ffi/rand_upcall_ffi.h
             nonfips/ffi/rand_upcall_ffi.c
             nonfips/util/edec.h
@@ -771,8 +748,6 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/util/rand/jostle_fips_ctx.h
-            nonfips/util/rand/jostle_fips_ctx.c
             nonfips/jni/rand_upcall_jni.h
             nonfips/jni/rand_upcall_jni.c
             nonfips/jni/ed_jni.c
@@ -863,8 +838,6 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/util/rand/jostle_fips_ctx.h
-            nonfips/util/rand/jostle_fips_ctx.c
             nonfips/ffi/rand_upcall_ffi.h
             nonfips/ffi/rand_upcall_ffi.c
             nonfips/util/edec.h

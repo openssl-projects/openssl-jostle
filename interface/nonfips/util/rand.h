@@ -17,15 +17,6 @@ typedef struct jo_rand_ctx_st JO_RAND_CTX;
 
 int32_t rand_init(const char *provider_name, int32_t *created);
 
-/**
- * FIPS variant of rand_init: create the SecureRandom-backing lib ctx with
- * the OpenSSL FIPS module + base provider (jostle_fips_configure_libctx),
- * so every SecureRandom DRBG chains to the module's own primary DRBG. Same
- * one-shot first-name-wins contract as rand_init.
- */
-int32_t rand_init_fips(const char *module_dir, const char *prov_name,
-                       const char *config_path, int32_t *created);
-
 void rand_destroy(void);
 
 JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use_df,
