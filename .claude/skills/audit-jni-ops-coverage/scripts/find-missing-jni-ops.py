@@ -4,7 +4,7 @@ find-missing-jni-ops.py — scan Jostle JNI bridge sources for calls into
 the JVM (or the project's JNI helper layer) whose return values are
 checked in an if-statement but lack an `OPS_*` fault-injection macro on
 the check. The canonical macro for JNI access faults is
-`OPS_FAILED_ACCESS_N`, defined in `interface/util/ops.h`.
+`OPS_FAILED_ACCESS_N`, defined in `interface/{nonfips,fips}/util/ops.h`.
 
 A "missing OPS" finding looks like one of these patterns where the
 if-statement has no `OPS_*` macro prefixing the condition:
@@ -24,7 +24,8 @@ dismiss than silent gaps. Suppress a finding by either:
 Usage:
     find-missing-jni-ops.py [paths ...]
 
-Default scan path: interface/jni/*.c relative to CWD.
+Default scan paths: interface/nonfips/jni/*.c and interface/fips/jni/*.c
+relative to CWD (both trees of the nonfips/fips native split).
 Exit code: 0 if no findings, 1 otherwise.
 """
 
@@ -33,7 +34,7 @@ import sys
 from pathlib import Path
 
 # JNI helper functions (project-internal, defined in
-# interface/jni/bytearrays.{c,h} and byte_array_critical.{c,h}) whose
+# interface/<tree>/jni/bytearrays.{c,h} and byte_array_critical.{c,h}) whose
 # failure means a JNI access fault. The OPS_FAILED_ACCESS_* macros
 # typically wrap these.
 JNI_HELPERS = {
@@ -234,12 +235,14 @@ def scan_file(path):
 def main(argv):
     paths = [Path(p) for p in argv[1:]]
     if not paths:
-        default = Path("interface/jni")
-        if default.is_dir():
-            paths = [default]
-        else:
+        # The jni bridge is split into two independent trees (nonfips + fips);
+        # scan both by default so coverage stays correct as they diverge.
+        defaults = [Path("interface/nonfips/jni"), Path("interface/fips/jni")]
+        paths = [d for d in defaults if d.is_dir()]
+        if not paths:
             print("usage: find-missing-jni-ops.py [paths ...]", file=sys.stderr)
-            print("default path interface/jni/ not found from CWD", file=sys.stderr)
+            print("default paths interface/{nonfips,fips}/jni/ not found from CWD",
+                  file=sys.stderr)
             return 2
 
     targets = []

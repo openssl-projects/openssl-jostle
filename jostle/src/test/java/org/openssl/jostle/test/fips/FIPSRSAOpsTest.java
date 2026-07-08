@@ -29,9 +29,9 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 /**
  * FIPS mirror of {@code RSAOpsTest} driving {@link FIPSNISelector#RSAServiceNI}.
  * RSA (2048-bit, F4 public exponent) is FIPS-approved, so this is a straight
- * mirror: the fault sites live in the shared interface/util/rsa.c and the JNI
- * access points in interface/jni/rsa_ni_jni.c, both re-included into the FIPS
- * library, so the {@code // Exercises interface/util/rsa.c:NNN} annotations and
+ * mirror: the fault sites live in the shared interface/fips/util/rsa.c and the JNI
+ * access points in interface/fips/jni/rsa_ni_jni.c, both re-included into the FIPS
+ * library, so the {@code // Exercises interface/fips/util/rsa.c:NNN} annotations and
  * the per-site {@code OPS_OFFSET_*}-disambiguated codes are identical to the
  * base. Pinning the exact code / message catches a silent offset renumber.
  *
@@ -285,12 +285,12 @@ public class FIPSRSAOpsTest
 
     // -----------------------------------------------------------------
     // initSign / initVerify — JNI access faults (digest / mgf1 string fetch).
-    // These exercise rsa_init_strings_load in interface/jni/rsa_ni_jni.c,
+    // These exercise rsa_init_strings_load in interface/fips/jni/rsa_ni_jni.c,
     // shared by both initSign and initVerify. JNI-only.
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/jni/rsa_ni_jni.c:366} — fault-injects the
+     * Target: {@code interface/fips/jni/rsa_ni_jni.c:366} — fault-injects the
      * {@code GetStringUTFChars(digest)} failure inside {@code rsa_init_strings_load},
      * the helper shared by {@code ni_initSign} and {@code ni_initVerify}.
      */
@@ -309,7 +309,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/jni/rsa_ni_jni.c:366
+            // Exercises interface/fips/jni/rsa_ni_jni.c:366
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -328,7 +328,7 @@ public class FIPSRSAOpsTest
     }
 
     /**
-     * Target: {@code interface/jni/rsa_ni_jni.c:372} — fault-injects the
+     * Target: {@code interface/fips/jni/rsa_ni_jni.c:372} — fault-injects the
      * {@code GetStringUTFChars(mgf1)} failure inside {@code rsa_init_strings_load}.
      * PSS padding is used so {@code mgf1_str} is non-null and the mgf1 fetch
      * actually runs.
@@ -348,7 +348,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/jni/rsa_ni_jni.c:372
+            // Exercises interface/fips/jni/rsa_ni_jni.c:372
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -385,7 +385,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:689
+            // Exercises interface/fips/util/rsa.c:689
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -414,7 +414,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:694
+            // Exercises interface/fips/util/rsa.c:694
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -448,7 +448,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:613
+            // Exercises interface/fips/util/rsa.c:613
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -477,7 +477,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:620
+            // Exercises interface/fips/util/rsa.c:620
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -506,7 +506,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:629
+            // Exercises interface/fips/util/rsa.c:629
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -535,7 +535,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:635
+            // Exercises interface/fips/util/rsa.c:635
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -567,7 +567,7 @@ public class FIPSRSAOpsTest
             rsaRef = rsaServiceNI.allocateSigner();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/util/rsa.c:620
+            // Exercises interface/fips/util/rsa.c:620
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1);
@@ -599,7 +599,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:79
+            // Exercises interface/fips/util/rsa.c:79
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -624,7 +624,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:85
+            // Exercises interface/fips/util/rsa.c:85
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -648,7 +648,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:90
+            // Exercises interface/fips/util/rsa.c:90
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -672,7 +672,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:95
+            // Exercises interface/fips/util/rsa.c:95
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -718,7 +718,7 @@ public class FIPSRSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
 
             // Second init: forced to fail at EVP_DigestSignInit_ex.
-            // Exercises interface/util/rsa.c:694
+            // Exercises interface/fips/util/rsa.c:694
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -764,7 +764,7 @@ public class FIPSRSAOpsTest
             rsaServiceNI.initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
 
-            // Exercises interface/util/rsa.c:762
+            // Exercises interface/fips/util/rsa.c:762
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -803,7 +803,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:757
+            // Exercises interface/fips/util/rsa.c:757
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -831,7 +831,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:762
+            // Exercises interface/fips/util/rsa.c:762
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -1197,7 +1197,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:231
+            // Exercises interface/fips/util/rsa.c:231
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -1222,7 +1222,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:236
+            // Exercises interface/fips/util/rsa.c:236
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -1247,7 +1247,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:241
+            // Exercises interface/fips/util/rsa.c:241
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = rsaServiceNI.ni_decodePublicComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4);
@@ -1276,7 +1276,7 @@ public class FIPSRSAOpsTest
             // and configure_padding (PKCS1 set_rsa_padding); within the
             // decode-private code path it fires on the BN-allocation
             // chain (n_bn || e_bn || d_bn == NULL).
-            // Exercises interface/util/rsa.c:283
+            // Exercises interface/fips/util/rsa.c:283
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = rsaServiceNI.ni_decodePrivateComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4, new byte[]{0x01});
@@ -1301,7 +1301,7 @@ public class FIPSRSAOpsTest
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:287
+            // Exercises interface/fips/util/rsa.c:287
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_decodePrivateComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4, new byte[]{0x01});
@@ -1324,7 +1324,7 @@ public class FIPSRSAOpsTest
         {
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/util/rsa.c:293
+            // Exercises interface/fips/util/rsa.c:293
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = rsaServiceNI.ni_decodePrivateComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4, new byte[]{0x01});
@@ -1347,7 +1347,7 @@ public class FIPSRSAOpsTest
         {
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/util/rsa.c:298
+            // Exercises interface/fips/util/rsa.c:298
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = rsaServiceNI.ni_decodePrivateComponents(keyRef,
                     new byte[]{0x01}, PUB_EXP_F4, new byte[]{0x01});
@@ -1371,7 +1371,7 @@ public class FIPSRSAOpsTest
         {
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/util/rsa.c:353
+            // Exercises interface/fips/util/rsa.c:353
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_decodePrivateComponentsCrt(keyRef,
                     one, PUB_EXP_F4, one, one, one, one, one, one);
@@ -1395,7 +1395,7 @@ public class FIPSRSAOpsTest
         {
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/util/rsa.c:360
+            // Exercises interface/fips/util/rsa.c:360
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_decodePrivateComponentsCrt(keyRef,
                     one, PUB_EXP_F4, one, one, one, one, one, one);
@@ -1419,7 +1419,7 @@ public class FIPSRSAOpsTest
         {
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/util/rsa.c:371
+            // Exercises interface/fips/util/rsa.c:371
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = rsaServiceNI.ni_decodePrivateComponentsCrt(keyRef,
                     one, PUB_EXP_F4, one, one, one, one, one, one);
@@ -1443,7 +1443,7 @@ public class FIPSRSAOpsTest
         {
             keyRef = specNI.allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/util/rsa.c:376
+            // Exercises interface/fips/util/rsa.c:376
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = rsaServiceNI.ni_decodePrivateComponentsCrt(keyRef,
                     one, PUB_EXP_F4, one, one, one, one, one, one);
@@ -1468,7 +1468,7 @@ public class FIPSRSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             int len = rsaServiceNI.getComponent(keyRef, RSAServiceNI.COMP_MODULUS, null);
             Assertions.assertTrue(len > 0);
-            // Exercises interface/util/rsa.c:463
+            // Exercises interface/fips/util/rsa.c:463
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = rsaServiceNI.ni_getComponent(keyRef, RSAServiceNI.COMP_MODULUS, new byte[len]);
             // -2 + (-1071) = -1073.
@@ -1540,7 +1540,7 @@ public class FIPSRSAOpsTest
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/util/rsa.c:441
+            // Exercises interface/fips/util/rsa.c:441
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
             // 256-byte buffer is comfortably larger than any RSA-2048
             // component; size doesn't matter because the OPS flag short-
@@ -1587,7 +1587,7 @@ public class FIPSRSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(0, initCode);
 
-            // Exercises interface/util/rsa.c:820
+            // Exercises interface/fips/util/rsa.c:820
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = rsaServiceNI.ni_update(rsaRef, new byte[]{0x01, 0x02, 0x03}, 0, 3);
             // -2 + (-1010) = -1012.
@@ -1619,7 +1619,7 @@ public class FIPSRSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0);
             Assertions.assertEquals(0, initCode);
 
-            // Exercises interface/util/rsa.c:826
+            // Exercises interface/fips/util/rsa.c:826
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = rsaServiceNI.ni_update(rsaRef, new byte[]{0x01, 0x02, 0x03}, 0, 3);
             // -2 + (-1011) = -1013.
@@ -1647,7 +1647,7 @@ public class FIPSRSAOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/rsa.c:545
+            // Exercises interface/fips/util/rsa.c:545
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
                     RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
@@ -1675,7 +1675,7 @@ public class FIPSRSAOpsTest
             Assertions.assertEquals(0, initCode);
             rsaServiceNI.ni_update(rsaRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/rsa.c:860
+            // Exercises interface/fips/util/rsa.c:860
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = rsaServiceNI.ni_sign(rsaRef, null, 0, TestUtil.RNDSrc);
             // -2 + (-1101) = -1103.
@@ -1702,7 +1702,7 @@ public class FIPSRSAOpsTest
             Assertions.assertEquals(0, initCode);
             rsaServiceNI.ni_update(rsaRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/rsa.c:949
+            // Exercises interface/fips/util/rsa.c:949
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = rsaServiceNI.ni_verify(rsaRef, new byte[256], 256);
             // -2 + (-1102) = -1104.
@@ -1725,7 +1725,7 @@ public class FIPSRSAOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/rsa.c:552
+            // Exercises interface/fips/util/rsa.c:552
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
                     RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);
@@ -1749,7 +1749,7 @@ public class FIPSRSAOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/rsa.c:557
+            // Exercises interface/fips/util/rsa.c:557
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "NONE",
                     RSAServiceNI.PADDING_PKCS1_NONE, null, 0, TestUtil.RNDSrc);

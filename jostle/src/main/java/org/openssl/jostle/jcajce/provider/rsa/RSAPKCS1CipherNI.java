@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 
 /**
  * Native interface for RSA PKCS#1 v1.5 encryption (RSAES-PKCS1-v1_5).
- * Op-mode constants mirror {@code interface/util/rsa_pkcs1.h}.
+ * Op-mode constants mirror {@code interface/nonfips/util/rsa_pkcs1.h}.
  *
  * <p>PKCS#1 v1.5 has no algorithmic parameters (no digest, no MGF, no
  * label) — it's a fixed transformation. The init function takes only

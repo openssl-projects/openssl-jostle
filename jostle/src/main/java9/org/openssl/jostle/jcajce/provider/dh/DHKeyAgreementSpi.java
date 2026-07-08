@@ -35,7 +35,7 @@ import java.security.spec.AlgorithmParameterSpec;
 /**
  * Finite-field Diffie-Hellman key-agreement SPI. The shared secret is
  * left-padded to the prime length — see the Java 8 baseline copy and
- * {@code dh_kex_init} in {@code interface/util/dh.c}.
+ * {@code dh_kex_init} in {@code interface/nonfips/util/dh.c}.
  *
  * <p>Java 9+ override of the Java 8 baseline. Uses
  * {@link Reference#reachabilityFence} to keep this SPI instance

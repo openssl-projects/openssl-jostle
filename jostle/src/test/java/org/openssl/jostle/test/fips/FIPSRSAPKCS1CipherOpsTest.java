@@ -30,7 +30,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * FIPS mirror of {@code RSAPKCS1CipherOpsTest}, driving the RSA-PKCS#1 v1.5
  * cipher NI through {@link FIPSNISelector#RSAPKCS1CipherNI}. RSA-2048 with
  * PKCS#1 v1.5 encryption is FIPS-approved, so this is a straight mirror: the
- * fault sites live in the shared interface/util/rsa_pkcs1.c re-included into the
+ * fault sites live in the shared interface/fips/util/rsa_pkcs1.c re-included into the
  * FIPS library, so the per-site {@code OPS_OFFSET_*}-disambiguated codes
  * (rsa_pkcs1.c 2100-2103 block; {@code JO_OPENSSL_ERROR (-2)} minus the offset)
  * are identical. Pinning the exact code catches a silent offset renumber.
@@ -84,7 +84,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/util/rsa_pkcs1.c:98
+            // Exercises interface/fips/util/rsa_pkcs1.c:98
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2100 + JO_OPENSSL_ERROR (-2) → -2102.
@@ -110,7 +110,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/util/rsa_pkcs1.c:109
+            // Exercises interface/fips/util/rsa_pkcs1.c:109
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2101 + JO_OPENSSL_ERROR (-2) → -2103.
@@ -136,7 +136,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/util/rsa_pkcs1.c:109
+            // Exercises interface/fips/util/rsa_pkcs1.c:109
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
             Assertions.assertEquals(-2103, code);
@@ -162,7 +162,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/util/rsa_pkcs1.c:114
+            // Exercises interface/fips/util/rsa_pkcs1.c:114
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // -2 + (-2110) = -2112.
@@ -195,7 +195,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/util/rsa_pkcs1.c:198
+            // Exercises interface/fips/util/rsa_pkcs1.c:198
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2102 + JO_OPENSSL_ERROR (-2) → -2104.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -257,7 +257,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/util/rsa_pkcs1.c:226
+            // Exercises interface/fips/util/rsa_pkcs1.c:226
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2103 + JO_OPENSSL_ERROR (-2) → -2105.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,

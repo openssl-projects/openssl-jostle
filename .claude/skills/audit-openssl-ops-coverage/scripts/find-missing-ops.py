@@ -19,7 +19,8 @@ dismiss than silent gaps. Suppress a finding by either:
 Usage:
     find-missing-ops.py [paths ...]
 
-Default scan path: interface/util/*.c relative to CWD.
+Default scan paths: interface/nonfips/util/*.c and interface/fips/util/*.c
+relative to CWD (both trees of the nonfips/fips native split).
 Exit code: 0 if no findings, 1 otherwise.
 """
 
@@ -221,12 +222,14 @@ def scan_file(path):
 def main(argv):
     paths = [Path(p) for p in argv[1:]]
     if not paths:
-        default = Path("interface/util")
-        if default.is_dir():
-            paths = [default]
-        else:
+        # The util layer is split into two independent trees (nonfips + fips);
+        # scan both by default so coverage stays correct as they diverge.
+        defaults = [Path("interface/nonfips/util"), Path("interface/fips/util")]
+        paths = [d for d in defaults if d.is_dir()]
+        if not paths:
             print("usage: find-missing-ops.py [paths ...]", file=sys.stderr)
-            print("default path interface/util/ not found from CWD", file=sys.stderr)
+            print("default paths interface/{nonfips,fips}/util/ not found from CWD",
+                  file=sys.stderr)
             return 2
 
     targets = []

@@ -309,7 +309,7 @@ public class RSAPKCS1CipherTest
                     "BLEICHENBACHER ORACLE OPEN — implicit rejection appears to be DISABLED. "
                             + "Decrypting malformed PKCS#1 v1.5 ciphertext threw "
                             + "BadPaddingException instead of returning synthetic plaintext. "
-                            + "Check: (1) interface/util/rsa_pkcs1.c — the explicit "
+                            + "Check: (1) interface/nonfips/util/rsa_pkcs1.c — the explicit "
                             + "EVP_PKEY_CTX_set_params(\"implicit-rejection\" = 1) call must "
                             + "still be present and the value must still be 1; (2) the "
                             + "linked OpenSSL build (provider-asym_cipher(7) documents "

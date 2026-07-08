@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
  * JNI implementation of BlockCipherNI backed by the FIPS interface library
  * (libinterface_fips_jni). Distinct FQCN gives the FIPS library its own
  * Java_*_fips_BlockCipherFIPSJNI_* symbols; the glue
- * (interface/jni/block_cipher_fips_jni.c) is the base block_cipher_ni_jni.c
+ * (interface/fips/jni/block_cipher_fips_jni.c) is the base block_cipher_ni_jni.c
  * re-included under renamed exports.
  */
 class BlockCipherFIPSJNI implements BlockCipherNI

@@ -121,7 +121,7 @@ public interface OperationsTestNI
 
         // Appended out of family order deliberately: setFlag uses ordinal()
         // as the native slot index, so new flags MUST go at the end to match
-        // their is_ops_set(N) slot in interface/util/ops.h.
+        // their is_ops_set(N) slot in interface/nonfips/util/ops.h.
         OPS_FAILED_ACCESS_5,
     }
 

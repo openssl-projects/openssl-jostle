@@ -26,7 +26,7 @@ import java.io.File;
 /**
  * Operations-test fault injection at the FIPS module-init surface
  * ({@code jostle_fips_configure_libctx} in
- * interface/util/rand/jostle_fips_ctx.c). This is the one OPS surface UNIQUE to
+ * interface/fips/util/rand/jostle_fips_ctx.c). This is the one OPS surface UNIQUE to
  * the FIPS interface library — the base library never calls this code — so
  * unlike the crypto-family FIPS *OpsTests (which re-test C already covered by
  * the base *OpsTests), these sites have no base-test counterpart.
@@ -91,7 +91,7 @@ public class FIPSInitOpsTest
     @Test
     public void configLoad_nconf_failure()
     {
-        // Exercises interface/util/rand/jostle_fips_ctx.c:77
+        // Exercises interface/fips/util/rand/jostle_fips_ctx.c:77
         assertInitFailsWith(ErrorCode.JO_FIPS_CONFIG_LOAD_FAILED,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
     }
@@ -99,7 +99,7 @@ public class FIPSInitOpsTest
     @Test
     public void configLoad_modulesLoad_failure()
     {
-        // Exercises interface/util/rand/jostle_fips_ctx.c:81
+        // Exercises interface/fips/util/rand/jostle_fips_ctx.c:81
         assertInitFailsWith(ErrorCode.JO_FIPS_CONFIG_LOAD_FAILED,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
     }
@@ -107,7 +107,7 @@ public class FIPSInitOpsTest
     @Test
     public void fipsProviderUnavailable_failure()
     {
-        // Exercises interface/util/rand/jostle_fips_ctx.c:86
+        // Exercises interface/fips/util/rand/jostle_fips_ctx.c:86
         assertInitFailsWith(ErrorCode.JO_FIPS_PROVIDER_UNAVAILABLE,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
     }
@@ -115,7 +115,7 @@ public class FIPSInitOpsTest
     @Test
     public void baseProviderUnavailable_failure()
     {
-        // Exercises interface/util/rand/jostle_fips_ctx.c:90
+        // Exercises interface/fips/util/rand/jostle_fips_ctx.c:90
         assertInitFailsWith(ErrorCode.JO_FIPS_BASE_UNAVAILABLE,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
     }
@@ -123,7 +123,7 @@ public class FIPSInitOpsTest
     @Test
     public void enableFips_failure()
     {
-        // Exercises interface/util/rand/jostle_fips_ctx.c:100
+        // Exercises interface/fips/util/rand/jostle_fips_ctx.c:100
         assertInitFailsWith(ErrorCode.JO_FIPS_ENABLE_FAILED,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
     }
@@ -131,7 +131,7 @@ public class FIPSInitOpsTest
     @Test
     public void fetchProbe_failure()
     {
-        // Exercises interface/util/rand/jostle_fips_ctx.c:108
+        // Exercises interface/fips/util/rand/jostle_fips_ctx.c:108
         assertInitFailsWith(ErrorCode.JO_FIPS_FETCH_PROBE_FAILED,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
     }

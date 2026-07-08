@@ -39,7 +39,7 @@ import java.security.spec.AlgorithmParameterSpec;
  *
  * <p>The shared secret is <b>left-padded to the prime length</b> —
  * the native derive context sets OpenSSL's {@code pad} exchange
- * parameter (see {@code dh_kex_init} in {@code interface/util/dh.c}).
+ * parameter (see {@code dh_kex_init} in {@code interface/nonfips/util/dh.c}).
  * This matches BouncyCastle's JCE DH agreement and the TLS 1.3 FFDHE
  * requirement; the unpadded form silently diverges on ~1 in 256
  * derivations.

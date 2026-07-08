@@ -28,12 +28,12 @@ import java.security.SecureRandom;
  * Java entropy up-call handler correctly surfaces a broken {@link RandSource}
  * (short/long/throwing/failing) as a typed error — because in the non-FIPS
  * build every keygen draws its entropy through the Jostle Java RAND bridge
- * ({@code interface/util/rand/jostle_lib_ctx.c}).
+ * ({@code interface/fips/util/rand/jostle_lib_ctx.c}).
  *
  * <p>Under FIPS that up-call is <b>deliberately absent</b>: the FIPS lib ctx
  * installs no {@code java_rand_bridge}, so entropy stays inside the validated
  * module boundary, served by the module's own approved DRBGs (see
- * {@code interface/util/rand/jostle_fips_ctx.c}: "No java_rand_bridge in a FIPS
+ * {@code interface/fips/util/rand/jostle_fips_ctx.c}: "No java_rand_bridge in a FIPS
  * context: entropy stays inside the FIPS boundary"). That is a
  * FIPS-certification requirement, not an implementation detail — entropy for
  * an approved keygen must not come from an arbitrary Java {@code SecureRandom}.

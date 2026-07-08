@@ -40,7 +40,7 @@ import java.security.Security;
  * <p>All tests are guarded by {@link OperationsTestNI#opsTestAvailable()}
  * so they no-op on a release native build.
  *
- * <h2>Target map: offset → {@code interface/util/ec.c} fault-injection line</h2>
+ * <h2>Target map: offset → {@code interface/nonfips/util/ec.c} fault-injection line</h2>
  *
  * <p>Each test method's Javadoc names the exact C line of its target —
  * the line containing the {@code OPS_OPENSSL_ERROR_N} macro that the
@@ -148,7 +148,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/util/ec.c:127} (offset 3000) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:127} (offset 3000) — fault-injects the
      * {@code EVP_PKEY_CTX_new_from_name == NULL} branch inside
      * {@code ec_generate_key} (defined at {@code ec.c:112}).
      */
@@ -166,7 +166,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:132} (offset 3001) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:132} (offset 3001) — fault-injects the
      * {@code EVP_PKEY_keygen_init} failure branch inside {@code ec_generate_key}
      * (defined at {@code ec.c:112}).
      */
@@ -184,7 +184,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:142} (offset 3002) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:142} (offset 3002) — fault-injects the
      * {@code EVP_PKEY_CTX_set_params} failure branch inside
      * {@code ec_generate_key} (defined at {@code ec.c:112}).
      */
@@ -202,7 +202,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:151} (offset 3003) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:151} (offset 3003) — fault-injects the
      * {@code EVP_PKEY_keygen} failure branch inside {@code ec_generate_key}
      * (defined at {@code ec.c:112}).
      */
@@ -220,7 +220,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:156} (offset 3004) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:156} (offset 3004) — fault-injects the
      * post-keygen {@code spec->key == NULL} sanity check inside
      * {@code ec_generate_key} (defined at {@code ec.c:112}).
      */
@@ -253,7 +253,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:333} (offset 3010) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:333} (offset 3010) — fault-injects the
      * {@code BN_bin2bn == NULL} branch (scalar conversion) inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
      */
@@ -272,7 +272,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:339} (offset 3011) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:339} (offset 3011) — fault-injects the
      * {@code OSSL_PARAM_BLD_new == NULL} branch inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
      */
@@ -291,7 +291,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:344} (offset 3012) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:344} (offset 3012) — fault-injects the
      * {@code OSSL_PARAM_BLD_push_utf8_string} failure branch (push of
      * {@code OSSL_PKEY_PARAM_GROUP_NAME}) inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
@@ -311,7 +311,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:349} (offset 3013) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:349} (offset 3013) — fault-injects the
      * {@code OSSL_PARAM_BLD_push_BN} failure branch (push of
      * {@code OSSL_PKEY_PARAM_PRIV_KEY}) inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
@@ -331,7 +331,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:356} (offset 3014) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:356} (offset 3014) — fault-injects the
      * {@code OSSL_PARAM_BLD_to_param == NULL} branch inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
      */
@@ -350,7 +350,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:363} (offset 3015) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:363} (offset 3015) — fault-injects the
      * {@code EVP_PKEY_CTX_new_from_name == NULL} branch (fromdata ctx alloc)
      * inside {@code ec_make_private_from_components} (defined at
      * {@code ec.c:302}).
@@ -370,7 +370,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:368} (offset 3016) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:368} (offset 3016) — fault-injects the
      * {@code EVP_PKEY_fromdata_init} failure branch inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
      */
@@ -389,7 +389,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:379} (offset 3017) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:379} (offset 3017) — fault-injects the
      * {@code EVP_PKEY_fromdata} failure branch inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
      * Reuses flag {@code OPS_OPENSSL_ERROR_1}; the same flag would fire at
@@ -413,7 +413,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:385} (offset 3018) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:385} (offset 3018) — fault-injects the
      * post-fromdata {@code pkey == NULL} sanity check inside
      * {@code ec_make_private_from_components} (defined at {@code ec.c:302}).
      */
@@ -437,7 +437,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/util/ec.c:469} (offset 3020) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:469} (offset 3020) — fault-injects the
      * {@code EVP_MD_CTX_new == NULL} branch inside {@code ec_ctx_init_sign}
      * (defined at {@code ec.c:434}).
      */
@@ -462,7 +462,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:474} (offset 3021) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:474} (offset 3021) — fault-injects the
      * {@code EVP_DigestSignInit_ex} failure branch inside {@code ec_ctx_init_sign}
      * (defined at {@code ec.c:434}).
      */
@@ -487,7 +487,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:525} (offset 3030) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:525} (offset 3030) — fault-injects the
      * {@code EVP_MD_CTX_new == NULL} branch inside {@code ec_ctx_init_verify}
      * (defined at {@code ec.c:495}).
      */
@@ -512,7 +512,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:530} (offset 3031) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:530} (offset 3031) — fault-injects the
      * {@code EVP_DigestVerifyInit_ex} failure branch inside
      * {@code ec_ctx_init_verify} (defined at {@code ec.c:495}).
      */
@@ -542,7 +542,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/util/ec.c:567} (offset 3040) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:567} (offset 3040) — fault-injects the
      * {@code EVP_DigestSignUpdate} failure branch in the sign-mode arm of
      * {@code ec_ctx_update} (defined at {@code ec.c:549}). Driven by an
      * {@code ec_ctx_init_sign}-initialised context.
@@ -569,7 +569,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:572} (offset 3041) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:572} (offset 3041) — fault-injects the
      * {@code EVP_DigestVerifyUpdate} failure branch in the verify-mode arm of
      * {@code ec_ctx_update} (defined at {@code ec.c:549}). Driven by an
      * {@code ec_ctx_init_verify}-initialised context (same OPS flag as the
@@ -597,7 +597,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:602} (offset 3050) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:602} (offset 3050) — fault-injects the
      * {@code EVP_DigestSignFinal} failure branch on the NULL-buffer length
      * probe call inside {@code ec_ctx_sign} (defined at {@code ec.c:584}).
      * Caller passes {@code out == NULL} so the probe is the only call made.
@@ -626,7 +626,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:626} (offset 3051) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:626} (offset 3051) — fault-injects the
      * {@code EVP_DigestSignFinal} failure branch on the real-buffer write call
      * inside {@code ec_ctx_sign} (defined at {@code ec.c:584}). The probe call
      * at {@code ec.c:602} succeeds because its flag ({@code _8}) is not set;
@@ -657,7 +657,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:667} (offset 3060) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:667} (offset 3060) — fault-injects the
      * forced {@code EVP_DigestVerifyFinal == 0} branch (impossible-to-trigger
      * verify failure on a valid-signature input path) inside
      * {@code ec_ctx_verify} (defined at {@code ec.c:635}). Unlike the other
@@ -692,7 +692,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/util/ec.c:739} (offset 3070) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:739} (offset 3070) — fault-injects the
      * {@code EVP_PKEY_CTX_new == NULL} branch (kex ctx allocation) inside
      * {@code ec_kex_init} (defined at {@code ec.c:711}).
      */
@@ -717,7 +717,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:743} (offset 3071) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:743} (offset 3071) — fault-injects the
      * {@code EVP_PKEY_derive_init} failure branch inside {@code ec_kex_init}
      * (defined at {@code ec.c:711}).
      */
@@ -742,7 +742,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:786} (offset 3080) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:786} (offset 3080) — fault-injects the
      * {@code EVP_PKEY_derive_set_peer} failure branch inside
      * {@code ec_kex_set_peer} (defined at {@code ec.c:753}). Reuses flag
      * {@code OPS_OPENSSL_ERROR_1}; earlier sites (e.g. {@code ec_generate_key}
@@ -775,7 +775,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:819} (offset 3090) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:819} (offset 3090) — fault-injects the
      * {@code EVP_PKEY_derive} failure branch on the NULL-buffer length probe
      * inside {@code ec_kex_derive} (defined at {@code ec.c:796}). Caller passes
      * {@code out == NULL} so only the probe runs.
@@ -805,7 +805,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:836} (offset 3091) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:836} (offset 3091) — fault-injects the
      * fetch-side {@code EVP_PKEY_derive} call inside {@code ec_kex_derive}
      * (defined at {@code ec.c:796}). Probe (flag {@code _2}) is not set so
      * the probe at offset 3090 runs normally; the fetch flag ({@code _3})
@@ -844,7 +844,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/util/ec.c:180} (offset 3100) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:180} (offset 3100) — fault-injects the
      * length-probe call to {@code EVP_PKEY_get_utf8_string_param} inside
      * {@code get_curve_name_component} (defined at {@code ec.c:177}). This is
      * the first OpenSSL call in the curve-name getter; it fires regardless of
@@ -870,7 +870,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:200} (offset 3101) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:200} (offset 3101) — fault-injects the
      * {@code OPENSSL_malloc == NULL} branch (temp buffer for the curve-name
      * UTF-8 fetch) inside {@code get_curve_name_component} (defined at
      * {@code ec.c:177}). Only reachable when the caller passes a non-NULL
@@ -896,7 +896,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:205} (offset 3102) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:205} (offset 3102) — fault-injects the
      * fetch-side call to {@code EVP_PKEY_get_utf8_string_param} (the one that
      * actually copies the curve name into the temp buffer) inside
      * {@code get_curve_name_component} (defined at {@code ec.c:177}). The probe
@@ -923,7 +923,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:228} (offset 3110) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:228} (offset 3110) — fault-injects the
      * {@code EVP_PKEY_get_bn_param} failure branch inside
      * {@code get_bn_component} (defined at {@code ec.c:223}). The first
      * OpenSSL call in the BIGNUM-component path; fires for any of
@@ -949,7 +949,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:233} (offset 3111) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:233} (offset 3111) — fault-injects the
      * defensive {@code BN_num_bytes < 0} branch inside {@code get_bn_component}
      * (defined at {@code ec.c:223}). The real call can't return negative for
      * a valid BIGNUM, but the defensive check is OPS-instrumented so the
@@ -975,7 +975,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:249} (offset 3112) — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:249} (offset 3112) — fault-injects the
      * defensive {@code BN_bn2bin < 0} branch (real-buffer write) inside
      * {@code get_bn_component} (defined at {@code ec.c:223}). Only reachable
      * with a non-NULL, sufficiently-large output buffer.
@@ -1008,7 +1008,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/util/ec.c:187} — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:187} — fault-injects the
      * {@code name_len > INT32_MAX} defensive check inside
      * {@code get_curve_name_component} (defined at {@code ec.c:177}).
      * Reached only on the NULL-buffer length-probe path
@@ -1038,7 +1038,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:607} — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:607} — fault-injects the
      * {@code sig_len > INT32_MAX} defensive check applied to the
      * {@code EVP_DigestSignFinal} probe-returned upper-bound inside
      * {@code ec_ctx_sign} (defined at {@code ec.c:584}). Reachable on every
@@ -1069,7 +1069,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:823} — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:823} — fault-injects the
      * {@code need > INT32_MAX} defensive check applied to the probe-returned
      * upper-bound from {@code EVP_PKEY_derive} (NULL out) inside
      * {@code ec_kex_derive} (defined at {@code ec.c:796}). Reachable on every
@@ -1102,7 +1102,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/util/ec.c:840} — fault-injects the
+     * Target: {@code interface/nonfips/util/ec.c:840} — fault-injects the
      * {@code written > INT32_MAX} defensive check applied to the fetch-side
      * {@code EVP_PKEY_derive}'s returned length inside {@code ec_kex_derive}
      * (defined at {@code ec.c:796}). Reachable only when a real output
@@ -1146,7 +1146,7 @@ public class ECOpsTest
     // -----------------------------------------------------------------
 
     /**
-     * Target: {@code interface/jni/ec_ni_jni.c:42} — fault-injects the
+     * Target: {@code interface/nonfips/jni/ec_ni_jni.c:42} — fault-injects the
      * {@code GetStringUTFChars(curveName)} failure inside {@code ni_curveSupported}.
      */
     @Test
@@ -1156,7 +1156,7 @@ public class ECOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
-            // Exercises interface/jni/ec_ni_jni.c:42
+            // Exercises interface/nonfips/jni/ec_ni_jni.c:42
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = ec.ni_curveSupported("P-256");
             Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
@@ -1168,7 +1168,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/jni/ec_ni_jni.c:77} — fault-injects the
+     * Target: {@code interface/nonfips/jni/ec_ni_jni.c:77} — fault-injects the
      * {@code GetStringUTFChars(curveName)} failure inside {@code ni_generateKeyPair}.
      */
     @Test
@@ -1178,7 +1178,7 @@ public class ECOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
-            // Exercises interface/jni/ec_ni_jni.c:77
+            // Exercises interface/nonfips/jni/ec_ni_jni.c:77
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = ec.ni_generateKeyPair("P-256", err, TestUtil.RNDSrc);
@@ -1192,7 +1192,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/jni/ec_ni_jni.c:136} — fault-injects the
+     * Target: {@code interface/nonfips/jni/ec_ni_jni.c:136} — fault-injects the
      * {@code GetStringUTFChars(curveName)} failure inside
      * {@code ni_makePrivateFromComponents}. Uses {@code OPS_FAILED_ACCESS_2}
      * because slot {@code _1} is used by the scalar byte-array load further
@@ -1208,7 +1208,7 @@ public class ECOpsTest
         scalar[31] = 0x01;
         try
         {
-            // Exercises interface/jni/ec_ni_jni.c:136
+            // Exercises interface/nonfips/jni/ec_ni_jni.c:136
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = ec.ni_makePrivateFromComponents("P-256", scalar, err, TestUtil.RNDSrc);
@@ -1222,7 +1222,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/jni/ec_ni_jni.c:270} — fault-injects the
+     * Target: {@code interface/nonfips/jni/ec_ni_jni.c:270} — fault-injects the
      * {@code GetStringUTFChars(digest)} failure inside {@code ni_initSign}.
      */
     @Test
@@ -1234,7 +1234,7 @@ public class ECOpsTest
         long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/jni/ec_ni_jni.c:270
+            // Exercises interface/nonfips/jni/ec_ni_jni.c:270
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = ec.ni_initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
             Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
@@ -1248,7 +1248,7 @@ public class ECOpsTest
     }
 
     /**
-     * Target: {@code interface/jni/ec_ni_jni.c:302} — fault-injects the
+     * Target: {@code interface/nonfips/jni/ec_ni_jni.c:302} — fault-injects the
      * {@code GetStringUTFChars(digest)} failure inside {@code ni_initVerify}.
      */
     @Test
@@ -1260,7 +1260,7 @@ public class ECOpsTest
         long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/jni/ec_ni_jni.c:302
+            // Exercises interface/nonfips/jni/ec_ni_jni.c:302
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = ec.ni_initVerify(sigRef, keyRef, "SHA-256");
             Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
@@ -1287,7 +1287,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/ec.c:494
+            // Exercises interface/nonfips/util/ec.c:494
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3100), code);
@@ -1311,7 +1311,7 @@ public class ECOpsTest
             ec.initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             ec.ni_update(sigRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/ec.c:721
+            // Exercises interface/nonfips/util/ec.c:721
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = ec.ni_sign(sigRef, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3101), code);
@@ -1335,7 +1335,7 @@ public class ECOpsTest
             ec.initVerify(sigRef, keyRef, "NONE");
             ec.ni_update(sigRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/ec.c:811
+            // Exercises interface/nonfips/util/ec.c:811
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_verify(sigRef, new byte[72], 72, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3102), code);
@@ -1357,7 +1357,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/util/ec.c:501
+            // Exercises interface/nonfips/util/ec.c:501
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3103), code);

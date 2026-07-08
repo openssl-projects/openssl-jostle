@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
  * JNI implementation of RandServiceNI backed by the FIPS interface library
  * (libinterface_fips_jni). Distinct FQCN gives the FIPS library its own
  * Java_*_fips_RandServiceFIPSJNI_* symbols; the glue
- * (interface/jni/rand_fips_jni.c) is the base rand_jni.c re-included under
+ * (interface/fips/jni/rand_fips_jni.c) is the base rand_jni.c re-included under
  * renamed exports. DRBGs created here parent on the FIPS rand lib ctx's
  * primary DRBG - entropy stays inside the module boundary.
  */

@@ -28,7 +28,7 @@ import java.util.logging.Logger;
 
 /**
  * FFI binding for the {@code JoXEC_*} symbols exported by
- * {@code interface/ffi/xec_ni_ffi.c}. Only key generation is XEC-specific;
+ * {@code interface/nonfips/ffi/xec_ni_ffi.c}. Only key generation is XEC-specific;
  * key agreement reuses the {@code JoEC_*} kex symbols via
  * {@code ECServiceFFI} (the C kex is type-agnostic).
  */

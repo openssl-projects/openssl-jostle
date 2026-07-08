@@ -29,8 +29,8 @@ import java.security.Security;
 /**
  * Fault-injection (OPS) tests for the XEC key-generation native code. Each
  * test forces one fallible OpenSSL / JVM call inside
- * {@code xec_generate_key} (interface/util/xec.c) or the JNI bridge
- * (interface/jni/xec_ni_jni.c) to fail, and asserts the exact error code the
+ * {@code xec_generate_key} (interface/nonfips/util/xec.c) or the JNI bridge
+ * (interface/nonfips/jni/xec_ni_jni.c) to fail, and asserts the exact error code the
  * bridge returns in {@code err[0]}.
  *
  * <p>Requires a native build with {@code JOSTLE_OPS_TEST=1}; absent that, the
@@ -88,7 +88,7 @@ public class XECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/xec.c:44
+        // Exercises interface/nonfips/util/xec.c:44
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -106,7 +106,7 @@ public class XECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/xec.c:51
+        // Exercises interface/nonfips/util/xec.c:51
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -124,7 +124,7 @@ public class XECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/xec.c:56
+        // Exercises interface/nonfips/util/xec.c:56
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -142,7 +142,7 @@ public class XECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/xec.c:61
+        // Exercises interface/nonfips/util/xec.c:61
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -171,7 +171,7 @@ public class XECOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
-            // Exercises interface/jni/xec_ni_jni.c:42
+            // Exercises interface/nonfips/jni/xec_ni_jni.c:42
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = xec.ni_generateKeyPair("X25519", err, TestUtil.RNDSrc);

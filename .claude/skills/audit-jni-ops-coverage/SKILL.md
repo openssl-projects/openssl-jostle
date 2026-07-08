@@ -5,7 +5,7 @@ description: Scan Jostle's JNI bridge sources for JVM access calls (GetStringUTF
 
 # Audit JNI bridge code for missing OPS_FAILED_ACCESS instrumentation
 
-Jostle's `*OpsTest` infrastructure fault-injects JVM access failures (failed `GetStringUTFChars`, failed `GetByteArrayElements`, failed `GetPrimitiveArrayCritical`, etc.) via the `OPS_FAILED_ACCESS_*` macros in `interface/util/ops.h`. Each fallible JNI access in `interface/jni/*.c` SHOULD be wrapped in one of those macros so a test can force the failure path. This skill is the JNI counterpart to `audit-openssl-ops-coverage`: where that one targets `OPS_OPENSSL_ERROR_*` around OpenSSL EVP calls in `interface/util/`, this one targets `OPS_FAILED_ACCESS_*` around JVM access calls in `interface/jni/`.
+Jostle's `*OpsTest` infrastructure fault-injects JVM access failures (failed `GetStringUTFChars`, failed `GetByteArrayElements`, failed `GetPrimitiveArrayCritical`, etc.) via the `OPS_FAILED_ACCESS_*` macros in `interface/nonfips/util/ops.h`. Each fallible JNI access in `interface/nonfips/jni/*.c` SHOULD be wrapped in one of those macros so a test can force the failure path. This skill is the JNI counterpart to `audit-openssl-ops-coverage`: where that one targets `OPS_OPENSSL_ERROR_*` around OpenSSL EVP calls in `interface/nonfips/util/`, this one targets `OPS_FAILED_ACCESS_*` around JVM access calls in `interface/nonfips/jni/`.
 
 ## When to use this skill
 
@@ -26,7 +26,7 @@ The skill ships a Python script at `scripts/find-missing-jni-ops.py`. From the r
 python3 .claude/skills/audit-jni-ops-coverage/scripts/find-missing-jni-ops.py
 
 # Scan one file.
-python3 .claude/skills/audit-jni-ops-coverage/scripts/find-missing-jni-ops.py interface/jni/ed_jni.c
+python3 .claude/skills/audit-jni-ops-coverage/scripts/find-missing-jni-ops.py interface/nonfips/jni/ed_jni.c
 
 # Scan one directory.
 python3 .claude/skills/audit-jni-ops-coverage/scripts/find-missing-jni-ops.py interface/jni
@@ -48,7 +48,7 @@ Each finding reports `file:line  [direct|after-assign]  <function-names>  if (sn
 
 Two families of access calls (full list in `JNI_HELPERS` and `JVM_JNI_CALLS` at the top of the script):
 
-1. **Project helpers** in `interface/jni/bytearrays.{c,h}` and `byte_array_critical.{c,h}` — `load_bytearray_ctx`, `load_critical_ctx`, `load_bytearray_new`, `check_bytearray_in_range`, `check_critical_in_range`. Return 0/false on JNI access failure or range-check failure.
+1. **Project helpers** in `interface/nonfips/jni/bytearrays.{c,h}` and `byte_array_critical.{c,h}` — `load_bytearray_ctx`, `load_critical_ctx`, `load_bytearray_new`, `check_bytearray_in_range`, `check_critical_in_range`. Return 0/false on JNI access failure or range-check failure.
 2. **JVM-direct calls** invoked as `(*env)->FuncName(...)` — `GetStringUTFChars`, `GetByteArrayElements`, `GetPrimitiveArrayCritical`, `NewByteArray`, `FindClass`, `GetMethodID`/`GetFieldID`, `NewObject`, `CallObjectMethod`, `NewLocalRef`/`NewGlobalRef`, `AttachCurrentThread`, etc. Return NULL or non-`JNI_OK` on failure.
 
 ## What the script ignores
@@ -113,7 +113,7 @@ Unlike the OpenSSL audit fix, `OPS_FAILED_ACCESS_*` has **no companion `OPS_OFFS
 
 ### Part 2: pick the OPS slot
 
-The `OPS_FAILED_ACCESS_N` macros are defined in `interface/util/ops.h` (currently `_1` through `_4`). Two strategies:
+The `OPS_FAILED_ACCESS_N` macros are defined in `interface/nonfips/util/ops.h` (currently `_1` through `_4`). Two strategies:
 
 1. **Reuse an existing slot** (preferred when possible). A slot can be reused for a new fault-injection point if it does NOT fire on any other code path reachable during the test for the new point. The same rule as `OPS_OPENSSL_ERROR_*` reuse: walk the call graph from the test's entry point and confirm no earlier code on the path uses the slot.
 
@@ -160,7 +160,7 @@ export JOSTLE_OPS_TEST=1
     --tests "org.openssl.jostle.test.<package>.<NewOpsTest>"
 ```
 
-Note: `OPS_FAILED_ACCESS_*` fault-injection is JNI-specific. The FFI bridge in `interface/ffi/` doesn't have JVM access calls — it receives raw pointers from the caller — so OPS tests for these slots only run meaningfully on the JNI side. The `*OpsTest` files still run on both `integrationTest25FFI` and `integrationTest25JNI` tasks, but the FFI runs of an `OPS_FAILED_ACCESS_*` test typically pass trivially because the FFI path doesn't take the instrumented code branch. Verify that the new test fails (or skips) cleanly on FFI rather than asserting against an unrelated code path.
+Note: `OPS_FAILED_ACCESS_*` fault-injection is JNI-specific. The FFI bridge in `interface/nonfips/ffi/` doesn't have JVM access calls — it receives raw pointers from the caller — so OPS tests for these slots only run meaningfully on the JNI side. The `*OpsTest` files still run on both `integrationTest25FFI` and `integrationTest25JNI` tasks, but the FFI runs of an `OPS_FAILED_ACCESS_*` test typically pass trivially because the FFI path doesn't take the instrumented code branch. Verify that the new test fails (or skips) cleanly on FFI rather than asserting against an unrelated code path.
 
 Without `JOSTLE_OPS_TEST=1`, the new test will skip via `Assumptions.assumeTrue(opsTestAvailable())` rather than fail — handy for the regular `:jostle:test` task that doesn't require an OPS build.
 

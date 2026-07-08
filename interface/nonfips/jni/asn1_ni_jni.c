@@ -1,0 +1,319 @@
+//  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
+//
+//  Licensed under the Apache License 2.0 (the "License"). You may not use
+//  this file except in compliance with the License.  You can obtain a copy
+//  in the file LICENSE in the source distribution or at
+//  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+
+
+#include <stdlib.h>
+#include <string.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+
+#include "bytearrays.h"
+#include "org_openssl_jostle_util_asn1_Asn1NiJNI.h"
+#include "types.h"
+#include "../util/asn1_util.h"
+#include "../util/jo_assert.h"
+#include "../util/ops.h"
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    dispose
+ * Signature: (J)V
+ */
+JNIEXPORT void JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1dispose
+(JNIEnv *env, jobject jo, jlong ref) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    asn1_ctx *ctx = (asn1_ctx *) ref;
+    if (ctx == NULL) {
+        return;
+    }
+    asn1_writer_free(ctx);
+}
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    allocate
+ * Signature: ()J
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1allocate
+(JNIEnv *env, jobject jo, jintArray _err) {
+    UNUSED(env);
+    UNUSED(jo);
+    int32_t err = JO_FAIL;
+    asn1_ctx *ctx = asn1_writer_allocate(&err);
+    jo_assert(ctx != NULL);
+    (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
+    return (jlong) ctx;
+}
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    encodePublicKey
+ * Signature: (JJ)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePublicKey
+(JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    asn1_ctx *ctx = (asn1_ctx *) asn1_ref;
+    jo_assert(ctx != NULL);
+
+    key_spec *key = (key_spec *) key_ref;
+
+    if (key == NULL) {
+        return JO_KEY_IS_NULL;
+    }
+
+    if (key->key == NULL) {
+        return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+
+    size_t buf_len = 0;
+    if (!asn1_writer_encode_public_key(ctx, key, &buf_len)) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    return (jint) buf_len;
+}
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    encodePrivateKey
+ * Signature: (JJ)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePrivateKey
+(JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref, jstring _option) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    asn1_ctx *ctx = (asn1_ctx *) asn1_ref;
+    jo_assert(ctx != NULL);
+
+    key_spec *key = (key_spec *) key_ref;
+    int32_t ret_code = JO_FAIL;
+    size_t buf_len = 0;
+    const char *option_string = NULL;
+    int encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
+
+
+    if (key == NULL) {
+        ret_code = JO_KEY_IS_NULL;
+        goto exit;
+    }
+
+    if (key->key == NULL) {
+        ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
+        goto exit;
+    }
+
+
+    if (_option != NULL) {
+        option_string = (*env)->GetStringUTFChars(env, _option, NULL);
+        if (OPS_FAILED_ACCESS_1 option_string == NULL) {
+            ret_code = JO_FAILED_ACCESS_ENCODING_OPTION;
+            goto exit;
+        }
+
+        if (strcmp(PRIVATE_KEY_DEFAULT_ENCODING_OPTION, option_string) == 0) {
+            encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
+        } else if (strcmp(PRIVATE_KEY_SEED_ONLY_ENCODING_OPTION, option_string) == 0) {
+            encoding_option = PRIVATE_KEY_SEED_ONLY_ENCODING;
+        } else {
+            ret_code = JO_INVALID_KEY_ENCODING_OPTION;
+            goto exit;
+        }
+    }
+
+
+    {
+        int32_t r = asn1_writer_encode_private_key(ctx, key, &buf_len, encoding_option);
+        if (r != 1) {
+            // r is either 0 (generic OpenSSL error) or a specific negative
+            // error code propagated from the util.
+            ret_code = (r == 0) ? JO_OPENSSL_ERROR : r;
+            goto exit;
+        }
+    }
+
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
+        ret_code = JO_OUTPUT_SIZE_INT_OVERFLOW;
+        goto exit;
+    }
+
+    ret_code = (int32_t) buf_len;
+
+
+exit:
+    if (option_string != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _option, option_string);
+    }
+
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    getData
+ * Signature: (J[B)J
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
+(JNIEnv *env, jobject jo, jlong ref, jbyteArray _output) {
+    UNUSED(jo);
+
+    asn1_ctx *ctx = (asn1_ctx *) ref;
+    jo_assert(ctx != NULL);
+    int32_t ret_code = JO_FAIL;
+
+    java_bytearray_ctx output;
+    init_bytearray_ctx(&output);
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    size_t buf_len = 0;
+
+    const int32_t ret = asn1_writer_get_content(ctx, output.bytearray, &buf_len, output.size);
+
+    if (ret != 1) {
+        ret_code = ret;
+        goto exit;
+    }
+
+    if (OPS_INT32_OVERFLOW_1 buf_len > INT32_MAX) {
+        ret_code = JO_OUTPUT_SIZE_INT_OVERFLOW;
+        goto exit;
+    }
+
+    ret_code = (int32_t) buf_len;
+
+exit:
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    fromPrivateKeyInfo
+ * Signature: ([BII)J
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPrivateKeyInfo
+(JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len) {
+    UNUSED(env);
+    UNUSED(jo);
+    int32_t ret_code = JO_FAIL;
+    key_spec *spec = NULL;
+
+
+    java_bytearray_ctx input;
+    init_bytearray_ctx(&input);
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (input.bytearray == NULL) {
+        ret_code = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
+
+    if (in_off < 0) {
+        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+        ret_code = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+
+    // in_off is asserted non-negative by this point
+    uint8_t *data = input.bytearray + in_off;
+
+
+    spec = asn1_writer_decode_private_key(data, in_len, &ret_code);
+
+
+exit:
+    release_bytearray_ctx(&input);
+    if (spec != NULL) {
+        return (jlong) spec;
+    }
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
+ * Method:    fromPublicKeyInfo
+ * Signature: ([BII)J
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPublicKeyInfo
+(JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    int32_t ret_code = JO_FAIL;
+    key_spec *spec = NULL;
+
+    java_bytearray_ctx input;
+    init_bytearray_ctx(&input);
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+        ret_code = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (input.bytearray == NULL) {
+        ret_code = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (in_off < 0) {
+        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+        ret_code = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    // in_off is asserted non-negative by this point
+    const uint8_t *data = input.bytearray + in_off;
+
+
+    spec = asn1_writer_decode_public_key(data, in_len, &ret_code);
+
+
+exit:
+    release_bytearray_ctx(&input);
+    if (spec != NULL) {
+        return (jlong) spec;
+    }
+    return ret_code;
+}

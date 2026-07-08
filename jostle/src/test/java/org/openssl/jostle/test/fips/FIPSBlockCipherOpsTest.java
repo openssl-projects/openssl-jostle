@@ -26,7 +26,7 @@ import javax.crypto.Cipher;
 
 /**
  * Operations-test fault injection at the FIPS block-cipher NI surface. The
- * fault sites live in the shared interface/util/block_cipher_ctx.c, re-included
+ * fault sites live in the shared interface/fips/util/block_cipher_ctx.c, re-included
  * into the FIPS library, so these fire identically when driven through
  * {@link FIPSNISelector#BlockCipherNI}. Mirrors {@code BlockCipherOpsTest}.
  *

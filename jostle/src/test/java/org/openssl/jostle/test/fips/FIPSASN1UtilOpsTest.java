@@ -31,8 +31,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
  * Operations-test fault injection at the FIPS ASN.1 encoder/decoder NI surface.
- * The fault sites live in the shared interface/util/asn1_util.c and the JNI glue
- * interface/jni/asn1_ni_jni.c, re-included into the FIPS library, so they fire
+ * The fault sites live in the shared interface/fips/util/asn1_util.c and the JNI glue
+ * interface/fips/jni/asn1_ni_jni.c, re-included into the FIPS library, so they fire
  * identically when driven through {@link FIPSNISelector#Asn1NI}. Mirrors
  * {@code ASN1UtilOpsTest}.
  *

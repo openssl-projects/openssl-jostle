@@ -1,6 +1,6 @@
 ---
 name: annotate-ops-tests
-description: Add a one-line `// Exercises interface/util/<file>.c:<line>` comment to each Java OPS test linking it to the exact C-side fault-injection site it drives. Use this skill whenever the user wants to make the OPS test → C source mapping traceable — including phrases like "annotate OPS tests", "link OPS tests to their C sites", "add file:line comments to ops tests", "show which OpenSSL call each ops test fires", "document the C location each ops test exercises", "trace ops tests back to C", and similar. Useful after adding new OPS instrumentation, or after C-side edits shift line numbers and existing annotations need refreshing.
+description: Add a one-line `// Exercises interface/<tree>/util/<file>.c:<line>` comment to each Java OPS test linking it to the exact C-side fault-injection site it drives (tree is `fips` for FIPS tests, `nonfips` otherwise). Use this skill whenever the user wants to make the OPS test → C source mapping traceable — including phrases like "annotate OPS tests", "link OPS tests to their C sites", "add file:line comments to ops tests", "show which OpenSSL call each ops test fires", "document the C location each ops test exercises", "trace ops tests back to C", and similar. Useful after adding new OPS instrumentation, or after C-side edits shift line numbers and existing annotations need refreshing.
 ---
 
 # Annotate OPS tests with their C source location
@@ -10,7 +10,7 @@ OPS tests assert exact integer return codes (e.g. `-1046`) that encode a specifi
 This skill automates that lookup and inserts a single comment in the test:
 
 ```java
-            // Exercises interface/util/rsa.c:589
+            // Exercises interface/nonfips/util/rsa.c:589
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 ```
 

@@ -28,9 +28,9 @@ import java.security.MessageDigest;
 
 /**
  * Operations-test fault injection at the FIPS MessageDigest NI surface. The
- * FIPS glue (interface/jni/md_fips_jni.c) is the base md_jni.c re-included, and
- * the fault sites live in the shared interface/util/md.c, so the {@code //
- * Exercises interface/util/md.c:NNN} annotations point at the same lines as the
+ * FIPS glue (interface/fips/jni/md_fips_jni.c) is the base md_jni.c re-included, and
+ * the fault sites live in the shared interface/fips/util/md.c, so the {@code //
+ * Exercises interface/fips/util/md.c:NNN} annotations point at the same lines as the
  * base {@code MDOpsTest}. This pins that those sites fire identically when
  * driven through the FIPS interface library. Mirrors {@code MDOpsTest}.
  *
@@ -157,7 +157,7 @@ public class FIPSMDOpsTest
         try
         {
             ref = mdNI.allocateDigest("SHA256", 0);
-            // Exercises interface/util/md.c:203
+            // Exercises interface/fips/util/md.c:203
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             mdNI.reset(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -307,7 +307,7 @@ public class FIPSMDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
-            // Exercises interface/util/md.c:101
+            // Exercises interface/fips/util/md.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2);
             mdNI.copyDigest(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -333,7 +333,7 @@ public class FIPSMDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
-            // Exercises interface/util/md.c:108
+            // Exercises interface/fips/util/md.c:108
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             mdNI.copyDigest(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -359,7 +359,7 @@ public class FIPSMDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
-            // Exercises interface/util/md.c:116
+            // Exercises interface/fips/util/md.c:116
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             mdNI.copyDigest(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -393,7 +393,7 @@ public class FIPSMDOpsTest
         md.update((byte) 0x01);
         try
         {
-            // Exercises interface/util/md.c:108
+            // Exercises interface/fips/util/md.c:108
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             md.clone();
             Assertions.fail("Expected clone() to fail but did not");

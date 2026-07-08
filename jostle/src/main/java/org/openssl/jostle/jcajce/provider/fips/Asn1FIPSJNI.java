@@ -16,7 +16,7 @@ import org.openssl.jostle.util.asn1.Asn1Ni;
  * JNI implementation of Asn1Ni backed by the FIPS interface library
  * (libinterface_fips_jni). Distinct FQCN gives the FIPS library its own
  * Java_*_fips_Asn1FIPSJNI_* symbols; the glue
- * (interface/jni/asn1_fips_jni.c) is the base asn1_ni_jni.c re-included
+ * (interface/fips/jni/asn1_fips_jni.c) is the base asn1_ni_jni.c re-included
  * under renamed exports. Encoders/decoders resolve in the FIPS lib ctx
  * through its base provider.
  */

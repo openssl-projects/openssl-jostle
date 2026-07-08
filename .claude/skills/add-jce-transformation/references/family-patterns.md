@@ -20,7 +20,7 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `javax.crypto.CipherSpi`. Jostle's project base is `org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherSpi`. New block ciphers should extend it (or a per-algorithm subclass like `AESBlockCipherSpi`).
 
 **Canonical references**:
-1. **AES** — `interface/util/block_cipher_ctx.c` (the shared C-side context), `interface/jni/block_cipher_ni_jni.c`, `provider/blockcipher/AESBlockCipherSpi.java`, `provider/ProvAES.java`.
+1. **AES** — `interface/nonfips/util/block_cipher_ctx.c` (the shared C-side context), `interface/nonfips/jni/block_cipher_ni_jni.c`, `provider/blockcipher/AESBlockCipherSpi.java`, `provider/ProvAES.java`.
 2. **AESWrap** (the wrap-mode wiring added recently) — same files, but shows how to wire a single-update mode that doesn't use `EVP_EncryptFinal`.
 
 **Family-specific notes**:
@@ -40,10 +40,10 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `java.security.SignatureSpi`. Each algorithm typically has its own subclass.
 
 **Canonical references**:
-1. **RSA (PKCS#1 v1.5 + PSS)** — `interface/util/rsa.c`, `interface/util/rsa_pkcs1.c`, `provider/rsa/RSASignatureSpiBase.java`, `provider/rsa/RSAPSSSignatureSpi.java`, `provider/ProvRSA.java`.
-2. **ECDSA** — `interface/util/ec.c` (shared with ECDH), `provider/ec/ECDSASignatureSpi.java`, registration in `provider/ProvEC.java`.
-3. **Ed25519 / Ed448** — `interface/util/edec.c`, `provider/eddsa/EdSignatureSpi.java`, `provider/ProvED.java`.
-4. **ML-DSA / SLH-DSA** — `interface/util/mldsa.c` / `slhdsa.c`, `provider/mldsa/*.java`, `provider/slhdsa/*.java`.
+1. **RSA (PKCS#1 v1.5 + PSS)** — `interface/nonfips/util/rsa.c`, `interface/nonfips/util/rsa_pkcs1.c`, `provider/rsa/RSASignatureSpiBase.java`, `provider/rsa/RSAPSSSignatureSpi.java`, `provider/ProvRSA.java`.
+2. **ECDSA** — `interface/nonfips/util/ec.c` (shared with ECDH), `provider/ec/ECDSASignatureSpi.java`, registration in `provider/ProvEC.java`.
+3. **Ed25519 / Ed448** — `interface/nonfips/util/edec.c`, `provider/eddsa/EdSignatureSpi.java`, `provider/ProvED.java`.
+4. **ML-DSA / SLH-DSA** — `interface/nonfips/util/mldsa.c` / `slhdsa.c`, `provider/mldsa/*.java`, `provider/slhdsa/*.java`.
 
 **Family-specific notes**:
 
@@ -62,8 +62,8 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `javax.crypto.KeyAgreementSpi`.
 
 **Canonical references**:
-1. **ECDH** — `interface/util/ec.c` (the `ec_kex_*` functions are type-agnostic at the EVP_PKEY level), `provider/ec/ECDHKeyAgreementSpi.java`.
-2. **XDH (X25519/X448)** — `interface/util/xec.c` (keygen only; agreement reuses `ec_kex_*`), `provider/xec/XDHKeyAgreementSpi.java`.
+1. **ECDH** — `interface/nonfips/util/ec.c` (the `ec_kex_*` functions are type-agnostic at the EVP_PKEY level), `provider/ec/ECDHKeyAgreementSpi.java`.
+2. **XDH (X25519/X448)** — `interface/nonfips/util/xec.c` (keygen only; agreement reuses `ec_kex_*`), `provider/xec/XDHKeyAgreementSpi.java`.
 3. **ECDH-with-KDF** — `provider/ec/ECDHwithKDFKeyAgreementSpi.java`. Pattern for composing two primitives.
 
 **Family-specific notes**:
@@ -84,7 +84,7 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `javax.crypto.KEMSpi` (Java 21+). On Java 8 baseline, the equivalent uses `SecretKeyFactorySpi` with custom key specs.
 
 **Canonical references**:
-1. **ML-KEM** — `interface/util/mlkem.c`, `provider/mlkem/MLKEMSecretKeyFactory.java`, `provider/ProvMLKEM.java`.
+1. **ML-KEM** — `interface/nonfips/util/mlkem.c`, `provider/mlkem/MLKEMSecretKeyFactory.java`, `provider/ProvMLKEM.java`.
 
 **Family-specific notes**:
 
@@ -101,10 +101,10 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `javax.crypto.SecretKeyFactorySpi`. (Java 22+ has a separate `KDF` SPI — Jostle currently uses the SecretKeyFactory shim for broad compatibility.)
 
 **Canonical references**:
-1. **PBKDF2** — `interface/util/kdf.c::pbkdf2`, `provider/kdf/PBKDF2SecretKeyFactory.java`, `provider/ProvPBKDF.java`.
-2. **HKDF** — `interface/util/kdf.c::hkdf`, `provider/kdf/HKDFSecretKeyFactory.java`, `jcajce/spec/HKDFKeySpec.java`.
-3. **X9.63 KDF** — `interface/util/kdf.c::x963kdf`, `provider/kdf/X963KDFSecretKeyFactory.java`, `jcajce/spec/X963KDFKeySpec.java`.
-4. **Scrypt** — `interface/util/kdf.c::scrypt`, `provider/kdf/ScryptSecretKeyFactory.java`.
+1. **PBKDF2** — `interface/nonfips/util/kdf.c::pbkdf2`, `provider/kdf/PBKDF2SecretKeyFactory.java`, `provider/ProvPBKDF.java`.
+2. **HKDF** — `interface/nonfips/util/kdf.c::hkdf`, `provider/kdf/HKDFSecretKeyFactory.java`, `jcajce/spec/HKDFKeySpec.java`.
+3. **X9.63 KDF** — `interface/nonfips/util/kdf.c::x963kdf`, `provider/kdf/X963KDFSecretKeyFactory.java`, `jcajce/spec/X963KDFKeySpec.java`.
+4. **Scrypt** — `interface/nonfips/util/kdf.c::scrypt`, `provider/kdf/ScryptSecretKeyFactory.java`.
 
 **Family-specific notes**:
 
@@ -123,7 +123,7 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `javax.crypto.MacSpi`.
 
 **Canonical references**:
-1. **HMAC family** — `interface/util/mac.c`, `provider/mac/MacSpiBase.java`, `provider/ProvMac.java`.
+1. **HMAC family** — `interface/nonfips/util/mac.c`, `provider/mac/MacSpiBase.java`, `provider/ProvMac.java`.
 
 **Family-specific notes**:
 
@@ -140,7 +140,7 @@ This file collects the canonical reference implementations per algorithm family.
 **SPI base class**: `java.security.MessageDigestSpi`.
 
 **Canonical references**:
-1. **SHA family** — `interface/util/md.c`, `provider/md/MDServiceSpi.java`, `provider/ProvMD.java`. **CLAUDE.md cites this as THE canonical reference for new transformations.**
+1. **SHA family** — `interface/nonfips/util/md.c`, `provider/md/MDServiceSpi.java`, `provider/ProvMD.java`. **CLAUDE.md cites this as THE canonical reference for new transformations.**
 
 **Family-specific notes**:
 

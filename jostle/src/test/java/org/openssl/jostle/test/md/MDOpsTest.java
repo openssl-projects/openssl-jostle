@@ -149,7 +149,7 @@ public class MDOpsTest
         try
         {
             ref = mdNI.allocateDigest("SHA256", 0);
-            // Exercises interface/util/md.c:203
+            // Exercises interface/nonfips/util/md.c:203
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             mdNI.reset(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -270,7 +270,7 @@ public class MDOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         long ref = mdNI.allocateDigest("SHA256", 0);
         try {
-            // Exercises interface/util/md.c:101
+            // Exercises interface/nonfips/util/md.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2);
             mdNI.copyDigest(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -289,7 +289,7 @@ public class MDOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         long ref = mdNI.allocateDigest("SHA256", 0);
         try {
-            // Exercises interface/util/md.c:108
+            // Exercises interface/nonfips/util/md.c:108
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             mdNI.copyDigest(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -308,7 +308,7 @@ public class MDOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         long ref = mdNI.allocateDigest("SHA256", 0);
         try {
-            // Exercises interface/util/md.c:116
+            // Exercises interface/nonfips/util/md.c:116
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             mdNI.copyDigest(ref);
             Assertions.fail("Expected operation to fail but did not");
@@ -334,7 +334,7 @@ public class MDOpsTest
         MessageDigest md = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME);
         md.update((byte) 0x01);
         try {
-            // Exercises interface/util/md.c:108
+            // Exercises interface/nonfips/util/md.c:108
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             md.clone();
             Assertions.fail("Expected clone() to fail but did not");

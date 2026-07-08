@@ -68,7 +68,7 @@ public class KSServiceSPI
             0x07, 0x01
     };
 
-    // Store-time algorithm profile selectors (mirror interface/util/ks.h).
+    // Store-time algorithm profile selectors (mirror interface/nonfips/util/ks.h).
     private static final int PBE_3DES = 1;
     private static final int PBE_AES128_CBC = 2;
     private static final int PBE_AES256_CBC = 3;

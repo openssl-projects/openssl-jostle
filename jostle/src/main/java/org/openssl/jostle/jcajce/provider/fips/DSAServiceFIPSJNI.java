@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 
 /**
  * JNI implementation of {@link DSAServiceNI}. Native bindings live in
- * {@code interface/jni/dsa_ni_jni.c}.
+ * {@code interface/fips/jni/dsa_ni_jni.c}.
  */
 /**
  * JNI implementation of DSAServiceNI backed by the FIPS interface library;

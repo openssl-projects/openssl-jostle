@@ -19,7 +19,7 @@ import org.openssl.jostle.rand.RandSource;
 /**
  * Native interface for RSA-OAEP encrypt / decrypt. Op-mode constants
  * and the (digest, MGF1, label) parameters are mirrored from
- * {@code interface/util/rsa_oaep.h}.
+ * {@code interface/nonfips/util/rsa_oaep.h}.
  *
  * <p>The cipher is one-shot per init: the SPI buffers JCE
  * {@code update()} calls and routes the final accumulated input

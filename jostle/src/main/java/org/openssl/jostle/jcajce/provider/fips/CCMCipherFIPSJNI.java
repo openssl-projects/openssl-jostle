@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
  * JNI implementation of CCMCipherNI backed by the FIPS interface library
  * (libinterface_fips_jni). Distinct FQCN gives the FIPS library its own
  * Java_*_fips_CCMCipherFIPSJNI_* symbols; the glue
- * (interface/jni/ccm_fips_jni.c) is the base ccm_ni_jni.c re-included under
+ * (interface/fips/jni/ccm_fips_jni.c) is the base ccm_ni_jni.c re-included under
  * renamed exports.
  */
 class CCMCipherFIPSJNI implements CCMCipherNI

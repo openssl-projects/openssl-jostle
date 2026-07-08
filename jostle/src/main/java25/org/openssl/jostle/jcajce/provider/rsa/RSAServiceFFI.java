@@ -27,7 +27,7 @@ import java.util.logging.Logger;
 
 /**
  * FFI binding for the {@code RSA_*} symbols exported by
- * {@code interface/ffi/rsa_ni_ffi.c}. Mirrors the structure of
+ * {@code interface/nonfips/ffi/rsa_ni_ffi.c}. Mirrors the structure of
  * {@link org.openssl.jostle.jcajce.provider.ed.EdDSAServiceFFI};
  * each native call is wrapped to translate Java byte[]/String into
  * MemorySegments and convert the entropy upcall.

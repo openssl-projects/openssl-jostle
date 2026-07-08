@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 OpenSSL Jostle is a JCA/JCE provider that delegates cryptographic implementations to OpenSSL via a native interface layer. Two languages, three layers:
 
 ```
-Java SPI  →  JNI / FFI bridge (per-transformation)  →  C abstraction (interface/util/)  →  OpenSSL EVP_*
+Java SPI  →  JNI / FFI bridge (per-transformation)  →  C abstraction (interface/nonfips/util/)  →  OpenSSL EVP_*
 ```
 
 Building requires Java 25; the resulting jar runs on Java 8 → Java 25 via a multi-release jar.
@@ -39,7 +39,7 @@ JOSTLE_OPS_TEST=1 ./interface/build.sh
 Four test categories distinguished by class-name suffix:
 1. `*Test` (no suffix below) — **Unit**: parallel-safe; compares behavior to BouncyCastle, asserts portability.
 2. `*LimitTest` — sequential; calls `*NI` directly to exercise input-validation edges.
-3. `*OpsTest` — sequential; requires `JOSTLE_OPS_TEST=1` at build time. Uses macros in `interface/util/ops.h` to fault-inject around OpenSSL/JVM calls that are otherwise impossible to exercise.
+3. `*OpsTest` — sequential; requires `JOSTLE_OPS_TEST=1` at build time. Uses macros in `interface/nonfips/util/ops.h` to fault-inject around OpenSSL/JVM calls that are otherwise impossible to exercise.
 4. `*IntegrationTest` — sequential; miscellaneous tests that need ordered execution.
 
 The base `:jostle:test` task **excludes** Limit/Ops/Integration. To run those you need the Java-25-specific tasks (which require `BC_JDK25`):
@@ -85,12 +85,30 @@ A given crypto operation (e.g. ML-DSA signatures) involves files in roughly this
 2. **Package-private impl** — `org.openssl.jostle.jcajce.provider.slhdsa.JOSLHDSAPrivateKey`.
 3. **SPI class** — `SLHDSASignatureSpi` in the same provider sub-package; calls `xxxServiceNI`.
 4. **NI interface** — `SLHDSAServiceNI` declares the native operations; default methods centralize error-code-to-exception mapping (see `MDServiceNI` for the canonical pattern).
-5. **JNI implementation** — `SLHDSAServiceJNI` (Java) → `interface/jni/slhdsa_ni_jni.c` (C glue, validates input, calls `interface/util/slhdsa.c`).
-6. **FFI implementation** — `SLHDSAServiceFFI` in `src/main/java25/`; targets `interface/ffi/slhdsa_ni_ffi.c` (same validation, same error codes).
-7. **C abstraction** — `interface/util/slhdsa.c/.h` is the only place that calls `EVP_*` directly.
+5. **JNI implementation** — `SLHDSAServiceJNI` (Java) → `interface/nonfips/jni/slhdsa_ni_jni.c` (C glue, validates input, calls `interface/nonfips/util/slhdsa.c`).
+6. **FFI implementation** — `SLHDSAServiceFFI` in `src/main/java25/`; targets `interface/nonfips/ffi/slhdsa_ni_ffi.c` (same validation, same error codes).
+7. **C abstraction** — `interface/nonfips/util/slhdsa.c/.h` is the only place that calls `EVP_*` directly.
 8. **Provider registration** — `org.openssl.jostle.jcajce.provider.ProvSLHDSA.configure(JostleProvider)`, invoked from `JostleProvider.setup()`.
 
 `NISelector` decides at load time whether to return JNI or FFI impls. The decision is forced by setting `org.openssl.jostle.loader.interface=jni|ffi|auto|none`.
+
+
+## Native source layout: nonfips / fips split (critical)
+
+The C under `interface/` is split into **two independent, self-contained trees** so the base (non-FIPS) code can evolve without dragging the FIPS provider along:
+
+1. `interface/nonfips/{jni,ffi,util}` — the base provider (`JSL`). Links against mainline OpenSSL 3.x. This is where all non-FIPS native work happens; the "How a transformation is wired" paths all live here.
+2. `interface/fips/{jni,ffi,util}` — the FIPS provider (`JSLFIPS`). Links against the same libcrypto but drives a FIPS-validated module via its own `OSSL_LIB_CTX` (see `util/rand/jostle_fips_ctx.c`).
+
+`interface/CMakeLists.txt` (one file at the `interface/` root) builds **four** shared libraries: `interface_jni` + `interface_ffi` from `nonfips/`, and `interface_fips_jni` + `interface_fips_ffi` from `fips/`. `build.sh` / `build.bat` are unchanged — they just run `cmake .` in `interface/`.
+
+Key consequences when editing native code:
+
+1. **The two trees are independent copies.** A change to `interface/nonfips/util/rsa.c` does NOT propagate to `interface/fips/util/rsa.c`, and vice versa. If a fix must apply to both (e.g. a shared bug class), edit both files deliberately. The FIPS tree began as a faithful copy of the base tree; divergence is expected and is the whole point of the split.
+2. **The FIPS JNI glue is a rename re-include, self-contained within `fips/jni/`.** JNI binds native methods by class-name-derived symbol, so the `org.openssl.jostle.jcajce.provider.fips.*` classes need distinct exports. Each `fips/jni/<x>_fips_jni.c` `#define`-renames the base symbols and `#include`s its **co-located** `fips/jni/<x>_ni_jni.c` copy — so `fips/jni/` holds both the base-named glue (compiled only via the include) and the `_fips_jni.c` wrappers (the actual compile units). The FFI side shares identical export names across the two libs (safe: the FIPS FFI classes resolve them with a library-scoped `SymbolLookup.libraryLookup`, not the process-global `loaderLookup`).
+3. **All relative includes (`#include "../util/..."`) resolve within a tree**, because each tree preserves the `jni`/`ffi`/`util` sibling layout. Do not add cross-tree includes.
+
+The Java side is unaffected by the split: the base `*NI`/`*JNI`/`*FFI` classes target the `nonfips` libs; the `provider.fips.*` classes target the `fips` libs. `NISelector` / `FIPSNISelector` pick the right ones at load time.
 
 
 ## SecureRandom flow

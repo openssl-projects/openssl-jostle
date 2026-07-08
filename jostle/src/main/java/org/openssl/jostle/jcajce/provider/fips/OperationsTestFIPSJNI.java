@@ -17,7 +17,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * JNI implementation of {@link OperationsTestNI} backed by the FIPS interface
  * library (libinterface_fips_jni). The distinct fully-qualified class name
  * gives the FIPS library its own Java_*_fips_OperationsTestFIPSJNI_* symbols -
- * the glue (interface/jni/ops_fips_jni.c) is the base jni/ops.c re-included
+ * the glue (interface/fips/jni/ops_fips_jni.c) is the base jni/ops.c re-included
  * under renamed exports, so both libraries share one wrapper implementation.
  *
  * <p>Like the base {@code OperationsTestJNI}, the native symbols exist only

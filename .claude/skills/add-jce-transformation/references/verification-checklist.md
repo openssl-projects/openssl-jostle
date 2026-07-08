@@ -4,7 +4,7 @@ Walk through this list after completing the implementation but BEFORE asking the
 
 ## Native layer
 
-### `interface/util/<algo>.c` + `.h`
+### `interface/nonfips/util/<algo>.c` + `.h`
 
 1. [ ] Every entry point uses `jo_assert` on bridge-validated inputs (pointers, curve names, lengths). NO `if (X) return JO_*` on inputs that the bridge already validated.
 2. [ ] State checks on outer-pointer fields (`spec->key == NULL`) and OpenSSL-output bounds (`sig_len > INT32_MAX`) ARE permitted as `if/return` — these are the only legitimate util-layer error returns.
@@ -18,7 +18,7 @@ Walk through this list after completing the implementation but BEFORE asking the
 10. [ ] Offset block is unique within the file. Cross-file offset reuse is permitted (CLAUDE.md) but worth a comment in each affected file.
 11. [ ] `INT32_MAX` (not `INT_MAX`) for "fits in int32_t" bounds — pairs with `JO_*_INT32` error codes and the `int32_t` parameter / return types.
 
-### `interface/jni/<algo>_ni_jni.c`
+### `interface/nonfips/jni/<algo>_ni_jni.c`
 
 1. [ ] Every byte-array parameter goes through `load_bytearray_ctx` / `release_bytearray_ctx`, paired symmetrically across all exit paths.
 2. [ ] Every `GetStringUTFChars` paired with `ReleaseStringUTFChars` on every exit path.
@@ -27,7 +27,7 @@ Walk through this list after completing the implementation but BEFORE asking the
 5. [ ] `OPS_FAILED_ACCESS_N` macros wrap each `load_bytearray_ctx` so tests can fault-inject access failures.
 6. [ ] Every error code is typed (`JO_*_NULL`, `JO_*_FAILED_ACCESS`, etc.) — never a generic `JO_FAIL` for bridge-side rejections.
 
-### `interface/ffi/<algo>_ni_ffi.c`
+### `interface/nonfips/ffi/<algo>_ni_ffi.c`
 
 1. [ ] Identical error codes for identical inputs vs. the JNI bridge. Verify by reading both side-by-side.
 2. [ ] Exported function names start with `Jo<MOD>_` prefix. Verify with `nm libinterface_ffi.dylib | grep " T " | grep <prefix>`.
@@ -81,7 +81,7 @@ Walk through this list after completing the implementation but BEFORE asking the
 
 ### Error codes & key types
 
-1. [ ] New `JO_*` macros in `interface/util/bc_err_codes.h` if you added typed bridge errors.
+1. [ ] New `JO_*` macros in `interface/nonfips/util/bc_err_codes.h` if you added typed bridge errors.
 2. [ ] Matching `ErrorCode.java` enum entries with the right negative integer.
 3. [ ] Matching cases in the relevant NI's `handleErrorCodes` default method, with typed exceptions and specific messages.
 4. [ ] If adding a new key type: matching `KS_*` macro in `key_spec.h` + `OSSLKeyType` enum entry with name + OID aliases.

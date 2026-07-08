@@ -28,7 +28,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * {@code HkdfOpsTest} driving {@link FIPSNISelector#KdfNI}. HKDF (SP 800-56C) is
  * FIPS-approved, so this is a straight mirror. The FIPS JNI glue is the base
  * kdf_ni_jni.c re-included under renamed symbols, and the util-layer fault sites
- * live in the shared interface/util/kdf.c, so the {@code // Exercises} annotations
+ * live in the shared interface/fips/util/kdf.c, so the {@code // Exercises} annotations
  * point at the same lines and the per-site {@code OPS_OFFSET_*}-disambiguated codes
  * (KDF 3000-block; {@code JO_OPENSSL_ERROR (-2)} minus the offset) are identical.
  * Pinning the exact code catches a silent offset renumber. The JNI access faults
@@ -70,7 +70,7 @@ public class FIPSHkdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/jni/kdf_jni.c:277
+            // Exercises interface/fips/jni/kdf_jni.c:277
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1));
             Assertions.fail();
@@ -90,7 +90,7 @@ public class FIPSHkdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/jni/kdf_jni.c:289
+            // Exercises interface/fips/jni/kdf_jni.c:289
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1));
             Assertions.fail();
@@ -110,7 +110,7 @@ public class FIPSHkdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/jni/kdf_jni.c:296
+            // Exercises interface/fips/jni/kdf_jni.c:296
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1));
             Assertions.fail();
@@ -130,7 +130,7 @@ public class FIPSHkdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/jni/kdf_jni.c:302
+            // Exercises interface/fips/jni/kdf_jni.c:302
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             kdfNI.handleErrorCodes(kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1));
             Assertions.fail();
@@ -150,7 +150,7 @@ public class FIPSHkdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/jni/kdf_jni.c:339
+            // Exercises interface/fips/jni/kdf_jni.c:339
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_5);
             kdfNI.handleErrorCodes(kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1));
             Assertions.fail();
@@ -170,7 +170,7 @@ public class FIPSHkdfOpsTest
         int code;
         try
         {
-            // Exercises interface/util/kdf.c:156
+            // Exercises interface/fips/util/kdf.c:156
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             code = kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1);
             // -2 + (-3002) = -3004.
@@ -188,7 +188,7 @@ public class FIPSHkdfOpsTest
         int code;
         try
         {
-            // Exercises interface/util/kdf.c:163
+            // Exercises interface/fips/util/kdf.c:163
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             code = kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1);
             // -2 + (-3000) = -3002.
@@ -206,7 +206,7 @@ public class FIPSHkdfOpsTest
         int code;
         try
         {
-            // Exercises interface/util/kdf.c:191
+            // Exercises interface/fips/util/kdf.c:191
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             code = kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "SHA-256", new byte[1], 0, 1);
             // -2 + (-3001) = -3003.

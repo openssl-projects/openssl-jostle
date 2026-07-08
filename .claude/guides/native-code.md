@@ -1,12 +1,21 @@
 # Native code guidance (`interface/`)
 
-Conventions for the C bridge (`interface/jni`, `interface/ffi`) and the OpenSSL
-abstraction layer (`interface/util`), plus the native-side bug classes to review
-for. Auto-imported by CLAUDE.md.
+Conventions for the C bridge (`jni`, `ffi`) and the OpenSSL abstraction layer
+(`util`), plus the native-side bug classes to review for. Auto-imported by
+CLAUDE.md.
+
+**The native tree is split into two independent copies** — `interface/nonfips/`
+(the base, non-FIPS provider) and `interface/fips/` (the FIPS provider). Each is
+self-contained with its own `jni/`, `ffi/`, and `util/` (see the "Native source
+layout" section of CLAUDE.md). The conventions below apply to **both** trees;
+paths are written as `interface/nonfips/...` because that is where the examples'
+algorithms live, but every rule holds identically under `interface/fips/...`. A
+change to a rule or a bug-class fix in one tree is NOT automatically reflected in
+the other — they are separate source files by design.
 
 ## Native code conventions (`interface/`)
 
-1. **Bridge layer (`interface/jni/`, `interface/ffi/`)** is the only layer that validates user-supplied inputs and surfaces failures as typed return codes. The bridge MUST do all of the following before calling util:
+1. **Bridge layer (`interface/nonfips/jni/`, `interface/nonfips/ffi/`)** is the only layer that validates user-supplied inputs and surfaces failures as typed return codes. The bridge MUST do all of the following before calling util:
    1. **Null-check every user-supplied pointer** — strings (curve names, digest names), byte arrays, and native handles cast from `jlong` (JNI) or `size_t`/raw pointer (FFI). Each gets a typed return code (`JO_NAME_IS_NULL`, `JO_INPUT_IS_NULL`, `JO_KEY_SPEC_IS_NULL`, `JO_SIGNER_CTX_IS_NULL`, etc.). **Never `jo_assert` on a value derived from a Java/FFI caller.**
    2. **Range-check every user-supplied length** — sign (`< 0` → `JO_*_IS_NEGATIVE`), zero where zero is meaningless (`== 0` → `JO_*_IS_NEGATIVE`), and upper bound where the value will be cast to `int` downstream (`> INT32_MAX` → `JO_INPUT_TOO_LONG_INT32` / `JO_OUTPUT_TOO_LONG_INT32`).
    3. **Range-check offset+length pairs** against the buffer they index — FFI uses `check_in_range(size, off, len)`; JNI uses `check_bytearray_in_range(ctx, off, len)`. These compute the addition safely even when both operands approach `SIZE_MAX/2`.
@@ -14,7 +23,7 @@ for. Auto-imported by CLAUDE.md.
 
    JNI **must** request critical pointers via JVM and surface failures explicitly; FFI **must** receive the full byte-array size as a parameter so it can do its own range checks. **Both layers must return identical error codes for identical inputs** — if FFI rejects a value, JNI rejects it too with the same code, and vice versa.
 
-2. **Abstraction layer (`interface/util/`)** is the only place that calls OpenSSL. It maintains state in structs across the JCA new → init → update → final → reset lifecycle. Util **trusts** the bridge to have validated user-supplied inputs and asserts those preconditions as invariants (see point 5). That includes `rnd_src` — both JNI and FFI bridges null-check the RandSource on every entry point that takes one, so util just `jo_assert`s it. Util's only legitimate `if (X) return JO_*` patterns are:
+2. **Abstraction layer (`interface/nonfips/util/`)** is the only place that calls OpenSSL. It maintains state in structs across the JCA new → init → update → final → reset lifecycle. Util **trusts** the bridge to have validated user-supplied inputs and asserts those preconditions as invariants (see point 5). That includes `rnd_src` — both JNI and FFI bridges null-check the RandSource on every entry point that takes one, so util just `jo_assert`s it. Util's only legitimate `if (X) return JO_*` patterns are:
    1. **State checks** on bridge-validated outer pointers — e.g. `spec->key == NULL` (the `spec` was validated by the bridge, but its inner `key` field may legitimately be unset on a freshly-allocated spec), `ctx->digest_ctx == NULL` (`JO_NOT_INITIALIZED`), `ctx->opp != EC_OP_SIGN` (`JO_UNEXPECTED_STATE`).
    2. **OpenSSL-output bounds** after a probe call — e.g. `if (sig_len > (size_t) INT32_MAX) return JO_OUTPUT_TOO_LONG_INT32;` after `EVP_DigestSignFinal(NULL, &sig_len)` or `EVP_PKEY_derive(NULL, &need)`. These are values OpenSSL returned to us; we validate them before casting back to `int32_t` for the Java return path.
 
@@ -26,7 +35,7 @@ for. Auto-imported by CLAUDE.md.
    1. **Every parameter the bridge has validated is asserted as an invariant**, not error-returned. That includes pointers (`spec`, `key`, `digest_name`, byte-array pointers, `ctx`) AND value bounds the bridge enforces (`scalar_len > 0 && scalar_len <= INT32_MAX`, `in_len <= INT32_MAX`, `sig_len <= INT32_MAX`). If a util-layer assert fires, it means the bridge skipped a check — programmer error, not user error.
    2. **The exceptions** that stay as `if (X) return JO_*` in util are listed in point 2 (rnd_src, state checks, OpenSSL-output bounds). Anything outside that list belongs in the bridge.
 6. **Use `INT32_MAX` (not `INT_MAX`)** when the bound's intent is "fits in int32_t" — it pairs with the `JO_*_INT32` error code names, the `int32_t` parameter types crossing the bridge, and the `(int32_t)` casts on the way back to Java. `int` happens to be 32-bit on every platform we build for, but `INT32_MAX` makes the intent unambiguous. Reserve `INT_MAX` for bounds that genuinely depend on the platform `int` width (rare).
-7. Operations-test macros (`OPS_FAILED_ACCESS_1`, `OPS_OPENSSL_ERROR_3`, `OPS_FAILED_INIT_2`, etc.) defined in `interface/util/ops.h` are placed inside conditionals so tests can fault-inject failure paths. They expand to `is_ops_set(N) ||` in OPS builds and to nothing otherwise; the `OPS_OFFSET_*` macros let tests differentiate between multiple call sites that produce the same error code.
+7. Operations-test macros (`OPS_FAILED_ACCESS_1`, `OPS_OPENSSL_ERROR_3`, `OPS_FAILED_INIT_2`, etc.) defined in `interface/nonfips/util/ops.h` are placed inside conditionals so tests can fault-inject failure paths. They expand to `is_ops_set(N) ||` in OPS builds and to nothing otherwise; the `OPS_OFFSET_*` macros let tests differentiate between multiple call sites that produce the same error code.
 
 
 ### Hard-code security-critical OpenSSL parameters; pair with a runtime hard guard
@@ -46,7 +55,7 @@ OAEP doesn't have implicit rejection because OAEP is IND-CCA2 secure by construc
 
 ### Review native code for the bug classes Java tests can't catch
 
-Most security-critical bugs in this codebase live in C, not Java: the JNI bridges in `interface/jni/`, the FFI bridges in `interface/ffi/`, and the OpenSSL abstraction layer in `interface/util/`. A Java roundtrip test cannot catch a memory-safety incident in native code, and a function that silently produces wrong-but-self-consistent output sails through any positive-only test on either side of the boundary. Every native change should be reviewed for the following classes specifically.
+Most security-critical bugs in this codebase live in C, not Java: the JNI bridges in `interface/nonfips/jni/`, the FFI bridges in `interface/nonfips/ffi/`, and the OpenSSL abstraction layer in `interface/nonfips/util/`. A Java roundtrip test cannot catch a memory-safety incident in native code, and a function that silently produces wrong-but-self-consistent output sails through any positive-only test on either side of the boundary. Every native change should be reviewed for the following classes specifically.
 
 **Logic errors and inverted conditions**
 
@@ -58,7 +67,7 @@ A C function that falls off its end without returning is undefined behaviour but
 
 **Dangling pointers and free-after-use**
 
-The `set0_*` family of OpenSSL functions takes ownership on success but **NOT on failure** — `EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, label, len)` returning 0 leaves the caller still owning `label`, which is why `rsa_oaep.c` frees `label_copy` on the failure branch. After freeing a pointer, set it to NULL or zero out the field that holds it: the lifecycle structs in `interface/util/*.c` (e.g. `rsa_ctx`, `rsa_oaep_ctx`) are reused across init / update / final / reset, and a stale `digest_ctx` pointer in `rsa_ctx` after a previous `EVP_MD_CTX_free` is exactly the kind of double-free that surfaces as a SIGSEGV inside `libcrypto`. Watch also for pointers escaping their scope — a local buffer's address copied into a struct that outlives the function. Pointers to JNI byte-array contents (from `GetByteArrayElements` or critical regions) MUST be released before the function returns; the `bytearrays.h` / `byte_array_critical.h` ctx helpers exist so `release_*_ctx` always pairs with `load_*_ctx`.
+The `set0_*` family of OpenSSL functions takes ownership on success but **NOT on failure** — `EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, label, len)` returning 0 leaves the caller still owning `label`, which is why `rsa_oaep.c` frees `label_copy` on the failure branch. After freeing a pointer, set it to NULL or zero out the field that holds it: the lifecycle structs in `interface/nonfips/util/*.c` (e.g. `rsa_ctx`, `rsa_oaep_ctx`) are reused across init / update / final / reset, and a stale `digest_ctx` pointer in `rsa_ctx` after a previous `EVP_MD_CTX_free` is exactly the kind of double-free that surfaces as a SIGSEGV inside `libcrypto`. Watch also for pointers escaping their scope — a local buffer's address copied into a struct that outlives the function. Pointers to JNI byte-array contents (from `GetByteArrayElements` or critical regions) MUST be released before the function returns; the `bytearrays.h` / `byte_array_critical.h` ctx helpers exist so `release_*_ctx` always pairs with `load_*_ctx`.
 
 **Things not freed during error handling**
 
@@ -76,7 +85,7 @@ if (UNSUCCESSFUL(ret) || out == NULL) {
 }
 ```
 
-The general principle: **a layer's memory-safety must never silently depend on an invariant maintained by another layer.** This is the inverse face of point 5 — where the bridge trusts util to have *validated an input*, that is a deliberate, documented contract; but where a caller trusts a callee to have *not allocated on failure*, that is an undocumented assumption that converts a future edit into a leak, so defend against it locally. The same fragility appears in every `*Len`-then-fetch pair that runs the same allocating helper twice (e.g. `JoKS_StoreLen` / `JoKS_Store`, which free `out` only after the success check). Audit every bridge entry point in `interface/jni/` and `interface/ffi/` that receives a callee out-parameter for this shape.
+The general principle: **a layer's memory-safety must never silently depend on an invariant maintained by another layer.** This is the inverse face of point 5 — where the bridge trusts util to have *validated an input*, that is a deliberate, documented contract; but where a caller trusts a callee to have *not allocated on failure*, that is an undocumented assumption that converts a future edit into a leak, so defend against it locally. The same fragility appears in every `*Len`-then-fetch pair that runs the same allocating helper twice (e.g. `JoKS_StoreLen` / `JoKS_Store`, which free `out` only after the success check). Audit every bridge entry point in `interface/nonfips/jni/` and `interface/nonfips/ffi/` that receives a callee out-parameter for this shape.
 
 **Integer overflow / underflow and signed→unsigned casts**
 
@@ -102,13 +111,13 @@ The `bytearrays.h` / `byte_array_critical.h` ctx helpers and `rsa_init_strings_l
 
 OpenSSL maintains a thread-local error queue that operations push onto. Mismanagement leaks errors from one call into another's results.
 
-- **`ERR_clear_error()` before any operation whose error you care about.** Otherwise a stale entry from a prior call surfaces as "the current error" in `OpenSSL.getOpenSSLErrors()`. Most `interface/util/*.c` functions clear the queue at the top of their main work block.
+- **`ERR_clear_error()` before any operation whose error you care about.** Otherwise a stale entry from a prior call surfaces as "the current error" in `OpenSSL.getOpenSSLErrors()`. Most `interface/nonfips/util/*.c` functions clear the queue at the top of their main work block.
 - **Mark/pop pairs balance.** `rsa.c::rsa_ctx_verify` uses `ERR_set_mark` + `ERR_pop_to_mark` (success or expected verify-fail) / `ERR_clear_last_mark` (genuine error) to scrub "signature didn't verify" noise without dropping real errors. Every `ERR_set_mark` must terminate via exactly one of those two functions on every code path including `goto exit`. A leaked mark is a permanent queue entry.
 - **`pop_to_mark` honours nesting in order.** Nested marks pop their own scope; using `pop_to_mark` after the outer mark when the intent was the inner one silently keeps recent errors that should have been discarded.
 
 **`OPS_*` macro hygiene (project-specific)**
 
-The `OPS_FAILED_ACCESS_N`, `OPS_OPENSSL_ERROR_N`, `OPS_INT32_OVERFLOW_N`, `OPS_LEN_CHANGE_N`, etc. (defined in `interface/util/ops.h`) expand to either nothing (release build) or `is_ops_set(N) ||` (OPS build); the matching `OPS_OFFSET_*` macros expand to either nothing or `+ -<N>`. The idiosyncratic shape makes a few mistakes silent:
+The `OPS_FAILED_ACCESS_N`, `OPS_OPENSSL_ERROR_N`, `OPS_INT32_OVERFLOW_N`, `OPS_LEN_CHANGE_N`, etc. (defined in `interface/nonfips/util/ops.h`) expand to either nothing (release build) or `is_ops_set(N) ||` (OPS build); the matching `OPS_OFFSET_*` macros expand to either nothing or `+ -<N>`. The idiosyncratic shape makes a few mistakes silent:
 
 - **`OPS_*` must appear inside an `if` condition's expression, with whitespace between it and the next token.** `if (OPS_X expr)` is correct. `OPS_X if (expr)` and `OPS_X stmt;` either don't compile in OPS builds or silently no-op in release builds.
 - **Pair the flag and the offset.** `if (OPS_OPENSSL_ERROR_2 cond) { ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000); }` mixes flag `_2` with offset `_1` — tests targeting the `_2` site receive a different code than they expect.

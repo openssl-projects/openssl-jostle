@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 
 /**
  * JNI binding for {@link XECServiceNI}. Native methods link to
- * {@code interface/jni/xec_ni_jni.c} by name.
+ * {@code interface/fips/jni/xec_ni_jni.c} by name.
  */
 /**
  * JNI implementation of XECServiceNI backed by the FIPS interface library;

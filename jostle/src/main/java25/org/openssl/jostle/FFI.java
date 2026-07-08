@@ -21,7 +21,7 @@ public class FFI
 
     /**
      * Returns true if value is one.
-     * See: interface/ffi/types.h
+     * See: interface/nonfips/ffi/types.h
      *
      * @param value value
      * @return true if the value is 1 all other values are false.

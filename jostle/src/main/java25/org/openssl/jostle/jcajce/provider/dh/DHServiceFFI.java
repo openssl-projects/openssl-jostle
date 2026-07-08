@@ -28,7 +28,7 @@ import java.util.logging.Logger;
 
 /**
  * FFI binding for the {@code JoDH_*} symbols exported by
- * {@code interface/ffi/dh_ni_ffi.c}.
+ * {@code interface/nonfips/ffi/dh_ni_ffi.c}.
  */
 // Symbol resolution is parameterised by a SymbolLookup so the same
 // marshalling serves both interface libraries (see MDServiceFFI).

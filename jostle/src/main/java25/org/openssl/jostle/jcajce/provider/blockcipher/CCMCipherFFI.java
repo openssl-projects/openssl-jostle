@@ -18,7 +18,7 @@ import java.util.logging.Logger;
 
 /**
  * FFI binding for the {@code JoCCM_*} symbols exported by
- * {@code interface/ffi/ccm_ni_ffi.c}. CCM is one-shot — there's no
+ * {@code interface/nonfips/ffi/ccm_ni_ffi.c}. CCM is one-shot — there's no
  * streaming update path; the SPI buffers everything and calls
  * {@link #ni_doFinal} once.
  */

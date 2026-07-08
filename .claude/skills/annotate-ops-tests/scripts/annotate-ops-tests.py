@@ -3,10 +3,13 @@
 fault-injection site it exercises by inserting (or updating) a comment
 of the form:
 
-    // Exercises interface/util/<file>.c:<line>
+    // Exercises interface/<tree>/util/<file>.c:<line>
 
 immediately before the `operationsTestNI.setFlag(...)` call that drives
-the test.
+the test. `<tree>` is `fips` for tests under `.../test/fips/` and
+`nonfips` for every other test — the util layer is split into two
+independent trees and each test is linked to the one its library
+compiles.
 
 Matching is by (OPS slot, OPS offset) pair:
 
@@ -26,9 +29,12 @@ Tests that don't have a uniquely-locatable site are skipped:
     `OPS_FAILED_ACCESS_*`, etc.) — these would need a different index.
 
 Usage:
-    annotate-ops-tests.py <java-test-file-or-dir> [--c-dir interface/util]
+    annotate-ops-tests.py <java-test-file-or-dir> [--c-dir <dir>]
                                                   [--dry-run]
 
+Without `--c-dir`, the C tree is auto-selected per Java file:
+interface/fips/util for FIPS tests, interface/nonfips/util otherwise.
+`--c-dir` forces a single tree for every target (back-compat / overrides).
 `--dry-run` prints the proposed annotations without modifying files.
 Re-running the script updates stale annotations in place (useful after
 C-side edits shift line numbers).
@@ -242,7 +248,7 @@ def main(argv):
         print(__doc__, file=sys.stderr)
         return 2
 
-    c_dir = Path("interface/util")
+    c_dir = None            # explicit --c-dir override; else auto (nonfips+fips)
     dry_run = False
     targets = []
     i = 0
@@ -257,21 +263,38 @@ def main(argv):
             targets.append(Path(args[i]))
             i += 1
 
-    if not c_dir.is_dir():
-        print(f"C dir not found: {c_dir}", file=sys.stderr)
-        return 2
-    c_paths = sorted(c_dir.glob("*.c"))
-    if not c_paths:
-        print(f"no .c files in {c_dir}", file=sys.stderr)
-        return 2
-
-    # repo_root is the parent of `interface/` if that's the c-dir's grandparent;
-    # otherwise fall back to CWD.
     repo_root = Path.cwd().resolve()
-    c_index = build_c_index(c_paths)
-    if not c_index:
+
+    # The util layer is split into two independent trees. A FIPS test
+    # (path under .../test/fips/) exercises interface/fips/util; every
+    # other test exercises interface/nonfips/util. Build one index per
+    # tree and pick per Java file in index_for(). An explicit --c-dir
+    # overrides this and is applied to every target.
+    indices = {}
+    if c_dir is not None:
+        if not c_dir.is_dir():
+            print(f"C dir not found: {c_dir}", file=sys.stderr)
+            return 2
+        indices["explicit"] = build_c_index(sorted(c_dir.glob("*.c")))
+    else:
+        for key, d in (("nonfips", Path("interface/nonfips/util")),
+                       ("fips", Path("interface/fips/util"))):
+            if d.is_dir():
+                indices[key] = build_c_index(sorted(d.glob("*.c")))
+        if not indices:
+            print("neither interface/nonfips/util nor interface/fips/util found "
+                  "from CWD (or pass --c-dir)", file=sys.stderr)
+            return 2
+
+    if not any(indices.values()):
         print("no (slot, offset) pairs found in C — nothing to link", file=sys.stderr)
         return 2
+
+    def index_for(java_path):
+        if c_dir is not None:
+            return indices["explicit"]
+        key = "fips" if "/test/fips/" in java_path.as_posix() else "nonfips"
+        return indices.get(key, {})
 
     # Collect target Java files.
     java_files = []
@@ -288,7 +311,7 @@ def main(argv):
     total = 0
     unmapped = []
     for jf in java_files:
-        added, skipped = annotate_java_file(jf, c_index, repo_root, dry_run=dry_run)
+        added, skipped = annotate_java_file(jf, index_for(jf), repo_root, dry_run=dry_run)
         try:
             rel = jf.relative_to(repo_root)
         except ValueError:
@@ -311,9 +334,11 @@ def main(argv):
               "Add a TEST_TO_C_FILES entry if the candidate C file mapping "
               "is wrong.)")
 
-    total_sites = sum(len(per_file) for per_file in c_index.values())
+    total_sites = sum(len(pf) for idx in indices.values() for pf in idx.values())
+    total_files = sum(len(idx) for idx in indices.values())
     summary = "would change" if dry_run else "changed"
-    print(f"\nC sites indexed: {total_sites} across {len(c_index)} file(s); "
+    print(f"\nC sites indexed: {total_sites} across {total_files} file(s) "
+          f"in {len(indices)} tree(s); "
           f"Java files scanned: {len(java_files)}; "
           f"{summary}: {total} annotation(s)")
     return 0

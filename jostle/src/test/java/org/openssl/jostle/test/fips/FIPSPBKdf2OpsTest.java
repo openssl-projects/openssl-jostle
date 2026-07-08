@@ -28,8 +28,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 /**
  * Operations-test fault injection at the FIPS PBKDF2 NI surface
  * ({@code FIPSNISelector.KdfNI.pbkdf2}). The FIPS JNI glue
- * (interface/jni/kdf_fips_jni.c) is the base kdf_jni.c re-included under renamed
- * symbols, and the fault sites live in the shared interface/util/kdf.c, so the
+ * (interface/fips/jni/kdf_fips_jni.c) is the base kdf_jni.c re-included under renamed
+ * symbols, and the fault sites live in the shared interface/fips/util/kdf.c, so the
  * injected error paths (JNI access faults, plus the {@code OPS_OFFSET_*}
  * 2000-block OpenSSL-error codes) fire identically when driven through the FIPS
  * interface library. PBKDF2 is FIPS-approved (SP 800-132), so this is a straight

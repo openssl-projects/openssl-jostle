@@ -26,7 +26,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
  * Operations-test fault injection at the FIPS MAC NI surface. The fault sites
- * live in the shared interface/util/mac.c, re-included into the FIPS library,
+ * live in the shared interface/fips/util/mac.c, re-included into the FIPS library,
  * so the offset-disambiguated codes (1000-block) fire identically when driven
  * through {@link FIPSNISelector#MacServiceNI}. Mirrors {@code MacOpsTest}.
  *
@@ -145,7 +145,7 @@ public class FIPSMacOpsTest
         long ref = 0;
         try
         {
-            // Exercises interface/util/mac.c:116
+            // Exercises interface/fips/util/mac.c:116
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int[] err = new int[1];
             ref = macServiceNI.ni_allocateMac("HMAC", "SHA-256", err);
@@ -214,7 +214,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/util/mac.c:116
+            // Exercises interface/fips/util/mac.c:116
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = macServiceNI.ni_init(ref, new byte[16]);
             Assertions.assertEquals(-1002, code);
@@ -258,7 +258,7 @@ public class FIPSMacOpsTest
         try
         {
             macServiceNI.engineInit(ref, new byte[16]);
-            // Exercises interface/util/mac.c:230
+            // Exercises interface/fips/util/mac.c:230
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = macServiceNI.ni_updateBytes(ref, new byte[10], 1, 9);
             Assertions.assertEquals(-1002, code);
@@ -302,7 +302,7 @@ public class FIPSMacOpsTest
         try
         {
             macServiceNI.engineInit(ref, new byte[16]);
-            // Exercises interface/util/mac.c:230
+            // Exercises interface/fips/util/mac.c:230
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = macServiceNI.ni_doFinal(ref, new byte[32], 0);
             Assertions.assertEquals(-1002, code);
@@ -394,7 +394,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/util/mac.c:257
+            // Exercises interface/fips/util/mac.c:257
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = macServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1012, code);
@@ -413,7 +413,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("CMAC", "aes-cbc");
         try
         {
-            // Exercises interface/util/mac.c:278
+            // Exercises interface/fips/util/mac.c:278
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = macServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1013, code);
@@ -432,7 +432,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/util/mac.c:262
+            // Exercises interface/fips/util/mac.c:262
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = macServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1014, code);
@@ -451,7 +451,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("CMAC", "aes-cbc");
         try
         {
-            // Exercises interface/util/mac.c:283
+            // Exercises interface/fips/util/mac.c:283
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = macServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1015, code);

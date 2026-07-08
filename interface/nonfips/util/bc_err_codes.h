@@ -1,0 +1,252 @@
+//  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
+//
+//  Licensed under the Apache License 2.0 (the "License"). You may not use
+//  this file except in compliance with the License.  You can obtain a copy
+//  in the file LICENSE in the source distribution or at
+//  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+
+#ifndef BC_OSSL_ERR_CODES_H
+#define BC_OSSL_ERR_CODES_H
+
+/*
+ * These translate to return codes often in a situation where 0 is a
+ * valid value, for example, a call to update may accept all input but emit 0 bytes
+ * of output making it a valid call that didn't emit anything at that time.
+ */
+
+#define JO_SUCCESS 0 /* Success  */
+
+/* A failure is any value less than zero */
+#define JO_FAIL -1 /* General failure */
+#define JO_OPENSSL_ERROR -2
+#define JO_PROV_NAME_NULL -3
+#define JO_PROV_NAME_EMPTY -4
+
+#define JO_INVALID_OP_MODE -5
+#define JO_INVALID_CIPHER -6
+#define JO_INVALID_MODE -7
+#define JO_INVALID_KEY_LEN -8
+#define JO_INVALID_IV_LEN -9
+#define JO_FAILED_ACCESS_KEY -10
+#define JO_FAILED_ACCESS_IV -11
+#define JO_KEY_IS_NULL -12
+#define JO_IV_IS_NULL -13
+#define JO_MODE_TAKES_NO_IV -14
+#define JO_MOD_IN_LEN_NOT_ZERO -15
+#define JO_INPUT_IS_NULL -16
+#define JO_OUTPUT_IS_NULL -17
+#define JO_OUTPUT_TOO_SMALL -18
+#define JO_INPUT_TOO_LONG_INT32 -19
+#define JO_OUTPUT_TOO_LONG_INT32 -20
+#define JO_INVALID_CIPHER_TEXT -21
+#define JO_FAILED_ACCESS_INPUT -22
+#define JO_FAILED_ACCESS_OUTPUT -23
+#define JO_INPUT_LEN_IS_NEGATIVE -24
+#define JO_OUTPUT_LEN_IS_NEGATIVE -25
+#define JO_INPUT_OFFSET_IS_NEGATIVE -26
+#define JO_OUTPUT_OFFSET_IS_NEGATIVE -27
+#define JO_INPUT_OUT_OF_RANGE -28
+#define JO_OUTPUT_OUT_OF_RANGE -29
+#define JO_NOT_INITIALIZED -30
+#define JO_FINAL_SIZE_LEN_IS_NEGATIVE -31
+#define JO_NOT_BLOCK_ALIGNED -32
+#define JO_CTR_MODE_OVERFLOW -33
+#define JO_OUTPUT_SIZE_INT_OVERFLOW -34
+#define JO_VALUE_EXCEEDS_INT_MAX -35
+
+// #define BC_REF_ARRAY_NULL -36
+// #define BC_REF_UNABLE_TO_ACCESS_REF_ARRAY -37
+#define JO_KEY_SPEC_IS_NULL -38
+#define JO_KEY_SPEC_HAS_NULL_KEY -39
+#define JO_UNEXPECTED_STATE -40
+#define JO_INCORRECT_KEY_TYPE -41
+
+#define JO_INVALID_KEY_TYPE -42
+#define JO_SIG_IS_NULL -43
+#define JO_SIG_LENGTH_IS_NEGATIVE -44
+//#define JO_SIG_LENGTH_IS_ZERO -45
+#define JO_SIG_OUT_OF_RANGE -46
+#define JO_FAILED_ACCESS_SIG -47
+#define JO_CONTEXT_BYTES_TOO_LONG -48
+#define JO_CONTEXT_BYTES_NULL -49
+#define JO_EXTRACTED_KEY_UNEXPECTED_LEN -50
+#define JO_CONTEXT_LEN_PAST_END -51
+#define JO_FAILED_ACCESS_CONTEXT -52
+
+#define JO_ENCODED_PRIVATE_KEY_LEN -53
+#define JO_ENCODED_PUBLIC_KEY_LEN -54
+#define JO_UNKNOWN_KEY_LEN -55
+#define JO_UNEXPECTED_POINTER_CHANGE -56
+#define JO_UNKNOWN_OSSL_KEY_TYPE -57 // TODO Deprecate
+#define JO_UNKNOWN_MU_MODE -58
+#define JO_INVALID_MU_MODE_FOR_VERIFY -59
+#define JO_INVALID_MU_MODE_FOR_SIGN -60
+#define JO_EXTERNAL_MU_INVALID_LEN -61
+#define JO_UNEXPECTED_SIG_LEN_CHANGE -62
+#define JO_INVALID_SEED_LEN -63
+#define JO_SEED_IS_NULL -64
+#define JO_FAILED_ACCESS_SEED -65
+#define JO_INVALID_SEED_LEN_OUT_OF_RANGE -66
+#define JO_SEED_LEN_IS_NEGATIVE -67
+#define JO_INVALID_SLH_DSA_MSG_ENCODING_PARAM -68
+#define JO_INVALID_SLH_DSA_DETERMINISTIC_PARAM -69
+
+#define JO_FAILED_ACCESS_ENCAP_OPP -70
+#define JO_INVALID_TAG_LEN -71
+#define JO_TAG_IS_NULL -72
+#define JO_TAG_INVALID -73
+
+#define JO_KDF_PASSWORD_NULL -74
+#define JO_KDF_PASSWORD_FAILED_ACCESS -75
+#define JO_KDF_SALT_NULL -76
+#define JO_KDF_SALT_EMPTY -77
+#define JO_KDF_SALT_FAILED_ACCESS -78
+
+#define JO_KDF_SCRYPT_N_TOO_SMALL -79
+#define JO_KDF_SCRYPT_N_NOT_POW2 -80
+#define JO_KDF_SCRYPT_R_NEGATIVE -81
+#define JO_KDF_SCRYPT_P_NEGATIVE -82
+
+#define JO_KDF_PBE_ITER_NEGATIVE -83
+#define JO_KDF_PBE_UNKNOWN_DIGEST -84
+
+#define JO_INVALID_KEY_ENCODING_OPTION -85
+#define JO_FAILED_ACCESS_ENCODING_OPTION -86
+
+#define JO_NAME_IS_NULL -87
+#define JO_NAME_NOT_FOUND -88
+#define JO_UNABLE_TO_ACCESS_NAME -89
+#define JO_MD_CREATE_FAILED -90
+#define JO_MD_INIT_FAILED -91
+#define JO_MD_DIGEST_LEN_INT_OVERFLOW -92
+#define JO_MD_SET_PARAM_FAIL -93
+#define JO_MAC_FUNCTION_IS_NULL -94
+#define JO_UNABLE_TO_ACCESS_FUNCTION -95
+
+
+#define JO_RAND_UP_SHORT_RESULT -96
+#define JO_RAND_INSUFFICIENT_STRENGTH -97
+#define JO_RAND_NO_RAND_UP_CALL -98
+#define JO_RAND_ERROR -99
+#define JO_RAND_NO_RESEED -100
+#define JO_RAND_RESEED JO_RAND_NO_RESEED
+#define JO_RAND_FAIL_ACCESS_BUFFER -101
+
+#define JO_MD_XOF_LEN_INVALID -102
+
+#define JO_CTX_POISONED -103
+
+#define JO_RSA_PUB_EXP_IS_NULL -104
+#define JO_RSA_MODULUS_IS_NULL -105
+#define JO_RSA_PRIV_EXP_IS_NULL -106
+#define JO_RSA_PRIME_P_IS_NULL -107
+#define JO_RSA_PRIME_Q_IS_NULL -108
+#define JO_RSA_PRIME_EXP_P_IS_NULL -109
+#define JO_RSA_PRIME_EXP_Q_IS_NULL -110
+#define JO_RSA_CRT_COEFFICIENT_IS_NULL -111
+
+/*
+ * Null native-context pointer passed in across the JNI/FFI boundary.
+ * The bridge layer null-checks the user-supplied long handle and
+ * returns one of these — never asserts. Distinct codes per ctx type
+ * so the JCE caller's exception message names what was missing.
+ */
+#define JO_SIGNER_CTX_IS_NULL -112
+#define JO_KEX_CTX_IS_NULL -113
+
+/*
+ * Curve name didn't resolve through the loaded OpenSSL provider chain.
+ * Returned by ec_curve_supported when the name fails an EVP_PKEY_paramgen
+ * probe. Bridge-friendly typed code so callers can distinguish "OpenSSL
+ * doesn't recognise this curve" from a generic OpenSSL error.
+ */
+#define JO_CURVE_NOT_SUPPORTED -114
+
+/*
+ * EVP_MD_CTX_copy_ex failed while cloning a digest context (md_ctx_copy).
+ * Distinct from JO_MD_CREATE_FAILED (EVP_MD_CTX_new failure) so the clone
+ * path's failure is identifiable. Surfaces as the CloneNotSupportedException
+ * cause at the MessageDigest.clone() boundary.
+ */
+#define JO_MD_COPY_FAILED -115
+
+/*
+ * HKDF input keying material (IKM) is null. The IKM is mandatory for
+ * HKDF-Extract; the bridge rejects a null IKM array. Distinct from the
+ * password/salt KDF codes so the HKDF surface reports the correct field.
+ */
+#define JO_KDF_HKDF_IKM_NULL -116
+
+/*
+ * The JNI critical/array load of the HKDF IKM byte array failed.
+ */
+#define JO_KDF_HKDF_IKM_FAILED_ACCESS -117
+
+/*
+ * The JNI critical/array load of the HKDF info byte array failed. The info
+ * field is optional (a null array is accepted as "no info"); this code only
+ * fires on a genuine JVM access failure of a supplied array.
+ */
+#define JO_KDF_HKDF_INFO_FAILED_ACCESS -118
+
+/*
+ * A DSA domain-parameter bit size (p bits / q bits) supplied to the
+ * paramgen entry point is out of range — zero or negative. The Java
+ * SPI applies the policy bounds (FIPS 186-4 size pairs); this code is
+ * the bridge-level backstop that keeps a nonsensical size from
+ * reaching the util layer, whose precondition is bits > 0.
+ */
+#define JO_DSA_BITS_OUT_OF_RANGE -119
+
+/*
+ * A DH safe-prime modulus bit size supplied to the paramgen entry
+ * point is out of range — zero or negative. The Java SPI applies the
+ * policy bounds (512..8192, multiple of 64); this code is the
+ * bridge-level backstop that keeps a nonsensical size from reaching
+ * the util layer, whose precondition is bits > 0.
+ */
+#define JO_DH_BITS_OUT_OF_RANGE -120
+
+#define JO_KS_TYPE_IS_NULL -121
+#define JO_KS_TYPE_UNSUPPORTED -122
+#define JO_KS_CTX_IS_NULL -123
+#define JO_KS_ALIAS_IS_NULL -124
+#define JO_KS_UNABLE_TO_ACCESS_ALIAS -125
+#define JO_KS_KEY_IS_NULL -126
+#define JO_KS_FAILED_ACCESS_KEY -127
+#define JO_KS_DECODE_KEY_FAILED -128
+#define JO_KS_ENCODE_KEY_FAILED -129
+#define JO_KS_LOAD_FAILED -130
+#define JO_KS_STORE_FAILED -131
+#define JO_KS_PBE_ITER_NEGATIVE -132
+#define JO_KS_MAC_ITER_NEGATIVE -133
+#define JO_KS_MAC_VERIFY_FAILED -134
+
+/*
+ * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
+ * the Java layer can surface actionable configuration errors: a module
+ * path with no parent directory / empty module name; a config
+ * (fipsmodule.cnf) that is missing or fails to parse; the FIPS provider
+ * failing to activate after config load (module not found on the search
+ * path, integrity-MAC mismatch, or self-test failure - details on the ERR
+ * queue); the base provider not being available; and post-activation
+ * wiring failures (fips=yes default-property pinning, the post-init fetch
+ * health probe).
+ *
+ * FIPS codes occupy their own -400 block, leaving the -1xx range free for
+ * further non-FIPS codes.
+ */
+#define JO_FIPS_MODULE_PATH_INVALID -400
+#define JO_FIPS_CONFIG_LOAD_FAILED -401
+#define JO_FIPS_PROVIDER_UNAVAILABLE -402
+#define JO_FIPS_BASE_UNAVAILABLE -403
+#define JO_FIPS_ENABLE_FAILED -404
+#define JO_FIPS_FETCH_PROBE_FAILED -405
+#define JO_FIPS_CONFIG_PATH_INVALID -406
+
+
+
+#define UNSUCCESSFUL(x) JO_SUCCESS > x
+#define SUCCESSFUL(x) JO_SUCCESS <= x
+
+#endif //BC_OSSL_ERR_CODES_H

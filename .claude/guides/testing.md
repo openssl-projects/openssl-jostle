@@ -161,7 +161,7 @@ Every test in a `*OpsTest.java` file MUST carry a `// Exercises <repo-relative-c
 The format is intentionally minimal — single line, same indent as the `setFlag` call, no prose, no function name:
 
 ```java
-            // Exercises interface/util/rsa.c:589
+            // Exercises interface/nonfips/util/rsa.c:589
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initSign(...);
 ```
@@ -171,7 +171,7 @@ Rationale for the minimalism: a bare `path:line` is the smallest target that can
 Three rules apply:
 
 1. **Every new OPS test gets the comment at creation time.** This is not optional and not "we'll add it later" — the linkage is the only thing that makes the test traceable. Apply to `OPS_OPENSSL_ERROR_*`, `OPS_FAILED_ACCESS_*`, `OPS_INT32_OVERFLOW_*`, `OPS_LEN_CHANGE_*`, `OPS_POINTER_CHANGE`, every OPS family.
-2. **The path is repo-root-relative.** `interface/util/rsa.c:589` for OpenSSL-error sites in the abstraction layer, `interface/jni/ec_ni_jni.c:42` for JNI access faults in the bridge layer. Same prefix whether the site lives under `util/` or `jni/`.
+2. **The path is repo-root-relative, and names the tree the test exercises.** The native source is split into `interface/nonfips/` (base) and `interface/fips/` (FIPS) — a base test points at `interface/nonfips/util/rsa.c:589` (or `interface/nonfips/jni/ec_ni_jni.c:42` for a JNI access fault); a FIPS test (`.../test/fips/`) points at `interface/fips/util/rsa.c:589`. The line numbers match across the two trees while the FIPS tree remains a copy, but the prefix must name the tree whose library the test actually drives. The annotate-ops-tests skill auto-selects the tree from the test's path.
 3. **The line number is the if-line, not the return line.** `if (OPS_OPENSSL_ERROR_1 md_ctx == NULL) {` is the line readers care about — it names the EVP function being faulted. The `return JO_OPENSSL_ERROR OPS_OFFSET_*(...)` on the next line is the consequence, not the test target.
 
 For `OPS_OPENSSL_ERROR_*` tests, the `.claude/skills/annotate-ops-tests/` skill auto-generates and refreshes the comment from the test's `setFlag` + `assertEquals(-code, ...)` pair — useful after C edits shift line numbers. For `OPS_FAILED_ACCESS_*` and other non-offset OPS families the skill can't auto-link (no `OPS_OFFSET_*` macro to key the index off), so the comment must be added manually when the test is written.

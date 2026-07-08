@@ -27,7 +27,7 @@ import java.util.logging.Logger;
 
 /**
  * FFI binding for the {@code JoRSAOAEP_*} symbols exported by
- * {@code interface/ffi/rsa_oaep_ni_ffi.c}. Mirrors {@link RSAServiceFFI};
+ * {@code interface/nonfips/ffi/rsa_oaep_ni_ffi.c}. Mirrors {@link RSAServiceFFI};
  * the OAEP-specific behaviour is the entropy upcall threaded through
  * {@link #ni_init} (encrypt-mode only) and {@link #ni_doFinal}
  * (encrypt-mode only).

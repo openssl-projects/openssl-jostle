@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
  * JNI implementation of SpecNI backed by the FIPS interface library
  * (libinterface_fips_jni). Distinct FQCN gives the FIPS library its own
  * Java_*_fips_SpecFIPSJNI_* symbols; the glue
- * (interface/jni/spec_fips_jni.c) is the base spec_ni_jni.c re-included
+ * (interface/fips/jni/spec_fips_jni.c) is the base spec_ni_jni.c re-included
  * under renamed exports.
  */
 class SpecFIPSJNI implements SpecNI

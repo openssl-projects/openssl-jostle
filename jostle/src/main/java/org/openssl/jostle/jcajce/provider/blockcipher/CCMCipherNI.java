@@ -23,12 +23,12 @@ import org.openssl.jostle.jcajce.provider.OpenSSL;
  * Java SPI buffers all AAD and plaintext / ciphertext, then hands
  * the complete buffers to {@link #ni_doFinal} in a single call.
  *
- * <p>See {@code interface/util/ccm_ctx.h} for the C-side mirror.
+ * <p>See {@code interface/nonfips/util/ccm_ctx.h} for the C-side mirror.
  */
 public interface CCMCipherNI extends DefaultServiceNI
 {
     // Cipher-family identifiers — mirror the constants in
-    // interface/util/cipher_mode_pad.h.
+    // interface/nonfips/util/cipher_mode_pad.h.
     int AES128   = OSSLCipher.AES128.ordinal();
     int AES192   = OSSLCipher.AES192.ordinal();
     int AES256   = OSSLCipher.AES256.ordinal();

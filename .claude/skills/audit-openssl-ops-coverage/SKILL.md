@@ -5,7 +5,7 @@ description: Scan Jostle's C sources for OpenSSL function calls whose return val
 
 # Audit C code for missing OPS instrumentation
 
-Jostle's `*OpsTest` infrastructure fault-injects OpenSSL failures via the `OPS_*` macros in `interface/util/ops.h`. Each fallible OpenSSL call in `interface/util/*.c` SHOULD be wrapped in one of those macros so a test can force the failure path. This skill finds calls where the return value IS being checked (the developer cares about failure) but no OPS macro is in front of the check (the failure is currently untestable).
+Jostle's `*OpsTest` infrastructure fault-injects OpenSSL failures via the `OPS_*` macros in `interface/nonfips/util/ops.h`. Each fallible OpenSSL call in `interface/nonfips/util/*.c` SHOULD be wrapped in one of those macros so a test can force the failure path. This skill finds calls where the return value IS being checked (the developer cares about failure) but no OPS macro is in front of the check (the failure is currently untestable).
 
 ## When to use this skill
 
@@ -26,7 +26,7 @@ The skill ships a Python script at `scripts/find-missing-ops.py`. From the repo 
 python3 .claude/skills/audit-openssl-ops-coverage/scripts/find-missing-ops.py
 
 # Scan one file.
-python3 .claude/skills/audit-openssl-ops-coverage/scripts/find-missing-ops.py interface/util/rsa.c
+python3 .claude/skills/audit-openssl-ops-coverage/scripts/find-missing-ops.py interface/nonfips/util/rsa.c
 
 # Scan one directory.
 python3 .claude/skills/audit-openssl-ops-coverage/scripts/find-missing-ops.py interface/util
@@ -98,7 +98,7 @@ if (OPS_OPENSSL_ERROR_N ctx == NULL) {
 
 ### Part 2: pick the OPS slot and offset
 
-The `OPS_OPENSSL_ERROR_N` macros are defined in `interface/util/ops.h` (currently `_1` through `_12`). Two strategies:
+The `OPS_OPENSSL_ERROR_N` macros are defined in `interface/nonfips/util/ops.h` (currently `_1` through `_12`). Two strategies:
 
 1. **Reuse an existing slot** (preferred when possible). A slot can be reused for a new fault-injection point if it does NOT fire on any other code path reachable during the test for the new point. Walk the call graph: from the test's first NI call, trace which functions are entered before the new instrumentation site is reached, and confirm none of them use the same slot.
 
@@ -109,7 +109,7 @@ The `OPS_OPENSSL_ERROR_N` macros are defined in `interface/util/ops.h` (currentl
 The **offset number** must be unique within the file's offset block. Inspect existing offsets in the file:
 
 ```bash
-grep -nE "OPS_OFFSET_OPENSSL_ERROR_[0-9]+\([0-9]+\)" interface/util/<file>.c
+grep -nE "OPS_OFFSET_OPENSSL_ERROR_[0-9]+\([0-9]+\)" interface/nonfips/util/<file>.c
 ```
 
 Pick the next free integer within the file's block. Per-file blocks (from CLAUDE.md): `rsa.c` uses 1000s, `rsa_oaep.c` 2000s, `rsa_pkcs1.c` 2100s, `ec.c` 3000s, etc. The offset becomes part of the test contract — the test asserts the exact return code `-(JO_OPENSSL_ERROR_MAG + offset)`, so a future renumber breaks the test loudly.

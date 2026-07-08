@@ -145,6 +145,14 @@ The C code in the Jostle is used to provide an abstraction layer that:
 3. Provides easy targets for FFI calls.
 4. Abstract away the calls to OpenSSL.
 
+### nonfips / fips source split
+
+The native tree lives in two independent, self-contained copies:
+1. ```interface/nonfips/{jni,ffi,util}``` — the base, non-FIPS provider (```JSL```).
+2. ```interface/fips/{jni,ffi,util}``` — the FIPS provider (```JSLFIPS```), which drives a FIPS-validated module through its own ```OSSL_LIB_CTX```.
+
+```interface/CMakeLists.txt``` builds four shared libraries (a JNI and an FFI library from each tree). The two trees are separate source files by design so the base code can evolve without disturbing the FIPS provider — a change in one tree does not propagate to the other. The FIPS JNI glue (```<x>_fips_jni.c```) is a symbol-rename ```#include``` of its co-located base ```<x>_ni_jni.c``` so the ```org.openssl.jostle.jcajce.provider.fips.*``` classes get distinct JNI exports. The paths in the rest of this section use the ```nonfips``` tree; the same conventions apply to ```fips```.
+
 All functions intended to be called from Java, regardless of interface type (JNI/FFI) are required to use return codes 
 except in cases the code returns a pointer to an allocation. In this case these functions must accept an ```int *``` 
 as the last parameter to accept an error / success code.
@@ -170,12 +178,12 @@ Method ```o.o.j.j.p.md.MDServiceNI.allocateDigest``` creates an integer array an
 
 Contributors are invited to inspect the C code in for JNI:
  
-```<>/interface/jni/org_openssl_jostle_jcajce_provider_md_MDServiceJNI.c```, method
+```<>/interface/nonfips/jni/org_openssl_jostle_jcajce_provider_md_MDServiceJNI.c```, method
 ```JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1allocateDigest ( ... )```
 
 And for FFI:
 
-```interface/ffi/md_ffi.c ```, method ```md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err)```
+```interface/nonfips/ffi/md_ffi.c ```, method ```md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err)```
 
 #### When to use int *err as a function parameter
 
@@ -226,7 +234,7 @@ There are three exceptions to this so far are a couple of functions that set the
 messages and a specific function on the FFI side that is used to free the returned error message after its value has 
 been converted to a java string. There will be no more, and these will be refactored before the first release.
 
-Otherwise, all calls to OpenSSL MUST be from within the code located in the  ```interface/util/``` directory.
+Otherwise, all calls to OpenSSL MUST be from within the code located in the  ```interface/nonfips/util/``` directory.
 
 ### Maintaining state between calls
 

@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
  * JNI implementation of MacServiceNI backed by the FIPS interface library
  * (libinterface_fips_jni). Distinct FQCN gives the FIPS library its own
  * Java_*_fips_MacServiceFIPSJNI_* symbols; the glue
- * (interface/jni/mac_fips_jni.c) is the base mac_jni.c re-included under
+ * (interface/fips/jni/mac_fips_jni.c) is the base mac_jni.c re-included under
  * renamed exports.
  */
 class MacServiceFIPSJNI implements MacServiceNI

@@ -30,7 +30,7 @@ public enum OSSLCipher
 
     // The second constructor argument is the cipher's block size in bytes —
     // an algorithm invariant matching OpenSSL's EVP_CIPHER_get_block_size and
-    // the native cipher_block_size constants in interface/util/block_cipher_ctx.c
+    // the native cipher_block_size constants in interface/nonfips/util/block_cipher_ctx.c
     // (BLOCK_SIZE_AES/ARIA/CAMELLIA/SM4 = 16, BLOCK_SIZE_DES_EDE3 = 8; 8 for the
     // 64-bit-block ciphers; 1 for the stream/AEAD ciphers OpenSSL reports as 1).
     // Holding it here lets the SPI size an auto-generated IV without an

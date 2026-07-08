@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 
 /**
  * JNI implementation of {@link ECServiceNI}. Native bindings live in
- * {@code interface/jni/ec_ni_jni.c}.
+ * {@code interface/fips/jni/ec_ni_jni.c}.
  */
 /**
  * JNI implementation of ECServiceNI backed by the FIPS interface library;

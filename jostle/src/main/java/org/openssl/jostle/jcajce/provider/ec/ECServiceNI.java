@@ -18,7 +18,7 @@ import org.openssl.jostle.rand.RandSource;
 /**
  * Native interface for EC keypair operations. Component selectors are
  * stable integer identifiers passed across the JNI/FFI boundary; they
- * are mirrored from {@code interface/util/ec.h}.
+ * are mirrored from {@code interface/nonfips/util/ec.h}.
  */
 public interface ECServiceNI extends DefaultServiceNI
 {

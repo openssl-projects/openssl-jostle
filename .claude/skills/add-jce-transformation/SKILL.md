@@ -17,11 +17,13 @@ If the user is only adding an OID alias to an existing transformation (no new SP
 
 ## The 8-layer workflow
 
+This skill adds a transformation to the **base (non-FIPS) provider** — all native paths below are under `interface/nonfips/`. Exposing the same algorithm through the FIPS provider (`JSLFIPS`) is a **separate, later step**: it reuses the `interface/fips/` tree and the per-family FIPS recipe (FIPS NI class in `provider.fips`, a `<algo>_fips_jni.c` rename re-include, a `ProvFIPS<NAME>` registration), and is only done for algorithms the FIPS-validated module actually approves. See the "Native source layout" section of CLAUDE.md for the two-tree structure. Do the base transformation first; the FIPS variant builds on it.
+
 Adding a new transformation touches at most 8 layers. Not every algorithm needs all 8 — pure-Java compositions (e.g. ECDHwithKDF that wraps two existing primitives) can skip the native layers. But the canonical full path is:
 
-1. **Native util** — `interface/util/<algo>.c` + `<algo>.h`. The only place that calls `EVP_*`.
-2. **JNI bridge** — `interface/jni/<algo>_ni_jni.c`. Validates user-supplied inputs, calls util.
-3. **FFI bridge** — `interface/ffi/<algo>_ni_ffi.c`. Same validation, same error codes, different surface (raw pointers + sizes).
+1. **Native util** — `interface/nonfips/util/<algo>.c` + `<algo>.h`. The only place that calls `EVP_*`.
+2. **JNI bridge** — `interface/nonfips/jni/<algo>_ni_jni.c`. Validates user-supplied inputs, calls util.
+3. **FFI bridge** — `interface/nonfips/ffi/<algo>_ni_ffi.c`. Same validation, same error codes, different surface (raw pointers + sizes).
 4. **NI interface + impls** — Java side: `XServiceNI` interface, `XServiceJNI` (native methods), `XServiceFFI` (Java 25+ FFI implementations).
 5. **Spec class(es)** — `org.openssl.jostle.jcajce.spec.<Name>KeySpec` for any algorithm-specific input bundle. Implements `KeySpec`.
 6. **SPI class** — Extends the right JCE SPI (`CipherSpi`, `SignatureSpi`, `KeyAgreementSpi`, `SecretKeyFactorySpi`, `KeyPairGenerator`, `KeyFactorySpi`, `MacSpi`, `MessageDigestSpi`, ...).
@@ -29,8 +31,8 @@ Adding a new transformation touches at most 8 layers. Not every algorithm needs 
 8. **Tests** — Unit test + BC agreement test (where applicable) + `*LimitTest` for NI-level input validation + `*OpsTest` for fault-injection at every new OPS site.
 
 Plus cross-cutting:
-1. **Error codes** — `interface/util/bc_err_codes.h` macro AND matching `ErrorCode.java` enum entry AND matching case in the NI's `handleErrorCodes` default method. All four edits go together.
-2. **Key types** — `interface/util/key_spec.h` `KS_*` macro AND matching `OSSLKeyType` enum entry with name + OID aliases.
+1. **Error codes** — `interface/nonfips/util/bc_err_codes.h` macro AND matching `ErrorCode.java` enum entry AND matching case in the NI's `handleErrorCodes` default method. All four edits go together.
+2. **Key types** — `interface/nonfips/util/key_spec.h` `KS_*` macro AND matching `OSSLKeyType` enum entry with name + OID aliases.
 3. **CMakeLists.txt** — Add new `.c`/`.h` to every target list (multiple entries in `interface/CMakeLists.txt`; use `replace_all` on `util/<existing>.[ch]` pattern).
 4. **Multi-release overrides** — If the new SPI uses post-Java-8 APIs internally (e.g. `Reference.reachabilityFence`), provide `java9/` or `java11/`/`java25/` override copies with identical public ABI.
 5. **OPS instrumentation** — Wrap every fallible OpenSSL call in `OPS_OPENSSL_ERROR_N` + matching `OPS_OFFSET_OPENSSL_ERROR_N(<offset>)` so fault-injection tests can exercise the failure path.
@@ -43,7 +45,7 @@ Before writing a line of code, identify the closest-existing transformation in t
 
 CLAUDE.md names `MDServiceSPI` / `MDServiceNI` / `md.c` as the "canonical reference for newer transformations". For most additions, look there first.
 
-### 1. Native util (`interface/util/<algo>.c` + `.h`)
+### 1. Native util (`interface/nonfips/util/<algo>.c` + `.h`)
 
 Read `references/family-patterns.md` for the per-family signature shape. Universal rules:
 
@@ -58,7 +60,7 @@ Read `references/family-patterns.md` for the per-family signature shape. Univers
 
 Add the new `.c`/`.h` files to **every** target list in `interface/CMakeLists.txt` (there are typically 6 sections — `replace_all` on the pattern `util/<sibling>.h\n            util/<sibling>.c` is the fastest way).
 
-### 2. JNI bridge (`interface/jni/<algo>_ni_jni.c`)
+### 2. JNI bridge (`interface/nonfips/jni/<algo>_ni_jni.c`)
 
 Bridge layer. The ONLY place that null-checks and range-checks user inputs as error returns (not asserts). The util layer trusts these checks have happened.
 
@@ -70,7 +72,7 @@ For each parameter the Java caller supplies:
 4. **Offset+length pairs** — `check_bytearray_in_range(&ctx, off, len)` returns false on `off + len > size` (handles overflow safely).
 5. **`OPS_FAILED_ACCESS_N`** — for fault-injecting JNI-side access failures. One per byte-array access typically.
 
-### 3. FFI bridge (`interface/ffi/<algo>_ni_ffi.c`)
+### 3. FFI bridge (`interface/nonfips/ffi/<algo>_ni_ffi.c`)
 
 Symmetric to the JNI bridge but takes raw pointers + sizes. Must return **identical error codes for identical inputs** — the cross-bridge regression suite depends on this. Key differences from JNI:
 

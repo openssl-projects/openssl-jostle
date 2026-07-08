@@ -18,7 +18,7 @@ import org.openssl.jostle.rand.RandSource;
 /**
  * Native interface for finite-field Diffie-Hellman operations.
  * Component selectors are stable integer identifiers passed across the
- * JNI/FFI boundary; they are mirrored from {@code interface/util/dh.h}.
+ * JNI/FFI boundary; they are mirrored from {@code interface/nonfips/util/dh.h}.
  */
 public interface DHServiceNI extends DefaultServiceNI
 {
@@ -88,7 +88,7 @@ public interface DHServiceNI extends DefaultServiceNI
     /**
      * Derive the shared secret. The output is left-padded to the prime
      * length (the native side sets the OpenSSL {@code pad} exchange
-     * parameter — see {@code dh_kex_init} in {@code interface/util/dh.c}).
+     * parameter — see {@code dh_kex_init} in {@code interface/nonfips/util/dh.c}).
      */
     int ni_kexDerive(long ref, byte[] out, int outOff, RandSource rndSource);
 

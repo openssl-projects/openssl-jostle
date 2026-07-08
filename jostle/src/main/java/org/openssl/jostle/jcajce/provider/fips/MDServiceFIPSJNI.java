@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
  * JNI implementation of MDServiceNI backed by the FIPS interface library
  * (libinterface_fips_jni). The distinct fully-qualified class name gives the
  * FIPS library its own Java_*_fips_MDServiceFIPSJNI_* symbols - the glue
- * (interface/jni/md_fips_jni.c) is the base md_jni.c re-included under
+ * (interface/fips/jni/md_fips_jni.c) is the base md_jni.c re-included under
  * renamed exports, so both libraries share one wrapper implementation.
  */
 class MDServiceFIPSJNI implements MDServiceNI

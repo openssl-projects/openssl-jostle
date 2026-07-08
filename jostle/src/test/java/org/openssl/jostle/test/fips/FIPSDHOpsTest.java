@@ -29,8 +29,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * Fault-injection tests for the FIPS DH NI layer. This is a mirror of
  * {@code DHOpsTest} driving {@link FIPSNISelector#DHServiceNI},
  * {@link FIPSNISelector#SpecNI}, and {@link FIPSNISelector#OperationsTestNI}.
- * The FIPS interface library re-includes interface/util/dh.c and the JNI access
- * points in interface/jni/dh_ni_jni.c under renamed symbols, so the per-site
+ * The FIPS interface library re-includes interface/fips/util/dh.c and the JNI access
+ * points in interface/fips/jni/dh_ni_jni.c under renamed symbols, so the per-site
  * {@code OPS_OFFSET_*}-disambiguated codes (DH 5200-block; {@code JO_OPENSSL_ERROR
  * (-2)} minus the offset) are identical by construction. Pinning the exact code
  * catches a silent offset renumber.
@@ -62,7 +62,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  *   so those are kept (bumped to 2048).</li>
  * </ol>
  *
- * <h2>Target map: offset → {@code interface/util/dh.c} fault-injection line</h2>
+ * <h2>Target map: offset → {@code interface/fips/util/dh.c} fault-injection line</h2>
  *
  * <pre>
  *   Offset  dh.c line  Function                          Trigger
@@ -208,7 +208,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:128
+        // Exercises interface/fips/util/dh.c:128
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -222,7 +222,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:133
+        // Exercises interface/fips/util/dh.c:133
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -236,7 +236,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:143
+        // Exercises interface/fips/util/dh.c:143
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -250,7 +250,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:151
+        // Exercises interface/fips/util/dh.c:151
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -264,7 +264,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:156
+        // Exercises interface/fips/util/dh.c:156
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -283,7 +283,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:193
+        // Exercises interface/fips/util/dh.c:193
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -297,7 +297,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:198
+        // Exercises interface/fips/util/dh.c:198
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
@@ -311,7 +311,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:210
+        // Exercises interface/fips/util/dh.c:210
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
@@ -325,7 +325,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:215
+        // Exercises interface/fips/util/dh.c:215
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
@@ -346,7 +346,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:272
+        // Exercises interface/fips/util/dh.c:272
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -362,7 +362,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:318
+        // Exercises interface/fips/util/dh.c:318
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
@@ -378,7 +378,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:323
+        // Exercises interface/fips/util/dh.c:323
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
@@ -394,7 +394,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:345
+        // Exercises interface/fips/util/dh.c:345
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
 
         int[] err = new int[1];
@@ -410,7 +410,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:352
+        // Exercises interface/fips/util/dh.c:352
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -426,7 +426,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:357
+        // Exercises interface/fips/util/dh.c:357
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -442,7 +442,7 @@ public class FIPSDHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/util/dh.c:364
+        // Exercises interface/fips/util/dh.c:364
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
         int[] err = new int[1];
@@ -464,7 +464,7 @@ public class FIPSDHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/util/dh.c:288
+        // Exercises interface/fips/util/dh.c:288
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -481,7 +481,7 @@ public class FIPSDHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/util/dh.c:305
+        // Exercises interface/fips/util/dh.c:305
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -498,7 +498,7 @@ public class FIPSDHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/util/dh.c:309
+        // Exercises interface/fips/util/dh.c:309
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
@@ -515,7 +515,7 @@ public class FIPSDHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/util/dh.c:330
+        // Exercises interface/fips/util/dh.c:330
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
         int[] err = new int[1];
@@ -532,7 +532,7 @@ public class FIPSDHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/util/dh.c:337
+        // Exercises interface/fips/util/dh.c:337
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
         int[] err = new int[1];
@@ -554,7 +554,7 @@ public class FIPSDHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
-        // Exercises interface/util/dh.c:279
+        // Exercises interface/fips/util/dh.c:279
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -573,7 +573,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:477
+        // Exercises interface/fips/util/dh.c:477
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -587,7 +587,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:482
+        // Exercises interface/fips/util/dh.c:482
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -601,7 +601,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:487
+        // Exercises interface/fips/util/dh.c:487
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -615,7 +615,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:492
+        // Exercises interface/fips/util/dh.c:492
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -634,7 +634,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:519
+        // Exercises interface/fips/util/dh.c:519
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
@@ -646,7 +646,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:525
+        // Exercises interface/fips/util/dh.c:525
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
@@ -658,7 +658,7 @@ public class FIPSDHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/util/dh.c:541
+        // Exercises interface/fips/util/dh.c:541
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
@@ -678,7 +678,7 @@ public class FIPSDHOpsTest
         long ref = dh.allocateKex();
         try
         {
-            // Exercises interface/util/dh.c:645
+            // Exercises interface/fips/util/dh.c:645
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = dh.ni_kexInit(ref, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5260), code);
@@ -698,7 +698,7 @@ public class FIPSDHOpsTest
         long ref = dh.allocateKex();
         try
         {
-            // Exercises interface/util/dh.c:649
+            // Exercises interface/fips/util/dh.c:649
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = dh.ni_kexInit(ref, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5261), code);
@@ -718,7 +718,7 @@ public class FIPSDHOpsTest
         long ref = dh.allocateKex();
         try
         {
-            // Exercises interface/util/dh.c:670
+            // Exercises interface/fips/util/dh.c:670
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
             int code = dh.ni_kexInit(ref, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5262), code);
@@ -739,7 +739,7 @@ public class FIPSDHOpsTest
         try
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
-            // Exercises interface/util/dh.c:709
+            // Exercises interface/fips/util/dh.c:709
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = dh.ni_kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5270), code);
@@ -761,7 +761,7 @@ public class FIPSDHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/util/dh.c:740
+            // Exercises interface/fips/util/dh.c:740
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = dh.ni_kexDerive(ref, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5280), code);
@@ -783,7 +783,7 @@ public class FIPSDHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/util/dh.c:757
+            // Exercises interface/fips/util/dh.c:757
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5281), code);
@@ -805,7 +805,7 @@ public class FIPSDHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/util/dh.c:744
+            // Exercises interface/fips/util/dh.c:744
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             int code = dh.ni_kexDerive(ref, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, code);
@@ -830,7 +830,7 @@ public class FIPSDHOpsTest
             // A real output buffer (not the probe path) so the actual
             // EVP_PKEY_derive runs and the post-derive overflow guard at
             // dh.c:761 is reached.
-            // Exercises interface/util/dh.c:761
+            // Exercises interface/fips/util/dh.c:761
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, code);
@@ -856,7 +856,7 @@ public class FIPSDHOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:41
+            // Exercises interface/fips/jni/dh_ni_jni.c:41
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = dh.ni_groupSupported("ffdhe2048");
             Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, code);
@@ -874,7 +874,7 @@ public class FIPSDHOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:76
+            // Exercises interface/fips/jni/dh_ni_jni.c:76
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_generateKeyPairByGroup("ffdhe2048", err, TestUtil.RNDSrc);
@@ -896,7 +896,7 @@ public class FIPSDHOpsTest
         byte[] g = component(DHServiceNI.COMP_G);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:161
+            // Exercises interface/fips/jni/dh_ni_jni.c:161
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_makeParamsFromComponents(p, g, err);
@@ -918,7 +918,7 @@ public class FIPSDHOpsTest
         byte[] g = component(DHServiceNI.COMP_G);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:165
+            // Exercises interface/fips/jni/dh_ni_jni.c:165
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = dh.ni_makeParamsFromComponents(p, g, err);
@@ -941,7 +941,7 @@ public class FIPSDHOpsTest
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:264
+            // Exercises interface/fips/jni/dh_ni_jni.c:264
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
@@ -964,7 +964,7 @@ public class FIPSDHOpsTest
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:268
+            // Exercises interface/fips/jni/dh_ni_jni.c:268
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
@@ -987,7 +987,7 @@ public class FIPSDHOpsTest
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:272
+            // Exercises interface/fips/jni/dh_ni_jni.c:272
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
@@ -1010,7 +1010,7 @@ public class FIPSDHOpsTest
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:327
+            // Exercises interface/fips/jni/dh_ni_jni.c:327
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_makePublicFromComponents(p, g, y, err);
@@ -1033,7 +1033,7 @@ public class FIPSDHOpsTest
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:331
+            // Exercises interface/fips/jni/dh_ni_jni.c:331
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = dh.ni_makePublicFromComponents(p, g, y, err);
@@ -1056,7 +1056,7 @@ public class FIPSDHOpsTest
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:335
+            // Exercises interface/fips/jni/dh_ni_jni.c:335
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
             long ref = dh.ni_makePublicFromComponents(p, g, y, err);
@@ -1076,7 +1076,7 @@ public class FIPSDHOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
-            // Exercises interface/jni/dh_ni_jni.c:388
+            // Exercises interface/fips/jni/dh_ni_jni.c:388
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
             Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);
@@ -1097,7 +1097,7 @@ public class FIPSDHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/jni/dh_ni_jni.c:518
+            // Exercises interface/fips/jni/dh_ni_jni.c:518
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);

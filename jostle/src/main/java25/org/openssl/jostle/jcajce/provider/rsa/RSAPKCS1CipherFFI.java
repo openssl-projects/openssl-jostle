@@ -27,7 +27,7 @@ import java.util.logging.Logger;
 
 /**
  * FFI binding for the {@code JoRSAPKCS1_*} symbols exported by
- * {@code interface/ffi/rsa_pkcs1_ni_ffi.c}. Mirrors {@link RSAOAEPCipherFFI}
+ * {@code interface/nonfips/ffi/rsa_pkcs1_ni_ffi.c}. Mirrors {@link RSAOAEPCipherFFI}
  * but with no digest / MGF1 / label parameters — PKCS#1 v1.5 has none.
  */
 // Symbol resolution is parameterised by a SymbolLookup so the same
