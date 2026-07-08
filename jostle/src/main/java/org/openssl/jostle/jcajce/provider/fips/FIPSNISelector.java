@@ -26,6 +26,7 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
+import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
  * Selector for the FIPS NI implementations, mirroring NISelector but bound to
@@ -54,6 +55,7 @@ public class FIPSNISelector
     public static final DHServiceNI DHServiceNI;
     public static final XECServiceNI XECServiceNI;
     public static final KdfNI KdfNI;
+    public static final OperationsTestNI OperationsTestNI;
 
     static
     {
@@ -74,5 +76,6 @@ public class FIPSNISelector
         DHServiceNI = new DHServiceFIPSJNI();
         XECServiceNI = new XECServiceFIPSJNI();
         KdfNI = new KdfFIPSJNI();
+        OperationsTestNI = new OperationsTestFIPSJNI();
     }
 }

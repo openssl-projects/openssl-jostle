@@ -19,27 +19,54 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Optional;
 
+/**
+ * FFI implementation of {@link OperationsTestNI}. Marshalling is parameterised
+ * by a {@link SymbolLookup} so the same code serves both interface libraries:
+ * the no-arg constructor uses the process-global {@code loaderLookup()} (the
+ * base library); {@code OperationsTestFIPSFFI} passes a library-scoped lookup
+ * pinned to the extracted FIPS library. The ops symbols exist only in a
+ * JOSTLE_OPS_TEST build, so {@link #opsTestAvailable()} probes for
+ * {@code set_ops_test} and reports false when absent.
+ */
 public class OperationsTestFFI implements OperationsTestNI
 {
-
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final boolean isOpsTestAvailable;
+    // Lookup-independent descriptors for the RandSource entropy upcall. These
+    // MUST be inline static initializers, not assigned in a lookup-dependent
+    // static block (the SpecFFI lesson): they carry no native handle.
+    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
+            ValueLayout.JAVA_INT, // return code
+            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
+            ValueLayout.JAVA_INT, // len
+            ValueLayout.JAVA_INT, // strength
+            ValueLayout.JAVA_BOOLEAN // pred resistance
+    );
+    private static final MethodType entropyMt = MethodType.methodType(
+            int.class, // return type
+            MemorySegment.class, // out
+            int.class, // out_len
+            int.class, // strength
+            boolean.class // pred resistance
+    );
 
-    private static MethodHandle setOpsFuncHandler = null;
-    private static MethodHandle getRandomBytes = null;
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    private final boolean opsAvailable;
+    private final MethodHandle setOpsFuncHandler;
+    private final MethodHandle getRandomBytes;
 
-    static
+    public OperationsTestFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public OperationsTestFFI(SymbolLookup lookup)
     {
         Optional<MemorySegment> func = lookup.find("set_ops_test");
-        isOpsTestAvailable = func.isPresent();
-        if (isOpsTestAvailable)
+        opsAvailable = func.isPresent();
+        if (opsAvailable)
         {
-            MemorySegment setOpsFunc = func.get();
-            setOpsFuncHandler = linker.downcallHandle(setOpsFunc, FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            setOpsFuncHandler = linker.downcallHandle(func.get(),
+                    FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
 
             MemorySegment getRandomBytesFunc = lookup.find("OPS_GetRandomBytes").orElseThrow();
             getRandomBytes = linker.downcallHandle(getRandomBytesFunc, FunctionDescriptor.of(
@@ -50,40 +77,23 @@ public class OperationsTestFFI implements OperationsTestNI
                     ValueLayout.JAVA_INT,
                     ValueLayout.ADDRESS));
         }
-
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT, // return code
-                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-                ValueLayout.JAVA_INT, // len
-                ValueLayout.JAVA_INT, // strength
-                ValueLayout.JAVA_BOOLEAN // pred resistance
-        );
-        entropyMt = MethodType.methodType(
-                int.class, // return type
-                MemorySegment.class, // out
-                int.class, // out_len
-                int.class, // strength
-                boolean.class // pred resistance
-        );
-
+        else
+        {
+            setOpsFuncHandler = null;
+            getRandomBytes = null;
+        }
     }
-
-    public static boolean isIsOpsTestAvailable()
-    {
-        return isOpsTestAvailable;
-    }
-
 
     @Override
     public boolean opsTestAvailable()
     {
-        return isOpsTestAvailable;
+        return opsAvailable;
     }
 
     @Override
     public void setOpsTestFlag(int flag, int value)
     {
-        if (!isOpsTestAvailable)
+        if (!opsAvailable)
         {
             throw new IllegalStateException("no ops testing available on native side");
         }
@@ -112,7 +122,7 @@ public class OperationsTestFFI implements OperationsTestNI
 
             MemorySegment outSegment = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            int rc = (int) getRandomBytes.invokeExact(outSegment, (long)len, strength, predictionResistant?1:0, getEntropySegment);
+            int rc = (int) getRandomBytes.invokeExact(outSegment, (long) len, strength, predictionResistant ? 1 : 0, getEntropySegment);
 
             if (out != null)
             {

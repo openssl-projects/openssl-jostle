@@ -72,9 +72,12 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 # FIPS lib), so identical export names across the two libraries are
 # unambiguous. JoFips_set_openssl_module is the FIPS-specific init entry.
 #
-# The FIPS targets carry no JOSTLE_OPS / JOSTLE_COVERAGE instrumentation:
-# operations-test fault injection must not ship inside the FIPS interface
-# library.
+# The FIPS targets carry no JOSTLE_COVERAGE instrumentation, and no
+# operations-test fault injection in a SHIPPED build - it must not ship inside
+# the FIPS interface library. As with the base targets, JOSTLE_OPS is added
+# ONLY when the JOSTLE_OPS_TEST environment variable is set (a test build);
+# jni/ops.c and jni/ops_fips_jni.c compile to nothing without it, so the
+# shipped FIPS library exports no operations-test symbols.
 #
 set(FIPS_UTIL_SOURCES
         util/jo_assert.h
@@ -134,6 +137,7 @@ set(FIPS_UTIL_SOURCES
 
 set(FIPS_JNI_GLUE_SOURCES
         jni/openssl_fips_jni.c
+        jni/ops_fips_jni.c
         jni/md_fips_jni.c
         jni/block_cipher_fips_jni.c
         jni/ccm_fips_jni.c
@@ -423,11 +427,17 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     target_include_directories(interface_fips_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
     target_link_libraries(interface_fips_jni PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_fips_jni PRIVATE -Wall -Wextra -Wpedantic -O3)
+    if (DEFINED ENV{JOSTLE_OPS_TEST})
+        target_compile_definitions(interface_fips_jni PUBLIC JOSTLE_OPS)
+    endif ()
 
     add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
     target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_fips_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
+    if (DEFINED ENV{JOSTLE_OPS_TEST})
+        target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+    endif ()
 
     #
     # Resolver and deps structure
@@ -671,12 +681,18 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     target_link_libraries(interface_fips_jni PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_fips_jni PRIVATE -Wall -Wextra -Wpedantic -O3)
     target_link_options(interface_fips_jni PRIVATE -Wl,-Bsymbolic)
+    if (DEFINED ENV{JOSTLE_OPS_TEST})
+        target_compile_definitions(interface_fips_jni PUBLIC JOSTLE_OPS)
+    endif ()
 
     add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
     target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
     target_compile_options(interface_fips_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
     target_link_options(interface_fips_ffi PRIVATE -Wl,-Bsymbolic)
+    if (DEFINED ENV{JOSTLE_OPS_TEST})
+        target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+    endif ()
 
     #
     # Resolver and deps structure
@@ -896,12 +912,18 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     target_include_directories(interface_fips_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")
     target_link_libraries(interface_fips_jni PUBLIC "${OPEN_SSL_LIB}")
     target_compile_options(interface_fips_jni PRIVATE /W4 /O2)
+    if (DEFINED ENV{JOSTLE_OPS_TEST})
+        target_compile_definitions(interface_fips_jni PUBLIC JOSTLE_OPS)
+    endif ()
 
     add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
     set_target_properties(interface_fips_ffi PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
     target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
     target_link_libraries(interface_fips_ffi PUBLIC "${OPEN_SSL_LIB}")
     target_compile_options(interface_fips_ffi PRIVATE /W4 /O2)
+    if (DEFINED ENV{JOSTLE_OPS_TEST})
+        target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+    endif ()
 
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/loading/native" DESTINATION "${JAVA_PRJ_HOME}/jostle/src/main/resources")
     install(TARGETS interface_jni RUNTIME DESTINATION ${INSTALL_PATH})
