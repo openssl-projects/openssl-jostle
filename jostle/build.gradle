@@ -712,6 +712,142 @@ tasks.register('integrationTest25JNI', Test) {
 }
 
 
+//
+// FIPS-only test stanzas (Java 25). These run ONLY the
+// org.openssl.jostle.test.fips.* classes, in isolation from the base suite,
+// so the JSLFIPS provider can be exercised on its own. Gated on BC_JDK25 AND
+// TEST_FIPS_LIB (the path to the FIPS module library): without the module the
+// task is skipped outright rather than running every test as skipped.
+//
+// The unit stanzas run parallel like unitTest25*; the Limit/Ops/Integration
+// stanzas run one fork at a time like integrationTest25*. They are NOT wired
+// into `test` (the full unitTest25*/integrationTest25* tasks already include
+// the FIPS classes) — use these to run FIPS coverage on demand, e.g.
+//   ./gradlew :jostle:fipsTest25JNI
+//
+
+tasks.register('fipsUnitTest25FFI', Test) {
+    onlyIf { System.getenv("BC_JDK25") != null && System.getenv("TEST_FIPS_LIB") != null }
+
+    dependsOn(jar)
+    useJUnitPlatform()
+
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test25.runtimeClasspath
+    testClassesDirs += sourceSets.test25.output.classesDirs
+    testClassesDirs += sourceSets.test.output.classesDirs
+
+    forkEvery = 1
+    maxParallelForks = 8
+    maxHeapSize = "1536m"
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    filter {
+        includeTestsMatching "org.openssl.jostle.test.fips.*"
+        excludeTestsMatching "*LimitTest*"
+        excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
+    }
+}
+
+tasks.register('fipsUnitTest25JNI', Test) {
+    onlyIf { System.getenv("BC_JDK25") != null && System.getenv("TEST_FIPS_LIB") != null }
+
+    dependsOn(jar)
+    useJUnitPlatform()
+
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test25.runtimeClasspath
+    testClassesDirs += sourceSets.test25.output.classesDirs
+    testClassesDirs += sourceSets.test.output.classesDirs
+
+    forkEvery = 1
+    maxParallelForks = 8
+    maxHeapSize = "1536m"
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
+    filter {
+        includeTestsMatching "org.openssl.jostle.test.fips.*"
+        excludeTestsMatching "*LimitTest*"
+        excludeTestsMatching "*IntegrationTest*"
+        excludeTestsMatching "*OpsTest*"
+    }
+}
+
+tasks.register('fipsIntegrationTest25FFI', Test) {
+    onlyIf { System.getenv("BC_JDK25") != null && System.getenv("TEST_FIPS_LIB") != null }
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+
+    dependsOn(jar)
+    useJUnitPlatform()
+
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test25.runtimeClasspath
+    testClassesDirs += sourceSets.test25.output.classesDirs
+    testClassesDirs += sourceSets.test.output.classesDirs
+
+    forkEvery = 1
+    maxParallelForks = 1
+    maxHeapSize = "1536m"
+
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    filter {
+        includeTestsMatching "org.openssl.jostle.test.fips.*LimitTest*"
+        includeTestsMatching "org.openssl.jostle.test.fips.*IntegrationTest*"
+        includeTestsMatching "org.openssl.jostle.test.fips.*OpsTest*"
+    }
+}
+
+tasks.register('fipsIntegrationTest25JNI', Test) {
+    onlyIf { System.getenv("BC_JDK25") != null && System.getenv("TEST_FIPS_LIB") != null }
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+
+    dependsOn(jar)
+    useJUnitPlatform()
+
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test25.runtimeClasspath
+    testClassesDirs += sourceSets.test25.output.classesDirs
+    testClassesDirs += sourceSets.test.output.classesDirs
+
+    forkEvery = 1
+    maxParallelForks = 1
+    maxHeapSize = "1536m"
+
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
+    filter {
+        includeTestsMatching "org.openssl.jostle.test.fips.*LimitTest*"
+        includeTestsMatching "org.openssl.jostle.test.fips.*IntegrationTest*"
+        includeTestsMatching "org.openssl.jostle.test.fips.*OpsTest*"
+    }
+}
+
+//
+// Convenience aggregates: all FIPS coverage for one interface, or both.
+//
+tasks.register('fipsTest25FFI') {
+    dependsOn('fipsUnitTest25FFI', 'fipsIntegrationTest25FFI')
+}
+
+tasks.register('fipsTest25JNI') {
+    dependsOn('fipsUnitTest25JNI', 'fipsIntegrationTest25JNI')
+}
+
+tasks.register('fipsTest25') {
+    dependsOn('fipsTest25FFI', 'fipsTest25JNI')
+}
+
+
 test.dependsOn("integrationTest")
 
 
