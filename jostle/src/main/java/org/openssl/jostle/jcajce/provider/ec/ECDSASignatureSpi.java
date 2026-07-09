@@ -269,19 +269,12 @@ public class ECDSASignatureSpi extends SignatureSpi
 
     protected static class ECRef extends NativeReference
     {
-        private final ECServiceNI ecServiceNI;
 
         protected ECRef(ECServiceNI ecServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.ecServiceNI = ecServiceNI;
+            super(reference, name, new Disposer(ecServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(ecServiceNI, reference);
-        }
     }
 
 

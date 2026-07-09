@@ -369,14 +369,9 @@ public class EdSignatureSpi extends SignatureSpi
     {
         protected EdDsaRef(long reference, String name)
         {
-            super(reference, name);
+            super(reference, name, new EdSignatureSpi.Disposer(reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new EdSignatureSpi.Disposer(reference);
-        }
     }
 
 

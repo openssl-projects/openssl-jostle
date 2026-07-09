@@ -358,14 +358,9 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
         protected SLHDSARef(long reference, String name)
         {
-            super(reference, name);
+            super(reference, name, new SLHDSASignatureSpi.Disposer(reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new SLHDSASignatureSpi.Disposer(reference);
-        }
     }
 
 

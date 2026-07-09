@@ -615,18 +615,11 @@ public class RSAOAEPCipherSpi extends CipherSpi
 
     protected static class CipherRef extends NativeReference
     {
-        private final RSAOAEPCipherNI cipherNI;
 
         protected CipherRef(RSAOAEPCipherNI cipherNI, long reference, String name)
         {
-            super(reference, name);
-            this.cipherNI = cipherNI;
+            super(reference, name, new Disposer(cipherNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(cipherNI, reference);
-        }
     }
 }

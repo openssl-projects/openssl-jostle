@@ -99,19 +99,12 @@ public class PKEYKeySpec
 
     protected static class PKEYReference extends NativeReference
     {
-        private final SpecNI specNI;
 
         public PKEYReference(SpecNI specNI, long reference, String name)
         {
-            super(reference, name);
-            this.specNI = specNI;
+            super(reference, name, new PKEYKeySpec.Disposer(specNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new PKEYKeySpec.Disposer(specNI, reference);
-        }
     }
 
     public long getReference()

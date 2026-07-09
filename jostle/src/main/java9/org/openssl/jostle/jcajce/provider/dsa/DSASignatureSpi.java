@@ -343,19 +343,12 @@ public class DSASignatureSpi extends SignatureSpi
 
     protected static class DSARef extends NativeReference
     {
-        private final DSAServiceNI dsaServiceNI;
 
         protected DSARef(DSAServiceNI dsaServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.dsaServiceNI = dsaServiceNI;
+            super(reference, name, new Disposer(dsaServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(dsaServiceNI, reference);
-        }
     }
 
 

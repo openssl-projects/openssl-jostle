@@ -275,18 +275,11 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
 
     protected static class KexRef extends NativeReference
     {
-        private final ECServiceNI ecServiceNI;
 
         protected KexRef(ECServiceNI ecServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.ecServiceNI = ecServiceNI;
+            super(reference, name, new Disposer(ecServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(ecServiceNI, reference);
-        }
     }
 }

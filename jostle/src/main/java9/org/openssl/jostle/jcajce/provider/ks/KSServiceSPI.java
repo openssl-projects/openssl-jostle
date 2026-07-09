@@ -911,14 +911,9 @@ public class KSServiceSPI
     {
         KSReference(long reference, String name)
         {
-            super(reference, name);
+            super(reference, name, new Disposer(reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(reference);
-        }
     }
 
     private static PrivateKey generatePrivateKey(byte[] encoded)

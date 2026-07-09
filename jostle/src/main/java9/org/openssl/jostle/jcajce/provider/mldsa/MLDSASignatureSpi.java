@@ -323,14 +323,9 @@ public class MLDSASignatureSpi extends SignatureSpi
 
         protected MLDSARef(long reference, String name)
         {
-            super(reference, name);
+            super(reference, name, new MLDSASignatureSpi.Disposer(reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new MLDSASignatureSpi.Disposer(reference);
-        }
     }
 
 

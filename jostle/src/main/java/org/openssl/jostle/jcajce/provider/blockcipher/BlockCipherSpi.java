@@ -879,25 +879,17 @@ class BlockCipherSpi extends CipherSpi
     protected static class OSSLBlockCipherRefWrapper
             extends NativeReference
     {
-        private final BlockCipherNI blockCipherNi;
 
         public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference)
         {
-            super(reference, "");
-            this.blockCipherNi = blockCipherNi;
+            super(reference, "", new BlockCipherSpi.Disposer(blockCipherNi, reference));
         }
 
         public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference, String name)
         {
-            super(reference, name);
-            this.blockCipherNi = blockCipherNi;
+            super(reference, name, new BlockCipherSpi.Disposer(blockCipherNi, reference));
         }
 
-        @Override
-        public Runnable createAction()
-        {
-            return new BlockCipherSpi.Disposer(blockCipherNi, reference);
-        }
     }
 
     @Override

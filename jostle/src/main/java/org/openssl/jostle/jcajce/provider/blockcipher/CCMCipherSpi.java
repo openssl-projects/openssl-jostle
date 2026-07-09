@@ -663,18 +663,11 @@ public class CCMCipherSpi extends CipherSpi
 
     protected static class CCMRef extends NativeReference
     {
-        private final CCMCipherNI cipherNI;
 
         protected CCMRef(CCMCipherNI cipherNI, long reference, String name)
         {
-            super(reference, name);
-            this.cipherNI = cipherNI;
+            super(reference, name, new Disposer(cipherNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(cipherNI, reference);
-        }
     }
 }

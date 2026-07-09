@@ -283,18 +283,11 @@ abstract class RSASignatureSpiBase extends SignatureSpi
 
     protected static class RSARef extends NativeReference
     {
-        private final RSAServiceNI rsaServiceNI;
 
         protected RSARef(RSAServiceNI rsaServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.rsaServiceNI = rsaServiceNI;
+            super(reference, name, new Disposer(rsaServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(rsaServiceNI, reference);
-        }
     }
 }

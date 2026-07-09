@@ -335,18 +335,11 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
 
     protected static class KexRef extends NativeReference
     {
-        private final DHServiceNI dhServiceNI;
 
         protected KexRef(DHServiceNI dhServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.dhServiceNI = dhServiceNI;
+            super(reference, name, new Disposer(dhServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(dhServiceNI, reference);
-        }
     }
 }

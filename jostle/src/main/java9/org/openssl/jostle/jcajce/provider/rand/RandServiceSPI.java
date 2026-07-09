@@ -394,19 +394,12 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     private static class RandReference extends NativeReference
     {
-        private final RandServiceNI randServiceNI;
 
         RandReference(RandServiceNI randServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.randServiceNI = randServiceNI;
+            super(reference, name, new Disposer(randServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(randServiceNI, reference);
-        }
     }
 
     private void writeObject(java.io.ObjectOutputStream out)

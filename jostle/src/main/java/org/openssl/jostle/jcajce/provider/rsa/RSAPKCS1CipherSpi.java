@@ -466,18 +466,11 @@ public class RSAPKCS1CipherSpi extends CipherSpi
 
     protected static class CipherRef extends NativeReference
     {
-        private final RSAPKCS1CipherNI cipherNI;
 
         protected CipherRef(RSAPKCS1CipherNI cipherNI, long reference, String name)
         {
-            super(reference, name);
-            this.cipherNI = cipherNI;
+            super(reference, name, new Disposer(cipherNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(cipherNI, reference);
-        }
     }
 }

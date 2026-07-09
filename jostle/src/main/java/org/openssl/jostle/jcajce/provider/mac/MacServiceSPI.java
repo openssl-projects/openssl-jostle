@@ -187,18 +187,11 @@ public class MacServiceSPI extends MacSpi
 
     private static class MacReference extends NativeReference
     {
-        private final MacServiceNI macServiceNI;
 
         public MacReference(MacServiceNI macServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.macServiceNI = macServiceNI;
+            super(reference, name, new Disposer(macServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(macServiceNI, reference);
-        }
     }
 }

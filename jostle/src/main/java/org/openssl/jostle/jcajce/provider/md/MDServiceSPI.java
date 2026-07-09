@@ -182,19 +182,12 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
 
     private static class MDReference extends NativeReference
     {
-        private final MDServiceNI mdServiceNI;
 
         public MDReference(MDServiceNI mdServiceNI, long reference, String name)
         {
-            super(reference, name);
-            this.mdServiceNI = mdServiceNI;
+            super(reference, name, new Disposer(mdServiceNI, reference));
         }
 
-        @Override
-        protected Runnable createAction()
-        {
-            return new Disposer(mdServiceNI, reference);
-        }
     }
 
 }
