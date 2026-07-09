@@ -88,7 +88,7 @@ public class FIPSKeyIsolationTest
         assertRejected(() -> fipsSigner.initSign(jslKp.getPrivate()));
         Signature jslSigner = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
         assertRejected(() -> jslSigner.initSign(fipsKp.getPrivate()));
-        Cipher fipsDec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
+        Cipher fipsDec = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         assertRejected(() -> fipsDec.init(Cipher.DECRYPT_MODE, jslKp.getPrivate()));
 
         // PUBLIC keys cross freely: sign with JSLFIPS, verify through JSL
@@ -112,10 +112,10 @@ public class FIPSKeyIsolationTest
         // Public-key encrypt through the other provider round-trips.
         byte[] small = new byte[32];
         RANDOM.nextBytes(small);
-        Cipher fipsEnc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
+        Cipher fipsEnc = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         fipsEnc.init(Cipher.ENCRYPT_MODE, jslKp.getPublic());
         byte[] ct = fipsEnc.doFinal(small);
-        Cipher jslDec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        Cipher jslDec = Cipher.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         jslDec.init(Cipher.DECRYPT_MODE, jslKp.getPrivate());
         Assertions.assertArrayEquals(small, jslDec.doFinal(ct),
                 "JSLFIPS encrypt with JSL public key must round-trip");

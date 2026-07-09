@@ -150,7 +150,7 @@ public class FIPSRSATest
     }
 
     @Test
-    public void oaepAndPkcs1EncryptionAgreeWithBouncyCastle()
+    public void oaepEncryptionAgreesWithBouncyCastle()
         throws Exception
     {
         ensureProviders();
@@ -177,20 +177,6 @@ public class FIPSRSATest
         Cipher fipsDec = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         fipsDec.init(Cipher.DECRYPT_MODE, kp.getPrivate(), oaep);
         Assertions.assertArrayEquals(message, fipsDec.doFinal(bcCt), "BC OAEP -> JSLFIPS");
-
-        // PKCS#1 v1.5 encryption.
-        Cipher fipsP1 = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
-        fipsP1.init(Cipher.ENCRYPT_MODE, kp.getPublic());
-        byte[] p1Ct = fipsP1.doFinal(message);
-        Cipher bcP1 = Cipher.getInstance("RSA/ECB/PKCS1Padding", BouncyCastleProvider.PROVIDER_NAME);
-        bcP1.init(Cipher.DECRYPT_MODE, kp.getPrivate());
-        Assertions.assertArrayEquals(message, bcP1.doFinal(p1Ct), "JSLFIPS PKCS1 -> BC");
-
-        bcP1.init(Cipher.ENCRYPT_MODE, kp.getPublic());
-        byte[] bcP1Ct = bcP1.doFinal(message);
-        Cipher fipsP1Dec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME);
-        fipsP1Dec.init(Cipher.DECRYPT_MODE, kp.getPrivate());
-        Assertions.assertArrayEquals(message, fipsP1Dec.doFinal(bcP1Ct), "BC PKCS1 -> JSLFIPS");
     }
 
     @Test
@@ -251,5 +237,22 @@ public class FIPSRSATest
                 () -> Signature.getInstance("MD5withRSA", JostleFIPSProvider.PROVIDER_NAME));
         // ... while the non-FIPS provider still serves it in the same JVM.
         Assertions.assertNotNull(Signature.getInstance("MD5withRSA", JostleProvider.PROVIDER_NAME));
+
+        // PKCS#1 v1.5 ENCRYPTION is not an approved RSA key-transport scheme in
+        // the 3.1.2 module (OAEP only, KTS-4 / SP 800-56Br2 — cert #4985), so
+        // JSLFIPS does not register it. JSLFIPS registers only the bare "RSA"
+        // (OAEP) primary, so the transformation resolves via JCE form-4 fallback
+        // to that OAEP SPI, whose engineSetPadding rejects "PKCS1Padding" with
+        // NoSuchPaddingException — i.e. PKCS#1 v1.5 encryption is unobtainable.
+        // (Common supertype since form-4 rejection surfaces as NoSuchPadding,
+        // not NoSuchAlgorithm.) The non-FIPS provider still serves it.
+        Assertions.assertThrows(java.security.GeneralSecurityException.class,
+                () -> Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME),
+                "PKCS#1 v1.5 RSA encryption must be absent from JSLFIPS (non-approved)");
+        Assertions.assertNotNull(Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME),
+                "the non-FIPS provider still serves PKCS#1 v1.5 RSA encryption");
+        // OAEP (the approved scheme) remains available through the bare "RSA".
+        Assertions.assertNotNull(Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME),
+                "OAEP (bare RSA) must remain available in JSLFIPS");
     }
 }

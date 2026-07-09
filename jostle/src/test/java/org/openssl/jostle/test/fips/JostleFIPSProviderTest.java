@@ -118,5 +118,15 @@ public class JostleFIPSProviderTest
         byte[] digest = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME)
                 .digest(message);
         Assertions.assertEquals(32, digest.length);
+
+        // Liveness differentiator: the coexisting digest actually depends on
+        // its input (not a stub) — a distinct message yields a distinct digest.
+        // (Full digest correctness/agreement is covered by FIPSMDTest.)
+        byte[] other = message.clone();
+        other[0] ^= (byte) 0x01;
+        byte[] otherDigest = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME)
+                .digest(other);
+        Assertions.assertFalse(java.util.Arrays.equals(digest, otherDigest),
+                "distinct inputs must produce distinct digests");
     }
 }

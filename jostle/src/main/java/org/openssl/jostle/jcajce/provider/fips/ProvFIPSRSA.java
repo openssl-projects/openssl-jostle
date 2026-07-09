@@ -13,7 +13,6 @@ package org.openssl.jostle.jcajce.provider.fips;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyPairGenerator;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherSpi;
-import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPSSSignatureSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSASignatureSpi;
 
@@ -21,11 +20,23 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * RSA registrations for the FIPS provider, mirroring ProvRSA's surface bound
- * to the FIPS interface library. Deliberately absent: MD5withRSA (MD5 is not
- * served by the module). PKCS#1 v1.5 signatures, PSS, OAEP and PKCS#1 v1.5
- * encryption all resolve through the module's RSA implementations; the
- * module's own key-size floor (2048 bits) applies to generation.
+ * RSA registrations for the FIPS provider, bound to the FIPS interface
+ * library. PKCS#1 v1.5 signatures, PSS, and OAEP encryption resolve through the
+ * module's RSA implementations; the module's own key-size floor (2048 bits)
+ * applies to generation.
+ * <p>
+ * Deliberately absent:
+ * <ol>
+ *   <li>MD5withRSA — MD5 is not served by the module.</li>
+ *   <li>PKCS#1 v1.5 <em>encryption</em> (Cipher {@code RSA/ECB/PKCS1Padding}).
+ *       The OpenSSL FIPS Provider 3.1.2 Security Policy (CMVP cert #4985)
+ *       approves RSA key transport via OAEP only (KTS-4, SP 800-56Br2);
+ *       RSAES-PKCS#1-v1_5 encryption is not an approved service. It is also a
+ *       Bleichenbacher padding oracle here: the 3.1.2 module does not honour
+ *       the implicit-rejection param (it postdates 3.1.2), so it is left
+ *       unregistered rather than exposed as a non-approved footgun. PKCS#1 v1.5
+ *       remains available for SIGNATURES, which the policy does approve.</li>
+ * </ol>
  */
 class ProvFIPSRSA
 {
@@ -86,17 +97,16 @@ class ProvFIPSRSA
         registerPssSignature(provider, attr, "SHA3-384", "SHA3-384");
         registerPssSignature(provider, attr, "SHA3-512", "SHA3-512");
 
+        // OAEP is the ONLY approved RSA key-transport / encryption scheme for
+        // this module (KTS-4, SP 800-56Br2 — see class Javadoc). PKCS#1 v1.5
+        // encryption is deliberately NOT registered: it is non-approved and the
+        // 3.1.2 module does not honour implicit rejection, so it would be a
+        // padding oracle. The bare "RSA" transformation therefore maps to OAEP.
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 PREFIX + "RSAOAEPCipherSpi", cipherAttr,
                 (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory()));
         provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
-
-        Map<String, String> pkcs1Attr = new HashMap<>(attr);
-        provider.addAlgorithmImplementation("Cipher", "RSA/ECB/PKCS1Padding",
-                PREFIX + "RSAPKCS1CipherSpi", pkcs1Attr,
-                (arg) -> new RSAPKCS1CipherSpi(FIPSNISelector.RSAPKCS1CipherNI, keyFactory()));
-        provider.addAlias("Cipher", "RSA/ECB/PKCS1Padding", "RSA/None/PKCS1Padding");
     }
 
     private static RSAKeyFactorySpi keyFactory()

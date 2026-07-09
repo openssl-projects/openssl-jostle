@@ -72,12 +72,14 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 # FIPS lib), so identical export names across the two libraries are
 # unambiguous. JoFips_set_openssl_module is the FIPS-specific init entry.
 #
-# The FIPS targets carry no JOSTLE_COVERAGE instrumentation, and no
-# operations-test fault injection in a SHIPPED build - it must not ship inside
-# the FIPS interface library. As with the base targets, JOSTLE_OPS is added
-# ONLY when the JOSTLE_OPS_TEST environment variable is set (a test build);
-# jni/ops.c and jni/ops_fips_jni.c compile to nothing without it, so the
-# shipped FIPS library exports no operations-test symbols.
+# The FIPS targets carry no operations-test fault injection and no coverage
+# instrumentation in a SHIPPED build - neither must ship inside the FIPS
+# interface library. As with the base targets, both are strictly env-gated (a
+# test/measurement build): JOSTLE_OPS is added ONLY when JOSTLE_OPS_TEST is set
+# (jni/ops.c and jni/ops_fips_jni.c compile to nothing without it, so the
+# shipped library exports no operations-test symbols), and the llvm coverage
+# flags are added ONLY when JOSTLE_COVERAGE is set (osx, mirroring the base
+# targets). With neither env var set the FIPS library is clean.
 #
 set(FIPS_UTIL_SOURCES
         fips/util/jo_assert.h
@@ -411,6 +413,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     if (DEFINED ENV{JOSTLE_OPS_TEST})
         target_compile_definitions(interface_fips_jni PUBLIC JOSTLE_OPS)
     endif ()
+    if (DEFINED ENV{JOSTLE_COVERAGE})
+        target_compile_options(interface_fips_jni PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
+        target_link_options(interface_fips_jni PRIVATE -fprofile-instr-generate)
+    endif ()
 
     add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
     target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
@@ -418,6 +424,10 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
     target_compile_options(interface_fips_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
         target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+    endif ()
+    if (DEFINED ENV{JOSTLE_COVERAGE})
+        target_compile_options(interface_fips_ffi PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
+        target_link_options(interface_fips_ffi PRIVATE -fprofile-instr-generate)
     endif ()
 
     #
