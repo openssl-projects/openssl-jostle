@@ -45,6 +45,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     jint return_code = JO_FAIL;
     java_bytearray_ctx key;
     java_bytearray_ctx iv;
+    init_bytearray_ctx(&key);
+    init_bytearray_ctx(&iv);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&key, env, _key)) {
         return_code = JO_FAILED_ACCESS_KEY;

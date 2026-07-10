@@ -48,6 +48,10 @@ int32_t SpecNI_Encap(
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
+    if (input == NULL) {
+        return JO_INPUT_IS_NULL;
+    }
+
     int32_t ret = 0;
 
     if (in_off < 0) {
@@ -105,6 +109,10 @@ int32_t SpecNI_Decap(
 
     if (ks->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+    if (input == NULL) {
+        return JO_INPUT_IS_NULL;
     }
 
     int32_t ret = 0;

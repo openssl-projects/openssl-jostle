@@ -172,7 +172,9 @@ int32_t JoRSA_initSign(rsa_ctx *ctx, key_spec *key,
                      const char *mgf1_md_name,
                      int32_t salt_len,
                      void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -191,7 +193,9 @@ int32_t JoRSA_initVerify(rsa_ctx *ctx, key_spec *key,
                        int32_t padding_mode,
                        const char *mgf1_md_name,
                        int32_t salt_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -207,7 +211,9 @@ int32_t JoRSA_initVerify(rsa_ctx *ctx, key_spec *key,
 int32_t JoRSA_update(rsa_ctx *ctx,
                    uint8_t *input, size_t input_size,
                    int32_t in_off, int32_t in_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (input == NULL) {
         return JO_INPUT_IS_NULL;
@@ -230,7 +236,9 @@ int32_t JoRSA_sign(rsa_ctx *ctx,
                  uint8_t *output, size_t output_size,
                  int32_t out_off,
                  void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -255,7 +263,9 @@ int32_t JoRSA_sign(rsa_ctx *ctx,
 int32_t JoRSA_verify(rsa_ctx *ctx,
                    uint8_t *sig, size_t sig_size,
                    int32_t sig_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (sig == NULL) {
         return JO_SIG_IS_NULL;

@@ -120,6 +120,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
         goto exit;
     }
 
+    if (input.bytearray == NULL) {
+        ret = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
     if (in_off < 0) {
         ret = JO_INPUT_OFFSET_IS_NEGATIVE;
         goto exit;
@@ -216,6 +221,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
         ret = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (input.bytearray == NULL) {
+        ret = JO_INPUT_IS_NULL;
         goto exit;
     }
 

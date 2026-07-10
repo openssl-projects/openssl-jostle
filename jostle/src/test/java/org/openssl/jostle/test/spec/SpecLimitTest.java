@@ -79,6 +79,29 @@ public class SpecLimitTest
     }
 
     @Test
+    public void encap_nullInput() throws Exception
+    {
+        // A null input array (with a valid keyspec) must surface the typed
+        // JO_INPUT_IS_NULL -> NullPointerException("input is null"), NOT abort
+        // the JVM via the util jo_assert. Regression lock for the spec input
+        // null-check bridge fix (spec_ni_jni.c / spec_ni_ffi.c).
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            specNI.encap(spec, null, null, 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (NullPointerException e)
+        {
+            Assertions.assertEquals("input is null", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
     public void encap_inOffsetNegative() throws Exception
     {
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
@@ -415,6 +438,29 @@ public class SpecLimitTest
         finally
         {
             specNI.dispose(req);
+        }
+    }
+
+    @Test
+    public void decap_nullInput() throws Exception
+    {
+        // Null ciphertext (with a valid keyspec) must surface the typed
+        // JO_INPUT_IS_NULL -> NullPointerException("input is null"), NOT abort
+        // the JVM via the util jo_assert. Regression lock for the spec input
+        // null-check bridge fix (spec_ni_jni.c / spec_ni_ffi.c).
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            specNI.decap(spec, null, null, 0, 0, new byte[0], 0, 0);
+            Assertions.fail();
+        }
+        catch (NullPointerException e)
+        {
+            Assertions.assertEquals("input is null", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
         }
     }
 

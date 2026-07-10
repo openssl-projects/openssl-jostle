@@ -721,6 +721,33 @@ public class FIPSRSAServiceLimitTest
         });
     }
 
+    // -----------------------------------------------------------------
+    // null signer ctx handle -> typed JO_SIGNER_CTX_IS_NULL (not jo_assert)
+    // -----------------------------------------------------------------
+
+    /**
+     * A 0/null ctx handle at ANY RSA session entry point must surface the typed
+     * {@code JO_SIGNER_CTX_IS_NULL} -> {@link IllegalArgumentException}
+     * ("signer context is null"), NOT abort the JVM via a {@code jo_assert}.
+     * Regression lock for the bridge fix that replaced the ctx {@code jo_assert}
+     * with a typed return in interface/fips/{jni/rsa_ni_jni.c, ffi/rsa_ni_ffi.c}.
+     */
+    @Test
+    public void nullSignerCtx_allEntryPointsRejectedTyped()
+    {
+        byte[] sig = new byte[256];
+        assertIAE("signer context is null",
+                () -> rsaServiceNI.initSign(0, 0, "SHA-256", RSAServiceNI.PADDING_PKCS1, null, 0, RND));
+        assertIAE("signer context is null",
+                () -> rsaServiceNI.initVerify(0, 0, "SHA-256", RSAServiceNI.PADDING_PKCS1, null, 0));
+        assertIAE("signer context is null",
+                () -> rsaServiceNI.update(0, new byte[8], 0, 8));
+        assertIAE("signer context is null",
+                () -> rsaServiceNI.sign(0, sig, 0, RND));
+        assertIAE("signer context is null",
+                () -> rsaServiceNI.verify(0, sig, sig.length));
+    }
+
     private static void rethrow(Exception e)
     {
         if (e instanceof RuntimeException)

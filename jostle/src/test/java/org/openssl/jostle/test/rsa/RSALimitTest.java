@@ -394,6 +394,26 @@ public class RSALimitTest
     }
 
     @Test
+    public void RSAServiceNI_nullSignerCtx_rejectedTyped() throws Exception
+    {
+        // A 0/null ctx handle at any RSA session entry point must surface the
+        // typed JO_SIGNER_CTX_IS_NULL -> IllegalArgumentException("signer context
+        // is null"), NOT abort the JVM via jo_assert. Regression lock for the
+        // ctx null-check bridge fix (rsa_ni_jni.c / rsa_ni_ffi.c).
+        byte[] sig = new byte[256];
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> rsaServiceNI.initSign(0, 0, "SHA-256", RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> rsaServiceNI.initVerify(0, 0, "SHA-256", RSAServiceNI.PADDING_PKCS1, null, 0)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> rsaServiceNI.update(0, new byte[8], 0, 8)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> rsaServiceNI.sign(0, sig, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> rsaServiceNI.verify(0, sig, sig.length)).getMessage());
+    }
+
+    @Test
     public void RSAServiceNI_initSign_nullDigestName() throws Exception
     {
         long rsaRef = 0;

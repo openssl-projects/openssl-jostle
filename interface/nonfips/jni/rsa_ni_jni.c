@@ -397,7 +397,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) rsa_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     key_spec *spec = (key_spec *) key_ref;
     if (spec == NULL) {
@@ -431,7 +433,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) rsa_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     key_spec *spec = (key_spec *) key_ref;
     if (spec == NULL) {
@@ -463,7 +467,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     int32_t ret_code = JO_FAIL;
     critical_bytearray_ctx input;
@@ -509,7 +515,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (_output == NULL) {
         // Caller wants length.
@@ -554,7 +562,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
 
     if (_sig == NULL) {
         return JO_SIG_IS_NULL;

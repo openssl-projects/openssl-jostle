@@ -63,7 +63,7 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
     }
 
 
-    if (OPS_INT32_OVERFLOW_1 min_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
         ret = JO_OUTPUT_SIZE_INT_OVERFLOW;
         goto exit;
     }
@@ -136,7 +136,7 @@ int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, c
     }
 
 
-    if (OPS_INT32_OVERFLOW_1 min_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
         ret = JO_OUTPUT_SIZE_INT_OVERFLOW;
         goto exit;
     }
