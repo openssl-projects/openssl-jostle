@@ -54,21 +54,31 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
     @Override
     public byte[] getEncoded()
     {
-        // FIPS 204: AlgorithmIdentifier parameters MUST be absent.
-        if (seedOnly)
+        // synchronized(this) keeps this key (and thus its PKEYKeySpec) reachable
+        // across the native encoding call in ASN1Encoder, which reads
+        // spec.getReference() but does not itself fence the spec — the caller
+        // must. See java-spi.md "Native references must outlive every JNI/FFI call".
+        synchronized (this)
         {
-            return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+            // FIPS 204: AlgorithmIdentifier parameters MUST be absent.
+            if (seedOnly)
+            {
+                return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+            }
+            return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
         }
-        return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
     }
 
     public byte[] getSeed()
     {
-        long len = NISelector.MLDSAServiceNI.getSeed(spec.getReference(), null);
-        byte[] out = new byte[(int) len];
-        NISelector.MLDSAServiceNI.getSeed(spec.getReference(), out);
+        synchronized (this)
+        {
+            long len = NISelector.MLDSAServiceNI.getSeed(spec.getReference(), null);
+            byte[] out = new byte[(int) len];
+            NISelector.MLDSAServiceNI.getSeed(spec.getReference(), out);
 
-        return out;
+            return out;
+        }
     }
 
     @Override
@@ -77,11 +87,14 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
         //
         // Raw bytes
         //
-        long len = NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), null);
-        byte[] out = new byte[(int) len];
-        NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), out);
+        synchronized (this)
+        {
+            long len = NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), null);
+            byte[] out = new byte[(int) len];
+            NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), out);
 
-        return out;
+            return out;
+        }
     }
 
     public MLDSAPrivateKey getPrivateKey(boolean preferSeedOnly)

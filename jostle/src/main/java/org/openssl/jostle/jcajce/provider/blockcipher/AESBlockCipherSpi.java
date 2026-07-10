@@ -11,6 +11,8 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 
+import org.openssl.jostle.util.Arrays;
+
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -96,7 +98,22 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
 
-        determineOSSLCipher(key.getEncoded().length);
+        // Capture the encoded key once so the transient copy getEncoded()
+        // returns can be zeroized; reading .length off a throwaway getEncoded()
+        // leaves an un-scrubbed key copy on the heap (the base engineInit
+        // makes and scrubs its own copy for the actual native init).
+        byte[] encoded = key.getEncoded();
+        try
+        {
+            determineOSSLCipher(encoded.length);
+        }
+        finally
+        {
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
+        }
         super.engineInit(opmode, key, random);
     }
 
@@ -104,7 +121,22 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
 
-        determineOSSLCipher(key.getEncoded().length);
+        // Capture the encoded key once so the transient copy getEncoded()
+        // returns can be zeroized; reading .length off a throwaway getEncoded()
+        // leaves an un-scrubbed key copy on the heap (the base engineInit
+        // makes and scrubs its own copy for the actual native init).
+        byte[] encoded = key.getEncoded();
+        try
+        {
+            determineOSSLCipher(encoded.length);
+        }
+        finally
+        {
+            if (encoded != null)
+            {
+                Arrays.fill(encoded, (byte) 0);
+            }
+        }
         super.engineInit(opmode, key, params, random);
     }
 

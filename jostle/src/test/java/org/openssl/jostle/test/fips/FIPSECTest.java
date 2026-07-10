@@ -1306,4 +1306,35 @@ public class FIPSECTest
         jslKpg.initialize(new ECGenParameterSpec("secp256k1"));
         Assertions.assertNotNull(jslKpg.generateKeyPair(), "JSL still serves secp256k1");
     }
+
+    /**
+     * The ECDH and ECDHwithSHAnnnKDF KeyAgreements must resolve by their scheme
+     * OID through JSLFIPS (the CMS/PKIX KeyAgreeRecipientInfo path), not just by
+     * name — mirroring the non-FIPS ProvEC surface. Regression lock for the
+     * ProvFIPSEC OID-alias fix (the by-name agreement tests do not exercise the
+     * OID lookup, so this is the guard that catches a dropped alias).
+     */
+    @Test
+    public void ecdhAgreementOidAliasesResolve()
+        throws Exception
+    {
+        ensureProviders();
+
+        String[][] nameToOid = {
+                {"ECDH", "1.3.132.1.12"},
+                {"ECDHWITHSHA1KDF", "1.3.133.16.840.63.0.2"},
+                {"ECDHWITHSHA224KDF", "1.3.132.1.11.0"},
+                {"ECDHWITHSHA256KDF", "1.3.132.1.11.1"},
+                {"ECDHWITHSHA384KDF", "1.3.132.1.11.2"},
+                {"ECDHWITHSHA512KDF", "1.3.132.1.11.3"},
+        };
+        for (String[] no : nameToOid)
+        {
+            // Both the name and the OID must resolve to a JSLFIPS service.
+            Assertions.assertNotNull(KeyAgreement.getInstance(no[0], FIPS),
+                    no[0] + " must resolve by name");
+            Assertions.assertNotNull(KeyAgreement.getInstance(no[1], FIPS),
+                    no[0] + " must resolve by OID " + no[1]);
+        }
+    }
 }

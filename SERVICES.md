@@ -342,7 +342,7 @@ The Jostle (`JSL`) provider registers **293** services across **14** JCA service
 
 # Jostle FIPS Provider (JSLFIPS) — Registered Services
 
-The Jostle FIPS (`JSLFIPS`) provider registers **150** services across **12** JCA service types — the subset the OpenSSL FIPS module serves as approved. The set is fixed by the ProvFIPS* registration code.
+The Jostle FIPS (`JSLFIPS`) provider registers **149** services across **12** JCA service types — the subset the OpenSSL FIPS module serves as approved. The set is fixed by the ProvFIPS* registration code.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -366,7 +366,7 @@ The Jostle FIPS (`JSLFIPS`) provider registers **150** services across **12** JC
 13. `EC`
 14. `GCM`
 
-## Cipher (19)
+## Cipher (18)
 
 1. `2.16.840.1.101.3.4.1.2`
 2. `2.16.840.1.101.3.4.1.22`
@@ -386,7 +386,6 @@ The Jostle FIPS (`JSLFIPS`) provider registers **150** services across **12** JC
 16. `AES192`
 17. `AES256`
 18. `RSA`
-19. `RSA/ECB/PKCS1PADDING`
 
 ## KeyAgreement (8)
 

@@ -155,8 +155,11 @@ public class MLDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
     {
-        updateCalled = true;
-        NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len);
+        synchronized (this)
+        {
+            updateCalled = true;
+            NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len);
+        }
     }
 
     @Override

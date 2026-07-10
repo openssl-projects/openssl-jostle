@@ -194,11 +194,17 @@ public class MLKEMKTSCipherSpi
         byte[] secret = new byte[SHARED_SECRET_LEN];
         byte[] encapsulation = new byte[encLen];
 
-        int written = NISelector.SpecNI.encap(keySpec.getReference(), null,
-            secret, 0, secret.length, encapsulation, 0, encapsulation.length, randSource);
-        if (written != encLen)
+        // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
+        // across the native encapsulate call; nothing after it touches keySpec.
+        // See java-spi.md "Native references must outlive every JNI/FFI call".
+        synchronized (this)
         {
-            throw new InvalidKeyException("unexpected ML-KEM encapsulation length: " + written);
+            int written = NISelector.SpecNI.encap(keySpec.getReference(), null,
+                secret, 0, secret.length, encapsulation, 0, encapsulation.length, randSource);
+            if (written != encLen)
+            {
+                throw new InvalidKeyException("unexpected ML-KEM encapsulation length: " + written);
+            }
         }
 
         try
@@ -248,11 +254,17 @@ public class MLKEMKTSCipherSpi
         byte[] wrapped = Arrays.copyOfRange(wrappedKey, encLen, wrappedKey.length);
 
         byte[] secret = new byte[SHARED_SECRET_LEN];
-        int written = NISelector.SpecNI.decap(keySpec.getReference(), null,
-            encapsulation, 0, encapsulation.length, secret, 0, secret.length);
-        if (written != SHARED_SECRET_LEN)
+        // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
+        // across the native decapsulate call; nothing after it touches keySpec.
+        // See java-spi.md "Native references must outlive every JNI/FFI call".
+        synchronized (this)
         {
-            throw new InvalidKeyException("unexpected ML-KEM shared-secret length: " + written);
+            int written = NISelector.SpecNI.decap(keySpec.getReference(), null,
+                encapsulation, 0, encapsulation.length, secret, 0, secret.length);
+            if (written != SHARED_SECRET_LEN)
+            {
+                throw new InvalidKeyException("unexpected ML-KEM shared-secret length: " + written);
+            }
         }
 
         try

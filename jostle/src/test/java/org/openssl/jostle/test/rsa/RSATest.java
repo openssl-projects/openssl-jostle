@@ -631,6 +631,48 @@ public class RSATest
     }
 
     /**
+     * Fix+lock guard for the RSA-PSS randomness-drop bug: after a terminal
+     * {@code sign()} the SPI re-binds the key via {@code reInit()}, which MUST
+     * preserve the caller-supplied {@link SecureRandom} rather than silently
+     * swapping it for the project default (the pre-fix path re-entered the
+     * public {@code engineInitSign(key)}, whose {@code replaceWith(..., getSecureRandom())}
+     * discarded the caller's RNG). PSS pulls fresh salt from the RandSource on
+     * every sign, so a counting SecureRandom is invoked once per sign — if
+     * reInit dropped it, the second sign would draw from the default and the
+     * counter would stop advancing. Runs on both JNI and FFI.
+     */
+    @Test
+    public void testPss_reInit_preservesCallerSuppliedSecureRandom() throws Exception
+    {
+        final int[] draws = {0};
+        SecureRandom counting = new SecureRandom()
+        {
+            @Override
+            public void nextBytes(byte[] bytes)
+            {
+                draws[0]++;
+                super.nextBytes(bytes);
+            }
+        };
+
+        byte[] msg = randomMessage(64);
+        Signature signer = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        signer.initSign(sharedKeyPair.getPrivate(), counting);
+
+        signer.update(msg);
+        signer.sign();                          // first terminal op -> reInit()
+        int afterFirst = draws[0];
+        Assertions.assertTrue(afterFirst > 0,
+                "PSS sign must draw salt from the caller-supplied SecureRandom");
+
+        signer.update(msg);
+        signer.sign();                          // must STILL use `counting`
+        int afterSecond = draws[0];
+        Assertions.assertTrue(afterSecond > afterFirst,
+                "reInit must preserve the caller-supplied SecureRandom across reuse");
+    }
+
+    /**
      * Streaming chunking matrix per CLAUDE.md — PSS edition. PSS is
      * randomized (each call uses a fresh salt), so we cannot byte-compare
      * signatures. Instead, sign each chunking pattern and verify each

@@ -91,9 +91,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         {
             JORSAPublicKey key = RSAKeyImport.importPublic(keyFactory, publicKey);
             lastKey = key;
-
-            ensureRef(key.getAlgorithm());
-            nativeInitVerify(ref.getReference(), key.getSpec().getReference());
+            initVerifyInternal(key);
         }
         finally
         {
@@ -116,14 +114,32 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         {
             JORSAPrivateKey key = RSAKeyImport.importPrivate(keyFactory, privateKey);
             lastKey = key;
-
-            ensureRef(key.getAlgorithm());
-            nativeInitSign(ref.getReference(), key.getSpec().getReference(), randSource);
+            initSignInternal(key);
         }
         finally
         {
             Reference.reachabilityFence(this);
         }
+    }
+
+    /**
+     * Bind an already-imported private key for signing using the SPI's
+     * current {@code randSource}. Separated from {@link #engineInitSign}
+     * so {@link #reInit} can re-bind after a terminal op WITHOUT replacing
+     * the caller-supplied SecureRandom (which {@code engineInitSign(key,
+     * random)} would do via {@code replaceWith}).
+     */
+    private void initSignInternal(JORSAPrivateKey key)
+    {
+        ensureRef(key.getAlgorithm());
+        nativeInitSign(ref.getReference(), key.getSpec().getReference(), randSource);
+    }
+
+    /** Verify-side counterpart to {@link #initSignInternal}. */
+    private void initVerifyInternal(JORSAPublicKey key)
+    {
+        ensureRef(key.getAlgorithm());
+        nativeInitVerify(ref.getReference(), key.getSpec().getReference());
     }
 
     @Override
@@ -237,7 +253,10 @@ abstract class RSASignatureSpiBase extends SignatureSpi
 
     /**
      * Re-initialise after a sign or verify so the next streaming
-     * update starts fresh against the same key. Subclasses can
+     * update starts fresh against the same key. Re-binds via the
+     * {@code *Internal} helpers so the caller-supplied {@code randSource}
+     * survives — re-entering {@code engineInitSign(key)} here would
+     * silently swap it for the project default. Subclasses can
      * override if they need to re-apply parameters in addition to
      * restoring key state.
      */
@@ -245,13 +264,13 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     {
         try
         {
-            if (lastKey instanceof RSAPublicKey)
+            if (lastKey instanceof JORSAPublicKey)
             {
-                engineInitVerify((PublicKey) lastKey);
+                initVerifyInternal((JORSAPublicKey) lastKey);
             }
-            else if (lastKey instanceof RSAPrivateKey)
+            else if (lastKey instanceof JORSAPrivateKey)
             {
-                engineInitSign((PrivateKey) lastKey);
+                initSignInternal((JORSAPrivateKey) lastKey);
             }
             // No key set yet — nothing to do.
         }

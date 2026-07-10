@@ -69,11 +69,15 @@ class ProvFIPSEC
         provider.addAlgorithmImplementation("KeyAgreement", "ECDH",
                 PREFIX + "ECDHKeyAgreementSpi", attr,
                 (arg) -> new ECDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory()));
-        registerKdfAgreement(provider, attr, "ECDHWITHSHA1KDF", "SHA-1");
-        registerKdfAgreement(provider, attr, "ECDHWITHSHA224KDF", "SHA-224");
-        registerKdfAgreement(provider, attr, "ECDHWITHSHA256KDF", "SHA-256");
-        registerKdfAgreement(provider, attr, "ECDHWITHSHA384KDF", "SHA-384");
-        registerKdfAgreement(provider, attr, "ECDHWITHSHA512KDF", "SHA-512");
+        // id-ecDH (SECG SEC1) — so CMS/PKIX KeyAgreeRecipientInfo can resolve
+        // the EC agreement by OID, mirroring the non-FIPS ProvEC surface.
+        provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
+        // X9.63 dhSinglePass-stdDH-sha*kdf-scheme OIDs, likewise for CMS.
+        registerKdfAgreement(provider, attr, "ECDHWITHSHA1KDF", "SHA-1", "1.3.133.16.840.63.0.2");
+        registerKdfAgreement(provider, attr, "ECDHWITHSHA224KDF", "SHA-224", "1.3.132.1.11.0");
+        registerKdfAgreement(provider, attr, "ECDHWITHSHA256KDF", "SHA-256", "1.3.132.1.11.1");
+        registerKdfAgreement(provider, attr, "ECDHWITHSHA384KDF", "SHA-384", "1.3.132.1.11.2");
+        registerKdfAgreement(provider, attr, "ECDHWITHSHA512KDF", "SHA-512", "1.3.132.1.11.3");
     }
 
     private static ECKeyFactorySpi keyFactory()
@@ -97,10 +101,12 @@ class ProvFIPSEC
     private static void registerKdfAgreement(JostleFIPSProvider provider,
                                              Map<String, String> attr,
                                              String name,
-                                             String digestName)
+                                             String digestName,
+                                             String oid)
     {
         provider.addAlgorithmImplementation("KeyAgreement", name,
                 PREFIX + "ECWithKDFKeyAgreementSpi$" + name.replace("-", "_"), attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(), digestName));
+        provider.addAlias("KeyAgreement", name, oid);
     }
 }

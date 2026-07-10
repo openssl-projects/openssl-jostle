@@ -40,8 +40,15 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
     @Override
     public byte[] getEncoded()
     {
-        // FIPS 205: AlgorithmIdentifier parameters MUST be absent.
-        return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
+        // synchronized(this) keeps this key (and thus its PKEYKeySpec) reachable
+        // across the native encoding call in ASN1Encoder, which reads
+        // spec.getReference() but does not itself fence the spec — the caller
+        // must. See java-spi.md "Native references must outlive every JNI/FFI call".
+        synchronized (this)
+        {
+            // FIPS 205: AlgorithmIdentifier parameters MUST be absent.
+            return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
+        }
     }
 
     public PKEYKeySpec getSpec()
@@ -67,10 +74,13 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
         //
         // Raw bytes
         //
-        long len = NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null);
-        byte[] out = new byte[(int) len];
-        NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out);
+        synchronized (this)
+        {
+            long len = NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null);
+            byte[] out = new byte[(int) len];
+            NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out);
 
-        return out;
+            return out;
+        }
     }
 }
