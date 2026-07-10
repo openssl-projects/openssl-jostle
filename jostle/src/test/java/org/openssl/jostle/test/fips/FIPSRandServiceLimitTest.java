@@ -269,10 +269,18 @@ public class FIPSRandServiceLimitTest
     public void drbgStrengthReturnsVariantStrength()
     {
         // Positive companion: the FIPS module reports the same strengths as the
-        // non-FIPS provider for these approved DRBGs.
+        // non-FIPS provider for these approved DRBGs. Mirrors
+        // RandServiceParameterTest.variantStrengthsAreDerivedFromOpenSSL — locks
+        // that the strengths stay queried from OpenSSL, never transcribed
+        // (java-spi "OpenSSL is the single source of truth"). Truncated variants
+        // are excluded (unregistered under FIPS).
         Assertions.assertEquals(256, randServiceNI.drbgStrength("CTR-DRBG", "AES-256-CTR"));
+        Assertions.assertEquals(192, randServiceNI.drbgStrength("CTR-DRBG", "AES-192-CTR"));
         Assertions.assertEquals(128, randServiceNI.drbgStrength("CTR-DRBG", "AES-128-CTR"));
         Assertions.assertEquals(128, randServiceNI.drbgStrength("HASH-DRBG", "SHA1"));
+        Assertions.assertEquals(256, randServiceNI.drbgStrength("HASH-DRBG", "SHA2-512"));
+        Assertions.assertEquals(128, randServiceNI.drbgStrength("HMAC-DRBG", "SHA1"));
+        Assertions.assertEquals(256, randServiceNI.drbgStrength("HMAC-DRBG", "SHA2-512"));
     }
 
     // ---------------------------------------------------------------------

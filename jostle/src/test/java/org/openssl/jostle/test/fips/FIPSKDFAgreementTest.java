@@ -22,12 +22,14 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
+import org.openssl.jostle.jcajce.spec.PBKDF2KeySpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.InvalidKeySpecException;
 
 /**
  * Cross-provider agreement for the FIPS provider's KDF surface (PBKDF2 and
@@ -312,6 +314,145 @@ public class FIPSKDFAgreementTest
                 Assertions.assertFalse(Arrays.areEqual(fips, fipsAlt),
                         tag + ": changed IKM produced identical key");
             }
+        }
+    }
+
+    /**
+     * RFC 5869 expand-limit boundary through the JSLFIPS JCE surface: 255 *
+     * HashLen (8160 bytes for SHA-256) must derive and agree with BC; 8161 must
+     * be rejected at the JCE boundary with the checked
+     * {@link InvalidKeySpecException} — not an allocation followed by an opaque
+     * native error. Mirror of {@code kdf/HkdfTest.testOutputLengthBoundary}.
+     */
+    @Test
+    public void hkdfOutputLengthBoundaryRejectedAtJceSurface() throws Exception
+    {
+        ensureProviders();
+        SecureRandom sr = seededRandom("hkdfOutputLengthBoundaryRejectedAtJceSurface");
+        byte[] ikm = randomBytes(32, sr);
+        byte[] salt = randomBytes(16, sr);
+
+        int max = 255 * 32; // 8160 for SHA-256
+        byte[] fips = hkdfJce(FIPS, "HKDF-SHA256", ikm, salt, null, max);
+        byte[] bc = hkdfBc(new SHA256Digest(), ikm, salt, null, max);
+        Assertions.assertArrayEquals(bc, fips, "255 * HashLen output disagreed with BC");
+
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", FIPS);
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(ikm, salt, null, max + 1));
+            Assertions.fail("output length past 255 * HashLen must be rejected");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("output length exceeds RFC 5869 limit"),
+                    "unexpected message: " + e.getMessage());
+        }
+    }
+
+    /**
+     * JCE-surface negative paths through JSLFIPS HKDF-SHA256: every rejection
+     * must surface as the checked {@link InvalidKeySpecException} from
+     * {@code SecretKeyFactory.generateSecret} — never an unchecked exception
+     * leaking from the NI layer. Mirror of
+     * {@code kdf/HkdfTest.testNegativePaths}.
+     */
+    @Test
+    public void hkdfJceSurfaceNegativePathsRejected() throws Exception
+    {
+        ensureProviders();
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", FIPS);
+
+        try
+        {
+            kf.generateSecret(null);
+            Assertions.fail("null KeySpec must be rejected");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("unsupported KeySpec null", e.getMessage());
+        }
+
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(null, new byte[4], new byte[4], 32));
+            Assertions.fail("null IKM must be rejected");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("ikm is null", e.getMessage());
+        }
+
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(new byte[16], null, null, 0));
+            Assertions.fail("zero output length must be rejected");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("output length must be positive", e.getMessage());
+        }
+
+        try
+        {
+            kf.generateSecret(new HKDFParameterSpec(new byte[16], null, null, -1));
+            Assertions.fail("negative output length must be rejected");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertEquals("output length must be positive", e.getMessage());
+        }
+
+        // A spec without the HKDF accessor contract must be rejected with the
+        // checked type, not a reflective unchecked failure.
+        try
+        {
+            kf.generateSecret(new PBEKeySpec("pwd".toCharArray()));
+            Assertions.fail("structurally-incompatible KeySpec must be rejected");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("unsupported KeySpec "),
+                    "unexpected message: " + e.getMessage());
+        }
+    }
+
+    /**
+     * A forced-PRF JSLFIPS PBKDF2 factory ("PBKDF2WITHHMACSHA256", which pins
+     * the PRF to HMAC-SHA-256) fed a {@link PBKDF2KeySpec} whose PRF names a
+     * different digest must reject with {@link InvalidKeySpecException} naming
+     * the mismatch, rather than silently deriving under the wrong PRF. Locks the
+     * {@code forcedDigestAlgorithm} guard in {@code PBKDF2SecretKeyFactory}.
+     * <p>
+     * No non-FIPS reference exists for this path; the exact message
+     * ("PRF in spec &lt;X&gt; does not match forced prf &lt;Y&gt;") was read
+     * from {@code PBKDF2SecretKeyFactory#engineGenerateSecret}. Pinned via a
+     * stable prefix because the digest names are canonicalised.
+     */
+    @Test
+    public void pbkdf2PrfMismatchRejectedAtJceSurface() throws Exception
+    {
+        ensureProviders();
+        SecureRandom sr = seededRandom("pbkdf2PrfMismatchRejectedAtJceSurface");
+
+        char[] password = randomPassword(sr);
+        byte[] salt = randomBytes(MIN_SALT_BYTES + sr.nextInt(16), sr);
+        int iterations = MIN_ITERATIONS + sr.nextInt(1024);
+        int keyBits = 32 * 8;
+
+        // Factory forces HMAC-SHA-256; spec's PRF names SHA-512 — a mismatch.
+        PBKDF2KeySpec spec = new PBKDF2KeySpec(password, salt, iterations, keyBits, "SHA-512");
+
+        SecretKeyFactory kf = SecretKeyFactory.getInstance("PBKDF2WITHHMACSHA256", FIPS);
+        try
+        {
+            kf.generateSecret(spec);
+            Assertions.fail("PRF-mismatched spec must be rejected by a forced-PRF factory");
+        }
+        catch (InvalidKeySpecException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("PRF in spec "),
+                    "unexpected message: " + e.getMessage());
         }
     }
 }

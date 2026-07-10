@@ -14,6 +14,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import java.security.KeyFactory;
@@ -76,6 +77,20 @@ public class FIPSDSAAgreementTest
     /** SHA-2 DSA transformations registered by both Jostle providers and BC. */
     private static final String[] SHA2_DSA = {
             "SHA224withDSA", "SHA256withDSA", "SHA384withDSA", "SHA512withDSA"
+    };
+
+    /**
+     * SHA-3 DSA transformations registered by {@code ProvFIPSDSA} and BC.
+     * Kept in a separate array from {@link #SHA2_DSA} so that a module which
+     * did NOT approve a SHA3-withDSA digest can be handled distinctly (see
+     * {@link #sha3DsaSignaturesAgreeWithBc()}). The 3.1.2 FIPS module DOES
+     * approve these: its {@code dsa_setup_md} gates on
+     * {@code ossl_digest_get_approved_nid}, whose table
+     * ({@code providers/common/digest_to_nid.c}) lists SHA3-224/256/384/512
+     * (FIPS 202) alongside the SHA-2 family.
+     */
+    private static final String[] SHA3_DSA = {
+            "SHA3-224withDSA", "SHA3-256withDSA", "SHA3-384withDSA", "SHA3-512withDSA"
     };
 
     private static final int TRIALS = 8;
@@ -221,6 +236,44 @@ public class FIPSDSAAgreementTest
             for (String sigAlg : SHA2_DSA)
             {
                 crossVerify(sigAlg, ref, sr);
+            }
+        }
+    }
+
+    /**
+     * SHA3-224/256/384/512withDSA are registered by {@code ProvFIPSDSA} but are
+     * excluded from {@link #SHA2_DSA}, so the primary agreement test never
+     * exercises them. This locks each SHA-3 DSA transformation against BC in
+     * both directions (JSLFIPS signs / BC verifies and BC signs / JSLFIPS
+     * verifies), with a tampered-message differentiator per trial.
+     * <p>
+     * If a future FIPS module ever declined a SHA3-withDSA digest for signing,
+     * the module surfaces an {@link OpenSSLException} ("digest not allowed") the
+     * same way it gates SHA-1 signing (see {@code FIPSSha1SignatureGateTest}).
+     * That refusal is locked distinctly rather than being allowed to fail the
+     * round-trip opaquely — either the digest is approved and cross-verifies, or
+     * it is refused with the module's "digest not allowed" error.
+     */
+    @Test
+    public void sha3DsaSignaturesAgreeWithBc() throws Exception
+    {
+        ensureProviders();
+        ensureSharedKeyPair();
+        SecureRandom sr = seededRandom("sha3DsaSignaturesAgreeWithBc");
+
+        for (String sigAlg : SHA3_DSA)
+        {
+            try
+            {
+                crossVerify(sigAlg, BC, sr);
+            }
+            catch (OpenSSLException ex)
+            {
+                // Distinct lock: a module that does not approve this SHA-3
+                // digest for DSA signing must refuse it explicitly, not
+                // silently produce a wrong signature.
+                Assertions.assertTrue(String.valueOf(ex.getMessage()).contains("digest not allowed"),
+                        sigAlg + ": expected a module 'digest not allowed' refusal, got: " + ex.getMessage());
             }
         }
     }

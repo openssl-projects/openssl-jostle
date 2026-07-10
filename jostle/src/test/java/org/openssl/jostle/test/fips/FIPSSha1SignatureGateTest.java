@@ -111,6 +111,27 @@ public class FIPSSha1SignatureGateTest
     }
 
     @Test
+    public void sha1DsaSignatureGenerationRejected() throws Exception
+    {
+        ensureProviders();
+
+        KeyPairGenerator dsaKpg = KeyPairGenerator.getInstance("DSA", FIPS);
+        dsaKpg.initialize(2048);
+        KeyPair dsa = dsaKpg.generateKeyPair();
+
+        // Control: SHA-256 signing works (proves the key/provider are sound, so
+        // the SHA-1 rejection below is specifically about the digest).
+        byte[] msg = new byte[64];
+        RANDOM.nextBytes(msg);
+        Signature control = Signature.getInstance("SHA256withDSA", FIPS);
+        control.initSign(dsa.getPrivate());
+        control.update(msg);
+        Assertions.assertTrue(control.sign().length > 0, "SHA-256 DSA signing must work");
+
+        assertSha1SignRejected(dsa, "SHA1withDSA");
+    }
+
+    @Test
     public void sha1VerificationRemainsAllowed() throws Exception
     {
         ensureProviders();

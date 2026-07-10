@@ -67,6 +67,12 @@ public class FIPSKeyIsolationTest
         void run() throws Exception;
     }
 
+    /** Binds a private key into a fresh SPI created for {@code provider}. */
+    private interface PrivKeyOp
+    {
+        void run(String provider, PrivateKey key) throws Exception;
+    }
+
     @Test
     public void rsaPrivateKeysIsolatedPublicKeysShared()
         throws Exception
@@ -190,5 +196,155 @@ public class FIPSKeyIsolationTest
         Cipher dec = Cipher.getInstance("AES/GCM/NoPadding", JostleProvider.PROVIDER_NAME);
         dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
         Assertions.assertArrayEquals(message, dec.doFinal(ct));
+    }
+
+    /**
+     * Completeness lock over the RSA pattern in
+     * {@link #rsaPrivateKeysIsolatedPublicKeysShared()}: for every asymmetric
+     * family Jostle exposes (RSA, EC/ECDSA, EC/ECDH, DSA, DH) a PRIVATE key
+     * created by one provider is rejected by the other provider's SPI in BOTH
+     * directions with the identical {@link InvalidKeyException} "different
+     * Jostle provider" message; the PUBLIC key crosses freely; and the
+     * sanctioned re-encode-through-KeyFactory route round-trips per family.
+     */
+    @Test
+    public void keyIsolationCompleteAcrossAllAsymmetricFamiliesBothDirections()
+        throws Exception
+    {
+        ensureProviders();
+        final String fips = JostleFIPSProvider.PROVIDER_NAME;
+        final String jsl = JostleProvider.PROVIDER_NAME;
+
+        // ---- RSA ----
+        KeyPair jslRsa = genKp("RSA", jsl, 2048);
+        KeyPair fipsRsa = genKp("RSA", fips, 2048);
+        PrivKeyOp rsaOp = (p, k) -> Signature.getInstance("SHA256withRSA", p).initSign(k);
+        assertPrivateIsolatedBothDirections(jslRsa.getPrivate(), fipsRsa.getPrivate(), rsaOp);
+        assertSignVerifyAcross("SHA256withRSA", fips, jsl, fipsRsa);
+        assertSignVerifyAcross("SHA256withRSA", jsl, fips, jslRsa);
+        assertSigReencodeRoute("SHA256withRSA", "RSA", fips, jsl, jslRsa);
+        assertSigReencodeRoute("SHA256withRSA", "RSA", jsl, fips, fipsRsa);
+
+        // ---- EC: both the ECDSA and the ECDH surface must isolate the private key ----
+        KeyPair jslEc = genEcKp(jsl);
+        KeyPair jslEc2 = genEcKp(jsl);
+        KeyPair fipsEc = genEcKp(fips);
+        PrivKeyOp ecdsaOp = (p, k) -> Signature.getInstance("SHA256withECDSA", p).initSign(k);
+        PrivKeyOp ecdhOp = (p, k) -> KeyAgreement.getInstance("ECDH", p).init(k);
+        assertPrivateIsolatedBothDirections(jslEc.getPrivate(), fipsEc.getPrivate(), ecdsaOp);
+        assertPrivateIsolatedBothDirections(jslEc.getPrivate(), fipsEc.getPrivate(), ecdhOp);
+        assertSignVerifyAcross("SHA256withECDSA", fips, jsl, fipsEc);
+        assertSignVerifyAcross("SHA256withECDSA", jsl, fips, jslEc);
+        assertSigReencodeRoute("SHA256withECDSA", "EC", fips, jsl, jslEc);
+        assertSigReencodeRoute("SHA256withECDSA", "EC", jsl, fips, fipsEc);
+        assertKaReencodeAndPublicCross("ECDH", "EC", jslEc, jslEc2);
+
+        // ---- DSA ----
+        KeyPair jslDsa = genKp("DSA", jsl, 2048);
+        KeyPair fipsDsa = genKp("DSA", fips, 2048);
+        PrivKeyOp dsaOp = (p, k) -> Signature.getInstance("SHA256withDSA", p).initSign(k);
+        assertPrivateIsolatedBothDirections(jslDsa.getPrivate(), fipsDsa.getPrivate(), dsaOp);
+        assertSignVerifyAcross("SHA256withDSA", fips, jsl, fipsDsa);
+        assertSignVerifyAcross("SHA256withDSA", jsl, fips, jslDsa);
+        assertSigReencodeRoute("SHA256withDSA", "DSA", fips, jsl, jslDsa);
+        assertSigReencodeRoute("SHA256withDSA", "DSA", jsl, fips, fipsDsa);
+
+        // ---- DH ----
+        KeyPair jslDh = genKp("DH", jsl, 2048);
+        KeyPair jslDh2 = genKp("DH", jsl, 2048);
+        KeyPair fipsDh = genKp("DH", fips, 2048);
+        PrivKeyOp dhOp = (p, k) -> KeyAgreement.getInstance("DH", p).init(k);
+        assertPrivateIsolatedBothDirections(jslDh.getPrivate(), fipsDh.getPrivate(), dhOp);
+        assertKaReencodeAndPublicCross("DH", "DH", jslDh, jslDh2);
+    }
+
+    private static KeyPair genKp(String alg, String provider, int bits)
+        throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance(alg, provider);
+        g.initialize(bits);
+        return g.generateKeyPair();
+    }
+
+    private static KeyPair genEcKp(String provider)
+        throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("EC", provider);
+        g.initialize(new ECGenParameterSpec("secp256r1"));
+        return g.generateKeyPair();
+    }
+
+    /**
+     * A private key from either provider must be rejected by the other
+     * provider's SPI with the canonical isolation message - in both
+     * directions.
+     */
+    private void assertPrivateIsolatedBothDirections(PrivateKey jslPriv, PrivateKey fipsPriv, PrivKeyOp op)
+    {
+        assertRejected(() -> op.run(JostleFIPSProvider.PROVIDER_NAME, jslPriv));
+        assertRejected(() -> op.run(JostleProvider.PROVIDER_NAME, fipsPriv));
+    }
+
+    /** Sign in one provider, verify in the other using the signer's own (freely-crossing) public key. */
+    private void assertSignVerifyAcross(String sigAlg, String signProvider, String verifyProvider, KeyPair keyPair)
+        throws Exception
+    {
+        byte[] msg = new byte[64];
+        RANDOM.nextBytes(msg);
+        Signature signer = Signature.getInstance(sigAlg, signProvider);
+        signer.initSign(keyPair.getPrivate());
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance(sigAlg, verifyProvider);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), sigAlg + " public key must verify across providers");
+    }
+
+    /**
+     * The sanctioned route: re-encode {@code owner}'s private key through
+     * {@code destProvider}'s KeyFactory, then prove it signs and the signature
+     * verifies (with the owner's public key) through {@code verifyProvider}.
+     */
+    private void assertSigReencodeRoute(String sigAlg, String kfAlg, String destProvider, String verifyProvider, KeyPair owner)
+        throws Exception
+    {
+        byte[] msg = new byte[64];
+        RANDOM.nextBytes(msg);
+        KeyFactory kf = KeyFactory.getInstance(kfAlg, destProvider);
+        PrivateKey crossed = kf.generatePrivate(new PKCS8EncodedKeySpec(owner.getPrivate().getEncoded()));
+        Signature signer = Signature.getInstance(sigAlg, destProvider);
+        signer.initSign(crossed);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance(sigAlg, verifyProvider);
+        verifier.initVerify(owner.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), sigAlg + " re-encoded private key must sign and verify");
+    }
+
+    /**
+     * KeyAgreement families (ECDH, DH): compute a native reference secret
+     * entirely in JSL, then re-encode {@code jslA}'s private key into the FIPS
+     * provider (sanctioned route) and run the agreement there with
+     * {@code jslB}'s freely-crossing public key. The two secrets must match.
+     */
+    private void assertKaReencodeAndPublicCross(String kaAlg, String kfAlg, KeyPair jslA, KeyPair jslB)
+        throws Exception
+    {
+        KeyAgreement ref = KeyAgreement.getInstance(kaAlg, JostleProvider.PROVIDER_NAME);
+        ref.init(jslA.getPrivate());
+        ref.doPhase(jslB.getPublic(), true);
+        byte[] refSecret = ref.generateSecret();
+
+        KeyFactory fipsKf = KeyFactory.getInstance(kfAlg, JostleFIPSProvider.PROVIDER_NAME);
+        PrivateKey crossed = fipsKf.generatePrivate(new PKCS8EncodedKeySpec(jslA.getPrivate().getEncoded()));
+        KeyAgreement fipsKa = KeyAgreement.getInstance(kaAlg, JostleFIPSProvider.PROVIDER_NAME);
+        fipsKa.init(crossed);
+        fipsKa.doPhase(jslB.getPublic(), true);
+        byte[] crossedSecret = fipsKa.generateSecret();
+
+        Assertions.assertArrayEquals(refSecret, crossedSecret,
+                kaAlg + " re-encoded private key and shared public key must agree across providers");
     }
 }

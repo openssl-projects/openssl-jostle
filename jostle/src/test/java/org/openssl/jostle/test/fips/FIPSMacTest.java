@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -182,5 +183,90 @@ public class FIPSMacTest
 
         // ... while the non-FIPS provider still serves them in the same JVM.
         Assertions.assertNotNull(Mac.getInstance("POLY1305", JostleProvider.PROVIDER_NAME));
+    }
+
+    /**
+     * getMacLength() reports the correct tag length for every approved MAC
+     * before any doFinal, locking ProvFIPSMac's function-name-to-digest
+     * mapping. A wrong-but-self-consistent tag would not reveal an
+     * addMac(...) regression; the declared length would.
+     */
+    @Test
+    public void getMacLengthPerApprovedAlgorithm()
+        throws Exception
+    {
+        ensureProviders();
+
+        Object[][] expected = new Object[][]{
+                {"HMACSHA1", 20},
+                {"HMACSHA224", 28},
+                {"HMACSHA256", 32},
+                {"HMACSHA384", 48},
+                {"HMACSHA512", 64},
+                {"HMACSHA512/224", 28},
+                {"HMACSHA512/256", 32},
+                {"HMACSHA3-224", 28},
+                {"HMACSHA3-256", 32},
+                {"HMACSHA3-384", 48},
+                {"HMACSHA3-512", 64},
+                {"AESCMAC", 16},
+        };
+
+        for (Object[] row : expected)
+        {
+            String name = (String) row[0];
+            int expectedLen = (Integer) row[1];
+            Mac mac = Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);
+            Assertions.assertEquals(expectedLen, mac.getMacLength(), "mac length for " + name);
+        }
+    }
+
+    /**
+     * An explicit Mac.reset() mid-stream discards the accumulated update
+     * bytes while keeping the key: init(key), update(msg), reset(),
+     * doFinal(msg) must equal a fresh JSLFIPS instance init(key).doFinal(msg).
+     * chunkingAndReuse covers only the post-doFinal auto-reset.
+     */
+    @Test
+    public void explicitResetDiscardsAccumulatedState()
+        throws Exception
+    {
+        ensureProviders();
+
+        SecretKeySpec key = randomKey("HMACSHA256", 32);
+        byte[] message = new byte[257 + RANDOM.nextInt(1024)];
+        RANDOM.nextBytes(message);
+
+        Mac mac = Mac.getInstance("HMACSHA256", JostleFIPSProvider.PROVIDER_NAME);
+        mac.init(key);
+
+        // Accumulate, explicitly reset, then compute the MAC of message.
+        mac.update(message);
+        mac.reset();
+        byte[] afterReset = mac.doFinal(message);
+
+        Mac fresh = Mac.getInstance("HMACSHA256", JostleFIPSProvider.PROVIDER_NAME);
+        fresh.init(key);
+        Assertions.assertArrayEquals(fresh.doFinal(message), afterReset);
+    }
+
+    /**
+     * Mac.init(null) through the FIPS provider rejects with
+     * InvalidKeyException("key is null") for the approved MACs, pinning the
+     * JCE engineInit(Key) path and the fallback-driving exception type.
+     */
+    @Test
+    public void initNullKeyThrowsInvalidKeyException()
+        throws Exception
+    {
+        ensureProviders();
+
+        for (String name : new String[]{"HMACSHA256", "AESCMAC"})
+        {
+            Mac mac = Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);
+            InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> mac.init(null), name);
+            Assertions.assertEquals("key is null", ex.getMessage(), name);
+        }
     }
 }

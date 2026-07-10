@@ -21,6 +21,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayOutputStream;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -297,6 +298,110 @@ public class FIPSAESAgreementTest
             Assertions.assertArrayEquals(targetBytes, unwrap(wrapPadOid, JSL, kek, wrappedFips),
                     tag + ": JSLFIPS wrap -> JSL unwrap");
         }
+    }
+
+    /**
+     * Chunking invariance: for a fixed key/IV/nonce the same plaintext driven
+     * through JSLFIPS AES/CBC and AES/GCM as one-shot vs byte-by-byte vs
+     * adversarial block-1/block/block+1 splits must yield byte-identical
+     * ciphertext (and, for GCM, an identical tag) — the one-shot output is the
+     * reference every other chunking is compared against. Mirrors
+     * {@code crypto/AESAgreementTest.exercise_complexUpdateDoFinal} /
+     * {@code aesGCMSpreadSplitUpdateDoFinal}, which the one-shot-only
+     * cbcAgrees/gcmAgrees tests in this class do not exercise. A round-trip on
+     * the reference proves the bytes are genuine ciphertext, not a stub.
+     */
+    @Test
+    public void cbcAndGcmChunkingIsByteIdentical() throws Exception
+    {
+        ensureProviders();
+        SecureRandom sr = seededRandom("cbcAndGcmChunkingIsByteIdentical");
+
+        // chunk == 0 is the one-shot reference; 1 is byte-by-byte; 15/16/17
+        // straddle the 16-byte block boundary (adversarial partial-block splits).
+        final int[] chunkings = {0, 1, 15, 16, 17};
+
+        for (int keySize : KEY_SIZES)
+        {
+            for (int len : LENGTHS)
+            {
+                SecretKey key = randomKey(keySize, sr);
+
+                byte[] cbcIv = new byte[16];
+                sr.nextBytes(cbcIv);
+                assertChunkingByteIdentical("AES/CBC/PKCS5Padding", key,
+                        new IvParameterSpec(cbcIv), null, len, chunkings, sr);
+
+                byte[] nonce = new byte[12];
+                sr.nextBytes(nonce);
+                byte[] aad = new byte[sr.nextInt(64)];
+                sr.nextBytes(aad);
+                byte[] aadArg = aad.length == 0 ? null : aad;
+                assertChunkingByteIdentical("AES/GCM/NoPadding", key,
+                        new GCMParameterSpec(128, nonce), aadArg, len, chunkings, sr);
+            }
+        }
+    }
+
+    private void assertChunkingByteIdentical(String xform, SecretKey key, AlgorithmParameterSpec spec,
+                                             byte[] aad, int len, int[] chunkings, SecureRandom sr) throws Exception
+    {
+        byte[] msg = new byte[len];
+        sr.nextBytes(msg);
+
+        byte[] reference = chunkedEncrypt(xform, key, spec, aad, msg, 0); // one-shot
+        String base = xform + " len=" + len;
+
+        for (int chunk : chunkings)
+        {
+            byte[] ct = chunkedEncrypt(xform, key, spec, aad, msg, chunk);
+            Assertions.assertArrayEquals(reference, ct, base + " chunk=" + chunk + ": ciphertext");
+        }
+
+        byte[] pt = decryptOneShot(xform, key, spec, aad, reference);
+        Assertions.assertArrayEquals(msg, pt, base + ": decrypt round-trip");
+    }
+
+    private static byte[] chunkedEncrypt(String xform, SecretKey key, AlgorithmParameterSpec spec,
+                                         byte[] aad, byte[] msg, int chunk) throws Exception
+    {
+        Cipher cipher = Cipher.getInstance(xform, FIPS);
+        cipher.init(Cipher.ENCRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            cipher.updateAAD(aad);
+        }
+        if (chunk <= 0)
+        {
+            return cipher.doFinal(msg);
+        }
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        int off = 0;
+        while (off < msg.length)
+        {
+            int part = Math.min(chunk, msg.length - off);
+            byte[] out = cipher.update(msg, off, part);
+            if (out != null)
+            {
+                bos.write(out, 0, out.length);
+            }
+            off += part;
+        }
+        byte[] fin = cipher.doFinal();
+        bos.write(fin, 0, fin.length);
+        return bos.toByteArray();
+    }
+
+    private static byte[] decryptOneShot(String xform, SecretKey key, AlgorithmParameterSpec spec,
+                                         byte[] aad, byte[] ct) throws Exception
+    {
+        Cipher cipher = Cipher.getInstance(xform, FIPS);
+        cipher.init(Cipher.DECRYPT_MODE, key, spec);
+        if (aad != null)
+        {
+            cipher.updateAAD(aad);
+        }
+        return cipher.doFinal(ct);
     }
 
     private static byte[] wrap(String xform, String provider, SecretKey kek, SecretKey target) throws Exception

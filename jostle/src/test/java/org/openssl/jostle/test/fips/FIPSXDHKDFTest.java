@@ -161,4 +161,26 @@ public class FIPSXDHKDFTest
         // ... while the non-FIPS provider still serves scrypt in the same JVM.
         Assertions.assertNotNull(SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME));
     }
+
+    @Test
+    public void unapprovedKdfsRejected_md5sha1AndBlake2()
+        throws Exception
+    {
+        ensureProviders();
+
+        // MD5-SHA1 and both BLAKE2 PBKDF2 PRFs are named in ProvFIPSKDF's
+        // deliberately-absent Javadoc: JSL registers them (ProvPBKDF lines
+        // 48/49/53) but they are not FIPS-approved, so JSLFIPS must not serve
+        // them. Completes the approved-surface lock alongside unapprovedKdfsRejected.
+        for (String name : new String[]{"PBKDF2WITHHMACMD5-SHA1", "PBKDF2WITHHMACBLAKE2B-512", "PBKDF2WITHHMACBLAKE2S-256"})
+        {
+            Assertions.assertThrows(NoSuchAlgorithmException.class,
+                    () -> SecretKeyFactory.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),
+                    name + " must not resolve through JSLFIPS");
+
+            // ... while the non-FIPS provider still serves it in the same JVM.
+            Assertions.assertNotNull(SecretKeyFactory.getInstance(name, JostleProvider.PROVIDER_NAME),
+                    name + " must still resolve through JSL");
+        }
+    }
 }

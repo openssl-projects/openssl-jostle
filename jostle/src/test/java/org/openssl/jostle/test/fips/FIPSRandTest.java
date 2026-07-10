@@ -19,6 +19,9 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Arrays;
@@ -174,5 +177,94 @@ public class FIPSRandTest
         dec.init(Cipher.DECRYPT_MODE, key, spec);
         Assertions.assertArrayEquals(message, dec.doFinal(ct),
                 "JSLFIPS-generated key must interoperate");
+    }
+
+    @Test
+    public void fipsSecureRandomRegistrationSurfaceIsLocked()
+    {
+        ensureProviders();
+
+        Provider provider = Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
+
+        // Exactly the 14 approved DRBG names (plus DEFAULT alias) must resolve.
+        for (String name : DRBGS)
+        {
+            Assertions.assertNotNull(provider.getService("SecureRandom", name),
+                    name + " must be a registered SecureRandom service");
+        }
+
+        // The truncated-digest DRBGs must be filtered out by isFipsApproved.
+        for (String name : UNAPPROVED_DRBGS)
+        {
+            Assertions.assertNull(provider.getService("SecureRandom", name),
+                    name + " (truncated DRBG digest) must not be registered");
+        }
+
+        // JDK-default SecureRandom algorithms must never leak into JSLFIPS.
+        Assertions.assertNull(provider.getService("SecureRandom", "SHA1PRNG"));
+        Assertions.assertNull(provider.getService("SecureRandom", "NativePRNG"));
+        Assertions.assertNull(provider.getService("SecureRandom", "NativePRNGNonBlocking"));
+        Assertions.assertNull(provider.getService("SecureRandom", "DefaultRandom"));
+    }
+
+    @Test
+    public void drbgThreadSafeAttribute()
+    {
+        ensureProviders();
+
+        Provider provider = Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
+
+        // ProvFIPSRand registers every DRBG ThreadSafe so the JCE does not
+        // serialize access to the native EVP_RAND_CTX.
+        Assertions.assertEquals("true", provider.get("SecureRandom.DRBG ThreadSafe"));
+    }
+
+    @Test
+    public void generateSeedReturnsRequestedLengthAndRejectsNegative()
+        throws Exception
+    {
+        ensureProviders();
+
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleFIPSProvider.PROVIDER_NAME);
+
+        byte[] seed = random.generateSeed(14);
+        Assertions.assertEquals(14, seed.length);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> random.generateSeed(-1));
+    }
+
+    @Test
+    public void nextBytesRejectsNull()
+        throws Exception
+    {
+        ensureProviders();
+
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleFIPSProvider.PROVIDER_NAME);
+
+        Assertions.assertThrows(NullPointerException.class, () -> random.nextBytes(null));
+    }
+
+    @Test
+    public void serializationIsNotSupported()
+        throws Exception
+    {
+        ensureProviders();
+
+        // A native-backed DRBG instance holds an EVP_RAND_CTX handle that cannot
+        // be persisted, so serialization is deliberately forbidden: writeObject
+        // throws and SecureRandom serialization fails deterministically.
+        SecureRandom random = SecureRandom.getInstance("DRBG", JostleFIPSProvider.PROVIDER_NAME);
+        ObjectOutputStream objectOut = new ObjectOutputStream(new ByteArrayOutputStream());
+
+        Throwable thrown = Assertions.assertThrows(Throwable.class, () -> objectOut.writeObject(random));
+
+        Throwable root = thrown;
+        while (root.getCause() != null)
+        {
+            root = root.getCause();
+        }
+        Assertions.assertTrue(root instanceof UnsupportedOperationException,
+                "expected UnsupportedOperationException root cause, got " + root);
+        Assertions.assertEquals("writeObject not implemented on native rand", root.getMessage());
     }
 }

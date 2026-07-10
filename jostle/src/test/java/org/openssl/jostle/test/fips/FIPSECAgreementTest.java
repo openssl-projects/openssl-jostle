@@ -78,7 +78,7 @@ public class FIPSECAgreementTest
     // approved even though SHA-1 signature generation is not (see
     // FIPSSha1SignatureGateTest).
     private static final String[] ECDH_KDF_NAMES = {
-            "ECDHWITHSHA1KDF", "ECDHWITHSHA256KDF", "ECDHWITHSHA384KDF", "ECDHWITHSHA512KDF"
+            "ECDHWITHSHA1KDF", "ECDHWITHSHA224KDF", "ECDHWITHSHA256KDF", "ECDHWITHSHA384KDF", "ECDHWITHSHA512KDF"
     };
 
     // AES key-wrap OIDs used as the KDF's target (KEK) algorithm, giving 16/24/

@@ -53,6 +53,15 @@ public class FIPSPBKdf2LimitTest
 
     private final KdfNI kdfNI = FIPSNISelector.KdfNI;
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private static byte[] randomBytes(int len)
+    {
+        byte[] b = new byte[len];
+        RANDOM.nextBytes(b);
+        return b;
+    }
+
     @Test
     public void testPBKDF2_null_password()
     {
@@ -208,5 +217,121 @@ public class FIPSPBKdf2LimitTest
         System.arraycopy(big, prefix - 1, shifted, 0, len);
         Assertions.assertFalse(Arrays.areEqual(reference, shifted),
                 "pbkdf2 appears to have written at outOffset - 1");
+    }
+
+    // ------------------------------------------------------------------
+    // SP 800-132 module-floor probes.
+    //
+    // These drive kdfNI.pbkdf2 with otherwise-compliant parameters (SHA-256,
+    // iter 2048, 16-byte salt, 32-byte output, >=14-byte password) and vary a
+    // single parameter to its documented FIPS lower bound minus one. Unlike the
+    // bridge-level rejections above, a sub-minimum value passes every bridge
+    // null/range check and reaches EVP_KDF_derive, where the module's SP 800-132
+    // enforcement (if active) refuses the derivation.
+    //
+    // Whether the 3.1.2 module actually enforces each floor at derive is
+    // UNCERTAIN. Each probe therefore locks the ACTUAL behaviour: the compliant
+    // value MUST derive (return 0), and the sub-minimum value is asserted to be
+    // refused via OpenSSLException whose message starts "OpenSSL Error:". If a
+    // floor is not enforced, the module derives, no exception is thrown, and the
+    // assertThrows fails — surfacing the missing enforcement rather than hiding
+    // it. Each floor lives in its own @Test so a partial-enforcement result is
+    // legible.
+    // ------------------------------------------------------------------
+
+    /**
+     * SP 800-132 salt floor: with compliant iter/digest/output a 16-byte salt
+     * derives, while a 15-byte salt (min - 1) is refused by the module.
+     */
+    @Test
+    public void testPBKDF2_fipsRejectsSaltBelow16Bytes()
+    {
+        byte[] password = randomBytes(16);
+
+        // Compliant companion: a 16-byte salt derives successfully.
+        Assertions.assertEquals(0,
+                kdfNI.pbkdf2(password, randomBytes(16), 2048, "SHA-256", new byte[32], 0, 32),
+                "16-byte salt should derive under SP 800-132");
+
+        // Sub-minimum: a 15-byte salt is refused at EVP_KDF_derive.
+        OpenSSLException osex = Assertions.assertThrows(OpenSSLException.class,
+                () -> kdfNI.handleErrorCodes(
+                        kdfNI.pbkdf2(password, randomBytes(15), 2048, "SHA-256", new byte[32], 0, 32)));
+        Assertions.assertTrue(osex.getMessage().startsWith("OpenSSL Error:"),
+                "unexpected message: " + osex.getMessage());
+    }
+
+    /**
+     * SP 800-132 iteration floor: with compliant salt/digest/output an
+     * iteration count of 1000 derives, while 999 (min - 1) is refused.
+     */
+    @Test
+    public void testPBKDF2_fipsRejectsIterationsBelow1000()
+    {
+        byte[] password = randomBytes(16);
+        byte[] salt = randomBytes(16);
+
+        // Compliant companion: 1000 iterations derives successfully.
+        Assertions.assertEquals(0,
+                kdfNI.pbkdf2(password, salt, 1000, "SHA-256", new byte[32], 0, 32),
+                "1000 iterations should derive under SP 800-132");
+
+        // Sub-minimum: 999 iterations is refused at EVP_KDF_derive.
+        OpenSSLException osex = Assertions.assertThrows(OpenSSLException.class,
+                () -> kdfNI.handleErrorCodes(
+                        kdfNI.pbkdf2(password, salt, 999, "SHA-256", new byte[32], 0, 32)));
+        Assertions.assertTrue(osex.getMessage().startsWith("OpenSSL Error:"),
+                "unexpected message: " + osex.getMessage());
+    }
+
+    /**
+     * SP 800-132 derived-key floor: with compliant salt/iter/digest a 14-byte
+     * (112-bit) output derives, while an 8-byte (64-bit) output is refused.
+     */
+    @Test
+    public void testPBKDF2_fipsRejectsOutputBelow112Bits()
+    {
+        byte[] password = randomBytes(16);
+        byte[] salt = randomBytes(16);
+
+        // Compliant companion: a 14-byte (112-bit) output derives successfully.
+        Assertions.assertEquals(0,
+                kdfNI.pbkdf2(password, salt, 2048, "SHA-256", new byte[14], 0, 14),
+                "14-byte (112-bit) output should derive under SP 800-132");
+
+        // Sub-minimum: an 8-byte (64-bit) output is refused at EVP_KDF_derive.
+        OpenSSLException osex = Assertions.assertThrows(OpenSSLException.class,
+                () -> kdfNI.handleErrorCodes(
+                        kdfNI.pbkdf2(password, salt, 2048, "SHA-256", new byte[8], 0, 8)));
+        Assertions.assertTrue(osex.getMessage().startsWith("OpenSSL Error:"),
+                "unexpected message: " + osex.getMessage());
+    }
+
+    /**
+     * Password-length policy — locked to the module's ACTUAL behaviour. The
+     * OpenSSL FIPS 3.1.2 PBKDF2 (kdf_pbkdf2) enforces the SP 800-132 salt
+     * (>= 16 bytes), iteration (>= 1000) and derived-key (>= 112-bit) floors
+     * (see the three tests above) but does NOT enforce a minimum PASSWORD
+     * length: a short password derives successfully. This pins that fact so a
+     * future module version that DOES add a password floor is flagged for
+     * review rather than silently changing behaviour. (SP 800-132's password
+     * strength guidance is a caller responsibility, not a module gate — do not
+     * assert a floor the module does not enforce; see the "OpenSSL is the
+     * single source of truth" rule.)
+     */
+    @Test
+    public void testPBKDF2_passwordLengthNotEnforcedByModule()
+    {
+        byte[] salt = randomBytes(16);
+
+        // A 13-byte password (and even a single byte) derives successfully with
+        // otherwise-compliant salt/iter/output — the module applies no password
+        // floor.
+        Assertions.assertEquals(0,
+                kdfNI.pbkdf2(randomBytes(13), salt, 2048, "SHA-256", new byte[32], 0, 32),
+                "13-byte password should derive: the module enforces no password floor");
+        Assertions.assertEquals(0,
+                kdfNI.pbkdf2(randomBytes(1), salt, 2048, "SHA-256", new byte[32], 0, 32),
+                "1-byte password should derive: the module enforces no password floor");
     }
 }
