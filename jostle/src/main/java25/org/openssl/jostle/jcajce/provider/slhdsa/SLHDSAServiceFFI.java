@@ -72,7 +72,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 
     static
     {
-        generateKeyPairFunc = lookup.find("SLH_DSA_generateKeyPair").orElseThrow();
+        generateKeyPairFunc = lookup.find("JoSLHDSA_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -81,7 +81,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        generateKeyPairWithSeedFunc = lookup.find("SLH_DSA_generateKeyPairSeed").orElseThrow();
+        generateKeyPairWithSeedFunc = lookup.find("JoSLHDSA_generateKeyPairSeed").orElseThrow();
         generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -94,7 +94,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                 ));
 
 
-        getPublicKeyFunc = lookup.find("SLH_DSA_getPublicKey").orElseThrow();
+        getPublicKeyFunc = lookup.find("JoSLHDSA_getPublicKey").orElseThrow();
         getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -103,7 +103,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getPrivateKeyFunc = lookup.find("SLH_DSA_getPrivateKey").orElseThrow();
+        getPrivateKeyFunc = lookup.find("JoSLHDSA_getPrivateKey").orElseThrow();
         getPrivateKeyFuncHandle = linker.downcallHandle(getPrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -113,7 +113,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                 ), Linker.Option.critical(true));
 
 
-        decodePublicKeyFunc = lookup.find("SLH_DSA_decodePublicKey").orElseThrow();
+        decodePublicKeyFunc = lookup.find("JoSLHDSA_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -125,7 +125,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-        decodePrivateKeyFunc = lookup.find("SLH_DSA_decodePrivateKey").orElseThrow();
+        decodePrivateKeyFunc = lookup.find("JoSLHDSA_decodePrivateKey").orElseThrow();
         decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -138,7 +138,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                 ), Linker.Option.critical(true));
 
 
-        allocSignerFunc = lookup.find("SLH_DSA_allocateSigner").orElseThrow();
+        allocSignerFunc = lookup.find("JoSLHDSA_allocateSigner").orElseThrow();
         allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -146,14 +146,14 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                 ));
 
 
-        disposeSignerFunc = lookup.find("SLH_DSA_disposeSigner").orElseThrow();
+        disposeSignerFunc = lookup.find("JoSLHDSA_disposeSigner").orElseThrow();
         disposeSignerFuncHandle = linker.downcallHandle(disposeSignerFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS
                 ));
 
 
-        initVerifyFunc = lookup.find("SLH_DSA_initVerifier").orElseThrow();
+        initVerifyFunc = lookup.find("JoSLHDSA_initVerifier").orElseThrow();
         initVerifyFuncHandle = linker.downcallHandle(initVerifyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -166,7 +166,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.JAVA_INT
                 ));
 
-        initSignerFunc = lookup.find("SLH_DSA_initSign").orElseThrow();
+        initSignerFunc = lookup.find("JoSLHDSA_initSign").orElseThrow();
         initSignerFuncHandle = linker.downcallHandle(initSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -181,7 +181,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                 ));
 
 
-        updateSignerFunc = lookup.find("SLH_DSA_update").orElseThrow();
+        updateSignerFunc = lookup.find("JoSLHDSA_update").orElseThrow();
         updateSignerFuncHandle = linker.downcallHandle(updateSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -193,7 +193,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                 ), Linker.Option.critical(true));
 
 
-        signerFunc = lookup.find("SLH_DSA_sign").orElseThrow();
+        signerFunc = lookup.find("JoSLHDSA_sign").orElseThrow();
         signerFuncHandle = linker.downcallHandle(signerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -204,7 +204,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        verifierFunc = lookup.find("SLH_DSA_verify").orElseThrow();
+        verifierFunc = lookup.find("JoSLHDSA_verify").orElseThrow();
         verifierFuncHandle = linker.downcallHandle(verifierFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,

@@ -42,6 +42,29 @@ public class SLHDSALimitTest
     }
 
     @Test
+    public void slhdsa_nullSignerCtx_rejectedTyped() throws Exception
+    {
+        // A 0/null ctx handle at any SLH-DSA session entry point must surface the
+        // typed JO_SIGNER_CTX_IS_NULL -> IllegalArgumentException("signer context
+        // is null"), NOT abort the JVM via jo_assert. The ctx null-check is the
+        // first thing each bridge does, so the remaining args are never reached.
+        // Regression lock for the ctx null-check bridge fix (slhdsa_ni_jni.c /
+        // slhdsa_ni_ffi.c); runs on both JNI and FFI via TestNISelector.
+        byte[] context = new byte[0];
+        byte[] sig = new byte[256];
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> slhdsaServiceNI.initSign(0, 0, context, 0, 0, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> slhdsaServiceNI.initVerify(0, 0, context, 0, 0, 0)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> slhdsaServiceNI.update(0, new byte[8], 0, 8)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> slhdsaServiceNI.sign(0, sig, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> slhdsaServiceNI.verify(0, sig, sig.length)).getMessage());
+    }
+
+    @Test
     public void testSLHDSAGenerateKeyPair_keyGenWrongType() throws Exception
     {
         for (int type : new int[]{-1, 0, 4, 17})

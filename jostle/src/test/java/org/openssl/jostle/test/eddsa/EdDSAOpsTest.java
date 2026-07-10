@@ -199,6 +199,43 @@ public class EdDSAOpsTest
     }
 
     @Test()
+    public void eddsa_initSign_nameAccessFails() throws Exception
+    {
+        // JNI-only: OPS_FAILED_ACCESS_2 short-circuits the GetStringUTFChars
+        // name access in ni_initSign so the JO_UNABLE_TO_ACCESS_NAME path is
+        // exercised without an impossible-to-provoke real failure. The FFI
+        // bridge has no GetStringUTFChars equivalent.
+        // JO_UNABLE_TO_ACCESS_NAME -> IllegalStateException("unable to access name").
+        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long eddsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            eddsaRef = edDSAServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
+            keyRef = edDSAServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            // Exercises interface/nonfips/jni/ed_jni.c:304
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("unable to access name", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+            edDSAServiceNI.disposeSigner(eddsaRef);
+        }
+    }
+
+    @Test()
     public void EDDSAServiceJNI__initSign_createDigestCTX() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());

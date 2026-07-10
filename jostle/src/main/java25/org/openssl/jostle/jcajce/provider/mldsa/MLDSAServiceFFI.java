@@ -75,7 +75,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
 
     static
     {
-        generateKeyPairFunc = lookup.find("MLDSA_generateKeyPair").orElseThrow();
+        generateKeyPairFunc = lookup.find("JoMLDSA_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -84,7 +84,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.ADDRESS // upcall
                 ));
 
-        generateKeyPairWithSeedFunc = lookup.find("MLDSA_generateKeyPairSeed").orElseThrow();
+        generateKeyPairWithSeedFunc = lookup.find("JoMLDSA_generateKeyPairSeed").orElseThrow();
         generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -97,7 +97,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 ));
 
 
-        getPublicKeyFunc = lookup.find("MLDSA_getPublicKey").orElseThrow();
+        getPublicKeyFunc = lookup.find("JoMLDSA_getPublicKey").orElseThrow();
         getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -106,7 +106,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getPrivateKeyFunc = lookup.find("MLDSA_getPrivateKey").orElseThrow();
+        getPrivateKeyFunc = lookup.find("JoMLDSA_getPrivateKey").orElseThrow();
         getPrivateKeyFuncHandle = linker.downcallHandle(getPrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -115,7 +115,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getSeedKeyFunc = lookup.find("MLDSA_getSeed").orElseThrow();
+        getSeedKeyFunc = lookup.find("JoMLDSA_getSeed").orElseThrow();
         getSeedKeyFuncHandle = linker.downcallHandle(getSeedKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -124,7 +124,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        decodePublicKeyFunc = lookup.find("MLDSA_decodePublicKey").orElseThrow();
+        decodePublicKeyFunc = lookup.find("JoMLDSA_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -136,7 +136,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-        decodePrivateKeyFunc = lookup.find("MLDSA_decodePrivateKey").orElseThrow();
+        decodePrivateKeyFunc = lookup.find("JoMLDSA_decodePrivateKey").orElseThrow();
         decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -149,21 +149,21 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 ), Linker.Option.critical(true));
 
 
-        allocSignerFunc = lookup.find("MLDSA_allocateSigner").orElseThrow();
+        allocSignerFunc = lookup.find("JoMLDSA_allocateSigner").orElseThrow();
         allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, ValueLayout.ADDRESS
                 ));
 
 
-        disposeSignerFunc = lookup.find("MLDSA_disposeSigner").orElseThrow();
+        disposeSignerFunc = lookup.find("JoMLDSA_disposeSigner").orElseThrow();
         disposeSignerFuncHandle = linker.downcallHandle(disposeSignerFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS
                 ));
 
 
-        initVerifyFunc = lookup.find("MLDSA_initVerifier").orElseThrow();
+        initVerifyFunc = lookup.find("JoMLDSA_initVerifier").orElseThrow();
         initVerifyFuncHandle = linker.downcallHandle(initVerifyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -175,7 +175,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.JAVA_INT
                 ));
 
-        initSignerFunc = lookup.find("MLDSA_initSign").orElseThrow();
+        initSignerFunc = lookup.find("JoMLDSA_initSign").orElseThrow();
         initSignerFuncHandle = linker.downcallHandle(initSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -189,7 +189,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 ));
 
 
-        updateSignerFunc = lookup.find("MLDSA_update").orElseThrow();
+        updateSignerFunc = lookup.find("JoMLDSA_update").orElseThrow();
         updateSignerFuncHandle = linker.downcallHandle(updateSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -201,7 +201,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                 ), Linker.Option.critical(true));
 
 
-        signerFunc = lookup.find("MLDSA_sign").orElseThrow();
+        signerFunc = lookup.find("JoMLDSA_sign").orElseThrow();
         signerFuncHandle = linker.downcallHandle(signerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -212,7 +212,7 @@ public class MLDSAServiceFFI implements MLDSAServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        verifierFunc = lookup.find("MLDSA_verify").orElseThrow();
+        verifierFunc = lookup.find("JoMLDSA_verify").orElseThrow();
         verifierFuncHandle = linker.downcallHandle(verifierFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,

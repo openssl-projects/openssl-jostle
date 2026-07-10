@@ -43,6 +43,30 @@ public class MLDSALimitTest
     }
 
     @Test
+    public void mldsa_nullSignerCtx_rejectedTyped() throws Exception
+    {
+        // A 0/null ctx handle at any ML-DSA session entry point must surface the
+        // typed JO_SIGNER_CTX_IS_NULL -> IllegalArgumentException("signer context
+        // is null"), NOT abort the JVM via jo_assert. The ctx null-check is the
+        // first thing the bridge does, so the remaining args are never reached.
+        // Regression lock for the ctx null-check bridge fix
+        // (mldsa_ni_jni.c / mldsa_ni_ffi.c). Runs on BOTH JNI and FFI via
+        // TestNISelector.
+        byte[] ctx = new byte[0];
+        byte[] sig = new byte[8];
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mldsaServiceNI.initSign(0, 0, ctx, 0, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mldsaServiceNI.initVerify(0, 0, ctx, 0, 0)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mldsaServiceNI.update(0, new byte[8], 0, 8)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mldsaServiceNI.sign(0, sig, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mldsaServiceNI.verify(0, sig, sig.length)).getMessage());
+    }
+
+    @Test
     public void testMLDSAGenerateKeyPair_keyGenWrongType() throws Exception
     {
 

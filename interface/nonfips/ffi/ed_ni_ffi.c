@@ -16,7 +16,7 @@
 #include "types.h"
 #include "../util/jo_assert.h"
 
-key_spec *EDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+key_spec *JoEDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -39,7 +39,7 @@ key_spec *EDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
 }
 
 
-int32_t EDDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoEDDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -53,7 +53,7 @@ exit:
     return ret_val;
 }
 
-int32_t EDDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoEDDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -68,7 +68,7 @@ exit:
 }
 
 
-int32_t EDDSA_decodePublicKey(key_spec *key_spec,
+int32_t JoEDDSA_decodePublicKey(key_spec *key_spec,
                               int32_t key_type,
                               uint8_t *input,
                               size_t input_size,
@@ -112,7 +112,7 @@ exit:
 }
 
 
-int32_t EDDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size, int32_t in_off,
+int32_t JoEDDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size, int32_t in_off,
                                int32_t in_len) {
     int32_t ret_val = JO_FAIL;
 
@@ -151,7 +151,7 @@ exit:
 }
 
 
-void EDDSA_disposeSigner(edec_ctx *ctx) {
+void JoEDDSA_disposeSigner(edec_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
@@ -159,22 +159,29 @@ void EDDSA_disposeSigner(edec_ctx *ctx) {
 }
 
 
-edec_ctx *EDDSA_allocateSigner(int *err) {
+edec_ctx *JoEDDSA_allocateSigner(int *err) {
     return edec_ctx_create(err);
 }
 
 
-int32_t EDDSA_initVerifier(edec_ctx *ctx,
+int32_t JoEDDSA_initVerifier(edec_ctx *ctx,
                            key_spec *kp,
                            const char *name,
                            int name_len,
                            const uint8_t *context,
                            const size_t context_size,
                            int32_t context_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (name == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    if (name_len <= 0) {
         ret_val = JO_NAME_IS_NULL;
         goto exit;
     }
@@ -198,7 +205,7 @@ exit:
     return ret_val;
 }
 
-int32_t EDDSA_initSign(edec_ctx *ctx,
+int32_t JoEDDSA_initSign(edec_ctx *ctx,
                        key_spec *kp,
                        const char *name,
                        int name_len,
@@ -207,10 +214,17 @@ int32_t EDDSA_initSign(edec_ctx *ctx,
                        int32_t context_len,
                        void *rnd_src
 ) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (name == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    if (name_len <= 0) {
         ret_val = JO_NAME_IS_NULL;
         goto exit;
     }
@@ -235,9 +249,11 @@ exit:
     return ret_val;
 }
 
-int32_t EDDSA_update(edec_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
+int32_t JoEDDSA_update(edec_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                      const int32_t in_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -268,13 +284,15 @@ exit:
 }
 
 
-int32_t EDDSA_sign(
+int32_t JoEDDSA_sign(
     edec_ctx *ctx,
     uint8_t *output,
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -303,12 +321,14 @@ exit:
     return ret_val;
 }
 
-int32_t EDDSA_verify(
+int32_t JoEDDSA_verify(
     edec_ctx *ctx,
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
 

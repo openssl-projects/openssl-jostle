@@ -69,7 +69,7 @@ public class EdDSAServiceFFI implements EDServiceNI
 
     static
     {
-        generateKeyPairFunc = lookup.find("EDDSA_generateKeyPair").orElseThrow();
+        generateKeyPairFunc = lookup.find("JoEDDSA_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -79,7 +79,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                 ));
 
 
-        getPublicKeyFunc = lookup.find("EDDSA_getPublicKey").orElseThrow();
+        getPublicKeyFunc = lookup.find("JoEDDSA_getPublicKey").orElseThrow();
         getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -88,7 +88,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getPrivateKeyFunc = lookup.find("EDDSA_getPrivateKey").orElseThrow();
+        getPrivateKeyFunc = lookup.find("JoEDDSA_getPrivateKey").orElseThrow();
         getPrivateKeyFuncHandle = linker.downcallHandle(getPrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -98,7 +98,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                 ), Linker.Option.critical(true));
 
 
-        decodePublicKeyFunc = lookup.find("EDDSA_decodePublicKey").orElseThrow();
+        decodePublicKeyFunc = lookup.find("JoEDDSA_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -110,7 +110,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-        decodePrivateKeyFunc = lookup.find("EDDSA_decodePrivateKey").orElseThrow();
+        decodePrivateKeyFunc = lookup.find("JoEDDSA_decodePrivateKey").orElseThrow();
         decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -123,21 +123,21 @@ public class EdDSAServiceFFI implements EDServiceNI
                 ), Linker.Option.critical(true));
 
 
-        allocSignerFunc = lookup.find("EDDSA_allocateSigner").orElseThrow();
+        allocSignerFunc = lookup.find("JoEDDSA_allocateSigner").orElseThrow();
         allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, ValueLayout.ADDRESS
                 ));
 
 
-        disposeSignerFunc = lookup.find("EDDSA_disposeSigner").orElseThrow();
+        disposeSignerFunc = lookup.find("JoEDDSA_disposeSigner").orElseThrow();
         disposeSignerFuncHandle = linker.downcallHandle(disposeSignerFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS
                 ));
 
 
-        initVerifyFunc = lookup.find("EDDSA_initVerifier").orElseThrow();
+        initVerifyFunc = lookup.find("JoEDDSA_initVerifier").orElseThrow();
         initVerifyFuncHandle = linker.downcallHandle(initVerifyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return code
@@ -150,7 +150,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_INT // context_len
                 ));
 
-        initSignerFunc = lookup.find("EDDSA_initSign").orElseThrow();
+        initSignerFunc = lookup.find("JoEDDSA_initSign").orElseThrow();
         initSignerFuncHandle = linker.downcallHandle(initSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return code
@@ -165,7 +165,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                 ));
 
 
-        updateSignerFunc = lookup.find("EDDSA_update").orElseThrow();
+        updateSignerFunc = lookup.find("JoEDDSA_update").orElseThrow();
         updateSignerFuncHandle = linker.downcallHandle(updateSignerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -177,7 +177,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                 ), Linker.Option.critical(true));
 
 
-        signerFunc = lookup.find("EDDSA_sign").orElseThrow();
+        signerFunc = lookup.find("JoEDDSA_sign").orElseThrow();
         signerFuncHandle = linker.downcallHandle(signerFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -188,7 +188,7 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        verifierFunc = lookup.find("EDDSA_verify").orElseThrow();
+        verifierFunc = lookup.find("JoEDDSA_verify").orElseThrow();
         verifierFuncHandle = linker.downcallHandle(verifierFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -246,7 +246,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_generateKeyPair", t);
+                    "FFI JoEDDSA_generateKeyPair", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -267,7 +267,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_getPublicKey", t);
+                    "FFI JoEDDSA_getPublicKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -287,7 +287,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_getPrivateKey", t);
+                    "FFI JoEDDSA_getPrivateKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -305,7 +305,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_decodePublicKey", t);
+                    "FFI JoEDDSA_decodePublicKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -322,7 +322,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_decodePrivateKey", t);
+                    "FFI JoEDDSA_decodePrivateKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -339,7 +339,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_disposeSigner", t);
+                    "FFI JoEDDSA_disposeSigner", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -357,7 +357,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_allocateSigner", t);
+                    "FFI JoEDDSA_allocateSigner", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -376,13 +376,16 @@ public class EdDSAServiceFFI implements EDServiceNI
             }
             MemorySegment nameSeg = a.allocateFrom(name);
 
-            return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, nameSeg, (int) nameSeg.byteSize(), contextRef, contextRef.byteSize(), contextLen);
+            // byteSize() includes the NUL terminator; the native side wants the
+            // NUL-excluded length (matching ni_initSign and the JNI
+            // GetStringUTFLength path) so an empty name yields name_len == 0.
+            return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, nameSeg, (int) nameSeg.byteSize() - 1, contextRef, contextRef.byteSize(), contextLen);
 
         }
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_initVerifier", t);
+                    "FFI JoEDDSA_initVerifier", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -425,7 +428,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_initSign", t);
+                    "FFI JoEDDSA_initSign", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -443,7 +446,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_update", t);
+                    "FFI JoEDDSA_update", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -482,7 +485,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_sign", t);
+                    "FFI JoEDDSA_sign", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -500,7 +503,7 @@ public class EdDSAServiceFFI implements EDServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI EDDSA_verify", t);
+                    "FFI JoEDDSA_verify", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

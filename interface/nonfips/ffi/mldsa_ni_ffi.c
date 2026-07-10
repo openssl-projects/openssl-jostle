@@ -16,7 +16,7 @@
 #include "types.h"
 #include "../util/jo_assert.h"
 
-key_spec *MLDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+key_spec *JoMLDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -39,7 +39,7 @@ key_spec *MLDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
 }
 
 
-key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size, int32_t seed_len,
+key_spec *JoMLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size, int32_t seed_len,
                                     void *rnd_src) {
     *ret_val = JO_FAIL;
 
@@ -78,7 +78,7 @@ key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
 }
 
 
-int32_t MLDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoMLDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -92,7 +92,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoMLDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -106,7 +106,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLDSA_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoMLDSA_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -125,7 +125,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLDSA_decodePublicKey(key_spec *key_spec,
+int32_t JoMLDSA_decodePublicKey(key_spec *key_spec,
                               int32_t key_type,
                               uint8_t *input,
                               size_t input_size,
@@ -169,7 +169,7 @@ exit:
 }
 
 
-int32_t MLDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size, int32_t in_off,
+int32_t JoMLDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size, int32_t in_off,
                                int32_t in_len) {
     int32_t ret_val = JO_FAIL;
 
@@ -208,7 +208,7 @@ exit:
 }
 
 
-void MLDSA_disposeSigner(mldsa_ctx *ctx) {
+void JoMLDSA_disposeSigner(mldsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
@@ -216,19 +216,21 @@ void MLDSA_disposeSigner(mldsa_ctx *ctx) {
 }
 
 
-mldsa_ctx *MLDSA_allocateSigner(int *err) {
+mldsa_ctx *JoMLDSA_allocateSigner(int *err) {
     jo_assert(err != NULL);
     return mldsa_ctx_create(err);
 }
 
 
-int32_t MLDSA_initVerifier(mldsa_ctx *ctx,
+int32_t JoMLDSA_initVerifier(mldsa_ctx *ctx,
                            key_spec *kp,
                            const uint8_t *context,
                            const size_t context_size,
                            int32_t context_len,
                            int32_t mu_mode) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -255,7 +257,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLDSA_initSign(mldsa_ctx *ctx,
+int32_t JoMLDSA_initSign(mldsa_ctx *ctx,
                        key_spec *kp,
                        const uint8_t *context,
                        const size_t context_size,
@@ -263,7 +265,9 @@ int32_t MLDSA_initSign(mldsa_ctx *ctx,
                        int32_t mu_mode,
                        void *rnd_src
 ) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -294,9 +298,11 @@ exit:
     return ret_val;
 }
 
-int32_t MLDSA_update(mldsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
+int32_t JoMLDSA_update(mldsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                      const int32_t in_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -327,13 +333,15 @@ exit:
 }
 
 
-int32_t MLDSA_sign(
+int32_t JoMLDSA_sign(
     mldsa_ctx *ctx,
     uint8_t *output,
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
@@ -362,12 +370,14 @@ exit:
     return ret_val;
 }
 
-int32_t MLDSA_verify(
+int32_t JoMLDSA_verify(
     mldsa_ctx *ctx,
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
 

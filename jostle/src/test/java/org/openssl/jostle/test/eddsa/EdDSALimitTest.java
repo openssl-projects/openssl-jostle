@@ -1320,4 +1320,61 @@ public class EdDSALimitTest
     }
 
 
+    @Test
+    public void eddsa_nullSignerCtx_rejectedTyped() throws Exception
+    {
+        // A 0/null ctx handle at any EdDSA session entry point must surface the
+        // typed JO_SIGNER_CTX_IS_NULL -> IllegalArgumentException("signer context
+        // is null"), NOT abort the JVM via jo_assert. The ctx null-check is the
+        // first thing each bridge function does, so the remaining args are never
+        // reached. Regression lock for the ctx null-check bridge additions
+        // (ed_jni.c / ed_ffi.c); runs on both bridges via TestNISelector.
+        byte[] sig = new byte[64];
+        byte[] ctx = new byte[0];
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> edServiceNI.initSign(0, 0, "Ed25519", ctx, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> edServiceNI.initVerify(0, 0, "Ed25519", ctx, 0)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> edServiceNI.update(0, new byte[8], 0, 8)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> edServiceNI.sign(0, sig, 0, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> edServiceNI.verify(0, sig, sig.length)).getMessage());
+    }
+
+
+    @Test
+    public void eddsa_emptyName_rejectedTyped() throws Exception
+    {
+        // An empty (length 0) algorithm name is non-null, so it passes the
+        // _name == NULL guard, reaches GetStringUTFChars successfully, then
+        // trips the new name_len <= 0 bridge check -> JO_NAME_IS_NULL ->
+        // NullPointerException("name is null"). A valid signer ctx and keyRef
+        // are needed to get past the ctx null-check that precedes the name
+        // handling. Locks the empty-name rejection on initSign and initVerify.
+        long eddsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+
+            final long finalEddsaRef = eddsaRef;
+            final long finalKeyRef = keyRef;
+            Assertions.assertEquals("name is null", Assertions.assertThrows(NullPointerException.class,
+                    () -> edServiceNI.initSign(finalEddsaRef, finalKeyRef, "", new byte[0], 0, TestUtil.RNDSrc)).getMessage());
+            Assertions.assertEquals("name is null", Assertions.assertThrows(NullPointerException.class,
+                    () -> edServiceNI.initVerify(finalEddsaRef, finalKeyRef, "", new byte[0], 0)).getMessage());
+        }
+        finally
+        {
+            edServiceNI.disposeSigner(eddsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+
 }

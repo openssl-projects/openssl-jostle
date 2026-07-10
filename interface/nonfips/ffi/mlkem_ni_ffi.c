@@ -16,7 +16,7 @@
 #include "../util/jo_assert.h"
 #include "types.h"
 
-key_spec *MLKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+key_spec *JoMLKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -39,7 +39,7 @@ key_spec *MLKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
 }
 
 
-key_spec *MLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size,
+key_spec *JoMLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size,
                                     int32_t seed_len, void *rand_src) {
     *ret_val = JO_FAIL;
 
@@ -77,7 +77,7 @@ key_spec *MLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *see
     return spec;
 }
 
-int32_t MLKEM_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoMLKEM_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -91,7 +91,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLKEM_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoMLKEM_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -105,7 +105,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLKEM_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoMLKEM_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -120,7 +120,7 @@ exit:
 }
 
 
-int32_t MLKEM_decodePublicKey(key_spec *key_spec,
+int32_t JoMLKEM_decodePublicKey(key_spec *key_spec,
                               int32_t key_type,
                               uint8_t *input,
                               size_t input_size,
@@ -164,7 +164,7 @@ exit:
     return ret_val;
 }
 
-int32_t MLKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size,
+int32_t JoMLKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size,
                                int32_t in_off,
                                int32_t in_len,
                                void *rand_src) {

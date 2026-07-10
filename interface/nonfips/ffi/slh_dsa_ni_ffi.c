@@ -17,7 +17,7 @@
 #include "types.h"
 
 
-key_spec *SLH_DSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rand_src) {
+key_spec *JoSLHDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rand_src) {
     *ret_val = JO_FAIL;
 
     if (rand_src == NULL) {
@@ -40,7 +40,7 @@ key_spec *SLH_DSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rand_src
 }
 
 
-key_spec *SLH_DSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size,
+key_spec *JoSLHDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size,
                                       int32_t seed_len, void *rand_src) {
     *ret_val = JO_FAIL;
 
@@ -78,7 +78,7 @@ key_spec *SLH_DSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *s
     return spec;
 }
 
-int32_t SLH_DSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoSLHDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -92,7 +92,7 @@ exit:
     return ret_val;
 }
 
-int32_t SLH_DSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+int32_t JoSLHDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -106,7 +106,7 @@ exit:
     return ret_val;
 }
 
-int32_t SLH_DSA_decodePublicKey(key_spec *key_spec,
+int32_t JoSLHDSA_decodePublicKey(key_spec *key_spec,
                                 int32_t key_type,
                                 uint8_t *input,
                                 size_t input_size,
@@ -149,7 +149,7 @@ exit:
     return ret_val;
 }
 
-int32_t SLH_DSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size,
+int32_t JoSLHDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size,
                                  int32_t in_off,
                                  int32_t in_len) {
     int32_t ret_val = JO_FAIL;
@@ -189,7 +189,7 @@ exit:
     return ret_val;
 }
 
-void SLH_DSA_disposeSigner(slh_dsa_ctx *ctx) {
+void JoSLHDSA_disposeSigner(slh_dsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
@@ -197,12 +197,12 @@ void SLH_DSA_disposeSigner(slh_dsa_ctx *ctx) {
 }
 
 
-slh_dsa_ctx *SLH_DSA_allocateSigner(int32_t *err) {
+slh_dsa_ctx *JoSLHDSA_allocateSigner(int32_t *err) {
     jo_assert(err != NULL);
     return slh_dsa_ctx_create(err);
 }
 
-int32_t SLH_DSA_initVerifier(slh_dsa_ctx *ctx,
+int32_t JoSLHDSA_initVerifier(slh_dsa_ctx *ctx,
                              key_spec *kp,
                              const uint8_t *context,
                              const size_t context_size,
@@ -210,7 +210,9 @@ int32_t SLH_DSA_initVerifier(slh_dsa_ctx *ctx,
                              int32_t message_encoding,
                              int32_t deterministic
 ) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -237,7 +239,7 @@ exit:
     return ret_val;
 }
 
-int32_t SLH_DSA_initSign(slh_dsa_ctx *ctx,
+int32_t JoSLHDSA_initSign(slh_dsa_ctx *ctx,
                          key_spec *kp,
                          const uint8_t *context,
                          const size_t context_size,
@@ -246,7 +248,9 @@ int32_t SLH_DSA_initSign(slh_dsa_ctx *ctx,
                          int32_t deterministic,
                          void *rand_src
 ) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -273,9 +277,11 @@ exit:
 }
 
 
-int32_t SLH_DSA_update(slh_dsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
+int32_t JoSLHDSA_update(slh_dsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                        const int32_t in_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -306,13 +312,15 @@ exit:
 }
 
 
-int32_t SLH_DSA_sign(
+int32_t JoSLHDSA_sign(
     slh_dsa_ctx *ctx,
     const uint8_t *output,
     const size_t output_size,
     const int32_t out_off,
     void *rand_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
     size_t out_len = 0;
 
@@ -337,12 +345,14 @@ exit:
     return ret_val;
 }
 
-int32_t SLH_DSA_verify(
+int32_t JoSLHDSA_verify(
     slh_dsa_ctx *ctx,
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
     int32_t ret_val = JO_FAIL;
 
 

@@ -1195,7 +1195,7 @@ int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_le
         // BIO_write returns 0 on zero-length input; skip to avoid the
         // truthy check below mistaking it for failure.
         if (in_len > 0) {
-            if (OPS_OPENSSL_ERROR_1 !BIO_write(ctx->mu_buf, in, (int) in_len)) {
+            if (OPS_OPENSSL_ERROR_1 BIO_write(ctx->mu_buf, in, (int) in_len) != (int) in_len) {
                 ret_code = JO_OPENSSL_ERROR;
                 goto exit;
             }

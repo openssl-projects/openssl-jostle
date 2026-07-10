@@ -14,6 +14,7 @@
 #include <jni.h>
 
 #include <string.h>
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 
 #include "bytearrays.h"
@@ -153,8 +154,17 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         memcpy(_out, output, rc);
     }
 
-    // JNI_ABORT: read-only access, skip the copy-back.
-    (*env)->ReleaseByteArrayElements(env, bytes, (jbyte *) output, JNI_ABORT);
+    // Zeroize the raw DRBG seed from the native copy before release so it does
+    // not linger in the JNI buffer.
+    if (output != NULL && rc >= 0) {
+        OPENSSL_cleanse(output, rc);
+    }
+
+    // Mode 0 (not JNI_ABORT): copy the now-zeroed buffer back into the Java array
+    // when GetByteArrayElements returned a copy, and free it. With a direct
+    // pointer the cleanse already zeroed the array's backing memory. Either way
+    // the Java 'bytes' array must not retain the raw seed.
+    (*env)->ReleaseByteArrayElements(env, bytes, (jbyte *) output, 0);
 
 exit:
 

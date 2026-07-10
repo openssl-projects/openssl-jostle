@@ -56,7 +56,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
 
     static
     {
-        generateKeyPairFunc = lookup.find("MLKEM_generateKeyPair").orElseThrow();
+        generateKeyPairFunc = lookup.find("JoMLKEM_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -65,7 +65,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        generateKeyPairWithSeedFunc = lookup.find("MLKEM_generateKeyPairSeed").orElseThrow();
+        generateKeyPairWithSeedFunc = lookup.find("JoMLKEM_generateKeyPairSeed").orElseThrow();
         generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -78,7 +78,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                 ));
 
 
-        getPublicKeyFunc = lookup.find("MLKEM_getPublicKey").orElseThrow();
+        getPublicKeyFunc = lookup.find("JoMLKEM_getPublicKey").orElseThrow();
         getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -87,7 +87,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getPrivateKeyFunc = lookup.find("MLKEM_getPrivateKey").orElseThrow();
+        getPrivateKeyFunc = lookup.find("JoMLKEM_getPrivateKey").orElseThrow();
         getPrivateKeyFuncHandle = linker.downcallHandle(getPrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -96,7 +96,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getSeedKeyFunc = lookup.find("MLKEM_getSeed").orElseThrow();
+        getSeedKeyFunc = lookup.find("JoMLKEM_getSeed").orElseThrow();
         getSeedKeyFuncHandle = linker.downcallHandle(getSeedKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -105,7 +105,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        decodePublicKeyFunc = lookup.find("MLKEM_decodePublicKey").orElseThrow();
+        decodePublicKeyFunc = lookup.find("JoMLKEM_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -118,7 +118,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        decodePrivateKeyFunc = lookup.find("MLKEM_decodePrivateKey").orElseThrow();
+        decodePrivateKeyFunc = lookup.find("JoMLKEM_decodePrivateKey").orElseThrow();
         decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -179,7 +179,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_generateKeyPair", t);
+                    "FFI JoMLKEM_generateKeyPair", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -226,7 +226,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_generateKeyPair (seed)", t);
+                    "FFI JoMLKEM_generateKeyPair (seed)", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -245,7 +245,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_getPublicKey", t);
+                    "FFI JoMLKEM_getPublicKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -265,7 +265,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_getPrivateKey", t);
+                    "FFI JoMLKEM_getPrivateKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -284,7 +284,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_getSeed", t);
+                    "FFI JoMLKEM_getSeed", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -320,7 +320,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_decodePublicKey", t);
+                    "FFI JoMLKEM_decodePublicKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -356,7 +356,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLKEM_decodePrivateKey", t);
+                    "FFI JoMLKEM_decodePrivateKey", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

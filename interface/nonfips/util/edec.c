@@ -129,7 +129,7 @@ int32_t edec_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_len
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 written > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -178,7 +178,7 @@ int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
-    if (OPS_INT32_OVERFLOW_1 written > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 written > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -514,7 +514,7 @@ int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
         return JO_NOT_INITIALIZED;
     }
 
-    if (in_len > (size_t) INT_MAX) {
+    if (in_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
