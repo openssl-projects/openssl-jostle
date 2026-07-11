@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ProvSecretKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
@@ -110,7 +111,16 @@ public class AESKeyGenerator extends KeyGeneratorSpi
 
         byte[] keyBytes = new byte[keySize >> 3];
         random.nextBytes(keyBytes);
-        return new ProvSecretKeySpec(keyBytes, "AES");
+        try
+        {
+            // ProvSecretKeySpec clones its input; scrub the local plaintext
+            // key copy so it does not linger on the heap until GC.
+            return new ProvSecretKeySpec(keyBytes, "AES");
+        }
+        finally
+        {
+            Arrays.fill(keyBytes, (byte) 0);
+        }
     }
 
 

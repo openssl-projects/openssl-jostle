@@ -308,10 +308,16 @@ public class FIPSKDFAgreementTest
                 Assertions.assertEquals(len, fips.length, tag + ": output length");
 
                 // Differentiator: a changed IKM must change the derived key.
+                // Compared at >= 16 bytes regardless of this trial's len:
+                // len can be as small as 1 byte, where two honest derivations
+                // collide with probability 1/256 per trial - a real flake
+                // (seed=-2781678823564898725 hit it at HKDF-SHA384 trial=6).
+                int diffLen = Math.max(len, 16);
+                byte[] ref = hkdfJce(FIPS, alg, ikm, salt, info, diffLen);
                 byte[] ikm2 = Arrays.clone(ikm);
                 ikm2[0] ^= 0x01;
-                byte[] fipsAlt = hkdfJce(FIPS, alg, ikm2, salt, info, len);
-                Assertions.assertFalse(Arrays.areEqual(fips, fipsAlt),
+                byte[] fipsAlt = hkdfJce(FIPS, alg, ikm2, salt, info, diffLen);
+                Assertions.assertFalse(Arrays.areEqual(ref, fipsAlt),
                         tag + ": changed IKM produced identical key");
             }
         }

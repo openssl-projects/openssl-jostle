@@ -142,6 +142,18 @@ int32_t jostle_ctx_init_fips(jostle_lib_ctx **ctx, const char *module_dir,
     // boundary, served by the module's own approved DRBGs, which OpenSSL
     // auto-instantiates for the lib ctx on first RAND use. rand_ctx stays
     // NULL - jostle_ctx_destroy tolerates that.
+    //
+    // Do not "complete" this by porting the bridge install from the base
+    // tree's setup_bridge_prov_and_rand - it would be a placebo. The FIPS
+    // module runs on its own internal OSSL_LIB_CTX (fipsprov.c creates it in
+    // OSSL_provider_init) whose DRBG chain seeds via the core get_entropy
+    // callback straight from OS entropy (crypto/rand/prov_seed.c). Module-
+    // internal operations never consult THIS ctx's public/private RAND, so a
+    // RAND_set0_public/private bridge here cannot route caller entropy into
+    // approved operations. Verified empirically (2026-07, counting EVP_RAND
+    // installed as both slots on a FIPS ctx): direct RAND_bytes_ex drew from
+    // it; EC/RSA keygen, ECDSA nonces and OAEP seeds drew zero bytes.
+    // FIPSRandBridgeLimitTest pins this contract from the Java side.
     new_ctx->ossl_libctx = libctx;
     *ctx = new_ctx;
 

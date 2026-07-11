@@ -637,6 +637,25 @@ The FIPS lib ctx does not install the java rand bridge: all entropy — DRBG see
 randomness — is drawn inside the FIPS boundary from the module's own approved DRBGs. `SecureRandom`
 instances from `JSLFIPS` chain to the module's primary DRBG.
 
+A consequence is that a caller-supplied `SecureRandom` is **ignored** by every operation that executes inside
+the FIPS module — key pair generation, signing (ECDSA nonces, PSS salts) and encryption (OAEP seeds). This is
+OpenSSL architecture, not a Jostle policy: the FIPS module runs on its own internal library context whose DRBG
+chain seeds directly from the operating system's entropy sources, and nothing installed on the host context —
+including a `SecureRandom` passed through the JCE API — is ever consulted by module-internal operations.
+(`SunPKCS11` behaves the same way for operations performed inside a token.) Passing a `SecureRandom` to
+`initialize(...)` / `init(...)` on a `JSLFIPS` service is therefore harmless but has no effect on the
+randomness those operations use.
+
+The one exception is the AES `KeyGenerator`, whose key bytes are drawn in Java. As registered it draws from
+the module's DRBG, but it follows the standard JCE contract: an explicitly supplied `SecureRandom` is
+honoured, and `KeyGenerator.init(int)` silently injects the JVM's default `SecureRandom` — a JCE behaviour the
+provider cannot distinguish from an explicit caller choice. To keep AES key bytes inside the FIPS boundary,
+either call `generateKey()` without any `init(...)` (the bare `AES` generator defaults to 256 bits, and the
+`AES128` / `AES192` / `AES256` generators produce their size without an `init` call), or pass a FIPS DRBG
+explicitly — for example `SecureRandom.getInstance("CTR-DRBG", "JSLFIPS")`, or a DRBG from another
+FIPS-validated provider. If you override the default, the FIPS status of the resulting keys rests on the
+entropy source you supply.
+
 ### Testing
 
 Running the FIPS tests requires an OpenSSL FIPS module to test against. Set the `TEST_FIPS_LIB` environment

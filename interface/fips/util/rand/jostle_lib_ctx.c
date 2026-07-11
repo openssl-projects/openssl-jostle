@@ -21,6 +21,20 @@ static jostle_lib_ctx *global_rand_ctx = NULL;
 static CRYPTO_THREAD_LOCAL java_srand_id;
 
 
+// FIPS-tree note: the jrand bridge provider below (jrand_prov_teardown
+// through setup_bridge_prov_and_rand / jostle_ctx_init_new) is compiled into
+// this library but is NEVER INSTALLED by the FIPS provider. The FIPS lib ctx
+// is built by jostle_fips_ctx.c, which deliberately omits the bridge so
+// entropy stays inside the validated module boundary; the only path that
+// reaches jostle_ctx_init_new here is the base-named FFI export
+// (ffi/openssl_ffi.c, part of the shared FFI glue set), which the JSLFIPS
+// Java classes never invoke. Do not wire jrand into the FIPS ctx: module-
+// internal operations would not consult it anyway - see the placebo note in
+// jostle_ctx_init_fips. The live entry points in this file are
+// set_global_jostle_lib_ctx / get_global_jostle_ossl_lib_ctx and
+// rand_set_java_srand_call (the bridge glue sets the thread-local on every
+// entropy-accepting entry point; nothing in the FIPS tree ever reads it).
+
 // OSSL_FUNC_PROVIDER_TEARDOWN
 // provctx is never set by jrand(); free(NULL) is a no-op. Kept to silence
 // OpenSSL's "no teardown" warning.

@@ -31,7 +31,10 @@ import java.security.SecureRandom;
  * mismatched caller override. Every generated key is asserted non-zero, which
  * proves the FIPS KeyGenerator is drawing from the module's own approved DRBG
  * ({@code provider.getDefaultSecureRandom()}) rather than being mis-wired to a
- * null/JDK random or the wrong default.
+ * null/JDK random or the wrong default. A seeded-determinism test additionally
+ * pins that an explicitly supplied {@link SecureRandom} is honoured — the flip
+ * side of the module-ops-ignore-caller-randomness contract guarded by
+ * {@code FIPSRandBridgeLimitTest}.
  * <p>
  * Gated on {@code TEST_FIPS_LIB}; skipped when unset.
  */
@@ -129,5 +132,44 @@ public class FIPSAESKeyGeneratorTest
             Assertions.assertEquals(size, sizedBytes.length << 3);
             Assertions.assertFalse(Arrays.areAllZeroes(sizedBytes, 0, sizedBytes.length));
         }
+    }
+
+    /**
+     * The flip side of {@code FIPSRandBridgeLimitTest}: AES key generation is
+     * the one JSLFIPS surface where a caller-supplied {@link SecureRandom} IS
+     * consumed — the key bytes are drawn in Java, not inside the module. Two
+     * generators initialised with identically-seeded SHA1PRNGs must produce
+     * identical keys (the supplied random fully determines the key), and a
+     * differently-seeded one must diverge. This pins the contract documented
+     * in the README "Entropy" section: overriding the module-DRBG default is
+     * honoured, and the compliance of the resulting key then rests on the
+     * entropy source the caller supplies.
+     */
+    @Test
+    public void callerSuppliedSecureRandomIsHonoured() throws Exception
+    {
+        ensureProviders();
+
+        // Random per-run seed, surfaced in the assertion messages so a
+        // failing run can be replayed (per CLAUDE.md).
+        long seed = new SecureRandom().nextLong();
+
+        byte[] first = generateKeyWithSeededRandom(seed);
+        byte[] second = generateKeyWithSeededRandom(seed);
+        byte[] diverged = generateKeyWithSeededRandom(seed + 1);
+
+        Assertions.assertTrue(Arrays.areEqual(first, second),
+                "identically-seeded caller SecureRandoms must fully determine the key (seed=" + seed + ")");
+        Assertions.assertFalse(Arrays.areEqual(first, diverged),
+                "differently-seeded caller SecureRandoms must diverge (seed=" + seed + ")");
+    }
+
+    private static byte[] generateKeyWithSeededRandom(long seed) throws Exception
+    {
+        SecureRandom seeded = SecureRandom.getInstance("SHA1PRNG");
+        seeded.setSeed(seed);
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES", FIPS);
+        keyGen.init(256, seeded);
+        return keyGen.generateKey().getEncoded();
     }
 }
