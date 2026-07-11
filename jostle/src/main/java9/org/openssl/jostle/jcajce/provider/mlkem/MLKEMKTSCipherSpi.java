@@ -232,12 +232,12 @@ public class MLKEMKTSCipherSpi
             }
             finally
             {
-                Arrays.fill(kek, (byte) 0);
+                Arrays.clear(kek);
             }
         }
         finally
         {
-            Arrays.fill(secret, (byte) 0);
+            Arrays.clear(secret);
         }
     }
 
@@ -295,12 +295,12 @@ public class MLKEMKTSCipherSpi
             }
             finally
             {
-                Arrays.fill(kek, (byte) 0);
+                Arrays.clear(kek);
             }
         }
         finally
         {
-            Arrays.fill(secret, (byte) 0);
+            Arrays.clear(secret);
         }
     }
 

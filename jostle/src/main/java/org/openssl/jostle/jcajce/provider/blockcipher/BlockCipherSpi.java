@@ -163,6 +163,13 @@ class BlockCipherSpi extends CipherSpi
             {
                 this.padding = 1;
             }
+            else
+            {
+                // JCE contract: an unsupported padding must be rejected, not
+                // silently ignored (which would leave the caller with the
+                // default padding and no error). Mirrors CCMCipherSpi.
+                throw new NoSuchPaddingException("padding " + padding + " not supported");
+            }
         }
     }
 
@@ -390,10 +397,7 @@ class BlockCipherSpi extends CipherSpi
                 // Zeroize the plaintext key material once OpenSSL has copied it
                 // into the EVP context. SecretKeySpec.getEncoded() returns a
                 // fresh copy, so clearing it cannot corrupt the caller's key.
-                if (keyBytes != null)
-                {
-                    Arrays.fill(keyBytes, (byte) 0);
-                }
+                Arrays.clear(keyBytes);
             }
 
             // Init succeeded: feed any AEADParameterSpec-supplied associated data
@@ -520,7 +524,7 @@ class BlockCipherSpi extends CipherSpi
                     byte[] data = new byte[remaining];
                     src.get(data);
                     engineUpdateAAD(data, 0, data.length);
-                    Arrays.fill(data, (byte) 0);
+                    Arrays.clear(data);
                 }
                 else
                 {
@@ -533,7 +537,7 @@ class BlockCipherSpi extends CipherSpi
                         remaining -= length;
                     }
                     while (remaining > 0);
-                    Arrays.fill(data, (byte) 0);
+                    Arrays.clear(data);
                 }
             }
         }
@@ -635,12 +639,12 @@ class BlockCipherSpi extends CipherSpi
                     byte[] result = engineUpdate(inputArray, inputOffset, inLen);
                     if (output.remaining() < result.length)
                     {
-                        Arrays.fill(result, (byte) 0);
+                        Arrays.clear(result);
                         throw new ShortBufferException("output buffer too small");
                     }
                     output.put(result);
                     input.position(inputStartPos + inLen);
-                    Arrays.fill(result, (byte) 0);
+                    Arrays.clear(result);
                     return result.length;
                 }
             }
@@ -648,7 +652,7 @@ class BlockCipherSpi extends CipherSpi
             {
                 if (inputOwned)
                 {
-                    Arrays.fill(inputArray, (byte) 0);
+                    Arrays.clear(inputArray);
                 }
             }
         }
@@ -797,7 +801,7 @@ class BlockCipherSpi extends CipherSpi
         }
         finally
         {
-            Arrays.fill(encoded, (byte) 0);
+            Arrays.clear(encoded);
         }
     }
 
@@ -836,7 +840,7 @@ class BlockCipherSpi extends CipherSpi
         finally
         {
             // SecretKeySpec / the key specs copy the bytes, so clear our copy.
-            Arrays.fill(encoded, (byte) 0);
+            Arrays.clear(encoded);
         }
     }
 

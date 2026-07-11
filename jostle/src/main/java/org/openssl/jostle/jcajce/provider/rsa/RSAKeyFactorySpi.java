@@ -125,13 +125,10 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             }
             finally
             {
-                if (pkcs8 != null)
-                {
-                    Arrays.fill(pkcs8, (byte) 0);
-                }
+                Arrays.clear(pkcs8);
                 if (encoded != null && encoded != pkcs8)
                 {
-                    Arrays.fill(encoded, (byte) 0);
+                    Arrays.clear(encoded);
                 }
             }
         }
@@ -154,15 +151,11 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         }
         if (keySpec instanceof RSAPrivateKeySpec)
         {
-            // Non-CRT private. CRT-component getters on the resulting
-            // key will return null per the JCA contract.
-            RSAPrivateKeySpec rsa = (RSAPrivateKeySpec) keySpec;
-            PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
-            // OpenSSL needs the public exponent to construct the EVP_PKEY,
-            // which RSAPrivateKeySpec doesn't supply. We can reconstruct
-            // it via e = mod_inverse(d_mod_phi) but only with p and q —
-            // which we also don't have. Reject explicitly rather than
-            // ship a key that won't function.
+            // Non-CRT private. OpenSSL needs the public exponent to construct
+            // the EVP_PKEY, which RSAPrivateKeySpec doesn't supply — and it
+            // can't be reconstructed without p and q, which we also don't have.
+            // Reject explicitly, before allocating any native handle, rather
+            // than ship a key that won't function.
             throw new InvalidKeySpecException(
                     "RSAPrivateKeySpec without CRT components is not supported "
                             + "— OpenSSL requires the public exponent to construct an EVP_PKEY. "
@@ -274,10 +267,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         {
             // The local copy may carry private material — scrub it
             // (engineGeneratePrivate scrubbed only its own inner clone).
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
     }
 

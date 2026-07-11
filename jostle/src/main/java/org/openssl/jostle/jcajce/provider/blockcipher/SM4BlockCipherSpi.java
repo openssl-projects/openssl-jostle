@@ -72,10 +72,7 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         super.engineInit(opmode, key, random);
     }
@@ -98,10 +95,7 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         super.engineInit(opmode, key, params, random);
     }
@@ -124,10 +118,7 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         // TODO: we should have a list of ParameterSpec to try here.
         if (params == null)

@@ -106,7 +106,7 @@ public class BufferingOutputStream
     {
         other.write(buf, 0, bufOff);
         bufOff = 0;
-        Arrays.fill(buf, (byte) 0);
+        Arrays.clear(buf);
     }
 
     public void close()

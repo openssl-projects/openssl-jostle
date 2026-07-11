@@ -450,6 +450,11 @@ public class RSAOAEPCipherSpi extends CipherSpi
                 // wrap direction, so this branch is unreachable.
                 throw new IllegalStateException("unexpected BadPaddingException during wrap", impossible);
             }
+            finally
+            {
+                // Scrub the plaintext key bytes getEncoded() handed us.
+                Arrays.clear(encoded);
+            }
         }
         finally
         {
@@ -519,6 +524,23 @@ public class RSAOAEPCipherSpi extends CipherSpi
             {
                 throw (InvalidKeyException) new InvalidKeyException(
                         "unable to reconstruct unwrapped " + wrappedKeyAlgorithm + " key").initCause(e);
+            }
+            catch (IllegalArgumentException e)
+            {
+                // SecretKeySpec rejects an empty/null key (and KeyFactory an empty
+                // algorithm name) with IllegalArgumentException — reachable when the
+                // ciphertext decrypts to a zero-length plaintext. Fold it into
+                // InvalidKeyException so every unwrap failure surfaces as the JCE
+                // contract type and no "empty plaintext" signal leaks. Mirrors
+                // RSAPKCS1CipherSpi.
+                throw (InvalidKeyException) new InvalidKeyException(
+                        "unable to reconstruct unwrapped " + wrappedKeyAlgorithm + " key").initCause(e);
+            }
+            finally
+            {
+                // Scrub the decrypted key plaintext (SecretKeySpec / KeyFactory
+                // copy it, so clearing here cannot corrupt the returned key).
+                Arrays.clear(encoded);
             }
         }
         finally

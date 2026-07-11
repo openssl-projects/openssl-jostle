@@ -65,7 +65,7 @@ public final class ProvSecretKeySpec
     {
         if (!hasBeenDestroyed.getAndSet(true))
         {
-            Arrays.fill(keyBytes, (byte) 0);
+            Arrays.clear(keyBytes);
         }
     }
 

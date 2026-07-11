@@ -10,6 +10,7 @@
 package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
 import org.openssl.jostle.util.Arrays;
@@ -18,6 +19,8 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactorySpi;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
@@ -30,6 +33,12 @@ import java.security.spec.KeySpec;
  */
 public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
 {
+    // Digest output sizes, queried once per digest name and memoized so we don't
+    // build (and immediately discard) a MessageDigest on every factory
+    // construction just to read a fixed length. Query-and-cache, never transcribe
+    // (see java-spi.md "OpenSSL is the single source of truth for fixed values").
+    private static final NativeLengthCache<String> DIGEST_LENGTHS = new NativeLengthCache<String>();
+
     private final String digestAlgorithm;
     private final int maxOutputLength;
 
@@ -45,27 +54,40 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
     public HKDFSecretKeyFactory(KdfNI kdfNI, String digestAlgorithm)
     {
         this.kdfNI = kdfNI;
-        this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digestAlgorithm);
         // RFC 5869: HKDF-Expand caps the output at 255 * HashLen. Enforced at
         // the JCE boundary so an over-long (or DoS-scale) request fails fast
         // with a typed exception instead of an allocation + opaque native error.
-        this.maxOutputLength = 255 * hashLengthBytes(this.digestAlgorithm);
+        // HashLen is queried from a MessageDigest, not transcribed as a size
+        // table (see java-spi.md "OpenSSL is the single source of truth …").
+        // The caller-supplied JCE name (e.g. "SHA-256") is used before it is
+        // canonicalised for the native call, so it resolves via any provider.
+        this.maxOutputLength = 255 * hashLengthBytes(digestAlgorithm);
+        this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digestAlgorithm);
     }
 
-    private static int hashLengthBytes(String canonicalDigest)
+    private static int hashLengthBytes(String jceDigestName)
     {
-        // DigestUtil canonicalises to the OpenSSL names ("SHA2-256" etc.).
-        switch (canonicalDigest)
+        int len = DIGEST_LENGTHS.get(jceDigestName);
+        if (len != NativeLengthCache.UNKNOWN)
         {
-            case "SHA2-256":
-                return 32;
-            case "SHA2-384":
-                return 48;
-            case "SHA2-512":
-                return 64;
-            default:
-                throw new IllegalArgumentException("unsupported HKDF digest: " + canonicalDigest);
+            return len;
         }
+        try
+        {
+            len = MessageDigest.getInstance(jceDigestName).getDigestLength();
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new IllegalArgumentException("unsupported HKDF digest: " + jceDigestName, e);
+        }
+        if (len <= 0)
+        {
+            // A provider that reports 0 (unknown length) can't bound the output;
+            // treat as unsupported rather than compute a bad limit.
+            throw new IllegalArgumentException("digest reports no fixed length: " + jceDigestName);
+        }
+        DIGEST_LENGTHS.cache(jceDigestName, len);
+        return len;
     }
 
     @Override
@@ -145,8 +167,8 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
         {
             // The IKM copy and the derived bytes (SecretKeySpec took its own
             // copy) are secret material — scrub both, on failure paths too.
-            Arrays.fill(ikm, (byte) 0);
-            Arrays.fill(rawKey, (byte) 0);
+            Arrays.clear(ikm);
+            Arrays.clear(rawKey);
         }
     }
 

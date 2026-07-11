@@ -275,17 +275,17 @@ public class CCMCipherSpi extends CipherSpi
             throw new InvalidKeyException("key has no encoded form");
         }
 
-        OSSLCipher osslCipher = resolveCipherForKeyLen(keyBytes.length);
-
-        // Dispose any previously-allocated native ref.
-        disposeRef();
-
         // reachabilityFence(this) keeps this SPI (and therefore its CCMRef
         // and the native ctx the ref owns) reachable across the native
         // calls, so GC + the disposer can't free the ctx mid-call. The
         // Java 8 baseline uses synchronized(this) for the same effect.
         try
         {
+            OSSLCipher osslCipher = resolveCipherForKeyLen(keyBytes.length);
+
+            // Dispose any previously-allocated native ref.
+            disposeRef();
+
             // Allocate a new native ctx for this cipher family + key size.
             ref = new CCMRef(cipherNI, cipherNI.makeInstance(osslCipher.ordinal()), "CCM-" + osslCipher.name());
 
@@ -296,6 +296,9 @@ public class CCMCipherSpi extends CipherSpi
         finally
         {
             Reference.reachabilityFence(this);
+            // Scrub the plaintext key bytes getEncoded() handed us, on the
+            // failure paths too (mirrors BlockCipherSpi.engineInit).
+            Arrays.clear(keyBytes);
         }
 
         this.opMode = opmode;

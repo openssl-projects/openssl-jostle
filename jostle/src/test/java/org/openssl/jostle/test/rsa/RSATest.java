@@ -261,6 +261,24 @@ public class RSATest
         }
     }
 
+    /**
+     * The int-overload initialize() uses the default parameter set, so it must
+     * reset a custom public exponent left by a prior spec-based initialize() on
+     * the same instance — otherwise a stale e leaks into the generated key.
+     */
+    @Test
+    public void testKeyPairGenerator_intOverloadResetsPublicExponent() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        // Prime with a non-default (but valid, odd, >= 3) exponent...
+        kpg.initialize(new RSAKeyGenParameterSpec(2048, BigInteger.valueOf(3)));
+        // ...then the int overload must revert to the F4 default, not keep e = 3.
+        kpg.initialize(2048);
+        RSAPublicKey pub = (RSAPublicKey) kpg.generateKeyPair().getPublic();
+        Assertions.assertEquals(BigInteger.valueOf(65537), pub.getPublicExponent(),
+                "int-overload initialize must reset the public exponent to the F4 default");
+    }
+
 
     // -----------------------------------------------------------------
     // PKCS#1 v1.5 signature round-trips
@@ -670,6 +688,47 @@ public class RSATest
         int afterSecond = draws[0];
         Assertions.assertTrue(afterSecond > afterFirst,
                 "reInit must preserve the caller-supplied SecureRandom across reuse");
+    }
+
+    /**
+     * JCE state-machine guard: PSS parameters must be fixed before the first
+     * update() of a sign/verify cycle. Calling setParameter mid-update must throw
+     * ProviderException (matching EdSignatureSpi), and a terminal op must reset
+     * the instance so setParameter is permitted again.
+     */
+    @Test
+    public void testPss_setParameterMidUpdate_rejected() throws Exception
+    {
+        byte[] msg = randomMessage(64);
+        PSSParameterSpec params = new PSSParameterSpec(
+                "SHA-384", "MGF1", new MGF1ParameterSpec("SHA-384"), 48, 1);
+
+        Signature signer = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        signer.initSign(sharedKeyPair.getPrivate());
+        signer.update(msg);                       // update begun -> params now frozen
+        try
+        {
+            signer.setParameter(params);
+            Assertions.fail("setParameter after update must be rejected");
+        }
+        catch (ProviderException e)
+        {
+            Assertions.assertEquals("cannot call setParameter in the middle of update", e.getMessage());
+        }
+
+        // A terminal op resets the instance: setParameter is allowed again, and a
+        // fresh cycle under the new params round-trips.
+        signer.sign();
+        signer.setParameter(params);              // must NOT throw after reset
+        signer.initSign(sharedKeyPair.getPrivate());
+        signer.update(msg);
+        byte[] sig = signer.sign();
+
+        Signature verifier = Signature.getInstance("RSASSA-PSS", JostleProvider.PROVIDER_NAME);
+        verifier.setParameter(params);
+        verifier.initVerify(sharedKeyPair.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig));
     }
 
     /**

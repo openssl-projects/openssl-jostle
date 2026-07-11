@@ -117,7 +117,7 @@ public class MacServiceSPI extends MacSpi
                 // key.getEncoded()"). keyBytes is a fresh SecretKeySpec copy and
                 // is non-null (guarded above), so clearing it cannot corrupt the
                 // caller's key. Matters most for Poly1305's one-time key.
-                Arrays.fill(keyBytes, (byte) 0);
+                Arrays.clear(keyBytes);
             }
         }
     }

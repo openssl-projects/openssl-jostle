@@ -21,6 +21,7 @@ import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
 
 import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
@@ -872,6 +873,18 @@ public class AESParametersTest
                     expected.getMessage().startsWith("AEAD parameter spec cannot be used with non-AEAD mode"),
                     "unexpected message: " + expected.getMessage());
         }
+    }
+
+    /**
+     * A block-cipher SPI must reject an unsupported padding (JCE contract),
+     * not silently fall back to its default. "AES/CBC/ISO10126Padding" resolves
+     * via form-4 fallback (bare "AES" primary), which runs engineSetPadding.
+     */
+    @Test
+    public void testEngineSetPadding_unsupportedPaddingRejected()
+    {
+        Assertions.assertThrows(NoSuchPaddingException.class,
+                () -> Cipher.getInstance("AES/CBC/ISO10126Padding", JostleProvider.PROVIDER_NAME));
     }
 
     private static byte[] concat(byte[] a, byte[] b)

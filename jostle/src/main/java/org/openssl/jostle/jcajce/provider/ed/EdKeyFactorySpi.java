@@ -142,10 +142,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             }
             finally
             {
-                if (encoded != null)
-                {
-                    Arrays.fill(encoded, (byte) 0);
-                }
+                Arrays.clear(encoded);
             }
         }
         else
@@ -174,10 +171,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 }
                 finally
                 {
-                    if (encoded != null)
-                    {
-                        Arrays.fill(encoded, (byte) 0);
-                    }
+                    Arrays.clear(encoded);
                 }
             }
         }
@@ -348,7 +342,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             // once the native key has been built. getEncoded() returned a
             // fresh array (non-null, checked above), so this can't corrupt the
             // caller's key. Arrays.fill is not null-safe, but encoded != null.
-            Arrays.fill(encoded, (byte) 0);
+            Arrays.clear(encoded);
         }
     }
 

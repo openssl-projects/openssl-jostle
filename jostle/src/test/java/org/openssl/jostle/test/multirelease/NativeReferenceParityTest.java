@@ -164,15 +164,21 @@ public class NativeReferenceParityTest
     public void everyOwnHandleNativeCallIsReachabilityGuarded()
         throws IOException
     {
-        Path mainJava = findMainJava();
-        Assumptions.assumeTrue(mainJava != null,
+        List<Path> roots = perMethodRoots();
+        Assumptions.assumeTrue(!roots.isEmpty(),
                 "src/main/java not reachable (packaged test jar) — source lint skipped");
 
-        List<Path> sources;
-        try (Stream<Path> walk = Files.walk(mainJava))
+        // Scan the Java 8 baseline AND the java25 override tree: a class present
+        // only under src/main/java25 (e.g. an FFI-only handle-holder) applies to
+        // these per-method guards too — there is no java26 to override into — and
+        // a baseline-only walk would miss it.
+        List<Path> sources = new ArrayList<Path>();
+        for (Path root : roots)
         {
-            sources = walk.filter(p -> p.toString().endsWith(".java"))
-                    .collect(Collectors.toList());
+            try (Stream<Path> walk = Files.walk(root))
+            {
+                walk.filter(p -> p.toString().endsWith(".java")).forEach(sources::add);
+            }
         }
 
         List<String> violations = new ArrayList<String>();
@@ -206,7 +212,7 @@ public class NativeReferenceParityTest
                     if (!callGuarded)
                     {
                         int line = 1 + (int) body.substring(0, pos).chars().filter(c -> c == '\n').count();
-                        violations.add(mainJava.relativize(source) + ":" + m.name + " (~line " + line + ")");
+                        violations.add(relToRoot(roots, source) + ":" + m.name + " (~line " + line + ")");
                     }
                 }
             }
@@ -259,15 +265,21 @@ public class NativeReferenceParityTest
     public void everyFieldHeldHandleNativeCallIsGuarded()
         throws IOException
     {
-        Path mainJava = findMainJava();
-        Assumptions.assumeTrue(mainJava != null,
+        List<Path> roots = perMethodRoots();
+        Assumptions.assumeTrue(!roots.isEmpty(),
                 "src/main/java not reachable (packaged test jar) — source lint skipped");
 
-        List<Path> sources;
-        try (Stream<Path> walk = Files.walk(mainJava))
+        // Scan the Java 8 baseline AND the java25 override tree: a class present
+        // only under src/main/java25 (e.g. an FFI-only handle-holder) applies to
+        // these per-method guards too — there is no java26 to override into — and
+        // a baseline-only walk would miss it.
+        List<Path> sources = new ArrayList<Path>();
+        for (Path root : roots)
         {
-            sources = walk.filter(p -> p.toString().endsWith(".java"))
-                    .collect(Collectors.toList());
+            try (Stream<Path> walk = Files.walk(root))
+            {
+                walk.filter(p -> p.toString().endsWith(".java")).forEach(sources::add);
+            }
         }
 
         List<String> violations = new ArrayList<String>();
@@ -346,7 +358,7 @@ public class NativeReferenceParityTest
                     if (!(methodGuarded || inAnyRange(syncRanges, pos)))
                     {
                         int line = 1 + (int) body.substring(0, pos).chars().filter(c -> c == '\n').count();
-                        violations.add(mainJava.relativize(source) + ":" + m.name + " (~line " + line + ")");
+                        violations.add(relToRoot(roots, source) + ":" + m.name + " (~line " + line + ")");
                     }
                 }
             }
@@ -537,5 +549,44 @@ public class NativeReferenceParityTest
             }
         }
         return null;
+    }
+
+    /**
+     * Source roots for the per-method reachability checks: the Java 8 baseline
+     * {@code src/main/java} AND the {@code src/main/java25} override tree (both
+     * layouts — module dir or repo root — are tolerated). Unlike the
+     * fence-override check (which is about a baseline class needing a {@code javaN/}
+     * override, so it stays baseline-only), the per-method guards apply to
+     * java25-only classes too — there is no java26 to override into — so a
+     * handle-holding FFI-only class can't slip past.
+     */
+    private static List<Path> perMethodRoots()
+    {
+        List<Path> roots = new ArrayList<Path>();
+        String[] candidates = {
+                "src/main/java", "src/main/java25",
+                "jostle/src/main/java", "jostle/src/main/java25"};
+        for (String candidate : candidates)
+        {
+            Path path = Paths.get(candidate);
+            if (Files.isDirectory(path))
+            {
+                roots.add(path.toAbsolutePath().normalize());
+            }
+        }
+        return roots;
+    }
+
+    /** Relativise {@code source} against whichever scanned root contains it. */
+    private static Path relToRoot(List<Path> roots, Path source)
+    {
+        for (Path root : roots)
+        {
+            if (source.startsWith(root))
+            {
+                return root.relativize(source);
+            }
+        }
+        return source.getFileName();
     }
 }

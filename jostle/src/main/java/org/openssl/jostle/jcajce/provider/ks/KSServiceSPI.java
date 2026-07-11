@@ -210,14 +210,8 @@ public class KSServiceSPI
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
-            if (encodedPassword != null)
-            {
-                Arrays.fill(encodedPassword, (byte) 0);
-            }
+            Arrays.clear(encoded);
+            Arrays.clear(encodedPassword);
         }
     }
 
@@ -324,11 +318,8 @@ public class KSServiceSPI
         }
         finally
         {
-            Arrays.fill(encoded, (byte) 0);
-            if (encodedPassword != null)
-            {
-                Arrays.fill(encodedPassword, (byte) 0);
-            }
+            Arrays.clear(encoded);
+            Arrays.clear(encodedPassword);
         }
     }
 
@@ -530,10 +521,7 @@ public class KSServiceSPI
             }
             finally
             {
-                if (encodedPassword != null)
-                {
-                    Arrays.fill(encodedPassword, (byte) 0);
-                }
+                Arrays.clear(encodedPassword);
             }
         }
     }
@@ -583,10 +571,7 @@ public class KSServiceSPI
             }
             finally
             {
-                if (encodedPassword != null)
-                {
-                    Arrays.fill(encodedPassword, (byte) 0);
-                }
+                Arrays.clear(encodedPassword);
             }
         }
     }
@@ -906,7 +891,7 @@ public class KSServiceSPI
         buffer.get(encoded);
         if (buffer.hasArray())
         {
-            Arrays.fill(buffer.array(), (byte) 0);
+            Arrays.clear(buffer.array());
         }
         return encoded;
     }

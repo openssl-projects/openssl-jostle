@@ -153,13 +153,10 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
             }
             finally
             {
-                if (pkcs8 != null)
-                {
-                    Arrays.fill(pkcs8, (byte) 0);
-                }
+                Arrays.clear(pkcs8);
                 if (encoded != null && encoded != pkcs8)
                 {
-                    Arrays.fill(encoded, (byte) 0);
+                    Arrays.clear(encoded);
                 }
             }
         }
@@ -295,10 +292,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         {
             // The local copy may carry private material — scrub it
             // (engineGeneratePrivate scrubbed only its own inner clone).
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
     }
 

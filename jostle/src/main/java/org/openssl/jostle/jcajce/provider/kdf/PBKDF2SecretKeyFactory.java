@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PBKDF2KeySpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
 import javax.crypto.SecretKey;
@@ -80,11 +81,21 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
                 algo = DigestUtil.getCanonicalDigestName("SHA-1");
             }
 
-            kdfNI.handleErrorCodes(kdfNI.pbkdf2(
-                    Strings.toUTF8ByteArray(spec.getPassword()),
-                    spec.getSalt(),
-                    spec.getIterationCount(),
-                    algo, rawKey, 0, rawKey.length));
+            byte[] passwordBytes = Strings.toUTF8ByteArray(spec.getPassword());
+            try
+            {
+                kdfNI.handleErrorCodes(kdfNI.pbkdf2(
+                        passwordBytes,
+                        spec.getSalt(),
+                        spec.getIterationCount(),
+                        algo, rawKey, 0, rawKey.length));
+            }
+            finally
+            {
+                // The UTF-8 password copy is secret material — scrub it once the
+                // native call has consumed it, on failure paths too (Scrypt precedent).
+                Arrays.clear(passwordBytes);
+            }
 
 
             String name = "PBKDF2WithHmac" + algo + "andUTF8";

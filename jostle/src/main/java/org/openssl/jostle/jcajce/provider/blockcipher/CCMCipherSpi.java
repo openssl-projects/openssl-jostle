@@ -292,23 +292,32 @@ public class CCMCipherSpi extends CipherSpi
             throw new InvalidKeyException("key has no encoded form");
         }
 
-        OSSLCipher osslCipher = resolveCipherForKeyLen(keyBytes.length);
-
-        // Dispose any previously-allocated native ref.
-        disposeRef();
-
-        // synchronized(this) keeps this SPI (and therefore its CCMRef and
-        // the native ctx the ref owns) reachable across the native calls,
-        // so GC + the disposer can't free the ctx mid-call. The java9
-        // override replaces this with Reference.reachabilityFence(this).
-        synchronized (this)
+        try
         {
-            // Allocate a new native ctx for this cipher family + key size.
-            ref = new CCMRef(cipherNI, cipherNI.makeInstance(osslCipher.ordinal()), "CCM-" + osslCipher.name());
+            OSSLCipher osslCipher = resolveCipherForKeyLen(keyBytes.length);
 
-            // Init the native ctx. ni_init records key/iv/tag_len + opMode
-            // and validates ranges; actual EVP work happens at doFinal.
-            cipherNI.init(ref.getReference(), opmode, keyBytes, nonce, tagBytes);
+            // Dispose any previously-allocated native ref.
+            disposeRef();
+
+            // synchronized(this) keeps this SPI (and therefore its CCMRef and
+            // the native ctx the ref owns) reachable across the native calls,
+            // so GC + the disposer can't free the ctx mid-call. The java9
+            // override replaces this with Reference.reachabilityFence(this).
+            synchronized (this)
+            {
+                // Allocate a new native ctx for this cipher family + key size.
+                ref = new CCMRef(cipherNI, cipherNI.makeInstance(osslCipher.ordinal()), "CCM-" + osslCipher.name());
+
+                // Init the native ctx. ni_init records key/iv/tag_len + opMode
+                // and validates ranges; actual EVP work happens at doFinal.
+                cipherNI.init(ref.getReference(), opmode, keyBytes, nonce, tagBytes);
+            }
+        }
+        finally
+        {
+            // Scrub the plaintext key bytes getEncoded() handed us, on the
+            // failure paths too (mirrors BlockCipherSpi.engineInit).
+            Arrays.clear(keyBytes);
         }
 
         this.opMode = opmode;

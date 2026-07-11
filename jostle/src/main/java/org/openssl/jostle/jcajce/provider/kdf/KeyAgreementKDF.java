@@ -73,7 +73,7 @@ public final class KeyAgreementKDF
             md.update(otherInfo, 0, otherInfo.length);
             byte[] dig = md.digest();
             System.arraycopy(dig, 0, out, i * digLen, digLen);
-            Arrays.fill(dig, (byte) 0);
+            Arrays.clear(dig);
             counter++;
         }
         return truncateAndScrub(out, keyLenBytes);
@@ -101,7 +101,7 @@ public final class KeyAgreementKDF
             }
             byte[] dig = md.digest();
             System.arraycopy(dig, 0, out, i * digLen, digLen);
-            Arrays.fill(dig, (byte) 0);
+            Arrays.clear(dig);
             counter++;
         }
         return truncateAndScrub(out, keyLenBytes);
@@ -120,7 +120,7 @@ public final class KeyAgreementKDF
             return derived;
         }
         byte[] kek = Arrays.copyOfRange(derived, 0, keyLenBytes);
-        Arrays.fill(derived, (byte) 0);
+        Arrays.clear(derived);
         return kek;
     }
 

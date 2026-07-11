@@ -85,10 +85,7 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         }
         finally
         {
-            if (passwordBytes != null)
-            {
-                Arrays.fill(passwordBytes, (byte) 0);
-            }
+            Arrays.clear(passwordBytes);
         }
 
         return new JOScryptKey("ScryptWithUTF8", password, salt, costParameter, blockSize, parallelizationParameter, rawKey);

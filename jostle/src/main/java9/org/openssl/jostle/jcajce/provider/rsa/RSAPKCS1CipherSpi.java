@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.interfaces.RSAKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -350,6 +351,11 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             {
                 throw new IllegalStateException("unexpected BadPaddingException during wrap", impossible);
             }
+            finally
+            {
+                // Scrub the plaintext key bytes getEncoded() handed us.
+                Arrays.clear(encoded);
+            }
         }
         finally
         {
@@ -435,6 +441,12 @@ public class RSAPKCS1CipherSpi extends CipherSpi
                 // "implicit rejection fired".
                 throw (InvalidKeyException) new InvalidKeyException(
                         "unable to reconstruct unwrapped " + wrappedKeyAlgorithm + " key").initCause(e);
+            }
+            finally
+            {
+                // Scrub the decrypted key plaintext (SecretKeySpec / KeyFactory
+                // copy it, so clearing here cannot corrupt the returned key).
+                Arrays.clear(encoded);
             }
         }
         finally

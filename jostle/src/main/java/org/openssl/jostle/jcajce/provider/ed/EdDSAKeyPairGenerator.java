@@ -45,11 +45,6 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
         }
     };
 
-    public EdDSAKeyPairGenerator()
-    {
-        this(null);
-    }
-
     public EdDSAKeyPairGenerator(Object algorithm)
     {
         super(algorithm.toString());

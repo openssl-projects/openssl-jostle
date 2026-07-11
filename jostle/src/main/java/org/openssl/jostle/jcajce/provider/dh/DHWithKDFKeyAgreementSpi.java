@@ -133,12 +133,9 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
         }
         finally
         {
-            Arrays.fill(zz, (byte) 0);
+            Arrays.clear(zz);
             // SecretKeySpec copies the bytes — scrub our working copy.
-            if (kek != null)
-            {
-                Arrays.fill(kek, (byte) 0);
-            }
+            Arrays.clear(kek);
         }
     }
 }

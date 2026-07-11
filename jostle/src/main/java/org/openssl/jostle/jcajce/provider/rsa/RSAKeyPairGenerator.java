@@ -131,6 +131,10 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
             throw new InvalidParameterException(err);
         }
         this.keySizeBits = keysize;
+        // The int overload uses the default parameter set — reset the exponent so
+        // a prior initialize(RSAKeyGenParameterSpec) with a custom e on this same
+        // instance doesn't leak into this generation.
+        this.publicExponent = DEFAULT_PUBLIC_EXPONENT;
         this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 

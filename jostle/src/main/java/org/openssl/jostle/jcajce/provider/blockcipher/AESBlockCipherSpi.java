@@ -109,10 +109,7 @@ public class AESBlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         super.engineInit(opmode, key, random);
     }
@@ -132,10 +129,7 @@ public class AESBlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         super.engineInit(opmode, key, params, random);
     }

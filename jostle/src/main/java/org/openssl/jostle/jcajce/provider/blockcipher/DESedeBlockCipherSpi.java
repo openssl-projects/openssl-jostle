@@ -90,10 +90,7 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         super.engineInit(opmode, key, random);
     }
@@ -113,10 +110,7 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         super.engineInit(opmode, key, params, random);
     }
@@ -136,10 +130,7 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
         }
         finally
         {
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
         if (params == null)
         {

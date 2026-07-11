@@ -1748,6 +1748,23 @@ public class MLDSATest
         Assertions.assertTrue(verifier.verify(sig2));
     }
 
+    /**
+     * A malformed X.509 / PKCS#8 encoding must surface as InvalidKeySpecException
+     * (the KeyFactory contract), not the decoder's unchecked OpenSSLException /
+     * IllegalArgumentException — which would also abort JCE provider fallback.
+     */
+    @Test
+    public void testKeyFactory_malformedEncoding_throwsInvalidKeySpec() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("ML-DSA-65", JostleProvider.PROVIDER_NAME);
+        byte[] garbage = new byte[64];
+        new SecureRandom().nextBytes(garbage);
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(garbage)));
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)));
+    }
+
 
     public static class TestAlgorithmParameterSpec implements AlgorithmParameterSpec
     {

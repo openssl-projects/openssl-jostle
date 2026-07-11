@@ -89,8 +89,8 @@ class JOPBEKey implements PBEKey, KeySpec, SecretKey, Destroyable, Serializable
     @Override
     public void destroy() throws DestroyFailedException
     {
-        Arrays.fill(rawKey, (byte) 0);
-        Arrays.fill(salt, (byte) 0);
+        Arrays.clear(rawKey);
+        Arrays.clear(salt);
         Arrays.fill(password, (char) 0);
         hasBeenDestroyed.set(true);
     }

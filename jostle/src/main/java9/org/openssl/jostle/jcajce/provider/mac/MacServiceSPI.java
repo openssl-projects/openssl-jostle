@@ -120,7 +120,7 @@ public class MacServiceSPI extends MacSpi
             // EVP_MAC ctx (java-spi.md "Zeroize the byte[] from
             // key.getEncoded()"). keyBytes is a fresh SecretKeySpec copy and is
             // non-null (guarded above). Matters most for Poly1305's one-time key.
-            Arrays.fill(keyBytes, (byte) 0);
+            Arrays.clear(keyBytes);
             Reference.reachabilityFence(this);
         }
     }

@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.rsa;
 import org.openssl.jostle.rand.RandSource;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
@@ -85,6 +86,14 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     @Override
     protected void engineSetParameter(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
     {
+        if (updateStarted)
+        {
+            // JCE state-machine contract: PSS parameters must be fixed before the
+            // first update() of a sign/verify cycle — changing them mid-stream
+            // would sign/verify under parameters the update data never saw.
+            // Matches EdSignatureSpi's guard.
+            throw new ProviderException("cannot call setParameter in the middle of update");
+        }
         if (params == null)
         {
             // Reset to defaults.

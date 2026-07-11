@@ -159,10 +159,7 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             }
             finally
             {
-                if (encoded != null)
-                {
-                    Arrays.fill(encoded, (byte) 0);
-                }
+                Arrays.clear(encoded);
             }
         }
         if (keySpec instanceof ECPrivateKeySpec)
@@ -361,10 +358,7 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         {
             // The local copy may carry private material — scrub it
             // (engineGeneratePrivate scrubbed only its own inner clone).
-            if (encoded != null)
-            {
-                Arrays.fill(encoded, (byte) 0);
-            }
+            Arrays.clear(encoded);
         }
     }
 

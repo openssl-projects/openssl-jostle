@@ -56,6 +56,10 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     private RSARef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
     private RSAKey lastKey = null;
+    // Set by engineUpdate, cleared on every (re)init below. A parameter-driven
+    // subclass (RSA-PSS) reads it to reject setParameter() after update() has
+    // begun, per the JCE Signature state-machine contract.
+    protected boolean updateStarted = false;
 
 
     /**
@@ -131,6 +135,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
      */
     private void initSignInternal(JORSAPrivateKey key)
     {
+        updateStarted = false;
         ensureRef(key.getAlgorithm());
         nativeInitSign(ref.getReference(), key.getSpec().getReference(), randSource);
     }
@@ -138,6 +143,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     /** Verify-side counterpart to {@link #initSignInternal}. */
     private void initVerifyInternal(JORSAPublicKey key)
     {
+        updateStarted = false;
         ensureRef(key.getAlgorithm());
         nativeInitVerify(ref.getReference(), key.getSpec().getReference());
     }
@@ -152,6 +158,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
     protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
     {
         requireInitialised();
+        updateStarted = true;
         try
         {
             rsaServiceNI.update(ref.getReference(), b, off, len);
