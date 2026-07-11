@@ -1,0 +1,101 @@
+/*
+ *  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
+ *
+ *  Licensed under the Apache License 2.0 (the "License"). You may not use
+ *  this file except in compliance with the License.  You can obtain a copy
+ *  in the file LICENSE in the source distribution or at
+ *  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider.mldsa;
+
+import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
+import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.asn1.ASN1Encoder;
+
+import java.lang.ref.Reference;
+
+class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
+{
+
+    public JOMLDSAPublicKey(PKEYKeySpec spec)
+    {
+        super(spec);
+    }
+
+    @Override
+    public String getAlgorithm()
+    {
+        return getType().getAlgorithmName();
+    }
+
+    @Override
+    public String getFormat()
+    {
+        return "X.509";
+    }
+
+    @Override
+    public byte[] getEncoded()
+    {
+        // synchronized(this) keeps this key (and thus its PKEYKeySpec) reachable
+        // across the native encoding call in ASN1Encoder, which reads
+        // spec.getReference() but does not itself fence the spec — the caller
+        // must. See java-spi.md "Native references must outlive every JNI/FFI call".
+        try
+        {
+            // FIPS 204: AlgorithmIdentifier parameters MUST be absent.
+            return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    @Override
+    public byte[] getPublicData()
+    {
+        //
+        // Raw bytes
+        //
+        try
+        {
+            long len = NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), null);
+            byte[] out = new byte[(int) len];
+            NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), out);
+
+            return out;
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+
+    public PKEYKeySpec getSpec()
+    {
+        return spec;
+    }
+
+    public MLDSAParameterSpec getParameterSpec()
+    {
+        switch (spec.getType())
+        {
+            case ML_DSA_44:
+                return MLDSAParameterSpec.ml_dsa_44;
+            case ML_DSA_87:
+                return MLDSAParameterSpec.ml_dsa_87;
+            case ML_DSA_65:
+                return MLDSAParameterSpec.ml_dsa_65;
+            default:
+                throw new IllegalArgumentException("unknown parameter type: " + spec.getType().name());
+
+        }
+    }
+}
