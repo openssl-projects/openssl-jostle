@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.ProvSecretKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
@@ -63,6 +64,15 @@ public class ChaCha20KeyGenerator extends KeyGeneratorSpi
     {
         byte[] keyBytes = new byte[KEY_SIZE_BITS >> 3];
         random.nextBytes(keyBytes);
-        return new ProvSecretKeySpec(keyBytes, "ChaCha20");
+        try
+        {
+            // ProvSecretKeySpec clones its input; scrub the local plaintext
+            // key copy so it does not linger on the heap until GC.
+            return new ProvSecretKeySpec(keyBytes, "ChaCha20");
+        }
+        finally
+        {
+            Arrays.fill(keyBytes, (byte) 0);
+        }
     }
 }

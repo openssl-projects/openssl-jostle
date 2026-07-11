@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
@@ -158,15 +159,24 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             long len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0);
 
             byte[] out = new byte[(int) len];
-            len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length);
-
-            if (len != out.length)
+            try
             {
-                throw new IllegalStateException("encapsulation length mismatch");
+                len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length);
+
+                if (len != out.length)
+                {
+                    throw new IllegalStateException("encapsulation length mismatch");
+                }
+
+                // SecretKeySpec clones its input; the finally scrubs the
+                // local copy of the shared secret (wrappedKey is the public
+                // encapsulation — not secret, and not ours to clear).
+                return new SecretKeyWithEncapsulation(new SecretKeySpec(out, extractSpec.getAlgorithmName()), wrappedKey);
             }
-
-            return new SecretKeyWithEncapsulation(new SecretKeySpec(out, extractSpec.getAlgorithmName()), wrappedKey);
-
+            finally
+            {
+                Arrays.fill(out, (byte) 0);
+            }
         }
         else
         {
@@ -175,22 +185,32 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             // engineInit resolved randSource for the peer key's
             // strength category — use it directly.
             byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
-            int encapsulationLen = encapsulationLengths.get(spec.getType());
-            if (encapsulationLen == NativeLengthCache.UNKNOWN)
+            try
             {
-                encapsulationLen = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
-                // Memoize OpenSSL's reported encapsulation length for this parameter set.
-                encapsulationLengths.cache(spec.getType(), encapsulationLen);
-            }
-            byte[] wrappedKey = new byte[encapsulationLen];
-            int len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
+                int encapsulationLen = encapsulationLengths.get(spec.getType());
+                if (encapsulationLen == NativeLengthCache.UNKNOWN)
+                {
+                    encapsulationLen = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
+                    // Memoize OpenSSL's reported encapsulation length for this parameter set.
+                    encapsulationLengths.cache(spec.getType(), encapsulationLen);
+                }
+                byte[] wrappedKey = new byte[encapsulationLen];
+                int len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
 
-            if (len != wrappedKey.length)
+                if (len != wrappedKey.length)
+                {
+                    throw new IllegalStateException("encapsulation length mismatch");
+                }
+
+                // SecretKeySpec clones its input; the finally scrubs the
+                // local copy of the shared secret (wrappedKey is the public
+                // encapsulation — not secret).
+                return new SecretKeyWithEncapsulation(new SecretKeySpec(secret, generateSpec.getAlgorithmName()), wrappedKey);
+            }
+            finally
             {
-                throw new IllegalStateException("encapsulation length mismatch");
+                Arrays.fill(secret, (byte) 0);
             }
-
-            return new SecretKeyWithEncapsulation(new SecretKeySpec(secret, generateSpec.getAlgorithmName()), wrappedKey);
         }
 
     }
