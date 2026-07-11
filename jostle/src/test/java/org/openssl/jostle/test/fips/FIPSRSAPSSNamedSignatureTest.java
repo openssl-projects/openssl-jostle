@@ -179,4 +179,26 @@ public class FIPSRSAPSSNamedSignatureTest
                     jslName + ": tampered message must not verify under the named default");
         }
     }
+
+    /**
+     * The FIPS provider must also register the {@code <digest>WITHRSASSA-PSS}
+     * alias for each PSS name — BC's PKIX/CMS layer derives that fallback name
+     * from an {@code id-RSASSA-PSS} AlgorithmIdentifier, so without the alias
+     * RSASSA-PSS verification through BC against JSLFIPS fails with
+     * NoSuchAlgorithmException (it resolves fine against the non-FIPS JSL).
+     */
+    @Test
+    public void namedPss_RSASSA_PSS_alias_resolves() throws Exception
+    {
+        ensureProviders();
+        for (String[] c : CASES)
+        {
+            String pssAlias = c[0].replace("WITHRSAANDMGF1", "WITHRSASSA-PSS");
+            // Resolving through the FIPS provider must not throw, and the
+            // resolved instance must be the FIPS provider's.
+            Signature sig = Signature.getInstance(pssAlias, FIPS);
+            Assertions.assertEquals(FIPS, sig.getProvider().getName(),
+                    pssAlias + " must resolve to the FIPS provider");
+        }
+    }
 }

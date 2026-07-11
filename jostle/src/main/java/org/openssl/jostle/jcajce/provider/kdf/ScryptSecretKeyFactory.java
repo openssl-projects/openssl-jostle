@@ -23,6 +23,22 @@ import java.security.spec.KeySpec;
 
 public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
 {
+    // Instance field, not a NISelector static (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS) — matches PBKDF2/HKDF so scrypt runs on the
+    // injected NI's library rather than being structurally pinned to the
+    // non-FIPS libcrypto if it were ever registered for a FIPS provider.
+    private final KdfNI kdfNI;
+
+    public ScryptSecretKeyFactory()
+    {
+        this(NISelector.KdfNI);
+    }
+
+    public ScryptSecretKeyFactory(KdfNI kdfNI)
+    {
+        this.kdfNI = kdfNI;
+    }
+
     @Override
     protected SecretKey engineGenerateSecret(KeySpec keySpec) throws InvalidKeySpecException
     {
@@ -75,7 +91,7 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         byte[] passwordBytes = Strings.toUTF8ByteArray(password);
         try
         {
-            NISelector.KdfNI.handleErrorCodes(NISelector.KdfNI.scrypt(
+            kdfNI.handleErrorCodes(kdfNI.scrypt(
                     passwordBytes,
                     salt,
                     costParameter,

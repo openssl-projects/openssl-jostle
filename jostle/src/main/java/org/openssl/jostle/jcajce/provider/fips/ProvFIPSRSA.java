@@ -138,5 +138,10 @@ class ProvFIPSRSA
         provider.addAlgorithmImplementation("Signature", mgf1Name,
                 implName, attr,
                 (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), opensslDigest));
+        // BouncyCastle's PKIX/CMS layer derives <digest>WITHRSASSA-PSS as the
+        // fallback Signature name from an id-RSASSA-PSS AlgorithmIdentifier;
+        // register the alias so RSASSA-PSS verification resolves under JSLFIPS
+        // (matches the non-FIPS ProvRSA).
+        provider.addAlias("Signature", mgf1Name, digestJcaName + "WITHRSASSA-PSS");
     }
 }

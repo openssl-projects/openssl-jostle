@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.fips;
 import org.openssl.jostle.FFI;
 
 import java.lang.foreign.*;
+import java.security.ProviderException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -57,7 +58,10 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "ffi JoFips_set_openssl_module", t);
-            throw new RuntimeException(t.getMessage(), t);
+            // ProviderException (not a bare RuntimeException) so a failed FIPS
+            // module init surfaces as the JCA-conventional type, consistent with
+            // FIPSOpenSSL.initialise's JO_FIPS_* -> typed-exception mapping.
+            throw new ProviderException(t.getMessage(), t);
         }
 
     }
