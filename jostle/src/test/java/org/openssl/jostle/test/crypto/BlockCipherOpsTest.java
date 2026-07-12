@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import java.security.Security;
 
@@ -451,6 +452,55 @@ public class BlockCipherOpsTest
             {
                 Assertions.assertTrue(ex.getMessage().contains("poisoned"));
             }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testGcmDecryptFinalTagInvalid() throws Exception
+    {
+        // OPS_OPENSSL_ERROR_4 forces EVP_DecryptFinal_ex inside _final to
+        // look failed on the AEAD decrypt path. That maps to JO_TAG_INVALID
+        // (not a generic OpenSSL error): the output buffer is cleansed and
+        // the ctx auto-resets rather than poisoning (decrypt re-init with
+        // the same key+iv carries no nonce-reuse hazard).
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
+
+            // Feed enough bytes so the tag buffer fills.
+            byte[] ct = new byte[32];
+            blockCipherNI.update(ref, new byte[32], 0, ct, 0, ct.length);
+
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1451
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+
+            try
+            {
+                blockCipherNI.doFinal(ref, new byte[32], 0);
+                Assertions.fail("expected tag-invalid failure in decrypt final");
+            }
+            catch (AEADBadTagException ex)
+            {
+                // JO_TAG_INVALID (-73) -> BlockCipherNI.handleError maps to
+                // AEADBadTagException("bad tag"). Pinning the message
+                // catches a silent re-map of the code to a different error
+                // arm whose message differs.
+                Assertions.assertEquals("bad tag", ex.getMessage());
+            }
+
+            // The tag-invalid path auto-resets instead of poisoning — the
+            // same handle must accept further work once the flag is clear.
+            operationsTestNI.resetFlags();
+            blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16);
         }
         finally
         {

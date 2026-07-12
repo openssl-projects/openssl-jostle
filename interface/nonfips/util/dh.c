@@ -162,6 +162,7 @@ int32_t dh_generate_key_by_group(key_spec *spec, const char *group_name,
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -255,6 +256,7 @@ int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -463,8 +465,10 @@ int32_t dh_make_private_from_components(key_spec *spec,
     // stale thread-local (dsa_make_private_from_components rationale).
     rand_set_java_srand_call(rnd_src);
 
-    return dh_fromdata(spec, p_be, p_len, g_be, g_len,
-                       NULL, 0, x_be, x_len);
+    int32_t ret_code = dh_fromdata(spec, p_be, p_len, g_be, g_len,
+                                   NULL, 0, x_be, x_len);
+    rand_clear_java_srand_call();
+    return ret_code;
 }
 
 
@@ -536,6 +540,7 @@ int32_t dh_generate_key(key_spec *spec, const key_spec *params,
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -681,6 +686,7 @@ int32_t dh_kex_init(dh_kex_ctx *ctx, const key_spec *my_priv,
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(
             get_global_jostle_ossl_lib_ctx(), my_priv->key, NULL);
     if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(5260);
     }
 
@@ -702,8 +708,10 @@ int32_t dh_kex_init(dh_kex_ctx *ctx, const key_spec *my_priv,
         ERR_pop_to_mark();
         EVP_PKEY_CTX_free(pctx);
         if (!has_q) {
+            rand_clear_java_srand_call();
             return JO_DH_Q_REQUIRED;
         }
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(5261);
     }
 
@@ -725,10 +733,12 @@ int32_t dh_kex_init(dh_kex_ctx *ctx, const key_spec *my_priv,
 
     if (OPS_FAILED_INIT_2 1 != EVP_PKEY_CTX_set_params(pctx, pad_params)) {
         EVP_PKEY_CTX_free(pctx);
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_2(5262);
     }
 
     ctx->pctx = pctx;
+    rand_clear_java_srand_call();
     return JO_SUCCESS;
 }
 
@@ -764,10 +774,12 @@ int32_t dh_kex_set_peer(dh_kex_ctx *ctx, const key_spec *peer_pub,
     // which the Java SPI translates to InvalidKeyException at doPhase().
     if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_derive_set_peer(
             ctx->pctx, peer_pub->key)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5270);
     }
 
     ctx->peer_set = 1;
+    rand_clear_java_srand_call();
     return JO_SUCCESS;
 }
 
@@ -794,28 +806,35 @@ int32_t dh_kex_derive(dh_kex_ctx *ctx, uint8_t *out, size_t out_len,
     // from a test because the probe site fires first).
     size_t need = 0;
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_derive(ctx->pctx, NULL, &need)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(5280);
     }
 
     if (OPS_INT32_OVERFLOW_1 need > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
     if (out == NULL || out_len == 0) {
+        rand_clear_java_srand_call();
         return (int32_t) need;
     }
 
     if (out_len < need) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_SMALL;
     }
 
     size_t written = out_len;
     if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_derive(ctx->pctx, out, &written)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(5281);
     }
 
     if (OPS_INT32_OVERFLOW_2 written > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
+    rand_clear_java_srand_call();
     return (int32_t) written;
 }

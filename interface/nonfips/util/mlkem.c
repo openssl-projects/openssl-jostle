@@ -109,6 +109,7 @@ int32_t mlkem_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -288,6 +289,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
             min_len = 3168;
             break;
         default:
+            rand_clear_java_srand_call();
             return JO_INCORRECT_KEY_TYPE;
     }
 
@@ -323,6 +325,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     ret_code = JO_SUCCESS;
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -354,6 +357,7 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
             min_len = 1568;
             break;
         default:
+            rand_clear_java_srand_call();
             return JO_INCORRECT_KEY_TYPE;
     }
 
@@ -388,5 +392,6 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
     ret_code = JO_SUCCESS;
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }

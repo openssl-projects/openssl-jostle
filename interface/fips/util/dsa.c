@@ -106,6 +106,7 @@ int32_t dsa_generate_parameters(key_spec *spec, int32_t p_bits,
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -321,8 +322,10 @@ int32_t dsa_make_private_from_components(key_spec *spec,
     // stale thread-local (mirrors ec_make_private_from_components).
     rand_set_java_srand_call(rnd_src);
 
-    return dsa_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
-                        NULL, 0, x_be, x_len);
+    int32_t ret_code = dsa_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
+                                    NULL, 0, x_be, x_len);
+    rand_clear_java_srand_call();
+    return ret_code;
 }
 
 
@@ -396,6 +399,7 @@ int32_t dsa_generate_key(key_spec *spec, const key_spec *params,
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -627,7 +631,9 @@ int32_t dsa_ctx_init_sign(dsa_ctx *ctx, const key_spec *key,
     // Raw DSA ("NoneWithDSA") — no streaming digest; buffer the
     // caller-supplied digest and sign it one-shot in dsa_ctx_sign.
     if (strcmp(digest_name, "NONE") == 0) {
-        return dsa_raw_init(ctx, libctx, key->key, DSA_OP_SIGN);
+        int32_t raw_ret = dsa_raw_init(ctx, libctx, key->key, DSA_OP_SIGN);
+        rand_clear_java_srand_call();
+        return raw_ret;
     }
 
     // Reuses OPS_OPENSSL_ERROR_3 / _4. Each test drives only one path.
@@ -654,6 +660,7 @@ exit:
     if (md_ctx != NULL) {
         EVP_MD_CTX_free(md_ctx);
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -774,31 +781,39 @@ int32_t dsa_ctx_sign(dsa_ctx *ctx, uint8_t *out, size_t out_len,
         size_t raw_sig_len = 0;
         if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
+            rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(5091);
         }
         if (raw_sig_len > (size_t) INT32_MAX) {
+            rand_clear_java_srand_call();
             return JO_OUTPUT_TOO_LONG_INT32;
         }
         if (out == NULL) {
+            rand_clear_java_srand_call();
             return (int32_t) raw_sig_len;
         }
         if (raw_sig_len > out_len) {
+            rand_clear_java_srand_call();
             return JO_OUTPUT_TOO_SMALL;
         }
         // DSA DER length varies; the first call returned an upper bound and
         // the second writes the actual length back into raw_sig_len.
         if (1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
+            rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR;
         }
+        rand_clear_java_srand_call();
         return (int32_t) raw_sig_len;
     }
 
     if (ctx->digest_ctx == NULL) {
+        rand_clear_java_srand_call();
         return JO_NOT_INITIALIZED;
     }
 
     if (ctx->opp != DSA_OP_SIGN) {
+        rand_clear_java_srand_call();
         return JO_UNEXPECTED_STATE;
     }
 
@@ -808,20 +823,24 @@ int32_t dsa_ctx_sign(dsa_ctx *ctx, uint8_t *out, size_t out_len,
     size_t sig_len = 0;
     if (OPS_OPENSSL_ERROR_8 1 != EVP_DigestSignFinal(
             ctx->digest_ctx, NULL, &sig_len)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(5070);
     }
 
     if (OPS_INT32_OVERFLOW_1 sig_len > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
     if (out == NULL) {
         // Two-call protocol: report required length without consuming the
         // streaming digest state. Caller calls again with a real buffer.
+        rand_clear_java_srand_call();
         return (int32_t) sig_len;
     }
 
     if (sig_len > out_len) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_SMALL;
     }
 
@@ -832,9 +851,11 @@ int32_t dsa_ctx_sign(dsa_ctx *ctx, uint8_t *out, size_t out_len,
     // length comes back from the second call. We report the actual.
     if (OPS_OPENSSL_ERROR_9 1 != EVP_DigestSignFinal(
             ctx->digest_ctx, out, &sig_len)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(5071);
     }
 
+    rand_clear_java_srand_call();
     return (int32_t) sig_len;
 }
 
@@ -864,25 +885,31 @@ int32_t dsa_ctx_verify(dsa_ctx *ctx, const uint8_t *sig, size_t sig_len,
         // OPS: force the structural-error (-1) branch.
         if (OPS_OPENSSL_ERROR_11 0) {
             ERR_clear_last_mark();
+            rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(5092);
         }
         if (raw_ret == 1) {
             ERR_pop_to_mark();
+            rand_clear_java_srand_call();
             return JO_SUCCESS;
         } else if (raw_ret == 0) {
             ERR_pop_to_mark();
+            rand_clear_java_srand_call();
             return JO_FAIL;
         } else {
             ERR_clear_last_mark();
+            rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR;
         }
     }
 
     if (ctx->digest_ctx == NULL) {
+        rand_clear_java_srand_call();
         return JO_NOT_INITIALIZED;
     }
 
     if (ctx->opp != DSA_OP_VERIFY) {
+        rand_clear_java_srand_call();
         return JO_UNEXPECTED_STATE;
     }
 
@@ -901,17 +928,21 @@ int32_t dsa_ctx_verify(dsa_ctx *ctx, const uint8_t *sig, size_t sig_len,
     // structural-error branch (ret == -1 path).
     if (OPS_OPENSSL_ERROR_10 0) {
         ERR_clear_last_mark();
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(5080);
     }
 
     if (ret == 1) {
         ERR_pop_to_mark();
+        rand_clear_java_srand_call();
         return JO_SUCCESS;
     } else if (ret == 0) {
         ERR_pop_to_mark();
+        rand_clear_java_srand_call();
         return JO_FAIL;
     } else {
         ERR_clear_last_mark();
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR;
     }
 }

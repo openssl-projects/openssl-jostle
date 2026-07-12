@@ -168,6 +168,7 @@ int32_t slh_dsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, s
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -674,6 +675,7 @@ exit:
             ctx->msg_buf = NULL;
         }
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -899,6 +901,7 @@ exit:
     if (msg != NULL && msg_len > 0) {
         OPENSSL_cleanse(msg, msg_len);
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -946,6 +949,7 @@ int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const siz
     }
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -980,5 +984,6 @@ int32_t slh_dsa_update(const slh_dsa_ctx *ctx, const uint8_t *in, const size_t i
 
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }

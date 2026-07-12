@@ -68,6 +68,7 @@ public class FIPSMDOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         try
         {
+            // Exercises interface/fips/util/md.c:44
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mdNI.allocateDigest("SHA256", 0);
             Assertions.fail("Expected operation to fail but did not");
@@ -89,6 +90,7 @@ public class FIPSMDOpsTest
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         try
         {
+            // Exercises interface/fips/jni/md_jni.c:47
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mdNI.allocateDigest("SHA256", 0);
             Assertions.fail("Expected operation to fail but did not");
@@ -109,6 +111,7 @@ public class FIPSMDOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         try
         {
+            // Exercises interface/fips/util/md.c:56
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             mdNI.allocateDigest("SHA256", 0);
             Assertions.fail("Expected operation to fail but did not");
@@ -184,6 +187,7 @@ public class FIPSMDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
+            // Exercises interface/fips/jni/md_jni.c:146
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mdNI.engineUpdate(ref, new byte[10], 1, 9);
             Assertions.fail("ops");
@@ -210,6 +214,7 @@ public class FIPSMDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
+            // Exercises interface/fips/jni/md_jni.c:253
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mdNI.digest(ref, new byte[32], 0, 32);
             Assertions.fail("ops");

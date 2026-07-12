@@ -97,6 +97,7 @@ exit:
     if (ctx != NULL) {
         EVP_PKEY_CTX_free(ctx);
     }
+    rand_clear_java_srand_call();
     return ret;
 }
 
@@ -173,5 +174,6 @@ exit:
     if (ctx != NULL) {
         EVP_PKEY_CTX_free(ctx);
     }
+    rand_clear_java_srand_call();
     return ret;
 }

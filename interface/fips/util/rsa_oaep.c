@@ -172,6 +172,7 @@ exit:
     if (pctx != NULL) {
         EVP_PKEY_CTX_free(pctx);
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -214,19 +215,23 @@ int32_t rsa_oaep_dofinal(rsa_oaep_ctx *ctx,
         // NI-level callers and BadPaddingException to JCE callers.
         int32_t base = (ctx->op_mode == RSA_OAEP_OP_DECRYPT)
                 ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        rand_clear_java_srand_call();
         return base OPS_OFFSET_OPENSSL_ERROR_1(2002);
     }
 
     if (OPS_INT32_OVERFLOW_1 out_required > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
     if (out == NULL) {
         // Caller wants required length only.
+        rand_clear_java_srand_call();
         return (int32_t) out_required;
     }
 
     if (out_len < out_required) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_SMALL;
     }
 
@@ -243,11 +248,14 @@ int32_t rsa_oaep_dofinal(rsa_oaep_ctx *ctx,
         // by the SPI).
         int32_t base = (ctx->op_mode == RSA_OAEP_OP_DECRYPT)
                 ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        rand_clear_java_srand_call();
         return base OPS_OFFSET_OPENSSL_ERROR_2(2003);
     }
 
     if (actual > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
+    rand_clear_java_srand_call();
     return (int32_t) actual;
 }

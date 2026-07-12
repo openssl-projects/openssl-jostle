@@ -84,17 +84,17 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getNam
 /*
  * Class:     org_openssl_jostle_jcajce_spec_SpecJNI
  * Method:    encap
- * Signature: (JLjava/lang/String;[BII[BII)I
+ * Signature: (JLjava/lang/String;[BII[BIILorg/openssl/jostle/rand/RandSource;)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
 (JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint in_off, jint in_len, jbyteArray _output,
  jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
 
-    if (rand_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
-
+    // rand_src is null-checked (and the thread-local up-call target bound)
+    // by util's encap() AFTER the handle/array validation below — the same
+    // point the FFI path checks it, so both bridges reject identical inputs
+    // with identical codes in the same order.
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -104,7 +104,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-    rand_set_java_srand_call(rand_src);
 
 
     java_bytearray_ctx input, output;
@@ -201,10 +200,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
  jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
 
-    if (rand_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
-
+    // rand_src is null-checked (and the thread-local up-call target bound)
+    // by util's decap() AFTER the handle/array validation below — the same
+    // point the FFI path checks it, so both bridges reject identical inputs
+    // with identical codes in the same order.
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -214,7 +213,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-    rand_set_java_srand_call(rand_src);
 
 
     java_bytearray_ctx input, output;

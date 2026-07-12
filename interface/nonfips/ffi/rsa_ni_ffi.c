@@ -179,6 +179,9 @@ int32_t JoRSA_initSign(rsa_ctx *ctx, key_spec *key,
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
     }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
     }

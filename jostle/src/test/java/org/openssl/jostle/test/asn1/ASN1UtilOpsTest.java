@@ -191,6 +191,7 @@ public class ASN1UtilOpsTest
         try
         {
             asn1Ref = asn1NI.allocate();
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:181
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             asn1NI.getData(asn1Ref, new byte[1024]);
             Assertions.fail();
@@ -224,6 +225,7 @@ public class ASN1UtilOpsTest
 
         try
         {
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:123
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
             byte[] out = new byte[(int) len];
@@ -398,6 +400,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:223
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             keyRef = asn1NI.fromPrivateKeyInfo(new byte[100], 0, 100);
             Assertions.fail();
@@ -422,6 +425,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:281
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[100], 0, 100);
             Assertions.fail();

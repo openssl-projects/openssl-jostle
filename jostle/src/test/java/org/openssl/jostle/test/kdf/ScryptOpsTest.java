@@ -60,6 +60,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:39
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[0], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -79,6 +80,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -98,6 +100,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:86
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();

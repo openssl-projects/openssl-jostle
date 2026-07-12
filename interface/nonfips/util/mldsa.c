@@ -336,6 +336,7 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -847,6 +848,7 @@ exit:
             ctx->mu_buf = NULL;
         }
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -1114,6 +1116,7 @@ int32_t mldsa_ctx_sign(const mldsa_ctx *ctx, uint8_t *out, const size_t out_len,
 
 exit:
     OPENSSL_cleanse(mu, Mu_BYTES);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 

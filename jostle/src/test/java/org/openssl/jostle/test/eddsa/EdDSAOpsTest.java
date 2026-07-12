@@ -179,6 +179,7 @@ public class EdDSAOpsTest
             keyRef = edDSAServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
+            // Exercises interface/nonfips/jni/ed_jni.c:317
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
@@ -251,7 +252,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:405
+            // Exercises interface/nonfips/util/edec.c:406
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = edDSAServiceNI.ni_initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
@@ -281,7 +282,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:426
+            // Exercises interface/nonfips/util/edec.c:427
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
@@ -312,6 +313,7 @@ public class EdDSAOpsTest
             keyRef = edDSAServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
+            // Exercises interface/nonfips/jni/ed_jni.c:439
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             edDSAServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 1024);
@@ -347,7 +349,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:470
+            // Exercises interface/nonfips/util/edec.c:472
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1005, code); // OpenSSL error with offset
@@ -377,7 +379,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:496
+            // Exercises interface/nonfips/util/edec.c:498
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1006, code); // OpenSSL error with offset
@@ -411,6 +413,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
+            // Exercises interface/nonfips/jni/ed_jni.c:376
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             edDSAServiceNI.sign(eddsaRef, new byte[1], 0, TestUtil.RNDSrc);
 
@@ -528,6 +531,7 @@ public class EdDSAOpsTest
 
             byte[] sig = new byte[(int) len];
 
+            // Exercises interface/nonfips/util/edec.c:599
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
             edDSAServiceNI.sign(eddsaRef, sig, 0, TestUtil.RNDSrc);
 
@@ -565,6 +569,7 @@ public class EdDSAOpsTest
             edDSAServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
+            // Exercises interface/nonfips/jni/ed_jni.c:500
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             edDSAServiceNI.verify(eddsaRef, new byte[1], 1);
 

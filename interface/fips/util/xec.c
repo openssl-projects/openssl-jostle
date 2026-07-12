@@ -67,5 +67,6 @@ int32_t xec_generate_key(key_spec *spec, const char *name, void *rnd_src) {
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }

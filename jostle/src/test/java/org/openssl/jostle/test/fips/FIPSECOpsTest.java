@@ -464,7 +464,7 @@ public class FIPSECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/fips/util/ec.c:387
+        // Exercises interface/fips/util/ec.c:388
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -485,7 +485,7 @@ public class FIPSECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/fips/util/ec.c:394
+        // Exercises interface/fips/util/ec.c:395
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -506,7 +506,7 @@ public class FIPSECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/fips/util/ec.c:399
+        // Exercises interface/fips/util/ec.c:400
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -529,7 +529,7 @@ public class FIPSECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/fips/util/ec.c:408
+        // Exercises interface/fips/util/ec.c:409
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
 
         int[] err = new int[1];
@@ -551,7 +551,7 @@ public class FIPSECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/fips/util/ec.c:415
+        // Exercises interface/fips/util/ec.c:416
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
 
         int[] err = new int[1];
@@ -573,7 +573,7 @@ public class FIPSECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/fips/util/ec.c:438
+        // Exercises interface/fips/util/ec.c:439
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
 
         int[] err = new int[1];
@@ -1439,7 +1439,7 @@ public class FIPSECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/fips/util/ec.c:560
+            // Exercises interface/fips/util/ec.c:562
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3104), code);
@@ -1463,7 +1463,7 @@ public class FIPSECOpsTest
             ec.initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             ec.ni_update(sigRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/fips/util/ec.c:798
+            // Exercises interface/fips/util/ec.c:803
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = ec.ni_sign(sigRef, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3105), code);
@@ -1501,7 +1501,7 @@ public class FIPSECOpsTest
             Assertions.assertTrue(upperBound > 0,
                     "size query should return a positive upper bound");
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/fips/util/ec.c:813
+            // Exercises interface/fips/util/ec.c:822
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_sign(sigRef, new byte[upperBound], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3106), code);
@@ -1525,7 +1525,7 @@ public class FIPSECOpsTest
             ec.initVerify(sigRef, keyRef, "NONE");
             ec.ni_update(sigRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/fips/util/ec.c:888
+            // Exercises interface/fips/util/ec.c:907
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_verify(sigRef, new byte[72], 72, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3107), code);
@@ -1547,7 +1547,7 @@ public class FIPSECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/fips/util/ec.c:567
+            // Exercises interface/fips/util/ec.c:569
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3103), code);

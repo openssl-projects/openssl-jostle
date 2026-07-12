@@ -62,6 +62,7 @@ public class SpecOpsTest
 
         try
         {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:117
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -84,6 +85,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:143
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -106,6 +108,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:171
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -239,6 +242,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:226
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -261,6 +265,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:252
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -283,6 +288,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:280
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             specNI.decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();

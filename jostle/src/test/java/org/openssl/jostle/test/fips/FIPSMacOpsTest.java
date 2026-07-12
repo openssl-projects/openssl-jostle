@@ -69,6 +69,7 @@ public class FIPSMacOpsTest
         long ref = 0;
         try
         {
+            // Exercises interface/fips/jni/mac_jni.c:48
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ref = macServiceNI.allocateMac("HMAC", "SHA-256");
             Assertions.fail();
@@ -95,6 +96,7 @@ public class FIPSMacOpsTest
         long ref = 0;
         try
         {
+            // Exercises interface/fips/jni/mac_jni.c:54
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             ref = macServiceNI.allocateMac("HMAC", "SHA-256");
             Assertions.fail();
@@ -169,6 +171,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
+            // Exercises interface/fips/jni/mac_jni.c:96
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             macServiceNI.engineInit(ref, new byte[16]);
             Assertions.fail();
@@ -235,6 +238,7 @@ public class FIPSMacOpsTest
         try
         {
             macServiceNI.engineInit(ref, new byte[16]);
+            // Exercises interface/fips/jni/mac_jni.c:160
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             macServiceNI.engineUpdate(ref, new byte[10], 1, 9);
             Assertions.fail();
@@ -279,6 +283,7 @@ public class FIPSMacOpsTest
         try
         {
             macServiceNI.engineInit(ref, new byte[16]);
+            // Exercises interface/fips/jni/mac_jni.c:211
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             macServiceNI.doFinal(ref, new byte[32], 0);
             Assertions.fail();

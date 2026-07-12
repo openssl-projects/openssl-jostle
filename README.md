@@ -621,6 +621,33 @@ Requests for any of these through `JSLFIPS` fail with
 provider's surface further, use the JVM's own mechanisms (e.g. the `jdk.security.providers.filter`
 security property).
 
+### Behavioural differences under the FIPS module
+
+Beyond the absent registrations, three registered services behave differently under `JSLFIPS` because the
+FIPS module either lacks a capability or silently substitutes behaviour. In each case Jostle fails loud with
+a typed exception rather than running degraded or returning something other than what was asked for:
+
+1. **RSA PKCS#1 v1.5 decryption is refused at the native layer too.** The transformation is not registered
+   (see above), and independently of registration the native interface refuses to initialise a PKCS#1 v1.5
+   DECRYPT session against any provider that does not support the implicit-rejection Bleichenbacher
+   mitigation (the parameter entered OpenSSL 3.2; the validated 3.1.2 module silently ignores it). The
+   capability is probed at init and the refusal surfaces as `InvalidKeyException`; encryption and wrapping
+   are unaffected. Use `RSA/ECB/OAEPPadding` for key transport — it is the approved mechanism and needs no
+   implicit rejection.
+2. **DH parameter generation refuses rather than returning constants.**
+   `AlgorithmParameterGenerator.getInstance("DH", "JSLFIPS").generateParameters()` throws
+   `ProviderException`: the FIPS module does not run the PKCS#3 safe-prime search — it silently returns the
+   RFC 7919 named-group constants matching the requested size (and hard-fails other sizes), which is not
+   what "generate parameters" promises. Use named-group DH key generation instead
+   (`KeyPairGenerator.getInstance("DH", "JSLFIPS")` with a standard size); the named groups are the
+   FIPS-approved domain parameters anyway. Under `JSL` (mainline OpenSSL), parameter generation performs a
+   genuine safe-prime search as before.
+3. **DH key agreement requires the subgroup order q.** The module's SP 800-56A key check rejects keys that
+   carry no q at derive-init, so private keys built from PKCS#3 component specs (`DHParameterSpec` /
+   `DHPrivateKeySpec` — p, g, x only) fail `KeyAgreement.init` with an `InvalidKeyException` naming the
+   cause. Keys from named-group generation (or any source that carries q) work as normal. Under `JSL`,
+   q-less keys continue to work.
+
 ### Key isolation
 
 Jostle keys are bound to the interface library (and `OSSL_LIB_CTX`) that created them. Public keys carry no

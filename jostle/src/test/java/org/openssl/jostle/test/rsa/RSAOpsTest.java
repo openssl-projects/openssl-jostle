@@ -306,7 +306,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/rsa_ni_jni.c:366
+            // Exercises interface/nonfips/jni/rsa_ni_jni.c:371
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -345,7 +345,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/rsa_ni_jni.c:372
+            // Exercises interface/nonfips/jni/rsa_ni_jni.c:377
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             rsaServiceNI.initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PSS, "SHA-256", -1, TestUtil.RNDSrc);
@@ -382,7 +382,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/rsa.c:689
+            // Exercises interface/nonfips/util/rsa.c:692
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -411,7 +411,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/rsa.c:694
+            // Exercises interface/nonfips/util/rsa.c:697
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -715,7 +715,7 @@ public class RSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
 
             // Second init: forced to fail at EVP_DigestSignInit_ex.
-            // Exercises interface/nonfips/util/rsa.c:694
+            // Exercises interface/nonfips/util/rsa.c:697
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initSign(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
@@ -761,7 +761,7 @@ public class RSAOpsTest
             rsaServiceNI.initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
 
-            // Exercises interface/nonfips/util/rsa.c:762
+            // Exercises interface/nonfips/util/rsa.c:766
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -800,7 +800,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/rsa.c:757
+            // Exercises interface/nonfips/util/rsa.c:761
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -828,7 +828,7 @@ public class RSAOpsTest
             Assertions.assertTrue(rsaRef > 0);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/rsa.c:762
+            // Exercises interface/nonfips/util/rsa.c:766
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = rsaServiceNI.ni_initVerify(rsaRef, keyRef, "SHA-256",
                     RSAServiceNI.PADDING_PKCS1, null, 0);
@@ -1029,6 +1029,7 @@ public class RSAOpsTest
 
             int needed = rsaServiceNI.sign(rsaRef, null, 0, TestUtil.RNDSrc);
 
+            // Exercises interface/nonfips/util/rsa.c:936
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
             rsaServiceNI.sign(rsaRef, new byte[needed], 0, TestUtil.RNDSrc);
             Assertions.fail();
@@ -1584,7 +1585,7 @@ public class RSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(0, initCode);
 
-            // Exercises interface/nonfips/util/rsa.c:820
+            // Exercises interface/nonfips/util/rsa.c:824
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = rsaServiceNI.ni_update(rsaRef, new byte[]{0x01, 0x02, 0x03}, 0, 3);
             // -2 + (-1010) = -1012.
@@ -1616,7 +1617,7 @@ public class RSAOpsTest
                     RSAServiceNI.PADDING_PKCS1, null, 0);
             Assertions.assertEquals(0, initCode);
 
-            // Exercises interface/nonfips/util/rsa.c:826
+            // Exercises interface/nonfips/util/rsa.c:830
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = rsaServiceNI.ni_update(rsaRef, new byte[]{0x01, 0x02, 0x03}, 0, 3);
             // -2 + (-1011) = -1013.
@@ -1672,7 +1673,7 @@ public class RSAOpsTest
             Assertions.assertEquals(0, initCode);
             rsaServiceNI.ni_update(rsaRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/rsa.c:860
+            // Exercises interface/nonfips/util/rsa.c:863
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = rsaServiceNI.ni_sign(rsaRef, null, 0, TestUtil.RNDSrc);
             // -2 + (-1101) = -1103.
@@ -1699,7 +1700,7 @@ public class RSAOpsTest
             Assertions.assertEquals(0, initCode);
             rsaServiceNI.ni_update(rsaRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/rsa.c:949
+            // Exercises interface/nonfips/util/rsa.c:968
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = rsaServiceNI.ni_verify(rsaRef, new byte[256], 256);
             // -2 + (-1102) = -1104.

@@ -372,3 +372,10 @@ void rand_set_java_srand_call(void *target) {
     jo_assert(target != NULL);
     jo_assert(CRYPTO_THREAD_set_local(&java_srand_id, target)!=0);
 }
+
+void rand_clear_java_srand_call(void) {
+    // NULL is a legal thread-local value; generate() (nonfips bridge)
+    // treats it as "no up-call target" and fails the draw typed.
+    jo_assert(CRYPTO_THREAD_set_local(&java_srand_id, NULL) != 0);
+}
+

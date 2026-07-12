@@ -60,6 +60,7 @@ public class PBKdf2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:154
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[0], new byte[0], 1, "SHA-1", new byte[0], 0, 0));
             Assertions.fail();
@@ -79,6 +80,7 @@ public class PBKdf2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:165
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[0], new byte[0], 1, "SHA-1", new byte[0], 0, 0));
             Assertions.fail();
@@ -98,6 +100,7 @@ public class PBKdf2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:186
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0));
             Assertions.fail();
@@ -117,6 +120,7 @@ public class PBKdf2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/jni/kdf_jni.c:223
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[16], 0, 16));
             Assertions.fail();

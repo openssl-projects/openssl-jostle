@@ -120,10 +120,9 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
                          void *rnd_src) {
     jo_assert(spec != NULL);
     jo_assert(pubexp != NULL);
-
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    // Bridge-validated invariant: both bridges null-check rnd_src and
+    // return JO_RAND_NO_RAND_UP_CALL themselves (RSALimitTest pins it).
+    jo_assert(rnd_src != NULL);
 
     // pubexp_len is user-controlled (size of a Java byte[] passed
     // through the NI layer). An empty byte array is a legitimate Java
@@ -200,6 +199,7 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
 exit:
     BN_free(e_bn);
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -651,10 +651,9 @@ int32_t rsa_ctx_init_sign(rsa_ctx *ctx, const key_spec *key,
     jo_assert(ctx != NULL);
     jo_assert(key != NULL);
     jo_assert(digest_name != NULL);
-
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    // Bridge-validated invariant: both bridges null-check rnd_src and
+    // return JO_RAND_NO_RAND_UP_CALL themselves (RSALimitTest pins it).
+    jo_assert(rnd_src != NULL);
 
     if (key->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
@@ -682,7 +681,11 @@ int32_t rsa_ctx_init_sign(rsa_ctx *ctx, const key_spec *key,
     // Raw PKCS#1 v1.5 ("NoneWithRSA") has no streaming digest — set up an
     // EVP_PKEY_CTX and buffer input until rsa_ctx_sign.
     if (padding_mode == RSA_PADDING_PKCS1_NONE) {
-        return rsa_raw_init(ctx, libctx, key->key, RSA_OP_SIGN);
+        {
+            int32_t raw_ret = rsa_raw_init(ctx, libctx, key->key, RSA_OP_SIGN);
+            rand_clear_java_srand_call();
+            return raw_ret;
+        }
     }
 
     md_ctx = EVP_MD_CTX_new();
@@ -716,6 +719,7 @@ exit:
     if (md_ctx != NULL) {
         EVP_MD_CTX_free(md_ctx);
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -837,10 +841,9 @@ int32_t rsa_ctx_update(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
 int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
                      void *rnd_src) {
     jo_assert(ctx != NULL);
-
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    // Bridge-validated invariant: both bridges null-check rnd_src and
+    // return JO_RAND_NO_RAND_UP_CALL themselves (RSALimitTest pins it).
+    jo_assert(rnd_src != NULL);
 
     // Raw PKCS#1 v1.5 ("NoneWithRSA"): one-shot EVP_PKEY_sign over the
     // buffered caller-supplied bytes. PKCS#1 v1.5 signing is deterministic,
@@ -859,33 +862,42 @@ int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
         size_t raw_sig_len = 0;
         if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
+            rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(1101);
         }
         if (raw_sig_len > (size_t) INT32_MAX) {
+            rand_clear_java_srand_call();
             return JO_OUTPUT_TOO_LONG_INT32;
         }
         if (out == NULL) {
+            rand_clear_java_srand_call();
             return (int32_t) raw_sig_len;
         }
         if (raw_sig_len > out_len) {
+            rand_clear_java_srand_call();
             return JO_OUTPUT_TOO_SMALL;
         }
         const size_t raw_expected = raw_sig_len;
         if (1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
+            rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR;
         }
         if (raw_sig_len != raw_expected) {
+            rand_clear_java_srand_call();
             return JO_UNEXPECTED_SIG_LEN_CHANGE;
         }
+        rand_clear_java_srand_call();
         return (int32_t) raw_sig_len;
     }
 
     if (ctx->digest_ctx == NULL) {
+        rand_clear_java_srand_call();
         return JO_NOT_INITIALIZED;
     }
 
     if (ctx->opp != RSA_OP_SIGN) {
+        rand_clear_java_srand_call();
         return JO_UNEXPECTED_STATE;
     }
 
@@ -894,32 +906,39 @@ int32_t rsa_ctx_sign(rsa_ctx *ctx, uint8_t *out, size_t out_len,
 
     size_t sig_len = 0;
     if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestSignFinal(ctx->digest_ctx, NULL, &sig_len)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR;
     }
 
     if (OPS_INT32_OVERFLOW_1 sig_len > INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
     if (out == NULL) {
         // Two-call protocol: report required length without consuming the
         // streaming digest state. Caller calls again with a real buffer.
+        rand_clear_java_srand_call();
         return (int32_t) sig_len;
     }
 
     if (sig_len > out_len) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_SMALL;
     }
 
     const size_t expected = sig_len;
     if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestSignFinal(ctx->digest_ctx, out, &sig_len)) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR;
     }
 
     if (OPS_LEN_CHANGE_1 sig_len != expected) {
+        rand_clear_java_srand_call();
         return JO_UNEXPECTED_SIG_LEN_CHANGE;
     }
 
+    rand_clear_java_srand_call();
     return (int32_t) sig_len;
 }
 

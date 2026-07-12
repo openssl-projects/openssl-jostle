@@ -56,6 +56,7 @@ public class MDOpsTest
 
         try
         {
+            // Exercises interface/nonfips/util/md.c:44
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mdNI.allocateDigest("SHA256", 0);
             Assertions.fail("Expected operation to fail but did not");
@@ -76,6 +77,7 @@ public class MDOpsTest
 
         try
         {
+            // Exercises interface/nonfips/jni/md_jni.c:47
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mdNI.allocateDigest("SHA256", 0);
             Assertions.fail("Expected operation to fail but did not");
@@ -95,6 +97,7 @@ public class MDOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
         try
         {
+            // Exercises interface/nonfips/util/md.c:56
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             mdNI.allocateDigest("SHA256", 0);
             Assertions.fail("Expected operation to fail but did not");
@@ -175,6 +178,7 @@ public class MDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
 
         try {
+            // Exercises interface/nonfips/jni/md_jni.c:146
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mdNI.engineUpdate(ref,new byte[10],1,9);
             Assertions.fail("ops");
@@ -196,6 +200,7 @@ public class MDOpsTest
         long ref = mdNI.allocateDigest("SHA256", 0);
 
         try {
+            // Exercises interface/nonfips/jni/md_jni.c:253
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mdNI.digest(ref,new byte[32],0,32);
             Assertions.fail("ops");

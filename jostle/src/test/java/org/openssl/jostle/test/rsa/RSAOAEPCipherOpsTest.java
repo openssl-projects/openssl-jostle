@@ -357,7 +357,7 @@ public class RSAOAEPCipherOpsTest
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_oaep.c:212
+            // Exercises interface/nonfips/util/rsa_oaep.c:213
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2002 + JO_OPENSSL_ERROR (-2) → -2004.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -424,7 +424,7 @@ public class RSAOAEPCipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_oaep.c:246
+            // Exercises interface/nonfips/util/rsa_oaep.c:252
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2003 + JO_OPENSSL_ERROR (-2) → -2005.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -511,6 +511,7 @@ public class RSAOAEPCipherOpsTest
             cipherNI.init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
+            // Exercises interface/nonfips/jni/rsa_oaep_ni_jni.c:155
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     null, 0, TestUtil.RNDSrc);
@@ -548,6 +549,7 @@ public class RSAOAEPCipherOpsTest
                     null, 0, TestUtil.RNDSrc);
             byte[] out = new byte[needed];
 
+            // Exercises interface/nonfips/jni/rsa_oaep_ni_jni.c:177
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     out, 0, TestUtil.RNDSrc);

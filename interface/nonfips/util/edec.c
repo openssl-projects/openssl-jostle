@@ -82,6 +82,7 @@ int32_t edec_generate_key(key_spec *spec, int32_t type, void *rnd_src) {
 
 exit:
     EVP_PKEY_CTX_free(ctx);
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -434,6 +435,7 @@ int32_t edec_ctx_init_sign(
     ret_code = JO_SUCCESS;
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -502,6 +504,7 @@ int32_t edec_ctx_init_verify(
     ret_code = JO_SUCCESS;
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -511,18 +514,22 @@ int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
     jo_assert(in != NULL);
 
     if (ctx->digest_ctx == NULL) {
+        rand_clear_java_srand_call();
         return JO_NOT_INITIALIZED;
     }
 
     if (in_len > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_INPUT_TOO_LONG_INT32;
     }
 
     ERR_clear_error();
     if (BIO_write(ctx->message, in, (int) in_len) != (int) in_len) {
+        rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR;
     }
 
+    rand_clear_java_srand_call();
     return JO_SUCCESS;
 }
 
@@ -533,6 +540,7 @@ int32_t edec_ctx_sign(edec_ctx *ctx, uint8_t *out, const size_t out_len, void *r
     int sign_attempted = 0;
 
     if (rnd_src == NULL) {
+        rand_clear_java_srand_call();
         return JO_RAND_NO_RAND_UP_CALL;
     }
 
@@ -602,6 +610,7 @@ exit:
     if (sign_attempted) {
         BIO_reset(ctx->message);
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -652,5 +661,6 @@ int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len)
     }
 
 exit:
+    rand_clear_java_srand_call();
     return ret_code;
 }

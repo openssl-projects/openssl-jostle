@@ -177,6 +177,7 @@ exit:
     if (pctx != NULL) {
         EVP_PKEY_CTX_free(pctx);
     }
+    rand_clear_java_srand_call();
     return ret_code;
 }
 
@@ -218,18 +219,22 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         // stay JO_OPENSSL_ERROR (IllegalBlockSizeException at the SPI).
         int32_t base = (ctx->op_mode == RSA_PKCS1_OP_DECRYPT)
                 ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        rand_clear_java_srand_call();
         return base OPS_OFFSET_OPENSSL_ERROR_1(2102);
     }
 
     if (OPS_INT32_OVERFLOW_1 out_required > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
     if (out == NULL) {
+        rand_clear_java_srand_call();
         return (int32_t) out_required;
     }
 
     if (out_len < out_required) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_SMALL;
     }
 
@@ -249,11 +254,14 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         // JCE-canonical BadPaddingException uniformly.
         int32_t base = (ctx->op_mode == RSA_PKCS1_OP_DECRYPT)
                 ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        rand_clear_java_srand_call();
         return base OPS_OFFSET_OPENSSL_ERROR_2(2103);
     }
 
     if (actual > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
         return JO_OUTPUT_TOO_LONG_INT32;
     }
+    rand_clear_java_srand_call();
     return (int32_t) actual;
 }

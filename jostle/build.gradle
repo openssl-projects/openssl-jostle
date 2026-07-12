@@ -888,6 +888,14 @@ tasks.withType(Test) {
     testLogging {
         events "passed", "skipped", "failed"
     }
+    // TEST_FIPS_LIB gates the FIPS test classes at runtime, but Gradle's
+    // up-to-date check hashes declared inputs only — never the environment.
+    // Without this property a task last run WITHOUT the module is UP-TO-DATE
+    // when re-invoked WITH it set, silently replaying a result in which every
+    // FIPS class skipped wholesale (and vice versa). Declaring the variable an
+    // input makes toggling it invalidate the task naturally, so --rerun is no
+    // longer needed for correctness when the FIPS module comes and goes.
+    inputs.property("TEST_FIPS_LIB", providers.environmentVariable("TEST_FIPS_LIB")).optional(true)
 }
 
 

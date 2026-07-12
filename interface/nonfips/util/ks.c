@@ -795,6 +795,7 @@ end:
     sk_PKCS12_SAFEBAG_pop_free(key_bags, PKCS12_SAFEBAG_free);
     sk_PKCS12_SAFEBAG_pop_free(cert_bags, PKCS12_SAFEBAG_free);
     OPENSSL_clear_free(pass, password_len + 1);
+    rand_clear_java_srand_call();
     return ret;
 }
 

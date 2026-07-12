@@ -71,6 +71,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJN
     java_bytearray_ctx pubexp;
     init_bytearray_ctx(&pubexp);
 
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
     if (_pubexp == NULL) {
         ret_val = JO_RSA_PUB_EXP_IS_NULL;
         goto exit;
@@ -406,6 +411,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
         return JO_KEY_SPEC_IS_NULL;
     }
 
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
     rsa_init_strings names;
     int32_t load = rsa_init_strings_load(env, _digest, _mgf1, &names);
     if (load != JO_SUCCESS) {
@@ -517,6 +526,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     rsa_ctx *ctx = (rsa_ctx *) ref;
     if (ctx == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
+    }
+
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     if (_output == NULL) {
