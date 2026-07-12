@@ -116,3 +116,33 @@ Existing `// Exercises ...` lines are updated in place rather than duplicated. U
 2. **Single comment per test.** Each test gets exactly one annotation — the one for the first `setFlag` + first `assertEquals(-N,...)` pair. Tests that drive multiple OPS sites in one method are under-documented; consider splitting them into separate tests.
 3. **No support for non-offset OPS sites.** Tests using `OPS_FAILED_ACCESS_*`, `OPS_LEN_CHANGE_*`, etc. aren't auto-linked because there's no `OPS_OFFSET_*` companion in the C code to provide a unique key.
 4. **Index-shift handling.** The script iterates test methods in reverse (bottom-up) so insertions don't shift indices for unprocessed methods. If you reorder tests in the file by hand, re-running the script will reposition all annotations correctly.
+
+
+## Validating existing anchors (`validate-anchors.py`)
+
+The companion `scripts/validate-anchors.py` checks the INVERSE of what this
+skill writes: for every anchor sitting above a `setFlag(OPS_X)` call, it
+confirms the referenced C line actually contains the bare flag `OPS_X` (the
+if-line), not a comment/blank/brace/return line it drifted onto. Run it after
+any C edit that shifts line numbers:
+
+```bash
+python3 .claude/skills/annotate-ops-tests/scripts/validate-anchors.py         # report, exit 1 if stale
+python3 .claude/skills/annotate-ops-tests/scripts/validate-anchors.py --fix   # rewrite to nearest bare-flag line
+```
+
+It covers ALL flag families (this skill only auto-links offset-based
+`OPS_OPENSSL_ERROR`); `--fix` disambiguates multi-site flags by nearest line
+(safe because drift is small). Legitimately-un-anchorable calls stay
+un-anchored and are not flagged: dual-bridge sites (a flag firing in both the
+`*_jni.c` and `*_ffi.c` bridge — no single truthful `path:line`),
+loop-multi-site tests (each iteration trips a different per-variant if-line),
+and `OPS_ALTERNATE` state-machine flags (no if-site).
+
+**Walk-back window:** this skill's if-line lookup walks back up to 30 lines
+from the `OPS_OFFSET` return macro to the matching `if (OPS_X ...)`. The
+window must exceed the largest gap between an if-line and its offset return
+(comment blocks plus interposed statements such as
+`rand_clear_java_srand_call()`); a too-small window silently falls back to the
+return line — the bug that put several anchors one site off before the window
+was widened from 6.

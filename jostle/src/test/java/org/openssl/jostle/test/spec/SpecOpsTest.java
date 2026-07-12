@@ -131,6 +131,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:39
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1101, specNI.ni_encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -148,6 +149,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:44
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1102, specNI.ni_encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -168,6 +170,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1103, specNI.ni_encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -185,6 +188,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:60
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1104, specNI.ni_encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -203,6 +207,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:66
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(), specNI.ni_encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -220,6 +225,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:88
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1105, specNI.ni_encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -311,6 +317,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:126
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1201, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -328,6 +335,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:131
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1202, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -348,6 +356,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:137
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1203, specNI.ni_decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -365,6 +374,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:144
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1204, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -383,6 +393,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:150
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(), specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
@@ -402,6 +413,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
+            // Exercises interface/nonfips/util/encapdecap.c:165
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1205, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally

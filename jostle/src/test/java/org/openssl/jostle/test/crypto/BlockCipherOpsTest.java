@@ -86,6 +86,7 @@ public class BlockCipherOpsTest
             // Force the next EVP_*Init_ex inside _init to look failed.
             // The auto-reset inside doFinal calls _init, so this hits the
             // reset path specifically.
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:870
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             // doFinal: EVP_EncryptFinal_ex runs OK, but the auto-reset's
@@ -165,6 +166,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:782
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
 
             try
@@ -204,6 +206,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:847
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             try
@@ -240,6 +243,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:987
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
             try
@@ -276,6 +280,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1141
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -318,6 +323,7 @@ public class BlockCipherOpsTest
             // Update one block so final has work to do.
             blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16);
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1398
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
             try
@@ -371,6 +377,7 @@ public class BlockCipherOpsTest
 
             blockCipherNI.update(ref, new byte[16], 0, new byte[16], 0, 16);
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1416
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
             try
@@ -424,6 +431,7 @@ public class BlockCipherOpsTest
             byte[] ct = new byte[32];
             blockCipherNI.update(ref, new byte[32], 0, ct, 0, ct.length);
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1442
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
             try
@@ -524,11 +532,11 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:860
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
             {
-                // Exercises interface/nonfips/util/block_cipher_ctx.c:778
                 // Tag length 12 bytes (96 bits) — non-default for OCB,
                 // so the SET_TAG control fires (and short-circuits under
                 // OPS_OPENSSL_ERROR_8).
@@ -564,11 +572,11 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:895
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
             {
-                // Exercises interface/nonfips/util/block_cipher_ctx.c:813
                 blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 12);
                 Assertions.fail("expected OCB SET_TAG (decrypt-init) failure");
             }
@@ -600,6 +608,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1165
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -656,6 +665,7 @@ public class BlockCipherOpsTest
             // so neither inner branch fires and tag_index ends at tag_len.
             blockCipherNI.update(ref, new byte[16], 0, new byte[16], 0, 16);
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1197
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -706,6 +716,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1212
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -755,6 +766,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:992
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
             try
@@ -803,6 +815,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:843
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
 
             try
@@ -842,6 +855,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:881
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
 
             try
@@ -883,6 +897,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:865
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -921,6 +936,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0);
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:885
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             try
@@ -955,6 +971,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0);
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:900
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -990,6 +1007,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:905
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -1027,6 +1045,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:923
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
             try
@@ -1074,6 +1093,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE,
                     sequentialKey(16), sequentialIv(16), 0));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1522
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             try
@@ -1120,6 +1140,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE,
                     sequentialKey(16), sequentialIv(16), 0));
 
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1580
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
 
             try

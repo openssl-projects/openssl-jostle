@@ -139,6 +139,7 @@ public class PBKdf2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/util/kdf.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0));
             Assertions.fail();
@@ -158,6 +159,7 @@ public class PBKdf2OpsTest
         int code;
         try
         {
+            // Exercises interface/nonfips/util/kdf.c:109
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             code = kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2000, code);
@@ -174,6 +176,7 @@ public class PBKdf2OpsTest
         int code;
         try
         {
+            // Exercises interface/nonfips/util/kdf.c:122
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             code = kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2001, code);

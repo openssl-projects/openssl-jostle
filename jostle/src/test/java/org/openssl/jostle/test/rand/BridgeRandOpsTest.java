@@ -88,7 +88,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:93
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:94
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -107,7 +107,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:101
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:102
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -125,7 +125,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:67
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:68
             // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:35
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -144,7 +144,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:72
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:73
             // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:40
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -163,7 +163,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:132
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:133
             // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -183,7 +183,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:146
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:147
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -201,7 +201,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:61
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:62
             // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:29
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));

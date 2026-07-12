@@ -122,6 +122,7 @@ public class FIPSMacOpsTest
         long ref = 0;
         try
         {
+            // Exercises interface/fips/util/mac.c:110
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             ref = macServiceNI.allocateMac("HMAC", "SHA-256");
             Assertions.fail();
@@ -331,6 +332,7 @@ public class FIPSMacOpsTest
         try
         {
             macServiceNI.engineInit(ref, new byte[16]);
+            // Exercises interface/fips/util/mac.c:210
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             macServiceNI.doFinal(ref, new byte[32], 0);
             Assertions.fail();
@@ -354,6 +356,7 @@ public class FIPSMacOpsTest
         try
         {
             macServiceNI.engineInit(ref, new byte[16]);
+            // Exercises interface/fips/util/mac.c:234
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             macServiceNI.getMacLength(ref);
             Assertions.fail();

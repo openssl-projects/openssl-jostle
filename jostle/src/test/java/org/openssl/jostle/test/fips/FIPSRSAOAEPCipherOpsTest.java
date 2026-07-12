@@ -390,6 +390,7 @@ public class FIPSRSAOAEPCipherOpsTest
             cipherNI.init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
+            // Exercises interface/fips/util/rsa_oaep.c:222
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     null, 0, TestUtil.RNDSrc);
@@ -428,7 +429,7 @@ public class FIPSRSAOAEPCipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/fips/util/rsa_oaep.c:252
+            // Exercises interface/fips/util/rsa_oaep.c:244
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2003 + JO_OPENSSL_ERROR (-2) → -2005.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -479,6 +480,7 @@ public class FIPSRSAOAEPCipherOpsTest
             byte[] pt = new byte[sizeQuery];
 
             OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/fips/util/rsa_oaep.c:244
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // JO_INVALID_CIPHER_TEXT (-21) + offset(-2003) = -2024.
             int code = cipherNI.ni_doFinal(decRef, ct, 0, ct.length,

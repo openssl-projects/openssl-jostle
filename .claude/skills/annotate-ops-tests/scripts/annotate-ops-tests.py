@@ -90,9 +90,13 @@ def build_c_index(c_paths):
     test→C-file map.
 
     Locates each `OPS_OFFSET_OPENSSL_ERROR_N(offset)` in C, then walks
-    backwards up to 5 lines for the matching `OPS_OPENSSL_ERROR_N`
-    macro that fires the fault. The if-line is the canonical pointer
-    for the test comment.
+    backwards for the matching `OPS_OPENSSL_ERROR_N` macro that fires
+    the fault. The if-line is the canonical pointer for the test
+    comment. Break-on-first-match walking up always lands on this
+    block's if-line (the offset return is inside it), so the window is
+    wide enough to clear long comment blocks and interposed statements
+    (e.g. a rand_clear_java_srand_call() before the return) rather than
+    falling back to the offset line itself.
     """
     index = {}
     for c_path in c_paths:
@@ -108,8 +112,12 @@ def build_c_index(c_paths):
             slot = int(m.group(1))
             offset = int(m.group(2))
             # Look back for the if-line containing the matching slot macro.
+            # Break on the first (nearest) match walking up: that is always
+            # this block's if-line, since the offset return sits inside it.
+            # The 30-line window clears comment blocks and any statements
+            # between the if and the return.
             if_line_no = idx + 1  # fallback to the offset line itself
-            for back_idx in range(idx, max(-1, idx - 6), -1):
+            for back_idx in range(idx, max(-1, idx - 30), -1):
                 if re.search(rf"\bOPS_OPENSSL_ERROR_{slot}\b", lines[back_idx]):
                     if_line_no = back_idx + 1
                     break

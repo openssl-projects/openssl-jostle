@@ -59,6 +59,7 @@ public class EdDSAOpsTest
         long keyRef = 0;
         try
         {
+            // Exercises interface/nonfips/util/edec.c:70
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             edDSAServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
@@ -379,7 +380,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:498
+            // Exercises interface/nonfips/util/edec.c:491
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1006, code); // OpenSSL error with offset
@@ -449,6 +450,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
+            // Exercises interface/nonfips/util/edec.c:569
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             OpenSSL.getOpenSSLErrors(); // Purge any errors
             long len = edDSAServiceNI.sign(eddsaRef, null, 0, TestUtil.RNDSrc);
@@ -491,6 +493,7 @@ public class EdDSAOpsTest
             byte[] sig = new byte[(int) len];
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
+            // Exercises interface/nonfips/util/edec.c:593
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             edDSAServiceNI.sign(eddsaRef, sig, 0, TestUtil.RNDSrc);
 
@@ -606,6 +609,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             edDSAServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
+            // Exercises interface/nonfips/util/edec.c:648
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             edDSAServiceNI.verify(eddsaRef, new byte[1], 1);
 

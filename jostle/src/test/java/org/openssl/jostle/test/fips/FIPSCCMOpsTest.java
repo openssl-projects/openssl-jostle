@@ -443,7 +443,7 @@ public class FIPSCCMOpsTest
         try
         {
             ref = newCtx();
-            // Exercises interface/fips/jni/ccm_ni_jni.c:88
+            // Exercises interface/fips/jni/ccm_ni_jni.c:93
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = ccmCipherNI.ni_init(ref, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16);
             Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_KEY.getCode(), code);
@@ -464,7 +464,7 @@ public class FIPSCCMOpsTest
         try
         {
             ref = newCtx();
-            // Exercises interface/fips/jni/ccm_ni_jni.c:92
+            // Exercises interface/fips/jni/ccm_ni_jni.c:97
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int code = ccmCipherNI.ni_init(ref, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16);
             Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_IV.getCode(), code);
@@ -486,7 +486,7 @@ public class FIPSCCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/fips/jni/ccm_ni_jni.c:174
+            // Exercises interface/fips/jni/ccm_ni_jni.c:185
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = ccmCipherNI.ni_doFinal(ref, new byte[8], 8, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_INPUT.getCode(), code);
@@ -508,7 +508,7 @@ public class FIPSCCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/fips/jni/ccm_ni_jni.c:183
+            // Exercises interface/fips/jni/ccm_ni_jni.c:194
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_INPUT.getCode(), code);
@@ -530,7 +530,7 @@ public class FIPSCCMOpsTest
         {
             ref = newCtx();
             initOk(ref, CCMCipherNI.OP_ENCRYPT);
-            // Exercises interface/fips/jni/ccm_ni_jni.c:191
+            // Exercises interface/fips/jni/ccm_ni_jni.c:202
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int code = ccmCipherNI.ni_doFinal(ref, null, 0, new byte[16], 0, 16, new byte[32], 0);
             Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_OUTPUT.getCode(), code);

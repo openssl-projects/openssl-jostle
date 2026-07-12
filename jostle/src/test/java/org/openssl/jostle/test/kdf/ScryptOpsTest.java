@@ -119,6 +119,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
+            // Exercises interface/nonfips/util/kdf.c:43
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -138,6 +139,7 @@ public class ScryptOpsTest
         int code;
         try
         {
+            // Exercises interface/nonfips/util/kdf.c:51
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
 
@@ -155,6 +157,7 @@ public class ScryptOpsTest
         int code;
         try
         {
+            // Exercises interface/nonfips/util/kdf.c:65
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
 
