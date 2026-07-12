@@ -103,7 +103,19 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     @Override
     protected AlgorithmParameters engineGenerateParameters()
     {
-        long paramsRef = dhServiceNI.generateParameters(pBits, random);
+        long paramsRef;
+        try
+        {
+            paramsRef = dhServiceNI.generateParameters(pBits, random);
+        }
+        catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+        {
+            // Fail-loud contract: the loaded provider (FIPS module)
+            // substitutes an RFC 7919 named group instead of running the
+            // PKCS#3 safe-prime search. Refuse rather than hand back
+            // fixed constants as if they were freshly generated.
+            throw new ProviderException(e.getMessage(), e);
+        }
         PKEYKeySpec paramsSpec = new PKEYKeySpec(paramsRef, OSSLKeyType.DH);
         DHParameterSpec spec = DHComponents.getParams(dhServiceNI, paramsSpec);
         try

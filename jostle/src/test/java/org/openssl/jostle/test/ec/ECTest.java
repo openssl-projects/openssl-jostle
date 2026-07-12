@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.Arrays;
 
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
@@ -1036,5 +1037,118 @@ public class ECTest
         tamperedVerifier.update(msg);
         Assertions.assertFalse(tamperedVerifier.verify(sig),
                 "original public key verified a tampered message signed by the rebuilt private key");
+    }
+
+    /**
+     * A private key built from {@link ECPrivateKeySpec} must carry a public
+     * half: {@code ec_make_private_from_components} computes Q = d·G itself
+     * because {@code EVP_PKEY_fromdata} does not derive it from the private
+     * scalar (keys built from the spec previously had NO public point, so
+     * {@code getEncoded()} failed with an i2d error and the pub-X/Y getters
+     * returned nothing, while signing still worked). Pins the fix at the JCE
+     * surface: the spec-built key's PKCS#8 encoding must be non-null, decode
+     * cleanly through BouncyCastle, and interoperate with BouncyCastle for
+     * sign/verify in BOTH directions. Fresh random keypair per curve trial.
+     */
+    @Test
+    public void testKeyFactory_ECPrivateKeySpec_EncodesAndInteroperatesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("testKeyFactory_ECPrivateKeySpec_EncodesAndInteroperatesWithBC");
+        for (String curve : new String[]{"P-256", "P-384", "P-521"})
+        {
+            if (!NISelector.ECServiceNI.curveSupported(curve))
+            {
+                continue;
+            }
+
+            // Fresh random keypair per trial — no fixture keys.
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+            kpg.initialize(new ECGenParameterSpec(curve));
+            KeyPair kp = kpg.generateKeyPair();
+            ECPrivateKey origPriv = (ECPrivateKey) kp.getPrivate();
+
+            // Build the spec from raw components and rebuild through the
+            // ec_make_private_from_components path.
+            KeyFactory joKf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+            ECPrivateKeySpec privSpec = joKf.getKeySpec(origPriv, ECPrivateKeySpec.class);
+            ECPrivateKey specPriv = (ECPrivateKey) joKf.generatePrivate(privSpec);
+
+            // (i) getEncoded() must produce a PKCS#8 encoding — this is
+            // exactly what failed before the public half was derived.
+            byte[] specEncoded = specPriv.getEncoded();
+            Assertions.assertNotNull(specEncoded,
+                    curve + ": spec-built private key getEncoded() returned null");
+            Assertions.assertTrue(specEncoded.length > 0,
+                    curve + ": spec-built private key getEncoded() returned empty");
+            Assertions.assertEquals("PKCS#8", specPriv.getFormat(),
+                    curve + ": spec-built private key format");
+
+            // The original and spec-built keys must produce PKCS#8 encodings
+            // that decode (via BC) to private keys with the same scalar.
+            KeyFactory bcKf = KeyFactory.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
+            ECPrivateKey bcFromSpecBuilt = (ECPrivateKey) bcKf.generatePrivate(
+                    new PKCS8EncodedKeySpec(specEncoded));
+            ECPrivateKey bcFromOriginal = (ECPrivateKey) bcKf.generatePrivate(
+                    new PKCS8EncodedKeySpec(origPriv.getEncoded()));
+            Assertions.assertEquals(bcFromOriginal.getS(), bcFromSpecBuilt.getS(),
+                    curve + ": BC-decoded scalar differs between original and spec-built keys");
+
+            // Random content AND random length per CLAUDE.md.
+            byte[] msg = new byte[16 + sr.nextInt(256)];
+            sr.nextBytes(msg);
+
+            // (ii) Sign with the BC-decoded spec-built key; verify with the
+            // Jostle public key from the original pair. Proves the PKCS#8
+            // form BC parsed carries the right key material AND that the
+            // derived public point matches d·G for the original scalar.
+            Signature bcSigner = Signature.getInstance(
+                    "SHA256withECDSA", BouncyCastleProvider.PROVIDER_NAME);
+            bcSigner.initSign(bcFromSpecBuilt);
+            bcSigner.update(msg);
+            byte[] bcSig = bcSigner.sign();
+
+            Signature joVerifier = Signature.getInstance(
+                    "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+            joVerifier.initVerify(kp.getPublic());
+            joVerifier.update(msg);
+            Assertions.assertTrue(joVerifier.verify(bcSig),
+                    curve + ": Jostle public key did not verify the BC signature "
+                            + "made with the spec-built private key");
+
+            // (iii) Reverse direction: sign with the Jostle spec-built key,
+            // verify with BC using the BC-decoded original public key.
+            Signature joSigner = Signature.getInstance(
+                    "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+            joSigner.initSign(specPriv);
+            joSigner.update(msg);
+            byte[] joSig = joSigner.sign();
+
+            PublicKey bcPub = bcKf.generatePublic(
+                    new X509EncodedKeySpec(kp.getPublic().getEncoded()));
+            Signature bcVerifier = Signature.getInstance(
+                    "SHA256withECDSA", BouncyCastleProvider.PROVIDER_NAME);
+            bcVerifier.initVerify(bcPub);
+            bcVerifier.update(msg);
+            Assertions.assertTrue(bcVerifier.verify(joSig),
+                    curve + ": BC did not verify the Jostle signature made with "
+                            + "the spec-built private key");
+
+            // Negative: a tampered message must fail in both directions —
+            // guards against stub verifiers.
+            byte[] tampered = Arrays.clone(msg);
+            tampered[0] ^= 0x01;
+            Signature joTv = Signature.getInstance(
+                    "SHA256withECDSA", JostleProvider.PROVIDER_NAME);
+            joTv.initVerify(kp.getPublic());
+            joTv.update(tampered);
+            Assertions.assertFalse(joTv.verify(bcSig),
+                    curve + ": Jostle verified a tampered message");
+            Signature bcTv = Signature.getInstance(
+                    "SHA256withECDSA", BouncyCastleProvider.PROVIDER_NAME);
+            bcTv.initVerify(bcPub);
+            bcTv.update(tampered);
+            Assertions.assertFalse(bcTv.verify(joSig),
+                    curve + ": BC verified a tampered message");
+        }
     }
 }

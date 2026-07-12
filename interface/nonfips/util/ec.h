@@ -30,8 +30,9 @@
 
 /*
  * Probe whether the loaded OpenSSL provider chain recognises the given
- * curve name. Returns 1 if `EVP_PKEY_CTX_set_params` accepts the name
- * for an EC paramgen context, 0 otherwise (including curve_name == NULL).
+ * curve name. Returns 1 if a full EVP_PKEY_paramgen succeeds for the
+ * name, JO_CURVE_NOT_SUPPORTED otherwise. curve_name MUST be non-NULL
+ * (bridge-validated).
  *
  * Used by the Java SPI to validate curve names BEFORE attempting keygen,
  * so unknown curves surface as InvalidAlgorithmParameterException with
@@ -98,9 +99,10 @@ int32_t ec_get_component(const key_spec *spec, int32_t component,
  *   scalar_be:  the private scalar as big-endian unsigned magnitude.
  *               MUST be non-NULL.
  *   scalar_len: number of bytes in scalar_be. MUST be > 0.
- *   rnd_src:    RandSource. Required because OpenSSL re-derives the
- *               public point from the scalar using point-blinded
- *               multiplication, which consumes RAND.
+ *   rnd_src:    RandSource. Required because the public point Q = d·G
+ *               is computed here via blinded point multiplication,
+ *               which consumes RAND. (EVP_PKEY_fromdata itself derives
+ *               nothing — see the implementation comment.)
  *
  * The path uses OSSL_PARAM_BLD + EVP_PKEY_fromdata (the OpenSSL 3.x
  * idiom for constructing keys from raw components) rather than the

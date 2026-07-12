@@ -240,7 +240,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024);
+            specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
         } catch (AccessException arex)
         {
@@ -262,7 +262,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
-            specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024);
+            specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
         } catch (AccessException arex)
         {
@@ -284,7 +284,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
-            specNI.decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024);
+            specNI.decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
         } catch (AccessException arex)
         {
@@ -306,7 +306,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1201, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1201, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -323,7 +323,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1202, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1202, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -343,7 +343,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1203, specNI.ni_decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1203, specNI.ni_decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -360,7 +360,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1204, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1204, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -378,7 +378,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
-            Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(), specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(), specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();
@@ -397,7 +397,7 @@ public class SpecOpsTest
         try
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
-            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1205, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024));
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1205, specNI.ni_decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();

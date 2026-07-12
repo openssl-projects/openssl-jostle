@@ -101,13 +101,23 @@ exit:
 }
 
 int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, const size_t in_len, uint8_t *out,
-              const size_t out_len) {
+              const size_t out_len, void *rand_src) {
     jo_assert(key_spec != NULL);
     jo_assert(key_spec->key != NULL);
     jo_assert(input != NULL);
 
     int32_t ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
+
+    // ML-KEM decapsulation is deterministic, but decap is type-agnostic
+    // (an RSA-KEM decap drives RSA blinding, which consumes entropy) —
+    // bind the upcall so any RAND consumption resolves to fresh Java
+    // entropy rather than a stale thread-local (mirrors encap).
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    rand_set_java_srand_call(rand_src);
 
     ERR_clear_error();
 

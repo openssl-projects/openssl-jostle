@@ -142,6 +142,22 @@ JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use
     }
 
     //
+    // EVP_RAND(3) requires locking to be enabled before an EVP_RAND_CTX is
+    // used across threads. The parent here is the creating thread's
+    // per-thread private DRBG, so two SecureRandom instances built on one
+    // thread and driven from different threads would otherwise race their
+    // reseeds on an unlocked shared parent (crash or correlated seed).
+    // Enabling locking on the child propagates up the parent chain.
+    //
+    if (OPS_OPENSSL_ERROR_11 1 != EVP_RAND_enable_locking(ctx->evp_ctx)) {
+        ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
+                       "rand_ctx_create: EVP_RAND_enable_locking failed");
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3034);
+        rand_ctx_destroy(ctx);
+        return NULL;
+    }
+
+    //
     // The variant selector is mechanism-specific: CTR-DRBG takes a cipher
     // (and the derivation-function flag); HASH-DRBG and HMAC-DRBG take a
     // digest, and HMAC-DRBG additionally pins the MAC to HMAC. Passing a
@@ -309,6 +325,15 @@ int32_t rand_drbg_strength(const char *mechanism, const char *variant) {
     EVP_RAND_CTX *ctx = EVP_RAND_CTX_new(rand, parent);
     EVP_RAND_free(rand);
     if (ctx == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    // Same cross-thread rule as rand_ctx_create: this throwaway ctx
+    // parents on the shared per-thread private DRBG, so locking must be
+    // enabled before it is touched (strength queries can run on any
+    // thread through the SPI).
+    if (1 != EVP_RAND_enable_locking(ctx)) {
+        EVP_RAND_CTX_free(ctx);
         return JO_OPENSSL_ERROR;
     }
 

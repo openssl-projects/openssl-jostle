@@ -60,6 +60,20 @@ JCE has strict exception-type contracts that determine both caller-visible behav
 
 A bug where the wrong exception type leaks (e.g. `OpenSSLException extends RuntimeException` thrown from a place that should surface `BadPaddingException`) breaks both fallback and tests, and is invisible to a positive-only roundtrip.
 
+**Capability failures: `ProviderCapabilityException` → the JCE-canonical init exception**
+
+When the loaded provider cannot honour a capability the operation's security contract requires — implicit rejection for PKCS#1 v1.5 decrypt (`JO_IMPLICIT_REJECTION_UNAVAILABLE`, -135), the subgroup order q for DH agreement under FIPS (`JO_DH_Q_REQUIRED`, -136), a real PKCS#3 safe-prime search rather than a named-group substitution (`JO_DH_PARAMGEN_SUBSTITUTED`, -137) — the C side returns the distinct typed code and the error handler throws `ProviderCapabilityException`. It extends `OpenSSLException` so generic handlers keep working, and limit tests pin the exact type + message. SPIs translate at their init boundary, per surface:
+
+1. `Cipher` / `KeyAgreement` `engineInit` → `InvalidKeyException` carrying the capability message. This is deliberate: it is the JCE-canonical init failure AND the provider-fallback trigger, so a deployment registering both JSLFIPS and a capable provider falls through to one that can do the operation safely instead of dying on a runtime exception.
+2. `AlgorithmParameterGenerator.engineGenerateParameters` → `ProviderException` (its contract has no checked exception).
+3. Never let the raw runtime escape `engineInit` — an untranslated `ProviderCapabilityException` breaks fallback and the typed-catch contract alike.
+
+This is the same three-layer shape as `JO_INVALID_CIPHER_TEXT` → `InvalidCipherTextException` → `BadPaddingException` (see the OAEP note in native-code.md), applied to fail-loud capability refusals. When adding a new capability gate, reuse `ProviderCapabilityException` with a new pinned message rather than minting another exception class, and back it with BOTH a real-environment FIPS limit test (the module genuinely lacks the capability) and a base-tree OPS test for the injected branch.
+
+**`Linker.Option.critical` forbids upcalls — RandSource-bearing FFI downcalls must arena-copy**
+
+A downcall handle bound with `Linker.Option.critical(true)` may pass heap segments zero-copy, but upcalls into the JVM are illegal for the call's duration. Any NI entry point that binds a `RandSource` — meaning the C side may up-call for entropy — must be marshalled with confined-arena copies plus `linker.upcallStub`, never critical heap segments; `SpecFFI.ni_encap` / `ni_decap` are the reference pair. The trap is retrofit: adding a `rand_src` parameter to an existing C entry point silently invalidates a critical-marshalled Java twin that was correct when the C side made no upcalls — audit the FFI class's `Linker.Option` choice whenever an NI signature gains a RandSource. (JNI has the same rule in different clothes: no up-calls between `GetPrimitiveArrayCritical` and its release — fetch entropy outside critical regions.) Remember the copy direction when converting: inputs must be copied INTO the arena segment before the call (`Arena.allocateFrom`), outputs copied back after — `Arena.allocate` alone leaves an input segment full of zeros.
+
 **Native references must outlive every JNI/FFI call**
 
 Every Java SPI that holds a native pointer through a `NativeReference` / `Disposer` must keep the holding object reachable across every native call. A GC pause between "read the native handle into a local long" and "make the JNI/FFI call" can otherwise reclaim the holder, run the disposer (freeing the native ctx), and leave the call dereferencing freed memory. The bug is non-deterministic and only appears under load.

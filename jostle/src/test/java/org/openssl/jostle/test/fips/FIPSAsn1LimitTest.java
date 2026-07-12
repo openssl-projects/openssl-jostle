@@ -16,14 +16,25 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+import org.openssl.jostle.jcajce.provider.Asn1TrailingDataException;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
+import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
+
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 /**
  * Input-validation limit tests at the FIPS ASN.1 encoder/decoder NI surface
@@ -50,6 +61,7 @@ import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 public class FIPSAsn1LimitTest
 {
     private static final RandSource RND = TestUtil.RNDSrc;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private static Asn1Ni asn1;
     private static SpecNI specNI;
@@ -407,8 +419,128 @@ public class FIPSAsn1LimitTest
     }
 
     // -----------------------------------------------------------------
+    // trailing data after a well-formed DER value — strict rejection
+    // -----------------------------------------------------------------
+
+    @Test
+    public void fromPrivateKeyInfo_trailingData()
+    {
+        // Positive control: the unmodified encoding decodes cleanly — the
+        // rejection boundary is exactly consumed == len (boundary + 1 rule).
+        specNI.dispose(asn1.fromPrivateKeyInfo(privDer, 0, privDer.length));
+
+        // One junk byte (boundary + 1), then several.
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(privDer, junkLen);
+            assertTrailingData(() -> asn1.fromPrivateKeyInfo(withJunk, 0, withJunk.length));
+        }
+    }
+
+    @Test
+    public void fromPrivateKeyInfo_paddedBufferExactLenDecodes()
+    {
+        // The trailing-data check must use the caller-passed len, not the
+        // array length: a valid encoding at offset 0 of an oversized array
+        // still decodes when len is the exact encoding length.
+        byte[] padded = new byte[privDer.length + 16];
+        RANDOM.nextBytes(padded);
+        System.arraycopy(privDer, 0, padded, 0, privDer.length);
+
+        specNI.dispose(asn1.fromPrivateKeyInfo(padded, 0, privDer.length));
+    }
+
+    @Test
+    public void fromPublicKeyInfo_trailingData()
+    {
+        // Positive control: the unmodified encoding decodes cleanly.
+        specNI.dispose(asn1.fromPublicKeyInfo(pubDer, 0, pubDer.length));
+
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(pubDer, junkLen);
+            assertTrailingData(() -> asn1.fromPublicKeyInfo(withJunk, 0, withJunk.length));
+        }
+    }
+
+    @Test
+    public void fromPublicKeyInfo_paddedBufferExactLenDecodes()
+    {
+        byte[] padded = new byte[pubDer.length + 16];
+        RANDOM.nextBytes(padded);
+        System.arraycopy(pubDer, 0, padded, 0, pubDer.length);
+
+        specNI.dispose(asn1.fromPublicKeyInfo(padded, 0, pubDer.length));
+    }
+
+    @Test
+    public void keyFactory_generatePrivate_trailingDataRejected() throws Exception
+    {
+        byte[] encoded = generateEcKeyPair().getPrivate().getEncoded();
+
+        KeyFactory keyFactory = KeyFactory.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
+
+        // Positive control: the unmodified encoding decodes at the JCE surface.
+        Assertions.assertNotNull(keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(encoded, junkLen);
+            InvalidKeySpecException ex = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> keyFactory.generatePrivate(new PKCS8EncodedKeySpec(withJunk)));
+            Assertions.assertEquals("unable to decode EC private key", ex.getMessage());
+            Assertions.assertEquals(Asn1TrailingDataException.class, ex.getCause().getClass());
+        }
+    }
+
+    @Test
+    public void keyFactory_generatePublic_trailingDataRejected() throws Exception
+    {
+        byte[] encoded = generateEcKeyPair().getPublic().getEncoded();
+
+        KeyFactory keyFactory = KeyFactory.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
+
+        // Positive control: the unmodified encoding decodes at the JCE surface.
+        Assertions.assertNotNull(keyFactory.generatePublic(new X509EncodedKeySpec(encoded)));
+
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(encoded, junkLen);
+            InvalidKeySpecException ex = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> keyFactory.generatePublic(new X509EncodedKeySpec(withJunk)));
+            Assertions.assertEquals("unable to decode EC public key", ex.getMessage());
+            Assertions.assertEquals(Asn1TrailingDataException.class, ex.getCause().getClass());
+        }
+    }
+
+    // -----------------------------------------------------------------
     // helpers
     // -----------------------------------------------------------------
+
+    /** Fresh random P-256 keypair generated through the FIPS provider. */
+    private static KeyPair generateEcKeyPair() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("secp256r1"));
+        return kpg.generateKeyPair();
+    }
+
+    /** Copy of {@code der} with {@code junkLen} random trailing bytes appended. */
+    private static byte[] withTrailingJunk(byte[] der, int junkLen)
+    {
+        byte[] out = new byte[der.length + junkLen];
+        byte[] junk = new byte[junkLen];
+        RANDOM.nextBytes(junk);
+        System.arraycopy(der, 0, out, 0, der.length);
+        System.arraycopy(junk, 0, out, der.length, junkLen);
+        return out;
+    }
+
+    private static void assertTrailingData(Executable action)
+    {
+        Asn1TrailingDataException e = Assertions.assertThrows(Asn1TrailingDataException.class, action);
+        Assertions.assertEquals("DER encoding has trailing data", e.getMessage());
+    }
 
     private static void assertIAE(String message, Executable action)
     {

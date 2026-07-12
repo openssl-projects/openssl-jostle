@@ -1,5 +1,6 @@
 #include "jostle_lib_ctx.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/core_dispatch.h>
@@ -102,25 +103,34 @@ static void *new_ctx(void *provctx, void *parent, const OSSL_DISPATCH *parent_ca
 
 // OSSL_FUNC_RAND_GET_CTX_PARAMS
 // Answers:
-//   MAX_REQUEST = INT_MAX (matches up-call int32 cast).
+//   MAX_REQUEST = INT32_MAX (matches up-call int32 cast).
 //   STRENGTH    = 256 (advisory — bridge cannot introspect the Java side;
 //                      up-call target is per-call thread-local, not bound
 //                      to the EVP_RAND_CTX).
-// Other DRBG params unanswered. gettable list below mirrors this.
+//   STATE       = READY (the bridge is stateless and always serviceable).
+// Answered via OSSL_PARAM_locate + OSSL_PARAM_set_* so caller-supplied
+// buffer sizes and types are honoured rather than written through raw
+// pointers. Other DRBG params unanswered. gettable list below mirrors
+// this.
 static int get_ctx_params(ossl_unused void *vctx, OSSL_PARAM params[]) {
     UNUSED(vctx);
 
     if (params == NULL) {
         return 1;
     }
-    for (int t = 0; params[t].key != NULL; t++) {
-        if (strcmp(params[t].key, OSSL_RAND_PARAM_MAX_REQUEST) == 0) {
-            *(size_t *) params[t].data = INT_MAX;
-        } else if (strcmp(params[t].key, OSSL_RAND_PARAM_STRENGTH) == 0) {
-            *(unsigned int *) params[t].data = 256;
-        }
-    }
 
+    OSSL_PARAM *p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_MAX_REQUEST);
+    if (p != NULL && 1 != OSSL_PARAM_set_size_t(p, (size_t) INT32_MAX)) {
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_STRENGTH);
+    if (p != NULL && 1 != OSSL_PARAM_set_uint(p, 256)) {
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_STATE);
+    if (p != NULL && 1 != OSSL_PARAM_set_int(p, EVP_RAND_STATE_READY)) {
+        return 0;
+    }
 
     return 1;
 }
@@ -135,9 +145,32 @@ static const OSSL_PARAM *get_gettable_ctx_params(ossl_unused void *vctx,
     static const OSSL_PARAM gettable[] = {
         OSSL_PARAM_size_t(OSSL_RAND_PARAM_MAX_REQUEST, NULL),
         OSSL_PARAM_uint(OSSL_RAND_PARAM_STRENGTH, NULL),
+        OSSL_PARAM_int(OSSL_RAND_PARAM_STATE, NULL),
         OSSL_PARAM_END
     };
     return gettable;
+}
+
+// OSSL_FUNC_RAND_ENABLE_LOCKING / LOCK / UNLOCK
+// Honest no-ops: the bridge has no shared mutable state — its only state is
+// the per-thread up-call target, which is thread-confined by construction.
+// The trio is REQUIRED for the RAND_set_DRBG_type install in
+// setup_bridge_prov_and_rand: rand_get0_primary calls
+// EVP_RAND_enable_locking on the primary it creates and fails hard when the
+// RAND lacks the dispatch (probe-confirmed — see
+// fips-c-review/probes/xthread_rand_probe.c case 2).
+static int enable_locking(void *vdrbg) {
+    UNUSED(vdrbg);
+    return 1;
+}
+
+static int lock_rand(void *vdrbg) {
+    UNUSED(vdrbg);
+    return 1;
+}
+
+static void unlock_rand(void *vdrbg) {
+    UNUSED(vdrbg);
 }
 
 static const OSSL_DISPATCH jrand_func[] = {
@@ -148,6 +181,9 @@ static const OSSL_DISPATCH jrand_func[] = {
     {OSSL_FUNC_RAND_GET_CTX_PARAMS, (void (*)(void)) get_ctx_params},
     {OSSL_FUNC_RAND_GETTABLE_CTX_PARAMS, (void (*)(void)) get_gettable_ctx_params},
     {OSSL_FUNC_RAND_NEWCTX, (void (*)(void)) new_ctx},
+    {OSSL_FUNC_RAND_ENABLE_LOCKING, (void (*)(void)) enable_locking},
+    {OSSL_FUNC_RAND_LOCK, (void (*)(void)) lock_rand},
+    {OSSL_FUNC_RAND_UNLOCK, (void (*)(void)) unlock_rand},
     {0,NULL}
 };
 
@@ -211,23 +247,30 @@ static int32_t setup_bridge_prov_and_rand(jostle_lib_ctx *ctx, const char *name)
     }
 
 
-    EVP_RAND *rand = EVP_RAND_fetch(libctx, "JAVA_RAND_BRIDGE", NULL);
-    jo_assert(rand != NULL);
-
-    ctx->rand_ctx = EVP_RAND_CTX_new(rand,NULL);
-    jo_assert(ctx->rand_ctx != NULL);
-
-    // EVP_RAND_CTX_new ups rand's refcount; release ours.
-    EVP_RAND_free(rand);
-
-
-    jo_assert(1 == EVP_RAND_instantiate(ctx->rand_ctx, 0, 0, NULL, 0, NULL));
-
-    // RAND_set0_* consumes the caller's ref. Up-ref between calls so each
-    // slot owns one ref; otherwise libctx teardown double-frees.
-    jo_assert(1 == RAND_set0_private(libctx, ctx->rand_ctx));
-    jo_assert(1 == EVP_RAND_CTX_up_ref(ctx->rand_ctx));
-    jo_assert(1 == RAND_set0_public(libctx, ctx->rand_ctx));
+    // Install the bridge as this lib ctx's DRBG TYPE, not as a RAND
+    // instance. RAND_set0_private/public look lib-ctx-global but write
+    // per-thread slots (CRYPTO_THREAD_set_local in rand_lib.c) — the
+    // original install sequence here left every thread except the loading
+    // one drawing from a lazily-created OS-seeded DRBG, silently bypassing
+    // the caller's RandSource (probe-confirmed:
+    // fips-c-review/probes/xthread_rand_probe.c case 1). Setting the type
+    // makes the primary and every per-thread public/private DRBG a bridge
+    // instance the moment any thread first draws — uniform on all threads,
+    // no per-thread slot writes (probe case 2). Requires the bridge's
+    // locking dispatch trio above.
+    //
+    // Consequence (fail loud, by design): a RAND draw on this lib ctx from
+    // a thread with no in-flight Jostle entry point (no thread-local
+    // up-call target) now FAILS instead of silently using an OS DRBG.
+    // Every entropy-consuming entry point binds the target first via
+    // rand_set_java_srand_call, so this is unreachable today.
+    //
+    // SCOPE: this applies ONLY to the provider-wide bridge lib ctx. Do NOT
+    // copy it to rand.c's rand_libctx (the SecureRandom service must fetch
+    // real, OpenSSL-seeded DRBGs there) and never to the FIPS tree (the
+    // bridge is deliberately absent — the validated module manages its own
+    // entropy).
+    jo_assert(1 == RAND_set_DRBG_type(libctx, "JAVA_RAND_BRIDGE", NULL, NULL, NULL));
 
 
     return JO_SUCCESS;
@@ -259,8 +302,9 @@ void jostle_ctx_destroy(jostle_lib_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
-    // Freeing libctx unloads its providers and releases the RAND slot refs;
-    // rand_ctx needs no explicit free.
+    // Freeing libctx unloads its providers and frees any lazily-created
+    // per-thread bridge DRBGs (RAND_set_DRBG_type leaves ownership with the
+    // lib ctx; nothing here holds an EVP_RAND_CTX ref).
     if (ctx->ossl_libctx != NULL) {
         OSSL_LIB_CTX_free(ctx->ossl_libctx);
     }

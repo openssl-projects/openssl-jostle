@@ -158,6 +158,34 @@ public interface DefaultServiceNI
                 // UnrecoverableKeyException (the JCE engineLoad contract for a
                 // wrong integrity password / tampered keystore).
                 throw new UnsupportedOperationException("key store integrity check failed");
+            case JO_IMPLICIT_REJECTION_UNAVAILABLE:
+                // Fail-loud capability contract: PKCS#1 v1.5 decryption is
+                // refused rather than run without the Bleichenbacher
+                // mitigation (the OpenSSL 3.1.x FIPS module ignores the
+                // implicit-rejection parameter; it entered OpenSSL 3.2).
+                // RSAPKCS1CipherSpi translates to InvalidKeyException at
+                // engineInit.
+                throw new ProviderCapabilityException(
+                        "PKCS#1 v1.5 decryption requires implicit rejection, which the loaded provider does not support");
+            case JO_DH_Q_REQUIRED:
+                // FIPS-validated providers require the subgroup order q at
+                // derive-init (SP 800-56A key check), so PKCS#3 component
+                // keys cannot do agreement there. DHKeyAgreementSpi
+                // translates to InvalidKeyException at engineInit.
+                throw new ProviderCapabilityException(
+                        "DH key without subgroup order q is not supported for key agreement by the loaded provider");
+            case JO_DH_PARAMGEN_SUBSTITUTED:
+                // The provider substituted an RFC 7919 named group for the
+                // requested fresh PKCS#3 generation (FIPS module behaviour).
+                // DHAlgorithmParameterGenerator translates to
+                // ProviderException.
+                throw new ProviderCapabilityException(
+                        "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead");
+            case JO_DER_TRAILING_DATA:
+                // Strict DER: a well-formed value decoded but trailing bytes
+                // remained. KeyFactory decode paths translate the parent
+                // OpenSSLException type to InvalidKeySpecException.
+                throw new Asn1TrailingDataException("DER encoding has trailing data");
             default:
                 throw new IllegalStateException("unexpected error code " + errorCode + ": " + code);
         }

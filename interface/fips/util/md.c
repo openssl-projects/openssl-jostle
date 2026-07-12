@@ -9,6 +9,7 @@
 #include "md.h"
 
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/core_names.h>
@@ -152,7 +153,7 @@ int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
 
     // Bridges constrain `len` to int32, but md_ctx_update is exported. Guard
     // the narrowing return cast for direct C callers.
-    if (len > INT_MAX) {
+    if (len > INT32_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
@@ -181,7 +182,7 @@ int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
         }
     }
 
-    if (OPS_INT32_OVERFLOW_1 ret_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 ret_len > INT32_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 

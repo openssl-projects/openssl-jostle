@@ -156,12 +156,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) extractSpec.getPrivateKey()).getSpec();
             byte[] wrappedKey = extractSpec.getEncapsulation();
-            long len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0);
+            long len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0, randSource);
 
             byte[] out = new byte[(int) len];
             try
             {
-                len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length);
+                len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length, randSource);
 
                 if (len != out.length)
                 {

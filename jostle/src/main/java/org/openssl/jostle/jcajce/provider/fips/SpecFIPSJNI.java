@@ -35,5 +35,5 @@ class SpecFIPSJNI implements SpecNI
     public native int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     @Override
-    public native int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
+    public native int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 }

@@ -26,7 +26,7 @@ public interface SpecNI extends DefaultServiceNI
 
     int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
-    int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len);
+    int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
 
     default void dispose(long reference)
@@ -52,9 +52,9 @@ public interface SpecNI extends DefaultServiceNI
         return (int)handleErrors(ni_encap(keyRef, opt, secret, inOff, inLen, out, off, len, randSource));
     }
 
-    default int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
+    default int decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
-        return (int)handleErrors( ni_decap(keyRef, opt, input, inOff, inLen, out, off, len));
+        return (int)handleErrors( ni_decap(keyRef, opt, input, inOff, inLen, out, off, len, randSource));
     }
 
     default long handleErrors(long code)

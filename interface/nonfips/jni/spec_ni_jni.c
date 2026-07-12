@@ -194,12 +194,16 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_spec_SpecJNI
  * Method:    decap
- * Signature: (JLjava/lang/String;[BII[BII)I
+ * Signature: (JLjava/lang/String;[BII[BIILorg/openssl/jostle/rand/RandSource;)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
 (JNIEnv *env, jobject jo, jlong ref, jstring _opp, jbyteArray _input, jint in_off, jint in_len, jbyteArray _output,
- jint out_off, jint out_len) {
+ jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
@@ -209,6 +213,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
     if (ks->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
+
+    rand_set_java_srand_call(rand_src);
 
 
     java_bytearray_ctx input, output;
@@ -281,7 +287,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
 
     uint8_t *in = input.bytearray + in_off;
 
-    ret = decap(ks, (const char *) opp, in, in_len, out, out_len);
+    ret = decap(ks, (const char *) opp, in, in_len, out, out_len, rand_src);
 
 exit:
     if (opp != NULL) {

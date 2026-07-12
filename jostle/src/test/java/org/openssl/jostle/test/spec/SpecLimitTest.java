@@ -411,7 +411,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(0, null, new byte[0], 0, 0, new byte[0], 0, 0);
+            specNI.decap(0, null, new byte[0], 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -428,7 +428,7 @@ public class SpecLimitTest
         {
 
 
-            specNI.decap(req, null, new byte[0], 0, 0, new byte[0], 0, 0);
+            specNI.decap(req, null, new byte[0], 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -451,7 +451,7 @@ public class SpecLimitTest
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            specNI.decap(spec, null, null, 0, 0, new byte[0], 0, 0);
+            specNI.decap(spec, null, null, 0, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (NullPointerException e)
@@ -471,7 +471,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[0], -1, 0, new byte[0], 0, 0);
+            specNI.decap(spec, null, new byte[0], -1, 0, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -491,7 +491,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[0], 0, -1, new byte[0], 0, 0);
+            specNI.decap(spec, null, new byte[0], 0, -1, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -511,7 +511,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[10], 1, 10, new byte[0], 0, 0);
+            specNI.decap(spec, null, new byte[10], 1, 10, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -532,7 +532,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[10], 0, 11, new byte[0], 0, 0);
+            specNI.decap(spec, null, new byte[10], 0, 11, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -552,7 +552,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[10], 10, 1, new byte[0], 0, 0);
+            specNI.decap(spec, null, new byte[10], 10, 1, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -575,7 +575,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], -1, 0);
+            specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], -1, 0, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -596,7 +596,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], 0, -1);
+            specNI.decap(spec, null, new byte[0], 0, 0, new byte[0], 0, -1, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -617,7 +617,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 1, 10);
+            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 1, 10, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -638,7 +638,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 0, 11);
+            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 0, 11, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -658,7 +658,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 10, 1);
+            specNI.decap(spec, null, new byte[10], 0, 10, new byte[10], 10, 1, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -691,7 +691,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[32], 0, 31);
+            specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[32], 0, 31, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -702,7 +702,7 @@ public class SpecLimitTest
         try
         {
 
-            specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[33], 1, 3);
+            specNI.decap(spec, null, validEncap, 0, validEncap.length, new byte[33], 1, 3, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IllegalArgumentException e)
@@ -729,8 +729,38 @@ public class SpecLimitTest
             byte[] ciphertext = new byte[ctSize];
             specNI.encap(spec, null, new byte[32], 0, 32, ciphertext, 0, ciphertext.length, TestUtil.RNDSrc);
 
-            int size = specNI.decap(spec, null, ciphertext, 0, ciphertext.length, null, 0, 0);
+            int size = specNI.decap(spec, null, ciphertext, 0, ciphertext.length, null, 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(32, size); // ML-KEM shared secret size
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+
+    @Test
+    public void decap_nullRandSrc() throws Exception
+    {
+        // Both bridges should reject a null rand_src with the same exception:
+        // JNI returns JO_RAND_NO_RAND_UP_CALL directly; FFI passes a NULL
+        // upcall stub and decap() in the util layer returns the same code
+        // before any OpenSSL call.
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Build a valid ciphertext via encap so the null RandSource is the
+            // only defect the decap call presents.
+            int ctSize = specNI.encap(spec, null, new byte[32], 0, 32, null, 0, 0, TestUtil.RNDSrc);
+            byte[] ciphertext = new byte[ctSize];
+            specNI.encap(spec, null, new byte[32], 0, 32, ciphertext, 0, ciphertext.length, TestUtil.RNDSrc);
+
+            specNI.decap(spec, null, ciphertext, 0, ciphertext.length, new byte[32], 0, 32, null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
         }
         finally
         {

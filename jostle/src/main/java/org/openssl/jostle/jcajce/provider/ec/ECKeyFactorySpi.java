@@ -48,16 +48,18 @@ import java.security.spec.X509EncodedKeySpec;
  *       components are encoded to X.509 SubjectPublicKeyInfo via the
  *       JDK's SunEC provider and then decoded as in (1);</li>
  *   <li>{@link ECPrivateKeySpec} for private keys — the scalar is
- *       passed directly to a dedicated EC entry point that calls
- *       {@code EVP_PKEY_fromdata} with
- *       {@code OSSL_PKEY_PARAM_GROUP_NAME} +
- *       {@code OSSL_PKEY_PARAM_PRIV_KEY}. This avoids the
+ *       passed directly to a dedicated EC entry point that computes
+ *       the public point Q = d·G and calls {@code EVP_PKEY_fromdata}
+ *       with {@code OSSL_PKEY_PARAM_GROUP_NAME} +
+ *       {@code OSSL_PKEY_PARAM_PRIV_KEY} +
+ *       {@code OSSL_PKEY_PARAM_PUB_KEY}. This avoids the
  *       SunEC-encode → OpenSSL-decode round-trip, which is fragile
  *       because OpenSSL's PKCS#8 decoder rejects some SunEC
- *       emissions ("unknown public key type"). OpenSSL re-derives the
- *       public point with point-blinded multiplication, which consumes
- *       RAND — the SPI passes a {@link RandSource} from
- *       {@code CryptoServicesRegistrar} accordingly.</li>
+ *       emissions ("unknown public key type"). The fromdata import
+ *       stores exactly what it is given (it does NOT derive the public
+ *       half), so the C side performs the blinded point multiplication
+ *       itself — which consumes RAND, hence the {@link RandSource}
+ *       from {@code CryptoServicesRegistrar}.</li>
  * </ol>
  *
  * <p>Delegating only the public-key BigInteger-to-DER step to SunEC
@@ -188,11 +190,12 @@ public class ECKeyFactorySpi extends KeyFactorySpi
      *   <li>convert the scalar {@code S} to a fixed-length, big-endian
      *       unsigned magnitude byte string of the curve byte length;</li>
      *   <li>call {@link ECServiceNI#makePrivateFromComponents}, which
-     *       on the C side runs {@code EVP_PKEY_fromdata} with
+     *       on the C side computes the public point Q = d·G via blinded
+     *       scalar multiplication (the reason a {@link RandSource} is
+     *       required) and runs {@code EVP_PKEY_fromdata} with
      *       {@code OSSL_PKEY_PARAM_GROUP_NAME} +
-     *       {@code OSSL_PKEY_PARAM_PRIV_KEY}. OpenSSL re-derives the
-     *       public point internally via point-blinded scalar multiplication
-     *       (the reason a {@link RandSource} is required).</li>
+     *       {@code OSSL_PKEY_PARAM_PRIV_KEY} +
+     *       {@code OSSL_PKEY_PARAM_PUB_KEY}.</li>
      * </ol>
      */
     private PrivateKey generatePrivateFromComponents(ECPrivateKeySpec spec)

@@ -169,9 +169,20 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
             peerSet = false;
 
             ensureRef();
-            dhServiceNI.kexInit(ref.getReference(),
-                    privateKey.getSpec().getReference(),
-                    randSource);
+            try
+            {
+                dhServiceNI.kexInit(ref.getReference(),
+                        privateKey.getSpec().getReference(),
+                        randSource);
+            }
+            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            {
+                // Fail-loud contract: the loaded provider requires the
+                // subgroup order q for agreement (FIPS SP 800-56A key
+                // check) and this key has none. InvalidKeyException is
+                // the JCE-canonical init failure.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
         }
     }
 

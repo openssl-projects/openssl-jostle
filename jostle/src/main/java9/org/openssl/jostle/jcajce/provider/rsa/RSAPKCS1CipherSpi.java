@@ -215,7 +215,20 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             this.randSource = DefaultRandSource.replaceWith(this.randSource, random);
 
             ensureRef();
-            cipherNI.init(ref.getReference(), keyRef, this.opMode, this.randSource);
+            try
+            {
+                cipherNI.init(ref.getReference(), keyRef, this.opMode, this.randSource);
+            }
+            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            {
+                // Fail-loud contract: the loaded provider cannot honour
+                // implicit rejection (Bleichenbacher mitigation), so
+                // PKCS#1 v1.5 decryption is refused. InvalidKeyException
+                // is the JCE-canonical init failure and lets a
+                // multi-provider deployment fall back to a provider that
+                // can do it safely.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
 
             buffer.reset();
         }

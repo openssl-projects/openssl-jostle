@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.rand.RandSource;
 
 /**
@@ -82,6 +83,18 @@ public interface RSAPKCS1CipherNI extends DefaultServiceNI
         {
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type for RSA");
+            case JO_INVALID_CIPHER_TEXT:
+                // PKCS#1 v1.5 decrypt failure. With implicit rejection
+                // pinned at init this is the structural path (e.g.
+                // ciphertext value >= modulus), not a padding oracle.
+                // Surface as the dedicated InvalidCipherTextException
+                // (extends OpenSSLException, so callers that handle the
+                // parent type continue to work). The JCE SPI catches
+                // this and translates to BadPaddingException at
+                // engineDoFinal — the OAEP model.
+                throw new InvalidCipherTextException(
+                        String.format("invalid cipher text: %s",
+                                org.openssl.jostle.jcajce.provider.OpenSSL.getOpenSSLErrors()));
             default:
         }
 

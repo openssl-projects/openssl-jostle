@@ -133,6 +133,64 @@ public class BridgeRandLimitTest
         }
     }
 
+    /**
+     * Hard guard for the cross-thread bridge install
+     * ({@code RAND_set_DRBG_type} in
+     * {@code interface/nonfips/util/rand/jostle_lib_ctx.c}): the
+     * caller-supplied RandSource must back OpenSSL's RAND draws on EVERY
+     * thread, not only the one that loaded the provider. The original
+     * {@code RAND_set0_private/public} install wrote per-thread slots
+     * ({@code CRYPTO_THREAD_set_local}), so worker threads silently fell
+     * back to an OS-seeded DRBG — indistinguishable from bridge output,
+     * which is why only a counting source driven from a second thread can
+     * catch it (probe: fips-c-review/probes/xthread_rand_probe.c). Keygen
+     * consumes entropy through the C-side RAND, so a zero count means the
+     * bridge was bypassed.
+     */
+    @Test
+    public void testUpCallHonouredOnWorkerThread() throws Exception
+    {
+        // Same-thread control first — this direction has always worked and
+        // proves the counting source itself is wired correctly.
+        CountingRandSource sameThread = new CountingRandSource();
+        long ref = mldsaServiceNI.generateKeyPair(17, sameThread);
+        TestNISelector.getSpecNI().dispose(ref);
+        Assertions.assertTrue(sameThread.calls.get() > 0,
+                "control failed: up-call not consulted on the calling thread");
+
+        // Worker thread — the case the per-thread slot install silently
+        // broke. A fresh Thread has no per-thread RAND state, so its first
+        // draw exercises the lazy DRBG instantiation path.
+        final CountingRandSource workerSource = new CountingRandSource();
+        final Throwable[] failure = new Throwable[1];
+        Thread worker = new Thread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    long workerRef = mldsaServiceNI.generateKeyPair(17, workerSource);
+                    TestNISelector.getSpecNI().dispose(workerRef);
+                }
+                catch (Throwable t)
+                {
+                    failure[0] = t;
+                }
+            }
+        }, "bridge-rand-worker");
+        worker.start();
+        worker.join(60000);
+        Assertions.assertFalse(worker.isAlive(), "worker thread did not finish");
+        if (failure[0] != null)
+        {
+            Assertions.fail("keygen failed on worker thread: " + failure[0]);
+        }
+        Assertions.assertTrue(workerSource.calls.get() > 0,
+                "up-call bypassed on a worker thread: the RandSource contract "
+                        + "only held on the provider-loading thread");
+    }
+
     private static void assertOpenSSLMessageContains(Exception t, String message)
     {
         Assertions.assertEquals(OpenSSLException.class, t.getClass());
@@ -183,6 +241,33 @@ public class BridgeRandLimitTest
         Assertions.assertTrue(err.contains("set_global_jostle_lib_ctx already called"));
     }
 
+
+    public static class CountingRandSource implements RandSource
+    {
+        final java.util.concurrent.atomic.AtomicInteger calls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        private final SecureRandom random = new SecureRandom();
+
+        @Override
+        public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)
+        {
+            calls.incrementAndGet();
+            random.nextBytes(out);
+            return len;
+        }
+
+        @Override
+        public SecureRandom getRandom()
+        {
+            return random;
+        }
+
+        @Override
+        public int getStrength()
+        {
+            return 0;
+        }
+    }
 
     public static class FailingRandSource implements RandSource
     {

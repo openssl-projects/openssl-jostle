@@ -8,7 +8,6 @@
 
 typedef struct jostle_lib_ctx {
     OSSL_LIB_CTX *ossl_libctx;
-    EVP_RAND_CTX *rand_ctx;
 } jostle_lib_ctx;
 
 /**
@@ -21,9 +20,9 @@ int32_t jostle_ctx_init_new(jostle_lib_ctx **rnd_ctx, const char *name);
 
 
 /**
- * Free a jostle_lib_ctx: OSSL_LIB_CTX (unloads providers, releases rand_ctx
- * refs) and the wrapper struct. Safe with NULL. Failure-path rollback only;
- * not a general teardown primitive.
+ * Free a jostle_lib_ctx: OSSL_LIB_CTX (unloads providers) and the wrapper
+ * struct. Safe with NULL. Failure-path rollback only; not a general
+ * teardown primitive.
  */
 void jostle_ctx_destroy(jostle_lib_ctx *ctx);
 

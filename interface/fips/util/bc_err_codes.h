@@ -223,6 +223,40 @@
 #define JO_KS_MAC_VERIFY_FAILED -134
 
 /*
+ * PKCS#1 v1.5 decrypt init: the provider serving the key does not
+ * support the implicit-rejection parameter (Bleichenbacher
+ * mitigation). The contract is fail-loud — decryption is refused
+ * rather than silently running without the mitigation (the OpenSSL
+ * 3.1.x FIPS module ignores the parameter; it entered OpenSSL 3.2).
+ */
+#define JO_IMPLICIT_REJECTION_UNAVAILABLE -135
+
+/*
+ * DH key agreement: EVP_PKEY_derive_init rejected the local key and
+ * the key carries no subgroup order q. FIPS-validated providers
+ * require q for their SP 800-56A key check, so PKCS#3 component keys
+ * (p, g only) cannot do agreement there. Distinct code so the SPI can
+ * surface a precise InvalidKeyException instead of a generic error.
+ */
+#define JO_DH_Q_REQUIRED -136
+
+/*
+ * DH parameter generation: the provider substituted an RFC 7919 named
+ * group for the requested fresh PKCS#3 safe-prime generation (the
+ * OpenSSL FIPS module does this silently for the sizes it knows and
+ * hard-fails the rest). Fail-loud: callers asked for generated
+ * parameters and must not receive fixed constants undetected.
+ */
+#define JO_DH_PARAMGEN_SUBSTITUTED -137
+
+/*
+ * DER decode: d2i consumed a well-formed value but trailing bytes
+ * remained in the input. Strict parsers reject trailing garbage;
+ * accepting it can mask corruption.
+ */
+#define JO_DER_TRAILING_DATA -138
+
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config
@@ -246,7 +280,11 @@
 
 
 
-#define UNSUCCESSFUL(x) JO_SUCCESS > x
-#define SUCCESSFUL(x) JO_SUCCESS <= x
+/*
+ * Parenthesised so the comparison binds correctly under negation or
+ * when x is a compound expression.
+ */
+#define UNSUCCESSFUL(x) ((JO_SUCCESS) > (x))
+#define SUCCESSFUL(x) ((JO_SUCCESS) <= (x))
 
 #endif //BC_OSSL_ERR_CODES_H

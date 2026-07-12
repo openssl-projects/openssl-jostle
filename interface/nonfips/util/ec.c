@@ -12,6 +12,7 @@
 #include <openssl/bn.h>
 #include <openssl/core_names.h>
 #include <openssl/crypto.h>
+#include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/params.h>
@@ -335,11 +336,11 @@ int32_t ec_make_private_from_components(key_spec *spec,
     jo_assert(scalar_len > 0 && scalar_len <= (size_t) INT32_MAX);
     jo_assert(rnd_src != NULL);
 
-    // OpenSSL re-derives the public point from the scalar via
-    // point-blinded multiplication on first use of the resulting
-    // EVP_PKEY. Bind the per-thread Java RAND upcall before any of
-    // that runs; the same pattern as ec_ctx_init_sign and
-    // ec_kex_init.
+    // The blinded point multiplication Q = d·G below consumes RAND
+    // (ladder/coordinate blinding), and OpenSSL may draw further
+    // entropy on first use of the resulting EVP_PKEY. Bind the
+    // per-thread Java RAND upcall before any of that runs; the same
+    // pattern as ec_ctx_init_sign and ec_kex_init.
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
@@ -348,11 +349,73 @@ int32_t ec_make_private_from_components(key_spec *spec,
     OSSL_PARAM_BLD *bld = NULL;
     OSSL_PARAM *params = NULL;
     BIGNUM *scalar_bn = NULL;
+    EC_GROUP *group = NULL;
+    EC_POINT *pub_point = NULL;
+    BN_CTX *bn_ctx = NULL;
+    uint8_t *pub_buf = NULL;
+    size_t pub_len = 0;
     EVP_PKEY *pkey = NULL;
 
-    scalar_bn = BN_bin2bn(scalar_be, (int) scalar_len, NULL);
-    if (OPS_OPENSSL_ERROR_6 scalar_bn == NULL) {
+    // Secure-heap BN: OSSL_PARAM_BLD serialises every pushed BN into
+    // the params blob, and only BNs flagged secure route that copy
+    // into the secure block that OSSL_PARAM_free cleanses. A plain BN
+    // would leave the private scalar behind in ordinary freed heap
+    // (mirrors OpenSSL's own ec_backend import).
+    scalar_bn = BN_secure_new();
+    if (OPS_OPENSSL_ERROR_6 scalar_bn == NULL
+        || NULL == BN_bin2bn(scalar_be, (int) scalar_len, scalar_bn)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3010);
+        goto exit;
+    }
+    // The scalar is secret — request the constant-time path in the
+    // point multiplication below.
+    BN_set_flags(scalar_bn, BN_FLG_CONSTTIME);
+
+    // EVP_PKEY_fromdata does NOT derive the public half from the
+    // private scalar (probe-confirmed on OpenSSL 3.1 and 3.6: the
+    // KEYPAIR import reports success but the key carries no public
+    // point, so encoding and the pub-X/Y getters fail downstream).
+    // Resolve the group, compute Q = d·G explicitly, and push the
+    // encoded point alongside the private key — the EC analogue of
+    // the y = g^x mod p computation in dsa.c / dh.c fromdata.
+    OSSL_PARAM group_params[2];
+    group_params[0] = OSSL_PARAM_construct_utf8_string(
+            OSSL_PKEY_PARAM_GROUP_NAME, (char *) curve_name, 0);
+    group_params[1] = OSSL_PARAM_construct_end();
+    group = EC_GROUP_new_from_params(group_params,
+                                     get_global_jostle_ossl_lib_ctx(), NULL);
+    if (OPS_OPENSSL_ERROR_3 group == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3019);
+        goto exit;
+    }
+
+    pub_point = EC_POINT_new(group);
+    bn_ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
+    if (OPS_OPENSSL_ERROR_4 pub_point == NULL || bn_ctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3022);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_5 1 != EC_POINT_mul(group, pub_point, scalar_bn,
+                                              NULL, NULL, bn_ctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(3023);
+        goto exit;
+    }
+
+    pub_len = EC_POINT_point2oct(group, pub_point,
+                                 POINT_CONVERSION_UNCOMPRESSED,
+                                 NULL, 0, bn_ctx);
+    if (OPS_FAILED_INIT_2 pub_len == 0) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_2(3024);
+        goto exit;
+    }
+
+    pub_buf = OPENSSL_malloc(pub_len);
+    jo_assert(pub_buf != NULL);
+    if (OPS_LEN_CHANGE_1 pub_len != EC_POINT_point2oct(
+            group, pub_point, POINT_CONVERSION_UNCOMPRESSED,
+            pub_buf, pub_len, bn_ctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_LEN_CHANGE_1(3025);
         goto exit;
     }
 
@@ -370,6 +433,11 @@ int32_t ec_make_private_from_components(key_spec *spec,
     if (OPS_OPENSSL_ERROR_9 1 != OSSL_PARAM_BLD_push_BN(
             bld, OSSL_PKEY_PARAM_PRIV_KEY, scalar_bn)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(3013);
+        goto exit;
+    }
+    if (OPS_FAILED_SET_1 1 != OSSL_PARAM_BLD_push_octet_string(
+            bld, OSSL_PKEY_PARAM_PUB_KEY, pub_buf, pub_len)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_SET_1(3026);
         goto exit;
     }
 
@@ -391,10 +459,9 @@ int32_t ec_make_private_from_components(key_spec *spec,
         goto exit;
     }
 
-    // EVP_PKEY_KEYPAIR asks the keymgmt to materialise BOTH halves
-    // (private + public). With only OSSL_PKEY_PARAM_PRIV_KEY supplied,
-    // OpenSSL derives the public point via Q = d * G — the source of
-    // the entropy upcall above.
+    // Both halves are supplied explicitly (the private scalar plus
+    // the Q = d·G point computed above) — the keymgmt stores exactly
+    // what it is given and derives nothing.
     // Reuses OPS_OPENSSL_ERROR_1 (see also ec_generate_key); each test
     // exercises only one entry point per flag.
     if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_fromdata(pctx, &pkey,
@@ -420,6 +487,11 @@ exit:
     BN_clear_free(scalar_bn);
     OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(bld);
+    EC_POINT_free(pub_point);
+    EC_GROUP_free(group);
+    BN_CTX_free(bn_ctx);
+    // The encoded public point is not secret; plain free is fine.
+    OPENSSL_free(pub_buf);
     EVP_PKEY_CTX_free(pctx);
     EVP_PKEY_free(pkey);
     return ret_code;
@@ -441,19 +513,13 @@ ec_ctx *ec_ctx_create(int32_t *err) {
 }
 
 
+static void ec_ctx_clear_session(ec_ctx *ctx);
+
 void ec_ctx_destroy(ec_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
-    if (ctx->digest_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->digest_ctx);
-    }
-    if (ctx->raw_pctx != NULL) {
-        EVP_PKEY_CTX_free(ctx->raw_pctx);
-    }
-    if (ctx->raw_buf != NULL) {
-        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
-    }
+    ec_ctx_clear_session(ctx);
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -492,7 +558,7 @@ static int32_t ec_raw_init(ec_ctx *ctx, OSSL_LIB_CTX *libctx,
                            EVP_PKEY *key, int op) {
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL);
     if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3100);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3104);
     }
 
     int init_rc = (op == EC_OP_SIGN)
@@ -527,8 +593,19 @@ static int32_t ec_raw_append(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
         while (new_cap < need) {
             new_cap *= 2;
         }
-        uint8_t *nb = OPENSSL_realloc(ctx->raw_buf, new_cap);
+        // Grow by malloc + copy + clear-free rather than realloc: the
+        // buffer holds the caller's pre-hashed digest and every other
+        // release of it goes through OPENSSL_clear_free
+        // (ec_ctx_clear_session / ec_ctx_destroy) — realloc would
+        // abandon the old block uncleansed.
+        uint8_t *nb = OPENSSL_malloc(new_cap);
         jo_assert(nb != NULL);
+        if (ctx->raw_buf != NULL) {
+            if (ctx->raw_buf_len > 0) {
+                memcpy(nb, ctx->raw_buf, ctx->raw_buf_len);
+            }
+            OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
+        }
         ctx->raw_buf = nb;
         ctx->raw_buf_cap = new_cap;
     }
@@ -720,7 +797,7 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
         size_t raw_sig_len = 0;
         if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
-            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(3101);
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(3105);
         }
         if (raw_sig_len > (size_t) INT32_MAX) {
             return JO_OUTPUT_TOO_LONG_INT32;
@@ -733,9 +810,9 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
         }
         // ECDSA DER length varies; the first call returned an upper bound and
         // the second writes the actual length back into raw_sig_len.
-        if (1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
+        if (OPS_OPENSSL_ERROR_11 1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
                                ctx->raw_buf, ctx->raw_buf_len)) {
-            return JO_OPENSSL_ERROR;
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3106);
         }
         return (int32_t) raw_sig_len;
     }
@@ -810,7 +887,7 @@ int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
         // OPS: force the structural-error (-1) branch.
         if (OPS_OPENSSL_ERROR_11 0) {
             ERR_clear_last_mark();
-            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3102);
+            return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3107);
         }
         if (raw_ret == 1) {
             ERR_pop_to_mark();

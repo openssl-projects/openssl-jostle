@@ -14,6 +14,7 @@ package org.openssl.jostle.test.rsa;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
@@ -224,6 +225,48 @@ public class RSAPKCS1CipherLimitTest
         finally
         {
             cipherNI.disposeCipher(ref);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /**
+     * A structural decrypt failure (ciphertext value above the modulus —
+     * all-0xFF is the maximum 2048-bit value, strictly greater than any
+     * 2048-bit RSA modulus) is rejected by OpenSSL BEFORE the padding check,
+     * so implicit rejection does not apply. On decrypt this maps to
+     * {@code JO_INVALID_CIPHER_TEXT}, which the wrapped NI surfaces as
+     * {@link InvalidCipherTextException}; prefix-match the message (the
+     * OpenSSL error-queue detail varies by version).
+     */
+    @Test
+    public void RSAPKCS1CipherNI_doFinal_decryptStructuralFailure_invalidCipherText() throws Exception
+    {
+        long decRef = 0;
+        long keyRef = 0;
+        try
+        {
+            decRef = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
+
+            byte[] tooLarge = new byte[256];
+            java.util.Arrays.fill(tooLarge, (byte) 0xFF);
+
+            int ptLen = cipherNI.doFinal(decRef, tooLarge, 0, tooLarge.length,
+                    null, 0, TestUtil.RNDSrc);
+            byte[] out = new byte[ptLen];
+            cipherNI.doFinal(decRef, tooLarge, 0, tooLarge.length,
+                    out, 0, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (InvalidCipherTextException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("invalid cipher text:"),
+                    "unexpected message: " + e.getMessage());
+        }
+        finally
+        {
+            cipherNI.disposeCipher(decRef);
             specNI.dispose(keyRef);
         }
     }

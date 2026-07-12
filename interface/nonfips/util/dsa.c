@@ -165,8 +165,14 @@ static int32_t dsa_fromdata(key_spec *spec,
     }
 
     if (x_be != NULL) {
-        x_bn = BN_bin2bn(x_be, (int) x_len, NULL);
-        if (OPS_OPENSSL_ERROR_4 x_bn == NULL) {
+        // Secure-heap BN: OSSL_PARAM_BLD serialises every pushed BN
+        // into the params blob, and only BNs flagged secure route that
+        // copy into the secure block that OSSL_PARAM_free cleanses. A
+        // plain BN would leave the private value behind in ordinary
+        // freed heap.
+        x_bn = BN_secure_new();
+        if (OPS_OPENSSL_ERROR_4 x_bn == NULL
+            || NULL == BN_bin2bn(x_be, (int) x_len, x_bn)) {
             ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(5020);
             goto exit;
         }
@@ -177,10 +183,12 @@ static int32_t dsa_fromdata(key_spec *spec,
 
         if (y_bn == NULL) {
             // OpenSSL's FFC fromdata import stores exactly what it is
-            // given — unlike the EC path it does NOT re-derive the
-            // public half from the private value, and a keypair import
-            // without OSSL_PKEY_PARAM_PUB_KEY fails. Compute y = g^x
-            // mod p ourselves.
+            // given — it does NOT re-derive the public half from the
+            // private value. A keypair import without
+            // OSSL_PKEY_PARAM_PUB_KEY half-succeeds: it reports
+            // success but yields a key with no public half, which
+            // breaks encoding and public-side operations later.
+            // Compute y = g^x mod p ourselves.
             bn_ctx = BN_CTX_new();
             y_bn = BN_new();
             if (OPS_OPENSSL_ERROR_5 bn_ctx == NULL || y_bn == NULL) {
@@ -493,19 +501,13 @@ dsa_ctx *dsa_ctx_create(int32_t *err) {
 }
 
 
+static void dsa_ctx_clear_session(dsa_ctx *ctx);
+
 void dsa_ctx_destroy(dsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
-    if (ctx->digest_ctx != NULL) {
-        EVP_MD_CTX_free(ctx->digest_ctx);
-    }
-    if (ctx->raw_pctx != NULL) {
-        EVP_PKEY_CTX_free(ctx->raw_pctx);
-    }
-    if (ctx->raw_buf != NULL) {
-        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
-    }
+    dsa_ctx_clear_session(ctx);
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 

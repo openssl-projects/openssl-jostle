@@ -200,12 +200,17 @@ int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
         goto exit;
     }
 
-    // PKCS#3-style safe-prime generation: OpenSSL's DH paramgen
-    // defaults to the "generator" type (p safe prime, g = 2) when only
-    // the prime length is supplied.
-    OSSL_PARAM params[2];
-    params[0] = OSSL_PARAM_construct_uint(OSSL_PKEY_PARAM_FFC_PBITS, &pbits_u);
-    params[1] = OSSL_PARAM_construct_end();
+    // PKCS#3-style safe-prime generation (p safe prime, g = 2). The
+    // generation type is pinned EXPLICITLY rather than relying on the
+    // provider default: mainline OpenSSL defaults to "generator" when
+    // only the prime length is supplied, but the FIPS providers
+    // default to "group" (named-group lookup) — a silent behavioural
+    // fork this parameter removes from our side of the contract.
+    OSSL_PARAM params[3];
+    params[0] = OSSL_PARAM_construct_utf8_string(
+            OSSL_PKEY_PARAM_FFC_TYPE, (char *) "generator", 0);
+    params[1] = OSSL_PARAM_construct_uint(OSSL_PKEY_PARAM_FFC_PBITS, &pbits_u);
+    params[2] = OSSL_PARAM_construct_end();
 
     if (OPS_OPENSSL_ERROR_8 1 != EVP_PKEY_CTX_set_params(ctx, params)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(5212);
@@ -221,6 +226,30 @@ int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(5214);
         goto exit;
     }
+
+    // Substitution guard (fail loud). OpenSSL's FIPS providers never
+    // run the PKCS#3 safe-prime search: even with the generator type
+    // pinned above, DH_generate_parameters_ex in FIPS mode silently
+    // substitutes the RFC 7919 named group matching p_bits (dh_pgen.c
+    // "not used in fips mode"; probe-confirmed against 3.1.2) and
+    // hard-fails every other size. Callers asked for freshly generated
+    // parameters and must not receive fixed constants undetected —
+    // detect the substitution by asking the result for a group name:
+    // freshly generated parameters carry none, a substituted named
+    // group answers (e.g. "ffdhe2048"). ERR marks scope the probe so a
+    // "no such param" entry can't leak into later error reports.
+    ERR_set_mark();
+    char group_name[80];
+    if (OPS_FAILED_SET_1 1 == EVP_PKEY_get_utf8_string_param(
+            spec->key, OSSL_PKEY_PARAM_GROUP_NAME,
+            group_name, sizeof(group_name), NULL)) {
+        ERR_pop_to_mark();
+        EVP_PKEY_free(spec->key);
+        spec->key = NULL;
+        ret_code = JO_DH_PARAMGEN_SUBSTITUTED;
+        goto exit;
+    }
+    ERR_pop_to_mark();
 
     ret_code = JO_SUCCESS;
 
@@ -284,8 +313,14 @@ static int32_t dh_fromdata(key_spec *spec,
     }
 
     if (x_be != NULL) {
-        x_bn = BN_bin2bn(x_be, (int) x_len, NULL);
-        if (OPS_OPENSSL_ERROR_4 x_bn == NULL) {
+        // Secure-heap BN: OSSL_PARAM_BLD serialises every pushed BN
+        // into the params blob, and only BNs flagged secure route that
+        // copy into the secure block that OSSL_PARAM_free cleanses. A
+        // plain BN would leave the private value behind in ordinary
+        // freed heap.
+        x_bn = BN_secure_new();
+        if (OPS_OPENSSL_ERROR_4 x_bn == NULL
+            || NULL == BN_bin2bn(x_be, (int) x_len, x_bn)) {
             ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(5222);
             goto exit;
         }
@@ -297,9 +332,12 @@ static int32_t dh_fromdata(key_spec *spec,
         if (y_bn == NULL) {
             // OpenSSL's FFC fromdata import stores exactly what it is
             // given — it does NOT re-derive the public half from the
-            // private value, and a keypair import without
-            // OSSL_PKEY_PARAM_PUB_KEY fails. Compute y = g^x mod p
-            // ourselves (dsa_fromdata rationale).
+            // private value. A keypair import without
+            // OSSL_PKEY_PARAM_PUB_KEY half-succeeds: it reports
+            // success but yields a key with no public half, which
+            // breaks encoding and public-side operations later.
+            // Compute y = g^x mod p ourselves (dsa_fromdata
+            // rationale).
             bn_ctx = BN_CTX_new();
             y_bn = BN_new();
             if (OPS_OPENSSL_ERROR_5 bn_ctx == NULL || y_bn == NULL) {
@@ -647,7 +685,25 @@ int32_t dh_kex_init(dh_kex_ctx *ctx, const key_spec *my_priv,
     }
 
     if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_derive_init(pctx)) {
+        // Diagnosis-on-failure: FIPS-validated providers require the
+        // subgroup order q for their SP 800-56A key check, so PKCS#3
+        // component keys (p, g only) fail derive-init there. When the
+        // rejected key carries no q, surface the precise typed code
+        // (the SPI maps it to InvalidKeyException). Mainline providers
+        // accept q-less keys, so this branch never fires for them and
+        // the two trees stay textually identical. ERR marks scope the
+        // probe so it can't disturb the derive-init error report.
+        ERR_set_mark();
+        BIGNUM *q_bn = NULL;
+        int has_q = 1 == EVP_PKEY_get_bn_param(my_priv->key,
+                                               OSSL_PKEY_PARAM_FFC_Q, &q_bn)
+                    && q_bn != NULL;
+        BN_free(q_bn);
+        ERR_pop_to_mark();
         EVP_PKEY_CTX_free(pctx);
+        if (!has_q) {
+            return JO_DH_Q_REQUIRED;
+        }
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(5261);
     }
 

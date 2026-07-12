@@ -18,17 +18,25 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
+import org.openssl.jostle.jcajce.provider.Asn1TrailingDataException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 public class Asn1LimitTest
 {
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     @BeforeAll
     public static void before()
     {
@@ -556,5 +564,142 @@ public class Asn1LimitTest
         }
     }
 
+    /** Fresh random ML-DSA-44 keypair generated through the Jostle provider. */
+    private static KeyPair generateMldsaKeyPair() throws Exception
+    {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        return keyGen.generateKeyPair();
+    }
+
+    /** Copy of {@code der} with {@code junkLen} random trailing bytes appended. */
+    private static byte[] withTrailingJunk(byte[] der, int junkLen)
+    {
+        byte[] out = new byte[der.length + junkLen];
+        byte[] junk = new byte[junkLen];
+        RANDOM.nextBytes(junk);
+        System.arraycopy(der, 0, out, 0, der.length);
+        System.arraycopy(junk, 0, out, der.length, junkLen);
+        return out;
+    }
+
+    @Test
+    public void fromPrivateKeyInfo_trailingData() throws Exception
+    {
+        byte[] validKey = generateMldsaKeyPair().getPrivate().getEncoded();
+
+        // Positive control: the unmodified encoding decodes cleanly — the
+        // rejection boundary is exactly consumed == len (boundary + 1 rule).
+        TestNISelector.SpecNI.dispose(
+                TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length));
+
+        // One junk byte (boundary + 1), then several.
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(validKey, junkLen);
+            try
+            {
+                TestNISelector.Asn1NI.fromPrivateKeyInfo(withJunk, 0, withJunk.length);
+                Assertions.fail("Should have thrown exception");
+            }
+            catch (Asn1TrailingDataException ex)
+            {
+                Assertions.assertEquals("DER encoding has trailing data", ex.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void fromPrivateKeyInfo_paddedBufferExactLenDecodes() throws Exception
+    {
+        // The trailing-data check must use the caller-passed len, not the
+        // array length: a valid encoding at offset 0 of an oversized array
+        // still decodes when len is the exact encoding length.
+        byte[] validKey = generateMldsaKeyPair().getPrivate().getEncoded();
+
+        byte[] padded = new byte[validKey.length + 16];
+        RANDOM.nextBytes(padded);
+        System.arraycopy(validKey, 0, padded, 0, validKey.length);
+
+        TestNISelector.SpecNI.dispose(
+                TestNISelector.Asn1NI.fromPrivateKeyInfo(padded, 0, validKey.length));
+    }
+
+    @Test
+    public void fromPublicKeyInfo_trailingData() throws Exception
+    {
+        byte[] validKey = generateMldsaKeyPair().getPublic().getEncoded();
+
+        // Positive control: the unmodified encoding decodes cleanly.
+        TestNISelector.SpecNI.dispose(
+                TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length));
+
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(validKey, junkLen);
+            try
+            {
+                TestNISelector.Asn1NI.fromPublicKeyInfo(withJunk, 0, withJunk.length);
+                Assertions.fail("Should have thrown exception");
+            }
+            catch (Asn1TrailingDataException ex)
+            {
+                Assertions.assertEquals("DER encoding has trailing data", ex.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void fromPublicKeyInfo_paddedBufferExactLenDecodes() throws Exception
+    {
+        byte[] validKey = generateMldsaKeyPair().getPublic().getEncoded();
+
+        byte[] padded = new byte[validKey.length + 16];
+        RANDOM.nextBytes(padded);
+        System.arraycopy(validKey, 0, padded, 0, validKey.length);
+
+        TestNISelector.SpecNI.dispose(
+                TestNISelector.Asn1NI.fromPublicKeyInfo(padded, 0, validKey.length));
+    }
+
+    @Test
+    public void keyFactory_generatePrivate_trailingDataRejected() throws Exception
+    {
+        byte[] encoded = generateMldsaKeyPair().getPrivate().getEncoded();
+
+        KeyFactory keyFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+
+        // Positive control: the unmodified encoding decodes at the JCE surface.
+        Assertions.assertNotNull(keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(encoded, junkLen);
+            InvalidKeySpecException ex = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> keyFactory.generatePrivate(new PKCS8EncodedKeySpec(withJunk)));
+            Assertions.assertEquals("unable to decode ML-DSA private key", ex.getMessage());
+            Assertions.assertEquals(Asn1TrailingDataException.class, ex.getCause().getClass());
+        }
+    }
+
+    @Test
+    public void keyFactory_generatePublic_trailingDataRejected() throws Exception
+    {
+        byte[] encoded = generateMldsaKeyPair().getPublic().getEncoded();
+
+        KeyFactory keyFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+
+        // Positive control: the unmodified encoding decodes at the JCE surface.
+        Assertions.assertNotNull(keyFactory.generatePublic(new X509EncodedKeySpec(encoded)));
+
+        for (int junkLen : new int[]{1, 7})
+        {
+            byte[] withJunk = withTrailingJunk(encoded, junkLen);
+            InvalidKeySpecException ex = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> keyFactory.generatePublic(new X509EncodedKeySpec(withJunk)));
+            Assertions.assertEquals("unable to decode ML-DSA public key", ex.getMessage());
+            Assertions.assertEquals(Asn1TrailingDataException.class, ex.getCause().getClass());
+        }
+    }
 
 }

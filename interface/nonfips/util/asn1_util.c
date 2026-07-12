@@ -428,6 +428,14 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
         goto err;
     }
 
+    // d2i consumes exactly one TLV and advances _src past it. Anything
+    // left over is trailing garbage after a well-formed PKCS#8 blob —
+    // reject it (strict parsers do; silently accepting can mask
+    // corruption).
+    if ((size_t) (_src - src) != src_len) {
+        *ret_code = JO_DER_TRAILING_DATA;
+        goto err;
+    }
 
     key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(key != NULL);
@@ -474,6 +482,15 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
 
     if (OPS_POINTER_CHANGE new_key != new_key_) {
         *ret_code = JO_UNEXPECTED_POINTER_CHANGE;
+        goto err;
+    }
+
+    // d2i consumes exactly one TLV and advances _src past it. Anything
+    // left over is trailing garbage after a well-formed SPKI blob —
+    // reject it (strict parsers do; silently accepting can mask
+    // corruption).
+    if ((size_t) (_src - src) != src_len) {
+        *ret_code = JO_DER_TRAILING_DATA;
         goto err;
     }
 

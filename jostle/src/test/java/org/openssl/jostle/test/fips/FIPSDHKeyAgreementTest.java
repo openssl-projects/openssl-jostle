@@ -18,6 +18,9 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
+import javax.crypto.spec.DHPrivateKeySpec;
+import java.math.BigInteger;
+import java.security.AlgorithmParameterGenerator;
 import java.security.AlgorithmParameters;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
@@ -26,6 +29,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -436,6 +440,83 @@ public class FIPSDHKeyAgreementTest
         catch (NoSuchAlgorithmException expected)
         {
             Assertions.assertEquals("algorithm name must be non-null and non-blank",
+                    expected.getMessage());
+        }
+    }
+
+
+    // -----------------------------------------------------------------
+    // FIPS capability locks: paramgen substitution, q-less agreement
+    // -----------------------------------------------------------------
+
+    /**
+     * The OpenSSL FIPS providers never run the PKCS#3 safe-prime search —
+     * paramgen silently substitutes the RFC 7919 named group matching the
+     * requested size (probe-confirmed on 3.1.2). The provider's contract is
+     * fail-loud: callers asked for freshly generated parameters and must not
+     * receive fixed constants undetected, so
+     * {@code AlgorithmParameterGenerator.generateParameters()} throws
+     * ProviderException with the pinned capability message (named-group key
+     * generation via {@code KeyPairGenerator.initialize(int)} is the
+     * supported route).
+     */
+    @Test
+    public void dhAlgorithmParameterGeneratorRefusesNamedGroupSubstitution() throws Exception
+    {
+        ensureProviders();
+
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DH", FIPS);
+        apg.init(2048, RANDOM);
+        try
+        {
+            apg.generateParameters();
+            Assertions.fail("expected ProviderException — FIPS paramgen substitutes ffdhe2048");
+        }
+        catch (ProviderException expected)
+        {
+            Assertions.assertEquals(
+                    "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead",
+                    expected.getMessage());
+        }
+    }
+
+    /**
+     * The FIPS module requires the subgroup order q at derive-init
+     * (SP 800-56A key check), so a q-less PKCS#3 component private key —
+     * built through the FIPS provider's own KeyFactory from a
+     * {@code DHPrivateKeySpec} (p, g, x) — is rejected at
+     * {@code KeyAgreement.init} with InvalidKeyException and the pinned
+     * message. The prime MUST be a non-named safe prime: OpenSSL back-fills
+     * q for recognised named-group (p, g) pairs on import, which would
+     * disarm the check (see
+     * {@link FIPSTestUtil#NON_NAMED_SAFE_PRIME_2048_HEX}). Named-group DH
+     * agreement (ffdhe2048 keygen keys, which carry q) is unaffected — see
+     * the agreement tests above and FIPSDHAgreementTest.
+     */
+    @Test
+    public void dhQlessComponentPrivateKey_initThrowsInvalidKeyException() throws Exception
+    {
+        ensureProviders();
+
+        BigInteger p = new BigInteger(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX, 16);
+        BigInteger g = BigInteger.valueOf(2);
+        // Random private value; the set top bit keeps it non-zero (and it is
+        // far below p). 225 bits per the safe-prime recommended length.
+        BigInteger x = new BigInteger(225, RANDOM).setBit(224);
+
+        KeyFactory kf = KeyFactory.getInstance("DH", FIPS);
+        PrivateKey priv = kf.generatePrivate(new DHPrivateKeySpec(x, p, g));
+
+        KeyAgreement ka = KeyAgreement.getInstance("DH", FIPS);
+        try
+        {
+            ka.init(priv);
+            Assertions.fail("expected InvalidKeyException for a q-less PKCS#3 key under FIPS");
+        }
+        catch (InvalidKeyException expected)
+        {
+            Assertions.assertEquals(
+                    "DH key without subgroup order q is not supported for key agreement by the loaded provider",
                     expected.getMessage());
         }
     }

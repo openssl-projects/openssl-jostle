@@ -145,7 +145,7 @@ public class MLKEMKTSCipherSpi
 
         readKtsSpec(params);
 
-        RandSource resolvedRandSource = null;
+        RandSource resolvedRandSource;
         if (opmode == Cipher.WRAP_MODE)
         {
             // ML-KEM encapsulation consumes entropy through the C-side RAND gate
@@ -154,8 +154,7 @@ public class MLKEMKTSCipherSpi
             // DRBG path); a reported 0 means "unknown" and is accepted, with the C
             // gate as the safety net. The RandSource is then resolved to a
             // strength-appropriate DRBG for the key's parameter set — matching
-            // MLKEMKeyGenerator, which also encapsulates. UNWRAP_MODE (decap)
-            // consumes no entropy, so no RandSource is needed there.
+            // MLKEMKeyGenerator, which also encapsulates.
             int strengthBits = strengthForKeyType(spec.getType());
             int suppliedStrength = DefaultRandSource.strengthOf(random);
             if (suppliedStrength > 0 && suppliedStrength < strengthBits)
@@ -166,6 +165,14 @@ public class MLKEMKTSCipherSpi
                         + " requires " + strengthBits);
             }
             resolvedRandSource = DefaultRandSource.replaceWith(null, random, strengthBits);
+        }
+        else
+        {
+            // ML-KEM decapsulation is deterministic, but the decap NI is
+            // type-agnostic and binds a RandSource on every call so any RAND
+            // consumed inside OpenSSL resolves to fresh Java entropy — a
+            // default-strength source suffices for UNWRAP_MODE.
+            resolvedRandSource = DefaultRandSource.replaceWith(null, random);
         }
 
         // Assign state only after all validation has passed, so a rejected init
@@ -265,7 +272,7 @@ public class MLKEMKTSCipherSpi
         try
         {
             int written = NISelector.SpecNI.decap(keySpec.getReference(), null,
-                encapsulation, 0, encapsulation.length, secret, 0, secret.length);
+                encapsulation, 0, encapsulation.length, secret, 0, secret.length, randSource);
             if (written != SHARED_SECRET_LEN)
             {
                 throw new InvalidKeyException("unexpected ML-KEM shared-secret length: " + written);

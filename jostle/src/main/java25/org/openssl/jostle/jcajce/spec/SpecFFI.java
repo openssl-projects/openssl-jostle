@@ -93,8 +93,9 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
 
 
         MemorySegment getNameFunc = lookup.find("SpecNI_GetName").orElseThrow();
@@ -240,17 +241,44 @@ public class SpecFFI implements SpecNI
     }
 
     @Override
-    public int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len)
+    public int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
-        // Decap has no upcall, so can use critical
+        // The C side binds the RandSource upcall (decap is type-agnostic —
+        // e.g. an RSA-KEM decap drives RSA blinding, which consumes
+        // entropy), and upcalls are impossible from a critical section —
+        // so arena copies rather than Option.critical heap segments, the
+        // same shape as encap.
         try (Arena a = Arena.ofConfined())
         {
             var ref = MemorySegment.ofAddress(keyRef);
             var optRef = opt != null ? a.allocateFrom(opt) : MemorySegment.NULL;
-            var inputRef = input != null ? MemorySegment.ofArray(input) : MemorySegment.NULL;
-            var outRef = out != null ? MemorySegment.ofArray(out) : MemorySegment.NULL;
+            var inputRef = input != null ? a.allocateFrom(ValueLayout.JAVA_BYTE, input) : MemorySegment.NULL;
+            var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            return (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len);
+            // let decap()'s existing check return
+            // JO_RAND_NO_RAND_UP_CALL — same path JNI takes.
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        randSource.getClass(),
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
+
+            int r = (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
+
+            if (out != null)
+            {
+                outRef.asByteBuffer().get(out);
+            }
+
+            return r;
         }
         catch (Throwable t)
         {

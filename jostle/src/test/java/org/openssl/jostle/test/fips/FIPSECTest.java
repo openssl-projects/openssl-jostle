@@ -711,6 +711,80 @@ public class FIPSECTest
         }
     }
 
+    /**
+     * A private key built from {@link ECPrivateKeySpec} must carry a public
+     * half under the FIPS provider too: {@code ec_make_private_from_components}
+     * computes Q = d·G itself because {@code EVP_PKEY_fromdata} does not
+     * derive it from the private scalar — spec-built keys previously had NO
+     * public point, so {@code getEncoded()} failed with an i2d error while
+     * signing still worked. Pins the fix at the JCE surface: non-null PKCS#8
+     * encoding that re-decodes through both the FIPS KeyFactory and
+     * BouncyCastle, and a sign/verify round-trip against the original public
+     * key. Includes a tampered-message negative. Fresh random keypair per
+     * curve trial.
+     */
+    @Test
+    public void keyFactoryPrivateSpecKeyEncodesAndSigns()
+        throws Exception
+    {
+        ensureProviders();
+        SecureRandom sr = seededRandom("keyFactoryPrivateSpecKeyEncodesAndSigns");
+
+        for (String curve : new String[]{"P-256", "P-384", "P-521"})
+        {
+            KeyPair kp = generate(curve);
+            KeyFactory kf = KeyFactory.getInstance("EC", FIPS);
+
+            ECPrivateKey origPriv = (ECPrivateKey) kp.getPrivate();
+            ECPrivateKeySpec privSpec = kf.getKeySpec(origPriv, ECPrivateKeySpec.class);
+            ECPrivateKey specPriv = (ECPrivateKey) kf.generatePrivate(privSpec);
+
+            // getEncoded() must produce a PKCS#8 encoding — this is exactly
+            // what failed before the public half was derived.
+            byte[] specEncoded = specPriv.getEncoded();
+            Assertions.assertNotNull(specEncoded,
+                    curve + ": spec-built private key getEncoded() returned null");
+            Assertions.assertTrue(specEncoded.length > 0,
+                    curve + ": spec-built private key getEncoded() returned empty");
+
+            // Re-decodes through the FIPS KeyFactory with the same scalar...
+            ECPrivateKey redecoded = (ECPrivateKey) kf.generatePrivate(
+                    new PKCS8EncodedKeySpec(specEncoded));
+            Assertions.assertEquals(origPriv.getS(), redecoded.getS(),
+                    curve + ": scalar mismatch after PKCS#8 round-trip of spec-built key");
+
+            // ...and through BouncyCastle (the sibling
+            // keysRoundTripThroughBouncyCastleEncodings pattern).
+            KeyFactory bcKf = KeyFactory.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
+            ECPrivateKey bcPriv = (ECPrivateKey) bcKf.generatePrivate(
+                    new PKCS8EncodedKeySpec(specEncoded));
+            Assertions.assertEquals(origPriv.getS(), bcPriv.getS(),
+                    curve + ": BC-decoded scalar mismatch for spec-built key");
+
+            // Sign with the spec-built key, verify with the original public —
+            // proves the derived public point is d·G for the original scalar.
+            byte[] msg = randomMessage(sr, 16 + sr.nextInt(256));
+            Signature signer = Signature.getInstance("SHA256withECDSA", FIPS);
+            signer.initSign(specPriv);
+            signer.update(msg);
+            byte[] sig = signer.sign();
+            Signature verifier = Signature.getInstance("SHA256withECDSA", FIPS);
+            verifier.initVerify(kp.getPublic());
+            verifier.update(msg);
+            Assertions.assertTrue(verifier.verify(sig),
+                    curve + ": spec-built key signature did not verify against original public");
+
+            // Negative: tampered message must not verify.
+            byte[] tampered = Arrays.clone(msg);
+            tampered[0] ^= 0x01;
+            Signature tv = Signature.getInstance("SHA256withECDSA", FIPS);
+            tv.initVerify(kp.getPublic());
+            tv.update(tampered);
+            Assertions.assertFalse(tv.verify(sig),
+                    curve + ": original public verified a tampered message from spec-built key");
+        }
+    }
+
     // -----------------------------------------------------------------
     // ECDH curve mismatch
     // -----------------------------------------------------------------

@@ -117,30 +117,46 @@ int32_t rsa_pkcs1_init(rsa_pkcs1_ctx *ctx, const key_spec *key,
     }
 
     // ============================================================
-    // BLEICHENBACHER MITIGATION — explicit implicit-rejection = 1
+    // BLEICHENBACHER MITIGATION — explicit implicit-rejection = 1,
+    // capability-probed, fail loud
     // ============================================================
-    // OpenSSL 3.x's RSA provider enables implicit rejection by default
-    // (provider-asym_cipher(7) documents
-    // OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION as "Set by default in
-    // OpenSSL providers"). With it on, EVP_PKEY_decrypt on malformed
-    // PKCS#1 v1.5 padding returns a deterministic synthetic plaintext
-    // instead of signalling failure — directly mitigating
-    // Bleichenbacher-style padding oracle attacks.
+    // OpenSSL's RSA asym-cipher provider mitigates Bleichenbacher-
+    // style padding oracles via "implicit rejection": EVP_PKEY_decrypt
+    // on malformed PKCS#1 v1.5 padding returns a deterministic
+    // synthetic plaintext instead of signalling failure. The parameter
+    // OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION entered OpenSSL 3.2;
+    // providers built before that (notably the FIPS-validated 3.1.x
+    // module) do not implement it — and EVP_PKEY_CTX_set_params
+    // SILENTLY IGNORES unknown params and still returns 1, so setting
+    // the value alone cannot detect the gap.
     //
-    // We set it EXPLICITLY to 1 here even though the default agrees,
-    // so the security property is unambiguous in our source rather
-    // than implicit in OpenSSL's defaults. If a future OpenSSL release
-    // ever changed the default, or this code linked against a custom
-    // provider with different defaults, the protection would still be
-    // in place.
+    // Contract (fail loud): before initialising a DECRYPT session,
+    // probe EVP_PKEY_CTX_settable_params for the parameter. A provider
+    // that cannot honour it gets JO_IMPLICIT_REJECTION_UNAVAILABLE —
+    // we refuse to run PKCS#1 v1.5 decryption without the mitigation.
+    // Encrypt does not consume the parameter and is unaffected.
+    //
+    // When the provider supports it, we still set the value EXPLICITLY
+    // to 1 even though the default agrees, so the security property is
+    // unambiguous in our source rather than implicit in OpenSSL's
+    // defaults.
     //
     // DO NOT change the value to 0 or remove this block. Doing so
-    // re-opens the Bleichenbacher oracle. The Java test
-    // RSAPKCS1CipherTest.testPKCS1_ImplicitRejection_HardGuard
-    // asserts the runtime behaviour and will fail loudly if the
-    // oracle is reopened.
+    // re-opens the Bleichenbacher oracle. Runtime hard guards:
+    // RSAPKCS1CipherTest.testPKCS1_ImplicitRejection_HardGuard (base
+    // provider — synthetic-plaintext behaviour) and the FIPS-side
+    // FIPSRSAPKCS1CipherLimitTest (pins the fail-loud rejection when
+    // the loaded module lacks the parameter).
     // ============================================================
-    {
+    if (op_mode == RSA_PKCS1_OP_DECRYPT) {
+        const OSSL_PARAM *settable = EVP_PKEY_CTX_settable_params(pctx);
+        if (OPS_FAILED_INIT_1 settable == NULL
+            || OSSL_PARAM_locate_const(
+                    settable, OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION) == NULL) {
+            ret_code = JO_IMPLICIT_REJECTION_UNAVAILABLE;
+            goto exit;
+        }
+
         unsigned int implicit_rejection = 1;
         OSSL_PARAM params[2];
         params[0] = OSSL_PARAM_construct_uint(
@@ -177,7 +193,7 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
     if (in == NULL && in_len != 0) {
         return JO_INPUT_IS_NULL;
     }
-    if (in_len > (size_t) INT_MAX) {
+    if (in_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -196,7 +212,13 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         rc = EVP_PKEY_decrypt(ctx->pctx, NULL, &out_required, in, in_len);
     }
     if (OPS_OPENSSL_ERROR_1 rc != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(2102);
+        // Decrypt failures map to JO_INVALID_CIPHER_TEXT (the bridge
+        // surfaces InvalidCipherTextException; the JCE SPI translates
+        // to BadPaddingException — rsa_oaep.c model). Encrypt failures
+        // stay JO_OPENSSL_ERROR (IllegalBlockSizeException at the SPI).
+        int32_t base = (ctx->op_mode == RSA_PKCS1_OP_DECRYPT)
+                ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        return base OPS_OFFSET_OPENSSL_ERROR_1(2102);
     }
 
     if (OPS_INT32_OVERFLOW_1 out_required > (size_t) INT32_MAX) {
@@ -218,12 +240,16 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         rc = EVP_PKEY_decrypt(ctx->pctx, out, &actual, in, in_len);
     }
     if (OPS_OPENSSL_ERROR_2 rc != 1) {
-        // Decrypt failure surfaces here. With OpenSSL 3.x's default
-        // implicit-rejection enabled, this branch should NOT fire on
-        // mere padding failures — OpenSSL emits a synthetic plaintext
-        // and returns success. Genuine errors (e.g. ciphertext > n)
-        // still surface here.
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2103);
+        // Decrypt failure surfaces here. Implicit rejection is pinned
+        // at init (fail-loud capability probe), so mere padding
+        // failures do NOT fire this branch — OpenSSL emits a synthetic
+        // plaintext and returns success. Structural failures (e.g.
+        // ciphertext value >= modulus) still land here and map to
+        // JO_INVALID_CIPHER_TEXT on decrypt so the SPI can surface the
+        // JCE-canonical BadPaddingException uniformly.
+        int32_t base = (ctx->op_mode == RSA_PKCS1_OP_DECRYPT)
+                ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        return base OPS_OFFSET_OPENSSL_ERROR_2(2103);
     }
 
     if (actual > (size_t) INT32_MAX) {

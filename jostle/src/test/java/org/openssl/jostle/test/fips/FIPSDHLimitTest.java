@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
@@ -25,6 +26,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.encoders.Hex;
 
 import java.security.SecureRandom;
 
@@ -150,6 +152,44 @@ public class FIPSDHLimitTest
     {
         // Null-rand is caught at the bridge before any prime search.
         assertIAE("supplied random source was null", () -> dh.generateParameters(2048, null));
+    }
+
+    /**
+     * FIPS behavioural lock, raw code: the OpenSSL FIPS providers never run
+     * the PKCS#3 safe-prime search — even with the generation type pinned to
+     * "generator", paramgen(2048) silently returns the RFC 7919 ffdhe2048
+     * constants (probe-confirmed on 3.1.2). The substitution guard in
+     * dh_generate_parameters (interface/fips/util/dh.c:243) detects the named
+     * group on the result and fails loud with the raw
+     * JO_DH_PARAMGEN_SUBSTITUTED code instead of handing back fixed constants
+     * as if they were freshly generated. No OPS build needed — the guard
+     * fires naturally under the FIPS interface.
+     */
+    @Test
+    public void generateParameters_2048_namedGroupSubstituted_rawCode()
+    {
+        int[] err = new int[1];
+        long ref = dh.ni_generateParameters(2048, err, RND);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(-137, err[0]);
+        Assertions.assertEquals(ErrorCode.JO_DH_PARAMGEN_SUBSTITUTED.getCode(), err[0]);
+    }
+
+    /**
+     * Wrapped variant of the substitution lock: the raw code surfaces through
+     * DHServiceNI.handleErrors / baseErrorHandler as the typed
+     * ProviderCapabilityException with the exact capability message
+     * (DHAlgorithmParameterGenerator re-throws it as ProviderException at the
+     * JCE surface — see FIPSDHKeyAgreementTest).
+     */
+    @Test
+    public void generateParameters_2048_namedGroupSubstituted_wrappedTyped()
+    {
+        ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
+                () -> dh.generateParameters(2048, RND));
+        Assertions.assertEquals(
+                "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead",
+                e.getMessage());
     }
 
     // -----------------------------------------------------------------
@@ -376,6 +416,51 @@ public class FIPSDHLimitTest
             {
                 specNI.dispose(ecRef);
             }
+        }
+    }
+
+    /**
+     * FIPS behavioural lock: the FIPS module requires the subgroup order q at
+     * derive-init (SP 800-56A key check), so a q-less PKCS#3 component key
+     * (p, g, x only — the DHParameterSpec / DHPrivateKeySpec surface) is
+     * rejected with the precise typed code rather than a generic OpenSSL
+     * error. The prime MUST be a non-named safe prime — OpenSSL back-fills q
+     * for recognised named-group (p, g) pairs on import, which would disarm
+     * the check (see {@link FIPSTestUtil#NON_NAMED_SAFE_PRIME_2048_HEX}).
+     * Raw code first (-136), then the wrapped ProviderCapabilityException
+     * with the exact message (DHKeyAgreementSpi maps it to
+     * InvalidKeyException at the JCE surface — see FIPSDHKeyAgreementTest).
+     */
+    @Test
+    public void kexInit_qlessComponentKey_rawCodeAndTyped()
+    {
+        byte[] p = Hex.decode(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX);
+        byte[] g = {0x02};
+        byte[] x = new byte[28];
+        new SecureRandom().nextBytes(x);
+        // Force the top bit so x is never zero (and always well below p).
+        x[0] |= (byte) 0x80;
+
+        long privRef = dh.makePrivateFromComponents(p, g, x, RND);
+        try
+        {
+            withKex(ref ->
+            {
+                Assertions.assertEquals(-136, dh.ni_kexInit(ref, privRef, RND));
+                Assertions.assertEquals(ErrorCode.JO_DH_Q_REQUIRED.getCode(),
+                        dh.ni_kexInit(ref, privRef, RND));
+
+                ProviderCapabilityException e = Assertions.assertThrows(
+                        ProviderCapabilityException.class,
+                        () -> dh.kexInit(ref, privRef, RND));
+                Assertions.assertEquals(
+                        "DH key without subgroup order q is not supported for key agreement by the loaded provider",
+                        e.getMessage());
+            });
+        }
+        finally
+        {
+            specNI.dispose(privRef);
         }
     }
 

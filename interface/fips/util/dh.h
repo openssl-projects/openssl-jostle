@@ -30,10 +30,10 @@
 /*
  * Probe whether the loaded OpenSSL provider chain recognises the given
  * DH group name (RFC 7919 "ffdhe2048" … "ffdhe8192", RFC 3526
- * "modp_1536" … "modp_8192"). Returns 1 if a full paramgen succeeds for
- * the name, 0 otherwise. Mirrors ec_curve_supported — OpenSSL is the
- * source of truth for supported groups; the error queue is purged
- * before returning.
+ * "modp_1536" … "modp_8192"). Returns 1 if a full paramgen succeeds
+ * for the name, JO_CURVE_NOT_SUPPORTED otherwise. Mirrors
+ * ec_curve_supported — OpenSSL is the source of truth for supported
+ * groups; the error queue is purged before returning.
  */
 int32_t dh_group_supported(const char *group_name);
 
@@ -73,6 +73,14 @@ int32_t dh_generate_key(key_spec *spec, const key_spec *params,
  * slow at 2048 bits and above; the named-group keygen path is the
  * modern alternative. The Java SPI applies the policy bounds; the
  * bridge backstop rejects p_bits <= 0.
+ *
+ * The generation type is pinned to "generator" (the PKCS#3 search) and
+ * the result is verified to be freshly generated: OpenSSL's FIPS
+ * providers silently substitute the RFC 7919 named group matching
+ * p_bits instead of searching (and hard-fail every other size). That
+ * substitution is rejected here with JO_DH_PARAMGEN_SUBSTITUTED rather
+ * than returned as if it were fresh PKCS#3 output — under a FIPS
+ * module, use named-group key generation instead of paramgen.
  */
 int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
                                void *rnd_src);

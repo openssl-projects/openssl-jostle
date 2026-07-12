@@ -127,6 +127,20 @@ public class FIPSBridgeRandOpsTest
     }
 
     @Test
+    public void createContextEnableLockingFails()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        int[] err = new int[1];
+        // Exercises interface/fips/util/rand.c:192
+        operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+        long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
+
+        Assertions.assertEquals(0, ref);
+        Assertions.assertEquals(JO_OPENSSL_ERROR - 3034, err[0]);
+    }
+
+    @Test
     public void createContextInstantiateFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
