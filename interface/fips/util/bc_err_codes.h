@@ -265,6 +265,14 @@
 #define JO_CIPHER_CTX_IS_NULL -139
 
 /*
+ * A caller-derived ASN.1 writer context handle (asn1_ref) was null.
+ * Returned typed by the encode/getData bridge entry points instead of
+ * asserting a value the NI caller controls (a jo_assert reachable from
+ * the NI surface is a JVM abort, not an error).
+ */
+#define JO_ASN1_CTX_IS_NULL -140
+
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config

@@ -927,6 +927,17 @@ public class SM4AgreementTest
     }
 
 
+    // No SM4-GCM CMS-pattern test: SM4 AEAD in Jostle is CCM-only (see
+    // SM4CCMCipherSpi). SM4's block-cipher mode set is {ECB, CBC, CFB128, OFB,
+    // CTR} (OSSLCipher.SM4) — GCM is deliberately not wired, so the
+    // AlgorithmParameters-narrowing fix that finding 3 addresses has no GCM
+    // path to break for SM4. Its supported AlgorithmParameters paths (CBC/CTR
+    // via IvParameterSpec, and the wrong-key rejection through DummyParams) run
+    // through the base engineInit and are covered by
+    // testRejectIncorrectKeyAlgorithm. ARIA/GCM is where the behavioural fix is
+    // regression-tested (ariaGCM_decryptFromAlgorithmParameters_cmsPattern).
+
+
     // -----------------------------------------------------------------
     // SM4-CCM (AEAD, NIST SP 800-38C semantics on the 128-bit SM4
     // block). See AESAgreementTest comments on the dedicated CCM SPI.

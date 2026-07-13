@@ -62,7 +62,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePub
     UNUSED(jo);
 
     asn1_ctx *ctx = (asn1_ctx *) asn1_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_ASN1_CTX_IS_NULL;
+    }
 
     key_spec *key = (key_spec *) key_ref;
 
@@ -98,7 +100,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePri
     UNUSED(jo);
 
     asn1_ctx *ctx = (asn1_ctx *) asn1_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_ASN1_CTX_IS_NULL;
+    }
 
     key_spec *key = (key_spec *) key_ref;
     int32_t ret_code = JO_FAIL;
@@ -172,7 +176,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
     UNUSED(jo);
 
     asn1_ctx *ctx = (asn1_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_ASN1_CTX_IS_NULL;
+    }
     int32_t ret_code = JO_FAIL;
 
     java_bytearray_ctx output;

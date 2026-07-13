@@ -30,7 +30,9 @@ void ASN1_dispose(asn1_ctx *ctx) {
 }
 
 int32_t ASN1_encodePublicKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
-    jo_assert(asn1_ctx != NULL);
+    if (asn1_ctx == NULL) {
+        return JO_ASN1_CTX_IS_NULL;
+    }
     if (key_spec == NULL) {
         return JO_KEY_IS_NULL;
     }
@@ -53,7 +55,9 @@ int32_t ASN1_encodePublicKey(asn1_ctx *asn1_ctx, key_spec *key_spec) {
 
 int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char *option_string,
                               size_t option_string_len) {
-    jo_assert(asn1_ctx != NULL);
+    if (asn1_ctx == NULL) {
+        return JO_ASN1_CTX_IS_NULL;
+    }
 
 
     if (key_spec == NULL) {
@@ -95,7 +99,9 @@ int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char
 }
 
 int32_t ASN1_getData(asn1_ctx *asn1_ctx, uint8_t *output, size_t output_len) {
-    jo_assert(asn1_ctx != NULL);
+    if (asn1_ctx == NULL) {
+        return JO_ASN1_CTX_IS_NULL;
+    }
     size_t buf_len = 0;
 
     const int32_t ret = asn1_writer_get_content(asn1_ctx, output, &buf_len, output_len);

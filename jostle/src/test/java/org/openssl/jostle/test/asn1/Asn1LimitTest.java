@@ -107,6 +107,23 @@ public class Asn1LimitTest
     }
 
     @Test
+    public void encode_getData_asn1RefIsZero() throws Exception
+    {
+        // A 0/null ASN.1 writer ctx handle at every encode/getData entry point
+        // must surface the typed JO_ASN1_CTX_IS_NULL -> IllegalArgumentException
+        // ("asn1 context is null"), NOT abort the JVM via jo_assert. Passing 0
+        // for the key ref as well pins the validation ORDER (asn1 ctx before
+        // key). Regression lock for the ctx null-check bridge fix
+        // (asn1_ni_jni.c / asn1_ni_ffi.c).
+        Assertions.assertEquals("asn1 context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> TestNISelector.Asn1NI.encodePublicKey(0, 0)).getMessage());
+        Assertions.assertEquals("asn1 context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> TestNISelector.Asn1NI.encodePrivateKey(0, 0, PrivateKeyOptions.DEFAULT.getValue())).getMessage());
+        Assertions.assertEquals("asn1 context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> TestNISelector.Asn1NI.getData(0, new byte[16])).getMessage());
+    }
+
+    @Test
     public void encodePublicKey_specNullKeyTest() throws Exception
     {
         long asn1Ref = TestNISelector.Asn1NI.allocate();

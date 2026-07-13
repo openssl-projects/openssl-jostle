@@ -996,6 +996,45 @@ public class ARIAAgreementTest
     }
 
     /**
+     * GCM decrypt initialised from an {@link AlgorithmParameters} (the path
+     * CMS uses on the receiving side). Regression guard: the per-cipher
+     * {@code engineInit(int, Key, AlgorithmParameters, SecureRandom)} override
+     * used to narrow support to {@code IvParameterSpec}, so a GCM
+     * {@code AlgorithmParameters} either threw at decrypt-init or silently
+     * dropped the tag length. A non-default 96-bit tag is used so a dropped
+     * tag length (defaulting back to 128) fails the roundtrip rather than
+     * passing by coincidence.
+     */
+    @Test
+    public void ariaGCM_decryptFromAlgorithmParameters_cmsPattern() throws Exception
+    {
+        SecureRandom sr = seededRandom("ariaGCM_decryptFromAlgorithmParameters_cmsPattern");
+        String xform = "ARIA/GCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] msg = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(msg);
+
+        SecretKey secretKey = new SecretKeySpec(key, "ARIA");
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(96, iv));
+        byte[] ct = enc.doFinal(msg);
+
+        AlgorithmParameters params = enc.getParameters();
+        Assertions.assertNotNull(params, "ARIA-GCM must expose AlgorithmParameters");
+        Assertions.assertEquals(96, params.getParameterSpec(GCMParameterSpec.class).getTLen(),
+                "getParameters() must preserve the 96-bit tag length");
+
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, params);
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                "ARIA-GCM decrypt initialised from AlgorithmParameters (CMS pattern) failed");
+    }
+
+    /**
      * Tag-length variation for ARIA-GCM. All NIST-permitted tag lengths
      * (32, 64, 96, 104, 112, 120, 128 bits) must agree with BC.
      */

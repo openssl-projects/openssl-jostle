@@ -169,6 +169,22 @@ public class FIPSAsn1LimitTest
     }
 
     @Test
+    public void encode_getData_asn1RefIsZero()
+    {
+        // A 0/null ASN.1 writer ctx handle at every encode/getData entry point
+        // must surface the typed JO_ASN1_CTX_IS_NULL -> IllegalArgumentException
+        // ("asn1 context is null"), NOT abort the JVM via jo_assert — the FIPS
+        // glue re-includes the base bridge, so this pins the same fix through
+        // the FIPS library (asn1_ni_jni.c / asn1_ni_ffi.c under interface/fips/).
+        // Passing 0 for the key ref as well pins the validation ORDER (asn1 ctx
+        // before key).
+        assertIAE("asn1 context is null", () -> asn1.encodePublicKey(0, 0));
+        assertIAE("asn1 context is null",
+                () -> asn1.encodePrivateKey(0, 0, PrivateKeyOptions.DEFAULT.getValue()));
+        assertIAE("asn1 context is null", () -> asn1.getData(0, new byte[16]));
+    }
+
+    @Test
     public void encodePublicKey_specNullKeyTest()
     {
         long a = asn1.allocate();

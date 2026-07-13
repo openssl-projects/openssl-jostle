@@ -126,6 +126,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key-agreement context is null");
             case JO_CIPHER_CTX_IS_NULL:
                 throw new IllegalArgumentException("cipher context is null");
+            case JO_ASN1_CTX_IS_NULL:
+                throw new IllegalArgumentException("asn1 context is null");
             case JO_CURVE_NOT_SUPPORTED:
                 throw new IllegalArgumentException("curve not supported by the loaded OpenSSL build");
             case JO_KS_TYPE_IS_NULL:

@@ -13,10 +13,8 @@ package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.util.Arrays;
 
-import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.InvalidParameterSpecException;
 
 public class ARIABlockCipherSpi extends BlockCipherSpi
 {
@@ -101,38 +99,10 @@ public class ARIABlockCipherSpi extends BlockCipherSpi
         super.engineInit(opmode, key, params, random);
     }
 
-    @Override
-    protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
-    {
-        // Capture the encoded key once so the transient copy getEncoded()
-        // returns can be zeroized; reading .length off a throwaway getEncoded()
-        // leaves an un-scrubbed key copy on the heap (the base engineInit
-        // makes and scrubs its own copy for the actual native init).
-        byte[] encoded = key.getEncoded();
-        try
-        {
-            determineOSSLCipher(encoded.length);
-        }
-        finally
-        {
-            Arrays.clear(encoded);
-        }
-        // TODO: we should have a list of ParameterSpec to try here.
-        if (params == null)
-        {
-            // JCE auto-IV pattern: init with no parameters — the base SPI
-            // generates the IV for encryption (DESEDE_AUTO_IV_GAP.md covers
-            // the identical NPE this guard prevents).
-            super.engineInit(opmode, key, (AlgorithmParameterSpec) null, random);
-            return;
-        }
-        try
-        {
-            super.engineInit(opmode, key, params.getParameterSpec(IvParameterSpec.class), random);
-        }
-        catch (InvalidParameterSpecException e)
-        {
-            throw new InvalidAlgorithmParameterException(e.getMessage(), e);
-        }
-    }
+    // engineInit(int, Key, AlgorithmParameters, SecureRandom) is intentionally NOT
+    // overridden: the base implementation already tries every supported spec
+    // (IvParameterSpec and GCMParameterSpec) and then dispatches to the
+    // AlgorithmParameterSpec overload above — which performs determineOSSLCipher.
+    // Overriding it here previously narrowed support to IvParameterSpec only,
+    // which broke GCM decryption from an AlgorithmParameters (as used by CMS).
 }
