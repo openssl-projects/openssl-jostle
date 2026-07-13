@@ -69,6 +69,10 @@ public class ARIABlockCipherSpi extends BlockCipherSpi
         // leaves an un-scrubbed key copy on the heap (the base engineInit
         // makes and scrubs its own copy for the actual native init).
         byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException("key has no encoded form");
+        }
         try
         {
             determineOSSLCipher(encoded.length);
@@ -88,6 +92,10 @@ public class ARIABlockCipherSpi extends BlockCipherSpi
         // leaves an un-scrubbed key copy on the heap (the base engineInit
         // makes and scrubs its own copy for the actual native init).
         byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new InvalidKeyException("key has no encoded form");
+        }
         try
         {
             determineOSSLCipher(encoded.length);

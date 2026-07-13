@@ -331,6 +331,47 @@ public class Asn1LimitTest
 
 
     @Test
+    public void encodePrivateKey_prefix_encoding_option_rejected() throws Exception
+    {
+        // A prefix of a valid option must be REJECTED, not accepted: "d" is
+        // NOT "default" and "s" is NOT "seed_only". The FFI bridge used to
+        // compare with strncmp against the caller-supplied length (a prefix
+        // match); it now uses exact strcmp like the JNI twin. Runs on both
+        // JNI and FFI via TestNISelector, so it pins that the FFI no longer
+        // prefix-accepts.
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        MLDSAPrivateKey privateKey = (MLDSAPrivateKey) keyPair.getPrivate();
+
+        long asn1Ref = TestNISelector.Asn1NI.allocate();
+        try
+        {
+            for (String prefix : new String[]{"d", "s"})
+            {
+                try
+                {
+                    long len = TestNISelector.Asn1NI.encodePrivateKey(
+                            asn1Ref, privateKey.getSpec().getReference(), prefix);
+                    byte[] out = new byte[(int) len];
+                    TestNISelector.Asn1NI.getData(asn1Ref, out);
+                    Assertions.fail("prefix option '" + prefix + "' should have been rejected");
+                }
+                catch (IllegalArgumentException e)
+                {
+                    Assertions.assertEquals("invalid key encoding option", e.getMessage());
+                }
+            }
+        }
+        finally
+        {
+            TestNISelector.Asn1NI.dispose(asn1Ref);
+        }
+    }
+
+
+    @Test
     public void fromPrivateKeyInfo_inIsNull() throws Exception
     {
         try

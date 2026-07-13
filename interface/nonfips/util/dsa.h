@@ -131,9 +131,11 @@ typedef struct dsa_ctx {
     // signed/verified one-shot via EVP_PKEY_sign/EVP_PKEY_verify (no EVP_MD).
     // Mutually exclusive with digest_ctx — exactly one is set after init.
     EVP_PKEY_CTX *raw_pctx;
-    uint8_t *raw_buf;
-    size_t raw_buf_len;
-    size_t raw_buf_cap;
+    // Accumulated caller-supplied input that EVP_PKEY_sign / EVP_PKEY_verify
+    // consume one-shot. A memory BIO owns the growth and zeroization:
+    // BIO_write grows via BUF_MEM_grow_clean (cleansing the old copy on
+    // realloc) and BIO_free_all releases through OPENSSL_clear_free.
+    BIO *raw_bio;
 } dsa_ctx;
 
 dsa_ctx *dsa_ctx_create(int32_t *err);

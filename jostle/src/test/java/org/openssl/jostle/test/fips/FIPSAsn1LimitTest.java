@@ -310,6 +310,30 @@ public class FIPSAsn1LimitTest
         }
     }
 
+    @Test
+    public void encodePrivateKey_prefix_encoding_option_rejected()
+    {
+        // A prefix of a valid option must be REJECTED, not accepted: "d" is
+        // NOT "default" and "s" is NOT "seed_only". The FFI bridge used to
+        // compare with strncmp against the caller-supplied length (a prefix
+        // match); it now uses exact strcmp like the JNI twin. Runs on both
+        // JNI and FFI via FIPSNISelector, pinning that the FFI no longer
+        // prefix-accepts.
+        long a = asn1.allocate();
+        try
+        {
+            for (String prefix : new String[]{"d", "s"})
+            {
+                assertIAE("invalid key encoding option",
+                        () -> asn1.encodePrivateKey(a, ecKeyRef, prefix));
+            }
+        }
+        finally
+        {
+            asn1.dispose(a);
+        }
+    }
+
     // -----------------------------------------------------------------
     // fromPrivateKeyInfo — null / negative / range (+ MIN_VALUE) + valid decode
     // -----------------------------------------------------------------

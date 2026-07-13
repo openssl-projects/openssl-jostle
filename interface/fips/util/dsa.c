@@ -9,6 +9,7 @@
 #include "dsa.h"
 
 #include <string.h>
+#include <openssl/bio.h>
 #include <openssl/bn.h>
 #include <openssl/core_names.h>
 #include <openssl/crypto.h>
@@ -530,12 +531,8 @@ static void dsa_ctx_clear_session(dsa_ctx *ctx) {
         EVP_PKEY_CTX_free(ctx->raw_pctx);
         ctx->raw_pctx = NULL;
     }
-    if (ctx->raw_buf != NULL) {
-        OPENSSL_clear_free(ctx->raw_buf, ctx->raw_buf_cap);
-        ctx->raw_buf = NULL;
-    }
-    ctx->raw_buf_len = 0;
-    ctx->raw_buf_cap = 0;
+    BIO_free_all(ctx->raw_bio);
+    ctx->raw_bio = NULL;
     ctx->opp = 0;
 }
 
@@ -567,34 +564,46 @@ static int32_t dsa_raw_init(dsa_ctx *ctx, OSSL_LIB_CTX *libctx,
 }
 
 /*
+ * Return a pointer to the accumulated raw-mode bytes and set *len to their
+ * length. Returns NULL with *len == 0 when nothing has been appended (the
+ * BIO was never created), which EVP_PKEY_sign / EVP_PKEY_verify accept as a
+ * zero-length input.
+ */
+static const uint8_t *dsa_raw_data(dsa_ctx *ctx, size_t *len) {
+    if (ctx->raw_bio == NULL) {
+        *len = 0;
+        return NULL;
+    }
+    char *p = NULL;
+    const long n = BIO_get_mem_data(ctx->raw_bio, &p);
+    *len = (size_t) n;
+    return (const uint8_t *) p;
+}
+
+/*
  * Append caller-supplied bytes to the raw-mode buffer (the pre-computed digest
- * that EVP_PKEY_sign / EVP_PKEY_verify consumes one-shot). Grows geometrically;
- * the total is bounded to INT32_MAX so the eventual int cast can't overflow.
+ * that EVP_PKEY_sign / EVP_PKEY_verify consumes one-shot). A memory BIO owns
+ * the growth (BIO_write grows via BUF_MEM_grow_clean, cleansing the old copy
+ * on realloc) and the zeroization on release; the total is bounded to
+ * INT32_MAX so the eventual int cast can't overflow.
  */
 static int32_t dsa_raw_append(dsa_ctx *ctx, const uint8_t *in, size_t in_len) {
     if (in_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
-    if (ctx->raw_buf_len > (size_t) INT32_MAX - in_len) {
+    if (ctx->raw_bio == NULL) {
+        ctx->raw_bio = BIO_new(BIO_s_mem());
+        jo_assert(ctx->raw_bio != NULL);
+    }
+    size_t cur = 0;
+    (void) dsa_raw_data(ctx, &cur);
+    if (cur > (size_t) INT32_MAX - in_len) {
         return JO_INPUT_TOO_LONG_INT32;
     }
-
-    size_t need = ctx->raw_buf_len + in_len;
-    if (need > ctx->raw_buf_cap) {
-        size_t new_cap = ctx->raw_buf_cap != 0 ? ctx->raw_buf_cap : 64;
-        while (new_cap < need) {
-            new_cap *= 2;
-        }
-        uint8_t *nb = OPENSSL_realloc(ctx->raw_buf, new_cap);
-        jo_assert(nb != NULL);
-        ctx->raw_buf = nb;
-        ctx->raw_buf_cap = new_cap;
-    }
-
     if (in_len > 0) {
-        memcpy(ctx->raw_buf + ctx->raw_buf_len, in, in_len);
+        const int w = BIO_write(ctx->raw_bio, in, (int) in_len);
+        jo_assert(w == (int) in_len);
     }
-    ctx->raw_buf_len = need;
     return JO_SUCCESS;
 }
 
@@ -778,9 +787,12 @@ int32_t dsa_ctx_sign(dsa_ctx *ctx, uint8_t *out, size_t out_len,
         rand_set_java_srand_call(rnd_src);
         ERR_clear_error();
 
+        size_t raw_len = 0;
+        const uint8_t *raw_ptr = dsa_raw_data(ctx, &raw_len);
+
         size_t raw_sig_len = 0;
         if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_sign(ctx->raw_pctx, NULL, &raw_sig_len,
-                               ctx->raw_buf, ctx->raw_buf_len)) {
+                               raw_ptr, raw_len)) {
             rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(5091);
         }
@@ -799,7 +811,7 @@ int32_t dsa_ctx_sign(dsa_ctx *ctx, uint8_t *out, size_t out_len,
         // DSA DER length varies; the first call returned an upper bound and
         // the second writes the actual length back into raw_sig_len.
         if (1 != EVP_PKEY_sign(ctx->raw_pctx, out, &raw_sig_len,
-                               ctx->raw_buf, ctx->raw_buf_len)) {
+                               raw_ptr, raw_len)) {
             rand_clear_java_srand_call();
             return JO_OPENSSL_ERROR;
         }
@@ -880,8 +892,10 @@ int32_t dsa_ctx_verify(dsa_ctx *ctx, const uint8_t *sig, size_t sig_len,
         rand_set_java_srand_call(rnd_src);
         ERR_clear_error();
         ERR_set_mark();
+        size_t raw_len = 0;
+        const uint8_t *raw_ptr = dsa_raw_data(ctx, &raw_len);
         int raw_ret = EVP_PKEY_verify(ctx->raw_pctx, sig, sig_len,
-                                      ctx->raw_buf, ctx->raw_buf_len);
+                                      raw_ptr, raw_len);
         // OPS: force the structural-error (-1) branch.
         if (OPS_OPENSSL_ERROR_11 0) {
             ERR_clear_last_mark();

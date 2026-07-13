@@ -70,10 +70,19 @@ int32_t ASN1_encodePrivateKey(asn1_ctx *asn1_ctx, key_spec *key_spec, const char
 
     int encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
 
+    // option_string arrives NUL-terminated from the Java arena
+    // (Arena.allocateFrom(String)), so compare it exactly like the JNI twin
+    // with strcmp — NOT a prefix match against the caller-supplied length.
+    // strncmp(CONSTANT, option_string, option_string_len) is a prefix match
+    // that would let "d" match "default" and "s" match "seed_only".
+    // option_string_len is retained only to keep the exported FFI signature
+    // the Java descriptor binds.
+    (void) option_string_len;
+
     if (option_string != NULL) {
-        if (strncmp(PRIVATE_KEY_DEFAULT_ENCODING_OPTION, option_string, option_string_len) == 0) {
+        if (strcmp(PRIVATE_KEY_DEFAULT_ENCODING_OPTION, option_string) == 0) {
             encoding_option = PRIVATE_KEY_DEFAULT_ENCODING;
-        } else if (strncmp(PRIVATE_KEY_SEED_ONLY_ENCODING_OPTION, option_string, option_string_len) == 0) {
+        } else if (strcmp(PRIVATE_KEY_SEED_ONLY_ENCODING_OPTION, option_string) == 0) {
             encoding_option = PRIVATE_KEY_SEED_ONLY_ENCODING;
         } else {
             return JO_INVALID_KEY_ENCODING_OPTION;

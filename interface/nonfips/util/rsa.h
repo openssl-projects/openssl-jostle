@@ -47,9 +47,12 @@ typedef struct rsa_ctx {
     // Raw PKCS#1 v1.5 (RSA_PADDING_PKCS1_NONE) session state. Unused by the
     // digest-based modes (digest_ctx stays NULL when these are populated).
     EVP_PKEY_CTX *raw_pctx;   // sign/verify ctx, padding pre-configured
-    uint8_t *raw_buf;         // accumulated caller-supplied input (the TBS)
-    size_t raw_buf_len;       // bytes used
-    size_t raw_buf_cap;       // bytes allocated
+    // Accumulated caller-supplied input (the TBS) that EVP_PKEY_sign /
+    // EVP_PKEY_verify consume one-shot. A memory BIO owns the growth and
+    // zeroization: BIO_write grows via BUF_MEM_grow_clean (cleansing the old
+    // copy on realloc) and BIO_free_all releases through OPENSSL_clear_free,
+    // so no hand-rolled buffer/length/capacity bookkeeping is needed.
+    BIO *raw_bio;
 } rsa_ctx;
 
 
