@@ -13,6 +13,7 @@ package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
 
@@ -31,10 +32,14 @@ import java.security.SecureRandom;
  * mismatched caller override. Every generated key is asserted non-zero, which
  * proves the FIPS KeyGenerator is drawing from the module's own approved DRBG
  * ({@code provider.getDefaultSecureRandom()}) rather than being mis-wired to a
- * null/JDK random or the wrong default. A seeded-determinism test additionally
- * pins that an explicitly supplied {@link SecureRandom} is honoured — the flip
- * side of the module-ops-ignore-caller-randomness contract guarded by
- * {@code FIPSRandBridgeLimitTest}.
+ * null/JDK random or the wrong default. Because the key bytes are drawn in
+ * Java, the generator enforces (by default) the provider-backed SecureRandom
+ * check in {@link CryptoServicesRegistrar#resolveProviderRandom}: a
+ * caller-supplied SecureRandom that is NOT backed by the FIPS provider is
+ * overridden by the module DRBG, so {@code KeyGenerator.init(int)}'s
+ * JCE-injected JVM default cannot pull key bytes outside the FIPS boundary. A
+ * same-provider SecureRandom is still honoured, and the check is disabled via
+ * {@link CryptoServicesRegistrar#ENFORCE_PROVIDER_RANDOM}.
  * <p>
  * Gated on {@code TEST_FIPS_LIB}; skipped when unset.
  */
@@ -135,33 +140,74 @@ public class FIPSAESKeyGeneratorTest
     }
 
     /**
-     * The flip side of {@code FIPSRandBridgeLimitTest}: AES key generation is
-     * the one JSLFIPS surface where a caller-supplied {@link SecureRandom} IS
-     * consumed — the key bytes are drawn in Java, not inside the module. Two
-     * generators initialised with identically-seeded SHA1PRNGs must produce
-     * identical keys (the supplied random fully determines the key), and a
-     * differently-seeded one must diverge. This pins the contract documented
-     * in the README "Entropy" section: overriding the module-DRBG default is
-     * honoured, and the compliance of the resulting key then rests on the
-     * entropy source the caller supplies.
+     * Pins the provider-backed SecureRandom resolution the FIPS AES keygen
+     * relies on ({@link CryptoServicesRegistrar#resolveProviderRandom}), using a
+     * JSLFIPS SecureRandom as the provider-backed source and SHA1PRNG (SUN) as
+     * the outsider. Return-identity makes every branch deterministic.
      */
     @Test
-    public void callerSuppliedSecureRandomIsHonoured() throws Exception
+    public void resolveProviderRandom_prefersModuleDrbgOverNonProviderRandom() throws Exception
     {
         ensureProviders();
 
-        // Random per-run seed, surfaced in the assertion messages so a
-        // failing run can be replayed (per CLAUDE.md).
-        long seed = new SecureRandom().nextLong();
+        SecureRandom moduleDrbg = SecureRandom.getInstance("DEFAULT", FIPS);
+        SecureRandom fipsBacked = SecureRandom.getInstance("DEFAULT", FIPS);
+        SecureRandom nonFips = SecureRandom.getInstance("SHA1PRNG");
 
+        // Precondition: these really do differ by backing provider.
+        Assertions.assertSame(moduleDrbg.getProvider(), fipsBacked.getProvider());
+        Assertions.assertNotSame(moduleDrbg.getProvider(), nonFips.getProvider());
+
+        // Enforced (default): a non-provider random is overridden by the module
+        // DRBG; a same-provider random and the null case use the module DRBG.
+        Assertions.assertSame(moduleDrbg,
+                CryptoServicesRegistrar.resolveProviderRandom(nonFips, moduleDrbg));
+        Assertions.assertSame(fipsBacked,
+                CryptoServicesRegistrar.resolveProviderRandom(fipsBacked, moduleDrbg));
+        Assertions.assertSame(moduleDrbg,
+                CryptoServicesRegistrar.resolveProviderRandom(null, moduleDrbg));
+
+        // Not provider-bound (the non-FIPS generator passes null here): standard
+        // JCE resolution — the caller's random is honoured.
+        Assertions.assertSame(nonFips,
+                CryptoServicesRegistrar.resolveProviderRandom(nonFips, null));
+
+        // Explicit flag: off honours the caller verbatim (the escape hatch); on
+        // overrides. The static default must be enforced (property unset).
+        Assertions.assertSame(nonFips,
+                CryptoServicesRegistrar.resolveProviderRandom(nonFips, moduleDrbg, false));
+        Assertions.assertSame(moduleDrbg,
+                CryptoServicesRegistrar.resolveProviderRandom(nonFips, moduleDrbg, true));
+        Assertions.assertTrue(CryptoServicesRegistrar.isProviderRandomEnforced());
+    }
+
+    /**
+     * End-to-end: with the check enforced (default), initialising the FIPS AES
+     * KeyGenerator with a non-provider SecureRandom (SHA1PRNG) does NOT let that
+     * random determine the key — the module DRBG is used instead. Two
+     * identically-seeded SHA1PRNGs therefore produce DIFFERENT keys; they would
+     * be identical if the caller random were honoured (as it is in the non-FIPS
+     * provider). This is the fix for {@code KeyGenerator.init(int)} silently
+     * pulling AES key bytes from the JVM default SecureRandom outside the FIPS
+     * boundary.
+     */
+    @Test
+    public void nonProviderCallerRandom_doesNotDetermineKey() throws Exception
+    {
+        ensureProviders();
+        Assertions.assertTrue(CryptoServicesRegistrar.isProviderRandomEnforced(),
+                "test assumes the default (enforced) policy");
+
+        long seed = new SecureRandom().nextLong();
         byte[] first = generateKeyWithSeededRandom(seed);
         byte[] second = generateKeyWithSeededRandom(seed);
-        byte[] diverged = generateKeyWithSeededRandom(seed + 1);
 
-        Assertions.assertTrue(Arrays.areEqual(first, second),
-                "identically-seeded caller SecureRandoms must fully determine the key (seed=" + seed + ")");
-        Assertions.assertFalse(Arrays.areEqual(first, diverged),
-                "differently-seeded caller SecureRandoms must diverge (seed=" + seed + ")");
+        Assertions.assertEquals(256, first.length << 3);
+        Assertions.assertFalse(Arrays.areAllZeroes(first, 0, first.length));
+        Assertions.assertFalse(Arrays.areEqual(first, second),
+                "a non-provider SecureRandom must not determine FIPS AES key bytes; the "
+                        + "identically-seeded SHA1PRNGs should have been overridden by the module "
+                        + "DRBG (seed=" + seed + ")");
     }
 
     private static byte[] generateKeyWithSeededRandom(long seed) throws Exception

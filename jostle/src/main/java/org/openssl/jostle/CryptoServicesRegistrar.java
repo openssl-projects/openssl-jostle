@@ -11,6 +11,7 @@
 package org.openssl.jostle;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.Properties;
 
 import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,6 +21,21 @@ public class CryptoServicesRegistrar
 
     private static final SecureRandomProvider defaultRandomProviderImpl = new ThreadLocalSecureRandomProvider();
     private static final AtomicReference<SecureRandomProvider> defaultSecureRandomProvider = new AtomicReference<SecureRandomProvider>();
+
+    /**
+     * System / {@code java.security} property that gates the provider-backed
+     * SecureRandom check in {@link #resolveProviderRandom(SecureRandom, SecureRandom)}.
+     * Defaults to {@code true}. Set to {@code false} to let a
+     * provider-bound (e.g. FIPS) service honour a caller-supplied SecureRandom
+     * verbatim even when it is not backed by that provider — needed if you
+     * deliberately drive a JSLFIPS operation with a DRBG from a different
+     * FIPS-validated provider (BCFIPS, SunPKCS11), which this check cannot
+     * recognise (there is no portable "is this SecureRandom FIPS?" query).
+     */
+    public static final String ENFORCE_PROVIDER_RANDOM = "org.openssl.jostle.fips.enforce_provider_random";
+
+    // Read once during static init; defaults to true when the property is unset.
+    private static final boolean enforceProviderRandom = Properties.isOverrideSet(ENFORCE_PROVIDER_RANDOM, true);
 
 
     static
@@ -96,6 +112,90 @@ public class CryptoServicesRegistrar
     {
         defaultSecureRandomProvider.compareAndSet(null, defaultRandomProviderImpl);
         return defaultSecureRandomProvider.get().get(requiredStrengthBits);
+    }
+
+    /**
+     * Whether the provider-backed SecureRandom check is enforced (the default).
+     * Controlled by the {@link #ENFORCE_PROVIDER_RANDOM} property, read once at
+     * class initialisation.
+     *
+     * @return true unless the property was set to false at JVM start-up.
+     */
+    public static boolean isProviderRandomEnforced()
+    {
+        return enforceProviderRandom;
+    }
+
+    /**
+     * Resolve the {@link SecureRandom} a provider-bound service should use for
+     * key/IV bytes it draws in Java, keeping that entropy inside the provider's
+     * boundary when the check is enforced.
+     *
+     * <p>{@code providerRandom} is the service's own provider-supplied default
+     * (for JSLFIPS, the FIPS module's DRBG obtained via
+     * {@code SecureRandom.getInstance("DEFAULT", jslfips)}). Resolution:
+     * <ol>
+     *   <li>{@code providerRandom == null} — the service is not provider-bound
+     *       (e.g. the non-FIPS provider); standard JCE resolution via
+     *       {@link #getSecureRandom(SecureRandom)}.</li>
+     *   <li>{@code supplied == null} — no caller random; use {@code providerRandom}.</li>
+     *   <li>check disabled ({@link #isProviderRandomEnforced()} false) — honour
+     *       {@code supplied} verbatim.</li>
+     *   <li>otherwise — honour {@code supplied} only when it is backed by the
+     *       same {@link java.security.Provider} as {@code providerRandom}
+     *       (via {@link SecureRandom#getProvider()}); else fall back to
+     *       {@code providerRandom} so the bytes stay inside the boundary.</li>
+     * </ol>
+     * {@code getProvider()} is the only portable handle on a SecureRandom's
+     * backing (the {@code SecureRandomSpi} is not exposed); it recognises this
+     * provider's own DRBG but not an arbitrary third-party FIPS DRBG — which is
+     * why {@link #ENFORCE_PROVIDER_RANDOM} exists as an escape hatch.
+     *
+     * @param supplied       the caller-supplied SecureRandom (may be null).
+     * @param providerRandom the service's provider-supplied default (null if the
+     *                       service is not provider-bound).
+     * @return the SecureRandom to draw from.
+     */
+    public static SecureRandom resolveProviderRandom(SecureRandom supplied, SecureRandom providerRandom)
+    {
+        return resolveProviderRandom(supplied, providerRandom, enforceProviderRandom);
+    }
+
+    /**
+     * Explicit-flag variant of {@link #resolveProviderRandom(SecureRandom, SecureRandom)}
+     * so the resolution logic can be exercised independently of the
+     * statically-read {@link #ENFORCE_PROVIDER_RANDOM} property.
+     *
+     * @param supplied       the caller-supplied SecureRandom (may be null).
+     * @param providerRandom the service's provider-supplied default (may be null).
+     * @param enforce        whether to require {@code supplied} to be
+     *                       provider-backed.
+     * @return the SecureRandom to draw from.
+     */
+    public static SecureRandom resolveProviderRandom(SecureRandom supplied, SecureRandom providerRandom, boolean enforce)
+    {
+        if (providerRandom == null)
+        {
+            // Not provider-bound (e.g. the non-FIPS provider): standard JCE resolution.
+            return getSecureRandom(supplied);
+        }
+        if (supplied == null)
+        {
+            // No caller-supplied random: use the provider's own DRBG.
+            return providerRandom;
+        }
+        if (!enforce)
+        {
+            // Check disabled: honour the caller's SecureRandom verbatim.
+            return supplied;
+        }
+        if (supplied.getProvider() != null && supplied.getProvider() == providerRandom.getProvider())
+        {
+            // Caller's random is backed by the same provider — honour it.
+            return supplied;
+        }
+        // Not provider-backed: keep the bytes inside the boundary.
+        return providerRandom;
     }
 
 

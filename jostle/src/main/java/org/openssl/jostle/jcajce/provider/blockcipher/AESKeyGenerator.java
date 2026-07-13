@@ -28,18 +28,26 @@ public class AESKeyGenerator extends KeyGeneratorSpi
 {
 
     private SecureRandom random;
+    // The provider-supplied default (the FIPS module's DRBG) for the
+    // FIPS-injecting constructors; null for the non-FIPS generators. When
+    // non-null, engineInit keeps key bytes inside the provider boundary unless
+    // the caller supplies a same-provider-backed SecureRandom (or the check is
+    // disabled) — see CryptoServicesRegistrar.resolveProviderRandom.
+    private final SecureRandom providerRandom;
     private AlgorithmParameterSpec params;
     private int keySize;
     private int fixedKeySize = 0;
 
     public AESKeyGenerator()
     {
+        this.providerRandom = null;
         random = CryptoServicesRegistrar.getSecureRandom();
         keySize = 256;
     }
 
     public AESKeyGenerator(int fixedSize)
     {
+        this.providerRandom = null;
         this.random = CryptoServicesRegistrar.getSecureRandom();
         this.fixedKeySize = fixedSize;
         this.keySize = fixedSize;
@@ -48,18 +56,23 @@ public class AESKeyGenerator extends KeyGeneratorSpi
     //
     // Default-SecureRandom-injecting constructors for the FIPS provider: the
     // key bytes default to the supplied source (the FIPS module's DRBG via
-    // the JSLFIPS SecureRandom service) instead of the registrar default.
-    // The JCE engineInit contract is unchanged - an explicitly supplied
-    // SecureRandom still takes over.
+    // the JSLFIPS SecureRandom service). By default a later init(...) that
+    // supplies a SecureRandom NOT backed by that provider is overridden back to
+    // this module DRBG (so KeyGenerator.init(int)'s JCE-injected JVM default
+    // cannot silently pull key bytes outside the FIPS boundary); a same-provider
+    // SecureRandom is honoured, and the check can be disabled via
+    // CryptoServicesRegistrar.ENFORCE_PROVIDER_RANDOM.
     //
     public AESKeyGenerator(SecureRandom random)
     {
+        this.providerRandom = random;
         this.random = random;
         this.keySize = 256;
     }
 
     public AESKeyGenerator(int fixedSize, SecureRandom random)
     {
+        this.providerRandom = random;
         this.random = random;
         this.fixedKeySize = fixedSize;
         this.keySize = fixedSize;
@@ -69,7 +82,7 @@ public class AESKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(SecureRandom random)
     {
-        this.random = CryptoServicesRegistrar.getSecureRandom(random);
+        this.random = CryptoServicesRegistrar.resolveProviderRandom(random, providerRandom);
     }
 
     @Override
@@ -98,7 +111,7 @@ public class AESKeyGenerator extends KeyGeneratorSpi
         }
 
 
-        this.random = CryptoServicesRegistrar.getSecureRandom(random);
+        this.random = CryptoServicesRegistrar.resolveProviderRandom(random, providerRandom);
         this.keySize = keysize;
 
     }

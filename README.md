@@ -673,15 +673,22 @@ including a `SecureRandom` passed through the JCE API — is ever consulted by m
 `initialize(...)` / `init(...)` on a `JSLFIPS` service is therefore harmless but has no effect on the
 randomness those operations use.
 
-The one exception is the AES `KeyGenerator`, whose key bytes are drawn in Java. As registered it draws from
-the module's DRBG, but it follows the standard JCE contract: an explicitly supplied `SecureRandom` is
-honoured, and `KeyGenerator.init(int)` silently injects the JVM's default `SecureRandom` — a JCE behaviour the
-provider cannot distinguish from an explicit caller choice. To keep AES key bytes inside the FIPS boundary,
-either call `generateKey()` without any `init(...)` (the bare `AES` generator defaults to 256 bits, and the
-`AES128` / `AES192` / `AES256` generators produce their size without an `init` call), or pass a FIPS DRBG
-explicitly — for example `SecureRandom.getInstance("CTR-DRBG", "JSLFIPS")`, or a DRBG from another
-FIPS-validated provider. If you override the default, the FIPS status of the resulting keys rests on the
-entropy source you supply.
+The one exception is the AES `KeyGenerator`, whose key bytes are drawn in Java. To keep those bytes inside the
+FIPS boundary the generator does not blindly honour a caller-supplied `SecureRandom`: by default it uses the
+caller's random only when that random is backed by the FIPS provider (checked via `SecureRandom.getProvider()`),
+and otherwise falls back to the module's own DRBG. This closes the `KeyGenerator.init(int)` case — where the
+JCE injects the JVM's default `SecureRandom`, indistinguishable from an explicit caller choice — so `init(int)`
+no longer silently pulls key bytes from a non-module RNG. Consequently: `generateKey()` with no `init(...)`,
+`init(int)`, and `init(int, r)` where `r` is a JSLFIPS DRBG (e.g. `SecureRandom.getInstance("CTR-DRBG",
+"JSLFIPS")`) all keep the bytes inside the module; `init(int, r)` where `r` is a non-FIPS random has `r`
+overridden by the module DRBG.
+
+The check recognises only JSLFIPS's own DRBG — it cannot identify an arbitrary FIPS-validated `SecureRandom`
+from another provider (there is no portable "is this SecureRandom FIPS?" query), so a DRBG from BCFIPS or
+SunPKCS11 would also be overridden. If you must drive the AES `KeyGenerator` with a third-party FIPS DRBG, set
+`-Dorg.openssl.jostle.fips.enforce_provider_random=false` at JVM start-up (the property is read once at class
+initialisation); the generator then reverts to the standard JCE contract of honouring the supplied `SecureRandom`
+verbatim, and the FIPS status of the resulting keys rests on the entropy source you supply.
 
 ### Testing
 
