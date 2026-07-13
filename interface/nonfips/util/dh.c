@@ -340,7 +340,7 @@ static int32_t dh_fromdata(key_spec *spec,
             // breaks encoding and public-side operations later.
             // Compute y = g^x mod p ourselves (dsa_fromdata
             // rationale).
-            bn_ctx = BN_CTX_new();
+            bn_ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
             y_bn = BN_new();
             if (OPS_OPENSSL_ERROR_5 bn_ctx == NULL || y_bn == NULL) {
                 ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5223);

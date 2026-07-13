@@ -89,7 +89,7 @@ int32_t rsa_oaep_init(rsa_oaep_ctx *ctx, const key_spec *key,
     if (label == NULL && label_len != 0) {
         return JO_INPUT_IS_NULL;
     }
-    if (label_len > INT_MAX) {
+    if (label_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -189,7 +189,7 @@ int32_t rsa_oaep_dofinal(rsa_oaep_ctx *ctx,
     if (in == NULL && in_len != 0) {
         return JO_INPUT_IS_NULL;
     }
-    if (in_len > (size_t) INT_MAX) {
+    if (in_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 

@@ -727,8 +727,10 @@ class BlockCipherSpi extends CipherSpi
                         workingInput,
                         inputOffset,
                         inputLen);
-            } catch (IllegalBlockSizeException ibsx) {
-                throw new RuntimeException(ibsx.getMessage(),ibsx);
+            }
+            catch (IllegalBlockSizeException ibsx)
+            {
+                throw new RuntimeException(ibsx.getMessage(), ibsx);
             }
 
         }

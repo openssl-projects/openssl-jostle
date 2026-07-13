@@ -90,7 +90,9 @@ char *get_ossl_errors(uint64_t *len) {
     *len = size + 1; // Overallocating by 1 to add trailing zero
     char *ret = calloc(*len, 1);
     jo_assert(ret != NULL);
-    memcpy(ret, buf, size);
+    if (size > 0) {
+        memcpy(ret, buf, size);
+    }
     BIO_free(bio);
     return ret; /* Now, Owned by Java side. */
 }

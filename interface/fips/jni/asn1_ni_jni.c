@@ -47,6 +47,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1allocate
     int32_t err = JO_FAIL;
     asn1_ctx *ctx = asn1_writer_allocate(&err);
     jo_assert(ctx != NULL);
+    jo_assert(_err != NULL);
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
     return (jlong) ctx;
 }

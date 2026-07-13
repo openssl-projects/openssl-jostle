@@ -145,7 +145,9 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFI
     size_t len = BIO_get_mem_data(bio, &buf);
     char *ret = (char *) calloc(1, 1 + len); // Overallocating by 1 to add trailing zero
     jo_assert(ret != NULL);
-    memcpy(ret, buf, len);
+    if (len > 0) {
+        memcpy(ret, buf, len);
+    }
     BIO_free(bio);
 
     /* Create java string */

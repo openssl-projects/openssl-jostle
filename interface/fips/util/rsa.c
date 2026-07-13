@@ -134,7 +134,7 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
         return JO_RSA_PUB_EXP_IS_NULL;
     }
 
-    if (pubexp_len > INT_MAX) {
+    if (pubexp_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -216,7 +216,7 @@ int32_t rsa_decode_public_components(key_spec *spec,
     jo_assert(n != NULL);
     jo_assert(e != NULL);
 
-    if (n_len > INT_MAX || e_len > INT_MAX) {
+    if (n_len > INT32_MAX || e_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -264,7 +264,7 @@ int32_t rsa_decode_private_components(key_spec *spec,
     jo_assert(e != NULL);
     jo_assert(d != NULL);
 
-    if (n_len > INT_MAX || e_len > INT_MAX || d_len > INT_MAX) {
+    if (n_len > INT32_MAX || e_len > INT32_MAX || d_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -327,9 +327,9 @@ int32_t rsa_decode_private_components_crt(key_spec *spec,
     jo_assert(n != NULL && e != NULL && d != NULL);
     jo_assert(p != NULL && q != NULL && dp != NULL && dq != NULL && qinv != NULL);
 
-    if (n_len > INT_MAX || e_len > INT_MAX || d_len > INT_MAX ||
-        p_len > INT_MAX || q_len > INT_MAX || dp_len > INT_MAX ||
-        dq_len > INT_MAX || qinv_len > INT_MAX) {
+    if (n_len > INT32_MAX || e_len > INT32_MAX || d_len > INT32_MAX ||
+        p_len > INT32_MAX || q_len > INT32_MAX || dp_len > INT32_MAX ||
+        dq_len > INT32_MAX || qinv_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -816,7 +816,7 @@ int32_t rsa_ctx_update(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
         return JO_NOT_INITIALIZED;
     }
 
-    if (in_len > (size_t) INT_MAX) {
+    if (in_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -1000,7 +1000,7 @@ int32_t rsa_ctx_verify(rsa_ctx *ctx, const uint8_t *sig, size_t sig_len) {
         return JO_UNEXPECTED_STATE;
     }
 
-    if (sig_len > (size_t) INT_MAX) {
+    if (sig_len > (size_t) INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 

@@ -964,7 +964,7 @@ int32_t block_cipher_ctx_updateAAD(
     }
 
 
-    if (OPS_INT32_OVERFLOW_1 in_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 in_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
@@ -1025,11 +1025,11 @@ int32_t block_cipher_ctx_update(
         return JO_OUTPUT_IS_NULL;
     }
 
-    if (OPS_INT32_OVERFLOW_1 in_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 in_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
-    if (OPS_INT32_OVERFLOW_2 out_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_2 out_len > INT32_MAX) {
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
@@ -1370,7 +1370,7 @@ int32_t block_cipher_ctx_final(
         goto failed;
     }
 
-    if (OPS_INT32_OVERFLOW_1 out_len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 out_len > INT32_MAX) {
         written = JO_OUTPUT_TOO_LONG_INT32;
         goto failed;
     }
