@@ -38,6 +38,58 @@ public class EdDSALimitTest
         }
     }
 
+    @Test
+    public void EDServiceNI_sign_writesAtOffsetWithoutClobbering() throws Exception
+    {
+        // Regression for the FFI whole-array copy-back clobber (finding 4):
+        // EdDSAServiceFFI.ni_sign allocated a zero-filled arena for the whole
+        // output array and copied ALL of it back, zeroing caller bytes outside
+        // [offset, offset+written). Sign at a non-zero offset into an oversized
+        // random-filled buffer; the bytes outside the written window must be
+        // preserved and the signature at the offset must verify. Runs on JNI
+        // and FFI via TestNISelector; only the FFI path exhibited the clobber.
+        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        String name = OSSLKeyType.ED25519.getTypeName();
+        long keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+        long signer = edServiceNI.allocateSigner();
+        long verifier = edServiceNI.allocateSigner();
+        try
+        {
+            byte[] msg = new byte[64];
+            rnd.nextBytes(msg);
+
+            edServiceNI.initSign(signer, keyRef, name, null, 0, TestUtil.RNDSrc);
+            edServiceNI.update(signer, msg, 0, msg.length);
+            int sigLen = (int) edServiceNI.sign(signer, null, 0, TestUtil.RNDSrc);
+            Assertions.assertTrue(sigLen > 0);
+
+            int prefix = 5;
+            int suffix = 7;
+            byte[] big = new byte[prefix + sigLen + suffix];
+            rnd.nextBytes(big);
+            byte[] snapshot = big.clone();
+
+            int written = (int) edServiceNI.sign(signer, big, prefix, TestUtil.RNDSrc);
+            Assertions.assertEquals(sigLen, written);
+
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, 0, prefix),
+                    java.util.Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, prefix + written, big.length),
+                    java.util.Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
+
+            byte[] sig = java.util.Arrays.copyOfRange(big, prefix, prefix + written);
+            edServiceNI.initVerify(verifier, keyRef, name, null, 0);
+            edServiceNI.update(verifier, msg, 0, msg.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), edServiceNI.verify(verifier, sig, sig.length));
+        }
+        finally
+        {
+            edServiceNI.disposeSigner(signer);
+            edServiceNI.disposeSigner(verifier);
+            specNI.dispose(keyRef);
+        }
+    }
+
     @Test()
     public void EdDSAServiceJNI_decode_1publicKey_nullKeySpec() throws Exception
     {

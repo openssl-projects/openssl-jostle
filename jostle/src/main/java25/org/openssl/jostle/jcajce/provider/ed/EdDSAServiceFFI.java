@@ -475,9 +475,13 @@ public class EdDSAServiceFFI implements EDServiceNI
             MemorySegment outputSegment = output == null ? MemorySegment.NULL : a.allocate(output.length);
             int code = (int) signerFuncHandle.invokeExact(ctx, outputSegment, outputSegment.byteSize(), offset, getEntropySegment);
 
-            if (output != null)
+            // Copy back only the bytes the C side actually wrote, at their
+            // original offset. A blanket get(output) would zero caller bytes
+            // outside [offset, offset+code) because the arena segment is
+            // zero-filled (Arena.allocate), not a copy of the caller's array.
+            if (output != null && code > 0)
             {
-                outputSegment.asByteBuffer().get(output);
+                outputSegment.asByteBuffer().get(offset, output, offset, code);
             }
             return code;
 

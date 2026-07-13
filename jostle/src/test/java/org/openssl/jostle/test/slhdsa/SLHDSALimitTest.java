@@ -65,6 +65,59 @@ public class SLHDSALimitTest
     }
 
     @Test
+    public void SLHDSAServiceNI_sign_writesAtOffsetWithoutClobbering() throws Exception
+    {
+        // Regression for the FFI whole-array copy-back clobber (finding 4):
+        // SLHDSAServiceFFI.ni_sign allocated a zero-filled arena for the whole
+        // output array and copied ALL of it back, zeroing caller bytes outside
+        // [offset, offset+written). Sign at a non-zero offset into an oversized
+        // random-filled buffer; the bytes outside the written window must be
+        // preserved and the signature at the offset must verify. Runs on JNI
+        // and FFI via TestNISelector; only the FFI path exhibited the clobber.
+        // SLH_DSA_SHA2_128f is the fast-signing 128-bit variant (keeps the
+        // sequential limit-test cost down).
+        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+        long signer = slhdsaServiceNI.allocateSigner();
+        long verifier = slhdsaServiceNI.allocateSigner();
+        try
+        {
+            byte[] msg = new byte[64];
+            rnd.nextBytes(msg);
+
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+            slhdsaServiceNI.update(signer, msg, 0, msg.length);
+            int sigLen = (int) slhdsaServiceNI.sign(signer, null, 0, TestUtil.RNDSrc);
+            Assertions.assertTrue(sigLen > 0);
+
+            int prefix = 5;
+            int suffix = 7;
+            byte[] big = new byte[prefix + sigLen + suffix];
+            rnd.nextBytes(big);
+            byte[] snapshot = big.clone();
+
+            int written = (int) slhdsaServiceNI.sign(signer, big, prefix, TestUtil.RNDSrc);
+            Assertions.assertEquals(sigLen, written);
+
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, 0, prefix),
+                    java.util.Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, prefix + written, big.length),
+                    java.util.Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
+
+            byte[] sig = java.util.Arrays.copyOfRange(big, prefix, prefix + written);
+            slhdsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0, 0);
+            slhdsaServiceNI.update(verifier, msg, 0, msg.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), slhdsaServiceNI.verify(verifier, sig, sig.length));
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(signer);
+            slhdsaServiceNI.disposeSigner(verifier);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
     public void testSLHDSAGenerateKeyPair_keyGenWrongType() throws Exception
     {
         for (int type : new int[]{-1, 0, 4, 17})

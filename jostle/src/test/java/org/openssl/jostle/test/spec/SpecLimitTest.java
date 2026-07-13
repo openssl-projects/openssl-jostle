@@ -58,6 +58,82 @@ public class SpecLimitTest
     }
 
     @Test
+    public void encapDecap_writeAtOffsetsWithoutClobbering() throws Exception
+    {
+        // Regression for the FFI whole-array copy-back clobber (finding 4):
+        // SpecFFI.ni_encap/ni_decap allocated zero-filled arenas for the whole
+        // output arrays (encapsulation, shared secret) and copied ALL of them
+        // back, zeroing caller bytes outside the written window. Exercises all
+        // three write windows — encap's encapsulation (at off) and shared
+        // secret (at inOff), and decap's shared secret (at off) — at non-zero
+        // offsets in oversized random-filled buffers, asserting the bytes
+        // outside each window are preserved. Runs on JNI and FFI via
+        // TestNISelector; only the FFI path exhibited the clobber (and it is
+        // inherited by the FIPS SpecFIPSFFI).
+        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Reference pass at offset 0 to learn the encapsulation and
+            // shared-secret lengths (OpenSSL is the source of truth for both).
+            byte[] refSecret = new byte[128];
+            byte[] refEnc = new byte[4096];
+            int encLen = specNI.encap(spec, null, refSecret, 0, refSecret.length, refEnc, 0, refEnc.length, TestUtil.RNDSrc);
+            Assertions.assertTrue(encLen > 0);
+            byte[] refSecretBack = new byte[128];
+            int secLen = specNI.decap(spec, null, refEnc, 0, encLen, refSecretBack, 0, refSecretBack.length, TestUtil.RNDSrc);
+            Assertions.assertTrue(secLen > 0);
+
+            final int prefix = 5;
+            final int suffix = 7;
+
+            // --- encap at non-zero offsets into both output buffers ---
+            byte[] encBuf = new byte[prefix + encLen + suffix];
+            byte[] secBuf = new byte[prefix + secLen + suffix];
+            rnd.nextBytes(encBuf);
+            rnd.nextBytes(secBuf);
+            byte[] encSnap = encBuf.clone();
+            byte[] secSnap = secBuf.clone();
+
+            int written = specNI.encap(spec, null, secBuf, prefix, secLen, encBuf, prefix, encLen, TestUtil.RNDSrc);
+            Assertions.assertEquals(encLen, written);
+
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(encSnap, 0, prefix),
+                    java.util.Arrays.copyOfRange(encBuf, 0, prefix), "encapsulation prefix clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(encSnap, prefix + encLen, encBuf.length),
+                    java.util.Arrays.copyOfRange(encBuf, prefix + encLen, encBuf.length), "encapsulation suffix clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(secSnap, 0, prefix),
+                    java.util.Arrays.copyOfRange(secBuf, 0, prefix), "shared-secret prefix clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(secSnap, prefix + secLen, secBuf.length),
+                    java.util.Arrays.copyOfRange(secBuf, prefix + secLen, secBuf.length), "shared-secret suffix clobbered");
+
+            // --- decap the offset-produced ciphertext into a buffer at a
+            //     non-zero offset; the recovered secret must match encap's ---
+            byte[] ct = java.util.Arrays.copyOfRange(encBuf, prefix, prefix + encLen);
+            byte[] decBuf = new byte[prefix + secLen + suffix];
+            rnd.nextBytes(decBuf);
+            byte[] decSnap = decBuf.clone();
+
+            int decWritten = specNI.decap(spec, null, ct, 0, ct.length, decBuf, prefix, secLen, TestUtil.RNDSrc);
+            Assertions.assertEquals(secLen, decWritten);
+
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(decSnap, 0, prefix),
+                    java.util.Arrays.copyOfRange(decBuf, 0, prefix), "decap secret prefix clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(decSnap, prefix + secLen, decBuf.length),
+                    java.util.Arrays.copyOfRange(decBuf, prefix + secLen, decBuf.length), "decap secret suffix clobbered");
+
+            // Functional: decap(encap ciphertext) recovers encap's shared secret.
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(secBuf, prefix, prefix + secLen),
+                    java.util.Arrays.copyOfRange(decBuf, prefix, prefix + secLen),
+                    "decapsulated shared secret did not match the encapsulated one");
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
     public void encap_keySpecWithNullKey() throws Exception
     {
         long req = specNI.allocate();

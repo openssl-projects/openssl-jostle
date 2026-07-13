@@ -67,6 +67,57 @@ public class MLDSALimitTest
     }
 
     @Test
+    public void MLDSAServiceNI_sign_writesAtOffsetWithoutClobbering() throws Exception
+    {
+        // Regression for the FFI whole-array copy-back clobber (finding 4):
+        // MLDSAServiceFFI.ni_sign allocated a zero-filled arena for the whole
+        // output array and copied ALL of it back, zeroing caller bytes outside
+        // [offset, offset+written). Sign at a non-zero offset into an oversized
+        // random-filled buffer; the bytes outside the written window must be
+        // preserved and the signature at the offset must verify. Runs on JNI
+        // and FFI via TestNISelector; only the FFI path exhibited the clobber.
+        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        long keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+        long signer = mldsaServiceNI.allocateSigner();
+        long verifier = mldsaServiceNI.allocateSigner();
+        try
+        {
+            byte[] msg = new byte[64];
+            rnd.nextBytes(msg);
+
+            mldsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
+            mldsaServiceNI.update(signer, msg, 0, msg.length);
+            int sigLen = (int) mldsaServiceNI.sign(signer, null, 0, TestUtil.RNDSrc);
+            Assertions.assertTrue(sigLen > 0);
+
+            int prefix = 5;
+            int suffix = 7;
+            byte[] big = new byte[prefix + sigLen + suffix];
+            rnd.nextBytes(big);
+            byte[] snapshot = big.clone();
+
+            int written = (int) mldsaServiceNI.sign(signer, big, prefix, TestUtil.RNDSrc);
+            Assertions.assertEquals(sigLen, written);
+
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, 0, prefix),
+                    java.util.Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, prefix + written, big.length),
+                    java.util.Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
+
+            byte[] sig = java.util.Arrays.copyOfRange(big, prefix, prefix + written);
+            mldsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0);
+            mldsaServiceNI.update(verifier, msg, 0, msg.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), mldsaServiceNI.verify(verifier, sig, sig.length));
+        }
+        finally
+        {
+            mldsaServiceNI.disposeSigner(signer);
+            mldsaServiceNI.disposeSigner(verifier);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
     public void testMLDSAGenerateKeyPair_keyGenWrongType() throws Exception
     {
 

@@ -217,14 +217,23 @@ public class SpecFFI implements SpecNI
 
             int r = (int) encapFuncHandle.invokeExact(ref, optRef, secretRef, secretRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
 
-            if (out != null)
+            // Copy back only the regions the C side wrote, at their original
+            // offsets. A blanket get() would zero caller bytes outside the
+            // written window because the arena segments are zero-filled
+            // (Arena.allocate), not copies of the caller's arrays. r > 0 means
+            // encap succeeded and wrote both the encapsulation (r bytes at off)
+            // and the shared secret (fills the inLen-sized region at inOff);
+            // the probe (out == null) and error paths write nothing.
+            if (r > 0)
             {
-                outRef.asByteBuffer().get(out);
-            }
-
-            if (secret != null)
-            {
-                secretRef.asByteBuffer().get(secret);
+                if (out != null)
+                {
+                    outRef.asByteBuffer().get(off, out, off, r);
+                }
+                if (secret != null)
+                {
+                    secretRef.asByteBuffer().get(inOff, secret, inOff, inLen);
+                }
             }
 
             return r;
@@ -273,9 +282,15 @@ public class SpecFFI implements SpecNI
 
             int r = (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
 
-            if (out != null)
+            // Copy back only the shared-secret bytes the C side wrote, at their
+            // original offset. A blanket get(out) would zero caller bytes
+            // outside [off, off+r) because the arena segment is zero-filled
+            // (Arena.allocate), not a copy of the caller's array. r > 0 means
+            // decap succeeded and wrote r secret bytes at off; the probe
+            // (out == null) and error paths write nothing.
+            if (out != null && r > 0)
             {
-                outRef.asByteBuffer().get(out);
+                outRef.asByteBuffer().get(off, out, off, r);
             }
 
             return r;
