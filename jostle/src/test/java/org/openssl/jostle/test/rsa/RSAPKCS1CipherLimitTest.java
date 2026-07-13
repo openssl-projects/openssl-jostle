@@ -67,6 +67,22 @@ public class RSAPKCS1CipherLimitTest
     }
 
     @Test
+    public void RSAPKCS1CipherNI_nullCipherCtx_rejectedTyped() throws Exception
+    {
+        // A 0/null cipher ctx handle at any PKCS#1 cipher entry point must
+        // surface the typed JO_CIPHER_CTX_IS_NULL -> IllegalArgumentException
+        // ("cipher context is null"), NOT abort the JVM via jo_assert.
+        // Passing 0 for the key spec as well pins the validation ORDER (ctx
+        // before key), mirroring RSALimitTest.RSAServiceNI_nullSignerCtx_rejectedTyped.
+        // Regression lock for the ctx null-check bridge fix
+        // (rsa_pkcs1_ni_jni.c / rsa_pkcs1_ni_ffi.c).
+        Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> cipherNI.init(0, 0, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc)).getMessage());
+        Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> cipherNI.doFinal(0, new byte[16], 0, 16, null, 0, TestUtil.RNDSrc)).getMessage());
+    }
+
+    @Test
     public void RSAPKCS1CipherNI_init_nullRand() throws Exception
     {
         long ref = 0;

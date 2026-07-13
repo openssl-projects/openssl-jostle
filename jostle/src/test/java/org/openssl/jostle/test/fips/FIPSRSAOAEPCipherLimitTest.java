@@ -74,6 +74,22 @@ public class FIPSRSAOAEPCipherLimitTest
     }
 
     @Test
+    public void nullCipherCtx_allEntryPointsRejectedTyped()
+    {
+        // A 0/null cipher ctx handle at any OAEP cipher entry point must
+        // surface the typed JO_CIPHER_CTX_IS_NULL -> IllegalArgumentException
+        // ("cipher context is null"), NOT abort the JVM via jo_assert — the
+        // FIPS glue re-includes the base bridge, so this pins the same fix
+        // through the FIPS library (rsa_oaep_ni_jni.c / rsa_oaep_ni_ffi.c
+        // under interface/fips/). Passing 0 for the key spec as well pins the
+        // validation ORDER (ctx before key).
+        Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> cipherNI.init(0, 0, RSAOAEPCipherNI.OP_ENCRYPT, "SHA-256", null, null, RND)).getMessage());
+        Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
+                () -> cipherNI.doFinal(0, new byte[16], 0, 16, null, 0, RND)).getMessage());
+    }
+
+    @Test
     public void init_nullDigest()
     {
         withCipherAndKey((ref, keyRef) ->

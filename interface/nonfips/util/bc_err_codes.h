@@ -256,6 +256,14 @@
  */
 #define JO_DER_TRAILING_DATA -138
 
+/*
+ * A caller-derived cipher context handle (RSA PKCS#1 / OAEP session
+ * ctx) was null. Returned typed by the bridge entry points instead of
+ * asserting a value the NI caller controls (a jo_assert reachable from
+ * the NI surface is a JVM abort, not an error).
+ */
+#define JO_CIPHER_CTX_IS_NULL -139
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

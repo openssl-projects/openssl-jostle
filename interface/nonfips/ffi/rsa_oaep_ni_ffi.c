@@ -42,7 +42,9 @@ int32_t JoRSAOAEP_init(rsa_oaep_ctx *ctx, key_spec *key,
                       const char *mgf1_md_name,
                       uint8_t *label, size_t label_len,
                       void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
 
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -63,7 +65,9 @@ int32_t JoRSAOAEP_doFinal(rsa_oaep_ctx *ctx,
                          uint8_t *output, size_t output_size,
                          int32_t out_off,
                          void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
 
     if (input == NULL) {
         return JO_INPUT_IS_NULL;

@@ -39,7 +39,9 @@ void JoRSAPKCS1_disposeCipher(rsa_pkcs1_ctx *ctx) {
 int32_t JoRSAPKCS1_init(rsa_pkcs1_ctx *ctx, key_spec *key,
                        int32_t op_mode,
                        void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
 
     if (key == NULL) {
         return JO_KEY_SPEC_IS_NULL;
@@ -54,7 +56,9 @@ int32_t JoRSAPKCS1_doFinal(rsa_pkcs1_ctx *ctx,
                           uint8_t *output, size_t output_size,
                           int32_t out_off,
                           void *rnd_src) {
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
 
     if (input == NULL) {
         return JO_INPUT_IS_NULL;

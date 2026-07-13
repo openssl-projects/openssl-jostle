@@ -64,7 +64,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
     UNUSED(jo);
 
     rsa_oaep_ctx *ctx = (rsa_oaep_ctx *) rsa_ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
 
     key_spec *key = (key_spec *) key_ref;
     if (key == NULL) {
@@ -134,7 +136,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
     UNUSED(jo);
 
     rsa_oaep_ctx *ctx = (rsa_oaep_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
 
     if (_input == NULL) {
         return JO_INPUT_IS_NULL;
