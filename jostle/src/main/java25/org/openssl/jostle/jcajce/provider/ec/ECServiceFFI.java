@@ -591,7 +591,14 @@ public class ECServiceFFI implements ECServiceNI
             }
             int rc = (int) kexDeriveH.invokeExact(ctx, outSeg, outSize, outOff,
                     entropyStub(a, rndSource));
-            if (out != null && rc > 0)
+            // A positive rc with outOff == out.length is the size-query
+            // return (the C side treats out_len == 0 as "report the
+            // required length"), NOT a write — copying then would read
+            // past the segment and throw. Only copy back when the derive
+            // actually wrote, i.e. there was remaining capacity at outOff.
+            // Matches the JNI bridge, which returns the length without
+            // touching the array for the same inputs.
+            if (out != null && rc > 0 && outOff < out.length)
             {
                 outSeg.asByteBuffer().get(outOff, out, outOff, rc);
             }

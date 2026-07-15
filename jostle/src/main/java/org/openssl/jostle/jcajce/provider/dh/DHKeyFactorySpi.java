@@ -141,10 +141,19 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] p = magnitude(privSpec.getP(), "p");
             byte[] g = magnitude(privSpec.getG(), "g");
             byte[] x = magnitude(privSpec.getX(), "x");
-            long ref = dhServiceNI.makePrivateFromComponents(
-                    p, g, x,
-                    DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-            return new JODHPrivateKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH));
+            try
+            {
+                long ref = dhServiceNI.makePrivateFromComponents(
+                        p, g, x,
+                        DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                return new JODHPrivateKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH));
+            }
+            finally
+            {
+                // x is the private value — scrub the transient magnitude
+                // once the native import has consumed it.
+                Arrays.clear(x);
+            }
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use PKCS8EncodedKeySpec or DHPrivateKeySpec.");
@@ -234,18 +243,18 @@ public class DHKeyFactorySpi extends KeyFactorySpi
 
 
     /**
-     * Validate and convert one BigInteger component to its big-endian
-     * unsigned magnitude. DH components are all positive integers; a
-     * null or non-positive value is a malformed spec.
-     */
-    /**
      * Upper bound on any imported DH component, matching
-     * {@code DHKeyPairGenerator.MAX_KEY_SIZE_BITS}. DoS protection: the
+     * {@code DHKeyPairGenerator.MAX_P_BITS}. DoS protection: the
      * private import eagerly computes y = g^x mod p natively, which is
      * O(bits^3) — an unbounded p turns the KeyFactory into a CPU sink.
      */
     private static final int MAX_COMPONENT_BITS = 16384;
 
+    /**
+     * Validate and convert one BigInteger component to its big-endian
+     * unsigned magnitude. DH components are all positive integers; a
+     * null or non-positive value is a malformed spec.
+     */
     private static byte[] magnitude(BigInteger value, String name)
             throws InvalidKeySpecException
     {

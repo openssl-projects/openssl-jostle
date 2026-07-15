@@ -15,6 +15,7 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -44,18 +45,22 @@ import java.security.spec.AlgorithmParameterSpec;
  */
 public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSpi
 {
-    // Instance field, not a NISelector static (NISelector for JSL,
-    // FIPSNISelector for JSLFIPS).
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS). specNI must match the library that
+    // dhServiceNI belongs to — the generated params ref is wrapped in a
+    // PKEYKeySpec bound to it and disposed through it.
     private final DHServiceNI dhServiceNI;
+    private final SpecNI specNI;
 
     public DHAlgorithmParameterGenerator()
     {
-        this(NISelector.DHServiceNI);
+        this(NISelector.DHServiceNI, NISelector.SpecNI);
     }
 
-    public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI)
+    public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI, SpecNI specNI)
     {
         this.dhServiceNI = dhServiceNI;
+        this.specNI = specNI;
     }
 
     /** Default modulus size when no engineInit is performed. */
@@ -116,7 +121,7 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
             // fixed constants as if they were freshly generated.
             throw new ProviderException(e.getMessage(), e);
         }
-        PKEYKeySpec paramsSpec = new PKEYKeySpec(paramsRef, OSSLKeyType.DH);
+        PKEYKeySpec paramsSpec = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DH);
         DHParameterSpec spec = DHComponents.getParams(dhServiceNI, paramsSpec);
         try
         {

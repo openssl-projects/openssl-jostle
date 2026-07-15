@@ -730,6 +730,46 @@ public class DHLimitTest
     }
 
     /**
+     * Positive-side boundary companion to
+     * {@link #DHServiceNI_kexDerive_offsetPastEnd}: {@code outOff} equal
+     * to the buffer length is the accepted "write at end with zero
+     * capacity" case. With zero remaining capacity the derive performs
+     * no write and reports the required length — the same size-query
+     * semantics as an {@code out == null} probe. This must hold
+     * identically on JNI and FFI: the FFI bridge must not mistake the
+     * positive length for a write and copy past the buffer end (which
+     * would throw where JNI returns cleanly).
+     */
+    @Test
+    public void DHServiceNI_kexDerive_offsetAtEnd_reportsRequiredLength()
+    {
+        long ref = 0;
+        try
+        {
+            ref = dh.allocateKex();
+            dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
+            dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
+
+            byte[] buf = new byte[256];
+            new java.security.SecureRandom().nextBytes(buf);
+            byte[] snapshot = Arrays.clone(buf);
+
+            int need = dh.kexDerive(ref, buf, buf.length, TestUtil.RNDSrc);
+            Assertions.assertEquals(256, need,
+                    "outOff == length must report the prime-length requirement");
+            Assertions.assertArrayEquals(snapshot, buf,
+                    "size-query derive must not modify the buffer");
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                dh.disposeKex(ref);
+            }
+        }
+    }
+
+    /**
      * Offset-write contract for kexDerive: random fill, prefix
      * snapshot, derive at offset, compare the window against an
      * independent derive at offset 0, shifted-by-one window differs.

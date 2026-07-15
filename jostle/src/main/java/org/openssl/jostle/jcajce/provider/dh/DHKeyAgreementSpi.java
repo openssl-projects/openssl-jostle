@@ -17,6 +17,7 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -306,6 +307,11 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         catch (IllegalArgumentException e)
         {
             throw new NoSuchAlgorithmException("invalid algorithm name", e);
+        }
+        finally
+        {
+            // SecretKeySpec copied the bytes — scrub our working copy.
+            Arrays.clear(secret);
         }
     }
 

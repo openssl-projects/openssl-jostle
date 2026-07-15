@@ -39,6 +39,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
 
     const char *group_name = (*env)->GetStringUTFChars(env, _groupName, NULL);
     if (OPS_FAILED_ACCESS_1 group_name == NULL) {
+        // In an OPS build the flag can short-circuit here with a
+        // genuinely-acquired string — release it before returning so the
+        // fault-injection path doesn't leak the UTF chars.
+        if (group_name != NULL) {
+            (*env)->ReleaseStringUTFChars(env, _groupName, group_name);
+        }
         return JO_UNABLE_TO_ACCESS_NAME;
     }
 
@@ -109,7 +115,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
     key_spec *spec = NULL;
 
     // Bridge backstop on the bit size — the util layer's precondition
-    // is bits > 0 (the Java SPI applies the 512..8192 policy bounds).
+    // is bits > 0 (the Java SPI applies the 1024..8192 policy bounds).
     if (p_bits <= 0) {
         ret_val = JO_DH_BITS_OUT_OF_RANGE;
         goto exit;

@@ -174,7 +174,7 @@ exit:
 int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
                                void *rnd_src) {
     // Bridge-validated invariant: both bridges range-check p_bits > 0;
-    // the Java SPI applies the policy bounds (512..8192, multiple of 64).
+    // the Java SPI applies the policy bounds (1024..8192, multiple of 64).
     jo_assert(spec != NULL);
     jo_assert(p_bits > 0);
 

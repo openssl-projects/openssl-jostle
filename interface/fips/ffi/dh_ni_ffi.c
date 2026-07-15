@@ -86,7 +86,7 @@ key_spec *JoDH_generateParameters(int32_t p_bits,
     *ret_val = JO_FAIL;
 
     // Bridge backstop on the bit size — the util layer's precondition
-    // is bits > 0 (the Java SPI applies the 512..8192 policy bounds).
+    // is bits > 0 (the Java SPI applies the 1024..8192 policy bounds).
     if (p_bits <= 0) {
         *ret_val = JO_DH_BITS_OUT_OF_RANGE;
         return NULL;

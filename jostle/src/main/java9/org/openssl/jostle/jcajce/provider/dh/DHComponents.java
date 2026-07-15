@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.spec.DHParameterSpec;
 import java.lang.ref.Reference;
@@ -33,25 +34,33 @@ final class DHComponents
     /** Fetch a BIGNUM-valued component (p, q, g, y or x). */
     static BigInteger getBigInteger(DHServiceNI dhServiceNI, PKEYKeySpec spec, int component)
     {
+        byte[] raw = null;
+        byte[] trimmed = null;
         try
         {
             int len = dhServiceNI.getComponent(
                     spec.getReference(), component, null);
-            byte[] raw = new byte[len];
+            raw = new byte[len];
             int written = dhServiceNI.getComponent(
                     spec.getReference(), component, raw);
+            byte[] magnitude = raw;
             if (written != raw.length)
             {
-                byte[] trimmed = new byte[written];
+                trimmed = new byte[written];
                 System.arraycopy(raw, 0, trimmed, 0, written);
-                raw = trimmed;
+                magnitude = trimmed;
             }
             // Big-endian unsigned magnitude — positive sign forces
             // BigInteger to interpret without two's-complement wrapping.
-            return new BigInteger(1, raw);
+            return new BigInteger(1, magnitude);
         }
         finally
         {
+            // These transient buffers may hold the private value x
+            // (COMP_PRIVATE_VALUE); the returned BigInteger keeps its
+            // own copy, so scrub them (Arrays.clear is null-safe).
+            Arrays.clear(raw);
+            Arrays.clear(trimmed);
             Reference.reachabilityFence(spec);
         }
     }

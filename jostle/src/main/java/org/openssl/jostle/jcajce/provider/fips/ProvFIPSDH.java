@@ -62,7 +62,8 @@ class ProvFIPSDH
 
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DH",
                 PREFIX + "DHAlgorithmParameterGenerator", new HashMap<>(),
-                (arg) -> new DHAlgorithmParameterGenerator(FIPSNISelector.DHServiceNI));
+                (arg) -> new DHAlgorithmParameterGenerator(
+                        FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI));
         provider.addAlias("AlgorithmParameterGenerator", "DH", "DiffieHellman");
 
         provider.addAlgorithmImplementation("KeyAgreement", "DH",

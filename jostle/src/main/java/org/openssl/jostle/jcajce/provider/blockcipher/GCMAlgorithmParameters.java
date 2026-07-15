@@ -10,8 +10,6 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
-import org.openssl.jostle.jcajce.provider.JostleProvider;
-
 import java.io.IOException;
 import java.security.AlgorithmParameters;
 import java.security.AlgorithmParametersSpi;
@@ -56,11 +54,22 @@ public class GCMAlgorithmParameters
     {
         for (Provider p : Security.getProviders())
         {
-            if (JostleProvider.PROVIDER_NAME.equals(p.getName()))
+            // Skip any provider whose "GCM" AlgorithmParameters SPI is a
+            // Jostle class. This SPI is registered under BOTH "JSL" and
+            // "JSLFIPS", so a provider-name check that skipped only "JSL"
+            // would let a JSLFIPS-first deployment resolve getInstance
+            // back into this class and recurse to StackOverflowError.
+            // Match by SPI package, not provider name, so every current
+            // and future Jostle-derived provider is guarded (the
+            // registered class-name string is not always the concrete
+            // class, so a package-prefix test is used, not exact match).
+            Provider.Service svc = p.getService("AlgorithmParameters", "GCM");
+            if (svc == null)
             {
                 continue;
             }
-            if (p.getService("AlgorithmParameters", "GCM") == null)
+            String svcClass = svc.getClassName();
+            if (svcClass != null && svcClass.startsWith("org.openssl.jostle."))
             {
                 continue;
             }

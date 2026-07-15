@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.spec.DHParameterSpec;
 import java.math.BigInteger;
@@ -31,20 +32,34 @@ final class DHComponents
     {
         synchronized (spec)
         {
-            int len = dhServiceNI.getComponent(
-                    spec.getReference(), component, null);
-            byte[] raw = new byte[len];
-            int written = dhServiceNI.getComponent(
-                    spec.getReference(), component, raw);
-            if (written != raw.length)
+            byte[] raw = null;
+            byte[] trimmed = null;
+            try
             {
-                byte[] trimmed = new byte[written];
-                System.arraycopy(raw, 0, trimmed, 0, written);
-                raw = trimmed;
+                int len = dhServiceNI.getComponent(
+                        spec.getReference(), component, null);
+                raw = new byte[len];
+                int written = dhServiceNI.getComponent(
+                        spec.getReference(), component, raw);
+                byte[] magnitude = raw;
+                if (written != raw.length)
+                {
+                    trimmed = new byte[written];
+                    System.arraycopy(raw, 0, trimmed, 0, written);
+                    magnitude = trimmed;
+                }
+                // Big-endian unsigned magnitude — positive sign forces
+                // BigInteger to interpret without two's-complement wrapping.
+                return new BigInteger(1, magnitude);
             }
-            // Big-endian unsigned magnitude — positive sign forces
-            // BigInteger to interpret without two's-complement wrapping.
-            return new BigInteger(1, raw);
+            finally
+            {
+                // These transient buffers may hold the private value x
+                // (COMP_PRIVATE_VALUE); the returned BigInteger keeps its
+                // own copy, so scrub them (Arrays.clear is null-safe).
+                Arrays.clear(raw);
+                Arrays.clear(trimmed);
+            }
         }
     }
 
