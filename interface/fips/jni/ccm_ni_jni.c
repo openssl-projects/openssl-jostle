@@ -67,7 +67,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
 
     ccm_ctx *ctx = (ccm_ctx *) ref;
     if (ctx == NULL) {
-        return JO_FAIL;
+        return JO_CIPHER_CTX_IS_NULL;
+    }
+    // op_mode is a user-supplied jint; range-check it in the bridge so util
+    // can assert it as an invariant (ccm_ctx_init).
+    if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
+        return JO_INVALID_OP_MODE;
     }
     if (_key == NULL) {
         return JO_KEY_IS_NULL;
@@ -147,7 +152,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
 
     ccm_ctx *ctx = (ccm_ctx *) ref;
     if (ctx == NULL) {
-        return JO_FAIL;
+        return JO_CIPHER_CTX_IS_NULL;
     }
 
     // _aad may be null when aad_len == 0; aad_len must not be negative.
@@ -246,7 +251,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     UNUSED(jo);
     ccm_ctx *ctx = (ccm_ctx *) ref;
     if (ctx == NULL) {
-        return JO_FAIL;
+        return JO_CIPHER_CTX_IS_NULL;
+    }
+    // op_mode is user-supplied; range-check it in the bridge so
+    // ccm_ctx_get_output_size can assert it as an invariant.
+    if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
+        return JO_INVALID_OP_MODE;
     }
     if (input_len < 0) {
         return JO_INPUT_LEN_IS_NEGATIVE;

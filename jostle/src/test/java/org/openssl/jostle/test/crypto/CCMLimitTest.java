@@ -17,8 +17,11 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * NI-surface input-validation tests for the CCM bridge. These call the
@@ -69,6 +72,27 @@ public class CCMLimitTest
     }
 
     // -----------------------------------------------------------------
+    // ni_makeInstance validation
+    // -----------------------------------------------------------------
+
+    /**
+     * ni_makeInstance with a cipher id that is not a CCM-capable family
+     * (CAMELLIA has no CCM mode) is rejected with JO_INVALID_CIPHER and a
+     * null ref; the wrapper maps it to a typed IllegalArgumentException.
+     */
+    @Test
+    public void makeInstance_invalidCipher() throws Exception
+    {
+        int[] err = new int[1];
+        long ref = ccmCipherNI.ni_makeInstance(OSSLCipher.CAMELLIA128.ordinal(), err);
+        Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER.getCode(), err[0]);
+        Assertions.assertEquals(0L, ref, "invalid cipher must return a null ref");
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ccmCipherNI.makeInstance(OSSLCipher.CAMELLIA128.ordinal()));
+        Assertions.assertEquals("invalid cipher", ex.getMessage());
+    }
+
+    // -----------------------------------------------------------------
     // ni_init validation
     // -----------------------------------------------------------------
 
@@ -76,7 +100,11 @@ public class CCMLimitTest
     public void init_nullRef() throws Exception
     {
         int code = ccmCipherNI.ni_init(0L, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16);
-        Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), code);
+        Assertions.assertEquals(ErrorCode.JO_CIPHER_CTX_IS_NULL.getCode(), code);
+        // The wrapper maps the code to the typed cipher-context rejection.
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ccmCipherNI.init(0L, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16));
+        Assertions.assertEquals("cipher context is null", ex.getMessage());
     }
 
     @Test
@@ -266,7 +294,10 @@ public class CCMLimitTest
     public void doFinal_nullRef() throws Exception
     {
         int code = ccmCipherNI.ni_doFinal(0L, null, 0, new byte[16], 0, 16, new byte[32], 0);
-        Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), code);
+        Assertions.assertEquals(ErrorCode.JO_CIPHER_CTX_IS_NULL.getCode(), code);
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ccmCipherNI.doFinal(0L, null, 0, new byte[16], 0, 16, new byte[32], 0));
+        Assertions.assertEquals("cipher context is null", ex.getMessage());
     }
 
     @Test
@@ -581,6 +612,96 @@ public class CCMLimitTest
     }
 
     // -----------------------------------------------------------------
+    // ni_doFinal aliased buffers (in == out)
+    // -----------------------------------------------------------------
+
+    /**
+     * In-place (in == out) CCM at the NI surface, same offset — the only
+     * aliased layout the C layer supports. OpenSSL's CCM ciphers block by
+     * block, so a different-offset overlap is not a contract (see the
+     * streaming-aliasing rule in testing.md); only same-offset in-place is
+     * probed. Encrypt with the plaintext and the ct||tag output sharing one
+     * oversized buffer at the same offset, then assert the result equals a
+     * separate-buffer reference, that the whole buffer outside the output
+     * window is untouched, and that an in-place decrypt recovers the
+     * plaintext.
+     */
+    @Test
+    public void doFinal_inPlace_sameOffset_encryptDecrypt() throws Exception
+    {
+        SecureRandom sr = new SecureRandom();
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] pt = new byte[40];
+        sr.nextBytes(pt);
+        final int tagLen = 16;
+        final int off = 7;
+        final int outLen = pt.length + tagLen;
+
+        // Separate-buffer reference ct||tag for the same (key, iv, pt).
+        byte[] reference;
+        long refCtx = newCtx();
+        try
+        {
+            Assertions.assertEquals(0, ccmCipherNI.ni_init(refCtx, CCMCipherNI.OP_ENCRYPT, key, iv, tagLen));
+            byte[] out = new byte[outLen];
+            Assertions.assertEquals(outLen,
+                    ccmCipherNI.ni_doFinal(refCtx, null, 0, pt, 0, pt.length, out, 0));
+            reference = out;
+        }
+        finally
+        {
+            ccmCipherNI.ni_dispose(refCtx);
+        }
+
+        // In-place encrypt: plaintext and ct||tag share one oversized buffer
+        // at the same offset. Snapshot the whole buffer to prove nothing
+        // outside [off, off+outLen) is disturbed.
+        byte[] big = new byte[off + outLen + 9];
+        sr.nextBytes(big);
+        System.arraycopy(pt, 0, big, off, pt.length);
+        byte[] snapshot = big.clone();
+
+        long encCtx = newCtx();
+        try
+        {
+            Assertions.assertEquals(0, ccmCipherNI.ni_init(encCtx, CCMCipherNI.OP_ENCRYPT, key, iv, tagLen));
+            int n = ccmCipherNI.ni_doFinal(encCtx, null, 0, big, off, pt.length, big, off);
+            Assertions.assertEquals(outLen, n, "in-place ct+tag length");
+            Assertions.assertArrayEquals(reference, Arrays.copyOfRange(big, off, off + outLen),
+                    "in-place output diverged from the separate-buffer reference");
+            Assertions.assertArrayEquals(Arrays.copyOf(snapshot, off), Arrays.copyOf(big, off),
+                    "prefix outside the output window was clobbered");
+            Assertions.assertArrayEquals(
+                    Arrays.copyOfRange(snapshot, off + outLen, snapshot.length),
+                    Arrays.copyOfRange(big, off + outLen, big.length),
+                    "suffix outside the output window was clobbered");
+        }
+        finally
+        {
+            ccmCipherNI.ni_dispose(encCtx);
+        }
+
+        // In-place decrypt of the produced ct||tag (same buffer, same offset)
+        // must recover the plaintext.
+        long decCtx = newCtx();
+        try
+        {
+            Assertions.assertEquals(0, ccmCipherNI.ni_init(decCtx, CCMCipherNI.OP_DECRYPT, key, iv, tagLen));
+            int n = ccmCipherNI.ni_doFinal(decCtx, null, 0, big, off, outLen, big, off);
+            Assertions.assertEquals(pt.length, n, "in-place decrypt pt length");
+            Assertions.assertArrayEquals(pt, Arrays.copyOfRange(big, off, off + pt.length),
+                    "in-place decrypt did not recover the plaintext");
+        }
+        finally
+        {
+            ccmCipherNI.ni_dispose(decCtx);
+        }
+    }
+
+    // -----------------------------------------------------------------
     // ni_getOutputSize validation
     // -----------------------------------------------------------------
 
@@ -588,7 +709,10 @@ public class CCMLimitTest
     public void getOutputSize_nullRef() throws Exception
     {
         int code = ccmCipherNI.ni_getOutputSize(0L, CCMCipherNI.OP_ENCRYPT, 16);
-        Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(), code);
+        Assertions.assertEquals(ErrorCode.JO_CIPHER_CTX_IS_NULL.getCode(), code);
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ccmCipherNI.getOutputSize(0L, CCMCipherNI.OP_ENCRYPT, 16));
+        Assertions.assertEquals("cipher context is null", ex.getMessage());
     }
 
     @Test

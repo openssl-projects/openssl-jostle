@@ -42,7 +42,12 @@ int32_t JoCCM_init(ccm_ctx *ctx, int32_t op_mode,
                    uint8_t *iv, size_t iv_len,
                    int32_t tag_len) {
     if (ctx == NULL) {
-        return JO_FAIL;
+        return JO_CIPHER_CTX_IS_NULL;
+    }
+    // op_mode is a user-supplied int; range-check it in the bridge so util
+    // can assert it as an invariant (ccm_ctx_init).
+    if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
+        return JO_INVALID_OP_MODE;
     }
     if (key == NULL) {
         return JO_KEY_IS_NULL;
@@ -78,7 +83,7 @@ int32_t JoCCM_doFinal(ccm_ctx *ctx,
                      uint8_t *output, size_t output_size,
                      int32_t out_off) {
     if (ctx == NULL) {
-        return JO_FAIL;
+        return JO_CIPHER_CTX_IS_NULL;
     }
     // All null / negative scalar checks first, then the range checks —
     // same order as the JNI bridge (ni_doFinal) so both layers return
@@ -140,7 +145,12 @@ int32_t JoCCM_doFinal(ccm_ctx *ctx,
 
 int32_t JoCCM_getOutputSize(ccm_ctx *ctx, int32_t op_mode, int32_t input_len) {
     if (ctx == NULL) {
-        return JO_FAIL;
+        return JO_CIPHER_CTX_IS_NULL;
+    }
+    // op_mode is user-supplied; range-check it in the bridge so
+    // ccm_ctx_get_output_size can assert it as an invariant.
+    if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
+        return JO_INVALID_OP_MODE;
     }
     if (input_len < 0) {
         return JO_INPUT_LEN_IS_NEGATIVE;

@@ -62,8 +62,25 @@ public class FIPSCCMLimitTest
     @Test
     public void init_nullRef()
     {
-        Assertions.assertEquals(ErrorCode.JO_FAIL.getCode(),
+        Assertions.assertEquals(ErrorCode.JO_CIPHER_CTX_IS_NULL.getCode(),
                 ni.ni_init(0L, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16));
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ni.init(0L, CCMCipherNI.OP_ENCRYPT, new byte[16], new byte[12], 16));
+        Assertions.assertEquals("cipher context is null", ex.getMessage());
+    }
+
+    @Test
+    public void doFinal_nullRef()
+    {
+        Assertions.assertEquals(ErrorCode.JO_CIPHER_CTX_IS_NULL.getCode(),
+                ni.ni_doFinal(0L, null, 0, new byte[16], 0, 16, new byte[32], 0));
+    }
+
+    @Test
+    public void getOutputSize_nullRef()
+    {
+        Assertions.assertEquals(ErrorCode.JO_CIPHER_CTX_IS_NULL.getCode(),
+                ni.ni_getOutputSize(0L, CCMCipherNI.OP_ENCRYPT, 16));
     }
 
     @Test

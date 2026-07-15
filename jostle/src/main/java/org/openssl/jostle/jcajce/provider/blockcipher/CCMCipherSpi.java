@@ -45,13 +45,15 @@ import java.util.Locale;
  * data is handed to the native side as a single {@code ni_doFinal}
  * call.
  *
- * <p><strong>AAD discipline:</strong> per CLAUDE.md and CCM's
- * underlying constraint, this SPI rejects incremental AAD. The first
- * call to {@link #engineUpdateAAD} is accepted (buffered); a second
- * call throws {@link IllegalStateException}. After any
- * {@link #engineUpdate} call, subsequent {@code engineUpdateAAD}
- * also throws — JCE convention. Plaintext, by contrast, may be
- * accumulated through multiple {@code engineUpdate} calls and is
+ * <p><strong>AAD discipline:</strong> CCM must receive all its AAD in a
+ * single {@code EVP_*Update} call, but the SPI buffers AAD in Java and
+ * concatenates it, so {@link #engineUpdateAAD} may be called any number
+ * of times before plaintext processing begins — each call appends to the
+ * buffer. Once any {@link #engineUpdate} (or {@code engineDoFinal} with
+ * payload) has begun consuming plaintext, the AAD window is closed and a
+ * subsequent {@code engineUpdateAAD} throws {@link IllegalStateException}
+ * — the JCE convention that all AAD precedes the plaintext. Plaintext is
+ * likewise accumulated across multiple {@code engineUpdate} calls and
  * concatenated at {@code engineDoFinal}.
  */
 public class CCMCipherSpi extends CipherSpi
@@ -93,8 +95,14 @@ public class CCMCipherSpi extends CipherSpi
     private final ExposedByteArrayOutputStream aadBuffer = new ExposedByteArrayOutputStream();
     private final ExposedByteArrayOutputStream dataBuffer = new ExposedByteArrayOutputStream();
 
-    /* updateAAD discipline flags. */
-    private boolean aadRejected;   // set true after first updateAAD AND after first update
+    /*
+     * AAD window flag: set true once plaintext processing begins (first
+     * engineUpdate / engineDoFinal), after which engineUpdateAAD is rejected
+     * per the JCE convention that all AAD precedes the plaintext. CCM feeds
+     * all AAD to OpenSSL in a single EVP call, so the SPI buffers it and
+     * permits any number of updateAAD calls before the window closes.
+     */
+    private boolean aadClosed;
 
     /*
      * Nonce-reuse guard (mirrors SunJCE's GCM behaviour): set true after a
@@ -152,6 +160,10 @@ public class CCMCipherSpi extends CipherSpi
         if (ref == null)
         {
             throw new IllegalStateException("cipher not initialised");
+        }
+        if (inputLen < 0)
+        {
+            throw new IllegalArgumentException("input length is negative: " + inputLen);
         }
         long pending = (long) dataBuffer.size() + (long) inputLen;
         if (pending > Integer.MAX_VALUE)
@@ -219,6 +231,16 @@ public class CCMCipherSpi extends CipherSpi
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        // CCM supports only encryption and decryption. Reject wrap/unwrap at
+        // the SPI boundary with a checked exception (InvalidKeyException) so
+        // the JCE can fall through to another provider, rather than passing
+        // the mode to native and surfacing JO_INVALID_OP_MODE as an unchecked
+        // IllegalStateException that breaks provider fallback.
+        if (opmode != Cipher.ENCRYPT_MODE && opmode != Cipher.DECRYPT_MODE)
+        {
+            throw new InvalidKeyException(
+                    "CCM supports only ENCRYPT_MODE and DECRYPT_MODE, not wrap/unwrap");
+        }
         int tagBits;
         byte[] nonce;
         // Associated data carried by a BC AEADParameterSpec, buffered after init
@@ -323,14 +345,14 @@ public class CCMCipherSpi extends CipherSpi
         this.opMode = opmode;
         this.iv = Arrays.clone(nonce);
         this.tagLenBytes = tagBytes;
-        this.aadRejected = false;
+        this.aadClosed = false;
         this.encryptionReinitRequired = false;
         this.aadBuffer.reset();
         this.dataBuffer.reset();
 
         // Buffer any AEADParameterSpec-supplied associated data now (before any
         // payload), concatenated at doFinal like AAD from engineUpdateAAD. Left
-        // with aadRejected == false so a caller may still append once via
+        // with aadClosed == false so a caller may still append more via
         // engineUpdateAAD, matching BouncyCastle's spec-AAD-then-updateAAD order.
         if (aeadAssociatedData != null && aeadAssociatedData.length > 0)
         {
@@ -411,14 +433,16 @@ public class CCMCipherSpi extends CipherSpi
     {
         requireInitialised();
         checkEncryptionReinit();
-        // AAD must be supplied BEFORE any plaintext, AND in a single call.
-        if (aadRejected)
+        // AAD must precede any plaintext; once update()/doFinal() begins
+        // consuming plaintext the window is closed. Multiple updateAAD calls
+        // before that are permitted — the SPI concatenates them into a single
+        // native AAD buffer.
+        if (aadClosed)
         {
             throw new IllegalStateException(
-                    "CCM does not support incremental AAD; updateAAD may be called at most once before update");
+                    "CCM AAD must be supplied before any plaintext");
         }
         aadBuffer.write(src, offset, len);
-        aadRejected = true;
     }
 
     @Override
@@ -430,15 +454,16 @@ public class CCMCipherSpi extends CipherSpi
         }
         requireInitialised();
         checkEncryptionReinit();
-        if (aadRejected)
+        if (aadClosed)
         {
             throw new IllegalStateException(
-                    "CCM does not support incremental AAD; updateAAD may be called at most once before update");
+                    "CCM AAD must be supplied before any plaintext");
         }
         int remaining = src.remaining();
         if (remaining == 0)
         {
-            aadRejected = true;
+            // An empty AAD contribution is a no-op; it does not close the
+            // window (further updateAAD calls remain valid).
             return;
         }
         if (src.hasArray())
@@ -452,7 +477,6 @@ public class CCMCipherSpi extends CipherSpi
             src.get(tmp);
             aadBuffer.write(tmp, 0, remaining);
         }
-        aadRejected = true;
     }
 
 
@@ -462,7 +486,7 @@ public class CCMCipherSpi extends CipherSpi
         requireInitialised();
         checkEncryptionReinit();
         // Any update closes the AAD window per JCE convention.
-        aadRejected = true;
+        aadClosed = true;
         if (input != null && inputLen > 0)
         {
             dataBuffer.write(input, inputOffset, inputLen);
@@ -577,13 +601,31 @@ public class CCMCipherSpi extends CipherSpi
      * {@code ni_doFinal}.
      */
     private int doFinalInternal(byte[] output, int outputOffset)
-            throws BadPaddingException
+            throws IllegalBlockSizeException, BadPaddingException
     {
         int aadLen = aadBuffer.size();
         byte[] aadBuf = (aadLen > 0) ? aadBuffer.getBuffer() : null;
 
         int dataLen = dataBuffer.size();
         byte[] dataBuf = dataBuffer.getBuffer();
+
+        // CCM bounds the message length by the nonce length (NIST SP 800-38C
+        // §A.1: with a 15-n byte length field the maximum message is
+        // 2^(8*(15-n)) - 1 bytes). For encrypt the message is the buffered
+        // plaintext; for decrypt it is the ciphertext minus the tag. Reject an
+        // oversized message here with a typed IllegalBlockSizeException rather
+        // than letting OpenSSL's CCM IV-setup fail deep in the EVP sequence
+        // and surface a generic OpenSSLException.
+        long messageLen = (opMode == Cipher.ENCRYPT_MODE)
+                ? dataLen
+                : Math.max(0, dataLen - tagLenBytes);
+        long maxMessage = ccmMaxMessageLen();
+        if (messageLen > maxMessage)
+        {
+            throw new IllegalBlockSizeException(
+                    "CCM message length " + messageLen + " exceeds the maximum " +
+                    maxMessage + " permitted for a " + iv.length + "-byte nonce");
+        }
 
         // synchronized(this) keeps the native ctx reachable across the
         // call (see engineInit). The java9 override uses
@@ -595,6 +637,23 @@ public class CCMCipherSpi extends CipherSpi
                     dataBuf, 0, dataLen,
                     output, outputOffset);
         }
+    }
+
+    /**
+     * Maximum CCM message length for the current nonce, per NIST SP 800-38C
+     * §A.1: with nonce length n the length field is L = 15 - n bytes, capping
+     * the message at 2^(8L) - 1. For n &lt;= 11 (L &gt;= 4) the cap is
+     * &gt;= 2^32 - 1, beyond the reach of a Java int / array, so it is
+     * reported as {@link Integer#MAX_VALUE}.
+     */
+    private long ccmMaxMessageLen()
+    {
+        int l = 15 - iv.length;   // iv.length (nonce) is 7..13, so l is 2..8
+        if (l >= 4)
+        {
+            return Integer.MAX_VALUE;
+        }
+        return (1L << (8 * l)) - 1L;
     }
 
 
@@ -634,9 +693,14 @@ public class CCMCipherSpi extends CipherSpi
      */
     private void resetStreamingState()
     {
+        // Zero the buffered message before releasing it for reuse — CCM holds
+        // the entire message in the heap until doFinal, and on encrypt that is
+        // plaintext. Defence-in-depth on secret material (mirrors the
+        // getEncoded() zeroize discipline); AAD is not secret, so left as-is.
+        Arrays.clear(dataBuffer.getBuffer());
         aadBuffer.reset();
         dataBuffer.reset();
-        aadRejected = false;
+        aadClosed = false;
     }
 
     private void disposeRef()

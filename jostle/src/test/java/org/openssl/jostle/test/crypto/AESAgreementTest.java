@@ -2755,9 +2755,67 @@ public class AESAgreementTest
      * clear message about the underlying CCM constraint.
      */
     @Test
-    public void aesCCM_incrementalAAD_throwsIllegalState() throws Exception
+    public void aesCCM_multipleAAD_concatenates_agreesWithBC() throws Exception
     {
-        SecureRandom sr = seededRandom("aesCCM_incrementalAAD_throwsIllegalState");
+        SecureRandom sr = seededRandom("aesCCM_multipleAAD_concatenates_agreesWithBC");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[3 + sr.nextInt(60)];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[1 + sr.nextInt(200)];
+        sr.nextBytes(msg);
+        SecretKey secretKey = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        // Jostle: feed the AAD in several random-sized chunks (the single-call
+        // restriction was removed — the SPI concatenates AAD before the one
+        // native call).
+        Cipher chunked = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        chunked.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        int pos = 0;
+        while (pos < aad.length)
+        {
+            int n = 1 + sr.nextInt(aad.length - pos);
+            chunked.updateAAD(aad, pos, n);
+            pos += n;
+        }
+        byte[] chunkedCT = chunked.doFinal(msg);
+
+        // Jostle single-call AAD.
+        Cipher single = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        single.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        single.updateAAD(aad);
+        byte[] singleCT = single.doFinal(msg);
+
+        // BouncyCastle reference (BC concatenates AAD the same way).
+        Cipher bc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+        bc.updateAAD(aad);
+        byte[] bcCT = bc.doFinal(msg);
+
+        Assertions.assertArrayEquals(singleCT, chunkedCT, "chunked AAD must match single-call AAD");
+        Assertions.assertArrayEquals(bcCT, chunkedCT, "chunked AAD must match BouncyCastle");
+
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+        dec.updateAAD(aad);
+        Assertions.assertArrayEquals(msg, dec.doFinal(chunkedCT), "round-trip");
+    }
+
+    /**
+     * AAD supplied AFTER plaintext processing has begun is still rejected —
+     * the JCE convention that all AAD precedes the message. Only the
+     * at-most-once restriction was dropped; multiple pre-plaintext updateAAD
+     * calls are now accepted (see
+     * {@link #aesCCM_multipleAAD_concatenates_agreesWithBC()}).
+     */
+    @Test
+    public void aesCCM_aadAfterUpdate_throwsIllegalState() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_aadAfterUpdate_throwsIllegalState");
         String xform = "AES/CCM/NoPadding";
         byte[] key = new byte[16];
         sr.nextBytes(key);
@@ -2767,17 +2825,13 @@ public class AESAgreementTest
         Cipher c = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
         c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
                 new GCMParameterSpec(128, iv));
-        c.updateAAD(new byte[]{0x01, 0x02, 0x03});
-        try
-        {
-            c.updateAAD(new byte[]{0x04, 0x05});
-            Assertions.fail("second updateAAD on CCM must throw");
-        }
-        catch (IllegalStateException expected)
-        {
-            Assertions.assertTrue(expected.getMessage().toLowerCase().contains("ccm"),
-                    "exception message should mention CCM: " + expected.getMessage());
-        }
+        c.updateAAD(new byte[]{0x01, 0x02, 0x03});   // allowed
+        c.updateAAD(new byte[]{0x04, 0x05});         // still allowed (multiple AAD)
+        c.update(new byte[]{0x09, 0x09});            // plaintext begins -> AAD window closes
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> c.updateAAD(new byte[]{0x06}));
+        Assertions.assertTrue(ex.getMessage().toLowerCase().contains("before any plaintext"),
+                "message should explain AAD must precede plaintext: " + ex.getMessage());
     }
 
     // -----------------------------------------------------------------
@@ -3542,9 +3596,14 @@ public class AESAgreementTest
                 c.init(opMode, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, iv));
                 Assertions.fail("CCM must reject opMode " + opMode);
             }
-            catch (IllegalStateException expected)
+            catch (InvalidKeyException expected)
             {
-                Assertions.assertEquals("invalid operation mode", expected.getMessage());
+                // Rejected at the SPI boundary with a checked exception so JCE
+                // provider fallback still works (not an unchecked ISE from the
+                // native JO_INVALID_OP_MODE).
+                Assertions.assertEquals(
+                        "CCM supports only ENCRYPT_MODE and DECRYPT_MODE, not wrap/unwrap",
+                        expected.getMessage());
             }
         }
     }
@@ -3681,6 +3740,127 @@ public class AESAgreementTest
             Assertions.assertArrayEquals(msg, bc.doFinal(joCt),
                     "keySize=" + keySize + ": BC failed to decrypt Jostle ciphertext");
         }
+    }
+
+    /**
+     * In-place CCM at the JCE surface:
+     * {@code Cipher.doFinal(buf, off, len, buf, off)} with input and output
+     * the same array at the same offset. The SPI buffers the message before
+     * writing output, so this is supported — the result must equal a
+     * separate-buffer reference, round-trip, and leave every byte outside the
+     * output window untouched.
+     */
+    @Test
+    public void aesCCM_inPlace_sameBuffer_roundTrips() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_inPlace_sameBuffer_roundTrips");
+        String xform = "AES/CCM/NoPadding";
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] aad = new byte[16];
+        sr.nextBytes(aad);
+        byte[] msg = new byte[50];
+        sr.nextBytes(msg);
+        SecretKey sk = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        // Separate-buffer reference ct||tag.
+        Cipher refEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        refEnc.init(Cipher.ENCRYPT_MODE, sk, spec);
+        refEnc.updateAAD(aad);
+        byte[] reference = refEnc.doFinal(msg);
+
+        int off = 6;
+        int outLen = reference.length;   // msg.length + tag
+        byte[] buf = new byte[off + outLen + 5];
+        sr.nextBytes(buf);
+        System.arraycopy(msg, 0, buf, off, msg.length);
+        byte[] snapshot = buf.clone();
+
+        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, sk, spec);
+        enc.updateAAD(aad);
+        int written = enc.doFinal(buf, off, msg.length, buf, off);
+        Assertions.assertEquals(outLen, written, "in-place ct+tag length");
+        Assertions.assertArrayEquals(reference,
+                java.util.Arrays.copyOfRange(buf, off, off + outLen),
+                "in-place output diverged from separate-buffer reference");
+        Assertions.assertArrayEquals(java.util.Arrays.copyOf(snapshot, off),
+                java.util.Arrays.copyOf(buf, off), "prefix clobbered");
+        Assertions.assertArrayEquals(
+                java.util.Arrays.copyOfRange(snapshot, off + outLen, snapshot.length),
+                java.util.Arrays.copyOfRange(buf, off + outLen, buf.length), "suffix clobbered");
+
+        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, sk, spec);
+        dec.updateAAD(aad);
+        Assertions.assertArrayEquals(msg,
+                dec.doFinal(java.util.Arrays.copyOfRange(buf, off, off + outLen)),
+                "in-place ciphertext did not round-trip");
+    }
+
+    /**
+     * A negative input length must never yield a (nonsensical, possibly
+     * negative) output size. {@code Cipher.getOutputSize} itself guards the
+     * negative case in the JDK before the SPI is consulted, so it surfaces as
+     * IllegalArgumentException; the SPI's own {@code engineGetOutputSize}
+     * guard is defence-in-depth for a direct (non-JCE) caller. Either way the
+     * rejection is a typed IllegalArgumentException.
+     */
+    @Test
+    public void aesCCM_getOutputSize_negativeInputLen_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_getOutputSize_negativeInputLen_rejected");
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, iv));
+        for (int bad : new int[]{-1, Integer.MIN_VALUE})
+        {
+            Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> c.getOutputSize(bad), "inputLen=" + bad);
+        }
+    }
+
+    /**
+     * CCM caps the message length by nonce length (NIST SP 800-38C §A.1): a
+     * 13-byte nonce leaves a 2-byte length field, so a message &gt; 65535
+     * bytes must be rejected with a typed IllegalBlockSizeException rather
+     * than a generic OpenSSLException from deep in the EVP CCM sequence. A
+     * message exactly at the 65535 cap must still succeed and round-trip.
+     */
+    @Test
+    public void aesCCM_messageTooLongForNonce_rejected() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesCCM_messageTooLongForNonce_rejected");
+        byte[] key = new byte[16];
+        sr.nextBytes(key);
+        byte[] iv = new byte[13];   // 13-byte nonce -> max message 2^16 - 1 = 65535
+        sr.nextBytes(iv);
+        SecretKey sk = new SecretKeySpec(key, "AES");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+        Cipher tooBig = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        tooBig.init(Cipher.ENCRYPT_MODE, sk, spec);
+        byte[] over = new byte[65536];   // one past the cap
+        IllegalBlockSizeException ex = Assertions.assertThrows(IllegalBlockSizeException.class,
+                () -> tooBig.doFinal(over));
+        Assertions.assertTrue(ex.getMessage().contains("exceeds the maximum"), "message: " + ex.getMessage());
+
+        // Exactly at the cap: must succeed and round-trip (proves the bound
+        // sits at 65535, not one lower).
+        Cipher enc = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, sk, spec);
+        byte[] atCap = new byte[65535];
+        sr.nextBytes(atCap);
+        byte[] ct = enc.doFinal(atCap);
+        Cipher dec = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, sk, spec);
+        Assertions.assertArrayEquals(atCap, dec.doFinal(ct), "at-cap message must round-trip");
     }
 
 

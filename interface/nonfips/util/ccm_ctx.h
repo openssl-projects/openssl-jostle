@@ -66,14 +66,17 @@ ccm_ctx *ccm_ctx_create(uint32_t cipher_id, int32_t *err);
 void ccm_ctx_destroy(ccm_ctx *ctx);
 
 /**
- * Record the key, IV, tag length, and operation mode. Does NOT
- * call into OpenSSL — all EVP work happens in do_encrypt /
- * do_decrypt since CCM needs the plaintext length up-front.
+ * Record the key, IV, tag length, and operation mode for a later
+ * one-shot do_encrypt / do_decrypt. Probe-fetches the EVP_CIPHER once to
+ * validate the cipher_id + key_len pairing up-front (discarding the
+ * result); the bulk EVP work happens in do_encrypt / do_decrypt, which
+ * need the plaintext length before they can run.
  *
- * Validates:
- *   - key_len matches the cipher_id (16/24/32 for AES/ARIA, 16 for SM4)
- *   - iv_len in [CCM_MIN_NONCE_LEN, CCM_MAX_NONCE_LEN]
- *   - tag_len in {4,6,8,10,12,14,16}
+ * op_mode, iv_len and tag_len are validated by the bridge and asserted
+ * here as invariants; key_len is validated against the cipher by the
+ * probe-fetch and surfaces as JO_INVALID_KEY_LEN on mismatch. A failed
+ * (re-)init clears the initialized flag so a stale key/iv/tag can never
+ * be reused.
  */
 int32_t ccm_ctx_init(ccm_ctx *ctx,
                      int32_t opp_mode,
@@ -85,8 +88,9 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
  * One-shot encrypt: writes ciphertext followed by the tag into out.
  * out_len must be >= pt_len + tag_len.
  *
- * aad may be NULL when aad_len == 0.
- * pt  may be NULL when pt_len == 0.
+ * aad may be NULL when aad_len == 0. pt and out are always non-NULL (the
+ * bridge rejects a NULL input/output array even at zero length); pt may
+ * be zero-length when pt_len == 0.
  *
  * Returns the number of bytes written (pt_len + tag_len) on success,
  * negative JO_* error code on failure.
@@ -110,9 +114,11 @@ int32_t ccm_ctx_do_decrypt(ccm_ctx *ctx,
                            uint8_t *out,       size_t out_len);
 
 /**
- * Required output buffer size for an encrypt of plaintext_len bytes
- * (= plaintext_len + tag_len). Returns 0 for decrypt-side queries —
- * the SPI handles decrypt sizing.
+ * Required output buffer size for the given op_mode and input length:
+ * ENCRYPT_MODE returns input_len + tag_len; DECRYPT_MODE returns
+ * input_len - tag_len (floored at 0 when input_len < tag_len, i.e. too
+ * short to carry a tag). Returns JO_OUTPUT_TOO_LONG_INT32 if an encrypt
+ * result would overflow int32_t.
  */
 int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len);
 

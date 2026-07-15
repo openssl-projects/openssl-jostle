@@ -139,6 +139,13 @@ public interface CCMCipherNI extends DefaultServiceNI
             case JO_INVALID_OP_MODE:
                 // CCM supports only ENCRYPT/DECRYPT, not WRAP/UNWRAP.
                 throw new IllegalStateException("invalid operation mode");
+            case JO_INVALID_CIPHER:
+                // ni_makeInstance was handed a cipher id that is not one of
+                // the CCM-capable families. Not reachable via the JCE path
+                // (the SPI only passes AES/ARIA/SM4 ordinals), but an NI
+                // caller can hit it — map it to a clean typed exception
+                // rather than the baseErrorHandler "unexpected code" default.
+                throw new IllegalArgumentException("invalid cipher");
             case JO_FAILED_ACCESS_KEY:
                 throw new IllegalStateException("native layer was unable to access key");
             case JO_FAILED_ACCESS_IV:

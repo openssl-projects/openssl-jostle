@@ -1261,24 +1261,36 @@ public class ARIAAgreementTest
     }
 
     @Test
-    public void ariaCCM_incrementalAAD_throwsIllegalState() throws Exception
+    public void ariaCCM_multipleAAD_concatenates() throws Exception
     {
-        SecureRandom sr = seededRandom("ariaCCM_incrementalAAD_throwsIllegalState");
+        SecureRandom sr = seededRandom("ariaCCM_multipleAAD_concatenates");
         byte[] key = new byte[16]; sr.nextBytes(key);
         byte[] iv = new byte[12]; sr.nextBytes(iv);
+        byte[] aad = new byte[40]; sr.nextBytes(aad);
+        byte[] msg = new byte[64]; sr.nextBytes(msg);
+        SecretKey sk = new SecretKeySpec(key, "ARIA");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
 
+        // Single-call AAD reference.
+        Cipher single = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        single.init(Cipher.ENCRYPT_MODE, sk, spec);
+        single.updateAAD(aad);
+        byte[] singleCT = single.doFinal(msg);
+
+        // Multiple pre-plaintext updateAAD calls concatenate (the single-call
+        // restriction was removed).
+        Cipher chunked = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        chunked.init(Cipher.ENCRYPT_MODE, sk, spec);
+        chunked.updateAAD(aad, 0, 10);
+        chunked.updateAAD(aad, 10, 30);
+        byte[] chunkedCT = chunked.doFinal(msg);
+        Assertions.assertArrayEquals(singleCT, chunkedCT, "chunked AAD must match single-call AAD");
+
+        // AAD after plaintext begins is still rejected.
         Cipher c = Cipher.getInstance("ARIA/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
-        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "ARIA"), new GCMParameterSpec(128, iv));
-        c.updateAAD(new byte[]{0x01, 0x02, 0x03});
-        try
-        {
-            c.updateAAD(new byte[]{0x04});
-            Assertions.fail("second updateAAD on CCM must throw");
-        }
-        catch (IllegalStateException expected)
-        {
-            Assertions.assertTrue(expected.getMessage().toLowerCase().contains("ccm"));
-        }
+        c.init(Cipher.ENCRYPT_MODE, sk, spec);
+        c.update(new byte[]{0x01});
+        Assertions.assertThrows(IllegalStateException.class, () -> c.updateAAD(new byte[]{0x02}));
     }
 
     // --- CCM SPI-machinery parity (shared CCMCipherSpi paths driven

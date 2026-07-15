@@ -370,7 +370,9 @@ public class FIPSAESTest
         RANDOM.nextBytes(iv);
         SecretKey secretKey = new SecretKeySpec(key, "AES");
 
-        // WRAP_MODE / UNWRAP_MODE are not supported by CCM.
+        // WRAP_MODE / UNWRAP_MODE are not supported by CCM; rejected at the
+        // SPI boundary with a checked InvalidKeyException so JCE provider
+        // fallback still works.
         for (int opMode : new int[]{Cipher.WRAP_MODE, Cipher.UNWRAP_MODE})
         {
             Cipher c = Cipher.getInstance(xform, JostleFIPSProvider.PROVIDER_NAME);
@@ -379,9 +381,11 @@ public class FIPSAESTest
                 c.init(opMode, secretKey, new GCMParameterSpec(128, iv));
                 Assertions.fail("CCM must reject opMode " + opMode);
             }
-            catch (IllegalStateException expected)
+            catch (InvalidKeyException expected)
             {
-                Assertions.assertEquals("invalid operation mode", expected.getMessage());
+                Assertions.assertEquals(
+                        "CCM supports only ENCRYPT_MODE and DECRYPT_MODE, not wrap/unwrap",
+                        expected.getMessage());
             }
         }
 

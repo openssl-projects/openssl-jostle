@@ -137,17 +137,20 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
     jo_assert(key != NULL);
     jo_assert(iv != NULL);
 
-    if (opp_mode != ENCRYPT_MODE && opp_mode != DECRYPT_MODE) {
-        return JO_INVALID_OP_MODE;
-    }
-    // iv_len and tag_len are range/set validated by the bridge
+    // opp_mode, iv_len and tag_len are range/set validated by the bridge
     // (ccm_ni_jni.c / ccm_ni_ffi.c) and asserted here as invariants — a
     // firing assert means the bridge skipped a check (programmer error),
     // not a user-input error. The exact key_len-vs-cipher check is owned
     // by ccm_fetch_evp_cipher below (it holds the cipher→key-length
     // table); the key_len buffer-bound is asserted before the memcpy.
+    jo_assert(opp_mode == ENCRYPT_MODE || opp_mode == DECRYPT_MODE);
     jo_assert(iv_len >= CCM_MIN_NONCE_LEN && iv_len <= CCM_MAX_NONCE_LEN);
     jo_assert(valid_ccm_tag_len(tag_len));
+
+    // A failed (re-)init must not leave a previously-initialised context
+    // usable with stale key/iv/tag: clear the flag before the first
+    // fallible step so a mid-init failure de-initialises the ctx.
+    ctx->initialized = 0;
 
     // Probe-fetch the cipher to catch cipher_id+key_len mismatches at
     // init-time rather than do_encrypt-time. Discard the result; the
@@ -192,6 +195,13 @@ static int32_t ccm_do_one_shot(ccm_ctx *ctx,
                                const uint8_t *in, size_t in_len,
                                uint8_t *out, size_t out_len) {
     jo_assert(ctx != NULL);
+    // The bridge (ccm_ni_jni.c / ccm_ni_ffi.c) rejects a NULL input and a
+    // NULL output buffer (JO_INPUT_IS_NULL / JO_OUTPUT_IS_NULL), and rejects
+    // a NULL aad only when aad_len != 0 — so aad may be NULL exactly when
+    // aad_len == 0. Assert those bridge invariants here.
+    jo_assert(in != NULL);
+    jo_assert(out != NULL);
+    jo_assert(aad != NULL || aad_len == 0);
     // in_len and aad_len reach us as a Java int (jint / int32_t) with
     // negatives already rejected by the bridge, so they are in
     // [0, INT32_MAX]. Both are cast to (int) for the EVP_*Update calls
@@ -407,10 +417,12 @@ int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len)
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
     }
-    // input_len reaches us as a non-negative Java int (the bridge rejects
-    // negatives), so it is in [0, INT32_MAX]. Assert that invariant — both
-    // branches cast a value derived from it back to int32_t. A firing
-    // assert means the bridge skipped its check (programmer error).
+    // op_mode is validated by the bridge (ccm_ni_jni.c / ccm_ni_ffi.c) and
+    // asserted here; input_len reaches us as a non-negative Java int (the
+    // bridge rejects negatives), so it is in [0, INT32_MAX]. Both branches
+    // cast a value derived from it back to int32_t. A firing assert means
+    // the bridge skipped a check (programmer error).
+    jo_assert(op_mode == ENCRYPT_MODE || op_mode == DECRYPT_MODE);
     jo_assert(input_len <= (size_t) INT32_MAX);
     if (op_mode == ENCRYPT_MODE) {
         // pt → ct||tag
@@ -418,14 +430,12 @@ int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len)
             return JO_OUTPUT_TOO_LONG_INT32;
         }
         return (int32_t) (input_len + ctx->tag_len);
-    } else if (op_mode == DECRYPT_MODE) {
-        // ct||tag → pt: subtract the tag, flooring at 0 when the input is
-        // too short to carry one. input_len <= INT32_MAX (asserted above),
-        // so the subtraction fits int32_t.
-        if (input_len < ctx->tag_len) {
-            return 0;
-        }
-        return (int32_t) (input_len - ctx->tag_len);
     }
-    return JO_INVALID_OP_MODE;
+    // DECRYPT_MODE: ct||tag → pt. Subtract the tag, flooring at 0 when the
+    // input is too short to carry one. input_len <= INT32_MAX (asserted
+    // above), so the subtraction fits int32_t.
+    if (input_len < ctx->tag_len) {
+        return 0;
+    }
+    return (int32_t) (input_len - ctx->tag_len);
 }
