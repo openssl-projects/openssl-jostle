@@ -79,6 +79,10 @@ key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
         *ret_val = JO_INPUT_IS_NULL;
         return NULL;
     }
+    if (rnd_src == NULL) {
+        *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
     // Bridge validates scalar length so the util layer can trust the
     // value. Empty scalar is meaningless; >INT32_MAX would wrap when
     // the util layer casts to int for BN_bin2bn.
@@ -88,10 +92,6 @@ key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
     }
     if (scalar_size > (size_t) INT32_MAX) {
         *ret_val = JO_INPUT_TOO_LONG_INT32;
-        return NULL;
-    }
-    if (rnd_src == NULL) {
-        *ret_val = JO_RAND_NO_RAND_UP_CALL;
         return NULL;
     }
 

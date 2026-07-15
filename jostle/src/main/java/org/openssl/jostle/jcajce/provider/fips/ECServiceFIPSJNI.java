@@ -16,13 +16,10 @@ import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
 /**
- * JNI implementation of {@link ECServiceNI}. Native bindings live in
+ * JNI implementation of {@link ECServiceNI} backed by the FIPS interface
+ * library. The glue is the base bridge re-included under renamed
+ * {@code Java_*_fips_ECServiceFIPSJNI_*} exports; native bindings live in
  * {@code interface/fips/jni/ec_ni_jni.c}.
- */
-/**
- * JNI implementation of ECServiceNI backed by the FIPS interface library;
- * the glue is the base bridge re-included under renamed
- * Java_*_fips_ECServiceFIPSJNI_* exports.
  */
 class ECServiceFIPSJNI implements ECServiceNI
 {

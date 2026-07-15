@@ -187,12 +187,13 @@ public class ECDSASignatureSpi extends SignatureSpi
                         randSource);
                 return code == ErrorCode.JO_SUCCESS.getCode();
             }
-            catch (OpenSSLException e)
+            catch (OpenSSLException | IllegalArgumentException e)
             {
                 // A structurally-invalid signature (unparseable DER) makes
                 // OpenSSL's ECDSA verify return -1, surfacing as
-                // OpenSSLException (a RuntimeException). The JCA contract
-                // requires an improperly-encoded signature to raise
+                // OpenSSLException; a null / out-of-range signature surfaces
+                // as IllegalArgumentException from the bridge. The JCA
+                // contract requires an improperly-encoded signature to raise
                 // SignatureException, not an undeclared runtime exception.
                 throw new SignatureException("unable to verify ECDSA signature", e);
             }

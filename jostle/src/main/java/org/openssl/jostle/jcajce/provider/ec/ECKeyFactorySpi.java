@@ -221,11 +221,29 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         int curveBytes = (fieldBits + 7) / 8;
         byte[] scalarBE = unsignedMagnitudeBE(spec.getS(), curveBytes);
 
-        long ref = ecServiceNI.makePrivateFromComponents(
-                curveName, scalarBE,
-                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-        PKEYKeySpec pkSpec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC);
-        return new JOECPrivateKey(ecServiceNI, asn1NI, pkSpec);
+        try
+        {
+            long ref = ecServiceNI.makePrivateFromComponents(
+                    curveName, scalarBE,
+                    DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+            PKEYKeySpec pkSpec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC);
+            return new JOECPrivateKey(ecServiceNI, asn1NI, pkSpec);
+        }
+        catch (RuntimeException e)
+        {
+            // A native rejection of the scalar (e.g. d == 0 / point at
+            // infinity) surfaces as OpenSSLException / IllegalArgumentException;
+            // the KeyFactory contract requires InvalidKeySpecException, matching
+            // the PKCS#8 and public-spec branches above.
+            throw new InvalidKeySpecException(
+                    "unable to build EC private key from components", e);
+        }
+        finally
+        {
+            // scalarBE carries the raw private scalar — scrub once the
+            // native key is built (PKCS#8 branch / Ed / RSA precedent).
+            Arrays.clear(scalarBE);
+        }
     }
 
     /**
@@ -243,18 +261,27 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             throw new InvalidKeySpecException("scalar is negative");
         }
         byte[] raw = value.toByteArray();
-        // Drop the optional leading zero (sign byte from two's-complement).
-        int start = (raw.length > 1 && raw[0] == 0) ? 1 : 0;
-        int magLen = raw.length - start;
-        if (magLen > byteLength)
+        try
         {
-            throw new InvalidKeySpecException(
-                    "scalar (" + magLen + " bytes) exceeds curve size ("
-                            + byteLength + " bytes)");
+            // Drop the optional leading zero (sign byte from two's-complement).
+            int start = (raw.length > 1 && raw[0] == 0) ? 1 : 0;
+            int magLen = raw.length - start;
+            if (magLen > byteLength)
+            {
+                throw new InvalidKeySpecException(
+                        "scalar (" + magLen + " bytes) exceeds curve size ("
+                                + byteLength + " bytes)");
+            }
+            byte[] out = new byte[byteLength];
+            System.arraycopy(raw, start, out, byteLength - magLen, magLen);
+            return out;
         }
-        byte[] out = new byte[byteLength];
-        System.arraycopy(raw, start, out, byteLength - magLen, magLen);
-        return out;
+        finally
+        {
+            // raw is a transient copy of the private scalar — scrub it; the
+            // returned magnitude is cleared by the caller after native use.
+            Arrays.clear(raw);
+        }
     }
 
 

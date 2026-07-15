@@ -17,6 +17,7 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -137,6 +138,16 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                         peer.getSpec().getReference(),
                         randSource);
             }
+            catch (IllegalStateException e)
+            {
+                // A not-initialised state error (e.g. a prior engineInit
+                // failed at kexInit, leaving the derive ctx unset) is a
+                // state problem, not a key problem — doPhase declares
+                // IllegalStateException for exactly this case, so surface
+                // it unchanged rather than mislabelling it as a curve
+                // mismatch.
+                throw e;
+            }
             catch (RuntimeException e)
             {
                 throw new InvalidKeyException(
@@ -235,6 +246,12 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
         catch (IllegalArgumentException e)
         {
             throw new NoSuchAlgorithmException("invalid algorithm name", e);
+        }
+        finally
+        {
+            // SecretKeySpec copied the bytes — scrub our working copy
+            // (DHKeyAgreementSpi precedent).
+            Arrays.clear(secret);
         }
     }
 

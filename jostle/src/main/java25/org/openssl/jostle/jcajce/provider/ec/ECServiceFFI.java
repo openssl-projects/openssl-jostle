@@ -315,11 +315,24 @@ public class ECServiceFFI implements ECServiceNI
                 scalarSeg.asByteBuffer().put(scalarBE);
                 scalarSize = scalarBE.length;
             }
-            MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
-                    nativeString(a, curveName), scalarSeg, scalarSize,
-                    errSeg, entropyStub(a, rndSource));
-            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
-            return ref.address();
+            try
+            {
+                MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
+                        nativeString(a, curveName), scalarSeg, scalarSize,
+                        errSeg, entropyStub(a, rndSource));
+                err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+                return ref.address();
+            }
+            finally
+            {
+                // Arena.close() frees but does NOT cleanse — scrub the private
+                // scalar from the off-heap segment before release (KSServiceFFI
+                // precedent).
+                if (scalarSeg.byteSize() > 0)
+                {
+                    scalarSeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {
@@ -589,20 +602,33 @@ public class ECServiceFFI implements ECServiceNI
                 outSeg = a.allocate(out.length);
                 outSize = out.length;
             }
-            int rc = (int) kexDeriveH.invokeExact(ctx, outSeg, outSize, outOff,
-                    entropyStub(a, rndSource));
-            // A positive rc with outOff == out.length is the size-query
-            // return (the C side treats out_len == 0 as "report the
-            // required length"), NOT a write — copying then would read
-            // past the segment and throw. Only copy back when the derive
-            // actually wrote, i.e. there was remaining capacity at outOff.
-            // Matches the JNI bridge, which returns the length without
-            // touching the array for the same inputs.
-            if (out != null && rc > 0 && outOff < out.length)
+            try
             {
-                outSeg.asByteBuffer().get(outOff, out, outOff, rc);
+                int rc = (int) kexDeriveH.invokeExact(ctx, outSeg, outSize, outOff,
+                        entropyStub(a, rndSource));
+                // A positive rc with outOff == out.length is the size-query
+                // return (the C side treats out_len == 0 as "report the
+                // required length"), NOT a write — copying then would read
+                // past the segment and throw. Only copy back when the derive
+                // actually wrote, i.e. there was remaining capacity at outOff.
+                // Matches the JNI bridge, which returns the length without
+                // touching the array for the same inputs.
+                if (out != null && rc > 0 && outOff < out.length)
+                {
+                    outSeg.asByteBuffer().get(outOff, out, outOff, rc);
+                }
+                return rc;
             }
-            return rc;
+            finally
+            {
+                // Arena.close() frees but does NOT cleanse — scrub the derived
+                // shared secret from the off-heap segment before release
+                // (KSServiceFFI precedent).
+                if (outSeg.byteSize() > 0)
+                {
+                    outSeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {

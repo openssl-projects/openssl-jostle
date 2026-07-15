@@ -312,7 +312,11 @@ int32_t ec_get_component(const key_spec *spec, int32_t component,
             return get_bn_component(spec, OSSL_PKEY_PARAM_PRIV_KEY,
                                     out, out_len);
         default:
-            return JO_FAIL;
+            // Unknown component selector — only the four EC_COMP_* constants
+            // are valid, all supplied internally by ECComponents. Return a
+            // typed state error rather than bare JO_FAIL (which surfaces as
+            // the opaque "unexpected error code" fallback in Java).
+            return JO_UNEXPECTED_STATE;
     }
 }
 

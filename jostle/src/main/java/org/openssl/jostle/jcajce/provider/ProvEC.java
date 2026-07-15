@@ -146,7 +146,7 @@ class ProvEC
                                                String oid)
     {
         provider.addAlgorithmImplementation("Signature", name,
-                PREFIX + spiClass.getSimpleName(), attr,
+                spiClass.getName(), attr,
                 (arg) ->
                 {
                     try
