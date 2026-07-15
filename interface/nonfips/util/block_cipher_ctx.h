@@ -36,6 +36,15 @@ typedef struct block_cipher_ctx {
     size_t tag_len;
     uint8_t tag_buffer[MAX_TAG_LEN];
     uint32_t tag_index;
+    /*
+     * Bytes currently held inside the EVP cipher context that have been fed
+     * to EVP_{Encrypt,Decrypt}Update but not yet emitted — i.e. the residue
+     * OCB (a block-buffering AEAD) will flush on a later update or on final.
+     * Zero for the pure-stream AEADs (GCM, ChaCha20-Poly1305) and for modes
+     * whose buffering is tracked via `processed`. Maintained only on the OCB
+     * path; see evp_fed_bytes() and the size functions.
+     */
+    size_t buffered;
     uint8_t poisoned;
     uint8_t initialized;
 } block_cipher_ctx;

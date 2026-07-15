@@ -45,6 +45,37 @@ static inline int is_aead_mode(uint32_t mode_id) {
 }
 
 
+/*
+ * Number of bytes a single update of `in_len` raw input bytes will actually
+ * hand to the EVP layer, given the current tag-buffer fill. For AEAD decrypt
+ * the trailing tag_len bytes of the ciphertext stream are withheld in
+ * tag_buffer (they may still turn out to be the authentication tag), so only
+ * the bytes that can no longer be the tag are fed. Encrypt and non-AEAD modes
+ * feed every input byte.
+ *
+ * This is the pre-EVP feed count the OCB size accounting needs: OCB emits
+ * whole blocks out of (buffered residue + fed), so `fed` — not the raw
+ * in_len — is what drives how much OCB writes.
+ */
+static inline size_t evp_fed_bytes(block_cipher_ctx *ctx, size_t in_len) {
+    if (ctx->op_mode == DECRYPT_MODE && is_aead_mode(ctx->mode_id) && ctx->tag_len > 0) {
+        size_t have = (size_t) ctx->tag_index + in_len;
+        return have > ctx->tag_len ? have - ctx->tag_len : 0;
+    }
+    return in_len;
+}
+
+/*
+ * Maximum number of bytes OCB will write when `fed` bytes reach the EVP layer
+ * on top of the currently-buffered residue: it emits only whole blocks and
+ * keeps the remainder buffered. cipher_block_size is a power of two (16 for
+ * AES-OCB) and non-zero once initialised.
+ */
+static inline size_t ocb_update_out(block_cipher_ctx *ctx, size_t fed) {
+    return ctx->cipher_block_size * ((ctx->buffered + fed) / ctx->cipher_block_size);
+}
+
+
 static inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 
     if (iv_len > block_len) {
@@ -133,6 +164,7 @@ int32_t block_cipher_ctx_init(
 
     ctx->tag_len = tag_len;
     ctx->tag_index = 0;
+    ctx->buffered = 0;
     // Clear any tag bytes buffered from a previous decrypt session.
     OPENSSL_cleanse(ctx->tag_buffer, MAX_TAG_LEN);
 
@@ -1033,10 +1065,35 @@ int32_t block_cipher_ctx_update(
         return JO_OUTPUT_TOO_LONG_INT32;
     }
 
+    // Bytes this update will hand to EVP (tag-buffer withholding applied for
+    // AEAD decrypt). Captured before the tag-buffer state is mutated below so
+    // it also drives the OCB buffered-residue bookkeeping after the EVP call.
+    const size_t evp_fed = evp_fed_bytes(ctx, in_len);
+
     if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
         // Key-wrap output differs from the input by the 8-byte integrity block
         // in either direction. The output buffer is sized by get_update_size /
         // final_size, and OpenSSL fails closed on a short buffer.
+    } else if (ctx->mode_id == OCB) {
+        // OCB is an AEAD mode but NOT a pure stream: it buffers up to
+        // (block-1) bytes internally and can flush a previously-buffered
+        // partial block on this update, so a single update may emit MORE than
+        // the bytes fed this call. EVP_{Encrypt,Decrypt}Update is handed
+        // outsize = in_len + block_size by the EVP layer (not the caller's
+        // real buffer), so OpenSSL's own short-buffer check does not protect
+        // this window — the guard has to live here. Require exactly the
+        // whole-block amount OCB will write, which is what
+        // block_cipher_get_update_size advertises.
+        if (!ctx->initialized) {
+            // Preserve the legacy pre-init precedence (JO_OUTPUT_TOO_SMALL
+            // ahead of the JO_NOT_INITIALIZED below); ocb_update_out needs a
+            // non-zero cipher_block_size, unset until init.
+            if (out_len < in_len) {
+                return JO_OUTPUT_TOO_SMALL;
+            }
+        } else if (out_len < ocb_update_out(ctx, evp_fed)) {
+            return JO_OUTPUT_TOO_SMALL;
+        }
     } else if (ctx->streaming == 0 && ctx->mode_id != XTS && ctx->tag_len == 0) {
         if (!ctx->initialized) {
             // cipher_block_size is unset (0) before init — the block-aware
@@ -1217,6 +1274,15 @@ int32_t block_cipher_ctx_update(
     } else {
         return JO_INVALID_OP_MODE;
     }
+
+    // OCB keeps whatever did not complete a block buffered inside EVP; track
+    // that residue so the size functions know how much a later update/final
+    // will still emit. `evp_fed` is the pre-mutation feed count captured above
+    // (the decrypt path mutates in_len). Other modes buffer via `processed`.
+    if (ctx->mode_id == OCB) {
+        ctx->buffered = (ctx->buffered + evp_fed) % ctx->cipher_block_size;
+    }
+
     ctx->processed += in_len;
     return written;
 }
@@ -1256,13 +1322,19 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
 
                 if (ctx->tag_len > 0) {
                     if (ctx->op_mode == ENCRYPT_MODE) {
-                        len = len + ctx->tag_len;
+                        // All currently-buffered bytes (OCB residue; 0 for the
+                        // stream AEADs) plus the new plaintext become
+                        // ciphertext, and the tag is appended.
+                        len = ctx->buffered + len + ctx->tag_len;
                     } else if (ctx->op_mode == DECRYPT_MODE) {
-                        if (ctx->tag_len > len) {
-                            len = 0;
-                        } else {
-                            len = len - ctx->tag_len;
-                        }
+                        // Plaintext emitted over this doFinal = the EVP residue
+                        // already buffered (OCB) plus the bytes this input will
+                        // feed to EVP. evp_fed_bytes accounts for the tag_len
+                        // bytes withheld in tag_buffer INCLUDING any held from
+                        // prior update() calls (tag_index) — the previous
+                        // `len - tag_len` ignored tag_index and under-sized the
+                        // buffer whenever data had been streamed in first.
+                        len = ctx->buffered + evp_fed_bytes(ctx, len);
                     } else {
                         return JO_INVALID_OP_MODE; // Unexpected state
                     }
@@ -1339,9 +1411,16 @@ int32_t internal_final_size(block_cipher_ctx *ctx) {
 
     if (ctx->tag_len > 0) {
         if (ctx->op_mode == ENCRYPT_MODE) {
-            len = len + ctx->tag_len;
+            // EncryptFinal flushes the EVP residue (OCB; 0 for stream AEADs)
+            // and the tag is appended.
+            len = ctx->buffered + ctx->tag_len;
         } else if (ctx->op_mode == DECRYPT_MODE) {
-            len = 0;
+            // DecryptFinal flushes the EVP residue. For the stream AEADs this
+            // is 0 (nothing buffered); for OCB it is the buffered partial
+            // block, which OpenSSL's OCB final writes WITHOUT honouring the
+            // output size — the previous unconditional 0 left that flush
+            // unguarded and let it write past a zero-capacity window.
+            len = ctx->buffered;
         } else {
             return JO_INVALID_OP_MODE; // Unexpected state
         }
@@ -1527,6 +1606,19 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     // the single update call, so size it exactly as the final operation.
     if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
         return final_size(ctx, len);
+    }
+
+    // OCB is a block-buffering AEAD (unlike GCM/POLY1305, which stream): a
+    // single update emits whole blocks out of (buffered residue + bytes fed
+    // this call), which can exceed `len`. Size to exactly that amount — the
+    // same value block_cipher_ctx_update's OCB guard requires and OCB writes.
+    // Must precede the generic streaming branch below (OCB sets streaming=1).
+    if (ctx->mode_id == OCB) {
+        size_t ocb = ocb_update_out(ctx, evp_fed_bytes(ctx, len));
+        if (ocb > INT32_MAX) {
+            return JO_OUTPUT_SIZE_INT_OVERFLOW;
+        }
+        return (int32_t) ocb;
     }
 
     size_t result;

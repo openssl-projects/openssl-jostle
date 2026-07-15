@@ -27,6 +27,7 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
@@ -2157,6 +2158,202 @@ public class AESAgreementTest
             dec.updateAAD(aad);
             Assertions.assertArrayEquals(msg, dec.doFinal(ct),
                     "trial=" + trial + ": AES-OCB no-params roundtrip failed");
+        }
+    }
+
+    /**
+     * Feed {@code in} through a Cipher using the auto-allocating streaming API —
+     * {@code byte[] part = cipher.update(chunk)} repeated — accumulating the
+     * pieces, and finishing one of two equally-common ways depending on
+     * {@code dataInFinal}:
+     * <ul>
+     *   <li>{@code false}: every byte goes through {@code update(byte[])} and the
+     *       run ends with a no-arg {@code doFinal()} (empty finaliser). This is
+     *       what exposes OCB's final-flush path — the finaliser is sized at
+     *       {@code getFinalSize(0)} yet OCB may still have a buffered partial
+     *       block to emit.</li>
+     *   <li>{@code true}: all but the trailing chunk go through
+     *       {@code update(byte[])} and the remainder is passed to
+     *       {@code doFinal(byte[])}. This is what exposes the pure-stream AEAD
+     *       under-sizing — {@code getFinalSize(lastLen)} must account for the tag
+     *       bytes already withheld by the earlier updates, not just
+     *       {@code lastLen - tagLen}.</li>
+     * </ul>
+     * Both route through {@code engineUpdate(byte[],int,int)} /
+     * {@code engineDoFinal(...)}, the SPI paths that size their OWN output
+     * buffers via {@code getUpdateSize} / {@code getFinalSize} — unlike the
+     * caller-supplied-buffer variants in {@code aesGCMSpreadSplitUpdateDoFinal},
+     * where an over-sized caller buffer masks an under-sized estimate.
+     */
+    private static byte[] streamAutoAllocated(Cipher c, byte[] in, int chunk, boolean dataInFinal) throws Exception
+    {
+        ByteArrayOutputStream acc = new ByteArrayOutputStream();
+        // When finishing with doFinal(byte[]), hold the trailing chunk back for
+        // the finaliser; otherwise stream everything through update().
+        int updateEnd = dataInFinal ? Math.max(0, in.length - Math.max(1, Math.min(chunk, in.length))) : in.length;
+        int off = 0;
+        while (off < updateEnd)
+        {
+            int n = Math.min(chunk, updateEnd - off);
+            byte[] part = c.update(in, off, n);
+            if (part != null)
+            {
+                acc.write(part);
+            }
+            off += n;
+        }
+        if (dataInFinal)
+        {
+            acc.write(c.doFinal(in, off, in.length - off));
+        }
+        else
+        {
+            acc.write(c.doFinal());
+        }
+        return acc.toByteArray();
+    }
+
+    /**
+     * AES-OCB streamed through the auto-allocating {@code update(byte[])} /
+     * {@code doFinal()} API must produce byte-identical ciphertext to a
+     * single-shot {@code doFinal(msg)} and round-trip back to the plaintext, for
+     * every chunking — regardless of where the chunk boundaries fall.
+     *
+     * <p>OCB is an AEAD mode but, unlike GCM and ChaCha20-Poly1305, it is NOT a
+     * pure stream cipher: OpenSSL's OCB buffers up to (block-1) bytes internally
+     * and flushes them on a later {@code update} or on {@code final}. The SPI's
+     * output-size estimates ({@code getUpdateSize} returned {@code len};
+     * {@code internal_final_size} returned 0 for AEAD decrypt) treated OCB as a
+     * pure stream, so:
+     * <ul>
+     *   <li>a chunk that completes a previously-buffered partial block made OCB
+     *       emit more than {@code chunk} bytes into an {@code update} buffer
+     *       sized at {@code chunk} — a heap out-of-bounds write; and</li>
+     *   <li>{@code update(all); doFinal()} sized the final window at
+     *       {@code getFinalSize(0) == 0} while OCB still had a partial block to
+     *       flush — another out-of-bounds write, one OpenSSL's OCB final does not
+     *       bounds-check.</li>
+     * </ul>
+     * The {@code chunk == msg.length} case exercises the second path
+     * (single update, then an empty {@code doFinal()}); {@code chunk == 1} and the
+     * block-straddling sizes exercise the first. Lengths span block-aligned and
+     * unaligned values because the residue only appears when the fed total is not
+     * a block multiple. Before the fix this test crashed the JVM (SIGSEGV/SIGBUS)
+     * or returned corrupted ciphertext on the OCB rows.
+     */
+    @Test
+    public void aesOCB_autoAllocatedStreaming_roundtripsAndAgreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesOCB_autoAllocatedStreaming_roundtripsAndAgreesWithBC");
+        String xform = "AES/OCB/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            for (int msgLen : new int[]{1, 15, 16, 17, 20, 31, 32, 33, 48, 63, 64, 65, 100})
+            {
+                byte[] key = new byte[keySize];
+                sr.nextBytes(key);
+                byte[] iv = new byte[12];
+                sr.nextBytes(iv);
+                byte[] aad = new byte[sr.nextInt(48)];
+                sr.nextBytes(aad);
+                byte[] msg = new byte[msgLen];
+                sr.nextBytes(msg);
+
+                SecretKey secretKey = new SecretKeySpec(key, "AES");
+                GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+                // Reference ciphertext: single-shot Jostle, cross-checked with BC.
+                Cipher refEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                refEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+                refEnc.updateAAD(aad);
+                byte[] ctRef = refEnc.doFinal(msg);
+
+                Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
+                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+                bcEnc.updateAAD(aad);
+                Assertions.assertArrayEquals(bcEnc.doFinal(msg), ctRef,
+                        "keySize=" + keySize + " msgLen=" + msgLen + ": single-shot OCB diverged from BC");
+
+                for (int chunk : new int[]{1, 15, 16, 17, 20, 28, msgLen})
+                {
+                    for (boolean dataInFinal : new boolean[]{false, true})
+                    {
+                        String w = "keySize=" + keySize + " msgLen=" + msgLen + " chunk=" + chunk
+                                + " dataInFinal=" + dataInFinal;
+
+                        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+                        enc.updateAAD(aad);
+                        byte[] ct = streamAutoAllocated(enc, msg, chunk, dataInFinal);
+                        Assertions.assertArrayEquals(ctRef, ct, w + ": chunked encrypt diverged from single-shot");
+
+                        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+                        dec.updateAAD(aad);
+                        byte[] pt = streamAutoAllocated(dec, ct, chunk, dataInFinal);
+                        Assertions.assertArrayEquals(msg, pt, w + ": chunked decrypt roundtrip failed");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The related fix guard for the pure-stream AEADs. GCM and ChaCha20-Poly1305
+     * never buffer plaintext internally, so they had no out-of-bounds write — but
+     * the SPI's final-size estimate ignored the tag bytes withheld in the internal
+     * tag buffer across {@code update} calls, so a streamed decrypt via the
+     * auto-allocating API failed with a spurious {@code ShortBufferException} /
+     * {@code JO_OUTPUT_TOO_SMALL} once data had been delivered before the final
+     * call. This locks the corrected sizing: every chunking round-trips.
+     */
+    @Test
+    public void aesGCM_autoAllocatedStreaming_roundtrips() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesGCM_autoAllocatedStreaming_roundtrips");
+        String xform = "AES/GCM/NoPadding";
+        for (int keySize : new int[]{16, 24, 32})
+        {
+            for (int msgLen : new int[]{1, 16, 17, 31, 48, 64, 100})
+            {
+                byte[] key = new byte[keySize];
+                sr.nextBytes(key);
+                byte[] iv = new byte[12];
+                sr.nextBytes(iv);
+                byte[] aad = new byte[sr.nextInt(48)];
+                sr.nextBytes(aad);
+                byte[] msg = new byte[msgLen];
+                sr.nextBytes(msg);
+
+                SecretKey secretKey = new SecretKeySpec(key, "AES");
+                GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+
+                Cipher refEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                refEnc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+                refEnc.updateAAD(aad);
+                byte[] ctRef = refEnc.doFinal(msg);
+
+                for (int chunk : new int[]{1, 16, 17, 20, msgLen})
+                {
+                    for (boolean dataInFinal : new boolean[]{false, true})
+                    {
+                        String w = "keySize=" + keySize + " msgLen=" + msgLen + " chunk=" + chunk
+                                + " dataInFinal=" + dataInFinal;
+
+                        Cipher enc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                        enc.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+                        enc.updateAAD(aad);
+                        byte[] ct = streamAutoAllocated(enc, msg, chunk, dataInFinal);
+                        Assertions.assertArrayEquals(ctRef, ct, w + ": chunked GCM encrypt diverged from single-shot");
+
+                        Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+                        dec.init(Cipher.DECRYPT_MODE, secretKey, spec);
+                        dec.updateAAD(aad);
+                        byte[] pt = streamAutoAllocated(dec, ct, chunk, dataInFinal);
+                        Assertions.assertArrayEquals(msg, pt, w + ": chunked GCM decrypt roundtrip failed");
+                    }
+                }
+            }
         }
     }
 
