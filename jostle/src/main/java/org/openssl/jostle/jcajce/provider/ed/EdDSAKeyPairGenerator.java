@@ -47,13 +47,39 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
 
     public EdDSAKeyPairGenerator(Object algorithm)
     {
-        super(algorithm.toString());
+        super(algorithmName(algorithm));
         keyType = paramToTypeMap.get(algorithm);
 
         if (keyType == null)
         {
             throw new IllegalArgumentException("unknown algorithm: " + algorithm);
         }
+    }
+
+    /**
+     * The algorithm name reported by {@link #getAlgorithm()}. An
+     * {@link EdDSAParameterSpec} has no {@code toString()}, so
+     * {@code super(algorithm.toString())} would surface a
+     * {@code ...EdDSAParameterSpec@<hash>} identity string; use its declared
+     * name instead. String algorithms (e.g. "EDDSA") pass through unchanged.
+     */
+    private static String algorithmName(Object algorithm)
+    {
+        if (algorithm instanceof EdDSAParameterSpec)
+        {
+            return ((EdDSAParameterSpec) algorithm).getName();
+        }
+        return String.valueOf(algorithm);
+    }
+
+    @Override
+    public void initialize(int keysize, SecureRandom random)
+    {
+        // Ed25519 / Ed448 key sizes are fixed by the algorithm; the size
+        // argument is advisory only (mirrors XECKeyPairGenerator). Refresh the
+        // RNG if the caller supplied one — the base-class no-op would otherwise
+        // silently discard both arguments.
+        this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 
     @Override
@@ -94,14 +120,19 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
     @Override
     public KeyPair generateKeyPair()
     {
-        long res = edServiceNI.generateKeyPair(keyType.getKsType(), random);
+        // An uninitialised generic "EdDSA" generator defaults to Ed25519, as
+        // SunEC and BouncyCastle do; the fixed ED25519 / ED448 subclasses set
+        // keyType at construction, so this only affects the generic form.
+        OSSLKeyType effectiveType = keyType == OSSLKeyType.NONE ? OSSLKeyType.ED25519 : keyType;
+
+        long res = edServiceNI.generateKeyPair(effectiveType.getKsType(), random);
 
         if (res == 0)
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
 
-        PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
+        PKEYKeySpec spec = new PKEYKeySpec(res, effectiveType);
         return new KeyPair(new JOEdPublicKey(spec), new JOEdPrivateKey(spec));
     }
 

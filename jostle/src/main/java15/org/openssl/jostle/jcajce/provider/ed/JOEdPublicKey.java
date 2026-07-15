@@ -21,8 +21,6 @@ import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 import java.lang.ref.Reference;
 import java.math.BigInteger;
-import java.security.interfaces.EdECPrivateKey;
-import java.security.interfaces.EdECPublicKey;
 import java.security.spec.EdECPoint;
 import java.security.spec.NamedParameterSpec;
 

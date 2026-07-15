@@ -96,11 +96,22 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 }
 
                 byte[] encoded = ((EdDSAPublicKeySpec) keySpec).getPublicData();
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
-                NISelector.EDServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
-                return new JOEdPublicKey(pkeySpec);
+                    NISelector.EDServiceNI.decode_publicKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
+                    return new JOEdPublicKey(pkeySpec);
+                }
+                catch (RuntimeException e)
+                {
+                    // A native rejection (wrong-length key, unknown parameter
+                    // spec) surfaces as OpenSSLException / IllegalArgumentException;
+                    // the KeyFactory contract requires InvalidKeySpecException,
+                    // matching the X.509 branch above.
+                    throw new InvalidKeySpecException("unable to decode Ed public key", e);
+                }
             }
         }
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -168,6 +179,14 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
                     return new JOEdPrivateKey(pkeySpec);
+                }
+                catch (RuntimeException e)
+                {
+                    // A native rejection (wrong-length key, unknown parameter
+                    // spec) surfaces as OpenSSLException / IllegalArgumentException;
+                    // the KeyFactory contract requires InvalidKeySpecException,
+                    // matching the PKCS#8 branch above.
+                    throw new InvalidKeySpecException("unable to decode Ed private key", e);
                 }
                 finally
                 {

@@ -16,6 +16,7 @@ import org.openssl.jostle.util.AccessWrapper;
 
 import java.lang.reflect.Method;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.Optional;
 
 public class SpecUtil
 {
@@ -54,7 +55,17 @@ public class SpecUtil
                 {
                     Method m = paramSpec.getClass().getMethod("getContext", NO_PARAMS);
 
-                    return m.invoke(paramSpec, NO_ARGS);
+                    Object result = m.invoke(paramSpec, NO_ARGS);
+                    if (result instanceof Optional)
+                    {
+                        // JDK 15+ java.security.spec.EdDSAParameterSpec.getContext()
+                        // returns Optional<byte[]> (BC's ContextParameterSpec returns
+                        // a bare byte[]); unwrap so the caller always sees byte[] / null
+                        // rather than a ClassCastException on the Optional.
+                        Optional<?> opt = (Optional<?>) result;
+                        return opt.isPresent() ? opt.get() : null;
+                    }
+                    return result;
                 }
                 catch (Exception e)
                 {

@@ -374,12 +374,15 @@ public class EdDSAServiceFFI implements EDServiceNI
             {
                 contextRef.asByteBuffer().put(context);
             }
-            MemorySegment nameSeg = a.allocateFrom(name);
+            // A null name must reach the C bridge as a NULL pointer so it returns
+            // JO_NAME_IS_NULL (allocateFrom(null) would NPE, diverging from JNI).
+            MemorySegment nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
 
             // byteSize() includes the NUL terminator; the native side wants the
             // NUL-excluded length (matching ni_initSign and the JNI
             // GetStringUTFLength path) so an empty name yields name_len == 0.
-            return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, nameSeg, (int) nameSeg.byteSize() - 1, contextRef, contextRef.byteSize(), contextLen);
+            int nameLen = name == null ? 0 : (int) nameSeg.byteSize() - 1;
+            return (int) initVerifyFuncHandle.invokeExact(ctx, keyRef, nameSeg, nameLen, contextRef, contextRef.byteSize(), contextLen);
 
         }
         catch (Throwable t)
@@ -420,9 +423,12 @@ public class EdDSAServiceFFI implements EDServiceNI
             }
 
 
-            MemorySegment nameSeg = a.allocateFrom(name);
+            // A null name must reach the C bridge as a NULL pointer so it returns
+            // JO_NAME_IS_NULL (allocateFrom(null) would NPE, diverging from JNI).
+            MemorySegment nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
 
-            return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, nameSeg, (int) nameSeg.byteSize() - 1, contextRef, contextRef.byteSize(), contextLen, getEntropySegment);
+            int nameLen = name == null ? 0 : (int) nameSeg.byteSize() - 1;
+            return (int) initSignerFuncHandle.invokeExact(ctx, keyRef, nameSeg, nameLen, contextRef, contextRef.byteSize(), contextLen, getEntropySegment);
 
         }
         catch (Throwable t)

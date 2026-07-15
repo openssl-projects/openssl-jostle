@@ -291,6 +291,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         return JO_SIGNER_CTX_IS_NULL;
     }
 
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
     if (_name == NULL) {
         return JO_NAME_IS_NULL;
     }
@@ -336,7 +340,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     ret_code = edec_ctx_init_sign(eddsa, spec, name, name_len, context.bytearray, context_len, rnd_src);
 
 exit:
-    (*env)->ReleaseStringUTFChars(env, _name, name);
+    // name is NULL if GetStringUTFChars failed above — ReleaseStringUTFChars
+    // with a NULL pointer is undefined (matches the EC bridge's guard).
+    if (name != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _name, name);
+    }
     release_bytearray_ctx(&context);
     return ret_code;
 }
@@ -461,7 +469,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     ret_code = edec_ctx_init_verify(eddsa, spec, name, name_len, context.bytearray, context_len);
 
 exit:
-    (*env)->ReleaseStringUTFChars(env, _name, name);
+    // name is NULL if GetStringUTFChars failed above — ReleaseStringUTFChars
+    // with a NULL pointer is undefined (matches the EC bridge's guard).
+    if (name != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _name, name);
+    }
     release_bytearray_ctx(&context);
     return ret_code;
 }

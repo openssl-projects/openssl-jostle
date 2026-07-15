@@ -15,10 +15,9 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.EdDSAKey;
-import org.openssl.jostle.jcajce.interfaces.EdDSAPrivateKey;
-import org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -75,7 +74,6 @@ public class EdSignatureSpi extends SignatureSpi
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
-
         synchronized (this)
         {
             // Accept Jostle-native keys directly and adopt foreign EdDSA
@@ -83,41 +81,8 @@ public class EdSignatureSpi extends SignatureSpi
             // verify with a public key decoded by another provider works
             // (JCA/TLS gap #5).
             JOEdPublicKey key = EdKeyFactorySpi.importPublicKey(publicKey);
-
-            updateCalled = false;
             lastKey = key;
-
-            if (!matchForcedType(key.getType()))
-            {
-                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
-            }
-
-            if (ref == null)
-            {
-                ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
-            }
-
-            byte[] context = null;
-            int contextLen = 0;
-
-            if (algorithmParameterSpec instanceof ContextParameterSpec)
-            {
-                switch (forcedType)
-                {
-                    case Ed25519ctx:
-                    case Ed25519ph:
-                    case ED448ph:
-                        context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                        contextLen = context.length;
-                        break;
-                    default:
-                        throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
-                }
-            }
-
-            String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
-
-            edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), name, context, contextLen);
+            initVerifyInternal(key);
         }
     }
 
@@ -139,42 +104,92 @@ public class EdSignatureSpi extends SignatureSpi
             // (JCA/TLS gap #5).
             JOEdPrivateKey key = EdKeyFactorySpi.importPrivateKey(privateKey);
             lastKey = key;
-            updateCalled = false;
-
-            if (!matchForcedType(key.getType()))
-            {
-                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
-            }
-
-            if (ref == null)
-            {
-                ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
-            }
-
-            byte[] context = null;
-            int contextLen = 0;
-
-            if (algorithmParameterSpec instanceof ContextParameterSpec)
-            {
-                switch (forcedType)
-                {
-                    case Ed25519ctx:
-                    case Ed25519ph:
-                    case ED448ph:
-                        context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                        contextLen = context.length;
-                        break;
-                    default:
-                        throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
-                }
-            }
-
-            String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
-
-            edServiceNI.initSign(
-                    ref.getReference(),
-                    key.getSpec().getReference(), name, context, contextLen, randSource);
+            initSignInternal(key);
         }
+    }
+
+    /**
+     * Bind an already-imported private key for signing using the SPI's
+     * current {@code randSource}. Separated from {@link #engineInitSign}
+     * so {@link #reInit} can re-bind after a terminal op WITHOUT replacing
+     * the caller-supplied SecureRandom — re-entering {@code engineInitSign(key)}
+     * would silently swap it for the project default (mirrors ECDSASignatureSpi).
+     */
+    private void initSignInternal(JOEdPrivateKey key) throws InvalidKeyException
+    {
+        updateCalled = false;
+
+        if (!matchForcedType(key.getType()))
+        {
+            throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
+        }
+
+        if (ref == null)
+        {
+            ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
+        }
+
+        byte[] context = null;
+        int contextLen = 0;
+
+        if (algorithmParameterSpec instanceof ContextParameterSpec)
+        {
+            switch (forcedType)
+            {
+                case Ed25519ctx:
+                case Ed25519ph:
+                case ED448ph:
+                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                    contextLen = context.length;
+                    break;
+                default:
+                    throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
+            }
+        }
+
+        String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
+
+        edServiceNI.initSign(
+                ref.getReference(),
+                key.getSpec().getReference(), name, context, contextLen, randSource);
+    }
+
+    /** Verify-side counterpart to {@link #initSignInternal}. */
+    private void initVerifyInternal(JOEdPublicKey key) throws InvalidKeyException
+    {
+        updateCalled = false;
+
+        if (!matchForcedType(key.getType()))
+        {
+            throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
+        }
+
+        if (ref == null)
+        {
+            ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
+        }
+
+        byte[] context = null;
+        int contextLen = 0;
+
+        if (algorithmParameterSpec instanceof ContextParameterSpec)
+        {
+            switch (forcedType)
+            {
+                case Ed25519ctx:
+                case Ed25519ph:
+                case ED448ph:
+                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                    contextLen = context.length;
+                    break;
+                default:
+                    throw new InvalidKeyException(forcedType.name() + " does not accept a context parameter");
+            }
+        }
+
+        String name = forcedType != OSSLKeyType.NONE ? forcedType.name() : key.getType().getTypeName();
+
+        edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), name, context, contextLen);
     }
 
     @Override
@@ -243,6 +258,13 @@ public class EdSignatureSpi extends SignatureSpi
                 int code = edServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
                 return code == ErrorCode.JO_SUCCESS.getCode();
             }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // A null / malformed signature surfaces as OpenSSLException /
+                // IllegalArgumentException from the bridge; the JCA contract
+                // requires SignatureException here, not an undeclared runtime.
+                throw new SignatureException("unable to verify EdDSA signature", e);
+            }
             finally
             {
                 reInit();
@@ -267,7 +289,10 @@ public class EdSignatureSpi extends SignatureSpi
 
         if (params == null)
         {
-            algorithmParameterSpec = ContextParameterSpec.EMPTY_CONTEXT_SPEC;
+            // JCA contract: null resets to the SPI's default (no context) and
+            // MUST NOT throw. Installing EMPTY_CONTEXT_SPEC here instead would
+            // make plain Ed25519 / Ed448 throw via the context switch.
+            algorithmParameterSpec = null;
             reInit();
             return;
         }
@@ -298,23 +323,17 @@ public class EdSignatureSpi extends SignatureSpi
         {
             try
             {
-                if (lastKey instanceof EdDSAPublicKey)
+                if (lastKey instanceof JOEdPublicKey)
                 {
-                    engineInitVerify((PublicKey) lastKey);
+                    initVerifyInternal((JOEdPublicKey) lastKey);
                 }
-                else
+                else if (lastKey instanceof JOEdPrivateKey)
                 {
-                    if (lastKey instanceof EdDSAPrivateKey)
-                    {
-                        engineInitSign((PrivateKey) lastKey);
-                    }
-                    else
-                    {
-                        if (lastKey != null)
-                        {
-                            throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
-                        }
-                    }
+                    initSignInternal((JOEdPrivateKey) lastKey);
+                }
+                else if (lastKey != null)
+                {
+                    throw new InvalidKeyException("last key is unexpected type: " + lastKey.getClass());
                 }
 
                 // Intentional, does nothing if no key present.
@@ -378,7 +397,8 @@ public class EdSignatureSpi extends SignatureSpi
     @Override
     public String toString()
     {
-        return "EdDSASignature(" + ref.getReference() + ")" + (lastKey != null ? "[" + lastKey.toString() + "]" : "[]");
+        return "EdDSASignature(" + (ref != null ? ref.getReference() : "<uninitialised>") + ")"
+                + (lastKey != null ? "[" + lastKey.toString() + "]" : "[]");
     }
 
 

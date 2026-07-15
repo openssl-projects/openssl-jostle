@@ -186,8 +186,8 @@ public class ECLimitTest
 
     /**
      * Default branch in the {@code switch (component)} — any selector
-     * outside {0,1,2,3} returns {@code JO_FAIL}, surfaced by the Java
-     * default error handler as {@code IllegalStateException}.
+     * outside {0,1,2,3} returns {@code JO_UNEXPECTED_STATE}, surfaced by the
+     * Java error handler as {@code IllegalStateException}.
      */
     @Test
     public void ECServiceNI_getComponent_invalidSelector()
@@ -201,10 +201,10 @@ public class ECLimitTest
         }
         catch (IllegalStateException expected)
         {
-            // ec_get_component returns JO_FAIL for unknown selectors;
-            // baseErrorHandler's default arm wraps it with the typed
-            // exception and a message naming the code.
-            Assertions.assertEquals("unexpected error code JO_FAIL: -1",
+            // ec_get_component returns the typed JO_UNEXPECTED_STATE for
+            // unknown selectors (not bare JO_FAIL, which would surface as the
+            // opaque "unexpected error code" fallback).
+            Assertions.assertEquals("unexpected state",
                     expected.getMessage());
         }
         finally

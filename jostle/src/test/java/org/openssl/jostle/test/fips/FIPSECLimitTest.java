@@ -147,12 +147,12 @@ public class FIPSECLimitTest
     @Test
     public void getComponent_invalidSelector()
     {
-        // Any selector outside {0,1,2,3} → JO_FAIL, surfaced by the default
-        // error handler as IllegalStateException naming the code.
+        // Any selector outside {0,1,2,3} → typed JO_UNEXPECTED_STATE, surfaced
+        // by the error handler as IllegalStateException("unexpected state").
         long keyRef = genKey();
         try
         {
-            assertISE("unexpected error code JO_FAIL: -1",
+            assertISE("unexpected state",
                     () -> ec.getComponent(keyRef, 999, new byte[64]));
         }
         finally

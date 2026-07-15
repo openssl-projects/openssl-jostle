@@ -395,11 +395,16 @@ int32_t edec_ctx_init_sign(
         goto exit;
     }
 
-
+    // Clear any prior session state up-front so a failed init leaves the ctx
+    // cleanly not-initialised (opp == 0, no digest_ctx) rather than
+    // half-configured — a later sign would otherwise misread stale opp and a
+    // dangling digest_ctx (ec.c ec_ctx_clear_session pattern).
     BIO_reset(ctx->message);
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);
+        ctx->digest_ctx = NULL;
     }
+    ctx->opp = 0;
 
     ctx->digest_ctx = EVP_MD_CTX_new();
 
@@ -426,6 +431,8 @@ int32_t edec_ctx_init_sign(
 
     if (OPS_OPENSSL_ERROR_2 EVP_DigestSignInit_ex(ctx->digest_ctx, NULL, NULL, libctx, NULL, key_spec->key,
                                                   params) != 1) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
+        ctx->digest_ctx = NULL;
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
         goto exit;
     }
@@ -462,10 +469,16 @@ int32_t edec_ctx_init_verify(
         goto exit;
     }
 
+    // Clear any prior session state up-front so a failed init leaves the ctx
+    // cleanly not-initialised (opp == 0, no digest_ctx) rather than
+    // half-configured — a later verify would otherwise misread stale opp and a
+    // dangling digest_ctx (ec.c ec_ctx_clear_session pattern).
     BIO_reset(ctx->message);
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);
+        ctx->digest_ctx = NULL;
     }
+    ctx->opp = 0;
 
     ctx->digest_ctx = EVP_MD_CTX_new();
 
@@ -495,6 +508,8 @@ int32_t edec_ctx_init_verify(
             libctx,
             NULL,
             key_spec->key, params)) {
+        EVP_MD_CTX_free(ctx->digest_ctx);
+        ctx->digest_ctx = NULL;
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1004);
         goto exit;
     }
@@ -519,6 +534,20 @@ int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
     }
 
     if (in_len > (size_t) INT32_MAX) {
+        rand_clear_java_srand_call();
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+
+    // Bound the ACCUMULATED message, not just this chunk: edec_ctx_sign casts
+    // the total to int, and BIO_get_mem_data returns a long that is only 32-bit
+    // on some supported platforms (Windows). Mirrors ec_raw_append in ec.c.
+    uint8_t *cur_ptr = NULL;
+    const long cur_len = BIO_get_mem_data(ctx->message, &cur_ptr);
+    if (cur_len < 0) {
+        rand_clear_java_srand_call();
+        return JO_OPENSSL_ERROR;
+    }
+    if ((size_t) cur_len > (size_t) INT32_MAX - in_len) {
         rand_clear_java_srand_call();
         return JO_INPUT_TOO_LONG_INT32;
     }

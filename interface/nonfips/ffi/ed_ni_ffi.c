@@ -17,6 +17,7 @@
 #include "../util/jo_assert.h"
 
 key_spec *JoEDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+    jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -24,9 +25,7 @@ key_spec *JoEDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src)
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     *ret_val = edec_generate_key(spec, type, rnd_src);
 
@@ -82,7 +81,7 @@ int32_t JoEDDSA_decodePublicKey(key_spec *key_spec,
     }
 
     if (input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -122,7 +121,7 @@ int32_t JoEDDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *
     }
 
     if (input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -217,6 +216,9 @@ int32_t JoEDDSA_initSign(edec_ctx *ctx,
     if (ctx == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
     }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     int32_t ret_val = JO_FAIL;
 
     if (name == NULL) {
@@ -234,12 +236,15 @@ int32_t JoEDDSA_initSign(edec_ctx *ctx,
         goto exit;
     }
 
+    // A negative context_len must be rejected too: casting it to size_t
+    // yields a huge value that exceeds context_size, so the single check
+    // covers both the past-end and negative cases (matching JoEDDSA_initVerifier
+    // and the JNI bridge). An inner `context_len >= 0` guard would let a
+    // negative length slip through into a bogus OSSL_PARAM octet-string size.
     if (context != NULL) {
-        if (context_len >= 0) {
-            if ((size_t) context_len > context_size) {
-                ret_val = JO_CONTEXT_LEN_PAST_END;
-                goto exit;
-            }
+        if ((size_t) context_len > context_size) {
+            ret_val = JO_CONTEXT_LEN_PAST_END;
+            goto exit;
         }
     }
 
