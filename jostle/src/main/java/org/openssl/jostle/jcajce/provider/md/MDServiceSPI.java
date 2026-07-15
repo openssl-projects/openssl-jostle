@@ -87,8 +87,17 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
         synchronized (this)
         {
             byte[] out = new byte[mdServiceNI.getDigestOutputLen(ref.getReference())];
-            mdServiceNI.digest(ref.getReference(), out, 0, out.length);
-            mdServiceNI.reset(ref.getReference());
+            // reset must run even if digest throws: a failed EVP_DigestFinal
+            // leaves the ctx finalized, and skipping the re-init would let the
+            // next update absorb into finalized state (wrong-but-consistent).
+            try
+            {
+                mdServiceNI.digest(ref.getReference(), out, 0, out.length);
+            }
+            finally
+            {
+                mdServiceNI.reset(ref.getReference());
+            }
             return out;
         }
     }
@@ -106,8 +115,15 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
             {
                 throw new DigestException("output buffer too small (need " + needed + ", got " + len + ")");
             }
-            int l = mdServiceNI.digest(ref.getReference(), buf, offset, len);
-            mdServiceNI.reset(ref.getReference());
+            int l;
+            try
+            {
+                l = mdServiceNI.digest(ref.getReference(), buf, offset, len);
+            }
+            finally
+            {
+                mdServiceNI.reset(ref.getReference());
+            }
             return l;
         }
     }

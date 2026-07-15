@@ -350,6 +350,54 @@ public class FIPSMDLimitTest
         mdNI.reset(0);
     }
 
+    // ---------------------------------------------------------------------
+    // Null (0) md_ctx handle: every dereferencing entry point must return a
+    // typed JO_MD_CTX_IS_NULL rejection, not jo_assert-abort the JVM.
+    // dispose/reset deliberately no-op on null (see reset_nullRef_isNoOp).
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void copyDigest_nullHandle_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mdNI.copyDigest(0));
+        Assertions.assertEquals("md context is null", e.getMessage());
+    }
+
+    @Test
+    public void updateByte_nullHandle_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mdNI.engineUpdate(0, (byte) 0x01));
+        Assertions.assertEquals("md context is null", e.getMessage());
+    }
+
+    @Test
+    public void updateBytes_nullHandle_rejectedTyped()
+    {
+        // ctx is checked before the input/range checks, so a non-null input
+        // with a null handle still surfaces the handle rejection.
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mdNI.engineUpdate(0, new byte[4], 0, 4));
+        Assertions.assertEquals("md context is null", e.getMessage());
+    }
+
+    @Test
+    public void getDigestOutputLen_nullHandle_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mdNI.getDigestOutputLen(0));
+        Assertions.assertEquals("md context is null", e.getMessage());
+    }
+
+    @Test
+    public void digest_nullHandle_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> mdNI.digest(0, new byte[32], 0, 32));
+        Assertions.assertEquals("md context is null", e.getMessage());
+    }
+
     private void dispose(long ref)
     {
         if (ref > 0)

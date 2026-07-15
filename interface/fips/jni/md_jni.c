@@ -78,7 +78,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     jo_assert(err != NULL);
 
     md_ctx *ctx = (md_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        err[0] = JO_MD_CTX_IS_NULL;
+        (*env)->ReleaseIntArrayElements(env, _err, err, 0);
+        return (jlong) NULL;
+    }
 
     new_ctx = md_ctx_copy(ctx, err);
 
@@ -98,7 +102,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
 
     int32_t ret_code = md_ctx_update(ctx, (uint8_t *) &data, 1);
 
@@ -115,7 +121,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
 
     int32_t ret_code = JO_FAIL;
 
@@ -163,7 +171,7 @@ exit:
  */
 JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1dispose
 (JNIEnv *env, jobject o, jlong ref) {
-    UNUSED(*env);
+    UNUSED(env);
     UNUSED(o);
 
     md_ctx *ctx = (md_ctx *) ref;
@@ -184,13 +192,15 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
 
     if (ctx->digest_byte_length <= 0) {
         return JO_NOT_INITIALIZED;
     }
 
-    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
@@ -208,14 +218,16 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
 
     if (_output == NULL) {
         /* Caller wants length — must match ni_getDigestOutputLen contract */
         if (ctx->digest_byte_length <= 0) {
             return JO_NOT_INITIALIZED;
         }
-        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
+        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
             return JO_MD_DIGEST_LEN_INT_OVERFLOW;
         }
         return (jint) ctx->digest_byte_length;

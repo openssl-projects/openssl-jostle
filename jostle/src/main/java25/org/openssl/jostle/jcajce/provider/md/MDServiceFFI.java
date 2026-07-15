@@ -47,7 +47,7 @@ public class MDServiceFFI implements MDServiceNI
 
     public MDServiceFFI(SymbolLookup lookup)
     {
-        allocateDigestFuncHandle = linker.downcallHandle(lookup.find("MD_Allocate").orElseThrow(),
+        allocateDigestFuncHandle = linker.downcallHandle(lookup.find("JoMD_Allocate").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // *md_dtx
                         ValueLayout.ADDRESS, // const char *name
@@ -56,7 +56,7 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        copyDigestFuncHandle = linker.downcallHandle(lookup.find("MD_Copy").orElseThrow(),
+        copyDigestFuncHandle = linker.downcallHandle(lookup.find("JoMD_Copy").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // *md_ctx (the clone)
                         ValueLayout.ADDRESS, // md_ctx *src
@@ -64,7 +64,7 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        updateByteFuncHandle = linker.downcallHandle(lookup.find("MD_UpdateByte").orElseThrow(),
+        updateByteFuncHandle = linker.downcallHandle(lookup.find("JoMD_UpdateByte").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS, // *md_dtx
@@ -73,7 +73,7 @@ public class MDServiceFFI implements MDServiceNI
         );
 
 
-        updateBytesFuncHandle = linker.downcallHandle(lookup.find("MD_UpdateBytes").orElseThrow(),
+        updateBytesFuncHandle = linker.downcallHandle(lookup.find("JoMD_UpdateBytes").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS, // md_ctx *
@@ -84,20 +84,20 @@ public class MDServiceFFI implements MDServiceNI
                 ), Linker.Option.critical(true)
         );
 
-        disposeFuncHandle = linker.downcallHandle(lookup.find("MD_Dispose").orElseThrow(),
+        disposeFuncHandle = linker.downcallHandle(lookup.find("JoMD_Dispose").orElseThrow(),
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // md_ctx *
                 ), Linker.Option.critical(true)
         );
 
-        digestLenFuncHandle = linker.downcallHandle(lookup.find("MD_GetDigestLen").orElseThrow(),
+        digestLenFuncHandle = linker.downcallHandle(lookup.find("JoMD_GetDigestLen").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS // md_ctx *
                 )
         );
 
-        digestBytesFuncHandle = linker.downcallHandle(lookup.find("MD_Digest").orElseThrow(),
+        digestBytesFuncHandle = linker.downcallHandle(lookup.find("JoMD_Digest").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS, // md_ctx *
@@ -107,7 +107,7 @@ public class MDServiceFFI implements MDServiceNI
                         ValueLayout.JAVA_INT // out_len
                 ), Linker.Option.critical(true));
 
-        resetFuncHandle = linker.downcallHandle(lookup.find("MD_Reset").orElseThrow(),
+        resetFuncHandle = linker.downcallHandle(lookup.find("JoMD_Reset").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
                         ValueLayout.ADDRESS // md_ctx *

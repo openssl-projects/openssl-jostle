@@ -16,7 +16,7 @@
 #include "../util/ops.h"
 #include "../util/jo_assert.h"
 
-md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
+md_ctx *JoMD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
     jo_assert(err != NULL);
     if (digest_name == NULL) {
         *err = JO_NAME_IS_NULL;
@@ -28,27 +28,34 @@ md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
     return ctx;
 }
 
-md_ctx *MD_Copy(md_ctx *src, int32_t *err) {
+md_ctx *JoMD_Copy(md_ctx *src, int32_t *err) {
     jo_assert(err != NULL);
-    jo_assert(src != NULL);
+    if (src == NULL) {
+        *err = JO_MD_CTX_IS_NULL;
+        return NULL;
+    }
 
     return md_ctx_copy(src, err);
 }
 
-void MD_Dispose(md_ctx *ctx) {
+void JoMD_Dispose(md_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
     md_ctx_destroy(ctx);
 }
 
-int32_t MD_UpdateByte(md_ctx *ctx, uint8_t data) {
-    jo_assert(ctx != NULL);
+int32_t JoMD_UpdateByte(md_ctx *ctx, uint8_t data) {
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
     return md_ctx_update(ctx, (uint8_t *) &data, 1);
 }
 
-int32_t MD_UpdateBytes(md_ctx *ctx, uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len) {
-    jo_assert(ctx != NULL);
+int32_t JoMD_UpdateBytes(md_ctx *ctx, uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len) {
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
     int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
@@ -79,28 +86,32 @@ exit:
     return ret_code;
 }
 
-int32_t MD_GetDigestLen(md_ctx *ctx) {
-    jo_assert(ctx != NULL);
+int32_t JoMD_GetDigestLen(md_ctx *ctx) {
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
     if (ctx->digest_byte_length <= 0) {
         return JO_NOT_INITIALIZED;
     }
 
-    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
     return  ctx->digest_byte_length;
 }
 
-int32_t MD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off, int32_t out_len) {
-    jo_assert(ctx != NULL);
+int32_t JoMD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off, int32_t out_len) {
+    if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
 
     if (output == NULL) {
-        /* Caller wants length — must match MD_GetDigestLen contract */
+        /* Caller wants length — must match JoMD_GetDigestLen contract */
         if (ctx->digest_byte_length <= 0) {
             return JO_NOT_INITIALIZED;
         }
-        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT_MAX) {
+        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
             return JO_MD_DIGEST_LEN_INT_OVERFLOW;
         }
         return ctx->digest_byte_length;
@@ -137,7 +148,7 @@ int32_t MD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_
 }
 
 
-int32_t MD_Reset(md_ctx *ctx) {
+int32_t JoMD_Reset(md_ctx *ctx) {
     if (ctx == NULL) {
         // Observed spurious resets from within the JVMs provider logic in the past.
         return JO_SUCCESS;

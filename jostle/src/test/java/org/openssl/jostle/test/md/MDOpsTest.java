@@ -274,6 +274,51 @@ public class MDOpsTest
         }
     }
 
+    //
+    // The finalize INT32-overflow guard (md.c:185) is driven above. The two
+    // length paths carry their own OPS_INT32_OVERFLOW_1 guards in the bridge
+    // (md_jni.c / md_ffi.c) that no other test reaches — getDigestOutputLen
+    // and the null-output length query never call finalize. Drive each so the
+    // instrumented site can't silently regress.
+    //
+    @Test
+    public void getDigestOutputLen_intOverflow() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try {
+            // Exercises interface/nonfips/jni/md_jni.c:203
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            mdNI.getDigestOutputLen(ref);
+            Assertions.fail("ops");
+        } catch (IllegalStateException e) {
+            Assertions.assertEquals("digest len overflow", e.getMessage());
+        } finally {
+            if (ref > 0) {
+                mdNI.dispose(ref);
+            }
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void digest_lengthQuery_intOverflow() throws Exception {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try {
+            // Exercises interface/nonfips/jni/md_jni.c:230
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            mdNI.digest(ref, null, 0, 0);
+            Assertions.fail("ops");
+        } catch (IllegalStateException e) {
+            Assertions.assertEquals("digest len overflow", e.getMessage());
+        } finally {
+            if (ref > 0) {
+                mdNI.dispose(ref);
+            }
+            operationsTestNI.resetFlags();
+        }
+    }
+
     @Test
     public void copyDigest_failCreate() throws Exception {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");

@@ -272,6 +272,15 @@
  */
 #define JO_ASN1_CTX_IS_NULL -140
 
+/*
+ * A caller-derived message-digest context handle (md_ctx) was null.
+ * Returned typed by the md bridge entry points (copy / update /
+ * digest / getDigestOutputLen) instead of asserting a value the NI
+ * caller controls (a jo_assert reachable from the NI surface is a JVM
+ * abort, not an error).
+ */
+#define JO_MD_CTX_IS_NULL -141
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

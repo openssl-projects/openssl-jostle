@@ -403,6 +403,87 @@ public void updateBytes_inputNull() throws Exception {
     }
 
 
+    //
+    // Every entry point that dereferences a caller-supplied md_ctx handle must
+    // reject a null (0) handle with a typed JO_MD_CTX_IS_NULL rejection
+    // (IllegalArgumentException "md context is null"), NOT a jo_assert that
+    // aborts the JVM. dispose/reset deliberately no-op on a null handle (see
+    // reset_nullRef_isNoOp) and are exempt. Runs on both JNI and FFI via the
+    // integrationTest25{JNI,FFI} tasks — both bridges must return the same code.
+    //
+    @Test
+    public void copyDigest_nullHandle_rejectedTyped() throws Exception
+    {
+        try
+        {
+            mdNI.copyDigest(0);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("md context is null", e.getMessage());
+        }
+    }
+
+    @Test
+    public void updateByte_nullHandle_rejectedTyped() throws Exception
+    {
+        try
+        {
+            mdNI.engineUpdate(0, (byte) 0x01);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("md context is null", e.getMessage());
+        }
+    }
+
+    @Test
+    public void updateBytes_nullHandle_rejectedTyped() throws Exception
+    {
+        // ctx is checked before the input/range checks, so a non-null input
+        // with a null handle still surfaces the handle rejection.
+        try
+        {
+            mdNI.engineUpdate(0, new byte[4], 0, 4);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("md context is null", e.getMessage());
+        }
+    }
+
+    @Test
+    public void getDigestOutputLen_nullHandle_rejectedTyped() throws Exception
+    {
+        try
+        {
+            mdNI.getDigestOutputLen(0);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("md context is null", e.getMessage());
+        }
+    }
+
+    @Test
+    public void digest_nullHandle_rejectedTyped() throws Exception
+    {
+        try
+        {
+            mdNI.digest(0, new byte[32], 0, 32);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("md context is null", e.getMessage());
+        }
+    }
+
+
 
     //
     // NOTE: when JCA-level XOF support is added (e.g. provider exposes a way
