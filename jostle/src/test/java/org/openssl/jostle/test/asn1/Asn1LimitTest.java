@@ -440,11 +440,13 @@ public class Asn1LimitTest
             validKey = keyGen.generateKeyPair().getPrivate().getEncoded();
         }
 
-        // OK
-        TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length);
+        // OK — dispose the decoded specs so the positive controls don't leak.
+        long ref0 = TestNISelector.Asn1NI.fromPrivateKeyInfo(validKey, 0, validKey.length);
+        TestNISelector.SpecNI.dispose(ref0);
         byte[] offset = new byte[validKey.length + 1];
         System.arraycopy(validKey, 0, offset, 1, validKey.length);
-        TestNISelector.Asn1NI.fromPrivateKeyInfo(offset, 1, validKey.length);
+        long ref1 = TestNISelector.Asn1NI.fromPrivateKeyInfo(offset, 1, validKey.length);
+        TestNISelector.SpecNI.dispose(ref1);
     }
 
     @Test
@@ -566,11 +568,13 @@ public class Asn1LimitTest
             validKey = keyGen.generateKeyPair().getPublic().getEncoded();
         }
 
-        // OK
-        TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length);
+        // OK — dispose the decoded specs so the positive controls don't leak.
+        long ref0 = TestNISelector.Asn1NI.fromPublicKeyInfo(validKey, 0, validKey.length);
+        TestNISelector.SpecNI.dispose(ref0);
         byte[] offset = new byte[validKey.length + 1];
         System.arraycopy(validKey, 0, offset, 1, validKey.length);
-        TestNISelector.Asn1NI.fromPublicKeyInfo(offset, 1, validKey.length);
+        long ref1 = TestNISelector.Asn1NI.fromPublicKeyInfo(offset, 1, validKey.length);
+        TestNISelector.SpecNI.dispose(ref1);
     }
 
 

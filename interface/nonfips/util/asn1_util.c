@@ -141,7 +141,12 @@ int32_t asn1_writer_get_content(asn1_ctx *ctx, uint8_t *output, size_t *written,
             return JO_OUTPUT_OUT_OF_RANGE;
         }
 
-        memcpy(output, buffer, *written);
+        // A freshly-allocated / reset mem BIO reports buffer == NULL with
+        // n == 0; memcpy(dst, NULL, 0) is undefined behaviour even for a
+        // zero length, so only copy when there is something to copy.
+        if (*written > 0) {
+            memcpy(output, buffer, *written);
+        }
     }
 
     return 1;
@@ -172,9 +177,22 @@ int32_t asn1_writer_encode_public_key(asn1_ctx *ctx, key_spec *key_spec, size_t 
 
 /**
  * Create a seed only encoding.
- * @param ctx
- * @param key_spec
- * @return 0 if there is a problem
+ *
+ * Each branch confirms the key algorithm, then reads its seed into the
+ * reserved region of the matching PKCS#8 template. Failure classification:
+ *   - JO_INVALID_SEED_LEN when the seed cannot be read (the key carries no
+ *     seed, e.g. an expanded-only import) or is not the template's reserved
+ *     size — a short read would otherwise leave stale template bytes in the
+ *     encoding. On a key already confirmed to be ML-DSA / ML-KEM, a seed
+ *     retrieval failure means the seed is simply absent, so a typed
+ *     invalid-seed error is more accurate than a generic OpenSSL error.
+ *   - 0 (generic OpenSSL error) when the BIO_write of the assembled template
+ *     fails.
+ *   - JO_INCORRECT_KEY_TYPE when no supported algorithm matched.
+ *
+ * @param ctx the ctx
+ * @param key_spec the key spec
+ * @return 1 on success, otherwise 0 or a negative typed code
  */
 static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     // TODO Seed only encoding logic
@@ -185,12 +203,19 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
         uint8_t b[sizeof(mldsa44)];
         int32_t ret = 0;
+        size_t seed_len = 0;
         memcpy(b, mldsa44, sizeof(mldsa44));
 
         if (
             OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_get_octet_string_param(
                 key_spec->key,
-                OSSL_PKEY_PARAM_ML_DSA_SEED, b + 22, 32, NULL)) {
+                OSSL_PKEY_PARAM_ML_DSA_SEED, b + 22, 32, &seed_len)) {
+            ret = JO_INVALID_SEED_LEN;
+            goto cleanse_mldsa44;
+        }
+
+        if (seed_len != 32) {
+            ret = JO_INVALID_SEED_LEN;
             goto cleanse_mldsa44;
         }
 
@@ -206,12 +231,19 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-65")) {
         uint8_t b[sizeof(mldsa65)];
         int32_t ret = 0;
+        size_t seed_len = 0;
         memcpy(b, mldsa65, sizeof(mldsa65));
 
         if (OPS_OPENSSL_ERROR_1
             1 != EVP_PKEY_get_octet_string_param(
                 key_spec->key,
-                OSSL_PKEY_PARAM_ML_DSA_SEED, b + 22, 32, NULL)) {
+                OSSL_PKEY_PARAM_ML_DSA_SEED, b + 22, 32, &seed_len)) {
+            ret = JO_INVALID_SEED_LEN;
+            goto cleanse_mldsa65;
+        }
+
+        if (seed_len != 32) {
+            ret = JO_INVALID_SEED_LEN;
             goto cleanse_mldsa65;
         }
 
@@ -227,12 +259,19 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-87")) {
         uint8_t b[sizeof(mldsa87)];
         int32_t ret = 0;
+        size_t seed_len = 0;
         memcpy(b, mldsa87, sizeof(mldsa87));
 
         if (OPS_OPENSSL_ERROR_1
             1 != EVP_PKEY_get_octet_string_param(
                 key_spec->key,
-                OSSL_PKEY_PARAM_ML_DSA_SEED, b + 22, 32, NULL)) {
+                OSSL_PKEY_PARAM_ML_DSA_SEED, b + 22, 32, &seed_len)) {
+            ret = JO_INVALID_SEED_LEN;
+            goto cleanse_mldsa87;
+        }
+
+        if (seed_len != 32) {
+            ret = JO_INVALID_SEED_LEN;
             goto cleanse_mldsa87;
         }
 
@@ -248,12 +287,19 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     if (EVP_PKEY_is_a(key_spec->key, "ML-KEM-512")) {
         uint8_t b[sizeof(mlkem512)];
         int32_t ret = 0;
+        size_t seed_len = 0;
         memcpy(b, mlkem512, sizeof(mlkem512));
 
         if (OPS_OPENSSL_ERROR_1
             1 != EVP_PKEY_get_octet_string_param(
                 key_spec->key,
-                OSSL_PKEY_PARAM_ML_KEM_SEED, b + 22, 64, NULL)) {
+                OSSL_PKEY_PARAM_ML_KEM_SEED, b + 22, 64, &seed_len)) {
+            ret = JO_INVALID_SEED_LEN;
+            goto cleanse_mlkem512;
+        }
+
+        if (seed_len != 64) {
+            ret = JO_INVALID_SEED_LEN;
             goto cleanse_mlkem512;
         }
 
@@ -269,12 +315,19 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     if (EVP_PKEY_is_a(key_spec->key, "ML-KEM-768")) {
         uint8_t b[sizeof(mlkem768)];
         int32_t ret = 0;
+        size_t seed_len = 0;
         memcpy(b, mlkem768, sizeof(mlkem768));
 
         if (OPS_OPENSSL_ERROR_1
             1 != EVP_PKEY_get_octet_string_param(
                 key_spec->key,
-                OSSL_PKEY_PARAM_ML_KEM_SEED, b + 22, 64, NULL)) {
+                OSSL_PKEY_PARAM_ML_KEM_SEED, b + 22, 64, &seed_len)) {
+            ret = JO_INVALID_SEED_LEN;
+            goto cleanse_mlkem768;
+        }
+
+        if (seed_len != 64) {
+            ret = JO_INVALID_SEED_LEN;
             goto cleanse_mlkem768;
         }
 
@@ -290,12 +343,19 @@ static int32_t seed_only_encoder(asn1_ctx *ctx, key_spec *key_spec) {
     if (EVP_PKEY_is_a(key_spec->key, "ML-KEM-1024")) {
         uint8_t b[sizeof(mlkem1024)];
         int32_t ret = 0;
+        size_t seed_len = 0;
         memcpy(b, mlkem1024, sizeof(mlkem1024));
 
         if (OPS_OPENSSL_ERROR_1
             1 != EVP_PKEY_get_octet_string_param(
                 key_spec->key,
-                OSSL_PKEY_PARAM_ML_KEM_SEED, b + 22, 64, NULL)) {
+                OSSL_PKEY_PARAM_ML_KEM_SEED, b + 22, 64, &seed_len)) {
+            ret = JO_INVALID_SEED_LEN;
+            goto cleanse_mlkem1024;
+        }
+
+        if (seed_len != 64) {
+            ret = JO_INVALID_SEED_LEN;
             goto cleanse_mlkem1024;
         }
 
@@ -366,7 +426,7 @@ int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t
                 }
                 break;
             }
-            if (OPS_OPENSSL_ERROR_4 !i2d_PrivateKey_bio(ctx->buffer, key_spec->key)) {
+            if (OPS_OPENSSL_ERROR_4 1 != i2d_PrivateKey_bio(ctx->buffer, key_spec->key)) {
                 return 0;
             }
             break;

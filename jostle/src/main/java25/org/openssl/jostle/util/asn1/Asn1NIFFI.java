@@ -45,20 +45,20 @@ public class Asn1NIFFI implements Asn1Ni
 
     public Asn1NIFFI(SymbolLookup lookup)
     {
-        MemorySegment allocateFunc = lookup.find("ASN1_allocate").orElseThrow();
+        MemorySegment allocateFunc = lookup.find("JoASN1_allocate").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,// Return ptr
                         ValueLayout.ADDRESS // err
                 ));
 
-        MemorySegment disposeFunc = lookup.find("ASN1_dispose").orElseThrow();
+        MemorySegment disposeFunc = lookup.find("JoASN1_dispose").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // ptr
                 ));
 
-        MemorySegment encodePublicKeyFunc = lookup.find("ASN1_encodePublicKey").orElseThrow();
+        MemorySegment encodePublicKeyFunc = lookup.find("JoASN1_encodePublicKey").orElseThrow();
         encodePublicKeyFuncHandle = linker.downcallHandle(encodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -66,7 +66,7 @@ public class Asn1NIFFI implements Asn1Ni
                         ValueLayout.ADDRESS
                 ), Linker.Option.critical(true));
 
-        MemorySegment encodePrivateKeyFunc = lookup.find("ASN1_encodePrivateKey").orElseThrow();
+        MemorySegment encodePrivateKeyFunc = lookup.find("JoASN1_encodePrivateKey").orElseThrow();
         encodePrivateKeyFuncHandle = linker.downcallHandle(encodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -76,7 +76,7 @@ public class Asn1NIFFI implements Asn1Ni
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        MemorySegment getDataFunc = lookup.find("ASN1_getData").orElseThrow();
+        MemorySegment getDataFunc = lookup.find("JoASN1_getData").orElseThrow();
         getDataFuncHandle = linker.downcallHandle(getDataFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -86,7 +86,7 @@ public class Asn1NIFFI implements Asn1Ni
                 ), Linker.Option.critical(true));
 
 
-        MemorySegment fromPrivateKeyInfoFunc = lookup.find("ASN1_fromPrivateKeyInfo").orElseThrow();
+        MemorySegment fromPrivateKeyInfoFunc = lookup.find("JoASN1_fromPrivateKeyInfo").orElseThrow();
         fromPrivateKeyInfoFuncHandle = linker.downcallHandle(fromPrivateKeyInfoFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // key_spec*
@@ -98,7 +98,7 @@ public class Asn1NIFFI implements Asn1Ni
                 ), Linker.Option.critical(true));
 
 
-        MemorySegment fromPublicKeyInfoFunc = lookup.find("ASN1_fromPublicKeyInfo").orElseThrow();
+        MemorySegment fromPublicKeyInfoFunc = lookup.find("JoASN1_fromPublicKeyInfo").orElseThrow();
         fromPublicKeyInfoFuncHandle = linker.downcallHandle(fromPublicKeyInfoFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // key_spec*
@@ -126,7 +126,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_allocateKeySpec",
+                    "FFI JoASN1_allocate",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -144,7 +144,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI ASN1_dispose",
+                    "FFI JoASN1_dispose",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -161,7 +161,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI ASN1_encodePublicKey",
+                    "FFI JoASN1_encodePublicKey",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -190,7 +190,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI ASN1_encodePrivateKey",
+                    "FFI JoASN1_encodePrivateKey",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -208,7 +208,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI ASN1_getData",
+                    "FFI JoASN1_getData",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -243,7 +243,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI ASN1_fromPrivateKeyInfo",
+                    "FFI JoASN1_fromPrivateKeyInfo",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -280,7 +280,7 @@ public class Asn1NIFFI implements Asn1Ni
         {
             L.log(
                     Level.WARNING,
-                    "FFI ASN1_fromPublicKeyInfo",
+                    "FFI JoASN1_fromPublicKeyInfo",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }

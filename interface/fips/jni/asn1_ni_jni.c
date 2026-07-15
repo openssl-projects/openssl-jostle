@@ -42,12 +42,18 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1dispose
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1allocate
 (JNIEnv *env, jobject jo, jintArray _err) {
-    UNUSED(env);
     UNUSED(jo);
+
+    // _err is internal plumbing: the Asn1Ni.allocate() default always passes a
+    // one-element int[]. Validate it BEFORE allocating the ctx so a malformed
+    // (null / zero-length) array can never orphan a just-allocated writer via
+    // an out-of-bounds SetIntArrayRegion.
+    jo_assert(_err != NULL);
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
+
     int32_t err = JO_FAIL;
     asn1_ctx *ctx = asn1_writer_allocate(&err);
     jo_assert(ctx != NULL);
-    jo_assert(_err != NULL);
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
     return (jlong) ctx;
 }
@@ -79,7 +85,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePub
 
 
     size_t buf_len = 0;
-    if (!asn1_writer_encode_public_key(ctx, key, &buf_len)) {
+    if (1 != asn1_writer_encode_public_key(ctx, key, &buf_len)) {
         return JO_OPENSSL_ERROR;
     }
 
@@ -93,7 +99,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePub
 /*
  * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
  * Method:    encodePrivateKey
- * Signature: (JJ)I
+ * Signature: (JJLjava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1encodePrivateKey
 (JNIEnv *env, jobject jo, jlong asn1_ref, jlong key_ref, jstring _option) {
@@ -170,7 +176,7 @@ exit:
 /*
  * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
  * Method:    getData
- * Signature: (J[B)J
+ * Signature: (J[B)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _output) {
@@ -254,7 +260,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPriv
     }
 
 
-    // in_off is asserted non-negative by this point
+    // in_off is non-negative by this point (checked above)
     uint8_t *data = input.bytearray + in_off;
 
 
@@ -310,7 +316,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPubl
         goto exit;
     }
 
-    // in_off is asserted non-negative by this point
+    // in_off is non-negative by this point (checked above)
     const uint8_t *data = input.bytearray + in_off;
 
 
