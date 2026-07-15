@@ -252,6 +252,49 @@ public class DSASignatureTest
         Assertions.assertFalse(verified, "tampered signature must not verify");
     }
 
+    /**
+     * A structurally-invalid signature (not a DER {@code SEQUENCE
+     * \{INTEGER r, INTEGER s\}}) drives OpenSSL's DSA verify to its
+     * structural-error path (return -1). That MUST surface as
+     * {@link java.security.SignatureException} per the JCA contract — an
+     * improperly-encoded signature is not permitted to escape as an
+     * undeclared {@code OpenSSLException} / {@code RuntimeException}.
+     */
+    @Test
+    public void testDsa_GarbageSignature_raisesSignatureExceptionNotRuntime() throws Exception
+    {
+        SecureRandom sr = seededRandom("testDsa_GarbageSignature_raisesSignatureExceptionNotRuntime");
+        KeyPair kp = generateKeyPair();
+        byte[] msg = randomMessage(sr, 128);
+
+        // None of these is a valid DER SEQUENCE { INTEGER r, INTEGER s }.
+        byte[][] garbage = {
+                new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF},
+                new byte[40],                          // all-zero: first byte is not 0x30
+                new byte[]{0x30, (byte) 0x81},         // truncated SEQUENCE header
+                new byte[]{0x02, 0x01, 0x00},          // bare INTEGER, not a SEQUENCE
+        };
+
+        for (byte[] sig : garbage)
+        {
+            Signature verifier = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
+            verifier.initVerify(kp.getPublic());
+            verifier.update(msg);
+            try
+            {
+                // Either return false, or throw SignatureException — both
+                // are correct. A RuntimeException escaping here fails the
+                // test, which is exactly the regression being pinned.
+                Assertions.assertFalse(verifier.verify(sig),
+                        "garbage signature must not verify");
+            }
+            catch (java.security.SignatureException expected)
+            {
+                // Correct JCA translation of an improperly-encoded signature.
+            }
+        }
+    }
+
     @Test
     public void testDsa_WrongKey_doesNotVerify() throws Exception
     {

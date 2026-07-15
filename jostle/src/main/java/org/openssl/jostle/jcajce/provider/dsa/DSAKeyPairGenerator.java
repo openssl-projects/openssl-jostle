@@ -88,9 +88,12 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
      */
     // Keyed by NI identity + key size: a params spec generated in one
     // interface library's lib ctx (e.g. the FIPS library's) must never be
-    // served to a generator bound to the other.
-    private static final Map<String, PKEYKeySpec> PARAM_CACHE =
-            new ConcurrentHashMap<String, PKEYKeySpec>();
+    // served to a generator bound to the other. The key compares the NI by
+    // reference identity (see ParamCacheKey), NOT by its identity hash code —
+    // an identity-hash collision between the two NI instances would otherwise
+    // cross-serve a params spec from the wrong lib ctx.
+    private static final Map<ParamCacheKey, PKEYKeySpec> PARAM_CACHE =
+            new ConcurrentHashMap<ParamCacheKey, PKEYKeySpec>();
 
 
     private int keySize = DEFAULT_KEY_SIZE;
@@ -190,6 +193,19 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
                     "DSA subgroup q (" + qBits + " bits) must be smaller than p ("
                             + pBits + " bits)");
         }
+        // Bound g: it is an element of Z_p* so it must be strictly smaller
+        // than p (g.bitLength() <= pBits). An oversized g is malformed and,
+        // because makeParamsSpec feeds it straight to BN_bin2bn and the
+        // native keygen's modular exponentiation (O(bits^3)), an unbounded
+        // value turns the generator into a CPU/allocation sink — this is
+        // the DoS bound the DSAKeyFactorySpi.magnitude path already applies.
+        int gBits = dsaSpec.getG().bitLength();
+        if (gBits > pBits)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DSA generator g (" + gBits + " bits) must not exceed p ("
+                            + pBits + " bits)");
+        }
         this.explicitParams = dsaSpec;
         this.random = DefaultRandSource.replaceWith(this.random, random);
     }
@@ -248,7 +264,7 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
      */
     private PKEYKeySpec cachedParamsSpec(final int keySize, final RandSource random)
     {
-        String cacheKey = System.identityHashCode(dsaServiceNI) + ":" + keySize;
+        ParamCacheKey cacheKey = new ParamCacheKey(dsaServiceNI, keySize);
         PKEYKeySpec cached = PARAM_CACHE.get(cacheKey);
         if (cached != null)
         {
@@ -259,5 +275,47 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
         PKEYKeySpec fresh = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
         PKEYKeySpec winner = PARAM_CACHE.putIfAbsent(cacheKey, fresh);
         return winner != null ? winner : fresh;
+    }
+
+    /**
+     * Composite {@link #PARAM_CACHE} key of (NI backend, modulus size).
+     * {@link #equals} compares the NI by reference identity so two
+     * distinct NI instances (the JSL and JSLFIPS backends) can never
+     * share a cache entry — a params spec is bound to one interface
+     * library's OSSL_LIB_CTX and must not be served to a generator on the
+     * other. {@link #hashCode} may collide across NI instances; that is
+     * benign (it only affects hash-bucket placement, not equality).
+     */
+    private static final class ParamCacheKey
+    {
+        private final DSAServiceNI ni;
+        private final int keySize;
+
+        ParamCacheKey(DSAServiceNI ni, int keySize)
+        {
+            this.ni = ni;
+            this.keySize = keySize;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+            {
+                return true;
+            }
+            if (!(o instanceof ParamCacheKey))
+            {
+                return false;
+            }
+            ParamCacheKey that = (ParamCacheKey) o;
+            return this.ni == that.ni && this.keySize == that.keySize;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return System.identityHashCode(ni) * 31 + keySize;
+        }
     }
 }

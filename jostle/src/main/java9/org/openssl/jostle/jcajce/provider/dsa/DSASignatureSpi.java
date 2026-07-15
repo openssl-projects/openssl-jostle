@@ -16,6 +16,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -254,6 +255,15 @@ public class DSASignatureSpi extends SignatureSpi
                     sigBytes != null ? sigBytes.length : 0,
                     randSource);
             return code == ErrorCode.JO_SUCCESS.getCode();
+        }
+        catch (OpenSSLException e)
+        {
+            // A structurally-invalid signature (unparseable DER) makes
+            // OpenSSL's DSA verify return -1, surfacing as OpenSSLException
+            // (a RuntimeException). The JCA contract requires an
+            // improperly-encoded signature to raise SignatureException,
+            // not an undeclared runtime exception.
+            throw new SignatureException("unable to verify DSA signature", e);
         }
         finally
         {

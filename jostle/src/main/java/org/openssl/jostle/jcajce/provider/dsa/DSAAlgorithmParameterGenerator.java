@@ -15,6 +15,7 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -39,18 +40,23 @@ import java.security.spec.DSAParameterSpec;
  */
 public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSpi
 {
-    // Instance field, not a NISelector static (NISelector for JSL,
-    // FIPSNISelector for JSLFIPS).
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS). The specNI must match the NI that
+    // allocated the params ref: the parameters-only EVP_PKEY is bound to
+    // one interface library's OSSL_LIB_CTX, and its PKEYKeySpec disposer
+    // must free it through that same library.
     private final DSAServiceNI dsaServiceNI;
+    private final SpecNI specNI;
 
     public DSAAlgorithmParameterGenerator()
     {
-        this(NISelector.DSAServiceNI);
+        this(NISelector.DSAServiceNI, NISelector.SpecNI);
     }
 
-    public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI)
+    public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI)
     {
         this.dsaServiceNI = dsaServiceNI;
+        this.specNI = specNI;
     }
 
     /** Default modulus size when no engineInit is performed. */
@@ -100,7 +106,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
     protected AlgorithmParameters engineGenerateParameters()
     {
         long paramsRef = dsaServiceNI.generateParameters(pBits, qBits, random);
-        PKEYKeySpec paramsSpec = new PKEYKeySpec(paramsRef, OSSLKeyType.DSA);
+        PKEYKeySpec paramsSpec = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
         DSAParameterSpec spec = DSAComponents.getParams(dsaServiceNI, paramsSpec);
         try
         {
