@@ -323,6 +323,16 @@ public class KSServiceSPI
         }
     }
 
+    /**
+     * Deviation from the strict JCE contract worth noting: {@code KeyStoreSpi}
+     * documents the {@code byte[] key} here as an <em>already-protected</em>
+     * key (the JDK PKCS#12 SPI expects an {@code EncryptedPrivateKeyInfo}, and
+     * BouncyCastle rejects this overload outright). Jostle instead treats the
+     * bytes as an <em>unencrypted</em> PKCS#8 {@code PrivateKeyInfo} and
+     * shrouds them itself at store time -- the native {@code ks_set_key} decodes
+     * the DER as a plain private key. Callers must pass unencrypted PKCS#8, not
+     * an encrypted blob.
+     */
     @Override
     public void engineSetKeyEntry(String alias, byte[] key, Certificate[] chain)
         throws KeyStoreException
@@ -516,8 +526,17 @@ public class KSServiceSPI
             byte[] encodedPassword = encodePassword(password);
             try
             {
-                stream.write(ksServiceNI.store(ref.getReference(), encodedPassword,
-                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSource));
+                byte[] encoded = ksServiceNI.store(ref.getReference(), encodedPassword,
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSource);
+                if (encoded == null)
+                {
+                    // The NI contract returns the DER on success and throws on a
+                    // negative error code; a null with no exception would only
+                    // arise from a future NI regression. Fail as an IOException
+                    // (engineStore's contract) rather than NPE inside write().
+                    throw new IOException("keystore store produced no output");
+                }
+                stream.write(encoded);
             }
             finally
             {

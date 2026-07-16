@@ -39,10 +39,13 @@ public class KSServiceFFI
             lookup.find("JoKS_Dispose").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS),
             Linker.Option.critical(true));
+    // loadH is deliberately NOT critical: ks_load runs a PBKDF2 (hundreds of
+    // thousands of iterations) per shrouded key bag plus MAC verification, so a
+    // critical downcall would suppress GC for that whole multi-second span.
+    // Buffers are copied off-heap from a confined arena in ni_load instead.
     private static final MethodHandle loadH = linker.downcallHandle(
             lookup.find("JoKS_Load").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
     // storeLenH / storeH are deliberately NOT critical: ks_store generates
     // PKCS#12 salts via the Jostle lib ctx, which up-calls Java for entropy --
     // forbidden from a critical downcall. Buffers are passed off-heap (see
@@ -161,12 +164,57 @@ public class KSServiceFFI
     @Override
     public int ni_load(long ref, byte[] input, byte[] password)
     {
-        try
+        // Non-critical downcall (see loadH), so every buffer is passed off-heap
+        // from a confined arena rather than as a pinned heap segment.
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment inputSeg = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
-            MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
-            return (int) loadH.invokeExact(MemorySegment.ofAddress(ref),
-                    inputSeg, inputSeg.byteSize(), passwordSeg, passwordSeg.byteSize());
+            // Preserve the C layer's null-vs-empty input distinction: a null
+            // input clears the store (success), a non-null EMPTY input is a
+            // malformed file (JO_KS_LOAD_FAILED). Allocate at least one byte for
+            // the empty case so the pointer is non-NULL, but always pass the true
+            // (possibly zero) length.
+            MemorySegment inputSeg;
+            long inputSize;
+            if (input == null)
+            {
+                inputSeg = MemorySegment.NULL;
+                inputSize = 0L;
+            }
+            else
+            {
+                inputSeg = a.allocate(input.length == 0 ? 1L : (long) input.length);
+                inputSize = input.length;
+                if (input.length > 0)
+                {
+                    inputSeg.asByteBuffer().put(input);
+                }
+            }
+
+            MemorySegment passwordSeg = (password == null || password.length == 0)
+                    ? MemorySegment.NULL : a.allocate(password.length);
+            try
+            {
+                if (password != null && password.length > 0)
+                {
+                    passwordSeg.asByteBuffer().put(password);
+                }
+                return (int) loadH.invokeExact(MemorySegment.ofAddress(ref),
+                        inputSeg, inputSize, passwordSeg, passwordSeg.byteSize());
+            }
+            finally
+            {
+                // Arena.close() frees but does NOT cleanse. Scrub the plaintext
+                // store password and the (key-bearing) keystore copy from the
+                // off-heap segments before release, matching ni_store.
+                if (passwordSeg.byteSize() > 0)
+                {
+                    passwordSeg.fill((byte) 0);
+                }
+                if (inputSeg.byteSize() > 0)
+                {
+                    inputSeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {

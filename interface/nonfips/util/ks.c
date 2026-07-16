@@ -171,8 +171,26 @@ static void clear_entries(ks_ctx *ctx) {
     ctx->entries = NULL;
 }
 
+/*
+ * Drop any DER cached by JoKS_StoreLen for the FFI Len-then-fetch split. The
+ * cache is only valid for the entry set present when it was built, so every
+ * entry mutation (and load) must invalidate it. The SPI issues StoreLen and
+ * Store back-to-back with no mutation in between, so this is defence in depth
+ * against a future caller that interleaves a mutation -- which would otherwise
+ * hand back the stale pre-mutation keystore.
+ */
+static void clear_pending_store(ks_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+    OPENSSL_clear_free(ctx->pending_store, ctx->pending_store_len);
+    ctx->pending_store = NULL;
+    ctx->pending_store_len = 0;
+}
+
 static void replace_entries(ks_ctx *ctx, ks_ctx *src) {
     clear_entries(ctx);
+    clear_pending_store(ctx);
     ctx->entries = src->entries;
     src->entries = NULL;
 }
@@ -517,7 +535,6 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
      * calls below OPS-instrumentable -- an OPS-forced failure branch still frees
      * the handle the call actually returned.
      */
-    BIO *bio = NULL;
     PKCS12 *p12 = NULL;
     char *pass = NULL;
     STACK_OF(PKCS7) *safes = NULL;
@@ -525,19 +542,46 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
     ks_ctx loaded;
     int pass_len = (int) password_len;
     int32_t ret = JO_KS_LOAD_FAILED;
+    OSSL_LIB_CTX *prev_default = NULL;
+    int default_swapped = 0;
 
     memset(&loaded, 0, sizeof(loaded));
 
     ERR_clear_error();
 
-    bio = BIO_new_mem_buf(input, (int) input_len);
-    if (bio == NULL) {
-        goto exit;
-    }
+    /*
+     * PKCS#12 MAC verification (pkcs12_gen_mac) and encrypted-safe decryption
+     * (PKCS12_unpack_p7encdata) fetch their digest / cipher through the lib ctx
+     * embedded in the decoded PKCS12 -- which d2i leaves NULL, i.e. the process
+     * default -- while the key-decrypt path (PKCS12_decrypt_skey_ex,
+     * EVP_PKCS82PKEY_ex) is handed the Jostle ctx explicitly. Make the whole
+     * load use one provider configuration by switching the thread default to
+     * the Jostle lib ctx for the duration; the NULL-ctx fetches then resolve to
+     * it. Load consumes no entropy, so the fail-loud bridge RAND (no
+     * thread-local up-call target is bound on this path) is never invoked.
+     * Restored on every exit path below.
+     */
+    prev_default = OSSL_LIB_CTX_set0_default(get_global_jostle_ossl_lib_ctx());
+    default_swapped = 1;
 
-    p12 = d2i_PKCS12_bio(bio, NULL);
-    if (OPS_OPENSSL_ERROR_4 p12 == NULL) {
-        goto exit;
+    {
+        /*
+         * Buffer-based decode so trailing bytes can be detected: d2i consumes
+         * exactly one TLV and advances the pointer past it, so a well-formed
+         * PKCS#12 with appended junk otherwise decodes "successfully". Reject
+         * the trailing data (strict readers do, and silent acceptance can mask
+         * corruption) -- mirroring ks_set_key / ks_set_certificate_entry and
+         * the asn1_util decode paths.
+         */
+        const unsigned char *p = input;
+        p12 = d2i_PKCS12(NULL, &p, (long) input_len);
+        if (OPS_OPENSSL_ERROR_4 p12 == NULL) {
+            goto exit;
+        }
+        if ((size_t) (p - input) != input_len) {
+            ret = JO_DER_TRAILING_DATA;
+            goto exit;
+        }
     }
 
     pass = copy_password(password, password_len);
@@ -552,14 +596,28 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
      * the thread-local ERR queue (mark/pop) and surface a dedicated code the
      * bridge maps to an UnrecoverableKeyException cause, distinct from the
      * generic malformed-file JO_KS_LOAD_FAILED.
+     *
+     * PKCS#12 seeds the MAC/KDF differently for a NULL password and a
+     * zero-length one, and copy_password collapses an empty caller password to
+     * NULL. When the NULL form fails, retry the "" form before declaring
+     * failure (mirroring OpenSSL's own PKCS12_parse) and adopt "" for the
+     * safe-decryption below so both stages use the same form -- this lets
+     * Jostle read a foreign keystore protected with an explicit empty password.
      */
-    ERR_set_mark();
-    if (PKCS12_mac_present(p12) && !PKCS12_verify_mac(p12, pass, pass_len)) {
+    if (PKCS12_mac_present(p12)) {
+        ERR_set_mark();
+        int mac_ok = PKCS12_verify_mac(p12, pass, pass_len);
+        if (!mac_ok && pass == NULL && PKCS12_verify_mac(p12, "", 0)) {
+            pass = OPENSSL_strdup("");
+            jo_assert(pass != NULL);
+            mac_ok = 1;
+        }
         ERR_pop_to_mark();
-        ret = JO_KS_MAC_VERIFY_FAILED;
-        goto exit;
+        if (!mac_ok) {
+            ret = JO_KS_MAC_VERIFY_FAILED;
+            goto exit;
+        }
     }
-    ERR_clear_last_mark();
 
     safes = PKCS12_unpack_authsafes(p12);
     if (OPS_OPENSSL_ERROR_5 safes == NULL) {
@@ -584,19 +642,38 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
             bags = PKCS12_unpack_p7data(p7);
         } else if (PKCS7_type_is_encrypted(p7)) {
             bags = PKCS12_unpack_p7encdata(p7, pass, pass_len);
+        } else {
+            /*
+             * Unrecognised safe content type (e.g. envelopedData): not
+             * something we produce or understand. Skip it, as OpenSSL's own
+             * PKCS#12 parse loop does, rather than failing an otherwise-valid
+             * file.
+             */
+            continue;
         }
 
-        if (bags != NULL) {
-            while (sk_PKCS12_SAFEBAG_num(bags) > 0) {
-                PKCS12_SAFEBAG *moved = sk_PKCS12_SAFEBAG_shift(bags);
-                if (!sk_PKCS12_SAFEBAG_push(all_bags, moved)) {
-                    PKCS12_SAFEBAG_free(moved);
-                    ret = JO_FAIL;
-                    break;
-                }
-            }
-            sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
+        /*
+         * A recognised (data / encrypted) safe that fails to unpack means a
+         * wrong safe-encryption password, an unsupported legacy PBE, or
+         * corruption. Silently skipping it would surface a partial -- or, on a
+         * MAC-less wrong-password file, an EMPTY -- keystore as success. Fail
+         * loud, matching OpenSSL's parser (which treats a NULL unpack as a hard
+         * error), rather than dropping entries.
+         */
+        if (bags == NULL) {
+            ret = JO_KS_LOAD_FAILED;
+            break;
         }
+
+        while (sk_PKCS12_SAFEBAG_num(bags) > 0) {
+            PKCS12_SAFEBAG *moved = sk_PKCS12_SAFEBAG_shift(bags);
+            if (!sk_PKCS12_SAFEBAG_push(all_bags, moved)) {
+                PKCS12_SAFEBAG_free(moved);
+                ret = JO_FAIL;
+                break;
+            }
+        }
+        sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free);
     }
 
     if (ret == JO_SUCCESS) {
@@ -607,12 +684,14 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
     }
 
 exit:
+    if (default_swapped) {
+        OSSL_LIB_CTX_set0_default(prev_default);
+    }
     clear_entries(&loaded);
     sk_PKCS12_SAFEBAG_pop_free(all_bags, PKCS12_SAFEBAG_free);
     sk_PKCS7_pop_free(safes, PKCS7_free);
     OPENSSL_clear_free(pass, password_len + 1);
     PKCS12_free(p12);
-    BIO_free(bio);
     return ret;
 }
 
@@ -859,6 +938,7 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
     jo_assert(key != NULL);
     jo_assert(password != NULL || password_len == 0);
 
+    clear_pending_store(ctx);
     ERR_clear_error();
 
     if (key_len == 0) {
@@ -950,6 +1030,8 @@ int32_t ks_set_certificate_chain(ks_ctx *ctx, const char *alias, const uint8_t *
     jo_assert(alias != NULL);
     jo_assert(chain != NULL || chain_len == 0);
 
+    clear_pending_store(ctx);
+
     if (chain == NULL || chain_len == 0) {
         ks_entry *entry = find_entry(ctx, alias);
         if (entry != NULL) {
@@ -983,6 +1065,18 @@ int32_t ks_set_certificate_chain(ks_ctx *ctx, const char *alias, const uint8_t *
     ks_entry *entry = find_or_create_entry(ctx, alias);
     clear_certificate_chain(entry);
     entry->certificate_chain = parsed;
+    if (entry->key == NULL) {
+        /*
+         * A chain attached to an alias with no private key is a trusted-cert
+         * entry (matching load_cert_bag's keyless-bag handling). Without this
+         * the entry would be neither a key entry nor a cert entry: listed by
+         * ks_get_aliases / ks_contains_alias yet silently dropped by ks_store.
+         * The SPI always sets the key first (so entry->key != NULL here for a
+         * key entry, leaving certificate_entry 0); this only affects direct NI
+         * callers who attach a bare chain.
+         */
+        entry->certificate_entry = 1;
+    }
     return JO_SUCCESS;
 }
 
@@ -990,6 +1084,9 @@ int32_t ks_set_certificate_entry(ks_ctx *ctx, const char *alias, const uint8_t *
     jo_assert(ctx != NULL);
     jo_assert(alias != NULL);
     jo_assert(certificate != NULL || certificate_len == 0);
+
+    clear_pending_store(ctx);
+
     if (certificate == NULL || certificate_len == 0) {
         return JO_KS_LOAD_FAILED;
     }
@@ -1026,6 +1123,8 @@ int32_t ks_set_certificate_entry(ks_ctx *ctx, const char *alias, const uint8_t *
 int32_t ks_delete_entry(ks_ctx *ctx, const char *alias) {
     jo_assert(ctx != NULL);
     jo_assert(alias != NULL);
+
+    clear_pending_store(ctx);
 
     ks_entry *prev = NULL;
     ks_entry *entry = ctx->entries;

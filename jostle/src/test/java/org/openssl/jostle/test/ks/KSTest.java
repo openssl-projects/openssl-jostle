@@ -105,6 +105,44 @@ public class KSTest
     }
 
     @Test
+    public void trailingDataFailsToLoad()
+        throws Exception
+    {
+        char[] password = randomPassword();
+        KeyPair keyPair = rsaKeyPair();
+        X509Certificate cert = selfSigned(keyPair, "SHA256withRSA",
+                "CN=Jostle KS Trailing Data Test");
+
+        KeyStore keyStore = jostleStore();
+        keyStore.setKeyEntry("k", keyPair.getPrivate(), password, new Certificate[] {cert});
+        byte[] encoded = storeToBytes(keyStore, password);
+
+        // Exact-length positive control: the unmodified bytes load cleanly,
+        // proving the boundary sits at consumed == length and the rejections
+        // below are the trailing bytes, not a spurious parse failure.
+        KeyStore control = jostleStore0();
+        control.load(new ByteArrayInputStream(encoded), password);
+        Assertions.assertTrue(control.containsAlias("k"));
+
+        // d2i consumes exactly one TLV; a well-formed PKCS#12 with appended junk
+        // otherwise decodes "successfully". ks_load now checks consumed == length
+        // and rejects the trailing data (JO_DER_TRAILING_DATA -> IOException).
+        for (int extra : new int[] {1, 37})
+        {
+            byte[] withTrailing = new byte[encoded.length + extra];
+            System.arraycopy(encoded, 0, withTrailing, 0, encoded.length);
+            for (int i = encoded.length; i < withTrailing.length; i++)
+            {
+                withTrailing[i] = (byte) 0xAB;
+            }
+            KeyStore reload = jostleStore0();
+            Assertions.assertThrows(IOException.class,
+                    () -> reload.load(new ByteArrayInputStream(withTrailing), password),
+                    "trailing data (" + extra + " byte(s)) must be rejected");
+        }
+    }
+
+    @Test
     public void wrongStorePasswordFailsToLoad()
         throws Exception
     {

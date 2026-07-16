@@ -209,7 +209,7 @@ public class KSServiceOpsTest
         byte[] encoded = buildValidKeystore();
         try
         {
-            // Exercises interface/nonfips/util/ks.c:539
+            // Exercises interface/nonfips/util/ks.c:578
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             ni.load(validRef, encoded, PASSWORD);
             Assertions.fail();
@@ -233,7 +233,7 @@ public class KSServiceOpsTest
         byte[] encoded = buildValidKeystore();
         try
         {
-            // Exercises interface/nonfips/util/ks.c:565
+            // Exercises interface/nonfips/util/ks.c:623
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             ni.load(validRef, encoded, PASSWORD);
             Assertions.fail();
@@ -292,7 +292,7 @@ public class KSServiceOpsTest
         ni.setKey(validRef, "k", keyPkcs8, PASSWORD);
         try
         {
-            // Exercises interface/nonfips/util/ks.c:707
+            // Exercises interface/nonfips/util/ks.c:786
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
                     PBE_ITER, MAC_ITER, TestUtil.RNDSrc);
@@ -315,7 +315,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFI());
         try
         {
-            // Exercises interface/nonfips/util/ks.c:752
+            // Exercises interface/nonfips/util/ks.c:831
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
                     PBE_ITER, MAC_ITER, TestUtil.RNDSrc);
@@ -338,7 +338,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFI());
         try
         {
-            // Exercises interface/nonfips/util/ks.c:777
+            // Exercises interface/nonfips/util/ks.c:856
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
                     PBE_ITER, MAC_ITER, TestUtil.RNDSrc);
