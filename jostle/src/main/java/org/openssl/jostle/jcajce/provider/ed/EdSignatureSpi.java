@@ -139,6 +139,11 @@ public class EdSignatureSpi extends SignatureSpi
                 case Ed25519ctx:
                 case Ed25519ph:
                 case ED448ph:
+                case ED448:
+                    // Pure Ed448 takes a context (RFC 8032 §5.2 — SigEd448 always
+                    // carries one, default empty); there is no separate "Ed448ctx"
+                    // variant. Pure Ed25519 (case ED25519) has NO context and stays
+                    // in the default reject arm.
                     context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
                     contextLen = context.length;
                     break;
@@ -179,6 +184,11 @@ public class EdSignatureSpi extends SignatureSpi
                 case Ed25519ctx:
                 case Ed25519ph:
                 case ED448ph:
+                case ED448:
+                    // Pure Ed448 takes a context (RFC 8032 §5.2 — SigEd448 always
+                    // carries one, default empty); there is no separate "Ed448ctx"
+                    // variant. Pure Ed25519 (case ED25519) has NO context and stays
+                    // in the default reject arm.
                     context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
                     contextLen = context.length;
                     break;

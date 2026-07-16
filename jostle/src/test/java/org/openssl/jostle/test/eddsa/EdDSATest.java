@@ -1143,23 +1143,97 @@ public class EdDSATest
     }
 
     @Test
-    public void testContextOnED448_RejectsAtInitVerify() throws Exception
+    public void testContextOnED448_RoundTrips() throws Exception
     {
+        // Pure Ed448 takes a context (RFC 8032 §5.2 — SigEd448 always carries
+        // one, default empty), unlike pure Ed25519. The forced "Ed448"
+        // transformation must sign/verify with a ContextParameterSpec and bind
+        // the context into the signature.
+        SecureRandom sr = seededRandom("testContextOnED448_RoundTrips");
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("ED448", JostleProvider.PROVIDER_NAME);
         KeyPair kp = kpg.generateKeyPair();
 
-        Signature sig = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
-        sig.setParameter(new ContextParameterSpec(new byte[]{1, 2, 3}));
+        byte[] ctx = new byte[24];
+        sr.nextBytes(ctx);
+        byte[] message = new byte[257];
+        sr.nextBytes(message);
 
-        try
-        {
-            sig.initVerify(kp.getPublic());
-            Assertions.fail();
-        }
-        catch (InvalidKeyException e)
-        {
-            Assertions.assertEquals("ED448 does not accept a context parameter", e.getMessage());
-        }
+        Signature signer = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        signer.initSign(kp.getPrivate());
+        signer.setParameter(new ContextParameterSpec(ctx));
+        signer.update(message);
+        byte[] signature = signer.sign();
+
+        Signature verifier = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(kp.getPublic());
+        verifier.setParameter(new ContextParameterSpec(ctx));
+        verifier.update(message);
+        Assertions.assertTrue(verifier.verify(signature), "Ed448 + context must verify");
+
+        // A different context must NOT verify — proves the context binds into
+        // the signature rather than being silently ignored.
+        byte[] otherCtx = ctx.clone();
+        otherCtx[0] ^= 1;
+        Signature verifier2 = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        verifier2.initVerify(kp.getPublic());
+        verifier2.setParameter(new ContextParameterSpec(otherCtx));
+        verifier2.update(message);
+        Assertions.assertFalse(verifier2.verify(signature), "a different context must not verify");
+    }
+
+    @Test
+    public void testEd448ContextAgreesWithBC() throws Exception
+    {
+        // Cross-validate pure Ed448 + context against BouncyCastle's low-level
+        // Ed448Signer (BC's JCE surface has no pure-Ed448-with-context path).
+        // Both directions, random key / context / message.
+        SecureRandom sr = seededRandom("testEd448ContextAgreesWithBC");
+        byte[] ctxBytes = new byte[20];
+        sr.nextBytes(ctxBytes);
+        byte[] message = new byte[200];
+        sr.nextBytes(message);
+
+        KeyPairGenerator joKeyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
+        joKeyGen.initialize(EdDSAParameterSpec.ED448);
+        KeyPair joKeyPair = joKeyGen.generateKeyPair();
+
+        // JSL sign (Ed448 + context) -> BC low-level verify.
+        Signature joSigner = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        joSigner.initSign(joKeyPair.getPrivate());
+        joSigner.setParameter(new ContextParameterSpec(ctxBytes));
+        joSigner.update(message);
+        byte[] joSignature = joSigner.sign();
+
+        org.bouncycastle.crypto.signers.Ed448Signer bcVerifier =
+                new org.bouncycastle.crypto.signers.Ed448Signer(ctxBytes);
+        bcVerifier.init(false, PublicKeyFactory.createKey(joKeyPair.getPublic().getEncoded()));
+        bcVerifier.update(message, 0, message.length);
+        Assertions.assertTrue(bcVerifier.verifySignature(joSignature),
+                "BC must verify a JSL Ed448+context signature");
+
+        // BC low-level sign (Ed448 + context) -> JSL verify.
+        org.bouncycastle.crypto.signers.Ed448Signer bcSigner =
+                new org.bouncycastle.crypto.signers.Ed448Signer(ctxBytes);
+        bcSigner.init(true, PrivateKeyFactory.createKey(joKeyPair.getPrivate().getEncoded()));
+        bcSigner.update(message, 0, message.length);
+        byte[] bcSignature = bcSigner.generateSignature();
+
+        Signature joVerifier = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        joVerifier.initVerify(joKeyPair.getPublic());
+        joVerifier.setParameter(new ContextParameterSpec(ctxBytes));
+        joVerifier.update(message);
+        Assertions.assertTrue(joVerifier.verify(bcSignature),
+                "JSL must verify a BC Ed448+context signature");
+
+        // Wrong context must fail on the JSL side too.
+        byte[] badCtx = ctxBytes.clone();
+        badCtx[0] ^= 1;
+        Signature joVerifierBad = Signature.getInstance("ED448", JostleProvider.PROVIDER_NAME);
+        joVerifierBad.initVerify(joKeyPair.getPublic());
+        joVerifierBad.setParameter(new ContextParameterSpec(badCtx));
+        joVerifierBad.update(message);
+        Assertions.assertFalse(joVerifierBad.verify(bcSignature),
+                "JSL must reject a BC signature under a different context");
     }
 
 

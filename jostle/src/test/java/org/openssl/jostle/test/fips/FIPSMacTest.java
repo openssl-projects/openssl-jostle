@@ -105,9 +105,18 @@ public class FIPSMacTest
                 Assertions.assertFalse(java.util.Arrays.equals(tag, fips2.doFinal(tampered)),
                         name + ": tampered message produced identical MAC");
 
-                SecretKeySpec otherKey = name.equals("AESCMAC")
-                        ? randomKey("AES", key.getEncoded().length)
-                        : randomKey(name, key.getEncoded().length);
+                // Ensure the "different" key genuinely differs: HMAC keys here
+                // can be as short as 1 byte (line above), so a same-length redraw
+                // collides with `key` ~1/256 of the time and would then produce
+                // an identical MAC — a spurious failure of this differentiator.
+                SecretKeySpec otherKey;
+                do
+                {
+                    otherKey = name.equals("AESCMAC")
+                            ? randomKey("AES", key.getEncoded().length)
+                            : randomKey(name, key.getEncoded().length);
+                }
+                while (java.util.Arrays.equals(key.getEncoded(), otherKey.getEncoded()));
                 Mac fips3 = Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);
                 fips3.init(otherKey);
                 Assertions.assertFalse(java.util.Arrays.equals(tag, fips3.doFinal(message)),
