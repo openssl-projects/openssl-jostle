@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -131,20 +132,8 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT, // return code
-                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-                ValueLayout.JAVA_LONG, // len
-                ValueLayout.JAVA_INT, // strength
-                ValueLayout.JAVA_INT // pred resistance
-        );
-        entropyMt = MethodType.methodType(
-                int.class, // return type
-                MemorySegment.class, // out
-                long.class, // out_len
-                int.class, // strength
-                int.class // pred resistance
-        );
+        entropyFd = EntropyUpcall.DESCRIPTOR;
+        entropyMt = EntropyUpcall.METHOD_TYPE;
     }
 
 

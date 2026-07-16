@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.Arena;
@@ -45,18 +46,8 @@ public class RSAOAEPCipherFFI implements RSAOAEPCipherNI
     private final MethodHandle doFinalH;
 
     // Lookup-independent constants for the RandSource entropy upcall stub.
-    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
-            ValueLayout.JAVA_INT,
-            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
-            ValueLayout.JAVA_LONG,
-            ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_INT);
-    private static final MethodType entropyMt = MethodType.methodType(
-            int.class,
-            MemorySegment.class,
-            long.class,
-            int.class,
-            int.class);
+    private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
+    private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
 
 
     public RSAOAEPCipherFFI()

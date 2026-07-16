@@ -22,6 +22,7 @@ import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
 public class KSServiceFFI
@@ -61,14 +62,8 @@ public class KSServiceFFI
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
-    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
-            ValueLayout.JAVA_INT,
-            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
-            ValueLayout.JAVA_LONG,
-            ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_INT);
-    private static final MethodType entropyMt = MethodType.methodType(
-            int.class, MemorySegment.class, long.class, int.class, int.class);
+    private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
+    private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
     private static final MethodHandle getKeyLenH = linker.downcallHandle(
             lookup.find("JoKS_GetKeyLen").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),

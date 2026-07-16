@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -214,21 +215,9 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-        entropyFd = FunctionDescriptor.of(
-                ValueLayout.JAVA_INT, // return code
-                ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-                ValueLayout.JAVA_LONG, // len
-                ValueLayout.JAVA_INT, // strength
-                ValueLayout.JAVA_INT // pred resistance
-        );
+        entropyFd = EntropyUpcall.DESCRIPTOR;
 
-        entropyMt = MethodType.methodType(
-                int.class, // return type
-                MemorySegment.class, // out
-                long.class, // out_len
-                int.class, // strength
-                int.class // pred resistance
-        );
+        entropyMt = EntropyUpcall.METHOD_TYPE;
     }
 
     @Override

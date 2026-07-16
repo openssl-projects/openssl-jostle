@@ -34,7 +34,11 @@ public class DefaultRandSource implements RandSource
         return new DefaultRandSource(random);
     }
 
-    protected DefaultRandSource(SecureRandom secureRandom)
+    // Public to match the Java 8 baseline's public (SecureRandom) constructor
+    // — the multi-release ABI rule requires an identical public/protected
+    // surface for members whose signature is Java-8-expressible, else a
+    // consumer compiled against the baseline hits IllegalAccessError on JDK 9+.
+    public DefaultRandSource(SecureRandom secureRandom)
     {
         this(secureRandom, secureRandom.getParameters());
     }
@@ -71,17 +75,6 @@ public class DefaultRandSource implements RandSource
 
     }
 
-
-    protected DefaultRandSource(SecureRandom secureRandom, boolean assertConditions, int strength, boolean rngSupportsPredictionResistant, boolean rngSupportsReseed)
-    {
-        this.random = secureRandom;
-        this.assertConditions = assertConditions;
-        this.strength = strength;
-        this.rngSupportsPredictionResistant = rngSupportsPredictionResistant;
-        this.rngSupportsReseed = rngSupportsReseed;
-
-
-    }
 
     /**
      * Return this or a new instance if the passed-in SecureRandom is different from the one used by this instance.
@@ -166,21 +159,6 @@ public class DefaultRandSource implements RandSource
         return new DefaultRandSource(defaultRand);
     }
 
-
-    /**
-     * Return this or a new instance if the passed-in SecureRandom is different from the one used by this instance.
-     *
-     * @param secureRandom the SecureRandom to use.
-     * @return this or a new instance if the passed-in SecureRandom is different from the one used by this instance.
-     */
-    public DefaultRandSource replaceWith(SecureRandom secureRandom)
-    {
-        if (this.random != secureRandom)
-        {
-            return new DefaultRandSource(secureRandom);
-        }
-        return this;
-    }
 
     @Override
     public int getRandomBytes(byte[] out, int len, int strength, boolean predictionResistant)

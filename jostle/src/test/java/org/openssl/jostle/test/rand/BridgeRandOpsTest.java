@@ -133,7 +133,7 @@ public class BridgeRandOpsTest
         }
         catch (Exception t)
         {
-            assertOpenSSLMessageContains(t, "out_len > INT_MAX");
+            assertOpenSSLMessageContains(t, "out_len > INT32_MAX");
         }
     }
 
@@ -152,7 +152,7 @@ public class BridgeRandOpsTest
         }
         catch (Exception t)
         {
-            assertOpenSSLMessageContains(t, "strength > INT_MAX");
+            assertOpenSSLMessageContains(t, "strength > INT32_MAX");
         }
     }
 

@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.util.ops;
 
+import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -35,20 +36,8 @@ public class OperationsTestFFI implements OperationsTestNI
     // Lookup-independent descriptors for the RandSource entropy upcall. These
     // MUST be inline static initializers, not assigned in a lookup-dependent
     // static block (the SpecFFI lesson): they carry no native handle.
-    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
-            ValueLayout.JAVA_INT, // return code
-            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-            ValueLayout.JAVA_LONG, // len
-            ValueLayout.JAVA_INT, // strength
-            ValueLayout.JAVA_INT // pred resistance
-    );
-    private static final MethodType entropyMt = MethodType.methodType(
-            int.class, // return type
-            MemorySegment.class, // out
-            long.class, // out_len
-            int.class, // strength
-            int.class // pred resistance
-    );
+    private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
+    private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
 
     private final boolean opsAvailable;
     private final MethodHandle setOpsFuncHandler;

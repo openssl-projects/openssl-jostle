@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
@@ -38,20 +39,8 @@ public class SpecFFI implements SpecNI
     private final MethodHandle getNameFuncHandle;
 
     // Lookup-independent constants for the RandSource entropy upcall stub.
-    private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
-            ValueLayout.JAVA_INT, // return code
-            ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-            ValueLayout.JAVA_LONG, // len
-            ValueLayout.JAVA_INT, // strength
-            ValueLayout.JAVA_INT // pred resistance
-    );
-    private static final MethodType entropyMt = MethodType.methodType(
-            int.class, // return type
-            MemorySegment.class, // out
-            long.class, // out_len
-            int.class, // strength
-            int.class // pred resistance
-    );
+    private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
+    private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
 
     public SpecFFI()
     {

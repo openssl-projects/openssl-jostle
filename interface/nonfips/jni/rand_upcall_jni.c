@@ -13,6 +13,7 @@
 
 #include <jni.h>
 
+#include <stdint.h>
 #include <string.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
@@ -58,6 +59,7 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
     int rc = JO_FAIL;
     JNIEnv *env = NULL;
     jbyteArray bytes = NULL;
+    int buffer_scrubbed = 0;
 
     if (OPS_RAND_UP_CALL_NULL rnd_src == NULL) {
         rc = JO_RAND_NO_RAND_UP_CALL;
@@ -65,13 +67,13 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         return rc;
     }
 
-    if (OPS_INT32_OVERFLOW_1 out_len > INT_MAX) {
-        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "out_len > INT_MAX: %d", JO_OPENSSL_ERROR);
+    if (OPS_INT32_OVERFLOW_1 out_len > INT32_MAX) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "out_len > INT32_MAX: %d", JO_OPENSSL_ERROR);
         return JO_OPENSSL_ERROR;
     }
 
-    if (OPS_INT32_OVERFLOW_2 strength > INT_MAX) {
-        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "strength > INT_MAX: %d", JO_OPENSSL_ERROR);
+    if (OPS_INT32_OVERFLOW_2 strength > INT32_MAX) {
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "strength > INT32_MAX: %d", JO_OPENSSL_ERROR);
         return JO_OPENSSL_ERROR;
     }
 
@@ -154,19 +156,29 @@ int rand_up_call_next_bytes(void *rnd_src, unsigned char *_out, size_t out_len,
         memcpy(_out, output, rc);
     }
 
-    // Zeroize the raw DRBG seed from the native copy before release so it does
-    // not linger in the JNI buffer.
-    if (output != NULL && rc >= 0) {
-        OPENSSL_cleanse(output, rc);
-    }
-
-    // Mode 0 (not JNI_ABORT): copy the now-zeroed buffer back into the Java array
-    // when GetByteArrayElements returned a copy, and free it. With a direct
-    // pointer the cleanse already zeroed the array's backing memory. Either way
-    // the Java 'bytes' array must not retain the raw seed.
+    // Zeroize the raw DRBG seed from the JNI buffer before release so it does
+    // not linger. Mode 0 (not JNI_ABORT) commits the zeros back into the Java
+    // array when GetByteArrayElements returned a copy; with a direct pointer
+    // the cleanse already zeroed the array's backing memory. Scrub the full
+    // requested length, not just the copied count.
+    OPENSSL_cleanse(output, out_len);
     (*env)->ReleaseByteArrayElements(env, bytes, (jbyte *) output, 0);
+    buffer_scrubbed = 1;
 
 exit:
+
+    // Error paths above reach exit before the seed was scrubbed: the up-call
+    // may have written seed bytes into the Java array before failing (short /
+    // over-long / exception), so scrub it here before the local ref is dropped
+    // and the array becomes GC-eligible. Skipped when the success path already
+    // scrubbed, or when the buffer could not be accessed at all.
+    if (bytes != NULL && !buffer_scrubbed) {
+        jbyte *residual = (*env)->GetByteArrayElements(env, bytes, NULL);
+        if (residual != NULL) {
+            OPENSSL_cleanse(residual, out_len);
+            (*env)->ReleaseByteArrayElements(env, bytes, residual, 0);
+        }
+    }
 
     // Without explicit DeleteLocalRef, refs accumulate across calls when the
     // caller thread was already attached (no Detach to flush the frame).

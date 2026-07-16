@@ -5,6 +5,8 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
+#include <openssl/crypto.h>
+
 #include "bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_rand_RandServiceJNI.h"
 #include "types.h"
@@ -36,7 +38,13 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandService
     java_bytearray_ctx personalization_string;
     init_bytearray_ctx(&personalization_string);
 
-    jo_assert(_err != NULL);
+    if (_err == NULL) {
+        // Match the FFI twin (JoRand_createContext): a null err out-array is a
+        // caller-derived value, so return a null context instead of aborting
+        // the JVM. With no array there is no channel to report a specific
+        // code; the NI default method always supplies err.
+        return (jlong) 0;
+    }
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -162,6 +170,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
                                      prediction_resistant == JNI_TRUE,
                                      additional_input.bytearray,
                                      additional_input.size);
+
+    if (ret_code < 0) {
+        // Generate failed: the output buffer holds undefined (possibly
+        // partial DRBG) bytes. Scrub it so no partial output reaches the
+        // caller and the FFI twin agrees on contents (both zero on error).
+        OPENSSL_cleanse(output.bytearray, (size_t) output_len);
+    }
 
 exit:
     release_bytearray_ctx(&additional_input);

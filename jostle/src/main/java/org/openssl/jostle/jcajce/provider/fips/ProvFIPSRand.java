@@ -21,11 +21,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * SecureRandom registrations for the FIPS provider. Every RandAlgorithm is
- * an approved SP 800-90A mechanism (CTR-DRBG over AES, HASH/HMAC-DRBG over
- * SHA-1/SHA-2), so the full set registers; the DRBGs run in the FIPS rand
- * lib ctx and chain to the module's own primary DRBG for entropy. Names and
- * the DEFAULT alias mirror ProvRand.
+ * SecureRandom registrations for the FIPS provider. Registers the approved
+ * SP 800-90A mechanisms — CTR-DRBG over AES, and HASH/HMAC-DRBG over the
+ * FIPS-permitted digests. {@link #isFipsApproved} drops the truncated-SHA-2
+ * HASH/HMAC-DRBG variants (SHA-224, SHA-384) the module rejects for DRBGs, so
+ * the registered set is a subset of {@code RandAlgorithm.values()}. The DRBGs
+ * run in the FIPS rand lib ctx and chain to the module's own primary DRBG for
+ * entropy. Names and the DEFAULT alias mirror ProvRand.
  *
  * <p>This Java 8 baseline rejects construction parameters; the Java 9+
  * override accepts SecureRandomParameters, mirroring ProvRand's split.
