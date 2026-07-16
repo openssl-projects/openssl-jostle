@@ -21,10 +21,14 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 public class MDLimitTest
 {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @BeforeAll
     public static void beforeAll()
@@ -542,6 +546,223 @@ public void updateBytes_inputNull() throws Exception {
                 }
             }
         }
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Integer.MIN_VALUE probes on every int offset/length (testing.md). The
+    // -1 side is covered by the updateBytes_/digest_ negative tests above.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void updateBytes_offset_minValue() throws Exception
+    {
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> mdNI.engineUpdate(ref, new byte[1], Integer.MIN_VALUE, 1));
+            Assertions.assertEquals("input offset is negative", e.getMessage());
+        }
+        finally
+        {
+            if (ref > 0)
+            {
+                mdNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void updateBytes_len_minValue() throws Exception
+    {
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> mdNI.engineUpdate(ref, new byte[1], 0, Integer.MIN_VALUE));
+            Assertions.assertEquals("input len is negative", e.getMessage());
+        }
+        finally
+        {
+            if (ref > 0)
+            {
+                mdNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void digest_offset_minValue() throws Exception
+    {
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> mdNI.digest(ref, new byte[32], Integer.MIN_VALUE, 0));
+            Assertions.assertEquals("output offset is negative", e.getMessage());
+        }
+        finally
+        {
+            if (ref > 0)
+            {
+                mdNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void digest_len_minValue() throws Exception
+    {
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> mdNI.digest(ref, new byte[32], 0, Integer.MIN_VALUE));
+            Assertions.assertEquals("output len negative", e.getMessage());
+        }
+        finally
+        {
+            if (ref > 0)
+            {
+                mdNI.dispose(ref);
+            }
+        }
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Offset-write contract for digest, verified functionally against a
+    // reference digest (testing.md). Digest is deterministic, so the written
+    // region must equal the reference byte-for-byte; a window one byte earlier
+    // must not, proving the write landed at exactly the requested offset.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void digest_writesAtOffsetWithoutClobberingPrefix() throws Exception
+    {
+        byte[] input = new byte[257 + RANDOM.nextInt(1024)];
+        RANDOM.nextBytes(input);
+
+        byte[] reference = new byte[32];
+        long refA = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            mdNI.engineUpdate(refA, input, 0, input.length);
+            Assertions.assertEquals(32, mdNI.digest(refA, reference, 0, 32));
+        }
+        finally
+        {
+            if (refA > 0)
+            {
+                mdNI.dispose(refA);
+            }
+        }
+
+        int prefix = 7;
+        byte[] big = new byte[prefix + 32];
+        RANDOM.nextBytes(big);
+        byte[] savedPrefix = Arrays.copyOf(big, prefix);
+
+        long refB = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            mdNI.engineUpdate(refB, input, 0, input.length);
+            Assertions.assertEquals(32, mdNI.digest(refB, big, prefix, 32));
+        }
+        finally
+        {
+            if (refB > 0)
+            {
+                mdNI.dispose(refB);
+            }
+        }
+
+        Assertions.assertArrayEquals(savedPrefix, Arrays.copyOf(big, prefix),
+                "prefix region was clobbered");
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(big, prefix, prefix + 32),
+                "output region is not the expected digest");
+        Assertions.assertFalse(
+                Arrays.equals(reference, Arrays.copyOfRange(big, prefix - 1, prefix - 1 + 32)),
+                "digest appears one byte before the requested offset");
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Aliased-buffer operation (testing.md): a caller reuses the update-input
+    // array as the digest-output array. The digest must be correct and every
+    // byte of the destination outside the digest region must be untouched.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void digest_aliased_digestAfterMessage() throws Exception
+    {
+        assertAliasedDigestCorrect(40, 40);
+    }
+
+    @Test
+    public void digest_aliased_digestOverwritesMessageStart() throws Exception
+    {
+        assertAliasedDigestCorrect(40, 0);
+    }
+
+    @Test
+    public void digest_aliased_digestMidMessage() throws Exception
+    {
+        assertAliasedDigestCorrect(64, 16);
+    }
+
+    private void assertAliasedDigestCorrect(int msgLen, int digestOff) throws Exception
+    {
+        byte[] msg = new byte[msgLen];
+        RANDOM.nextBytes(msg);
+
+        byte[] reference = new byte[32];
+        long refA = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            mdNI.engineUpdate(refA, msg, 0, msg.length);
+            Assertions.assertEquals(32, mdNI.digest(refA, reference, 0, 32));
+        }
+        finally
+        {
+            if (refA > 0)
+            {
+                mdNI.dispose(refA);
+            }
+        }
+
+        int cap = Math.max(msgLen, digestOff + 32) + 8;
+        byte[] buf = new byte[cap];
+        RANDOM.nextBytes(buf);
+        System.arraycopy(msg, 0, buf, 0, msgLen);
+        byte[] snapshot = buf.clone();
+
+        int written;
+        long ref = mdNI.allocateDigest("SHA256", 0);
+        try
+        {
+            mdNI.engineUpdate(ref, buf, 0, msgLen);
+            written = mdNI.digest(ref, buf, digestOff, 32);
+        }
+        finally
+        {
+            if (ref > 0)
+            {
+                mdNI.dispose(ref);
+            }
+        }
+
+        String where = "msgLen=" + msgLen + " digestOff=" + digestOff;
+        Assertions.assertEquals(32, written, where + " digest length");
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(buf, digestOff, digestOff + written),
+                where + ": aliased digest differs from the reference");
+        Assertions.assertArrayEquals(Arrays.copyOf(snapshot, digestOff), Arrays.copyOf(buf, digestOff),
+                where + ": bytes before the digest offset were clobbered");
+        Assertions.assertArrayEquals(
+                Arrays.copyOfRange(snapshot, digestOff + written, cap),
+                Arrays.copyOfRange(buf, digestOff + written, cap),
+                where + ": bytes after the digest were clobbered");
     }
 
 

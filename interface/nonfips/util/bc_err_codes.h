@@ -282,6 +282,14 @@
  */
 #define JO_MD_CTX_IS_NULL -141
 
+/*
+ * A caller-derived MAC context handle (mac_ctx) was null. Returned typed
+ * by the mac bridge entry points (init / update / doFinal / getMacLength /
+ * macLengthMeta) instead of asserting a value the NI caller controls (a
+ * jo_assert reachable from the NI surface is a JVM abort, not an error).
+ */
+#define JO_MAC_CTX_IS_NULL -142
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

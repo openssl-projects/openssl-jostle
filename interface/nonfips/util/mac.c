@@ -74,7 +74,7 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
 
     ERR_clear_error();
     if (OPS_OPENSSL_ERROR_2 EVP_MAC_init(mctx->ctx, mctx->key, mctx->key_len, params) != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
     }
 
     mctx->initialized = 1;
@@ -189,7 +189,7 @@ int32_t mac_update(mac_ctx *mctx, const uint8_t *in, int32_t off, int32_t len) {
 
     ERR_clear_error();
     if (OPS_OPENSSL_ERROR_1 EVP_MAC_update(mctx->ctx, in + off, (size_t) len) != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1002);
     }
 
     return JO_SUCCESS;
@@ -228,7 +228,7 @@ int32_t mac_len(mac_ctx *mctx) {
     ERR_clear_error();
     size_t ret = EVP_MAC_CTX_get_mac_size(mctx->ctx);
     if (OPS_OPENSSL_ERROR_1 ret == 0) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1003);
     }
 
     if (OPS_INT32_OVERFLOW_1 ret > INT32_MAX) {

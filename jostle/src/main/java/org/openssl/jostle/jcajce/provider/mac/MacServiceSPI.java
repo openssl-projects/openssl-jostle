@@ -146,8 +146,18 @@ public class MacServiceSPI extends MacSpi
         synchronized (this)
         {
             byte[] out = new byte[macLength()];
-            int written = macServiceNI.doFinal(ref.getReference(), out, 0);
-            macServiceNI.reset(ref.getReference());
+            int written;
+            // reset must run even if doFinal throws: a failed EVP_MAC_final
+            // leaves the ctx finalized, and skipping the re-init would let the
+            // next update absorb into finalized state (wrong-but-consistent).
+            try
+            {
+                written = macServiceNI.doFinal(ref.getReference(), out, 0);
+            }
+            finally
+            {
+                macServiceNI.reset(ref.getReference());
+            }
             if (written == out.length)
             {
                 return out;

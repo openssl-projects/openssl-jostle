@@ -436,6 +436,39 @@ public class MacTest
 
 
     @Test
+    public void testDoFinalAutoResetReuse() throws Exception
+    {
+        // engineDoFinal re-initialises the ctx after producing the tag, now in
+        // a finally block so the reset runs even if doFinal throws. Repeated
+        // doFinal calls on one instance with no intervening init must each
+        // match a fresh instance, and the same message twice must be
+        // byte-identical (HMAC is deterministic) — proving the auto-reset ran
+        // and left the ctx cleanly re-keyed rather than in finalized state.
+        SecureRandom sr = seededRandom("testDoFinalAutoResetReuse");
+        byte[] key = new byte[32];
+        sr.nextBytes(key);
+        byte[] msg1 = new byte[512];
+        byte[] msg2 = new byte[777];
+        sr.nextBytes(msg1);
+        sr.nextBytes(msg2);
+
+        Mac jo = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
+        jo.init(new SecretKeySpec(key, "HmacSHA256"));
+
+        byte[] t1 = jo.doFinal(msg1);
+        byte[] t1again = jo.doFinal(msg1);   // auto-reset between -> identical
+        byte[] t2 = jo.doFinal(msg2);        // auto-reset between -> correct for msg2
+
+        Mac fresh = Mac.getInstance("HmacSHA256", JostleProvider.PROVIDER_NAME);
+        fresh.init(new SecretKeySpec(key, "HmacSHA256"));
+        Assertions.assertArrayEquals(fresh.doFinal(msg1), t1, "first tag");
+        Assertions.assertArrayEquals(t1, t1again, "same msg twice -> identical (deterministic)");
+        fresh.init(new SecretKeySpec(key, "HmacSHA256"));
+        Assertions.assertArrayEquals(fresh.doFinal(msg2), t2, "second msg tag after reuse");
+    }
+
+
+    @Test
     public void testHmacDirectByteBuffer() throws Exception
     {
         SecureRandom sr = seededRandom("testHmacDirectByteBuffer");

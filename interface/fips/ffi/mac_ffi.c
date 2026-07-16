@@ -14,7 +14,7 @@
 #include "../util/jo_assert.h"
 #include "../util/ops.h"
 
-mac_ctx *MAC_allocate(const char *mac_name, const char *function_name, int32_t *err) {
+mac_ctx *JoMAC_allocate(const char *mac_name, const char *function_name, int32_t *err) {
     mac_ctx *out_ctx = NULL;
 
     jo_assert(err != NULL);
@@ -33,9 +33,11 @@ mac_ctx *MAC_allocate(const char *mac_name, const char *function_name, int32_t *
     return out_ctx;
 }
 
-int32_t MAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
+int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
 
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (key == NULL) {
         return JO_KEY_IS_NULL;
@@ -43,9 +45,11 @@ int32_t MAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
     return mac_init(ctx, key, key_len);
 }
 
-int32_t MAC_updateByte(mac_ctx *ctx, uint8_t b) {
+int32_t JoMAC_updateByte(mac_ctx *ctx, uint8_t b) {
 
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -54,9 +58,11 @@ int32_t MAC_updateByte(mac_ctx *ctx, uint8_t b) {
     return mac_update(ctx, &b, 0, 1);
 }
 
-int32_t MAC_update(mac_ctx *ctx, uint8_t *input, size_t input_size, int32_t input_offset, int32_t input_len) {
+int32_t JoMAC_update(mac_ctx *ctx, uint8_t *input, size_t input_size, int32_t input_offset, int32_t input_len) {
 
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -80,9 +86,11 @@ int32_t MAC_update(mac_ctx *ctx, uint8_t *input, size_t input_size, int32_t inpu
     return mac_update(ctx, input, input_offset, input_len);
 }
 
-int32_t MAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t output_offset) {
+int32_t JoMAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t output_offset) {
 
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -113,8 +121,10 @@ int32_t MAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t out
     return mac_final(ctx, output, output_offset, (int32_t) output_size);
 }
 
-int32_t MAC_len(mac_ctx *ctx) {
-    jo_assert(ctx != NULL);
+int32_t JoMAC_len(mac_ctx *ctx) {
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -123,15 +133,17 @@ int32_t MAC_len(mac_ctx *ctx) {
     return mac_len(ctx);
 }
 
-int32_t MAC_lenMeta(mac_ctx *ctx) {
-    jo_assert(ctx != NULL);
+int32_t JoMAC_lenMeta(mac_ctx *ctx) {
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     // Keyless metadata query — answers the MAC length before init, so no
-    // ctx->initialized check here (unlike MAC_len).
+    // ctx->initialized check here (unlike JoMAC_len).
     return mac_len_for(ctx);
 }
 
-int32_t MAC_reset(mac_ctx *ctx) {
+int32_t JoMAC_reset(mac_ctx *ctx) {
     if (ctx == NULL) {
         // Observed spurious resets from within the JVMs provider logic in the past.
         return JO_SUCCESS;
@@ -139,11 +151,9 @@ int32_t MAC_reset(mac_ctx *ctx) {
     return mac_reset(ctx);
 }
 
-void MAC_free(mac_ctx *ctx) {
+void JoMAC_free(mac_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
     mac_free(ctx);
 }
-
-

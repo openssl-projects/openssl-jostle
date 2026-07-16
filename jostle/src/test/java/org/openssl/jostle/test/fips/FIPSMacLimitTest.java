@@ -611,6 +611,63 @@ public class FIPSMacLimitTest
     }
 
     // ---------------------------------------------------------------------
+    // Null (0) mac_ctx handle: every dereferencing entry point must return a
+    // typed JO_MAC_CTX_IS_NULL rejection (IllegalArgumentException "mac
+    // context is null"), NOT a jo_assert that aborts the JVM. dispose/reset
+    // deliberately no-op on a null handle (see reset_nullRef_isNoOp).
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void init_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineInit(0L, new byte[16]));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void updateByte_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineUpdate(0L, (byte) 1));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void updateBytes_nullCtx_rejectedTyped()
+    {
+        // ctx is checked before the input/range checks, so a non-null input
+        // with a null handle still surfaces the handle rejection.
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineUpdate(0L, new byte[4], 0, 4));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void doFinal_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.doFinal(0L, new byte[32], 0));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void getMacLength_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.getMacLength(0L));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void macLengthMeta_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.macLengthMeta(0L));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    // ---------------------------------------------------------------------
 
     private interface RefBody
     {

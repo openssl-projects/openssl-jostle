@@ -53,7 +53,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     };
     const OSSL_PARAM *params_ptr = is_xof ? params : NULL;
 
-    if (OPS_FAILED_INIT_1 !EVP_DigestInit_ex2(mdctx, md, params_ptr)) {
+    if (OPS_FAILED_INIT_1 1 != EVP_DigestInit_ex2(mdctx, md, params_ptr)) {
         EVP_MD_CTX_free(mdctx);
         EVP_MD_free(md);
         *err = JO_MD_INIT_FAILED;
@@ -106,7 +106,7 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
 
     // EVP_MD_CTX_copy_ex snapshots the in-progress digest state (the absorbed
     // bytes), which is exactly what a MessageDigest.clone() needs.
-    if (OPS_OPENSSL_ERROR_11 !EVP_MD_CTX_copy_ex(new_mdctx, src->mdctx)) {
+    if (OPS_OPENSSL_ERROR_11 1 != EVP_MD_CTX_copy_ex(new_mdctx, src->mdctx)) {
         EVP_MD_CTX_free(new_mdctx);
         *err = JO_MD_COPY_FAILED;
         return NULL;
@@ -114,7 +114,7 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
 
     // The copy carries its own reference to the algorithm descriptor so the
     // clone's md_ctx_destroy is balanced (md_ctx_destroy frees md_type).
-    if (OPS_OPENSSL_ERROR_12 !EVP_MD_up_ref((EVP_MD *) src->md_type)) {
+    if (OPS_OPENSSL_ERROR_12 1 != EVP_MD_up_ref((EVP_MD *) src->md_type)) {
         EVP_MD_CTX_free(new_mdctx);
         *err = JO_MD_COPY_FAILED;
         return NULL;
@@ -158,7 +158,7 @@ int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
     }
 
     ERR_clear_error();
-    if (OPS_OPENSSL_ERROR_1 !EVP_DigestUpdate(ctx->mdctx, data, len)) {
+    if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestUpdate(ctx->mdctx, data, len)) {
         return JO_OPENSSL_ERROR;
     }
     return (int32_t) len;
@@ -172,12 +172,12 @@ int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
     uint32_t ret_len = 0;
 
     if (ctx->xof != 0) {
-        if (OPS_OPENSSL_ERROR_1 !EVP_DigestFinalXOF(ctx->mdctx, digest, ctx->digest_byte_length)) {
+        if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestFinalXOF(ctx->mdctx, digest, ctx->digest_byte_length)) {
             return JO_OPENSSL_ERROR;
         }
         ret_len = ctx->digest_byte_length;
     } else {
-        if (OPS_OPENSSL_ERROR_2 !EVP_DigestFinal_ex(ctx->mdctx, digest, &ret_len)) {
+        if (OPS_OPENSSL_ERROR_2 1 != EVP_DigestFinal_ex(ctx->mdctx, digest, &ret_len)) {
             return JO_OPENSSL_ERROR;
         }
     }
@@ -201,7 +201,7 @@ int32_t md_ctx_reset(md_ctx *ctx) {
     };
     const OSSL_PARAM *params_ptr = ctx->xof ? params : NULL;
 
-    if (OPS_OPENSSL_ERROR_3 !EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params_ptr)) {
+    if (OPS_OPENSSL_ERROR_3 1 != EVP_DigestInit_ex2(ctx->mdctx, ctx->md_type, params_ptr)) {
         return JO_OPENSSL_ERROR;
     }
 

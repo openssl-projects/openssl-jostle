@@ -82,7 +82,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    jo_assert(mac_ctx != NULL);
+    if (mac_ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     critical_bytearray_ctx key;
     int32_t ret;
@@ -111,7 +113,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    jo_assert(mac_ctx != NULL);
+    if (mac_ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     int32_t ret;
     uint8_t b;
@@ -130,7 +134,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    jo_assert(mac_ctx != NULL);
+    if (mac_ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     critical_bytearray_ctx input;
     int32_t ret;
@@ -174,7 +180,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    jo_assert(mac_ctx != NULL);
+    if (mac_ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (!mac_ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -226,7 +234,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *ctx = (void *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -241,7 +251,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *ctx = (void *) ref;
-    jo_assert(ctx != NULL);
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
 
     // Keyless metadata query — answers the MAC length before init, so no
     // ctx->initialized check here (unlike ni_getMacLength).

@@ -31,7 +31,7 @@ public class MacServiceFFI implements MacServiceNI
     public MacServiceFFI(SymbolLookup lookup)
     {
         MH_new = LINKER.downcallHandle(
-                lookup.find("MAC_allocate").orElseThrow(),
+                lookup.find("JoMAC_allocate").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
@@ -40,7 +40,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_init = LINKER.downcallHandle(
-                lookup.find("MAC_init").orElseThrow(),
+                lookup.find("JoMAC_init").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
@@ -49,7 +49,7 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_updateByte = LINKER.downcallHandle(
-                lookup.find("MAC_updateByte").orElseThrow(),
+                lookup.find("JoMAC_updateByte").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
@@ -57,7 +57,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_update = LINKER.downcallHandle(
-                lookup.find("MAC_update").orElseThrow(),
+                lookup.find("JoMAC_update").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -68,7 +68,7 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_final = LINKER.downcallHandle(
-                lookup.find("MAC_final").orElseThrow(),
+                lookup.find("JoMAC_final").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -78,28 +78,28 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_len = LINKER.downcallHandle(
-                lookup.find("MAC_len").orElseThrow(),
+                lookup.find("JoMAC_len").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
                 ));
 
         MH_lenMeta = LINKER.downcallHandle(
-                lookup.find("MAC_lenMeta").orElseThrow(),
+                lookup.find("JoMAC_lenMeta").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
                 ));
 
         MH_reset = LINKER.downcallHandle(
-                lookup.find("MAC_reset").orElseThrow(),
+                lookup.find("JoMAC_reset").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS)
         );
 
         MH_free = LINKER.downcallHandle(
-                lookup.find("MAC_free").orElseThrow(),
+                lookup.find("JoMAC_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
     }

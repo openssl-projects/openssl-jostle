@@ -9,10 +9,14 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
 import java.security.InvalidKeyException;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 public class MacLimitTest
 {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final MacServiceNI macNI = TestNISelector.getMacServiceNI();
 
@@ -549,6 +553,255 @@ public class MacLimitTest
         {
             macNI.dispose(ref);
         }
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Null (0) mac_ctx handle: every dereferencing entry point must return a
+    // typed JO_MAC_CTX_IS_NULL rejection (IllegalArgumentException "mac
+    // context is null"), NOT a jo_assert that aborts the JVM. dispose/reset
+    // deliberately no-op on a null handle (see reset_nullRef) and are exempt.
+    // Runs on both JNI and FFI via integrationTest25{JNI,FFI} — both bridges
+    // must return the same code.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void init_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineInit(0L, new byte[16]));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void updateByte_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineUpdate(0L, (byte) 1));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void updateBytes_nullCtx_rejectedTyped()
+    {
+        // ctx is checked before the input/range checks, so a non-null input
+        // with a null handle still surfaces the handle rejection.
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineUpdate(0L, new byte[4], 0, 4));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void doFinal_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.doFinal(0L, new byte[32], 0));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void getMacLength_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.getMacLength(0L));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void macLengthMeta_nullCtx_rejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.macLengthMeta(0L));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Integer.MIN_VALUE probes on every int offset/length (testing.md: a
+    // check written `len > 0` accepts MIN_VALUE; Math.abs(MIN_VALUE) is still
+    // negative). The -1 side is covered by the update_/doFinal_ tests above.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void update_inputOffset_minValue() throws Exception
+    {
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(ref, new byte[16]);
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> macNI.engineUpdate(ref, new byte[1], Integer.MIN_VALUE, 1));
+            Assertions.assertEquals("input offset is negative", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void update_inputLen_minValue() throws Exception
+    {
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(ref, new byte[16]);
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> macNI.engineUpdate(ref, new byte[1], 0, Integer.MIN_VALUE));
+            Assertions.assertEquals("input len is negative", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void doFinal_outputOffset_minValue() throws Exception
+    {
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(ref, new byte[16]);
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> macNI.doFinal(ref, new byte[32], Integer.MIN_VALUE));
+            Assertions.assertEquals("output offset is negative", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Offset-write contract for doFinal, verified functionally against a
+    // reference MAC (testing.md). MAC is deterministic, so the written region
+    // must equal the reference byte-for-byte; a window one byte earlier must
+    // not, proving the write landed at exactly the requested offset.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void doFinal_writesAtOffsetWithoutClobberingPrefix() throws Exception
+    {
+        byte[] key = new byte[32];
+        byte[] input = new byte[64 + RANDOM.nextInt(256)];
+        RANDOM.nextBytes(key);
+        RANDOM.nextBytes(input);
+
+        byte[] reference = new byte[32];
+        long refA = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(refA, key);
+            macNI.engineUpdate(refA, input, 0, input.length);
+            Assertions.assertEquals(32, macNI.doFinal(refA, reference, 0));
+        }
+        finally
+        {
+            macNI.dispose(refA);
+        }
+
+        int prefix = 7;
+        byte[] big = new byte[prefix + 32];
+        RANDOM.nextBytes(big);
+        byte[] savedPrefix = Arrays.copyOf(big, prefix);
+
+        long refB = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(refB, key);
+            macNI.engineUpdate(refB, input, 0, input.length);
+            Assertions.assertEquals(32, macNI.doFinal(refB, big, prefix));
+        }
+        finally
+        {
+            macNI.dispose(refB);
+        }
+
+        Assertions.assertArrayEquals(savedPrefix, Arrays.copyOf(big, prefix),
+                "prefix region was clobbered");
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(big, prefix, prefix + 32),
+                "output region is not the expected MAC");
+        Assertions.assertFalse(
+                Arrays.equals(reference, Arrays.copyOfRange(big, prefix - 1, prefix - 1 + 32)),
+                "MAC appears one byte before the requested offset");
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Aliased-buffer operation (testing.md): a caller reuses the update-input
+    // array as the doFinal-output array. The tag must be correct and every
+    // byte of the destination outside the tag region must be untouched.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void doFinal_aliased_tagAfterMessage() throws Exception
+    {
+        assertAliasedMacCorrect(40, 40);
+    }
+
+    @Test
+    public void doFinal_aliased_tagOverwritesMessageStart() throws Exception
+    {
+        assertAliasedMacCorrect(40, 0);
+    }
+
+    @Test
+    public void doFinal_aliased_tagMidMessage() throws Exception
+    {
+        assertAliasedMacCorrect(64, 16);
+    }
+
+    private void assertAliasedMacCorrect(int msgLen, int tagOff) throws Exception
+    {
+        byte[] key = new byte[32];
+        byte[] msg = new byte[msgLen];
+        RANDOM.nextBytes(key);
+        RANDOM.nextBytes(msg);
+
+        byte[] reference = new byte[32];
+        long refA = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(refA, key);
+            macNI.engineUpdate(refA, msg, 0, msg.length);
+            Assertions.assertEquals(32, macNI.doFinal(refA, reference, 0));
+        }
+        finally
+        {
+            macNI.dispose(refA);
+        }
+
+        int cap = Math.max(msgLen, tagOff + 32) + 8;
+        byte[] buf = new byte[cap];
+        RANDOM.nextBytes(buf);
+        System.arraycopy(msg, 0, buf, 0, msgLen);
+        byte[] snapshot = buf.clone();
+
+        int written;
+        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        try
+        {
+            macNI.engineInit(ref, key);
+            macNI.engineUpdate(ref, buf, 0, msgLen);
+            written = macNI.doFinal(ref, buf, tagOff);
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+
+        String where = "msgLen=" + msgLen + " tagOff=" + tagOff;
+        Assertions.assertEquals(32, written, where + " tag length");
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(buf, tagOff, tagOff + written),
+                where + ": aliased MAC differs from the reference");
+        Assertions.assertArrayEquals(Arrays.copyOf(snapshot, tagOff), Arrays.copyOf(buf, tagOff),
+                where + ": bytes before the tag offset were clobbered");
+        Assertions.assertArrayEquals(
+                Arrays.copyOfRange(snapshot, tagOff + written, cap),
+                Arrays.copyOfRange(buf, tagOff + written, cap),
+                where + ": bytes after the tag were clobbered");
     }
 
 
