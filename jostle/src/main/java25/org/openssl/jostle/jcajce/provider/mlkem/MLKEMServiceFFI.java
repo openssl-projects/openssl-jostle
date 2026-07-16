@@ -134,16 +134,16 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
         entropyFd = FunctionDescriptor.of(
                 ValueLayout.JAVA_INT, // return code
                 ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE), // out array
-                ValueLayout.JAVA_INT, // len
+                ValueLayout.JAVA_LONG, // len
                 ValueLayout.JAVA_INT, // strength
-                ValueLayout.JAVA_BOOLEAN // pred resistance
+                ValueLayout.JAVA_INT // pred resistance
         );
         entropyMt = MethodType.methodType(
                 int.class, // return type
                 MemorySegment.class, // out
-                int.class, // out_len
+                long.class, // out_len
                 int.class, // strength
-                boolean.class // pred resistance
+                int.class // pred resistance
         );
     }
 

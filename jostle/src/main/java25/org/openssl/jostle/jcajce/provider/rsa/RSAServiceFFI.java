@@ -58,15 +58,15 @@ public class RSAServiceFFI implements RSAServiceNI
     private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
             ValueLayout.JAVA_INT,
             ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
+            ValueLayout.JAVA_LONG,
             ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_BOOLEAN);
+            ValueLayout.JAVA_INT);
     private static final MethodType entropyMt = MethodType.methodType(
             int.class,
             MemorySegment.class,
+            long.class,
             int.class,
-            int.class,
-            boolean.class);
+            int.class);
 
 
     public RSAServiceFFI()

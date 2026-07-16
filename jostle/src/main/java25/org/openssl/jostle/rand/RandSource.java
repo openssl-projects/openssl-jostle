@@ -34,11 +34,19 @@ public interface RandSource
      */
     int getStrength();
 
-    default int getRandomSegment(MemorySegment memorySegment, int len, int strength, boolean predictionResistant)
+    default int getRandomSegment(MemorySegment memorySegment, long len, int strength, int predictionResistant)
     {
+        // Signature matches the C upcall typedef ffi_get_rand:
+        // int32_t (*)(uint8_t *, size_t, int32_t, int32_t) — see the entropy
+        // FunctionDescriptor in the *ServiceFFI classes. `len` is a size_t and
+        // `predictionResistant` an int32_t; the C bridge rejects any request
+        // above INT32_MAX before calling, so len fits an int here, and
+        // getRandomBytes takes an int length and a boolean flag.
+        int intLen = (int) len;
+        boolean predResist = predictionResistant != 0;
 
-        byte[] buf = new byte[Integer.min(1024, len)];
-        var ms = memorySegment.reinterpret(len).asByteBuffer();
+        byte[] buf = new byte[Integer.min(1024, intLen)];
+        var ms = memorySegment.reinterpret(intLen).asByteBuffer();
 
         // Compare against the amount actually requested in this fetch
         // (buf.length, capped at 1024), NOT the total len: for len > 1024 the
@@ -46,7 +54,7 @@ public interface RandSource
         // valid large draw as JO_RAND_UP_SHORT_RESULT, leaving the chunking
         // loop below dead. The JNI twin issues one full-size call and succeeds;
         // this keeps the FFI path consistent.
-        int rc = this.getRandomBytes(buf, buf.length, strength, predictionResistant);
+        int rc = this.getRandomBytes(buf, buf.length, strength, predResist);
         if (rc != buf.length)
         {
             return rc; // will trigger short size in native up call handler
@@ -58,7 +66,7 @@ public interface RandSource
         while (ms.hasRemaining())
         {
             int fetchSize = Integer.min(buf.length, ms.remaining());
-            rc = this.getRandomBytes(buf, fetchSize, strength, predictionResistant);
+            rc = this.getRandomBytes(buf, fetchSize, strength, predResist);
             if (rc != fetchSize)
             {
                 return rc; // will trigger short size in native up call handler
@@ -66,6 +74,6 @@ public interface RandSource
             ms.put(buf, 0, rc);
         }
 
-        return len;
+        return intLen;
     }
 }

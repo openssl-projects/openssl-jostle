@@ -58,15 +58,15 @@ public class ECServiceFFI implements ECServiceNI
     private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
             ValueLayout.JAVA_INT,
             ValueLayout.ADDRESS,
+            ValueLayout.JAVA_LONG,
             ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_BOOLEAN);
+            ValueLayout.JAVA_INT);
     private static final MethodType entropyMt = MethodType.methodType(
             int.class,
             MemorySegment.class,
+            long.class,
             int.class,
-            int.class,
-            boolean.class);
+            int.class);
 
 
     public ECServiceFFI()

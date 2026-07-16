@@ -64,11 +64,11 @@ public class KSServiceFFI
     private static final FunctionDescriptor entropyFd = FunctionDescriptor.of(
             ValueLayout.JAVA_INT,
             ValueLayout.ADDRESS.withTargetLayout(ValueLayout.JAVA_BYTE),
+            ValueLayout.JAVA_LONG,
             ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_INT,
-            ValueLayout.JAVA_BOOLEAN);
+            ValueLayout.JAVA_INT);
     private static final MethodType entropyMt = MethodType.methodType(
-            int.class, MemorySegment.class, int.class, int.class, boolean.class);
+            int.class, MemorySegment.class, long.class, int.class, int.class);
     private static final MethodHandle getKeyLenH = linker.downcallHandle(
             lookup.find("JoKS_GetKeyLen").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),
