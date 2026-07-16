@@ -33,12 +33,12 @@ int rand_up_call_next_bytes(void *rnd_up_call, unsigned char *out, size_t out_le
     }
 
     if (OPS_INT32_OVERFLOW_1 out_len > INT32_MAX) {
-        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "out_len > INT_MAX: %d", JO_OPENSSL_ERROR);
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "out_len > INT32_MAX: %d", JO_OPENSSL_ERROR);
         return JO_OPENSSL_ERROR;
     }
 
     if (OPS_INT32_OVERFLOW_2 strength > INT32_MAX) {
-        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "strength > INT_MAX: %d", JO_OPENSSL_ERROR);
+        ERR_raise_data(ERR_LIB_RAND, ERR_R_RAND_LIB, "strength > INT32_MAX: %d", JO_OPENSSL_ERROR);
         return JO_OPENSSL_ERROR;
     }
 
