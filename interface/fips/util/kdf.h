@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 
-int32_t scrypt(
+int32_t jo_scrypt(
     uint8_t *password, size_t password_len,
     uint8_t *salt, size_t salt_len,
     uint64_t n,
@@ -22,7 +22,7 @@ int32_t scrypt(
     size_t out_len
 );
 
-int32_t pbkdf2(
+int32_t jo_pbkdf2(
     uint8_t *password, size_t password_len,
     uint8_t *salt, size_t salt_len,
     uint32_t iter,
@@ -32,7 +32,7 @@ int32_t pbkdf2(
     size_t out_len
 );
 
-int32_t kdf_hkdf(
+int32_t jo_hkdf(
     uint8_t *ikm, size_t ikm_len,
     uint8_t *salt, size_t salt_len,
     uint8_t *info, size_t info_len,

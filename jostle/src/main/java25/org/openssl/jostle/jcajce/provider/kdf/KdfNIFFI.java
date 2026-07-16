@@ -18,6 +18,13 @@ import java.util.logging.Logger;
 
 // Symbol resolution is parameterised by a SymbolLookup so the same
 // marshalling serves both interface libraries (see MDServiceFFI).
+//
+// These downcalls are marshalled with confined-arena copies rather than
+// Linker.Option.critical heap segments. A critical downcall pins the caller's
+// heap arrays (and on some collectors holds the GC lock) for the whole call —
+// and PBKDF2 / scrypt run for a caller-controlled duration (high iteration /
+// cost parameters take seconds by design), which is the worst case for pinning.
+// The copies cost a memcpy per array, negligible next to the derive itself.
 public class KdfNIFFI implements KdfNI
 {
     //KDF_PBKDF2
@@ -39,7 +46,7 @@ public class KdfNIFFI implements KdfNI
     public KdfNIFFI(SymbolLookup lookup)
     {
 
-        MemorySegment pbkdf2 = lookup.find("KDF_PBKDF2").orElseThrow();
+        MemorySegment pbkdf2 = lookup.find("JoKDF_PBKDF2").orElseThrow();
         pbkdf2FuncHandle = linker.downcallHandle(pbkdf2,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -54,10 +61,10 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.JAVA_LONG, // output_size -- total length of output array
                         ValueLayout.JAVA_INT, // output offset
                         ValueLayout.JAVA_INT // output length wanted
-                ), Linker.Option.critical(true));
+                ));
 
 
-        MemorySegment scrypt = lookup.find("KDF_SCRYPT").orElseThrow();
+        MemorySegment scrypt = lookup.find("JoKDF_SCRYPT").orElseThrow();
         scryptFuncHandle = linker.downcallHandle(scrypt,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -72,7 +79,7 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.JAVA_LONG, // output_size -- total length of output array
                         ValueLayout.JAVA_INT, // output offset
                         ValueLayout.JAVA_INT // output length wanted
-                ), Linker.Option.critical(true));
+                ));
 
 
         MemorySegment hkdf = lookup.find("JoKDF_HKDF").orElseThrow();
@@ -91,9 +98,51 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.JAVA_LONG, // output_size -- total length of output array
                         ValueLayout.JAVA_INT, // output offset
                         ValueLayout.JAVA_INT // output length wanted
-                ), Linker.Option.critical(true));
+                ));
 
 
+    }
+
+    /**
+     * Copy an input array into the confined arena. A null array marshals to
+     * {@code MemorySegment.NULL} so the bridge's null checks fire; a non-null
+     * array (even empty) gets a non-NULL segment of at least one byte so the
+     * bridge can still distinguish "null array" (e.g. {@code JO_KDF_SALT_NULL})
+     * from "empty array" ({@code JO_KDF_SALT_EMPTY}) — a NULL pointer for an
+     * empty array would collapse that distinction. The caller passes the true
+     * Java length separately (see {@link #len(byte[])}).
+     */
+    private static MemorySegment copyIn(Arena a, byte[] src)
+    {
+        if (src == null)
+        {
+            return MemorySegment.NULL;
+        }
+        MemorySegment seg = a.allocate(src.length == 0 ? 1L : src.length);
+        if (src.length > 0)
+        {
+            MemorySegment.copy(src, 0, seg, ValueLayout.JAVA_BYTE, 0L, src.length);
+        }
+        return seg;
+    }
+
+    /**
+     * Zero-filled output segment in the confined arena, at least one byte so a
+     * non-null (even zero-length) caller buffer still has a non-NULL address.
+     * The written window is copied back to the caller after a successful call.
+     */
+    private static MemorySegment outSeg(Arena a, byte[] out)
+    {
+        if (out == null)
+        {
+            return MemorySegment.NULL;
+        }
+        return a.allocate(out.length == 0 ? 1L : out.length);
+    }
+
+    private static long len(byte[] a)
+    {
+        return a == null ? 0L : a.length;
     }
 
 
@@ -102,28 +151,29 @@ public class KdfNIFFI implements KdfNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment pwSeg = (password == null) ? MemorySegment.NULL : MemorySegment.ofArray(password);
-            MemorySegment pwSalt = (salt == null) ? MemorySegment.NULL : MemorySegment.ofArray(salt);
+            MemorySegment pwSeg = copyIn(a, password);
+            MemorySegment saltSeg = copyIn(a, salt);
+            MemorySegment output = outSeg(a, out);
 
-            MemorySegment output = (out == null) ? MemorySegment.NULL : MemorySegment.ofArray(out);
-
-            return (int) scryptFuncHandle.invokeExact(
-                    pwSeg, pwSeg.byteSize(),
-                    pwSalt, pwSalt.byteSize(),
+            int ret = (int) scryptFuncHandle.invokeExact(
+                    pwSeg, len(password),
+                    saltSeg, len(salt),
                     n,
                     r,
                     p,
                     output,
-                    output.byteSize(),
+                    len(out),
                     outOffset,
                     outLen
             );
 
+            copyOutBack(ret, output, out, outOffset, outLen);
+            return ret;
         }
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI KDF_SCRYPT", t);
+                    "FFI JoKDF_SCRYPT", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -133,28 +183,30 @@ public class KdfNIFFI implements KdfNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment pwSeg = (password == null) ? MemorySegment.NULL : MemorySegment.ofArray(password);
-            MemorySegment pwSalt = (salt == null) ? MemorySegment.NULL : MemorySegment.ofArray(salt);
+            MemorySegment pwSeg = copyIn(a, password);
+            MemorySegment saltSeg = copyIn(a, salt);
             MemorySegment digestName = (digest == null) ? MemorySegment.NULL : a.allocateFrom(digest);
-            MemorySegment output = (out == null) ? MemorySegment.NULL : MemorySegment.ofArray(out);
+            MemorySegment output = outSeg(a, out);
 
-            return (int) pbkdf2FuncHandle.invokeExact(
-                    pwSeg, pwSeg.byteSize(),
-                    pwSalt, pwSalt.byteSize(),
+            int ret = (int) pbkdf2FuncHandle.invokeExact(
+                    pwSeg, len(password),
+                    saltSeg, len(salt),
                     iter,
                     digestName,
-                    digest == null ? 0 : digestName.byteSize() - 1, // less null terminus
+                    digest == null ? 0L : digestName.byteSize() - 1, // less null terminus
                     output,
-                    output.byteSize(),
+                    len(out),
                     outOffset,
                     outLen
             );
 
+            copyOutBack(ret, output, out, outOffset, outLen);
+            return ret;
         }
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI KDF_PBKDF2", t);
+                    "FFI JoKDF_PBKDF2", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }
@@ -164,30 +216,49 @@ public class KdfNIFFI implements KdfNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment ikmSeg = (ikm == null) ? MemorySegment.NULL : MemorySegment.ofArray(ikm);
-            MemorySegment saltSeg = (salt == null) ? MemorySegment.NULL : MemorySegment.ofArray(salt);
-            MemorySegment infoSeg = (info == null) ? MemorySegment.NULL : MemorySegment.ofArray(info);
+            MemorySegment ikmSeg = copyIn(a, ikm);
+            MemorySegment saltSeg = copyIn(a, salt);
+            MemorySegment infoSeg = copyIn(a, info);
             MemorySegment digestName = (digest == null) ? MemorySegment.NULL : a.allocateFrom(digest);
-            MemorySegment output = (out == null) ? MemorySegment.NULL : MemorySegment.ofArray(out);
+            MemorySegment output = outSeg(a, out);
 
-            return (int) hkdfFuncHandle.invokeExact(
-                    ikmSeg, ikmSeg.byteSize(),
-                    saltSeg, saltSeg.byteSize(),
-                    infoSeg, infoSeg.byteSize(),
+            int ret = (int) hkdfFuncHandle.invokeExact(
+                    ikmSeg, len(ikm),
+                    saltSeg, len(salt),
+                    infoSeg, len(info),
                     digestName,
                     digest == null ? 0L : digestName.byteSize() - 1, // less null terminus
                     output,
-                    output.byteSize(),
+                    len(out),
                     outOffset,
                     outLen
             );
 
+            copyOutBack(ret, output, out, outOffset, outLen);
+            return ret;
         }
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI KDF_HKDF", t);
+                    "FFI JoKDF_HKDF", t);
             throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Copy the derived bytes back to the caller's array. The KDF bridges return
+     * {@code JO_SUCCESS} (0) and write exactly {@code outLen} bytes at
+     * {@code outOffset} on success; on any negative (error) return the native
+     * side wrote nothing, so nothing is copied — and only the written window is
+     * copied, so bytes outside {@code [outOffset, outOffset + outLen)} keep the
+     * caller's original contents (the arena segment is zero-filled, not a copy
+     * of the caller's array).
+     */
+    private static void copyOutBack(int ret, MemorySegment output, byte[] out, int outOffset, int outLen)
+    {
+        if (ret == 0 && out != null && outLen > 0)
+        {
+            output.asByteBuffer().get(outOffset, out, outOffset, outLen);
         }
     }
 

@@ -10,6 +10,7 @@
 package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.PBKDF2KeySpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
 import org.openssl.jostle.util.Arrays;
@@ -58,7 +59,19 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
         {
             PBEKeySpec spec = (PBEKeySpec) keySpec;
 
-            byte[] rawKey = new byte[spec.getKeyLength() >> 3];
+            // A PBEKeySpec built with the 1- or 3-arg constructor reports a key
+            // length of 0; deriving a zero-length key would silently mint an
+            // empty SecretKey. Require a positive, byte-aligned length (the
+            // derive buffer is sized by >> 3, so a non-multiple would truncate).
+            int keyLengthBits = spec.getKeyLength();
+            if (keyLengthBits <= 0)
+            {
+                throw new InvalidKeySpecException("key length must be positive");
+            }
+            if ((keyLengthBits & 7) != 0)
+            {
+                throw new InvalidKeySpecException("key length must be a multiple of 8 bits");
+            }
 
             String algo = null;
             if (spec instanceof PBKDF2KeySpec)
@@ -81,27 +94,42 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
                 algo = DigestUtil.getCanonicalDigestName("SHA-1");
             }
 
-            byte[] passwordBytes = Strings.toUTF8ByteArray(spec.getPassword());
+            byte[] rawKey = new byte[keyLengthBits >> 3];
+            // Retrieve the password once (PBEKeySpec.getPassword returns a fresh
+            // copy each call) and scrub every secret copy we make in the finally:
+            // the UTF-8 bytes, the char[] copy, and the derived key (JOPBEKey took
+            // its own clones). The salt is not secret, so it is left as-is.
+            char[] password = spec.getPassword();
+            byte[] passwordBytes = Strings.toUTF8ByteArray(password);
+            byte[] salt = spec.getSalt();
             try
             {
                 kdfNI.handleErrorCodes(kdfNI.pbkdf2(
                         passwordBytes,
-                        spec.getSalt(),
+                        salt,
                         spec.getIterationCount(),
                         algo, rawKey, 0, rawKey.length));
+
+                String name = "PBKDF2WithHmac" + algo + "andUTF8";
+                return new JOPBEKey(name, password, salt, spec.getIterationCount(), rawKey);
+            }
+            catch (IllegalArgumentException | OpenSSLException e)
+            {
+                // The NI surfaces bad-parameter failures as unchecked
+                // IllegalArgumentException / OpenSSLException (the latter also
+                // carries FIPS SP 800-132 salt/iteration-floor rejections);
+                // re-throw as the checked KeyFactory type per the JCE contract.
+                throw new InvalidKeySpecException(e.getMessage(), e);
             }
             finally
             {
-                // The UTF-8 password copy is secret material — scrub it once the
-                // native call has consumed it, on failure paths too (Scrypt precedent).
                 Arrays.clear(passwordBytes);
+                Arrays.clear(rawKey);
+                if (password != null)
+                {
+                    Arrays.fill(password, (char) 0);
+                }
             }
-
-
-            String name = "PBKDF2WithHmac" + algo + "andUTF8";
-
-            return new JOPBEKey(name, spec.getPassword(), spec.getSalt(), spec.getIterationCount(), rawKey);
-
         }
 
         throw new InvalidKeySpecException("unsupported KeySpec " + keySpec.getClass().getName());
@@ -124,7 +152,23 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
         if (key instanceof PBEKey)
         {
             PBEKey pbeKey = (PBEKey) key;
-            return new JOPBEKey(key.getAlgorithm(), pbeKey.getPassword(), pbeKey.getSalt(), pbeKey.getIterationCount(), pbeKey.getEncoded());
+            // getPassword() and getEncoded() return fresh copies of secret
+            // material (PBEKey contract); JOPBEKey clones what it keeps, so
+            // scrub our transient copies once it has taken ownership.
+            char[] password = pbeKey.getPassword();
+            byte[] encoded = pbeKey.getEncoded();
+            try
+            {
+                return new JOPBEKey(key.getAlgorithm(), password, pbeKey.getSalt(), pbeKey.getIterationCount(), encoded);
+            }
+            finally
+            {
+                Arrays.clear(encoded);
+                if (password != null)
+                {
+                    Arrays.fill(password, (char) 0);
+                }
+            }
         }
 
         throw new InvalidKeyException("unsupported key type: " + key.getClass());

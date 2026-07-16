@@ -10,6 +10,7 @@
 package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
@@ -84,10 +85,26 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
             throw new InvalidKeySpecException("unsupported KeySpec null");
         }
 
+        // A zero/negative key length would silently mint an empty key (or throw
+        // a raw NegativeArraySizeException below); require a positive,
+        // byte-aligned length (the derive buffer is sized by >> 3).
+        if (keyLengthBits <= 0)
+        {
+            throw new InvalidKeySpecException("key length must be positive");
+        }
+        if ((keyLengthBits & 7) != 0)
+        {
+            throw new InvalidKeySpecException("key length must be a multiple of 8 bits");
+        }
+
         byte[] rawKey = new byte[keyLengthBits >> 3];
 
-        // The UTF-8 password bytes are secret material — scrub the temporary
-        // copy once the native call has consumed it, on failure paths too.
+        // The UTF-8 password bytes and the derived key are secret material —
+        // scrub both once the native call has consumed them, on failure paths
+        // too (JOScryptKey took its own clones). The char[] password is the
+        // caller's own array (ScryptKeySpec exposes it directly, not a copy),
+        // so it is deliberately NOT cleared here — that would corrupt the
+        // caller's spec.
         byte[] passwordBytes = Strings.toUTF8ByteArray(password);
         try
         {
@@ -98,13 +115,21 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
                     blockSize,
                     parallelizationParameter,
                     rawKey, 0, rawKey.length));
+
+            return new JOScryptKey("ScryptWithUTF8", password, salt, costParameter, blockSize, parallelizationParameter, rawKey);
+        }
+        catch (IllegalArgumentException | OpenSSLException e)
+        {
+            // The NI surfaces bad-parameter failures (r/p/N bounds, and any
+            // OpenSSL derive rejection) as unchecked exceptions; re-throw as the
+            // checked KeyFactory type per the JCE contract.
+            throw new InvalidKeySpecException(e.getMessage(), e);
         }
         finally
         {
             Arrays.clear(passwordBytes);
+            Arrays.clear(rawKey);
         }
-
-        return new JOScryptKey("ScryptWithUTF8", password, salt, costParameter, blockSize, parallelizationParameter, rawKey);
     }
 
     @Override
@@ -124,7 +149,23 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         if (key instanceof PBEKey)
         {
             PBEKey pbeKey = (PBEKey) key;
-            return new JOPBEKey(key.getAlgorithm(), pbeKey.getPassword(), pbeKey.getSalt(), pbeKey.getIterationCount(), pbeKey.getEncoded());
+            // getPassword() and getEncoded() return fresh copies of secret
+            // material (PBEKey contract); JOPBEKey clones what it keeps, so
+            // scrub our transient copies once it has taken ownership.
+            char[] password = pbeKey.getPassword();
+            byte[] encoded = pbeKey.getEncoded();
+            try
+            {
+                return new JOPBEKey(key.getAlgorithm(), password, pbeKey.getSalt(), pbeKey.getIterationCount(), encoded);
+            }
+            finally
+            {
+                Arrays.clear(encoded);
+                if (password != null)
+                {
+                    Arrays.fill(password, (char) 0);
+                }
+            }
         }
 
         throw new InvalidKeyException("unsupported key type: " + key.getClass());

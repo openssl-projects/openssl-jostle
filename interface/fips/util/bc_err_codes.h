@@ -104,8 +104,9 @@
 
 #define JO_KDF_SCRYPT_N_TOO_SMALL -79
 #define JO_KDF_SCRYPT_N_NOT_POW2 -80
-#define JO_KDF_SCRYPT_R_NEGATIVE -81
-#define JO_KDF_SCRYPT_P_NEGATIVE -82
+/* scrypt r and p must both be >= 1 (RFC 7914); 0 and negatives are rejected. */
+#define JO_KDF_SCRYPT_R_TOO_SMALL -81
+#define JO_KDF_SCRYPT_P_TOO_SMALL -82
 
 #define JO_KDF_PBE_ITER_NEGATIVE -83
 #define JO_KDF_PBE_UNKNOWN_DIGEST -84

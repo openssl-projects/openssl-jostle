@@ -72,13 +72,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scry
         goto exit;
     }
 
-    if (r < 0) {
-        ret_code = JO_KDF_SCRYPT_R_NEGATIVE;
+    if (r < 1) {
+        ret_code = JO_KDF_SCRYPT_R_TOO_SMALL;
         goto exit;
     }
 
-    if (p < 0) {
-        ret_code = JO_KDF_SCRYPT_P_NEGATIVE;
+    if (p < 1) {
+        ret_code = JO_KDF_SCRYPT_P_TOO_SMALL;
         goto exit;
     }
 
@@ -112,7 +112,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scry
     // out_offset is not negative by this point
     uint8_t *out = output.bytearray + out_offset;
 
-    ret_code = scrypt(
+    ret_code = jo_scrypt(
         password.bytearray, password.size,
         salt.bytearray, salt.size,
         n,
@@ -228,7 +228,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
     // out_offset is not negative by this point
     uint8_t *out = output.bytearray + out_offset;
 
-    ret_code = pbkdf2(
+    ret_code = jo_pbkdf2(
         password.bytearray, password.size,
         salt.bytearray, salt.size,
         iter,
@@ -344,7 +344,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
     // out_offset is not negative by this point
     uint8_t *out = output.bytearray + out_offset;
 
-    ret_code = kdf_hkdf(
+    ret_code = jo_hkdf(
         ikm.bytearray, ikm.size,
         salt.bytearray, salt.size,
         info.bytearray, info.size,

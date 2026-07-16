@@ -99,19 +99,27 @@ public class FIPSScryptLimitTest
     }
 
     @Test
-    public void testSCRYPT_r_negative()
+    public void testSCRYPT_r_too_small()
     {
-        IllegalArgumentException iae = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, -1, 10, new byte[1], 0, 1)));
-        Assertions.assertEquals("r is negative", iae.getMessage());
+        // RFC 7914 requires r >= 1; 0, -1 and MIN_VALUE are all rejected typed.
+        for (int r : new int[]{0, -1, Integer.MIN_VALUE})
+        {
+            IllegalArgumentException iae = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, r, 10, new byte[1], 0, 1)));
+            Assertions.assertEquals("r is less than 1", iae.getMessage());
+        }
     }
 
     @Test
-    public void testSCRYPT_p_negative()
+    public void testSCRYPT_p_too_small()
     {
-        IllegalArgumentException iae = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, 10, -1, new byte[1], 0, 1)));
-        Assertions.assertEquals("p is negative", iae.getMessage());
+        // RFC 7914 requires p >= 1; 0, -1 and MIN_VALUE are all rejected typed.
+        for (int p : new int[]{0, -1, Integer.MIN_VALUE})
+        {
+            IllegalArgumentException iae = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, 10, p, new byte[1], 0, 1)));
+            Assertions.assertEquals("p is less than 1", iae.getMessage());
+        }
     }
 
     @Test

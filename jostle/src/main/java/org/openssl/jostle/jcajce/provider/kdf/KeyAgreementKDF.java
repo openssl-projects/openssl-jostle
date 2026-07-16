@@ -125,10 +125,10 @@ public final class KeyAgreementKDF
     }
 
     /**
-     * KEK length, in bytes, for a key-wrap algorithm named by OID (or, as a
-     * convenience, by JCE name). Returns -1 when the algorithm is unknown —
-     * callers raise {@code NoSuchAlgorithmException} so the failure surfaces
-     * with the offending identifier, matching the JCE contract.
+     * KEK length, in bytes, for a key-wrap algorithm named by OID. Returns -1
+     * when the OID is unknown — callers raise {@code NoSuchAlgorithmException}
+     * so the failure surfaces with the offending identifier, matching the JCE
+     * contract.
      */
     public static int wrapKeyLenBytes(String alg)
     {

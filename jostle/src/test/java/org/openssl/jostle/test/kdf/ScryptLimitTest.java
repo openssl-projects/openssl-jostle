@@ -143,31 +143,37 @@ public class ScryptLimitTest
 
 
     @Test
-    public void testSCRYPT_r_negative() throws Exception
+    public void testSCRYPT_r_too_small() throws Exception
     {
-        try
+        // RFC 7914 requires r >= 1; 0, -1 and MIN_VALUE are all rejected typed.
+        for (int r : new int[]{0, -1, Integer.MIN_VALUE})
         {
-            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, -1, 10, new byte[1], 0, 1));
-            Assertions.fail();
-        } catch (IllegalArgumentException iae)
-        {
-            Assertions.assertEquals("r is negative", iae.getMessage());
+            try
+            {
+                kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, r, 10, new byte[1], 0, 1));
+                Assertions.fail("r=" + r);
+            } catch (IllegalArgumentException iae)
+            {
+                Assertions.assertEquals("r is less than 1", iae.getMessage());
+            }
         }
-
     }
 
     @Test
-    public void testSCRYPT_p_negative() throws Exception
+    public void testSCRYPT_p_too_small() throws Exception
     {
-        try
+        // RFC 7914 requires p >= 1; 0, -1 and MIN_VALUE are all rejected typed.
+        for (int p : new int[]{0, -1, Integer.MIN_VALUE})
         {
-            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, 10, -1, new byte[1], 0, 1));
-            Assertions.fail();
-        } catch (IllegalArgumentException iae)
-        {
-            Assertions.assertEquals("p is negative", iae.getMessage());
+            try
+            {
+                kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, 10, p, new byte[1], 0, 1));
+                Assertions.fail("p=" + p);
+            } catch (IllegalArgumentException iae)
+            {
+                Assertions.assertEquals("p is less than 1", iae.getMessage());
+            }
         }
-
     }
 
 
@@ -237,5 +243,50 @@ public class ScryptLimitTest
         }
     }
 
+    @Test
+    public void testSCRYPT_output_offset_minValue() throws Exception
+    {
+        try
+        {
+            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, 10, 1, new byte[10], Integer.MIN_VALUE, 0));
+            Assertions.fail();
+        } catch (IllegalArgumentException iae)
+        {
+            Assertions.assertEquals("output offset is negative", iae.getMessage());
+        }
+    }
 
+    @Test
+    public void testSCRYPT_output_length_minValue() throws Exception
+    {
+        try
+        {
+            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 8, 10, 1, new byte[10], 0, Integer.MIN_VALUE));
+            Assertions.fail();
+        } catch (IllegalArgumentException iae)
+        {
+            Assertions.assertEquals("output len negative", iae.getMessage());
+        }
+    }
+
+    @Test
+    public void testSCRYPT_output_range_atEnd_accepted() throws Exception
+    {
+        // Positive companion to the past-end probes: offset + len == size is
+        // exactly in range, proving the boundary sits past the end (not one
+        // byte earlier). A real derive since EVP_KDF_derive rejects keylen == 0.
+        int code = kdfNI.scrypt(new byte[1], new byte[1], 2, 8, 1, new byte[42], 10, 32);
+        Assertions.assertEquals(0, code);
+    }
+
+    @Test
+    public void testSCRYPT_empty_password_accepted() throws Exception
+    {
+        // An empty (non-null) password is valid and must derive on BOTH bridges
+        // — the FFI path marshals an empty array to a non-NULL 1-byte segment so
+        // the bridge sees "present but empty", not JO_KDF_PASSWORD_NULL. Run
+        // under integrationTest25JNI and integrationTest25FFI for parity.
+        int code = kdfNI.scrypt(new byte[0], new byte[1], 2, 8, 1, new byte[16], 0, 16);
+        Assertions.assertEquals(0, code);
+    }
 }

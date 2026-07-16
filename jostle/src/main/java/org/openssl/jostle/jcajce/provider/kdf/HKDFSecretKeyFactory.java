@@ -165,8 +165,14 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
         }
         finally
         {
-            // The IKM copy and the derived bytes (SecretKeySpec took its own
-            // copy) are secret material — scrub both, on failure paths too.
+            // The IKM and the derived bytes (SecretKeySpec took its own copy)
+            // are secret material — scrub both, on failure paths too. Clearing
+            // ikm is safe because getIKM() returns a fresh copy for both the
+            // typed HKDFParameterSpec and BouncyCastle's spec (the only two the
+            // reflective path accepts); a hypothetical spec that handed back its
+            // live internal array would be damaged, an edge case we accept for
+            // the same reason as the SecretKeySpec.getEncoded() zeroize rule
+            // (see java-spi.md "Zeroize the byte[] from key.getEncoded()").
             Arrays.clear(ikm);
             Arrays.clear(rawKey);
         }

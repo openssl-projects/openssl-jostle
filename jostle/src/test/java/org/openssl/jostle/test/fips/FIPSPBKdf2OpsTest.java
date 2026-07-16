@@ -19,7 +19,6 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.TestUtil;
@@ -150,15 +149,14 @@ public class FIPSPBKdf2OpsTest
     public void pbekdf2_kdf_fetch_failed() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        int code;
         try
         {
             // Exercises interface/fips/util/kdf.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0));
-            Assertions.fail();
-        } catch (OpenSSLException e)
-        {
-            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+            code = kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[0], 0, 0);
+            // -2 + (-2002) = -2004.
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 2002, code);
         } finally
         {
             operationsTestNI.resetFlags();

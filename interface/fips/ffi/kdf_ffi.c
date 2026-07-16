@@ -13,7 +13,7 @@
 #include "../util/bc_err_codes.h"
 
 
-int32_t KDF_PBKDF2(
+int32_t JoKDF_PBKDF2(
     uint8_t *passwd, size_t passwd_len,
     uint8_t *salt, size_t salt_len,
     int32_t iter,
@@ -79,7 +79,7 @@ int32_t KDF_PBKDF2(
 
     uint8_t *out = output + out_offset;
 
-    ret_code = pbkdf2(
+    ret_code = jo_pbkdf2(
         passwd, passwd_len,
         salt, salt_len,
         iter,
@@ -93,7 +93,7 @@ exit:
 }
 
 
-int32_t KDF_SCRYPT(
+int32_t JoKDF_SCRYPT(
     uint8_t *passwd, size_t passwd_len,
     uint8_t *salt, size_t salt_len,
     int32_t n,
@@ -131,13 +131,13 @@ int32_t KDF_SCRYPT(
         goto exit;
     }
 
-    if (r < 0) {
-        ret_code = JO_KDF_SCRYPT_R_NEGATIVE;
+    if (r < 1) {
+        ret_code = JO_KDF_SCRYPT_R_TOO_SMALL;
         goto exit;
     }
 
-    if (p < 0) {
-        ret_code = JO_KDF_SCRYPT_P_NEGATIVE;
+    if (p < 1) {
+        ret_code = JO_KDF_SCRYPT_P_TOO_SMALL;
         goto exit;
     }
 
@@ -164,7 +164,7 @@ int32_t KDF_SCRYPT(
 
     uint8_t *out = output + out_offset;
 
-    ret_code = scrypt(
+    ret_code = jo_scrypt(
         passwd, passwd_len,
         salt, salt_len,
         n,
@@ -178,9 +178,9 @@ exit:
 }
 
 
-// Jo-prefixed per the FFI symbol-collision rule (native-code.md): "HKDF" is a
-// generic enough name that an unprefixed export risks shadowing/being shadowed
-// by another in-process library. (KDF_PBKDF2 / KDF_SCRYPT predate the rule.)
+// Jo-prefixed per the FFI symbol-collision rule (native-code.md): a KDF export
+// name generic enough to shadow (or be shadowed by) another in-process library
+// must carry the Jo prefix. Applies to all three entry points.
 int32_t JoKDF_HKDF(
     uint8_t *ikm, size_t ikm_len,
     uint8_t *salt, size_t salt_len,
@@ -231,7 +231,7 @@ int32_t JoKDF_HKDF(
 
     uint8_t *out = output + out_offset;
 
-    ret_code = kdf_hkdf(
+    ret_code = jo_hkdf(
         ikm, ikm_len,
         salt, salt_len,
         info, info_len,

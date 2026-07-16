@@ -48,10 +48,10 @@ public interface KdfNI extends DefaultServiceNI
                 throw new IllegalArgumentException("n is less than 2");
             case JO_KDF_SCRYPT_N_NOT_POW2:
                 throw new IllegalArgumentException("n not power of 2");
-            case JO_KDF_SCRYPT_R_NEGATIVE:
-                throw new IllegalArgumentException("r is negative");
-            case JO_KDF_SCRYPT_P_NEGATIVE:
-                throw new IllegalArgumentException("p is negative");
+            case JO_KDF_SCRYPT_R_TOO_SMALL:
+                throw new IllegalArgumentException("r is less than 1");
+            case JO_KDF_SCRYPT_P_TOO_SMALL:
+                throw new IllegalArgumentException("p is less than 1");
             case JO_KDF_HKDF_IKM_NULL:
                 throw new IllegalArgumentException("ikm is null");
             case JO_KDF_HKDF_IKM_FAILED_ACCESS:

@@ -89,9 +89,15 @@ class JOPBEKey implements PBEKey, KeySpec, SecretKey, Destroyable, Serializable
     @Override
     public void destroy() throws DestroyFailedException
     {
+        // Arrays.clear is null-safe; Arrays.fill(char[], ...) is NOT, and
+        // password may be null (a PBEKey translated via engineTranslateKey can
+        // carry a null password/salt).
         Arrays.clear(rawKey);
         Arrays.clear(salt);
-        Arrays.fill(password, (char) 0);
+        if (password != null)
+        {
+            Arrays.fill(password, (char) 0);
+        }
         hasBeenDestroyed.set(true);
     }
 

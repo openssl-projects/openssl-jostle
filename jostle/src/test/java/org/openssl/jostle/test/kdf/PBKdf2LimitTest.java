@@ -203,11 +203,50 @@ public class PBKdf2LimitTest
         }
     }
 
+    @Test
+    public void testPBKDF2_output_offset_minValue() throws Exception
+    {
+        try
+        {
+            kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[1], new byte[1], 100, "SHA-1", new byte[10], Integer.MIN_VALUE, 0));
+            Assertions.fail();
+        } catch (IllegalArgumentException iae)
+        {
+            Assertions.assertEquals("output offset is negative", iae.getMessage());
+        }
+    }
 
-    // Scrypt
+    @Test
+    public void testPBKDF2_output_length_minValue() throws Exception
+    {
+        try
+        {
+            kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[1], new byte[1], 100, "SHA-1", new byte[10], 0, Integer.MIN_VALUE));
+            Assertions.fail();
+        } catch (IllegalArgumentException iae)
+        {
+            Assertions.assertEquals("output len negative", iae.getMessage());
+        }
+    }
 
+    @Test
+    public void testPBKDF2_output_range_atEnd_accepted() throws Exception
+    {
+        // Positive companion to the past-end probes: offset + len == size is
+        // exactly in range, proving the boundary sits past the end (not one
+        // byte earlier). A real derive since EVP_KDF_derive rejects keylen == 0.
+        int code = kdfNI.pbkdf2(new byte[10], new byte[1], 1, "SHA-1", new byte[42], 10, 32);
+        Assertions.assertEquals(0, code);
+    }
 
-    // -- end scrypty
-
-
+    @Test
+    public void testPBKDF2_empty_password_accepted() throws Exception
+    {
+        // An empty (non-null) password is valid and must derive on BOTH bridges
+        // — the FFI path marshals an empty array to a non-NULL 1-byte segment so
+        // the bridge sees "present but empty", not JO_KDF_PASSWORD_NULL. Run
+        // under integrationTest25JNI and integrationTest25FFI for parity.
+        int code = kdfNI.pbkdf2(new byte[0], new byte[1], 1, "SHA-1", new byte[16], 0, 16);
+        Assertions.assertEquals(0, code);
+    }
 }

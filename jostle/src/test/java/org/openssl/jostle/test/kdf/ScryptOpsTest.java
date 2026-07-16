@@ -21,7 +21,6 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
@@ -117,15 +116,14 @@ public class ScryptOpsTest
     public void scrypt_kdf_fetch_failed() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        int code;
         try
         {
             // Exercises interface/nonfips/util/kdf.c:43
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0));
-            Assertions.fail();
-        } catch (OpenSSLException e)
-        {
-            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
+            // -2 + (-1002) = -1004.
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1002, code);
         } finally
         {
             operationsTestNI.resetFlags();

@@ -20,7 +20,7 @@
 #include "ops.h"
 #include "rand/jostle_lib_ctx.h"
 
-int32_t scrypt(
+int32_t jo_scrypt(
     uint8_t *password, size_t password_len,
     uint8_t *salt, size_t salt_len,
     uint64_t n,
@@ -41,7 +41,7 @@ int32_t scrypt(
 
     kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "SCRYPT", NULL);
     if (OPS_OPENSSL_ERROR_1  kdf == NULL) {
-        ret = JO_OPENSSL_ERROR;
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1002);
         goto exit;
     }
 
@@ -77,7 +77,7 @@ exit:
 }
 
 
-int32_t pbkdf2(
+int32_t jo_pbkdf2(
     uint8_t *password, size_t password_len,
     uint8_t *salt, size_t salt_len,
     uint32_t iter,
@@ -99,7 +99,7 @@ int32_t pbkdf2(
 
     kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
-        ret = JO_OPENSSL_ERROR;
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(2002);
         goto exit;
     }
 
@@ -132,7 +132,7 @@ exit:
 }
 
 
-int32_t kdf_hkdf(
+int32_t jo_hkdf(
     uint8_t *ikm, size_t ikm_len,
     uint8_t *salt, size_t salt_len,
     uint8_t *info, size_t info_len,
