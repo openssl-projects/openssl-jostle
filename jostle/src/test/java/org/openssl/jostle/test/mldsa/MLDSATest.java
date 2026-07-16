@@ -281,7 +281,11 @@ public class MLDSATest
             Assertions.fail();
         } catch (InvalidKeyException e)
         {
-            Assertions.assertEquals("expected only MLDSAPublicKey", e.getMessage());
+            // engineInitVerify now accepts the MLDSAPublicKey interface and
+            // translates any other key through the KeyFactory; a non-ML-DSA
+            // key fails that translation with a decode error (still an
+            // InvalidKeyException, so provider fallback is preserved).
+            Assertions.assertEquals("unable to decode ML-DSA public key", e.getMessage());
         }
     }
 
@@ -317,7 +321,11 @@ public class MLDSATest
             Assertions.fail();
         } catch (InvalidKeyException e)
         {
-            Assertions.assertEquals("expected only MLDSAPrivateKey", e.getMessage());
+            // engineInitSign now accepts the MLDSAPrivateKey interface and
+            // translates any other key through the KeyFactory; a non-ML-DSA
+            // key fails that translation with a decode error (still an
+            // InvalidKeyException, so provider fallback is preserved).
+            Assertions.assertEquals("unable to decode ML-DSA private key", e.getMessage());
         }
     }
 
@@ -938,6 +946,100 @@ public class MLDSATest
             Assertions.assertTrue(verifier.verify(signatureBytes));
         }
 
+    }
+
+
+    @Test
+    public void testSeedImportRoundTrip() throws Exception
+    {
+        // Regression for the seed-import path: MLDSAPrivateKeySpec(params, seed)
+        // must deterministically expand the 32-byte seed into a full key pair
+        // via EVP_PKEY_fromdata. The previous EVP_PKEY_new_raw_private_key_ex
+        // path mapped the seed to PRIV_KEY, which the provider rejected, so
+        // every seed import threw - and nothing exercised it.
+        SecureRandom sr = seededRandom("testSeedImportRoundTrip");
+        for (MLDSAParameterSpec spec : joSpec)
+        {
+            byte[] seed = new byte[32];
+            sr.nextBytes(seed);
+
+            KeyFactory jostleFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+
+            // Previously-dead path: importing a seed must succeed.
+            MLDSAPrivateKey priv = (MLDSAPrivateKey) jostleFactory.generatePrivate(
+                    new MLDSAPrivateKeySpec(spec, seed));
+
+            // Deterministic expansion: the same seed yields byte-identical
+            // expanded private data on a second import.
+            MLDSAPrivateKey priv2 = (MLDSAPrivateKey) jostleFactory.generatePrivate(
+                    new MLDSAPrivateKeySpec(spec, seed));
+            Assertions.assertArrayEquals(priv.getPrivateData(), priv2.getPrivateData());
+
+            // Both halves were derived (fromdata produced the public key too).
+            MLDSAPublicKey pub = priv.getPublicKey();
+            Assertions.assertNotNull(pub.getEncoded());
+
+            byte[] msg = new byte[65];
+            sr.nextBytes(msg);
+            Signature signer = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            signer.initSign(priv);
+            signer.update(msg);
+            byte[] sig = signer.sign();
+
+            Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            verifier.initVerify(pub);
+            verifier.update(msg);
+            Assertions.assertTrue(verifier.verify(sig));
+
+            // Negative path: a tampered message must not verify against the sig.
+            byte[] tampered = Arrays.clone(msg);
+            tampered[0] ^= 0x01;
+            Signature verifier2 = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            verifier2.initVerify(pub);
+            verifier2.update(tampered);
+            Assertions.assertFalse(verifier2.verify(sig));
+
+            // The seed-derived expanded key round-trips through BC's KeyFactory.
+            KeyFactory bcFactory = KeyFactory.getInstance("MLDSA", "BC");
+            PublicKey bcPub = bcFactory.generatePublic(new X509EncodedKeySpec(pub.getEncoded()));
+            Assertions.assertNotNull(bcPub);
+        }
+    }
+
+    @Test
+    public void testExpandedKeySeedFallback() throws Exception
+    {
+        // A key imported from an expanded (long-form) encoding has no seed:
+        // getSeed() must return null (not throw), and getPrivateKey(true) must
+        // fall back to the expanded key instead of surfacing an OpenSSL error.
+        SecureRandom sr = seededRandom("testExpandedKeySeedFallback");
+        for (org.bouncycastle.jcajce.spec.MLDSAParameterSpec spec : bcSpec)
+        {
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", "BC");
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] privateData = ((org.bouncycastle.jcajce.interfaces.MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
+            byte[] publicData = ((org.bouncycastle.jcajce.interfaces.MLDSAPublicKey) keyPair.getPublic()).getPublicData();
+
+            KeyFactory jostleFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            MLDSAPrivateKey priv = (MLDSAPrivateKey) jostleFactory.generatePrivate(
+                    new MLDSAPrivateKeySpec(bcToJostle.get(spec), privateData, publicData));
+
+            // No seed present on an expanded import.
+            Assertions.assertNull(priv.getSeed());
+
+            // Fallback must not throw and must yield a usable signing key.
+            MLDSAPrivateKey fallback = priv.getPrivateKey(true);
+            Assertions.assertNotNull(fallback);
+
+            byte[] msg = new byte[65];
+            sr.nextBytes(msg);
+            Signature signer = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+            signer.initSign(fallback);
+            signer.update(msg);
+            Assertions.assertNotNull(signer.sign());
+        }
     }
 
 

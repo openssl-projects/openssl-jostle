@@ -96,17 +96,39 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
                 OSSLKeyType osslKeyType = typeMap.get(pubSpec.getParameterSpec());
 
+                if (osslKeyType == null)
+                {
+                    // A spec built with a null / unrecognised parameter set
+                    // would otherwise NPE at osslKeyType.getKsType().
+                    throw new InvalidKeySpecException("unknown ML-DSA parameter set: " + pubSpec.getParameterSpec());
+                }
+
                 if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
                 {
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
-                byte[] encoded = ((MLDSAPublicKeySpec) keySpec).getPublicData();
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                byte[] encoded = pubSpec.getPublicData();
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
-                NISelector.MLDSAServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
-                return new JOMLDSAPublicKey(pkeySpec);
+                    NISelector.MLDSAServiceNI.decode_publicKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
+                    return new JOMLDSAPublicKey(pkeySpec);
+                }
+                catch (RuntimeException e)
+                {
+                    // A wrong-length / malformed raw encoding surfaces from the
+                    // decoder as IllegalArgumentException / OpenSSLException; the
+                    // KeyFactory contract requires InvalidKeySpecException (matches
+                    // the X509 wrapper above).
+                    throw new InvalidKeySpecException("unable to decode ML-DSA public key", e);
+                }
+                finally
+                {
+                    Arrays.clear(encoded);
+                }
             }
         }
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -164,6 +186,13 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                 MLDSAPrivateKeySpec spec = (MLDSAPrivateKeySpec) keySpec;
                 OSSLKeyType osslKeyType = typeMap.get(spec.getParameterSpec());
 
+                if (osslKeyType == null)
+                {
+                    // A spec built with a null / unrecognised parameter set
+                    // would otherwise NPE at osslKeyType.getKsType().
+                    throw new InvalidKeySpecException("unknown ML-DSA parameter set: " + spec.getParameterSpec());
+                }
+
                 if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
                 {
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -178,11 +207,27 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                 {
                     encoded = spec.getPrivateData();
                 }
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.MLDSAServiceNI.decode_privateKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length);
-                return new JOMLDSAPrivateKey(pkeySpec, spec.isSeed());
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    NISelector.MLDSAServiceNI.decode_privateKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(),
+                            encoded, 0, encoded.length);
+                    return new JOMLDSAPrivateKey(pkeySpec, spec.isSeed());
+                }
+                catch (RuntimeException e)
+                {
+                    // A wrong-length / malformed raw encoding surfaces from the
+                    // decoder as IllegalArgumentException / OpenSSLException; the
+                    // KeyFactory contract requires InvalidKeySpecException (matches
+                    // the PKCS#8 wrapper above).
+                    throw new InvalidKeySpecException("unable to decode ML-DSA private key", e);
+                }
+                finally
+                {
+                    // Transient raw seed / private encoding cloned from the spec.
+                    Arrays.clear(encoded);
+                }
             }
         }
 
@@ -209,7 +254,11 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                     }
                     else
                     {
-                        return keySpec.cast(new MLDSAPrivateKeySpec(mKey.getParameterSpec(), mKey.getEncoded()));
+                        // Long form: the spec/decode contract is RAW private data,
+                        // NOT the PKCS#8 blob getEncoded() returns (the 2-arg
+                        // constructor is the 32-byte seed form and would throw
+                        // "incorrect length for seed").
+                        return keySpec.cast(new MLDSAPrivateKeySpec(mKey.getParameterSpec(), mKey.getPrivateData(), null));
                     }
                 }
             }
@@ -228,7 +277,9 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                     if (MLDSAPublicKeySpec.class.isAssignableFrom(keySpec))
                     {
                         JOMLDSAPublicKey mKey = (JOMLDSAPublicKey) key;
-                        return keySpec.cast(new MLDSAPublicKeySpec(mKey.getParameterSpec(), mKey.getEncoded()));
+                        // The spec/decode contract is RAW public data, NOT the
+                        // X.509 SubjectPublicKeyInfo DER getEncoded() returns.
+                        return keySpec.cast(new MLDSAPublicKeySpec(mKey.getParameterSpec(), mKey.getPublicData()));
                     }
                 }
                 throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -244,7 +295,43 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
         {
             return key;
         }
-        throw new InvalidKeyException("Invalid Key: " + key);
+        if (key == null)
+        {
+            throw new InvalidKeyException("Invalid Key: null");
+        }
+        // Foreign ML-DSA key (e.g. the JDK's NamedX509Key from a parsed
+        // certificate) — re-encode and decode through us so we own the
+        // EVP_PKEY. Mirrors MLKEMKeyFactorySpi / ECKeyFactorySpi.
+        byte[] encoded = null;
+        try
+        {
+            encoded = key.getEncoded();
+            if (encoded == null)
+            {
+                throw new InvalidKeyException("foreign key has no encoded form");
+            }
+            if (key instanceof PrivateKey)
+            {
+                return engineGeneratePrivate(new PKCS8EncodedKeySpec(encoded));
+            }
+            return engineGeneratePublic(new X509EncodedKeySpec(encoded));
+        }
+        catch (InvalidKeySpecException e)
+        {
+            throw new InvalidKeyException(e.getMessage(), e);
+        }
+        catch (RuntimeException e)
+        {
+            // A hostile/broken foreign key can throw from getEncoded();
+            // surface the typed exception the translate contract requires.
+            throw new InvalidKeyException("unable to translate key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material — scrub it
+            // (engineGeneratePrivate scrubbed only its own inner clone).
+            Arrays.clear(encoded);
+        }
     }
 
 

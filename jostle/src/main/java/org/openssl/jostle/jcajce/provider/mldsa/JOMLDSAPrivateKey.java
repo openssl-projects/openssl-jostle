@@ -15,11 +15,13 @@ import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
@@ -73,9 +75,18 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
     {
         synchronized (this)
         {
-            long len = NISelector.MLDSAServiceNI.getSeed(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
-            NISelector.MLDSAServiceNI.getSeed(spec.getReference(), out);
+            // A key imported from an expanded encoding has no retrievable seed:
+            // the raw NI getter returns JO_SEED_UNAVAILABLE, which we answer as
+            // null (rather than surfacing it as an error) so getPrivateKey(true)
+            // can fall back to the expanded key.
+            int len = NISelector.MLDSAServiceNI.ni_getSeed(spec.getReference(), null);
+            if (len == ErrorCode.JO_SEED_UNAVAILABLE.getCode())
+            {
+                return null;
+            }
+            NISelector.MLDSAServiceNI.handleErrors(len);
+            byte[] out = new byte[len];
+            NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.ni_getSeed(spec.getReference(), out));
 
             return out;
         }
@@ -104,14 +115,22 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
             byte[] seed = getSeed();
             if (seed != null)
             {
-                OSSLKeyType type = getType();
-                return new JOMLDSAPrivateKey(
-                        new PKEYKeySpec(
+                try
+                {
+                    OSSLKeyType type = getType();
+                    return new JOMLDSAPrivateKey(
+                            new PKEYKeySpec(
 
-                                        NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
-                                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
-                                ), type), preferSeedOnly
-                );
+                                            NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
+                                                    DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
+                                    ), type), preferSeedOnly
+                    );
+                }
+                finally
+                {
+                    // Scrub the transient seed once the keypair is derived.
+                    Arrays.clear(seed);
+                }
             }
         }
 

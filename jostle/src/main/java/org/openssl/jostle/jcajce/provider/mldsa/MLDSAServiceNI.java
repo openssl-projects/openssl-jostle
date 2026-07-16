@@ -221,6 +221,8 @@ public interface MLDSAServiceNI extends DefaultServiceNI
                 throw new IllegalArgumentException("external Mu invalid length");
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type for ML-DSA");
+            case JO_EXTRACTED_KEY_UNEXPECTED_LEN:
+                throw new IllegalStateException("extracted key has unexpected length");
         }
 
         return baseErrorHandler(code);

@@ -20,16 +20,31 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 class ProvMLKEM
 {
 
     private static final String PREFIX = ProvMLKEM.class.getPackage().getName() + ".mlkem.";
 
+    private static final Logger LOG = Logger.getLogger(ProvMLKEM.class.getName());
+
 
     public void configure(final JostleProvider provider)
     {
-        configureMLKEM(provider);
+        // Fail soft: a failure registering the ML-KEM algorithms must not abort
+        // JostleProvider's static initialization, which would take the whole
+        // provider down with an ExceptionInInitializerError (never retried for
+        // the life of the JVM). Log it and let the other Prov* classes register.
+        try
+        {
+            configureMLKEM(provider);
+        }
+        catch (Throwable t)
+        {
+            LOG.log(Level.WARNING, "ML-KEM provider registration failed; ML-KEM algorithms will be unavailable", t);
+        }
     }
 
 

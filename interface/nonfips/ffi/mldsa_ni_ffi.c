@@ -310,13 +310,13 @@ int32_t JoMLDSA_update(mldsa_ctx *ctx, const uint8_t *input, const size_t input_
         goto exit;
     }
 
-    if (in_len < 0) {
-        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
+    if (in_off < 0) {
+        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
         goto exit;
     }
 
-    if (in_off < 0) {
-        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
+    if (in_len < 0) {
+        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
 
@@ -344,6 +344,10 @@ int32_t JoMLDSA_sign(
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    if (output == NULL) {
+        return mldsa_ctx_sign(ctx, NULL, 0, rnd_src);
     }
 
     int32_t ret_val = JO_FAIL;

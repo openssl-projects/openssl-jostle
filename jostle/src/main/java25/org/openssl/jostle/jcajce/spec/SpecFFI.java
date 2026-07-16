@@ -61,21 +61,21 @@ public class SpecFFI implements SpecNI
     public SpecFFI(SymbolLookup lookup)
     {
 
-        MemorySegment allocateFunc = lookup.find("SpecNI_allocateKeySpec").orElseThrow();
+        MemorySegment allocateFunc = lookup.find("JoSpec_allocateKeySpec").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return prt
                         ValueLayout.ADDRESS // err out
                 ));
 
-        MemorySegment disposeFunc = lookup.find("SpecNI_disposeKeySpec").orElseThrow();
+        MemorySegment disposeFunc = lookup.find("JoSpec_disposeKeySpec").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // ptr
                 ));
 
 
-        MemorySegment encapFunc = lookup.find("SpecNI_Encap").orElseThrow();
+        MemorySegment encapFunc = lookup.find("JoSpec_Encap").orElseThrow();
         encapFuncHandle = linker.downcallHandle(encapFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -86,7 +86,7 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS
                 ));
 
-        MemorySegment decapFunc = lookup.find("SpecNI_Decap").orElseThrow();
+        MemorySegment decapFunc = lookup.find("JoSpec_Decap").orElseThrow();
         decapFuncHandle = linker.downcallHandle(decapFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -98,7 +98,7 @@ public class SpecFFI implements SpecNI
                 ));
 
 
-        MemorySegment getNameFunc = lookup.find("SpecNI_GetName").orElseThrow();
+        MemorySegment getNameFunc = lookup.find("JoSpec_GetName").orElseThrow();
         getNameFuncHandle = linker.downcallHandle(getNameFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return
@@ -119,7 +119,7 @@ public class SpecFFI implements SpecNI
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_disposeKeySpec",
+                    "FFI JoSpec_disposeKeySpec",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -132,14 +132,22 @@ public class SpecFFI implements SpecNI
         {
             MemorySegment retCode = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment addr = (MemorySegment) allocateFuncHandle.invokeExact(retCode);
-            handleErrors(retCode.get(ValueLayout.JAVA_INT,0));
+            int code = retCode.get(ValueLayout.JAVA_INT, 0);
+            // Mirror the JNI bridge, which writes the status into err[0] via
+            // SetIntArrayRegion. A direct NI caller inspecting err[0] must see
+            // the same value on both bridges.
+            if (err != null && err.length > 0)
+            {
+                err[0] = code;
+            }
+            handleErrors(code);
             return addr.address();
         }
         catch (Throwable t)
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_allocateKeySpec",
+                    "FFI JoSpec_allocateKeySpec",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -161,7 +169,7 @@ public class SpecFFI implements SpecNI
             {
                 throw new IllegalArgumentException("returned name len is negative");
             }
-            // Mirror the JNI bridge: SpecNI_GetName returns NULL with *len=0
+            // Mirror the JNI bridge: JoSpec_GetName returns NULL with *len=0
             // when the spec is null or has no key. Surface this as a null
             // String to the Java caller rather than dereferencing a NULL
             // segment.
@@ -180,7 +188,7 @@ public class SpecFFI implements SpecNI
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_GetName",
+                    "FFI JoSpec_GetName",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -197,6 +205,16 @@ public class SpecFFI implements SpecNI
             var optRef = opt != null ? a.allocateFrom(opt) : MemorySegment.NULL;
             var secretRef = secret != null ? a.allocate(secret.length) : MemorySegment.NULL;
             var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
+
+            // Pre-copy the caller's secret buffer into the arena segment so any
+            // bytes the C side does not overwrite (an over-declared secret
+            // window: inLen larger than the actual shared-secret length) are
+            // preserved on copy-back, matching the JNI bridge's in-place
+            // semantics rather than zero-clobbering the tail.
+            if (secret != null)
+            {
+                MemorySegment.copy(secret, 0, secretRef, ValueLayout.JAVA_BYTE, 0, secret.length);
+            }
 
             // let encap()'s existing check return
             // JO_RAND_NO_RAND_UP_CALL — same path JNI takes.
@@ -220,16 +238,18 @@ public class SpecFFI implements SpecNI
             // Copy back only the regions the C side wrote, at their original
             // offsets. A blanket get() would zero caller bytes outside the
             // written window because the arena segments are zero-filled
-            // (Arena.allocate), not copies of the caller's arrays. r > 0 means
-            // encap succeeded and wrote both the encapsulation (r bytes at off)
-            // and the shared secret (fills the inLen-sized region at inOff);
-            // the probe (out == null) and error paths write nothing.
-            if (r > 0)
+            // (Arena.allocate), not copies of the caller's arrays. A real
+            // encap (out != null, r > 0) wrote both the encapsulation (r bytes
+            // at off) and the shared secret (at inOff). The secret copy-back is
+            // gated on out != null too: on a length probe (out == null) C
+            // returns the ciphertext length as a positive r but writes NOTHING,
+            // so a bare `r > 0` gate would zero the caller's secret buffer with
+            // unwritten arena bytes — the exact JNI/FFI divergence this guards
+            // against. The secret window is pre-copied above, so copying inLen
+            // bytes preserves any tail C did not overwrite.
+            if (out != null && r > 0)
             {
-                if (out != null)
-                {
-                    outRef.asByteBuffer().get(off, out, off, r);
-                }
+                outRef.asByteBuffer().get(off, out, off, r);
                 if (secret != null)
                 {
                     secretRef.asByteBuffer().get(inOff, secret, inOff, inLen);
@@ -242,7 +262,7 @@ public class SpecFFI implements SpecNI
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_Encap",
+                    "FFI JoSpec_Encap",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
@@ -299,7 +319,7 @@ public class SpecFFI implements SpecNI
         {
             L.log(
                     Level.WARNING,
-                    "FFI SpecNI_Decap",
+                    "FFI JoSpec_Decap",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }

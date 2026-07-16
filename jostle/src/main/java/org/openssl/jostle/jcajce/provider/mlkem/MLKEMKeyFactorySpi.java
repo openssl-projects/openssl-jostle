@@ -97,19 +97,36 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 MLKEMPublicKeySpec pubSpec = (MLKEMPublicKeySpec) keySpec;
 
                 OSSLKeyType osslKeyType = typeMap.get(pubSpec.getParameterSpec());
+                if (osslKeyType == null)
+                {
+                    // A null / unrecognised parameter set would otherwise NPE at
+                    // osslKeyType.getKsType(); surface the typed KeyFactory error.
+                    throw new InvalidKeySpecException("unknown or missing ML-KEM parameter set in key spec");
+                }
 
                 if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
                 {
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
-                byte[] encoded = ((MLKEMPublicKeySpec) keySpec).getPublicData();
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                byte[] encoded = pubSpec.getPublicData();
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
 
-                NISelector.MLKEMServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length,
-                        DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-                return new JOMLKEMPublicKey(pkeySpec);
+                    NISelector.MLKEMServiceNI.decode_publicKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length,
+                            DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                    return new JOMLKEMPublicKey(pkeySpec);
+                }
+                catch (RuntimeException e)
+                {
+                    // The native decoder surfaces a malformed encoding as
+                    // OpenSSLException / IllegalArgumentException; the KeyFactory
+                    // contract requires InvalidKeySpecException (the X.509 path
+                    // above already wraps).
+                    throw new InvalidKeySpecException("unable to decode ML-KEM public key", e);
+                }
             }
         }
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -166,36 +183,60 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
             {
                 MLKEMPrivateKeySpec spec = (MLKEMPrivateKeySpec) keySpec;
                 OSSLKeyType osslKeyType = typeMap.get(spec.getParameterSpec());
+                if (osslKeyType == null)
+                {
+                    // A null / unrecognised parameter set would otherwise NPE at
+                    // osslKeyType.getKsType(); surface the typed KeyFactory error.
+                    throw new InvalidKeySpecException("unknown or missing ML-KEM parameter set in key spec");
+                }
 
                 if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
                 {
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
-                PKEYKeySpec pkeySpec;
-                if (spec.isSeed())
+                // Holds the seed or long-form private material — secret; scrubbed
+                // in the finally (the KeySpec getters returned fresh clones).
+                byte[] material = null;
+                try
                 {
-                    // Seed-only form: derive the keypair from the 64-byte
-                    // seed via OSSL_PKEY_PARAM_ML_KEM_SEED keygen rather
-                    // than via decode_privateKey (which only accepts the
-                    // long form).
-                    byte[] seed = spec.getSeed();
-                    long ref = NISelector.MLKEMServiceNI.generateKeyPair(
-                            osslKeyType.getKsType(),
-                            seed, seed.length,
-                            DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-                    pkeySpec = new PKEYKeySpec(ref, osslKeyType);
+                    PKEYKeySpec pkeySpec;
+                    if (spec.isSeed())
+                    {
+                        // Seed-only form: derive the keypair from the 64-byte
+                        // seed via OSSL_PKEY_PARAM_ML_KEM_SEED keygen rather
+                        // than via decode_privateKey (which only accepts the
+                        // long form).
+                        material = spec.getSeed();
+                        long ref = NISelector.MLKEMServiceNI.generateKeyPair(
+                                osslKeyType.getKsType(),
+                                material, material.length,
+                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                        pkeySpec = new PKEYKeySpec(ref, osslKeyType);
+                    }
+                    else
+                    {
+                        material = spec.getPrivateData();
+                        pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                        NISelector.MLKEMServiceNI.decode_privateKey(
+                                pkeySpec.getReference(), osslKeyType.getKsType(),
+                                material, 0, material.length,
+                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                    }
+                    return new JOMLKEMPrivateKey(pkeySpec, spec.isSeed());
                 }
-                else
+                catch (RuntimeException e)
                 {
-                    byte[] encoded = spec.getPrivateData();
-                    pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                    NISelector.MLKEMServiceNI.decode_privateKey(
-                            pkeySpec.getReference(), osslKeyType.getKsType(),
-                            encoded, 0, encoded.length,
-                            DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                    // Malformed key material surfaces from the native decoder /
+                    // seed keygen as OpenSSLException / IllegalArgumentException;
+                    // the KeyFactory contract requires InvalidKeySpecException
+                    // (the PKCS#8 path above already wraps).
+                    throw new InvalidKeySpecException("unable to decode ML-KEM private key", e);
                 }
-                return new JOMLKEMPrivateKey(pkeySpec, spec.isSeed());
+                finally
+                {
+                    Arrays.clear(material);
+                }
             }
         }
 
@@ -218,11 +259,34 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                     JOMLKEMPrivateKey mKey = (JOMLKEMPrivateKey) key;
                     if (mKey.seedOnly)
                     {
-                        return keySpec.cast(new MLKEMPrivateKeySpec(mKey.getParameterSpec(), mKey.getSeed()));
+                        byte[] seed = mKey.getSeed();
+                        try
+                        {
+                            return keySpec.cast(new MLKEMPrivateKeySpec(mKey.getParameterSpec(), seed));
+                        }
+                        finally
+                        {
+                            // MLKEMPrivateKeySpec clones its input; scrub the
+                            // local copy of the secret seed.
+                            Arrays.clear(seed);
+                        }
                     }
                     else
                     {
-                        return keySpec.cast(new MLKEMPrivateKeySpec(mKey.getParameterSpec(), mKey.getEncoded()));
+                        // Long-form spec: feed the RAW private data through the
+                        // (params, privateData, publicData) constructor — the
+                        // 2-arg constructor is the seed form and requires a
+                        // 64-byte seed, so passing getEncoded() (a PKCS#8 blob)
+                        // there always threw.
+                        byte[] privateData = mKey.getPrivateData();
+                        try
+                        {
+                            return keySpec.cast(new MLKEMPrivateKeySpec(mKey.getParameterSpec(), privateData, null));
+                        }
+                        finally
+                        {
+                            Arrays.clear(privateData);
+                        }
                     }
                 }
             }
@@ -241,7 +305,10 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                     if (MLKEMPublicKeySpec.class.isAssignableFrom(keySpec))
                     {
                         JOMLKEMPublicKey mKey = (JOMLKEMPublicKey) key;
-                        return keySpec.cast(new MLKEMPublicKeySpec(mKey.getParameterSpec(), mKey.getEncoded()));
+                        // Feed the RAW public data — getEncoded() is the X.509
+                        // SubjectPublicKeyInfo blob, but MLKEMPublicKeySpec
+                        // expects the long-form public key.
+                        return keySpec.cast(new MLKEMPublicKeySpec(mKey.getParameterSpec(), mKey.getPublicData()));
                     }
                 }
                 throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);

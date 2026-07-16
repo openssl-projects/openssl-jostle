@@ -18,14 +18,14 @@
 /*
   Clean up and free a PKEY
  */
-void SpecNI_disposeKeySpec(key_spec *ctx) {
+void JoSpec_disposeKeySpec(key_spec *ctx) {
     if (ctx == NULL) {
         return;
     }
     free_key_spec(ctx);
 }
 
-key_spec *SpecNI_allocateKeySpec(int32_t *err) {
+key_spec *JoSpec_allocateKeySpec(int32_t *err) {
     jo_assert(err != NULL);
     key_spec *spec = create_spec();
     *err = JO_SUCCESS;
@@ -33,7 +33,7 @@ key_spec *SpecNI_allocateKeySpec(int32_t *err) {
 }
 
 
-int32_t SpecNI_Encap(
+int32_t JoSpec_Encap(
     key_spec *ks,
     const char *opp,
     uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len,
@@ -97,7 +97,7 @@ exit:
 }
 
 
-int32_t SpecNI_Decap(
+int32_t JoSpec_Decap(
     key_spec *ks,
     const char *opp,
     uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len,
@@ -160,7 +160,7 @@ exit:
     return ret;
 }
 
-const char *SpecNI_GetName(key_spec *ks, size_t *len) {
+const char *JoSpec_GetName(key_spec *ks, size_t *len) {
     jo_assert(len != NULL);
     if (ks == NULL || ks->key == NULL) {
         *len = 0;

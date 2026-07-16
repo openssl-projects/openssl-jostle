@@ -243,7 +243,7 @@ public class MLKEMOpsTest
         }
         catch (IllegalStateException ise)
         {
-            Assertions.assertEquals("unexpected error code JO_UNKNOWN: -1002", ise.getMessage());
+            Assertions.assertEquals("unexpected error code JO_UNKNOWN: -1004", ise.getMessage());
         }
 
         finally

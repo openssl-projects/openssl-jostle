@@ -14,6 +14,7 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -78,9 +79,18 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
     {
         try
         {
-            long len = NISelector.MLKEMServiceNI.getSeed(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
-            NISelector.MLKEMServiceNI.getSeed(spec.getReference(), out);
+            // Probe via the RAW NI so a seedless key (imported from an expanded
+            // private-key encoding) answers null rather than surfacing a generic
+            // OpenSSL error. getPrivateKey(preferSeedOnly) relies on this null
+            // to fall back to the expanded key.
+            int len = NISelector.MLKEMServiceNI.ni_getSeed(spec.getReference(), null);
+            if (len == ErrorCode.JO_SEED_UNAVAILABLE.getCode())
+            {
+                return null;
+            }
+            NISelector.MLKEMServiceNI.handleErrors(len);
+            byte[] out = new byte[len];
+            NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.ni_getSeed(spec.getReference(), out));
 
             return out;
         }

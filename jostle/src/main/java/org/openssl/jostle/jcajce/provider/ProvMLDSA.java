@@ -18,16 +18,31 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 class ProvMLDSA
 {
 
     private static final String PREFIX = ProvMLDSA.class.getPackage().getName() + ".mldsa.";
 
+    private static final Logger LOG = Logger.getLogger(ProvMLDSA.class.getName());
+
 
     public void configure(final JostleProvider provider)
     {
-        configureMLDSA(provider);
+        // Fail soft: a failure registering the ML-DSA algorithms must not abort
+        // JostleProvider's static initialization, which would take the whole
+        // provider down with an ExceptionInInitializerError (never retried for
+        // the life of the JVM). Log it and let the other Prov* classes register.
+        try
+        {
+            configureMLDSA(provider);
+        }
+        catch (Throwable t)
+        {
+            LOG.log(Level.WARNING, "ML-DSA provider registration failed; ML-DSA algorithms will be unavailable", t);
+        }
     }
 
 

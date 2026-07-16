@@ -20,6 +20,7 @@ import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Strings;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -29,6 +30,16 @@ import java.util.Map;
 
 public class MLKEMKeyPairGenerator extends KeyPairGenerator
 {
+
+    /**
+     * The parameter set this instance was constructed for. The umbrella
+     * "ML-KEM" alias resolves to {@link OSSLKeyType#NONE}; a typed instance
+     * (e.g. "ML-KEM-768") resolves to its concrete type. This is fixed at
+     * construction and, unlike {@link #keyType}, never changes — it is what
+     * distinguishes the umbrella instance (re-initialisable to any set) from a
+     * typed instance (bound to its set).
+     */
+    private final OSSLKeyType constructedType;
 
     private OSSLKeyType keyType;
     /**
@@ -78,6 +89,8 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
             throw new IllegalArgumentException("unknown algorithm: " + algorithm);
         }
 
+        constructedType = keyType;
+
         // Pre-resolve a strength-appropriate default RandSource so a
         // typed instance (e.g. KeyPairGenerator.getInstance("ML-KEM-768"))
         // works without an explicit initialize() call. The umbrella
@@ -87,6 +100,35 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
         randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(keyType));
     }
 
+
+    /**
+     * Single-argument override so a caller who does NOT supply a
+     * {@link SecureRandom} routes through with a {@code null} random — the
+     * default JDK implementation would inject {@code JCAUtil.getSecureRandom()},
+     * which {@link DefaultRandSource#replaceWith} then wraps as-is,
+     * bypassing the strength-targeted default DRBG the parameter set needs
+     * (GH issue #34). Passing null lets {@code replaceWith} pick a
+     * strength-appropriate default. Mirrors MLDSAKeyPairGeneratorImpl /
+     * SLHDSAKeyPairGenerator.
+     */
+    public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
+    {
+        initialize(params, null);
+    }
+
+    /**
+     * ML-KEM is parameter-set based; an integer key size is meaningless.
+     * Reject it with the {@link KeyPairGenerator#initialize(int, SecureRandom)}
+     * contract's {@link InvalidParameterException} rather than silently
+     * no-op'ing (the inherited default does nothing when this class is
+     * subclassed directly). Also covers {@code initialize(int)}, which the
+     * facade routes here.
+     */
+    @Override
+    public void initialize(int keysize, SecureRandom random)
+    {
+        throw new InvalidParameterException("ML-KEM is parameter-set based; use initialize(MLKEMParameterSpec)");
+    }
 
     @Override
     public void initialize(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
@@ -118,17 +160,18 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
                     "unknown algorithm: " + (specName != null ? specName : params.getClass().getName()));
         }
 
-        if (keyType == OSSLKeyType.NONE)
+        // The umbrella "ML-KEM" instance (constructed as NONE) may be
+        // (re-)initialised to any parameter set, including switching sets
+        // across successive initialize() calls. A typed instance
+        // (e.g. ML-KEM-768) stays bound to its constructed parameter set.
+        if (constructedType == OSSLKeyType.NONE)
         {
             keyType = newType;
         }
-
-        if (keyType != newType)
+        else if (constructedType != newType)
         {
-            throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(keyType).getName() + " but was supplied " + MLKEMParameterSpec.getSpecForOSSLType(newType).getName());
+            throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(constructedType).getName() + " but was supplied " + MLKEMParameterSpec.getSpecForOSSLType(newType).getName());
         }
-
-        keyType = newType;
 
         int strengthBits = strengthForKeyType(keyType);
 

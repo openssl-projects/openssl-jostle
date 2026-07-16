@@ -27,10 +27,17 @@ JNIEXPORT jlong JNICALL
 Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPair__I_3ILorg_openssl_jostle_rand_RandSource_2
 (JNIEnv *env, jobject jo, jint type, jintArray _err, jobject rnd_src) {
     UNUSED(jo);
+    jo_assert(_err != NULL);
 
     jint ret_val = JO_FAIL;
+    key_spec *key_spec = NULL;
 
-    key_spec *key_spec = create_spec();
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    key_spec = create_spec();
     ret_val = mldsa_generate_key_pair(key_spec, type, NULL, 0, rnd_src);
 
     if (ret_val != JO_SUCCESS) {
@@ -38,6 +45,7 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
         key_spec = NULL;
     }
 
+exit:
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_val);
     return (jlong) key_spec;
 }
@@ -52,6 +60,7 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
 (JNIEnv *env, jobject jo, jint type, jintArray _err, jbyteArray _seed, jint seed_len, jobject rnd_src) {
     UNUSED(jo);
     UNUSED(env);
+    jo_assert(_err != NULL);
 
     key_spec *key_spec = NULL;
 
@@ -59,6 +68,11 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
     init_bytearray_ctx(&seed);
 
     int32_t ret_code = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        ret_code = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     if (_seed == NULL) {
         ret_code = JO_SEED_IS_NULL;
@@ -91,8 +105,8 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
     }
 
 exit:
-    (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_code);
     release_bytearray_ctx(&seed);
+    (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_code);
     return (jlong) key_spec;
 }
 
@@ -441,6 +455,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     if (mldsa == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
     }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
 
     int32_t ret_code = JO_FAIL;
 
@@ -545,6 +562,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
     if (mldsa == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     if (_output == NULL) {

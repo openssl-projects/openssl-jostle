@@ -209,7 +209,10 @@ int32_t mlkem_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
 
     if (OPS_OPENSSL_ERROR_2 EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
                                                             &written) <= 0) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
+        // Unique offset (1002) so the returned code distinguishes this
+        // private-key fetch site from the public-key fetch site (1000);
+        // both previously returned -1002.
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1002);
     }
 
     return (int32_t) written;
@@ -232,7 +235,28 @@ int32_t mlkem_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
         return JO_INCORRECT_KEY_TYPE;
     }
 
-    const size_t min_len = MLKEM_SEED_LEN;
+    ERR_clear_error();
+
+    size_t min_len = 0;
+
+    // Probe the seed length AND its presence in one query - never transcribe
+    // the length. A key imported from an expanded private-key encoding has no
+    // seed: the query fails or reports zero length. Report JO_SEED_UNAVAILABLE
+    // (not a generic OpenSSL error) so the Java layer answers getSeed()==null
+    // and getPrivateKey(preferSeedOnly) falls back to the expanded key. Scope
+    // the probe with a mark so its "no such param" noise cannot leak into the
+    // thread's error queue.
+    ERR_set_mark();
+    if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_KEM_SEED, NULL, 0, &min_len) <= 0
+        || min_len == 0) {
+        ERR_pop_to_mark();
+        return JO_SEED_UNAVAILABLE;
+    }
+    ERR_clear_last_mark();
+
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
 
     if (out == NULL) {
         return (int32_t) min_len;
@@ -245,15 +269,9 @@ int32_t mlkem_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
 
     size_t written = 0;
 
-    ERR_clear_error();
-
     if (OPS_OPENSSL_ERROR_1
         EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_KEM_SEED, out, min_len, &written) <= 0) {
         return JO_OPENSSL_ERROR;
-    }
-
-    if (OPS_INT32_OVERFLOW_1 written > INT32_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
     return (int32_t) written;
@@ -294,7 +312,11 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     }
 
 
-    if (src_len < min_len) {
+    // Raw ML-KEM decapsulation-key import is exact-length. Require equality
+    // (not just a lower bound) so an over-long buffer is rejected with the
+    // typed JO_ENCODED_PRIVATE_KEY_LEN, matching the public-decode path,
+    // rather than reaching OpenSSL and surfacing an opaque JO_OPENSSL_ERROR.
+    if (min_len != src_len) {
         ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
         goto exit;
     }

@@ -290,6 +290,17 @@
  */
 #define JO_MAC_CTX_IS_NULL -142
 
+/*
+ * A private key (ML-DSA / ML-KEM) has no retrievable seed - it was
+ * imported from an expanded private-key encoding rather than generated
+ * or seed-imported. Returned typed by the seed getter so the Java layer
+ * can distinguish "this key legitimately has no seed" (getSeed() -> null,
+ * getPrivateKey(preferSeedOnly) falls back to the expanded key) from a
+ * genuine OpenSSL error. NOT an error the caller can provoke with bad
+ * input - it is a property of the loaded key.
+ */
+#define JO_SEED_UNAVAILABLE -143
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

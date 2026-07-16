@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -59,10 +60,27 @@ import java.security.spec.AlgorithmParameterSpec;
 public class MLKEMKTSCipherSpi
     extends CipherSpi
 {
-    // FIPS 203 fixed shared-secret size (bytes).
+    // FIPS 203 fixed shared-secret size (bytes). Unlike the encapsulation
+    // (ciphertext) length, this is NOT probeable via the current NI surface:
+    // encap reports only the ciphertext length, and decap needs the ciphertext
+    // (which the wrap side can't produce) to report it. It is a FIPS-203
+    // constant (256-bit shared secret) for every ML-KEM parameter set, and is
+    // hard-validated against OpenSSL at runtime — encap / decap reject a
+    // mismatch (see the "written != SHARED_SECRET_LEN" checks below).
     private static final int SHARED_SECRET_LEN = 32;
     // X9.44 / NIST concatenation KDF (KDF3) OID — the only KDF used by CMS here.
     private static final String ID_KDF_KDF3 = "1.3.133.16.840.9.44.1.2";
+    // Upper bound on the requested KEK size, checked at init: (kekBits + 7)
+    // overflows int for kekBits near Integer.MAX_VALUE (a negative kekBytes ->
+    // NegativeArraySizeException in kdf3), and an unbounded value would drive an
+    // unbounded KDF allocation. 4096 bits is generously above any real AES-KW
+    // KEK (128/192/256-bit) while bounding the allocation.
+    private static final int MAX_KEK_BITS = 4096;
+
+    // OpenSSL-probed encapsulation (ciphertext) lengths, memoized once per
+    // parameter set (see NativeLengthCache) — OpenSSL is the single source of
+    // truth, no transcribed 768/1088/1568 table.
+    private static final NativeLengthCache<OSSLKeyType> encapsulationLengths = new NativeLengthCache<OSSLKeyType>();
 
     private int opmode;
     private PKEYKeySpec keySpec;
@@ -148,10 +166,11 @@ public class MLKEMKTSCipherSpi
         if (opmode == Cipher.WRAP_MODE)
         {
             // ML-KEM encapsulation consumes entropy through the C-side RAND gate
-            // (GH #34): ML-KEM-768/1024 require 192/256-bit strength. Fail fast if
-            // the caller supplied a SecureRandom reporting a lower strength (Java 9+
-            // DRBG path); a reported 0 means "unknown" and is accepted, with the C
-            // gate as the safety net. The RandSource is then resolved to a
+            // (GH #34): ML-KEM-768/1024 require 192/256-bit strength. Fail fast
+            // if the caller supplied a SecureRandom reporting a lower strength
+            // (Java 9+ DRBG path); a reported 0 means "unknown" (plain
+            // SecureRandom, or the JCE-injected default) and is accepted, with
+            // the C gate as the safety net. The RandSource is then resolved to a
             // strength-appropriate DRBG for the key's parameter set — matching
             // MLKEMKeyGenerator, which also encapsulates.
             int strengthBits = strengthForKeyType(spec.getType());
@@ -197,20 +216,32 @@ public class MLKEMKTSCipherSpi
             throw new IllegalStateException("cipher not initialised for wrapping");
         }
 
-        int encLen = encapsulationLength(keySpec.getType());
         byte[] secret = new byte[SHARED_SECRET_LEN];
-        byte[] encapsulation = new byte[encLen];
+        byte[] encapsulation = null;
 
         // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
-        // across the native encapsulate call; nothing after it touches keySpec.
-        // See java-spi.md "Native references must outlive every JNI/FFI call".
+        // across the native length-probe + encapsulate calls; nothing after the
+        // block touches keySpec. See java-spi.md "Native references must outlive
+        // every JNI/FFI call".
         synchronized (this)
         {
-            int written = NISelector.SpecNI.encap(keySpec.getReference(), null,
-                secret, 0, secret.length, encapsulation, 0, encapsulation.length, randSource);
-            if (written != encLen)
+            try
             {
-                throw new InvalidKeyException("unexpected ML-KEM encapsulation length: " + written);
+                int encLen = encapsulationLength();
+                encapsulation = new byte[encLen];
+                int written = NISelector.SpecNI.encap(keySpec.getReference(), null,
+                    secret, 0, secret.length, encapsulation, 0, encapsulation.length, randSource);
+                if (written != encLen)
+                {
+                    throw new InvalidKeyException("unexpected ML-KEM encapsulation length: " + written);
+                }
+            }
+            catch (OpenSSLException e)
+            {
+                // A native encapsulation failure surfaces as an unchecked
+                // OpenSSLException; the JCE wrap contract requires a typed
+                // exception, so map it rather than let it escape.
+                throw new InvalidKeyException("ML-KEM encapsulation failed: " + e.getMessage(), e);
             }
         }
 
@@ -252,25 +283,38 @@ public class MLKEMKTSCipherSpi
             throw new IllegalStateException("cipher not initialised for unwrapping");
         }
 
-        int encLen = encapsulationLength(keySpec.getType());
-        if (wrappedKey.length < encLen)
-        {
-            throw new InvalidKeyException("input shorter than ML-KEM encapsulation");
-        }
-        byte[] encapsulation = Arrays.copyOfRange(wrappedKey, 0, encLen);
-        byte[] wrapped = Arrays.copyOfRange(wrappedKey, encLen, wrappedKey.length);
-
         byte[] secret = new byte[SHARED_SECRET_LEN];
+        byte[] wrapped = null;
+
         // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
-        // across the native decapsulate call; nothing after it touches keySpec.
-        // See java-spi.md "Native references must outlive every JNI/FFI call".
+        // across the native length-probe + decapsulate calls; nothing after the
+        // block touches keySpec. See java-spi.md "Native references must outlive
+        // every JNI/FFI call".
         synchronized (this)
         {
-            int written = NISelector.SpecNI.decap(keySpec.getReference(), null,
-                encapsulation, 0, encapsulation.length, secret, 0, secret.length, randSource);
-            if (written != SHARED_SECRET_LEN)
+            try
             {
-                throw new InvalidKeyException("unexpected ML-KEM shared-secret length: " + written);
+                int encLen = encapsulationLength();
+                if (wrappedKey.length < encLen)
+                {
+                    throw new InvalidKeyException("input shorter than ML-KEM encapsulation");
+                }
+                byte[] encapsulation = Arrays.copyOfRange(wrappedKey, 0, encLen);
+                wrapped = Arrays.copyOfRange(wrappedKey, encLen, wrappedKey.length);
+
+                int written = NISelector.SpecNI.decap(keySpec.getReference(), null,
+                    encapsulation, 0, encapsulation.length, secret, 0, secret.length, randSource);
+                if (written != SHARED_SECRET_LEN)
+                {
+                    throw new InvalidKeyException("unexpected ML-KEM shared-secret length: " + written);
+                }
+            }
+            catch (OpenSSLException e)
+            {
+                // A native decapsulation failure surfaces as an unchecked
+                // OpenSSLException; the JCE unwrap contract requires
+                // InvalidKeyException on all unwrap failures, so map it.
+                throw new InvalidKeyException("unable to unwrap key: " + e.getMessage(), e);
             }
         }
 
@@ -354,6 +398,8 @@ public class MLKEMKTSCipherSpi
             byte[] block = md.digest();
             int n = Math.min(block.length, outLen - pos);
             System.arraycopy(block, 0, out, pos, n);
+            // block is KEK-derivation material — scrub each iteration.
+            Arrays.fill(block, (byte) 0);
             pos += n;
             i++;
         }
@@ -406,7 +452,7 @@ public class MLKEMKTSCipherSpi
         {
             throw new InvalidAlgorithmParameterException("unable to read KTSParameterSpec: " + e.getMessage(), e);
         }
-        if (kekBits <= 0)
+        if (kekBits <= 0 || kekBits > MAX_KEK_BITS)
         {
             throw new InvalidAlgorithmParameterException("invalid KEK size: " + kekBits);
         }
@@ -495,15 +541,28 @@ public class MLKEMKTSCipherSpi
         return MLKEMParameterSpec.getSpecForOSSLType(type).getRequiredStrengthBits();
     }
 
-    private static int encapsulationLength(OSSLKeyType type)
+    /**
+     * Resolve the ML-KEM encapsulation (ciphertext) length for the configured
+     * key's parameter set by asking OpenSSL (a null-output {@code encap} size
+     * query), memoized per parameter set. OpenSSL is the single source of truth
+     * — no transcribed 768/1088/1568 table (query-don't-transcribe). The probe
+     * consumes no entropy (size query) and works on both the WRAP (public key)
+     * and UNWRAP (private key, which carries the encapsulation key) sides. The
+     * caller MUST hold the reachability guard — this touches
+     * {@code keySpec.getReference()}.
+     */
+    private int encapsulationLength()
     {
-        switch (type)
+        OSSLKeyType type = keySpec.getType();
+        int cached = encapsulationLengths.get(type);
+        if (cached != NativeLengthCache.UNKNOWN)
         {
-        case ML_KEM_512:  return 768;
-        case ML_KEM_768:  return 1088;
-        case ML_KEM_1024: return 1568;
-        default: throw new IllegalStateException("not an ML-KEM key: " + type.getAlgorithmName());
+            return cached;
         }
+        int probed = NISelector.SpecNI.encap(keySpec.getReference(), null,
+            new byte[SHARED_SECRET_LEN], 0, SHARED_SECRET_LEN, null, 0, 0, randSource);
+        encapsulationLengths.cache(type, probed);
+        return probed;
     }
 
     // --- minimal DER helpers (single-byte tags) ------------------------------

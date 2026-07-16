@@ -40,8 +40,14 @@ public interface RandSource
         byte[] buf = new byte[Integer.min(1024, len)];
         var ms = memorySegment.reinterpret(len).asByteBuffer();
 
+        // Compare against the amount actually requested in this fetch
+        // (buf.length, capped at 1024), NOT the total len: for len > 1024 the
+        // first fetch legitimately returns 1024, and `rc != len` would abort a
+        // valid large draw as JO_RAND_UP_SHORT_RESULT, leaving the chunking
+        // loop below dead. The JNI twin issues one full-size call and succeeds;
+        // this keeps the FFI path consistent.
         int rc = this.getRandomBytes(buf, buf.length, strength, predictionResistant);
-        if (rc != len)
+        if (rc != buf.length)
         {
             return rc; // will trigger short size in native up call handler
         }

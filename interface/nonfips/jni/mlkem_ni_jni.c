@@ -33,8 +33,14 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
     jo_assert(err_out != NULL);
 
     jint ret_val = JO_FAIL;
+    key_spec *key_spec = NULL;
 
-    key_spec *key_spec = create_spec();
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    key_spec = create_spec();
     ret_val = mlkem_generate_key_pair(key_spec, type, NULL, 0, rnd_src);
 
     if (ret_val != JO_SUCCESS) {
@@ -42,6 +48,7 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
         key_spec = NULL;
     }
 
+exit:
     (*env)->SetIntArrayRegion(env, err_out, 0, 1, &ret_val);
     return (jlong) key_spec;
 }
@@ -65,6 +72,11 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
     init_bytearray_ctx(&seed);
 
     int32_t ret_code = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        ret_code = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     if (_seed == NULL) {
         ret_code = JO_SEED_IS_NULL;
@@ -98,8 +110,8 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
     }
 
 exit:
-    (*env)->SetIntArrayRegion(env, _err_out, 0, 1, &ret_code);
     release_bytearray_ctx(&seed);
+    (*env)->SetIntArrayRegion(env, _err_out, 0, 1, &ret_code);
     return (jlong) key_spec;
 }
 

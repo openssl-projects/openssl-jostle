@@ -186,6 +186,13 @@ public enum ErrorCode
     JO_MD_CTX_IS_NULL(-141),
     JO_MAC_CTX_IS_NULL(-142),
 
+    // A private key (ML-DSA / ML-KEM) has no retrievable seed - it was
+    // imported from an expanded private-key encoding. The seed getter
+    // returns this so getSeed() can answer null and getPrivateKey(true)
+    // can fall back to the expanded key, rather than surfacing a generic
+    // OpenSSL error for a legitimate key state.
+    JO_SEED_UNAVAILABLE(-143),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

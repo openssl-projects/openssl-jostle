@@ -436,7 +436,10 @@ int32_t mldsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
 
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len,
                                                                  &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
+        // Unique offset (1002) so the returned code distinguishes this
+        // private-key fetch site from the public-key fetch site (1000);
+        // both previously returned -1002.
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1002);
     }
 
     return (int32_t) written;
@@ -444,7 +447,7 @@ int32_t mldsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_l
 
 int32_t mldsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len) {
     jo_assert(key_spec != NULL);
-    const size_t min_len = 32;
+    size_t min_len = 0;
 
     EVP_PKEY *pkey = key_spec->key;
 
@@ -462,11 +465,30 @@ int32_t mldsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
         return JO_INCORRECT_KEY_TYPE;
     }
 
+    ERR_clear_error();
+
+    // Probe the seed length AND its presence in one query - never transcribe
+    // the length. A key imported from an expanded private-key encoding has no
+    // seed: the query fails or reports zero length. Report that as
+    // JO_SEED_UNAVAILABLE (not a generic OpenSSL error) so the Java layer can
+    // answer getSeed()==null and let getPrivateKey(preferSeedOnly) fall back
+    // to the expanded key. Scope the probe with a mark so its "no such param"
+    // noise cannot leak into the thread's error queue.
+    ERR_set_mark();
+    if (1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_DSA_SEED, NULL, 0, &min_len)
+        || min_len == 0) {
+        ERR_pop_to_mark();
+        return JO_SEED_UNAVAILABLE;
+    }
+    ERR_clear_last_mark();
+
+    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
+        return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
 
     if (out == NULL) {
         return (int32_t) min_len;
     }
-
 
     if (out_len < min_len) {
         return JO_OUTPUT_TOO_SMALL;
@@ -474,15 +496,9 @@ int32_t mldsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
 
     size_t written = 0;
 
-    ERR_clear_error();
-
     if (OPS_OPENSSL_ERROR_1
         1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_DSA_SEED, out, min_len, &written)) {
         return JO_OPENSSL_ERROR;
-    }
-
-    if (OPS_INT32_OVERFLOW_1 written > INT32_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
     return (int32_t) written;
@@ -491,7 +507,8 @@ int32_t mldsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len)
 int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len) {
     int32_t ret_code = JO_FAIL;
     size_t min_len = 0;
-    const char *type;
+    const char *type = NULL;
+    EVP_PKEY_CTX *fromdata_ctx = NULL;
 
     jo_assert(key_spec != NULL);
 
@@ -537,11 +554,6 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     }
 
 
-    if (src_len != 32 && min_len != src_len) {
-        ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
-        goto exit;
-    }
-
     ERR_clear_error();
 
     // Defensive: caller is expected to pass a fresh spec, but if the spec
@@ -551,7 +563,39 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
         key_spec->key = NULL;
     }
 
-    key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    if (src_len == MLDSA_SEED_LEN) {
+        // Seed import: a 32-byte seed deterministically expands to the full
+        // key pair (both halves) via fromdata with the ML-DSA seed param.
+        // EVP_PKEY_new_raw_private_key_ex maps its input to PRIV_KEY, which
+        // the provider rejects for a 32-byte value, so a seed MUST go through
+        // fromdata. Deterministic expansion - consumes no entropy, so no
+        // rnd_src is needed on this path.
+        fromdata_ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), type, NULL);
+        if (OPS_OPENSSL_ERROR_2 fromdata_ctx == NULL) {
+            ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2050);
+            goto exit;
+        }
+
+        if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_fromdata_init(fromdata_ctx)) {
+            ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(2051);
+            goto exit;
+        }
+
+        OSSL_PARAM seed_params[] = {
+            OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_ML_DSA_SEED, src, src_len),
+            OSSL_PARAM_END
+        };
+
+        if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_fromdata(fromdata_ctx, &key_spec->key, EVP_PKEY_KEYPAIR, seed_params)) {
+            ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(2052);
+            goto exit;
+        }
+    } else if (min_len == src_len) {
+        key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    } else {
+        ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
+        goto exit;
+    }
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -569,6 +613,7 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
     ret_code = JO_SUCCESS;
 
 exit:
+    EVP_PKEY_CTX_free(fromdata_ctx);
     return ret_code;
 }
 
@@ -807,9 +852,18 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         }
     }
 
-    int one = 1; // TODO look for constant
+    int mu_on = 1;
+    // Pin hedged (non-deterministic) signing. FIPS 204 hedged ML-DSA draws a
+    // per-signature rnd via the provider's RNG (our Java RandSource up-call);
+    // deterministic signing bypasses that draw and drops the fault-attack
+    // hedging. The default is already hedged, but we set it explicitly so a
+    // future default flip, a provider substitution, or a local edit "for
+    // diagnostics" cannot silently switch to deterministic and stop
+    // consulting the caller's SecureRandom. Do NOT change this value.
+    int deterministic_off = 0;
     const OSSL_PARAM params[] = {
-        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_MU, &one),
+        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_MU, &mu_on),
+        OSSL_PARAM_int(OSSL_SIGNATURE_PARAM_DETERMINISTIC, &deterministic_off),
         OSSL_PARAM_END
     };
 
@@ -1151,9 +1205,19 @@ int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_le
 
     OPENSSL_cleanse(mu, Mu_BYTES);
 
+    // Simulate EVP_PKEY_verify returning a hard error. The OPS check sits
+    // AFTER the real call (verify has no skip-the-call form), so the real
+    // EVP_PKEY_verify may already have pushed errors onto the queue; pop them
+    // back to the mark so the injected failure presents with an empty queue
+    // like every other OPS_OPENSSL_ERROR site ("OpenSSL Error: null"), then
+    // surface JO_OPENSSL_ERROR directly and goto exit. Returning here rather
+    // than falling into the `ret < 0` arm terminates the mark exactly once -
+    // pop_to_mark consumes it, so a following ERR_clear_last_mark would
+    // double-terminate and, under any future outer mark, silently drop it.
     if (OPS_OPENSSL_ERROR_1 0) {
         ERR_pop_to_mark();
-        ret = -1;
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
     }
 
     if (ret == 1) {
@@ -1198,6 +1262,15 @@ int32_t mldsa_update(const mldsa_ctx *ctx, const uint8_t *in, const size_t in_le
         // BIO_write returns 0 on zero-length input; skip to avoid the
         // truthy check below mistaking it for failure.
         if (in_len > 0) {
+            // External mu is exactly Mu_BYTES. Bound the accumulation so a
+            // caller looping update() cannot grow the mem-BIO without limit
+            // before the terminal derive_mu length check - reject as soon as
+            // the write would push the buffer past Mu_BYTES. (pending <=
+            // Mu_BYTES and in_len <= INT32_MAX, so the sum cannot overflow.)
+            if (BIO_ctrl_pending(ctx->mu_buf) + in_len > Mu_BYTES) {
+                ret_code = JO_EXTERNAL_MU_INVALID_LEN;
+                goto exit;
+            }
             if (OPS_OPENSSL_ERROR_1 BIO_write(ctx->mu_buf, in, (int) in_len) != (int) in_len) {
                 ret_code = JO_OPENSSL_ERROR;
                 goto exit;

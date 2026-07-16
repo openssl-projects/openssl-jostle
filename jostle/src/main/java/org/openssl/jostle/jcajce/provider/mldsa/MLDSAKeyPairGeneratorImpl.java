@@ -20,6 +20,7 @@ import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Strings;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -32,6 +33,13 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 {
     Logger LOG = Logger.getLogger("MLDSAKeyPairGeneratorImpl(Java 8)");
     private OSSLKeyType keyType;
+
+    // True when the parameter set was fixed at construction (a typed
+    // generator such as getInstance("ML-DSA-65")); false for the umbrella
+    // "ML-DSA" generator, which latches its type from the first initialize
+    // and may be re-initialised to a different parameter set (JCA re-init
+    // contract).
+    private final boolean typeFixed;
 
     /**
      * Cached RandSource. Initialised in the constructor to a
@@ -79,6 +87,8 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
             throw new IllegalArgumentException("unknown algorithm: " + algorithm);
         }
 
+        typeFixed = keyType != OSSLKeyType.NONE;
+
         // Pre-resolve a strength-appropriate default RandSource so a
         // typed instance (e.g. KeyPairGenerator.getInstance("ML-DSA-65"))
         // works without an explicit initialize() call. The umbrella
@@ -123,13 +133,18 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
                     "unknown algorithm: " + (specName != null ? specName : params.getClass().getName()));
         }
 
-        if (keyType == OSSLKeyType.NONE)
+        if (!typeFixed)
         {
+            // Umbrella "ML-DSA" generator: (re-)latch to the requested
+            // parameter set. The JCA re-init contract permits re-initialising
+            // to a different parameter set, so update rather than reject on a
+            // later initialize with a different spec.
             keyType = newType;
         }
-
-        if (keyType != newType)
+        else if (keyType != newType)
         {
+            // A typed generator (e.g. getInstance("ML-DSA-65")) has a fixed
+            // parameter set; a mismatched explicit spec is a genuine error.
             throw new InvalidAlgorithmParameterException("expected " + keyType + " but was supplied " + newType);
         }
 
@@ -155,6 +170,20 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         // satisfies the request — no allocation when the strength is
         // unchanged AND the caller didn't supply a different SecureRandom.
         randSource = DefaultRandSource.replaceWith(randSource, rand, strengthBits);
+    }
+
+    /**
+     * ML-DSA is parameter-set based, so an integer key size is meaningless.
+     * The JDK base class's {@code initialize(int, SecureRandom)} silently
+     * no-ops (dropping both the size and the supplied SecureRandom), which
+     * would leave the generator misconfigured; reject the call instead.
+     */
+    @Override
+    public void initialize(int keysize, SecureRandom random)
+    {
+        throw new InvalidParameterException(
+                "ML-DSA is parameter-set based; use initialize(MLDSAParameterSpec) "
+                        + "(e.g. MLDSAParameterSpec.ml_dsa_65)");
     }
 
     private static int strengthForKeyType(OSSLKeyType type)

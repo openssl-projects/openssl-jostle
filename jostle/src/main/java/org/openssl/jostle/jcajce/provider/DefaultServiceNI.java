@@ -194,6 +194,12 @@ public interface DefaultServiceNI
                 // remained. KeyFactory decode paths translate the parent
                 // OpenSSLException type to InvalidKeySpecException.
                 throw new Asn1TrailingDataException("DER encoding has trailing data");
+            case JO_SEED_UNAVAILABLE:
+                // Defensive: the seed getters (JOMLDSAPrivateKey.getSeed /
+                // JOMLKEMPrivateKey.getSeed) intercept this code and return
+                // null before reaching the handler. If it does surface, it is
+                // a programming error at a call site that forgot to intercept.
+                throw new IllegalStateException("seed is not available for this key");
             default:
                 throw new IllegalStateException("unexpected error code " + errorCode + ": " + code);
         }

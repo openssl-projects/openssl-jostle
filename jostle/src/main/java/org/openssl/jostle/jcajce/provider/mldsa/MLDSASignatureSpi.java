@@ -64,38 +64,49 @@ public class MLDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
-        if (publicKey instanceof JOMLDSAPublicKey)
+        MLDSAPublicKey key = importPublicKey(publicKey);
+        synchronized (this)
         {
-            synchronized (this)
+            updateCalled = false;
+
+            if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
             {
-                updateCalled = false;
-                JOMLDSAPublicKey key = (JOMLDSAPublicKey) publicKey;
-                lastKey = key;
+                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
+            }
 
-                if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
-                {
-                    throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
-                }
+            // Assign lastKey only AFTER key-type validation passes, so a rejected
+            // init cannot leave a wrong-typed key in lastKey (whose signature
+            // length would later be memoized into the JVM-wide signatureLengths
+            // cache under the wrong parameter set).
+            lastKey = key;
 
-                if (ref == null)
-                {
-                    ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), publicKey.getAlgorithm());
-                }
+            if (ref == null)
+            {
+                ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), key.getAlgorithm());
+            }
 
-                byte[] context = null;
-                int contextLen = 0;
+            byte[] context = null;
+            int contextLen = 0;
 
-                if (algorithmParameterSpec instanceof ContextParameterSpec)
-                {
-                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                    contextLen = context.length;
-                }
+            if (algorithmParameterSpec instanceof ContextParameterSpec)
+            {
+                context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                contextLen = context.length;
+            }
 
+            try
+            {
                 NISelector.MLDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, muHandling.ordinal());
-                return;
+            }
+            catch (IllegalArgumentException e)
+            {
+                // NI mode / key-type rejections (JO_INVALID_MU_MODE_FOR_VERIFY,
+                // JO_INCORRECT_KEY_TYPE, JO_UNKNOWN_MU_MODE, ...) surface as
+                // IllegalArgumentException; the JCE init contract requires
+                // InvalidKeyException so provider fallback works.
+                throw new InvalidKeyException(e.getMessage(), e);
             }
         }
-        throw new InvalidKeyException("expected only MLDSAPublicKey");
     }
 
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
@@ -108,40 +119,84 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         this.randSource = DefaultRandSource.replaceWith(this.randSource, rand);
 
-        if (privateKey instanceof MLDSAPrivateKey)
+        MLDSAPrivateKey key = importPrivateKey(privateKey);
+        synchronized (this)
         {
-            synchronized (this)
+            updateCalled = false;
+
+            if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
             {
+                throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
+            }
 
-                MLDSAPrivateKey key = (MLDSAPrivateKey) privateKey;
-                lastKey = key;
-                updateCalled = false;
+            // Assign lastKey only AFTER key-type validation passes (see engineInitVerify).
+            lastKey = key;
 
-                if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
-                {
-                    throw new InvalidKeyException("required " + forcedType.name() + " key type but got " + key.getSpec().getType());
-                }
+            if (ref == null)
+            {
+                ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), key.getAlgorithm());
+            }
 
-                if (ref == null)
-                {
-                    ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), privateKey.getAlgorithm());
-                }
+            byte[] context = null;
+            int contextLen = 0;
 
-                byte[] context = null;
-                int contextLen = 0;
+            if (algorithmParameterSpec instanceof ContextParameterSpec)
+            {
+                context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                contextLen = context.length;
+            }
 
-                if (algorithmParameterSpec instanceof ContextParameterSpec)
-                {
-                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                    contextLen = context.length;
-                }
-
+            try
+            {
                 NISelector.MLDSAServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
                         context, contextLen, muHandling.ordinal(), randSource);
-                return;
             }
+            catch (IllegalArgumentException e)
+            {
+                // See engineInitVerify: NI mode / key-type rejections must surface
+                // as InvalidKeyException, not IllegalArgumentException, at init.
+                throw new InvalidKeyException(e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Coerce a caller-supplied public key to a Jostle ML-DSA public key. Keys
+     * already implementing {@link MLDSAPublicKey} pass through; a foreign key
+     * (e.g. a JDK certificate's parsed ML-DSA key, which does not implement our
+     * interface) is re-encoded and decoded through the matching KeyFactory so we
+     * own the native EVP_PKEY.
+     */
+    private MLDSAPublicKey importPublicKey(PublicKey publicKey) throws InvalidKeyException
+    {
+        if (publicKey instanceof MLDSAPublicKey)
+        {
+            return (MLDSAPublicKey) publicKey;
+        }
+        Key translated = new MLDSAKeyFactorySpiImpl(forcedType).engineTranslateKey(publicKey);
+        if (translated instanceof MLDSAPublicKey)
+        {
+            return (MLDSAPublicKey) translated;
+        }
+        throw new InvalidKeyException("expected only MLDSAPublicKey");
+    }
+
+    /**
+     * Private-key counterpart to {@link #importPublicKey}, kept symmetric so a
+     * foreign ML-DSA private key is translated rather than rejected outright.
+     */
+    private MLDSAPrivateKey importPrivateKey(PrivateKey privateKey) throws InvalidKeyException
+    {
+        if (privateKey instanceof MLDSAPrivateKey)
+        {
+            return (MLDSAPrivateKey) privateKey;
+        }
+        Key translated = new MLDSAKeyFactorySpiImpl(forcedType).engineTranslateKey(privateKey);
+        if (translated instanceof MLDSAPrivateKey)
+        {
+            return (MLDSAPrivateKey) translated;
         }
         throw new InvalidKeyException("expected only MLDSAPrivateKey");
     }

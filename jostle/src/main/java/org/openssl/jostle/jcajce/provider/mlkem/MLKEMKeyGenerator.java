@@ -33,6 +33,14 @@ import java.security.spec.AlgorithmParameterSpec;
 public class MLKEMKeyGenerator extends KeyGeneratorSpi
 {
 
+    // Bounds on the caller-requested derived-key size, checked at engineInit
+    // so a negative value can't reach new byte[bits/8] (NegativeArraySizeException)
+    // and a huge value can't drive an unbounded allocation (DoS). ML-KEM's
+    // shared secret is 256-bit; the upper bound is generously above any real
+    // symmetric key while still bounding the allocation.
+    private static final int MIN_KEY_SIZE_BITS = 1;
+    private static final int MAX_KEY_SIZE_BITS = 32768;
+
     private boolean extract;
     private final OSSLKeyType forcedKeyType;
     private AlgorithmParameterSpec parameterSpec;
@@ -83,6 +91,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                 {
                     throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
                 }
+                if (((KEMExtractSpec) params).getEncapsulation() == null)
+                {
+                    // A KEMExtractSpec built without an encapsulation would NPE
+                    // at engineGenerateKey (wrappedKey.length) — reject at init.
+                    throw new InvalidAlgorithmParameterException("KEMExtractSpec has no encapsulation");
+                }
                 parameterSpec = params;
                 // Decap path doesn't consume entropy, but a caller-supplied
                 // SecureRandom should still be honoured if they call
@@ -107,15 +121,22 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                         throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
                     }
 
+                    int keySizeInBits = ((KEMGenerateSpec) params).getKeySizeInBits();
+                    if (keySizeInBits < MIN_KEY_SIZE_BITS || keySizeInBits > MAX_KEY_SIZE_BITS)
+                    {
+                        throw new InvalidAlgorithmParameterException(
+                                "KEM key size in bits out of range [" + MIN_KEY_SIZE_BITS + ", " + MAX_KEY_SIZE_BITS + "]: " + keySizeInBits);
+                    }
+
                     int strengthBits = strengthForKeyType(kem.getSpec().getType());
 
-                    // Fail fast if the caller supplied a SecureRandom
-                    // that reports a strength below the algorithm's
-                    // requirement (Java 9+ DRBG path). Sources that
-                    // don't expose a strength claim return 0 and are
-                    // accepted — the C-side RAND gate is the safety
-                    // net for those. Only enforced on the encap path:
-                    // decap doesn't consume entropy.
+                    // Fail fast if the caller supplied a SecureRandom that
+                    // reports a strength below the algorithm's requirement
+                    // (Java 9+ DRBG path). Sources that don't expose a strength
+                    // claim return 0 and are accepted — the C-side RAND gate is
+                    // the safety net for those (and for the JCE-injected default,
+                    // which is a strength-0 plain SecureRandom). Only enforced on
+                    // the encap path: decap doesn't consume entropy.
                     int suppliedStrength = DefaultRandSource.strengthOf(random);
                     if (suppliedStrength > 0 && suppliedStrength < strengthBits)
                     {
@@ -126,10 +147,9 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                     }
 
                     parameterSpec = params;
-                    // Resolve / upgrade RandSource for the peer key's
-                    // variant — ML-KEM-768/1024 need 192/256-bit
-                    // strength to pass the OpenSSL RAND gate
-                    // (GH issue #34).
+                    // Resolve / upgrade RandSource for the peer key's variant —
+                    // ML-KEM-768/1024 need 192/256-bit strength to pass the
+                    // OpenSSL RAND gate (GH issue #34).
                     randSource = DefaultRandSource.replaceWith(randSource, random, strengthBits);
                     return;
                 }
@@ -151,6 +171,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected SecretKey engineGenerateKey()
     {
+        if (parameterSpec == null)
+        {
+            // generateKey() called before any init — the JCE KeyGenerator
+            // state machine requires init first.
+            throw new IllegalStateException("not initialized");
+        }
         if (extract)
         {
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
