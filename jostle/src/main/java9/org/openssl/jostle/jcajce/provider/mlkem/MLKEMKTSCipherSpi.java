@@ -12,7 +12,6 @@ package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
@@ -65,9 +64,12 @@ public class MLKEMKTSCipherSpi
     // (ciphertext) length, this is NOT probeable via the current NI surface:
     // encap reports only the ciphertext length, and decap needs the ciphertext
     // (which the wrap side can't produce) to report it. It is a FIPS-203
-    // constant (256-bit shared secret) for every ML-KEM parameter set, and is
-    // hard-validated against OpenSSL at runtime — encap / decap reject a
-    // mismatch (see the "written != SHARED_SECRET_LEN" checks below).
+    // constant (256-bit shared secret) for every ML-KEM parameter set. Only
+    // the DECAP path can cross-check it against OpenSSL: decap returns the
+    // shared-secret length, so unwrap asserts written == SHARED_SECRET_LEN.
+    // Encap returns the ciphertext length (validated as written == encLen), so
+    // the wrap path cannot cross-check the secret length — it relies on OpenSSL
+    // filling exactly SHARED_SECRET_LEN bytes of the buffer per FIPS 203.
     private static final int SHARED_SECRET_LEN = 32;
     // X9.44 / NIST concatenation KDF (KDF3) OID — the only KDF used by CMS here.
     private static final String ID_KDF_KDF3 = "1.3.133.16.840.9.44.1.2";
@@ -228,7 +230,7 @@ public class MLKEMKTSCipherSpi
         {
             int encLen = encapsulationLength();
             encapsulation = new byte[encLen];
-            int written = NISelector.SpecNI.encap(keySpec.getReference(), null,
+            int written = keySpec.getSpecNI().encap(keySpec.getReference(), null,
                 secret, 0, secret.length, encapsulation, 0, encapsulation.length, randSource);
             if (written != encLen)
             {
@@ -302,7 +304,7 @@ public class MLKEMKTSCipherSpi
             byte[] encapsulation = Arrays.copyOfRange(wrappedKey, 0, encLen);
             wrapped = Arrays.copyOfRange(wrappedKey, encLen, wrappedKey.length);
 
-            int written = NISelector.SpecNI.decap(keySpec.getReference(), null,
+            int written = keySpec.getSpecNI().decap(keySpec.getReference(), null,
                 encapsulation, 0, encapsulation.length, secret, 0, secret.length, randSource);
             if (written != SHARED_SECRET_LEN)
             {
@@ -562,7 +564,7 @@ public class MLKEMKTSCipherSpi
         {
             return cached;
         }
-        int probed = NISelector.SpecNI.encap(keySpec.getReference(), null,
+        int probed = keySpec.getSpecNI().encap(keySpec.getReference(), null,
             new byte[SHARED_SECRET_LEN], 0, SHARED_SECRET_LEN, null, 0, 0, randSource);
         encapsulationLengths.cache(type, probed);
         return probed;

@@ -235,7 +235,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -270,7 +270,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -452,7 +452,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -513,7 +513,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);

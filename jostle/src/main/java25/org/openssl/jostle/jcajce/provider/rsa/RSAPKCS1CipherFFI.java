@@ -100,7 +100,7 @@ public class RSAPKCS1CipherFFI implements RSAPKCS1CipherNI
         try
         {
             MethodHandle h = MethodHandles.lookup()
-                    .findVirtual(src.getClass(), "getRandomSegment", entropyMt)
+                    .findVirtual(RandSource.class, "getRandomSegment", entropyMt)
                     .bindTo(src);
             return linker.upcallStub(h, entropyFd, arena);
         }

@@ -193,6 +193,12 @@ public enum ErrorCode
     // OpenSSL error for a legitimate key state.
     JO_SEED_UNAVAILABLE(-143),
 
+    // encap/decap were handed the same byte[] for both the shared-secret and
+    // the encapsulation buffer. The bridges reject the aliased call (JNI
+    // IsSameObject / FFI reference equality) rather than corrupt the result
+    // under the JNI whole-array copy-back.
+    JO_INPUT_AND_OUTPUT_ALIASED(-144),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

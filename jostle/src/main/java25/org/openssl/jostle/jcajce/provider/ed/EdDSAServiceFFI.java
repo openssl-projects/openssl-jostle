@@ -221,7 +221,7 @@ public class EdDSAServiceFFI implements EDServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -396,7 +396,7 @@ public class EdDSAServiceFFI implements EDServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -460,7 +460,7 @@ public class EdDSAServiceFFI implements EDServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);

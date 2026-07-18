@@ -961,4 +961,100 @@ public class SpecLimitTest
     }
 
 
+    //
+    // ni_allocate err-array handling. A direct NI caller may pass a null or
+    // zero-length err array. The bridge must not jo_assert-abort the JVM
+    // (the JNI bridge previously did) nor raise ArrayIndexOutOfBoundsException
+    // that would strand the freshly allocated key_spec. Both bridges skip the
+    // write and return a usable, disposable handle.
+    //
+    @Test
+    public void allocate_nullErr_noAbort() throws Exception
+    {
+        long ref = specNI.ni_allocate(null);
+        Assertions.assertTrue(ref != 0L, "allocate returned a null handle");
+        specNI.ni_dispose(ref);
+    }
+
+    @Test
+    public void allocate_zeroLenErr_noAbortNoLeak() throws Exception
+    {
+        long ref = specNI.ni_allocate(new int[0]);
+        Assertions.assertTrue(ref != 0L, "allocate returned a null handle");
+        specNI.ni_dispose(ref);
+    }
+
+    @Test
+    public void allocate_writesSuccessCode() throws Exception
+    {
+        // Positive control: a length>=1 err array receives JO_SUCCESS (0),
+        // proving the guard doesn't suppress the write on the normal path.
+        int[] err = {-999};
+        long ref = specNI.ni_allocate(err);
+        try
+        {
+            Assertions.assertTrue(ref != 0L, "allocate returned a null handle");
+            Assertions.assertEquals(0, err[0]);
+        }
+        finally
+        {
+            specNI.ni_dispose(ref);
+        }
+    }
+
+
+    //
+    // Aliasing rejection: encap/decap write two distinct buffers (shared
+    // secret and encapsulation). Passing one array for both must be rejected
+    // typed on BOTH bridges, not silently corrupt the result under the JNI
+    // whole-array copy-back on release. Offsets are chosen in-range so the
+    // range checks pass and the aliasing guard is the branch under test.
+    //
+    @Test
+    public void encap_inputOutputAliased_rejected() throws Exception
+    {
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            byte[] shared = new byte[2048];
+            specNI.encap(spec, null, shared, 0, 32, shared, 32, shared.length - 32, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input and output must not be the same array", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
+    public void decap_inputOutputAliased_rejected() throws Exception
+    {
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Produce a valid ciphertext with separate buffers, then alias the
+            // ciphertext (input) and shared-secret (output) into one array.
+            byte[] secret = new byte[32];
+            byte[] enc = new byte[4096];
+            int encLen = specNI.encap(spec, null, secret, 0, secret.length, enc, 0, enc.length, TestUtil.RNDSrc);
+
+            byte[] shared = new byte[encLen + 64];
+            System.arraycopy(enc, 0, shared, 0, encLen);
+            specNI.decap(spec, null, shared, 0, encLen, shared, encLen, 32, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("input and output must not be the same array", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
 }

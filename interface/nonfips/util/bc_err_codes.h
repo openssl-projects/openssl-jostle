@@ -301,6 +301,15 @@
  */
 #define JO_SEED_UNAVAILABLE -143
 
+/*
+ * encap / decap were handed the same byte array for both the shared-secret
+ * and the encapsulation buffer. The bridge rejects the aliased call typed
+ * (JNI IsSameObject / FFI reference equality) rather than corrupt the result
+ * under the JNI whole-array copy-back on release. Both bridges return this
+ * code for identical inputs.
+ */
+#define JO_INPUT_AND_OUTPUT_ALIASED -144
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

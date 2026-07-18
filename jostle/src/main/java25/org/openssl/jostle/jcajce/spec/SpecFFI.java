@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -186,6 +187,16 @@ public class SpecFFI implements SpecNI
     @Override
     public int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
+        // Reject an aliased call where the same array backs both the
+        // shared-secret and the encapsulation buffer. The JNI bridge rejects it
+        // via IsSameObject; match here by reference equality so both bridges
+        // return the identical code. Without this, the two independent arena
+        // segments would let a non-overlapping alias half-succeed on FFI while
+        // JNI corrupts — divergent NI behaviour.
+        if (secret != null && out != null && secret == out)
+        {
+            return ErrorCode.JO_INPUT_AND_OUTPUT_ALIASED.getCode();
+        }
         // we have to arena because C code will make upcall for entropy which is
         // not possible during a critical section
         try (Arena a = Arena.ofConfined())
@@ -214,8 +225,13 @@ public class SpecFFI implements SpecNI
             }
             else
             {
+                // Resolve against the RandSource interface, not the concrete
+                // class: getRandomSegment is a public interface default, and a
+                // findVirtual on an inaccessible concrete implementation would
+                // throw IllegalAccessException. bindTo still binds the actual
+                // instance, so a subclass override dispatches virtually.
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -261,6 +277,14 @@ public class SpecFFI implements SpecNI
     @Override
     public int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource)
     {
+        // Reject an aliased call where the same array backs both the ciphertext
+        // and the shared-secret buffer. The JNI bridge rejects it via
+        // IsSameObject; match here by reference equality so both bridges return
+        // the identical code.
+        if (input != null && out != null && input == out)
+        {
+            return ErrorCode.JO_INPUT_AND_OUTPUT_ALIASED.getCode();
+        }
         // The C side binds the RandSource upcall (decap is type-agnostic —
         // e.g. an RSA-KEM decap drives RSA blinding, which consumes
         // entropy), and upcalls are impossible from a critical section —
@@ -282,8 +306,13 @@ public class SpecFFI implements SpecNI
             }
             else
             {
+                // Resolve against the RandSource interface, not the concrete
+                // class: getRandomSegment is a public interface default, and a
+                // findVirtual on an inaccessible concrete implementation would
+                // throw IllegalAccessException. bindTo still binds the actual
+                // instance, so a subclass override dispatches virtually.
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);

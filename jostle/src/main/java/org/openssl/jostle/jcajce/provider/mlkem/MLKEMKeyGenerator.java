@@ -14,7 +14,6 @@ import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
-import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -182,12 +181,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) extractSpec.getPrivateKey()).getSpec();
             byte[] wrappedKey = extractSpec.getEncapsulation();
-            long len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0, randSource);
+            long len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0, randSource);
 
             byte[] out = new byte[(int) len];
             try
             {
-                len = NISelector.SpecNI.decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length, randSource);
+                len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, out, 0, out.length, randSource);
 
                 if (len != out.length)
                 {
@@ -216,12 +215,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                 int encapsulationLen = encapsulationLengths.get(spec.getType());
                 if (encapsulationLen == NativeLengthCache.UNKNOWN)
                 {
-                    encapsulationLen = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
+                    encapsulationLen = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length, null, 0, 0, randSource);
                     // Memoize OpenSSL's reported encapsulation length for this parameter set.
                     encapsulationLengths.cache(spec.getType(), encapsulationLen);
                 }
                 byte[] wrappedKey = new byte[encapsulationLen];
-                int len = NISelector.SpecNI.encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
+                int len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
 
                 if (len != wrappedKey.length)
                 {

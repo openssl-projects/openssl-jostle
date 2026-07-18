@@ -45,12 +45,20 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1allocate
     JNIEnv *env, jobject jo, jintArray _err) {
     UNUSED(jo);
 
-    jo_assert(_err != NULL);
-
     key_spec *spec = create_spec();
 
-    const int32_t err = JO_SUCCESS;
-    (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
+    // _err is caller-supplied: a direct NI caller may pass null or a
+    // zero-length array. Guard the write rather than jo_assert-aborting on a
+    // value the caller controls (a jo_assert reachable from the NI surface is
+    // a JVM abort, not an error) and rather than letting SetIntArrayRegion
+    // raise ArrayIndexOutOfBoundsException on a zero-length array — which would
+    // strand the freshly allocated key_spec whose pointer the caller discards.
+    // Matches the FFI bridge's `err != null && err.length > 0` guard;
+    // allocation succeeds and the pointer is returned either way.
+    if (_err != NULL && (*env)->GetArrayLength(env, _err) > 0) {
+        const int32_t err = JO_SUCCESS;
+        (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
+    }
     return (jlong) spec;
 }
 
@@ -165,6 +173,18 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
         out = (uint8_t *) output.bytearray + out_off;
     }
 
+    // Reject an aliased call where the same Java array backs both the
+    // shared-secret (input) and the encapsulation (output) buffers: the two
+    // ctxs are released independently with a whole-array copy-back (mode 0),
+    // so one release would clobber the other's written bytes — silent,
+    // platform-dependent corruption. Object identity covers any offset;
+    // skipped when output is null (a size query cannot alias). FFI rejects the
+    // same case by reference equality, so both bridges return identical codes.
+    if (output.bytearray != NULL && (*env)->IsSameObject(env, _input, _output)) {
+        ret = JO_INPUT_AND_OUTPUT_ALIASED;
+        goto exit;
+    }
+
 
     if (_opp != NULL) {
         opp = (char *) (*env)->GetStringUTFChars(env, _opp, NULL);
@@ -272,6 +292,18 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
             goto exit;
         }
         out = (uint8_t *) output.bytearray + out_off;
+    }
+
+    // Reject an aliased call where the same Java array backs both the
+    // ciphertext (input) and the shared-secret (output) buffers: the two ctxs
+    // are released independently with a whole-array copy-back (mode 0), so one
+    // release would clobber the other's written bytes — silent,
+    // platform-dependent corruption. Object identity covers any offset;
+    // skipped when output is null (a size query cannot alias). FFI rejects the
+    // same case by reference equality, so both bridges return identical codes.
+    if (output.bytearray != NULL && (*env)->IsSameObject(env, _input, _output)) {
+        ret = JO_INPUT_AND_OUTPUT_ALIASED;
+        goto exit;
     }
 
 

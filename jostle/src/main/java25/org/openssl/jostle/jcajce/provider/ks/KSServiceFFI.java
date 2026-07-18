@@ -245,7 +245,7 @@ public class KSServiceFFI
                 else
                 {
                     var gHandle = MethodHandles.lookup().findVirtual(
-                            randSource.getClass(), "getRandomSegment", entropyMt).bindTo(randSource);
+                            RandSource.class, "getRandomSegment", entropyMt).bindTo(randSource);
                     randSeg = linker.upcallStub(gHandle, entropyFd, a);
                 }
 

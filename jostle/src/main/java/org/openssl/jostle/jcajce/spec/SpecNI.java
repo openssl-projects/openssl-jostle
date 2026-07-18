@@ -66,11 +66,15 @@ public interface SpecNI extends DefaultServiceNI
         ErrorCode errorCode = ErrorCode.forCode(code);
         switch (errorCode)
         {
-            case JO_FAIL:
-                return code;
             case JO_FAILED_ACCESS_ENCAP_OPP:
                 throw new AccessException("unable to access operation string");
-
+            case JO_INPUT_AND_OUTPUT_ALIASED:
+                // encap/decap write two distinct buffers (shared secret and
+                // encapsulation); passing one array for both would corrupt the
+                // result under the JNI whole-array copy-back. Both bridges reject
+                // the aliased call with this code (JNI IsSameObject / FFI reference
+                // equality) so the NI surface behaves identically.
+                throw new IllegalArgumentException("input and output must not be the same array");
         }
         return baseErrorHandler(code);
     }

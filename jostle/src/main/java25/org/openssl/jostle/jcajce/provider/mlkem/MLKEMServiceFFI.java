@@ -151,7 +151,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -189,7 +189,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -298,7 +298,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
@@ -334,7 +334,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
             else
             {
                 var gHandle = MethodHandles.lookup().findVirtual(
-                        randSource.getClass(),
+                        RandSource.class,
                         "getRandomSegment",
                         entropyMt).bindTo(randSource);
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);

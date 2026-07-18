@@ -104,7 +104,7 @@ public class OperationsTestFFI implements OperationsTestNI
         {
 
             var gHandle = MethodHandles.lookup().findVirtual(
-                    randSource.getClass(),
+                    RandSource.class,
                     "getRandomSegment",
                     entropyMt).bindTo(randSource);
             var getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
