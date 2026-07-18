@@ -32,8 +32,14 @@ Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_ni_1generateKeyP
     jo_assert(_err != NULL);
 
     jint ret_val = JO_FAIL;
+    key_spec *key_spec = NULL;
 
-    key_spec *key_spec = create_spec();
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    key_spec = create_spec();
     ret_val = slh_dsa_generate_key_pair(key_spec, type, NULL, 0, rnd_src);
 
     if (ret_val != JO_SUCCESS) {
@@ -41,6 +47,7 @@ Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_ni_1generateKeyP
         key_spec = NULL;
     }
 
+exit:
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_val);
     return (jlong) key_spec;
 }
@@ -62,6 +69,11 @@ Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_ni_1generateKeyP
     init_bytearray_ctx(&seed);
 
     int32_t ret_code = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        ret_code = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     if (_seed == NULL) {
         ret_code = JO_SEED_IS_NULL;
@@ -129,7 +141,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     }
 
     if (input.array == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -188,7 +200,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     }
 
     if (input.array == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -262,7 +274,7 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI
  * Method:    getPublicKey
- * Signature: (JLjava/lang/Object;)J
+ * Signature: (J[B)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServiceJNI_ni_1getPublicKey(
     JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
@@ -438,6 +450,10 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSASer
         return JO_SIGNER_CTX_IS_NULL;
     }
 
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
     if (_output == NULL) {
         /* Caller wants length */
         return slh_dsa_ctx_sign(slhdsa, NULL, 0, rand_src);
@@ -548,6 +564,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_slhdsa_SLHDSAServ
     slh_dsa_ctx *slhdsa = (slh_dsa_ctx *) slhdsa_ref;
     if (slhdsa == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
+    }
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     int32_t ret_code = JO_FAIL;

@@ -19,7 +19,7 @@
 #include "jo_assert.h"
 #include "rand/jostle_lib_ctx.h"
 
-inline int32_t get_n(const int key_type) {
+static inline int32_t get_n(const int key_type) {
     switch (key_type) {
         case KS_SLH_DSA_SHA2_128f:
         case KS_SLH_DSA_SHA2_128s:
@@ -264,57 +264,6 @@ int32_t slh_dsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out
 
 
     if (OPS_OPENSSL_ERROR_2 !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len, &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
-    }
-
-    return (int32_t) written;
-}
-
-int32_t slh_dsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len) {
-    jo_assert(key_spec != NULL);
-    EVP_PKEY *pkey = key_spec->key;
-
-    if (pkey == NULL) {
-        return JO_KEY_SPEC_HAS_NULL_KEY;
-    }
-
-    const char *algo = EVP_PKEY_get0_type_name(pkey);
-    if (algo == NULL) {
-        return JO_INCORRECT_KEY_TYPE;
-    }
-
-    if (0 != strncmp(algo, "SLH-DSA", 7)) {
-        return JO_INCORRECT_KEY_TYPE;
-    }
-
-    ERR_clear_error();
-
-    size_t min_len;
-
-    if (OPS_OPENSSL_ERROR_1
-        !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_SLH_DSA_SEED, NULL, 0, &min_len)) {
-        return JO_OPENSSL_ERROR;
-    }
-
-    // Guard the size-query cast: every later return casts min_len (or written,
-    // which is bounded by min_len) to int32_t.
-    if (OPS_INT32_OVERFLOW_1 min_len > INT32_MAX) {
-        return JO_OUTPUT_SIZE_INT_OVERFLOW;
-    }
-
-    if (out == NULL) {
-        return (int32_t) min_len;
-    }
-
-
-    if (out_len < min_len) {
-        return JO_OUTPUT_TOO_SMALL;
-    }
-
-    size_t written = 0;
-
-    if (OPS_OPENSSL_ERROR_2
-        !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_SLH_DSA_SEED, out, min_len, &written)) {
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
     }
 
@@ -585,7 +534,6 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
     }
 
     ctx->opp = SLH_DSA_SIGN;
-    ctx->hash_mode = SLH_DSA_HASH_NONE;
     ctx->msg_encoding = msg_encoding;
     ctx->deterministic = deterministic;
 
@@ -650,7 +598,10 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
         goto exit;
     }
 
-    ctx->msg_buf = BIO_new(BIO_s_mem());
+    // Secure-heap mem BIO: the accumulated message is cleansed both on buffer
+    // growth and on free (BUF_MEM secure flag routes through
+    // OPENSSL_secure_clear_free), so no plaintext copy lingers in freed heap.
+    ctx->msg_buf = BIO_new(BIO_s_secmem());
 
     if (OPS_FAILED_CREATE_2 ctx->msg_buf == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(1002);
@@ -797,7 +748,10 @@ int32_t slh_dsa_ctx_init_verify(
     }
 
 
-    ctx->msg_buf = BIO_new(BIO_s_mem());
+    // Secure-heap mem BIO: the accumulated message is cleansed both on buffer
+    // growth and on free (BUF_MEM secure flag routes through
+    // OPENSSL_secure_clear_free), so no plaintext copy lingers in freed heap.
+    ctx->msg_buf = BIO_new(BIO_s_secmem());
 
     if (OPS_FAILED_CREATE_2 ctx->msg_buf == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(1005);
@@ -882,7 +836,7 @@ int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_
 
         if (OPS_OPENSSL_ERROR_2 (1 != EVP_PKEY_sign(ctx->pctx, (unsigned char *) out, &sig_len, msg, msg_len))) {
             ret_code = JO_OPENSSL_ERROR;
-            goto exit;;
+            goto exit;
         }
 
         if (OPS_LEN_CHANGE_1 sig_len_ != sig_len) {
@@ -969,12 +923,23 @@ int32_t slh_dsa_update(const slh_dsa_ctx *ctx, const uint8_t *in, const size_t i
         goto exit;
     }
 
+    // Bound the ACCUMULATED message, not just this chunk: the total is cast to
+    // int32_t for EVP_PKEY_sign and the Java return path, and BIO_get_mem_data
+    // reports the length through a platform long (32-bit on LLP64/Windows).
+    // in_len is <= INT32_MAX by this point, so the subtraction cannot underflow.
+    const long pending = BIO_ctrl_pending(ctx->msg_buf);
+    if (pending < 0 || (size_t) pending > (size_t) INT32_MAX - in_len) {
+        ret_code = JO_INPUT_TOO_LONG_INT32;
+        goto exit;
+    }
+
     ERR_clear_error();
 
-    // BIO_write returns 0 on zero-length input; skip to avoid the
-    // truthy check below mistaking it for failure.
+    // BIO_write must consume the whole chunk; it returns -1 on failure (not
+    // just 0), so compare the byte count rather than testing truthiness.
+    // BIO_write returns 0 on zero-length input, so skip the call in that case.
     if (in_len > 0) {
-        if (OPS_OPENSSL_ERROR_1 !BIO_write(ctx->msg_buf, in, (int) in_len)) {
+        if (OPS_OPENSSL_ERROR_1 BIO_write(ctx->msg_buf, in, (int) in_len) != (int) in_len) {
             ret_code = JO_OPENSSL_ERROR;
             goto exit;
         }

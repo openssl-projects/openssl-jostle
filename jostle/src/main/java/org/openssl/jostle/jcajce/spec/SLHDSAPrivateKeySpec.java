@@ -25,14 +25,19 @@ public class SLHDSAPrivateKeySpec
     private final byte[] publicData;
     private final SLHDSAParameterSpec params;
 
+    /**
+     * Create a KeySpec from the raw private key encoding for the given
+     * parameter set. The encoding is the SLH-DSA private key in either
+     * seed form (3n bytes) or long form (4n bytes); the exact length is
+     * validated against the parameter set by the native decoder when the
+     * KeyFactory builds a key, so no length is transcribed here (OpenSSL is
+     * the single source of truth for the per-variant sizes).
+     *
+     * @param params the parameter set to use with the encoding.
+     * @param data   the raw private key encoding.
+     */
     public SLHDSAPrivateKeySpec(SLHDSAParameterSpec params, byte[] data)
     {
-        if (data.length != 32)
-        {
-            throw new IllegalArgumentException("incorrect length for seed");
-        }
-
-
         this.params = params;
         this.data = Arrays.clone(data);
         this.publicData = null;

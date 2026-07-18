@@ -550,7 +550,7 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING,
-                    "FFI MLDSA_disposeSigner", t);
+                    "FFI SLH_DSA_disposeSigner", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

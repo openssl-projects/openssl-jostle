@@ -20,8 +20,6 @@ int32_t slh_dsa_get_public_encoded(key_spec *key_spec, uint8_t *out, size_t out_
 
 int32_t slh_dsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_len);
 
-int32_t slh_dsa_get_private_seed(key_spec *key_spec, uint8_t *out, size_t out_len);
-
 int32_t slh_dsa_decode_private_key(key_spec *key_spec, int32_t typeId,  uint8_t *src, size_t src_len);
 
 int32_t slh_dsa_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *src, size_t src_len);
@@ -34,10 +32,6 @@ int32_t slh_dsa_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *
 #define SLH_DSA_SIGN 0
 #define SLH_DSA_VERIFY 1
 
-#define SLH_DSA_HASH_NONE 0
-#define SLH_DSA_HASH_SHA256 1
-#define SLH_DSA_HASH_SHAKE256 2
-
 #define SLH_DSA_NON_DETERMINISTIC 0
 #define SLH_DSA_DETERMINISTIC 1
 
@@ -46,7 +40,6 @@ typedef struct slh_dsa_ctx {
     EVP_SIGNATURE *sig;
     EVP_PKEY_CTX *pctx;
     int32_t opp;
-    int32_t hash_mode;
     uint8_t context[MAX_CTX_LEN];
     int32_t context_len;
     int32_t msg_encoding;

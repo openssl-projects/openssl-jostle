@@ -799,7 +799,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
         case MLDSA_Mu_INTERNAL:
             break;
         case MLDSA_Mu_EXTERNAL:
-            ctx->mu_buf = BIO_new(BIO_s_mem());
+            ctx->mu_buf = BIO_new(BIO_s_secmem());
             if (ctx->mu_buf == NULL) {
                 ret_code = JO_OPENSSL_ERROR;
                 goto exit;
@@ -971,7 +971,7 @@ int32_t mldsa_ctx_init_verify(
 
     switch (ctx->mu_mode) {
         case MLDSA_Mu_EXTERNAL:
-            ctx->mu_buf = BIO_new(BIO_s_mem());
+            ctx->mu_buf = BIO_new(BIO_s_secmem());
             if (ctx->mu_buf == NULL) {
                 ret_code = JO_OPENSSL_ERROR;
                 goto exit;

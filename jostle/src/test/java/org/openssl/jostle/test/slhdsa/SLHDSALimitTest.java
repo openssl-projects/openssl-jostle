@@ -491,66 +491,6 @@ public class SLHDSALimitTest
         }
     }
 
-    @Test
-    public void SLHDSAServiceJNI_getSeed_nullKeyRef() throws Exception
-    {
-
-        long ref = 0;
-        try
-        {
-            slhdsaServiceNI.getPrivateKey(0, new byte[0]);
-            Assertions.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("key spec is null", e.getMessage());
-        }
-        finally
-        {
-            specNI.dispose(ref);
-        }
-
-    }
-
-    @Test
-    public void SLHDSAServiceJNI_getSeed_keyRefNullKey() throws Exception
-    {
-        long ref = TestNISelector.SpecNI.allocate();
-        try
-        {
-            slhdsaServiceNI.getPrivateKey(ref, new byte[0]);
-            Assertions.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("key spec has null key", e.getMessage());
-        }
-        finally
-        {
-            specNI.dispose(ref);
-        }
-    }
-
-    @Test
-    public void SLHDSAServiceJNI_getSeed_outLen() throws Exception
-    {
-        long ref = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
-        try
-        {
-            slhdsaServiceNI.getPrivateKey(ref, new byte[10]);
-            Assertions.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("output too small", e.getMessage());
-        }
-        finally
-        {
-            specNI.dispose(ref);
-        }
-    }
-
-
     @Test()
     public void SLHDSAServiceJNI_decode_1publicKey_nullKeySpec() throws Exception
     {
@@ -2208,8 +2148,185 @@ public class SLHDSALimitTest
         }
     }
 
-    // (slh_dsa_get_private_seed has the same JO_INCORRECT_KEY_TYPE check, but
-    // the JNI bridge doesn't expose getSeed to Java — that path is reachable
-    // only via direct-FFI internal-layer testing.)
+    // -------------------------------------------------------------------------
+    // Integer.MIN_VALUE probes for every int offset/length parameter — catches
+    // a check written `len > 0` (which accepts MIN_VALUE) or any Math.abs/-len
+    // that stays negative for MIN_VALUE, before the value reaches a size_t cast
+    // on the native side. Runs on JNI and FFI via TestNISelector.
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void SLHDSAServiceNI_update_minValueOffsetAndLen_rejectedTyped() throws Exception
+    {
+        final long signer = slhdsaServiceNI.allocateSigner();
+        final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+
+            Assertions.assertEquals("input offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.update(signer, new byte[8], Integer.MIN_VALUE, 0)).getMessage());
+
+            Assertions.assertEquals("input len is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.update(signer, new byte[8], 0, Integer.MIN_VALUE)).getMessage());
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(signer);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void SLHDSAServiceNI_sign_minValueOffset_rejectedTyped() throws Exception
+    {
+        final long signer = slhdsaServiceNI.allocateSigner();
+        final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+            slhdsaServiceNI.update(signer, new byte[]{1, 2, 3}, 0, 3);
+
+            Assertions.assertEquals("output offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.sign(signer, new byte[64], Integer.MIN_VALUE, TestUtil.RNDSrc)).getMessage());
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(signer);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void SLHDSAServiceNI_verify_minValueSigLen_rejectedTyped() throws Exception
+    {
+        final long verifier = slhdsaServiceNI.allocateSigner();
+        final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            slhdsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0, 0);
+            slhdsaServiceNI.update(verifier, new byte[]{1, 2, 3}, 0, 3);
+
+            Assertions.assertEquals("sig length is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.verify(verifier, new byte[64], Integer.MIN_VALUE)).getMessage());
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(verifier);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void SLHDSAServiceNI_decode_minValueOffsetAndLen_rejectedTyped() throws Exception
+    {
+        final long spec = TestNISelector.SpecNI.allocate();
+        try
+        {
+            Assertions.assertEquals("input offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.decode_privateKey(spec, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[8], Integer.MIN_VALUE, 0)).getMessage());
+
+            Assertions.assertEquals("input len is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.decode_publicKey(spec, OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), new byte[8], 0, Integer.MIN_VALUE)).getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
+    public void SLHDSAServiceNI_sign_nullOutput_lengthQueryIgnoresOffset() throws Exception
+    {
+        // A length query (null output) must return the signature length on BOTH
+        // JNI and FFI, ignoring the offset argument entirely — even a negative
+        // one. Before the parity fix the FFI bridge validated the offset first
+        // and diverged (JO_OUTPUT_OFFSET_IS_NEGATIVE / JO_OUTPUT_OUT_OF_RANGE)
+        // while JNI returned the length. Runs on both bridges via TestNISelector.
+        final long signer = slhdsaServiceNI.allocateSigner();
+        final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+            slhdsaServiceNI.update(signer, new byte[]{1, 2, 3}, 0, 3);
+
+            long lenAtZero = slhdsaServiceNI.sign(signer, null, 0, TestUtil.RNDSrc);
+            long lenAtPositive = slhdsaServiceNI.sign(signer, null, 5, TestUtil.RNDSrc);
+            long lenAtNegative = slhdsaServiceNI.sign(signer, null, -1, TestUtil.RNDSrc);
+
+            Assertions.assertTrue(lenAtZero > 0);
+            Assertions.assertEquals(lenAtZero, lenAtPositive);
+            Assertions.assertEquals(lenAtZero, lenAtNegative);
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(signer);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void SLHDSAServiceNI_sign_aliasedUpdateInputAndOutputBuffer() throws Exception
+    {
+        // Aliasing case: the same array feeds update() as the message and then
+        // receives the signature from sign(). update() copies the message into
+        // the ctx's message BIO immediately (it does not retain the caller
+        // pointer), so reusing that array as the sign output must produce a
+        // valid signature and must not corrupt bytes outside the written
+        // window. Runs on JNI and FFI via TestNISelector.
+        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
+        final long signer = slhdsaServiceNI.allocateSigner();
+        final long verifier = slhdsaServiceNI.allocateSigner();
+        try
+        {
+            byte[] msg = new byte[64];
+            rnd.nextBytes(msg);
+
+            // Determine the signature length up front.
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+            slhdsaServiceNI.update(signer, msg, 0, msg.length);
+            int sigLen = (int) slhdsaServiceNI.sign(signer, null, 0, TestUtil.RNDSrc);
+            Assertions.assertTrue(sigLen > 0);
+
+            // Oversized buffer holding the message at offset 0; the signature is
+            // written at offset 0 too, so the write overlaps the just-consumed
+            // message region.
+            int suffix = 7;
+            byte[] big = new byte[sigLen + suffix];
+            rnd.nextBytes(big);
+            System.arraycopy(msg, 0, big, 0, msg.length);
+            byte[] snapshot = big.clone();
+
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+            slhdsaServiceNI.update(signer, big, 0, msg.length);
+            int written = (int) slhdsaServiceNI.sign(signer, big, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(sigLen, written);
+
+            // Bytes after the signature window must be untouched.
+            Assertions.assertArrayEquals(
+                    java.util.Arrays.copyOfRange(snapshot, written, big.length),
+                    java.util.Arrays.copyOfRange(big, written, big.length),
+                    "bytes after the signature were clobbered");
+
+            // The signature must verify against the original message.
+            byte[] sig = java.util.Arrays.copyOfRange(big, 0, written);
+            slhdsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0, 0);
+            slhdsaServiceNI.update(verifier, msg, 0, msg.length);
+            Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), slhdsaServiceNI.verify(verifier, sig, sig.length));
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(signer);
+            slhdsaServiceNI.disposeSigner(verifier);
+            specNI.dispose(keyRef);
+        }
+    }
 
 }

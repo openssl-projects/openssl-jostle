@@ -19,6 +19,8 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.SLHDSAPrivateKeySpec;
+import org.openssl.jostle.jcajce.spec.SLHDSAPublicKeySpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -1262,6 +1264,56 @@ public class SLHDSATest
         }
 
 
+    }
+
+    @Test
+    public void rawKeySpecRoundTrip() throws Exception
+    {
+        // Regression for the SLHDSAPrivateKeySpec(params, data) constructor,
+        // which previously rejected every valid SLH-DSA private encoding with a
+        // copy-pasted 32-byte "seed" check. Extract the raw KeySpecs from a
+        // generated key and rebuild working keys from them — both halves, both
+        // directions through the KeyFactory — then prove sign/verify works and a
+        // tampered message fails.
+        SecureRandom sr = seededRandom("rawKeySpecRoundTrip");
+
+        for (SLHDSAParameterSpec spec : new SLHDSAParameterSpec[]{
+                SLHDSAParameterSpec.slh_dsa_sha2_128f,
+                SLHDSAParameterSpec.slh_dsa_shake_192f})
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
+            kpg.initialize(spec, sr);
+            KeyPair kp = kpg.generateKeyPair();
+
+            KeyFactory kf = KeyFactory.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
+
+            // key -> raw KeySpec -> key (both halves).
+            SLHDSAPrivateKeySpec privSpec = kf.getKeySpec(kp.getPrivate(), SLHDSAPrivateKeySpec.class);
+            SLHDSAPublicKeySpec pubSpec = kf.getKeySpec(kp.getPublic(), SLHDSAPublicKeySpec.class);
+
+            PrivateKey priv = kf.generatePrivate(privSpec);
+            PublicKey pub = kf.generatePublic(pubSpec);
+
+            byte[] msg = new byte[137];
+            sr.nextBytes(msg);
+
+            Signature signer = Signature.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
+            signer.initSign(priv, sr);
+            signer.update(msg);
+            byte[] sig = signer.sign();
+
+            Signature verifier = Signature.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
+            verifier.initVerify(pub);
+            verifier.update(msg);
+            Assertions.assertTrue(verifier.verify(sig), spec.getName() + " reconstructed key failed to verify");
+
+            byte[] tampered = Arrays.clone(msg);
+            tampered[0] ^= 1;
+            Signature verifier2 = Signature.getInstance(spec.getName(), JostleProvider.PROVIDER_NAME);
+            verifier2.initVerify(pub);
+            verifier2.update(tampered);
+            Assertions.assertFalse(verifier2.verify(sig), spec.getName() + " tampered message verified");
+        }
     }
 
 }

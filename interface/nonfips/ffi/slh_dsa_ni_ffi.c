@@ -120,7 +120,7 @@ int32_t JoSLHDSA_decodePublicKey(key_spec *key_spec,
     }
 
     if (input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -160,7 +160,7 @@ int32_t JoSLHDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t 
     }
 
     if (input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -251,6 +251,11 @@ int32_t JoSLHDSA_initSign(slh_dsa_ctx *ctx,
     if (ctx == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
     }
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
     int32_t ret_val = JO_FAIL;
 
     if (kp == NULL) {
@@ -321,6 +326,18 @@ int32_t JoSLHDSA_sign(
     if (ctx == NULL) {
         return JO_SIGNER_CTX_IS_NULL;
     }
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    // Length-query path: a null output segment means "tell me the signature
+    // length". Match the JNI bridge, which returns the length ignoring out_off
+    // rather than validating an offset that has no buffer to index.
+    if (output == NULL) {
+        return slh_dsa_ctx_sign(ctx, NULL, 0, rand_src);
+    }
+
     int32_t ret_val = JO_FAIL;
     size_t out_len = 0;
 

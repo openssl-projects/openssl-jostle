@@ -367,6 +367,6 @@ public class SLHDSASignatureSpi extends SignatureSpi
     @Override
     public String toString()
     {
-        return "SLHDSASignature(" + ref.getReference() + ")" + (lastKey != null ? "[" + lastKey.toString() + "]" : "[]");
+        return "SLHDSASignature(" + (ref != null ? ref.getReference() : "null") + ")" + (lastKey != null ? "[" + lastKey.toString() + "]" : "[]");
     }
 }

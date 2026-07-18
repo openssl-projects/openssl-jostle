@@ -99,17 +99,34 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
 
                 OSSLKeyType osslKeyType = typeMap.get(pubSpec.getParameterSpec());
 
+                if (osslKeyType == null)
+                {
+                    // A spec built with a null / unrecognised parameter set
+                    // would otherwise NPE at osslKeyType.getKsType().
+                    throw new InvalidKeySpecException("unknown SLH-DSA parameter set: " + pubSpec.getParameterSpec());
+                }
+
                 if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
                 {
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
-                byte[] encoed = ((SLHDSAPublicKeySpec) keySpec).getPublicData();
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-
-                NISelector.SLHDSAServiceNI.decode_publicKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(), encoed, 0, encoed.length);
-                return new JOSLHDSAPublicKey(pkeySpec);
+                byte[] encoded = pubSpec.getPublicData();
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    NISelector.SLHDSAServiceNI.decode_publicKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
+                    return new JOSLHDSAPublicKey(pkeySpec);
+                }
+                catch (RuntimeException e)
+                {
+                    // A wrong-length / malformed raw encoding surfaces from the
+                    // decoder as IllegalArgumentException / OpenSSLException; the
+                    // KeyFactory contract requires InvalidKeySpecException (matches
+                    // the X509 wrapper above).
+                    throw new InvalidKeySpecException("unable to decode SLH-DSA public key", e);
+                }
             }
         }
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
@@ -162,18 +179,40 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                 SLHDSAPrivateKeySpec spec = (SLHDSAPrivateKeySpec) keySpec;
                 OSSLKeyType osslKeyType = typeMap.get(spec.getParameterSpec());
 
+                if (osslKeyType == null)
+                {
+                    // A spec built with a null / unrecognised parameter set
+                    // would otherwise NPE at osslKeyType.getKsType().
+                    throw new InvalidKeySpecException("unknown SLH-DSA parameter set: " + spec.getParameterSpec());
+                }
+
                 if (fixedType != OSSLKeyType.NONE && osslKeyType != fixedType)
                 {
                     throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
                 }
 
                 byte[] encoded = spec.getPrivateData();
-
-                PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                NISelector.SLHDSAServiceNI.decode_privateKey(
-                        pkeySpec.getReference(), osslKeyType.getKsType(),
-                        encoded, 0, encoded.length);
-                return new JOSLHDSAPrivateKey(pkeySpec);
+                try
+                {
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    NISelector.SLHDSAServiceNI.decode_privateKey(
+                            pkeySpec.getReference(), osslKeyType.getKsType(),
+                            encoded, 0, encoded.length);
+                    return new JOSLHDSAPrivateKey(pkeySpec);
+                }
+                catch (RuntimeException e)
+                {
+                    // A wrong-length / malformed raw encoding surfaces from the
+                    // decoder as IllegalArgumentException / OpenSSLException; the
+                    // KeyFactory contract requires InvalidKeySpecException (matches
+                    // the PKCS#8 wrapper above).
+                    throw new InvalidKeySpecException("unable to decode SLH-DSA private key", e);
+                }
+                finally
+                {
+                    // Transient raw private encoding cloned from the spec.
+                    Arrays.clear(encoded);
+                }
             }
         }
 

@@ -23,7 +23,16 @@ public class ContextParameterSpec implements AlgorithmParameterSpec
 
     public ContextParameterSpec(byte[] context)
     {
-        this.context = Arrays.clone(context);
+        // A null context means "no context bytes" — normalise to empty so the
+        // signature SPIs that read getContext().length never NPE. The 255-byte
+        // cap is the shared upper bound for every consumer (SLH-DSA / ML-DSA /
+        // Ed context strings are all <= 255 bytes); rejecting here fails fast
+        // with a typed exception instead of surfacing deep in native init.
+        if (context != null && context.length > 255)
+        {
+            throw new IllegalArgumentException("context too long, must be <= 255 bytes");
+        }
+        this.context = context == null ? new byte[0] : Arrays.clone(context);
     }
 
     public byte[] getContext()
