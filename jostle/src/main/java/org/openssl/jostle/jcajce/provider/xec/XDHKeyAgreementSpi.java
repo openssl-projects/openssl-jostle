@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -40,8 +41,11 @@ import java.security.spec.AlgorithmParameterSpec;
  * {@code KeyAgreement.generateSecret} returns verbatim.
  *
  * <p>JCE state machine: created → init(priv) → doPhase(pub, true) →
- * generateSecret. Single-phase; reusable after derive (a fresh init is
- * required because OpenSSL invalidates the ctx after derive).
+ * generateSecret. Single-phase and reusable: the private-key init state
+ * persists across {@code generateSecret} (per the JCA contract), so the
+ * instance may be driven again through {@code doPhase} with a new peer
+ * without re-initialising, or re-initialised with a fresh private key via
+ * {@code init}.
  */
 public class XDHKeyAgreementSpi extends KeyAgreementSpi
 {
@@ -108,9 +112,21 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             peerSet = false;
 
             ensureRef();
-            ecServiceNI.kexInit(ref.getReference(),
-                    privateKey.getSpec().getReference(),
-                    randSource);
+            try
+            {
+                ecServiceNI.kexInit(ref.getReference(),
+                        privateKey.getSpec().getReference(),
+                        randSource);
+            }
+            catch (RuntimeException e)
+            {
+                // A native init failure (OpenSSLException, etc.) must surface
+                // as InvalidKeyException so the JCE falls through to the next
+                // provider rather than propagating a provider-specific runtime
+                // exception that breaks the fallback contract.
+                throw new InvalidKeyException(
+                        "XDH init: unable to initialise key agreement", e);
+            }
         }
     }
 
@@ -139,6 +155,15 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                 ecServiceNI.kexSetPeer(ref.getReference(),
                         peer.getSpec().getReference(),
                         randSource);
+            }
+            catch (IllegalStateException e)
+            {
+                // A not-initialised state error (e.g. a prior engineInit
+                // failed at kexInit, leaving the derive ctx unset) is a state
+                // problem, not a key problem — doPhase declares
+                // IllegalStateException for exactly this case, so surface it
+                // unchanged rather than mislabelling it as a type mismatch.
+                throw e;
             }
             catch (RuntimeException e)
             {
@@ -171,8 +196,11 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             {
                 return secret;
             }
+            // Defensive: the oversized buffer still holds the full secret;
+            // copy out the trimmed portion and scrub the original.
             byte[] trimmed = new byte[actual];
             System.arraycopy(secret, 0, trimmed, 0, actual);
+            Arrays.clear(secret);
             return trimmed;
         }
     }
@@ -225,6 +253,12 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
         catch (IllegalArgumentException e)
         {
             throw new NoSuchAlgorithmException("invalid algorithm name", e);
+        }
+        finally
+        {
+            // SecretKeySpec copied the bytes — scrub our working copy
+            // (ECDHKeyAgreementSpi precedent).
+            Arrays.clear(secret);
         }
     }
 

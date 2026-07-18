@@ -21,6 +21,7 @@ import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -34,7 +35,8 @@ import java.security.spec.AlgorithmParameterSpec;
  * {@link XECServiceNI}.
  *
  * <p>The key size is fixed by the algorithm, so {@code initialize(int)}
- * ignores its size argument (it only refreshes the RNG) and
+ * accepts only this variant's canonical key size (255 bits for X25519,
+ * 448 for X448) and rejects any other with {@code InvalidParameterException};
  * {@code initialize(AlgorithmParameterSpec)} accepts only {@code null}.
  * A generic "XDH" generator that disambiguates via
  * {@code NamedParameterSpec} (Java 11+) is intentionally out of scope for
@@ -50,6 +52,14 @@ public class XECKeyPairGenerator extends KeyPairGenerator
 
     private final OSSLKeyType keyType;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
+
+    // Canonical RFC 8410 key sizes in bits, used only to validate the JCA
+    // initialize(int) selector against this generator's fixed variant. These
+    // are external JCE-convention constants (like algorithm names / OIDs),
+    // not OpenSSL-owned fixed values to be queried at the boundary — the key
+    // itself is generated from the type name, never from a size.
+    private static final int X25519_KEY_BITS = 255;
+    private static final int X448_KEY_BITS = 448;
 
     public XECKeyPairGenerator(OSSLKeyType keyType)
     {
@@ -68,9 +78,25 @@ public class XECKeyPairGenerator extends KeyPairGenerator
     @Override
     public void initialize(int keysize, SecureRandom random)
     {
-        // The key size is fixed by the algorithm (X25519 / X448); the
-        // size argument is advisory only. Refresh the RNG if supplied.
+        // The key size is fixed by the algorithm (X25519 / X448). Reject a
+        // size that does not match this variant so a caller asking for the
+        // wrong strength gets a typed error rather than silently receiving
+        // this variant's key regardless — SunEC's fixed XDH generators do
+        // the same. The RNG is refreshed only after the size is validated.
+        int expected = expectedKeySizeBits();
+        if (keysize != expected)
+        {
+            throw new InvalidParameterException(
+                    keyType.getAlgorithmName() + " key size must be " + expected
+                            + " bits; got " + keysize);
+        }
         this.random = DefaultRandSource.replaceWith(this.random, random);
+    }
+
+    /** Canonical key size in bits for this generator's fixed variant. */
+    private int expectedKeySizeBits()
+    {
+        return keyType == OSSLKeyType.X448 ? X448_KEY_BITS : X25519_KEY_BITS;
     }
 
     @Override

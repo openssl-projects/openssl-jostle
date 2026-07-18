@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -100,9 +101,21 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             peerSet = false;
 
             ensureRef();
-            ecServiceNI.kexInit(ref.getReference(),
-                    privateKey.getSpec().getReference(),
-                    randSource);
+            try
+            {
+                ecServiceNI.kexInit(ref.getReference(),
+                        privateKey.getSpec().getReference(),
+                        randSource);
+            }
+            catch (RuntimeException e)
+            {
+                // A native init failure (OpenSSLException, etc.) must surface
+                // as InvalidKeyException so the JCE falls through to the next
+                // provider rather than propagating a provider-specific runtime
+                // exception that breaks the fallback contract.
+                throw new InvalidKeyException(
+                        "XDH init: unable to initialise key agreement", e);
+            }
         }
         finally
         {
@@ -135,8 +148,20 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                         peer.getSpec().getReference(),
                         randSource);
             }
+            catch (IllegalStateException e)
+            {
+                // A not-initialised state error (e.g. a prior engineInit
+                // failed at kexInit, leaving the derive ctx unset) is a state
+                // problem, not a key problem — doPhase declares
+                // IllegalStateException for exactly this case, so surface it
+                // unchanged rather than mislabelling it as a type mismatch.
+                throw e;
+            }
             catch (RuntimeException e)
             {
+                // OpenSSL rejects a type mismatch (e.g. X25519 peer against
+                // an X448 local) at set_peer time. Translate so callers get
+                // the expected typed exception.
                 throw new InvalidKeyException(
                         "XDH doPhase: peer key rejected (type mismatch?)", e);
             }
@@ -166,8 +191,11 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             {
                 return secret;
             }
+            // Defensive: the oversized buffer still holds the full secret;
+            // copy out the trimmed portion and scrub the original.
             byte[] trimmed = new byte[actual];
             System.arraycopy(secret, 0, trimmed, 0, actual);
+            Arrays.clear(secret);
             return trimmed;
         }
         finally
@@ -228,6 +256,12 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
         catch (IllegalArgumentException e)
         {
             throw new NoSuchAlgorithmException("invalid algorithm name", e);
+        }
+        finally
+        {
+            // SecretKeySpec copied the bytes — scrub our working copy
+            // (ECDHKeyAgreementSpi precedent).
+            Arrays.clear(secret);
         }
     }
 

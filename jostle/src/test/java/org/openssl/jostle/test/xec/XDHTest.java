@@ -23,6 +23,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -533,6 +534,65 @@ public class XDHTest
 
 
     // -----------------------------------------------------------------
+    // KeyPairGenerator.initialize(int) size validation
+    // -----------------------------------------------------------------
+
+    @Test
+    public void testXdh_keyPairGenerator_initializeSize_matchingSizeAccepted() throws Exception
+    {
+        // The canonical RFC 8410 key sizes must be accepted and produce the
+        // right variant.
+        String[][] sizes = {{"X25519", "255"}, {"X448", "448"}};
+        for (String[] pair : sizes)
+        {
+            String alg = pair[0];
+            int bits = Integer.parseInt(pair[1]);
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            kpg.initialize(bits);
+            KeyPair kp = kpg.generateKeyPair();
+            Assertions.assertEquals(alg, kp.getPublic().getAlgorithm(),
+                    alg + ": initialize(" + bits + ") produced the wrong key type");
+        }
+    }
+
+    @Test
+    public void testXdh_keyPairGenerator_initializeSize_mismatchRejected() throws Exception
+    {
+        // A size belonging to the other variant (or any non-canonical value)
+        // must be rejected with InvalidParameterException rather than silently
+        // yielding this variant's key.
+        //
+        // X25519 generator rejects 448 (the other variant), 256 (byte size,
+        // not the field size), 0 and a negative.
+        assertBadSize("X25519", 448);
+        assertBadSize("X25519", 256);
+        assertBadSize("X25519", 0);
+        assertBadSize("X25519", -1);
+        // X448 generator rejects 255 (the other variant) and non-canonical.
+        assertBadSize("X448", 255);
+        assertBadSize("X448", 256);
+        assertBadSize("X448", 0);
+        assertBadSize("X448", -1);
+    }
+
+    private static void assertBadSize(String alg, int bits) throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        try
+        {
+            kpg.initialize(bits);
+            Assertions.fail(alg + ": initialize(" + bits + ") should have been rejected");
+        }
+        catch (InvalidParameterException expected)
+        {
+            Assertions.assertTrue(
+                    expected.getMessage().startsWith(alg + " key size must be"),
+                    "unexpected message: " + expected.getMessage());
+        }
+    }
+
+
+    // -----------------------------------------------------------------
     // SPI reuse
     // -----------------------------------------------------------------
 
@@ -587,6 +647,11 @@ public class XDHTest
         sr.nextBytes(big);
         byte[] expectedPrefix = new byte[prefix];
         System.arraycopy(big, 0, expectedPrefix, 0, prefix);
+        // Snapshot the trailing padding after the write window too — a stray
+        // write past the written region must not touch it.
+        int tail = big.length - (prefix + reference.length);
+        byte[] expectedTail = new byte[tail];
+        System.arraycopy(big, prefix + reference.length, expectedTail, 0, tail);
 
         int written = ka.generateSecret(big, prefix);
         Assertions.assertEquals(reference.length, written);
@@ -596,6 +661,12 @@ public class XDHTest
         System.arraycopy(big, 0, actualPrefix, 0, prefix);
         Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
                 "XDH generateSecret(buf, off) modified bytes preceding offset");
+
+        // Trailing padding after the written region must be untouched too.
+        byte[] actualTail = new byte[tail];
+        System.arraycopy(big, prefix + reference.length, actualTail, 0, tail);
+        Assertions.assertArrayEquals(expectedTail, actualTail,
+                "XDH generateSecret(buf, off) modified bytes after the written region");
 
         // Secret region must equal the reference.
         byte[] actualSecret = new byte[reference.length];
