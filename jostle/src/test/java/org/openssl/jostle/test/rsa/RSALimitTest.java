@@ -394,6 +394,34 @@ public class RSALimitTest
     }
 
     @Test
+    public void RSAServiceNI_initSign_invalidPaddingMode() throws Exception
+    {
+        // Valid padding modes are PKCS1 (1), PSS (2), PKCS1_NONE (3). A mode
+        // outside {1,2,3} reaches configure_padding and returns JO_INVALID_MODE
+        // -> IllegalArgumentException("invalid padding mode"). Probe the
+        // boundaries 0 and 4 with an otherwise-valid ctx/key/digest, pinning the
+        // typed message rather than the old "unexpected error code" default.
+        long rsaRef = 0;
+        long keyRef = 0;
+        try
+        {
+            rsaRef = rsaServiceNI.allocateSigner();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            final long fref = rsaRef;
+            final long fkey = keyRef;
+            Assertions.assertEquals("invalid padding mode", Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> rsaServiceNI.initSign(fref, fkey, "SHA-256", 0, null, 0, TestUtil.RNDSrc)).getMessage());
+            Assertions.assertEquals("invalid padding mode", Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> rsaServiceNI.initSign(fref, fkey, "SHA-256", 4, null, 0, TestUtil.RNDSrc)).getMessage());
+        }
+        finally
+        {
+            rsaServiceNI.disposeSigner(rsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
     public void RSAServiceNI_nullSignerCtx_rejectedTyped() throws Exception
     {
         // A 0/null ctx handle at any RSA session entry point must surface the

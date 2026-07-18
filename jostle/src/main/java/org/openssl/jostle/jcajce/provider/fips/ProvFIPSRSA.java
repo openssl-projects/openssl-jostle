@@ -78,8 +78,14 @@ class ProvFIPSRSA
         registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", "SHA3_384", "2.16.840.1.101.3.4.3.15");
         registerPkcs1Signature(provider, attr, "SHA3-512withRSA", "SHA3-512", "SHA3_512", "2.16.840.1.101.3.4.3.16");
 
+        // Registered by constructing the base RSASignatureSpi with digest
+        // "NONE" (the PKCS#1 v1.5 digest path), NOT the raw RSASignatureSpi.None
+        // subclass the non-FIPS provider uses: the module has no "NONE" digest,
+        // so init fails and the non-approved raw path is never reached. The
+        // className therefore names the base class that is actually constructed
+        // (see FIPSRSANoneWithRSASignatureTest for the pinned behaviour).
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
-                PREFIX + "RSASignatureSpi$None", attr,
+                PREFIX + "RSASignatureSpi", attr,
                 (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), "NONE"));
 
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",

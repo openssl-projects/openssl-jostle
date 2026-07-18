@@ -857,6 +857,69 @@ public class RSAPKCS1CipherTest
     }
 
 
+    /**
+     * JCE-level offset-write contract for the 5-arg {@code Cipher.doFinal}:
+     * (1) bytes preceding {@code outOff} are untouched, (2) the
+     * {@code [outOff, outOff+written)} window is the real ciphertext (it
+     * decrypts back to the plaintext), and (3) a window one byte early does NOT
+     * decrypt to the plaintext — proving the write landed at exactly
+     * {@code outOff}, not one byte earlier. Complements the NI-level
+     * {@code RSAPKCS1CipherLimitTest.RSAPKCS1CipherNI_doFinal_writesAtOffsetWithoutClobberingPrefix}.
+     */
+    @Test
+    public void testPKCS1_encryptWritesAtOffsetWithoutClobberingPrefix_jce() throws Exception
+    {
+        final int outOff = 7;
+        final int modBytes = 256; // 2048-bit modulus
+        byte[] msg = randomMessage(48);
+
+        Cipher enc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, sharedKeyPair.getPublic());
+
+        // Oversized destination filled with random bytes; snapshot the prefix.
+        byte[] big = new byte[outOff + modBytes + 5];
+        RANDOM.nextBytes(big);
+        byte[] expectedPrefix = new byte[outOff];
+        System.arraycopy(big, 0, expectedPrefix, 0, outOff);
+
+        int written = enc.doFinal(msg, 0, msg.length, big, outOff);
+        Assertions.assertEquals(modBytes, written);
+
+        // (1) prefix untouched.
+        byte[] actualPrefix = new byte[outOff];
+        System.arraycopy(big, 0, actualPrefix, 0, outOff);
+        Assertions.assertArrayEquals(expectedPrefix, actualPrefix,
+                "bytes before outOff must be untouched");
+
+        // (2) window at outOff decrypts back to the plaintext.
+        byte[] ct = new byte[modBytes];
+        System.arraycopy(big, outOff, ct, 0, modBytes);
+        Cipher dec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                "ciphertext window at outOff must decrypt to the plaintext");
+
+        // (3) window one byte early must NOT decrypt to the plaintext.
+        byte[] shifted = new byte[modBytes];
+        System.arraycopy(big, outOff - 1, shifted, 0, modBytes);
+        Cipher dec2 = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        dec2.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
+        boolean shiftedMatched;
+        try
+        {
+            // Implicit rejection: a garbage ciphertext yields a synthetic
+            // plaintext rather than an exception, so compare the bytes.
+            shiftedMatched = Arrays.areEqual(msg, dec2.doFinal(shifted));
+        }
+        catch (Exception structuralFailure)
+        {
+            shiftedMatched = false;
+        }
+        Assertions.assertFalse(shiftedMatched,
+                "a window one byte before outOff must not decrypt to the plaintext");
+    }
+
+
     private static byte[] randomMessage(int len)
     {
         byte[] m = new byte[len];

@@ -152,8 +152,12 @@ class ProvRSA
                                                Class<?> spiClass,
                                                String oid)
     {
+        // Use the fully-qualified binary name (e.g. ...rsa.RSASignatureSpi$MD5),
+        // not PREFIX + getSimpleName() which produced a phantom ...rsa.MD5 that
+        // names no loadable class. Each nested SPI is distinct, so the
+        // creatorMap keys stay unique.
         provider.addAlgorithmImplementation("Signature", name,
-                PREFIX + spiClass.getSimpleName(), attr,
+                spiClass.getName(), attr,
                 (arg) ->
                 {
                     try

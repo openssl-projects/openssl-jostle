@@ -130,6 +130,33 @@ public class RSAPKCS1CipherLimitTest
     }
 
     @Test
+    public void RSAPKCS1CipherNI_init_invalidOpMode() throws Exception
+    {
+        // Valid op modes are OP_ENCRYPT (1) / OP_DECRYPT (2); probe the
+        // boundaries 0 and 3 -> JO_INVALID_OP_MODE -> IllegalArgumentException
+        // ("invalid op mode"), not a "unexpected error code" default. rsa_pkcs1_init
+        // checks op_mode before rnd_src, so a valid RandSource still reaches it.
+        long ref = 0;
+        long keyRef = 0;
+        try
+        {
+            ref = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            final long fref = ref;
+            final long fkey = keyRef;
+            Assertions.assertEquals("invalid op mode", Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> cipherNI.init(fref, fkey, 0, TestUtil.RNDSrc)).getMessage());
+            Assertions.assertEquals("invalid op mode", Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> cipherNI.init(fref, fkey, 3, TestUtil.RNDSrc)).getMessage());
+        }
+        finally
+        {
+            cipherNI.disposeCipher(ref);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
     public void RSAPKCS1CipherNI_doFinal_notInitialized() throws Exception
     {
         long ref = 0;

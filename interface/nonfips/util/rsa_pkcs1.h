@@ -28,11 +28,16 @@
  * is bound to this struct.
  *
  * <p>PKCS#1 v1.5 encryption is structurally vulnerable to
- * Bleichenbacher-style padding-oracle attacks. OpenSSL 3.x mitigates
- * this by enabling implicit rejection by default — the decryptor
- * emits a deterministic-length pseudo-random plaintext on padding
- * failure rather than signalling the failure. This struct relies on
- * the OpenSSL default; we do not toggle the implicit-rejection flag.
+ * Bleichenbacher-style padding-oracle attacks. OpenSSL's RSA provider
+ * mitigates this with "implicit rejection": a decrypt of malformed
+ * PKCS#1 v1.5 padding returns a deterministic synthetic plaintext
+ * instead of signalling failure. rsa_pkcs1_init does NOT merely rely
+ * on the default — for a DECRYPT session it capability-probes the
+ * provider for OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION (which
+ * entered OpenSSL 3.2; the FIPS-validated 3.1.x module lacks it),
+ * fails loud with JO_IMPLICIT_REJECTION_UNAVAILABLE when the parameter
+ * is absent, and otherwise pins the value to 1 explicitly. See the
+ * block comment in rsa_pkcs1_init (rsa_pkcs1.c) for the full contract.
  */
 typedef struct rsa_pkcs1_ctx {
     EVP_PKEY_CTX *pctx;

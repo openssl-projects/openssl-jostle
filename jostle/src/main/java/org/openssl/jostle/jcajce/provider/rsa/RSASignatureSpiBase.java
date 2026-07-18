@@ -17,9 +17,9 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.RSAKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
-import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -90,7 +90,20 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         {
             JORSAPublicKey key = RSAKeyImport.importPublic(keyFactory, publicKey);
             lastKey = key;
-            initVerifyInternal(key);
+            try
+            {
+                initVerifyInternal(key);
+            }
+            catch (OpenSSLException e)
+            {
+                // Native init failure — e.g. the loaded provider (FIPS module)
+                // refuses the digest/padding. JCE requires Signature.initVerify
+                // to fail with InvalidKeyException, which is also the
+                // provider-fallback trigger; mirrors the
+                // ProviderCapabilityException -> InvalidKeyException handling in
+                // the RSA Cipher SPIs.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
         }
     }
 
@@ -109,7 +122,17 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         {
             JORSAPrivateKey key = RSAKeyImport.importPrivate(keyFactory, privateKey);
             lastKey = key;
-            initSignInternal(key);
+            try
+            {
+                initSignInternal(key);
+            }
+            catch (OpenSSLException e)
+            {
+                // See engineInitVerify: a native init failure must surface as
+                // the fallback-eligible InvalidKeyException, not the raw
+                // runtime OpenSSLException.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
         }
     }
 

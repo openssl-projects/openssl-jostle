@@ -32,7 +32,6 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayOutputStream;
 import java.lang.ref.Reference;
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
@@ -99,7 +98,7 @@ public class RSAOAEPCipherSpi extends CipherSpi
     private int opMode;
     private int modulusBytes;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
-    private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    private final WipingByteArrayOutputStream buffer = new WipingByteArrayOutputStream();
 
     /**
      * Pin reference to the most recently bound key so the underlying
@@ -232,6 +231,12 @@ public class RSAOAEPCipherSpi extends CipherSpi
     {
         try
         {
+            // Discard any plaintext a prior abandoned operation left in the
+            // accumulator up-front, so even a re-init that fails validation
+            // below scrubs it — not only a successful re-init (which no longer
+            // needs a trailing wipe: nothing writes to the buffer during init).
+            buffer.wipe();
+
             // Resolve digest + MGF1 + label, in priority order:
             //   1. Explicit OAEPParameterSpec from the caller.
             //   2. Digest extracted from the padding string at engineSetPadding.
@@ -289,8 +294,6 @@ public class RSAOAEPCipherSpi extends CipherSpi
             cipherNI.init(ref.getReference(), keyRef, this.opMode,
                     oaepDigest, mgf1Digest, label,
                     this.randSource);
-
-            buffer.reset();
         }
         finally
         {
@@ -351,24 +354,32 @@ public class RSAOAEPCipherSpi extends CipherSpi
         try
         {
             requireInitialised();
-            engineUpdate(input, inputOffset, inputLen);
-            byte[] in = buffer.toByteArray();
-            buffer.reset();
-
+            byte[] in = null;
+            byte[] out = null;
             try
             {
+                engineUpdate(input, inputOffset, inputLen);
+                in = buffer.toByteArray();
+                // Eager wipe (accumulator may hold plaintext key material in
+                // WRAP_MODE): keep the plaintext only in `in` during the native
+                // call, not also in the buffer. The finally below is the backstop
+                // for the paths that never reach this line.
+                buffer.wipe();
+
                 int needed = cipherNI.doFinal(ref.getReference(),
                         in, 0, in.length,
                         null, 0,
                         randSource);
-                byte[] out = new byte[needed];
+                out = new byte[needed];
                 int written = cipherNI.doFinal(ref.getReference(),
                         in, 0, in.length,
                         out, 0,
                         randSource);
                 if (written == out.length)
                 {
-                    return out;
+                    byte[] result = out;
+                    out = null; // returned to the caller — must not be scrubbed
+                    return result;
                 }
                 byte[] trimmed = new byte[written];
                 System.arraycopy(out, 0, trimmed, 0, written);
@@ -397,6 +408,19 @@ public class RSAOAEPCipherSpi extends CipherSpi
                 }
                 throw (IllegalBlockSizeException) new IllegalBlockSizeException(e.getMessage()).initCause(e);
             }
+            finally
+            {
+                // The eager wipe above runs on the consume path; wiping again
+                // here also scrubs the accumulator when engineUpdate (a bad
+                // final-chunk offset/length) threw before we reached it. Then
+                // clear the plaintext copies: `in` (the toByteArray copy — the
+                // plaintext key on wrap) and the oversized `out` (decrypt
+                // plaintext when trimmed). The directly-returned array was
+                // detached above (out = null).
+                buffer.wipe();
+                Arrays.clear(in);
+                Arrays.clear(out);
+            }
         }
         finally
         {
@@ -409,14 +433,34 @@ public class RSAOAEPCipherSpi extends CipherSpi
                                 byte[] output, int outputOffset)
             throws ShortBufferException, IllegalBlockSizeException, BadPaddingException
     {
-        byte[] result = engineDoFinal(input, inputOffset, inputLen);
-        if (output.length - outputOffset < result.length)
+        try
         {
-            throw new ShortBufferException(
-                    "output too small: need " + result.length + " bytes");
+            requireInitialised();
+            // Encrypt output is always exactly the modulus size. Reject an
+            // undersized buffer BEFORE consuming buffered update() state, so a
+            // JCE-sanctioned retry with a larger buffer doesn't silently lose the
+            // earlier update() data. (Decrypt output is <= modulusBytes and not
+            // known exactly without doing the op, so it keeps the
+            // compute-then-check form below, matching BC/SunJCE.)
+            if (opMode == RSAOAEPCipherNI.OP_ENCRYPT && output != null
+                    && output.length - outputOffset < modulusBytes)
+            {
+                throw new ShortBufferException(
+                        "output too small: need " + modulusBytes + " bytes");
+            }
+            byte[] result = engineDoFinal(input, inputOffset, inputLen);
+            if (output.length - outputOffset < result.length)
+            {
+                throw new ShortBufferException(
+                        "output too small: need " + result.length + " bytes");
+            }
+            System.arraycopy(result, 0, output, outputOffset, result.length);
+            return result.length;
         }
-        System.arraycopy(result, 0, output, outputOffset, result.length);
-        return result.length;
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
 

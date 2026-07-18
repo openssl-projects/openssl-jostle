@@ -91,12 +91,23 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof RSAPublicKeySpec)
         {
             RSAPublicKeySpec rsa = (RSAPublicKeySpec) keySpec;
-            PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
-            rsaServiceNI.decodePublicComponents(
-                    spec.getReference(),
-                    unsignedMagnitude(rsa.getModulus()),
-                    unsignedMagnitude(rsa.getPublicExponent()));
-            return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
+            try
+            {
+                PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
+                rsaServiceNI.decodePublicComponents(
+                        spec.getReference(),
+                        unsignedMagnitude(rsa.getModulus()),
+                        unsignedMagnitude(rsa.getPublicExponent()));
+                return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
+            }
+            catch (RuntimeException e)
+            {
+                // A degenerate spec (null/invalid components) surfaces from the
+                // native layer as NullPointerException / OpenSSLException /
+                // IllegalArgumentException; the KeyFactory contract requires
+                // InvalidKeySpecException. Mirrors the encoded-form branches.
+                throw new InvalidKeySpecException("unable to decode RSA public key from RSAPublicKeySpec", e);
+            }
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec);
     }
@@ -136,18 +147,27 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         {
             // Test before RSAPrivateKeySpec — RSAPrivateCrtKeySpec extends it.
             RSAPrivateCrtKeySpec rsa = (RSAPrivateCrtKeySpec) keySpec;
-            PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
-            rsaServiceNI.decodePrivateComponentsCrt(
-                    spec.getReference(),
-                    unsignedMagnitude(rsa.getModulus()),
-                    unsignedMagnitude(rsa.getPublicExponent()),
-                    unsignedMagnitude(rsa.getPrivateExponent()),
-                    unsignedMagnitude(rsa.getPrimeP()),
-                    unsignedMagnitude(rsa.getPrimeQ()),
-                    unsignedMagnitude(rsa.getPrimeExponentP()),
-                    unsignedMagnitude(rsa.getPrimeExponentQ()),
-                    unsignedMagnitude(rsa.getCrtCoefficient()));
-            return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
+            try
+            {
+                PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
+                rsaServiceNI.decodePrivateComponentsCrt(
+                        spec.getReference(),
+                        unsignedMagnitude(rsa.getModulus()),
+                        unsignedMagnitude(rsa.getPublicExponent()),
+                        unsignedMagnitude(rsa.getPrivateExponent()),
+                        unsignedMagnitude(rsa.getPrimeP()),
+                        unsignedMagnitude(rsa.getPrimeQ()),
+                        unsignedMagnitude(rsa.getPrimeExponentP()),
+                        unsignedMagnitude(rsa.getPrimeExponentQ()),
+                        unsignedMagnitude(rsa.getCrtCoefficient()));
+                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
+            }
+            catch (RuntimeException e)
+            {
+                // Degenerate spec (null/invalid components) -> InvalidKeySpecException,
+                // matching the encoded-form and RSAPublicKeySpec branches.
+                throw new InvalidKeySpecException("unable to decode RSA private key from RSAPrivateCrtKeySpec", e);
+            }
         }
         if (keySpec instanceof RSAPrivateKeySpec)
         {

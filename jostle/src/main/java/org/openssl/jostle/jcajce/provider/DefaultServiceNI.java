@@ -57,6 +57,16 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("unknown key length");
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type");
+            case JO_INVALID_OP_MODE:
+                // Shared fallback: an operation-mode selector that is not a
+                // valid value for the service (e.g. an RSA cipher/signer op mode
+                // that is neither ENCRYPT nor DECRYPT). Block ciphers / CCM
+                // override this arm with their own message before delegating here.
+                throw new IllegalArgumentException("invalid op mode");
+            case JO_INVALID_MODE:
+                // Shared fallback: an invalid padding/mode selector (e.g. an RSA
+                // signature padding mode that is neither PKCS#1 v1.5 nor PSS).
+                throw new IllegalArgumentException("invalid padding mode");
             case JO_ENCODED_PUBLIC_KEY_LEN:
                 throw new IllegalArgumentException("incorrect public key length");
             case JO_ENCODED_PRIVATE_KEY_LEN:

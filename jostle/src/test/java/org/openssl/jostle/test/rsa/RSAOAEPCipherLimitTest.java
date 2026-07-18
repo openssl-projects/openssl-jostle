@@ -113,25 +113,25 @@ public class RSAOAEPCipherLimitTest
     @Test
     public void RSAOAEPCipherNI_init_invalidOpMode() throws Exception
     {
+        // Valid op modes are OP_ENCRYPT (1) / OP_DECRYPT (2); probe the
+        // boundaries 0 and 3 -> JO_INVALID_OP_MODE -> IllegalArgumentException
+        // ("invalid op mode"). rsa_oaep_init checks op_mode before rnd_src, so a
+        // valid RandSource still reaches it. Pins the exact typed message rather
+        // than the old "unexpected error code" default arm.
         long ref = 0;
         long keyRef = 0;
         try
         {
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
-            cipherNI.init(ref, keyRef, /* invalid */ 99,
-                    "SHA-256", null, null, TestUtil.RNDSrc);
-            Assertions.fail();
-        }
-        catch (IllegalStateException ignored)
-        {
-            // Op-mode rejection surfaces via the default-method path
-            // and the base error handler, which throws an
-            // IllegalStateException for unknown errors. Either form is
-            // acceptable for this test.
-        }
-        catch (IllegalArgumentException ignored)
-        {
+            final long fref = ref;
+            final long fkey = keyRef;
+            Assertions.assertEquals("invalid op mode", Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> cipherNI.init(fref, fkey, 0,
+                            "SHA-256", null, null, TestUtil.RNDSrc)).getMessage());
+            Assertions.assertEquals("invalid op mode", Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> cipherNI.init(fref, fkey, 3,
+                            "SHA-256", null, null, TestUtil.RNDSrc)).getMessage());
         }
         finally
         {

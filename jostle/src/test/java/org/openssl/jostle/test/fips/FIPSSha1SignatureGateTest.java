@@ -59,22 +59,35 @@ public class FIPSSha1SignatureGateTest
 
     /**
      * A {@code SHA1with*} signature-generation attempt through JSLFIPS must be
-     * rejected by the module with an "OpenSSL Error: ... digest not allowed"
-     * ({@link OpenSSLException}).
+     * rejected by the module with an "OpenSSL Error: ... digest not allowed".
+     * <p>
+     * The module refuses SHA-1 signing at init ({@code setup_md}); how that
+     * surfaces at the JCE boundary depends on the SPI: the RSA Signature SPI
+     * translates the init-time refusal into the JCE-canonical, fallback-eligible
+     * {@link java.security.InvalidKeyException} (preserving the
+     * {@link OpenSSLException} as the cause), whereas the EC/DSA SPIs surface the
+     * raw {@link OpenSSLException}. This helper accepts either shape and requires
+     * the underlying module "digest not allowed" message in both.
      */
     private static void assertSha1SignRejected(KeyPair kp, String sigAlg)
     {
         byte[] msg = new byte[32];
         RANDOM.nextBytes(msg);
-        OpenSSLException ex = Assertions.assertThrows(OpenSSLException.class, () ->
+        Exception ex = Assertions.assertThrows(Exception.class, () ->
         {
             Signature s = Signature.getInstance(sigAlg, FIPS);
             s.initSign(kp.getPrivate());
             s.update(msg);
             s.sign();
         }, sigAlg + ": the FIPS module must reject SHA-1 signature generation");
-        Assertions.assertTrue(String.valueOf(ex.getMessage()).contains("digest not allowed"),
-                sigAlg + ": expected a module 'digest not allowed' rejection, got: " + ex.getMessage());
+
+        // Unwrap the RSA InvalidKeyException down to its OpenSSLException cause;
+        // EC/DSA already are an OpenSSLException.
+        Throwable openssl = (ex instanceof OpenSSLException) ? ex : ex.getCause();
+        Assertions.assertTrue(openssl instanceof OpenSSLException,
+                sigAlg + ": expected an OpenSSLException (possibly wrapped in InvalidKeyException), got: " + ex);
+        Assertions.assertTrue(String.valueOf(openssl.getMessage()).contains("digest not allowed"),
+                sigAlg + ": expected a module 'digest not allowed' rejection, got: " + openssl.getMessage());
     }
 
     @Test

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -24,15 +25,22 @@ import java.security.Signature;
 /**
  * Behaviour lock for {@code NoneWithRSA} through the FIPS provider ("JSLFIPS").
  * <p>
- * {@code ProvFIPSRSA} registers the {@code NoneWithRSA} Signature (raw PKCS#1
- * v1.5 over caller-supplied DigestInfo bytes, no hashing) — so
- * {@code Signature.getInstance("NoneWithRSA", "JSLFIPS")} <b>resolves</b> — but
- * the FIPS module <b>refuses to service it</b>: the raw path fetches a digest
- * named {@code NONE}, which is absent from the FIPS {@code OSSL_LIB_CTX}, so
- * {@code EVP_DigestSign/VerifyInit} fails with an unsupported-algorithm
- * {@link OpenSSLException}. This mirrors the SHA-1 signature-generation gate
- * (see {@code FIPSSha1SignatureGateTest}): the service is present but the module
- * is the authority that rejects the non-approved operation.
+ * {@code ProvFIPSRSA} registers {@code NoneWithRSA} by constructing the base
+ * {@code RSASignatureSpi} with digest name {@code "NONE"} (the PKCS#1 v1.5
+ * <em>digest</em> path, not the raw {@code RSASignatureSpi.None} path the
+ * non-FIPS provider uses) — so {@code Signature.getInstance("NoneWithRSA",
+ * "JSLFIPS")} <b>resolves</b>, but the FIPS module <b>refuses to service it</b>:
+ * {@code EVP_DigestSign/VerifyInit} tries to fetch a digest named {@code NONE},
+ * which does not exist in the FIPS {@code OSSL_LIB_CTX}, and fails at
+ * <em>init</em> with an unsupported-algorithm error. The SPI's
+ * {@code engineInitSign} / {@code engineInitVerify} translate that native
+ * {@link OpenSSLException} into the JCE-canonical, fallback-eligible
+ * {@link InvalidKeyException} (the original {@code OpenSSLException} is preserved
+ * as the cause). This mirrors the SHA-1 signature-generation gate (see
+ * {@code FIPSSha1SignatureGateTest}, whose rejection fires at {@code sign()}
+ * rather than init and therefore stays an {@code OpenSSLException}): the service
+ * is present but the module is the authority that rejects the non-approved
+ * operation.
  * <p>
  * This test <b>pins that current behaviour</b> so a future change is caught
  * loudly and deliberately: if {@code NoneWithRSA} is ever dropped from JSLFIPS
@@ -84,12 +92,18 @@ public class FIPSRSANoneWithRSASignatureTest
         Assertions.assertNotNull(signer, "NoneWithRSA must remain registered in JSLFIPS");
 
         byte[] tbs = randomTbs();
-        OpenSSLException ex = Assertions.assertThrows(OpenSSLException.class, () ->
+        // The refusal fires at initSign (digest "NONE" is unfetchable); the SPI
+        // translates the native OpenSSLException to the JCE-canonical,
+        // fallback-eligible InvalidKeyException, preserving the OpenSSLException
+        // as the cause.
+        InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class, () ->
         {
             signer.initSign(kp.getPrivate());
             signer.update(tbs);
             signer.sign();
-        }, "the FIPS module must refuse the raw NoneWithRSA signing path");
+        }, "the FIPS module must refuse the NoneWithRSA signing path at init");
+        Assertions.assertTrue(ex.getCause() instanceof OpenSSLException,
+                "InvalidKeyException must carry the underlying OpenSSLException as its cause");
         String msg = String.valueOf(ex.getMessage());
         Assertions.assertTrue(msg.startsWith("OpenSSL Error:") && msg.contains("unsupported"),
                 "expected an unsupported-algorithm module rejection, got: " + msg);
@@ -109,12 +123,16 @@ public class FIPSRSANoneWithRSASignatureTest
 
         Signature verifier = Signature.getInstance("NoneWithRSA", FIPS);
         byte[] tbs = randomTbs();
-        OpenSSLException ex = Assertions.assertThrows(OpenSSLException.class, () ->
+        // Refusal fires at initVerify and is translated to InvalidKeyException,
+        // exactly as the signing direction (digest "NONE" is unfetchable).
+        InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class, () ->
         {
             verifier.initVerify(kp.getPublic());
             verifier.update(tbs);
             verifier.verify(new byte[256]);
-        }, "the FIPS module must refuse the raw NoneWithRSA verify path");
+        }, "the FIPS module must refuse the NoneWithRSA verify path at init");
+        Assertions.assertTrue(ex.getCause() instanceof OpenSSLException,
+                "InvalidKeyException must carry the underlying OpenSSLException as its cause");
         String msg = String.valueOf(ex.getMessage());
         Assertions.assertTrue(msg.startsWith("OpenSSL Error:") && msg.contains("unsupported"),
                 "expected an unsupported-algorithm module rejection, got: " + msg);
