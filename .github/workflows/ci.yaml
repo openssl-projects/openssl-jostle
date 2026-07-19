@@ -114,7 +114,10 @@ jobs:
         if: steps.cache-fips.outputs.cache-hit != 'true'
         working-directory: "openssl-fips"
         run: |
-          ./config enable-fips --prefix=$(pwd)/dist
+          # no-tests: we only need libcrypto, the fips module, and openssl(1)
+          # for fipsinstall — never OpenSSL's own test programs (3.1.2's
+          # test sources fail to compile under newer toolchains).
+          ./config enable-fips no-tests --prefix=$(pwd)/dist
           make -j
           make install_sw install_fips
       - name: "Stage the FIPS module with its fipsmodule.cnf alongside"
@@ -365,7 +368,10 @@ jobs:
         shell: "cmd"
         run: |
           call "%VCVARS%"
-          perl Configure VC-WIN64A enable-fips --prefix=${{ github.workspace }}\openssl-fips\dist
+          rem no-tests: 3.1.2's test programs (e.g. test\build_wincrypt_test.c)
+          rem use a bare #warning that MSVC on windows-2025 rejects (C1188).
+          rem We only need libcrypto, the fips module, and openssl.exe.
+          perl Configure VC-WIN64A enable-fips no-tests --prefix=${{ github.workspace }}\openssl-fips\dist
           nmake
           nmake install_sw install_fips
       - name: "Stage the FIPS module with its fipsmodule.cnf alongside"
