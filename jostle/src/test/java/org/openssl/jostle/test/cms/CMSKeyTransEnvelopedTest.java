@@ -220,9 +220,18 @@ public class CMSKeyTransEnvelopedTest
             ri.getContent(new JceKeyTransEnvelopedRecipient(wrongKp.getPrivate()).setProvider(JSL));
             Assertions.fail("decrypt with the wrong private key must not succeed");
         }
-        catch (org.bouncycastle.cms.CMSException e)
+        catch (org.bouncycastle.cms.CMSException | IllegalArgumentException e)
         {
-            // expected — wrong key cannot recover the CEK / content
+            // expected — wrong key cannot recover the CEK / content.
+            // PKCS#1 v1.5 implicit rejection turns the bad RSA decrypt into a
+            // synthetic CEK of pseudo-random length. Usually non-zero: the wrong
+            // AES key fails the GCM tag and BC surfaces a CMSException. But the
+            // length is occasionally zero, and BC then builds the CEK via
+            // new SecretKeySpec(emptyBytes, "AES"), which throws
+            // IllegalArgumentException("Empty key") — a RuntimeException BC does
+            // not wrap. Either way no content is recovered, so both outcomes
+            // satisfy the negative-path contract (this is what made the test
+            // flaky: it hit the zero-length case on one CI leg only).
         }
     }
 }
