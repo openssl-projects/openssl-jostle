@@ -7,6 +7,28 @@ build
 /interface/.idea/
 .idea/
 
-# Local-only coverage helper (not committed)
+# Local-only helper files (not committed)
 /coverage_mldsa.sh
 /notes_no_commit.txt
+/build_osx.sh
+
+# macOS Finder metadata
+.DS_Store
+
+# CMake in-source build output (interface/)
+/interface/CMakeCache.txt
+/interface/CMakeFiles/
+/interface/Makefile
+/interface/cmake_install.cmake
+/interface/install_manifest.txt
+/interface/Testing/
+/interface/.cmake/
+
+# Compiled native interface libraries (build output)
+/interface/*.dylib
+/interface/*.so
+/interface/*.dll
+
+# Native libraries copied into resources at build time (bundled into the jar)
+/jostle/src/main/resources/native/
+/fips-c-review/
