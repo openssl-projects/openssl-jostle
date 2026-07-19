@@ -1,0 +1,501 @@
+name: "CI"
+
+on:
+  - "pull_request"
+  - "push"
+
+permissions:
+  contents: "read"
+  checks: write
+  pull-requests: write
+
+jobs:
+  checkstyle:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Set up Java 25"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Run Checkstyle"
+        working-directory: "jostle"
+        # The project scopes the checkstyle gate to the main source set
+        # (build.gradle: checkstyle.sourceSets = [main]); this is the same set
+        # the old `./gradlew build` -> check ran, plus the nohttp URL check.
+        # No native libs / OpenSSL needed — pure source analysis.
+        run: |
+          ./gradlew :jostle:checkstyleMain :jostle:checkstyleNohttp
+
+  build-posix:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - "ubuntu-latest"
+          - "ubuntu-24.04-arm"
+          - "macos-15"
+          - "macos-15-intel"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
+      - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.6.3"
+          persist-credentials: false
+          path: "openssl"
+      - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        working-directory: "openssl"
+        run: |
+          ./config --prefix=$(pwd)/dist
+          make -j
+          make install_sw
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Build headers"
+        working-directory: "jostle"
+        run: |
+          ./gradlew clean compileJava
+      - name: "Build and install the interface"
+        working-directory: "jostle"
+        env:
+          JOSTLE_OPS_TEST: "true"
+          OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
+        run: |
+          ./interface/build.sh
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+      # ----- FIPS module (validated OpenSSL 3.1.2, enable-fips) -----
+      # The interface links against the mainline (3.6.3) libcrypto above; at
+      # runtime the JSLFIPS provider loads THIS validated 3.1.2 module into its
+      # own lib ctx. TEST_FIPS_LIB points the FIPS tests at the module file,
+      # with fipsmodule.cnf sitting beside it (see TestUtil.FIPS_LIB_ENV).
+      - name: "Cache FIPS module (OpenSSL 3.1.2 enable-fips)"
+        id: "cache-fips"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl-fips/dist"
+          key: "openssl-fips-3.1.2-${{ runner.os }}-${{ runner.arch }}"
+      - name: "Checkout OpenSSL 3.1.2 (FIPS module source)"
+        if: steps.cache-fips.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.1.2"
+          persist-credentials: false
+          path: "openssl-fips"
+      - name: "Build the OpenSSL 3.1.2 FIPS module"
+        if: steps.cache-fips.outputs.cache-hit != 'true'
+        working-directory: "openssl-fips"
+        run: |
+          ./config enable-fips --prefix=$(pwd)/dist
+          make -j
+          make install_sw install_fips
+      - name: "Stage the FIPS module with its fipsmodule.cnf alongside"
+        run: |
+          prefix="${{ github.workspace }}/openssl-fips/dist"
+          modfile="$(find "$prefix" \( -name fips.so -o -name fips.dylib \) | head -1)"
+          if [ -z "$modfile" ]; then echo "FIPS module not found under $prefix" >&2; exit 1; fi
+          out="${{ github.workspace }}/fips-out"
+          mkdir -p "$out"
+          cp "$modfile" "$out/"
+          export LD_LIBRARY_PATH="$prefix/lib64:$prefix/lib:$LD_LIBRARY_PATH"
+          export DYLD_LIBRARY_PATH="$prefix/lib64:$prefix/lib:$DYLD_LIBRARY_PATH"
+          # Regenerate the config beside the copied module: TestUtil expects
+          # fipsmodule.cnf to sit next to the module named by TEST_FIPS_LIB.
+          "$prefix/bin/openssl" fipsinstall \
+            -module "$out/$(basename "$modfile")" \
+            -out "$out/fipsmodule.cnf"
+          ls -l "$out"
+      - name: "Upload FIPS module"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "fips-module-${{ matrix.runner }}"
+          path: "fips-out"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  test-posix:
+    needs: "build-posix"
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - "ubuntu-latest"
+          - "ubuntu-24.04-arm"
+          - "macos-15"
+          - "macos-15-intel"
+        config:
+          - { name: "default",   jdk: "25", bcjdk: "",   tasks: "test integrationTest" }
+          - { name: "jdk8",      jdk: "8",  bcjdk: "8",  tasks: "unitTest8 integrationTest8" }
+          - { name: "jdk11",     jdk: "11", bcjdk: "11", tasks: "unitTest11 integrationTest11" }
+          - { name: "jdk17",     jdk: "17", bcjdk: "17", tasks: "unitTest17 integrationTest17" }
+          - { name: "jdk21",     jdk: "21", bcjdk: "21", tasks: "unitTest21 integrationTest21" }
+          - { name: "jdk25-jni", jdk: "25", bcjdk: "25", tasks: "unitTest25JNI integrationTest25JNI" }
+          - { name: "jdk25-ffi", jdk: "25", bcjdk: "25", tasks: "unitTest25FFI integrationTest25FFI" }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Set up target JDK"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "${{ matrix.config.jdk }}"
+      - name: "Set up Java 25 (Gradle runtime)"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Point BC_JDK at the target toolchain"
+        if: matrix.config.bcjdk != ''
+        shell: "bash"
+        env:
+          BCJDK: "${{ matrix.config.bcjdk }}"
+        run: |
+          x64="JAVA_HOME_${BCJDK}_X64"
+          arm="JAVA_HOME_${BCJDK}_ARM64"
+          echo "BC_JDK${BCJDK}=${!x64:-${!arm}}" >> "$GITHUB_ENV"
+      - name: "Run tests"
+        working-directory: "jostle"
+        env:
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
+        run: |
+          ./gradlew ${GRADLE_TASKS}
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: success() || failure() # always run even if the previous step fails
+        with:
+          check_name: "${{ matrix.runner }} - ${{ matrix.config.name }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
+
+  test-posix-fips:
+    needs: "build-posix"
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - "ubuntu-latest"
+          - "ubuntu-24.04-arm"
+          - "macos-15"
+          - "macos-15-intel"
+        config:
+          - { name: "fips-jni", tasks: "fipsTest25JNI" }
+          - { name: "fips-ffi", tasks: "fipsTest25FFI" }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download FIPS module"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "fips-module-${{ matrix.runner }}"
+          path: "fips-module"
+      - name: "Set up Java 25"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Point BC_JDK25 and TEST_FIPS_LIB at the toolchain / module"
+        shell: "bash"
+        run: |
+          echo "BC_JDK25=${JAVA_HOME_25_X64:-$JAVA_HOME_25_ARM64}" >> "$GITHUB_ENV"
+          case "${{ runner.os }}" in
+            Linux) ext=so ;;
+            macOS) ext=dylib ;;
+            *)     echo "unexpected runner.os ${{ runner.os }}" >&2; exit 1 ;;
+          esac
+          echo "TEST_FIPS_LIB=${{ github.workspace }}/fips-module/fips.$ext" >> "$GITHUB_ENV"
+      - name: "Run FIPS tests"
+        working-directory: "jostle"
+        env:
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
+        run: |
+          # --rerun-tasks: TEST_FIPS_LIB decides which classes run but is not a
+          # cacheable Gradle input by default, so force execution rather than
+          # risk replaying a wholesale-skipped FIPS run (see testing.md).
+          ./gradlew --rerun-tasks ${GRADLE_TASKS}
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: success() || failure()
+        with:
+          check_name: "${{ matrix.runner }} - ${{ matrix.config.name }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ["windows-2025"]
+    runs-on: ${{ matrix.runner }}
+    env:
+      VCVARS: 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat'
+    steps:
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
+      - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.6.3"
+          persist-credentials: false
+          path: "openssl"
+      - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        working-directory: "openssl"
+        shell: "cmd"
+        run: |
+          call "%VCVARS%"
+          perl Configure VC-WIN64A --prefix=${{ github.workspace }}\openssl\dist
+          nmake
+          nmake install_sw
+      - name: "Arrange OpenSSL layout for CMake (lib64)"
+        shell: "pwsh"
+        run: |
+          $prefix = "${{ github.workspace }}\openssl\dist"
+          $lib64  = Join-Path $prefix "lib64"
+          New-Item -ItemType Directory -Force -Path $lib64 | Out-Null
+          $impLib = Get-ChildItem -Path $prefix -Recurse -Filter "libcrypto.lib" | Select-Object -First 1
+          $dll    = Get-ChildItem -Path $prefix -Recurse -Filter "libcrypto-3-x64.dll" | Select-Object -First 1
+          if ($null -eq $impLib) { throw "libcrypto.lib not found under $prefix" }
+          if ($null -eq $dll)    { throw "libcrypto-3-x64.dll not found under $prefix" }
+          Copy-Item $impLib.FullName (Join-Path $lib64 "libcrypto.lib") -Force
+          Copy-Item $dll.FullName    (Join-Path $lib64 "libcrypto-3-x64.dll") -Force
+          Get-ChildItem $lib64
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Set up interface build tools (clang-cl, ninja)"
+        shell: "pwsh"
+        run: |
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          choco install ninja -y
+      - name: "Build headers"
+        working-directory: "jostle"
+        shell: "pwsh"
+        run: |
+          .\gradlew.bat clean compileJava
+      - name: "Build and install the interface"
+        working-directory: "jostle"
+        shell: "cmd"
+        env:
+          JOSTLE_OPS_TEST: "true"
+          OPENSSL_PREFIX: "${{ github.workspace }}\\openssl\\dist"
+        run: |
+          call "%VCVARS%"
+          call interface\build.bat
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+      # ----- FIPS module (validated OpenSSL 3.1.2, enable-fips) -----
+      - name: "Cache FIPS module (OpenSSL 3.1.2 enable-fips)"
+        id: "cache-fips"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl-fips/dist"
+          key: "openssl-fips-3.1.2-${{ runner.os }}-${{ runner.arch }}"
+      - name: "Checkout OpenSSL 3.1.2 (FIPS module source)"
+        if: steps.cache-fips.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.1.2"
+          persist-credentials: false
+          path: "openssl-fips"
+      - name: "Build the OpenSSL 3.1.2 FIPS module"
+        if: steps.cache-fips.outputs.cache-hit != 'true'
+        working-directory: "openssl-fips"
+        shell: "cmd"
+        run: |
+          call "%VCVARS%"
+          perl Configure VC-WIN64A enable-fips --prefix=${{ github.workspace }}\openssl-fips\dist
+          nmake
+          nmake install_sw install_fips
+      - name: "Stage the FIPS module with its fipsmodule.cnf alongside"
+        shell: "pwsh"
+        run: |
+          $prefix = "${{ github.workspace }}\openssl-fips\dist"
+          $mod = Get-ChildItem -Path $prefix -Recurse -Filter "fips.dll" | Select-Object -First 1
+          if ($null -eq $mod) { throw "FIPS module fips.dll not found under $prefix" }
+          $out = "${{ github.workspace }}\fips-out"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item $mod.FullName (Join-Path $out "fips.dll") -Force
+          # Regenerate the config beside the copied module (TestUtil expects
+          # fipsmodule.cnf next to the module named by TEST_FIPS_LIB).
+          & "$prefix\bin\openssl.exe" fipsinstall -module (Join-Path $out "fips.dll") -out (Join-Path $out "fipsmodule.cnf")
+          if ($LASTEXITCODE -ne 0) { throw "fipsinstall failed ($LASTEXITCODE)" }
+          Get-ChildItem $out
+      - name: "Upload FIPS module"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "fips-module-${{ matrix.runner }}"
+          path: "fips-out"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  test-windows:
+    needs: "build-windows"
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "default",   jdk: "25", bcjdk: "",   tasks: "test integrationTest" }
+          - { name: "jdk8",      jdk: "8",  bcjdk: "8",  tasks: "unitTest8 integrationTest8" }
+          - { name: "jdk11",     jdk: "11", bcjdk: "11", tasks: "unitTest11 integrationTest11" }
+          - { name: "jdk17",     jdk: "17", bcjdk: "17", tasks: "unitTest17 integrationTest17" }
+          - { name: "jdk21",     jdk: "21", bcjdk: "21", tasks: "unitTest21 integrationTest21" }
+          - { name: "jdk25-jni", jdk: "25", bcjdk: "25", tasks: "unitTest25JNI integrationTest25JNI" }
+          - { name: "jdk25-ffi", jdk: "25", bcjdk: "25", tasks: "unitTest25FFI integrationTest25FFI" }
+    runs-on: "windows-2025"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Set up target JDK"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "${{ matrix.config.jdk }}"
+      - name: "Set up Java 25 (Gradle runtime)"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Point BC_JDK at the target toolchain"
+        if: matrix.config.bcjdk != ''
+        shell: "bash"
+        env:
+          BCJDK: "${{ matrix.config.bcjdk }}"
+        run: |
+          x64="JAVA_HOME_${BCJDK}_X64"
+          echo "BC_JDK${BCJDK}=${!x64}" >> "$GITHUB_ENV"
+      - name: "Run tests"
+        working-directory: "jostle"
+        shell: "pwsh"
+        env:
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
+        run: |
+          .\gradlew.bat ($env:GRADLE_TASKS -split ' ')
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: success() || failure()
+        with:
+          check_name: "windows-2025 - ${{ matrix.config.name }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
+
+  test-windows-fips:
+    needs: "build-windows"
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "fips-jni", tasks: "fipsTest25JNI" }
+          - { name: "fips-ffi", tasks: "fipsTest25FFI" }
+    runs-on: "windows-2025"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download FIPS module"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "fips-module-windows-2025"
+          path: "fips-module"
+      - name: "Set up Java 25"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Point BC_JDK25 and TEST_FIPS_LIB at the toolchain / module"
+        shell: "bash"
+        run: |
+          echo "BC_JDK25=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
+          ws='${{ github.workspace }}'
+          ws="${ws//\\//}"
+          echo "TEST_FIPS_LIB=$ws/fips-module/fips.dll" >> "$GITHUB_ENV"
+      - name: "Run FIPS tests"
+        working-directory: "jostle"
+        shell: "pwsh"
+        env:
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
+        run: |
+          # --rerun-tasks: TEST_FIPS_LIB decides which classes run but is not a
+          # cacheable Gradle input by default, so force execution (see testing.md).
+          .\gradlew.bat --rerun-tasks ($env:GRADLE_TASKS -split ' ')
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: success() || failure()
+        with:
+          check_name: "windows-2025 - ${{ matrix.config.name }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
