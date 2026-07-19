@@ -17,6 +17,16 @@ OpenSSL Jostle supports running on Java 1.8 to Java 25, and requires [Java 25](h
 
 See [SERVICES.md](SERVICES.md)
 
+## Using Jostle with an AI coding assistant
+
+If you use an AI coding assistant (Claude, GitHub Copilot, OpenAI / Codex, Cursor,
+…) to write code against Jostle, point it at
+[docs/jostle-ai-guide.md](docs/jostle-ai-guide.md). It is a portable, vendor-neutral
+Markdown brief — provider setup (including the FIPS provider), the defaults that
+differ from the JDK, exception contracts, interop traps, and verified snippets —
+written to be dropped into your repo and referenced from your assistant's
+instruction file.
+
 ## Usage
 
 This section will be updated when there are published in maven central or equivalent.
