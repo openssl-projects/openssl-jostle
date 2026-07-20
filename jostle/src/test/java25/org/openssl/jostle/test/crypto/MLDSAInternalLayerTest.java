@@ -12,9 +12,11 @@
 package org.openssl.jostle.test.crypto;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OverflowException;
@@ -78,6 +80,11 @@ public class MLDSAInternalLayerTest
     @Test
     public void MLDSAServiceJNI_mldsa_update_intOverflow_extMu() throws Throwable
     {
+        // Direct-FFI probe of an internal util symbol via loaderLookup: only
+        // the FFI interface (and POSIX .so) exports it — the JNI DLL on Windows
+        // exports only its Java_* entry points. The C path is covered by the
+        // FFI run, so gate to FFI like the sibling *InternalLayerTest classes.
+        Assumptions.assumeTrue(Loader.isFFI());
 
         long mldsaRef = 0;
         long keyRef = 0;
@@ -220,6 +227,9 @@ public class MLDSAInternalLayerTest
     @Test
     public void extract_tr_invalidKeyType() throws Throwable
     {
+        // Direct-FFI probe of an internal util symbol — FFI-only (see the
+        // update test above); the JNI DLL on Windows doesn't export it.
+        Assumptions.assumeTrue(Loader.isFFI());
         // The default branch in extract_tr's switch is unreachable through the
         // normal callers (init_sign / init_verify pre-validate the typeId via
         // EVP_PKEY_is_a). Reach it directly via FFI to confirm the diagnostic
@@ -264,6 +274,9 @@ public class MLDSAInternalLayerTest
     @Test
     public void decode_publicKey_reusedSpec() throws Throwable
     {
+        // Direct-FFI probe of an internal util symbol — FFI-only (see the
+        // update test above); the JNI DLL on Windows doesn't export it.
+        Assumptions.assumeTrue(Loader.isFFI());
         // Calling decode_public_key twice on the same spec exercises the
         // pre-existing-key free guard. The wrappers always pass fresh specs,
         // so the only way to reach this path is a direct FFI call.
@@ -386,6 +399,9 @@ public class MLDSAInternalLayerTest
     @Test
     public void decode_privateKey_reusedSpec() throws Throwable
     {
+        // Direct-FFI probe of an internal util symbol — FFI-only (see the
+        // update test above); the JNI DLL on Windows doesn't export it.
+        Assumptions.assumeTrue(Loader.isFFI());
         // Mirror of the public-key test — exercises the pre-existing-key
         // free in mldsa_decode_private_key.
         SecureRandom sr = seededRandom("decode_privateKey_reusedSpec");
