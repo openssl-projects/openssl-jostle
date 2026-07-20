@@ -146,7 +146,7 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.6.3-hybridcrt-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
@@ -161,7 +161,7 @@ jobs:
         shell: "cmd"
         run: |
           call "%VCVARS%"
-          perl Configure VC-WIN64A --prefix=${{ github.workspace }}\openssl\dist
+          perl Configure VC-WIN64A-HYBRIDCRT --prefix=${{ github.workspace }}\openssl\dist
           nmake
           nmake install_sw
       - name: "Arrange OpenSSL layout for CMake (lib64)"
