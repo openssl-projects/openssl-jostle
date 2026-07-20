@@ -18,8 +18,6 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 
-import java.io.File;
-
 /**
  * NI-surface test of the FIPS interface library loading and the
  * setOSSLFIPSModule argument-validation / rolled-back failure paths. Gated
@@ -41,7 +39,11 @@ public class OpenSSLFIPSNITest
     {
         Assumptions.assumeFalse(org.openssl.jostle.test.TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
-        String fipsDir = FIPSTestUtil.fipsModuleDir();
+        // Forward slashes: this test drives setOSSLFIPSModule directly, so the
+        // config path must be native-ready. OpenSSL's config .include parser
+        // treats '\' as an escape and mangles a Windows backslash path; '/' is
+        // accepted everywhere (no-op on POSIX). Mirrors FIPSOpenSSL.
+        String fipsDir = FIPSTestUtil.fipsModuleDir().replace('\\', '/');
 
         // First touch of FIPSNISelector lazily extracts/loads the FIPS
         // interface library.
@@ -51,7 +53,7 @@ public class OpenSSLFIPSNITest
                 "FIPS interface library load failed: " + Loader.getFipsMessage());
         Assertions.assertNotNull(Loader.getFipsInterfaceLibPath());
 
-        String cnf = fipsDir + File.separator + "fipsmodule.cnf";
+        String cnf = fipsDir + "/fipsmodule.cnf";
 
         // Argument validation is rejected at the bridge, before any native
         // state changes.

@@ -198,6 +198,14 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 // Holds the seed or long-form private material — secret; scrubbed
                 // in the finally (the KeySpec getters returned fresh clones).
                 byte[] material = null;
+
+                // Both the seed keygen and the long-form decode run a native
+                // pairwise-consistency test that encapsulates, consuming entropy
+                // at the variant's security level (ML-KEM-768/1024 need 192/256
+                // bits). Resolve a strength-appropriate DRBG so the C-side RAND
+                // gate is satisfied — the default SecureRandom is a 128-bit DRBG
+                // on Windows JDK 9+ and would otherwise fail the PCT (GH #34).
+                int strengthBits = spec.getParameterSpec().getRequiredStrengthBits();
                 try
                 {
                     PKEYKeySpec pkeySpec;
@@ -211,7 +219,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         long ref = NISelector.MLKEMServiceNI.generateKeyPair(
                                 osslKeyType.getKsType(),
                                 material, material.length,
-                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                                DefaultRandSource.replaceWith(null, null, strengthBits));
                         pkeySpec = new PKEYKeySpec(ref, osslKeyType);
                     }
                     else
@@ -221,7 +229,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         NISelector.MLKEMServiceNI.decode_privateKey(
                                 pkeySpec.getReference(), osslKeyType.getKsType(),
                                 material, 0, material.length,
-                                DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                                DefaultRandSource.replaceWith(null, null, strengthBits));
                     }
                     return new JOMLKEMPrivateKey(pkeySpec, spec.isSeed());
                 }

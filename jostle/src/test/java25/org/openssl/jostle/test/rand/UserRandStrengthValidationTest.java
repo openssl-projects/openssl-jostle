@@ -126,11 +126,16 @@ public class UserRandStrengthValidationTest
     }
 
     @Test
-    public void mlkem768_userSuppliedWeakDrbg_engineInit_encap_rejects() throws Exception
+    public void mlkem768_userSuppliedWeakDrbg_engineInit_encap_upgrades() throws Exception
     {
-        // The encap path in MLKEMKeyGenerator (the exact GH issue #34
-        // entry point) must also fail fast on an under-strength
-        // user-supplied SecureRandom.
+        // The encap path in MLKEMKeyGenerator (the exact GH issue #34 entry
+        // point) cannot distinguish a deliberately weak user SecureRandom from
+        // the platform default the JCE injects into the final KeyGenerator
+        // init(spec) (a 128-bit DRBG on Windows JDK 9+). Rather than reject the
+        // natural call, it drops an under-strength source and upgrades to a
+        // strength-appropriate DRBG, so init + encap succeed. (KeyPairGenerator,
+        // whose init(spec) passes null, can still reject a deliberately weak
+        // DRBG at its two-arg initialize — see the keyPairGen tests above.)
         SecureRandom weakDrbg = newDrbg(128);
         assumeDrbgAvailable(weakDrbg);
         KeyPair kp = generateKeyPair(MLKEMParameterSpec.ml_kem_768);
@@ -141,8 +146,13 @@ public class UserRandStrengthValidationTest
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(256)
                 .build();
-        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> kg.init(spec, weakDrbg));
+        kg.init(spec, weakDrbg);
+        SecretKey encapKey = kg.generateKey();
+        Assertions.assertNotNull(encapKey);
+        byte[] encapsulation =
+                ((org.openssl.jostle.jcajce.SecretKeyWithEncapsulation) encapKey).getEncapsulation();
+        Assertions.assertTrue(encapsulation.length > 0,
+                "encap with an upgraded weak DRBG must still produce an encapsulation");
     }
 
     @Test

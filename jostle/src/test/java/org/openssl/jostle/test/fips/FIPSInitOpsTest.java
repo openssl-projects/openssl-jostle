@@ -21,8 +21,6 @@ import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
-import java.io.File;
-
 /**
  * Operations-test fault injection at the FIPS module-init surface
  * ({@code jostle_fips_configure_libctx} in
@@ -60,8 +58,14 @@ public class FIPSInitOpsTest
     private final OpenSSLFIPSNI fipsNI = FIPSNISelector.OpenSSLFIPSNI;
     private final OperationsTestNI operationsTestNI = FIPSNISelector.OperationsTestNI;
 
-    private final String fipsDir = FIPSTestUtil.fipsModuleDir();
-    private final String cnf = fipsDir + File.separator + "fipsmodule.cnf";
+    // Forward slashes: this test drives setOSSLFIPSModule directly, bypassing
+    // FIPSOpenSSL's path normalisation. OpenSSL's config .include parser treats
+    // '\' as an escape, so a Windows backslash config path is mangled and the
+    // load fails before the OPS-injected site is reached (returning the config-
+    // load code instead of the site's code). '/' is accepted on every platform;
+    // a no-op on POSIX.
+    private final String fipsDir = FIPSTestUtil.fipsModuleDir().replace('\\', '/');
+    private final String cnf = fipsDir + "/fipsmodule.cnf";
 
     @BeforeEach
     public void beforeEach()

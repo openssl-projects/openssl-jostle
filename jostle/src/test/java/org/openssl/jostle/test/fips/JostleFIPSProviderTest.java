@@ -48,7 +48,10 @@ public class JostleFIPSProviderTest
         // first) - also skips the test when no FIPS install is configured.
         JostleFIPSProvider provider = FIPSTestUtil.assumeFipsProvider();
         File module = FIPSTestUtil.fipsModuleFile();
-        String fipsDir = module.getParent();
+        // Forward slashes for the raw-NI double-init call below: OpenSSL's
+        // config .include parser treats '\' as an escape and mangles a Windows
+        // backslash path (no-op on POSIX). Mirrors FIPSOpenSSL's normalisation.
+        String fipsDir = module.getParent().replace('\\', '/');
 
         Assertions.assertTrue(provider.isConfigured());
         Assertions.assertEquals(JostleFIPSProvider.PROVIDER_NAME, provider.getName());
@@ -99,7 +102,7 @@ public class JostleFIPSProviderTest
 
         // The raw NI double-init is rejected by the native one-shot guard.
         int rc = FIPSNISelector.OpenSSLFIPSNI.setOSSLFIPSModule(
-                fipsDir, "fips", fipsDir + File.separator + "fipsmodule.cnf");
+                fipsDir, "fips", fipsDir + "/fipsmodule.cnf");
         Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), rc);
         String errors = FIPSNISelector.OpenSSLFIPSNI.getOSSLErrors();
         Assertions.assertTrue(errors != null && errors.contains("set_global_jostle_lib_ctx already called"),
