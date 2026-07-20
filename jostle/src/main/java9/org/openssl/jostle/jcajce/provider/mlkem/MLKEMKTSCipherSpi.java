@@ -169,21 +169,21 @@ public class MLKEMKTSCipherSpi
         if (opmode == Cipher.WRAP_MODE)
         {
             // ML-KEM encapsulation consumes entropy through the C-side RAND gate
-            // (GH #34): ML-KEM-768/1024 require 192/256-bit strength. Fail fast
-            // if the caller supplied a SecureRandom reporting a lower strength
-            // (Java 9+ DRBG path); a reported 0 means "unknown" (plain
-            // SecureRandom, or the JCE-injected default) and is accepted, with
-            // the C gate as the safety net. The RandSource is then resolved to a
-            // strength-appropriate DRBG for the key's parameter set — matching
-            // MLKEMKeyGenerator, which also encapsulates.
+            // (GH #34): ML-KEM-768/1024 require 192/256-bit strength. The natural
+            // Cipher.init(spec) call has the JCE inject the platform default
+            // SecureRandom (e.g. Windows JDK 9+ hands us a 128-bit DRBG), which
+            // the caller never chose. So rather than reject a source whose
+            // reported strength is below the requirement, drop it and let
+            // replaceWith install a strength-appropriate DRBG for the key's
+            // parameter set. A reported 0 means "unknown" (plain SecureRandom)
+            // and is left as-is with the C gate as the safety net; a strong-enough
+            // source is honoured as-is. Matches MLKEMKeyGenerator, which also
+            // encapsulates.
             int strengthBits = strengthForKeyType(spec.getType());
             int suppliedStrength = DefaultRandSource.strengthOf(random);
             if (suppliedStrength > 0 && suppliedStrength < strengthBits)
             {
-                throw new InvalidAlgorithmParameterException(
-                    "supplied SecureRandom reports " + suppliedStrength
-                        + "-bit strength but " + spec.getType().getAlgorithmName()
-                        + " requires " + strengthBits);
+                random = null;
             }
             resolvedRandSource = DefaultRandSource.replaceWith(null, random, strengthBits);
         }

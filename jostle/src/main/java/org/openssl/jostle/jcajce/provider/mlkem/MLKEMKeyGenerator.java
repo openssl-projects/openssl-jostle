@@ -129,20 +129,19 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
                     int strengthBits = strengthForKeyType(kem.getSpec().getType());
 
-                    // Fail fast if the caller supplied a SecureRandom that
-                    // reports a strength below the algorithm's requirement
-                    // (Java 9+ DRBG path). Sources that don't expose a strength
-                    // claim return 0 and are accepted — the C-side RAND gate is
-                    // the safety net for those (and for the JCE-injected default,
-                    // which is a strength-0 plain SecureRandom). Only enforced on
-                    // the encap path: decap doesn't consume entropy.
+                    // The natural KeyGenerator.init(spec) call has the JCE inject
+                    // the platform default SecureRandom (e.g. Windows JDK 9+ hands
+                    // us a 128-bit DRBG), which the caller never chose. So rather
+                    // than reject a source whose reported strength is below the
+                    // algorithm's requirement, drop it and let replaceWith install
+                    // a strength-appropriate DRBG (GH #34). A reported 0 means
+                    // "unknown" (plain SecureRandom) and is left as-is with the
+                    // C-side RAND gate as the safety net; a strong-enough source
+                    // is honoured as-is. Only relevant on the encap path.
                     int suppliedStrength = DefaultRandSource.strengthOf(random);
                     if (suppliedStrength > 0 && suppliedStrength < strengthBits)
                     {
-                        throw new InvalidAlgorithmParameterException(
-                                "supplied SecureRandom reports " + suppliedStrength
-                                        + "-bit strength but " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName()
-                                        + " requires " + strengthBits);
+                        random = null;
                     }
 
                     parameterSpec = params;
