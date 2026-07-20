@@ -1,0 +1,316 @@
+name: "Build Artifacts"
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlation_id:
+        description: "Opaque token so an external caller can find this exact run via its name"
+        required: true
+        type: "string"
+      version:
+        description: "Version to build, e.g. 1.0.0 (release) or 1.1.0-SNAPSHOT. Leave empty to use gradle.properties (1.0-SNAPSHOT on main)."
+        required: false
+        type: "string"
+        default: ""
+      release:
+        description: "Release build: also produce -sources and -javadoc jars (required by Maven Central for releases; snapshots skip them)."
+        required: false
+        type: "boolean"
+        default: false
+
+run-name: "Build Artifacts ${{ inputs.correlation_id }}"
+
+permissions:
+  contents: "read"
+
+jobs:
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: "ubuntu-latest"
+            image: "quay.io/pypa/manylinux_2_28_x86_64"
+          - runner: "ubuntu-24.04-arm"
+            image: "quay.io/pypa/manylinux_2_28_aarch64"
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    steps:
+      - name: "Install build dependencies"
+        run: |
+          dnf install -y perl-Time-Piece perl-IPC-Cmd
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-manylinux_2_28-${{ runner.arch }}"
+      - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.6.3"
+          persist-credentials: false
+          path: "openssl"
+      - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        working-directory: "openssl"
+        run: |
+          ./config --prefix=$(pwd)/dist
+          make -j 4
+          make install_sw
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Build headers"
+        working-directory: "jostle"
+        run: |
+          ./gradlew clean compileJava
+      - name: "Build and install the interface"
+        working-directory: "jostle"
+        env:
+          OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
+        run: |
+          ./interface/build.sh
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "release-native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - "macos-15"
+          - "macos-15-intel"
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
+    steps:
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-macos${{ env.MACOSX_DEPLOYMENT_TARGET }}-${{ runner.arch }}"
+      - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.6.3"
+          persist-credentials: false
+          path: "openssl"
+      - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        working-directory: "openssl"
+        run: |
+          ./config --prefix=$(pwd)/dist
+          make -j 4
+          make install_sw
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Build headers"
+        working-directory: "jostle"
+        run: |
+          ./gradlew clean compileJava
+      - name: "Build and install the interface"
+        working-directory: "jostle"
+        env:
+          OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
+        run: |
+          ./interface/build.sh
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "release-native-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ["windows-2025"]
+    runs-on: ${{ matrix.runner }}
+    env:
+      VCVARS: 'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat'
+    steps:
+      - name: "Cache OpenSSL build"
+        id: "cache-openssl"
+        uses: "actions/cache@v6"
+        with:
+          path: "openssl/dist"
+          key: "openssl-3.6.3-hybridcrt-${{ runner.arch }}"
+      - name: "Checkout openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        uses: "actions/checkout@v7"
+        with:
+          repository: "openssl/openssl"
+          ref: "openssl-3.6.3"
+          persist-credentials: false
+          path: "openssl"
+      - name: "Build openssl"
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        working-directory: "openssl"
+        shell: "cmd"
+        run: |
+          call "%VCVARS%"
+          perl Configure VC-WIN64A-HYBRIDCRT --prefix=${{ github.workspace }}\openssl\dist
+          nmake
+          nmake install_sw
+      - name: "Arrange OpenSSL layout for CMake (lib64)"
+        # The CMakeLists Windows branch expects the import lib and DLL at
+        # ${OPENSSL_PREFIX}/lib64/. A stock `nmake install_sw` puts the import
+        # lib in lib\ and the DLL in bin\, so assemble the expected layout
+        # explicitly. Fail loudly if either file is missing.
+        shell: "pwsh"
+        run: |
+          $prefix = "${{ github.workspace }}\openssl\dist"
+          $lib64  = Join-Path $prefix "lib64"
+          New-Item -ItemType Directory -Force -Path $lib64 | Out-Null
+          $impLib = Get-ChildItem -Path $prefix -Recurse -Filter "libcrypto.lib" | Select-Object -First 1
+          $dll    = Get-ChildItem -Path $prefix -Recurse -Filter "libcrypto-3-x64.dll" | Select-Object -First 1
+          if ($null -eq $impLib) { throw "libcrypto.lib not found under $prefix" }
+          if ($null -eq $dll)    { throw "libcrypto-3-x64.dll not found under $prefix" }
+          Copy-Item $impLib.FullName (Join-Path $lib64 "libcrypto.lib") -Force
+          Copy-Item $dll.FullName    (Join-Path $lib64 "libcrypto-3-x64.dll") -Force
+          Get-ChildItem $lib64
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Set up interface build tools (clang-cl, ninja)"
+        shell: "pwsh"
+        run: |
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          choco install ninja -y
+      - name: "Build headers"
+        working-directory: "jostle"
+        shell: "pwsh"
+        run: |
+          .\gradlew.bat clean compileJava
+      - name: "Build and install the interface"
+        working-directory: "jostle"
+        shell: "cmd"
+        env:
+          OPENSSL_PREFIX: "${{ github.workspace }}\\openssl\\dist"
+        run: |
+          call "%VCVARS%"
+          call interface\build.bat
+      - name: "Upload native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "release-native-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
+
+  package-x86_64:
+    needs: ["build-linux", "build-macos", "build-windows"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Download Linux x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "release-native-ubuntu-latest"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download macOS x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "release-native-macos-15-intel"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download Windows x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "release-native-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Build jars"
+        working-directory: "jostle"
+        env:
+          VERSION: "${{ inputs.version }}"
+          RELEASE: "${{ inputs.release }}"
+        run: |
+          TASKS="jar"
+          if [ "$RELEASE" = "true" ]; then TASKS="jar sourcesJar javadocJar"; fi
+          ./gradlew $TASKS ${VERSION:+-Pversion="$VERSION"}
+      - name: "Upload x86_64 jar"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "jostle-jar-x86_64"
+          path: "jostle/jostle/build/libs/*.jar"
+          if-no-files-found: "error"
+          retention-days: 7
+
+  package-aarch64:
+    needs: ["build-linux", "build-macos"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Download Linux aarch64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "release-native-ubuntu-24.04-arm"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download macOS arm64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "release-native-macos-15"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Build jars"
+        working-directory: "jostle"
+        env:
+          VERSION: "${{ inputs.version }}"
+          RELEASE: "${{ inputs.release }}"
+        run: |
+          TASKS="jar"
+          if [ "$RELEASE" = "true" ]; then TASKS="jar sourcesJar javadocJar"; fi
+          ./gradlew $TASKS ${VERSION:+-Pversion="$VERSION"}
+      - name: "Upload aarch64 jar"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "jostle-jar-aarch64"
+          path: "jostle/jostle/build/libs/*.jar"
+          if-no-files-found: "error"
+          retention-days: 7
