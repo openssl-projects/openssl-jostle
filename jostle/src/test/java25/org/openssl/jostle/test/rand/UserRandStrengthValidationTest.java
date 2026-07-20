@@ -51,10 +51,12 @@ import java.security.Security;
  * to assert there — the strength-of helper returns 0 on Java 8 which
  * the SPIs treat as "unknown, accept".
  *
- * <p>Sources that don't expose a strength claim (plain
- * {@code new SecureRandom()}, custom SecureRandom subclasses) report 0
- * here and are accepted — the C-side gate is the safety net for
- * genuinely-weak sources passed through unchecked.
+ * <p>Sources that don't expose a strength claim report 0 here and are
+ * accepted — the C-side gate is the safety net for genuinely-weak sources
+ * passed through unchecked. Note {@code new SecureRandom()} is NOT a
+ * portable example of such a source: it reports 0 on POSIX (NativePRNG) but
+ * a 128-bit DRBG strength on Windows JDK 9+, so the "unknown strength" tests
+ * use {@link #unknownStrengthRandom()} (SHA1PRNG, no DrbgParameters) instead.
  */
 public class UserRandStrengthValidationTest
 {
@@ -115,14 +117,15 @@ public class UserRandStrengthValidationTest
     @Test
     public void mlkem1024_userSuppliedPlainSecureRandom_keyPairGen_accepts() throws Exception
     {
-        // Plain new SecureRandom() — no DrbgParameters, reports 0
-        // strength. We treat that as "unknown" not "insufficient"; the
-        // SPI must NOT pre-emptively reject. (Whether generateKeyPair
-        // subsequently succeeds depends on the platform — that's the
-        // C-side gate's territory.)
+        // An unknown-strength source (no DrbgParameters, reports 0) must be
+        // treated as "unknown" not "insufficient" — the SPI must NOT pre-
+        // emptively reject. (Whether generateKeyPair later succeeds is the
+        // C-side gate's territory.) Uses SHA1PRNG, not new SecureRandom(),
+        // which reports a 128-bit DRBG strength on Windows JDK 9+ and would be
+        // (correctly) rejected for this 256-bit algorithm.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("ML-KEM-1024",
                 JostleProvider.PROVIDER_NAME);
-        kpg.initialize(MLKEMParameterSpec.ml_kem_1024, new SecureRandom());
+        kpg.initialize(MLKEMParameterSpec.ml_kem_1024, unknownStrengthRandom());
     }
 
     @Test
@@ -236,7 +239,7 @@ public class UserRandStrengthValidationTest
     {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("ML-DSA-87",
                 JostleProvider.PROVIDER_NAME);
-        kpg.initialize(MLDSAParameterSpec.ml_dsa_87, new SecureRandom());
+        kpg.initialize(MLDSAParameterSpec.ml_dsa_87, unknownStrengthRandom());
     }
 
 
@@ -287,13 +290,25 @@ public class UserRandStrengthValidationTest
     {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance(SLHDSAParameterSpec.slh_dsa_sha2_256f.getName(),
                 JostleProvider.PROVIDER_NAME);
-        kpg.initialize(SLHDSAParameterSpec.slh_dsa_sha2_256f, new SecureRandom());
+        kpg.initialize(SLHDSAParameterSpec.slh_dsa_sha2_256f, unknownStrengthRandom());
     }
 
 
     // -----------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------
+
+    /**
+     * A SecureRandom of undeclared ("unknown") strength, portably. Plain
+     * {@code new SecureRandom()} reports strength 0 on POSIX (NativePRNG) but a
+     * 128-bit DRBG on Windows JDK 9+, so it can't portably stand in for an
+     * unknown-strength source; SHA1PRNG carries no DrbgParameters and reports 0
+     * on every platform.
+     */
+    private static SecureRandom unknownStrengthRandom() throws NoSuchAlgorithmException
+    {
+        return SecureRandom.getInstance("SHA1PRNG");
+    }
 
     private static KeyPair generateKeyPair(MLKEMParameterSpec spec) throws Exception
     {

@@ -574,6 +574,44 @@ If no SecureRandom is supplied the default from CryptoServicesRegistrar will be 
 
 The handling of SecureRandom in CryptoServicesRegistrar is exactly the same as Bouncy Castle's handling.
 
+### Random strength for post-quantum key generation
+
+The higher-strength post-quantum parameter sets require entropy of matching
+security strength; keying them from a weaker `SecureRandom` would cap their
+effective strength, so Jostle enforces a minimum at key-pair generation:
+
+| Required strength | Parameter sets |
+| ----------------- | -------------- |
+| 128-bit | ML-KEM-512, ML-DSA-44, SLH-DSA-\*-128 |
+| 192-bit | ML-KEM-768, ML-DSA-65, SLH-DSA-\*-192 |
+| 256-bit | ML-KEM-1024, ML-DSA-87, SLH-DSA-\*-256 |
+
+The simplest and most portable approach is to omit the `SecureRandom` and let
+Jostle pick a strength-appropriate DRBG for you:
+
+```java
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("ML-KEM-1024", "JSL");
+kpg.initialize(MLKEMParameterSpec.ml_kem_1024);   // no SecureRandom — works on every platform
+KeyPair kp = kpg.generateKeyPair();
+```
+
+If you pass a `SecureRandom` explicitly, `KeyPairGenerator.initialize` throws
+`InvalidAlgorithmParameterException` when it reports a strength below the
+requirement.
+
+**Windows note.** `new SecureRandom()` is not portable for this. On Linux and
+macOS the JDK default (`NativePRNG`) reports an *unknown* strength and is
+accepted; on Windows (JDK 9+) the default is a **128-bit DRBG** that reports
+128, so `initialize(spec, new SecureRandom())` is rejected for the 192- and
+256-bit parameter sets above. Either omit the `SecureRandom` (recommended) or
+pass an explicitly strength-typed DRBG:
+
+```java
+SecureRandom drbg = SecureRandom.getInstance(
+        "DRBG", DrbgParameters.instantiation(256, DrbgParameters.Capability.RESEED_ONLY, null));
+kpg.initialize(MLKEMParameterSpec.ml_kem_1024, drbg);
+```
+
 ## FIPS support (JSLFIPS)
 
 Alongside the standard `JostleProvider` ("JSL"), Jostle ships `JostleFIPSProvider` ("JSLFIPS") which backs its
