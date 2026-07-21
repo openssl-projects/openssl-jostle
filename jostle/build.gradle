@@ -162,6 +162,16 @@ tasks.register('sourcesJar', Jar) {
 
 jar {
     jar.archiveBaseName = "openssl-jostle"
+
+    // Set on the per-arch package runners (-ParchClassifier=x86_64|aarch64) so the
+    // slim per-arch bundles get a Maven classifier. Unset everywhere else, so dev
+    // builds, the CI test matrix, and files(jar.archiveFile) on the test source
+    // sets keep resolving the classifier-less jar.
+    def archClassifier = findProperty('archClassifier')
+    if (archClassifier) {
+        archiveClassifier = archClassifier
+    }
+
     from sourceSets.main.output
 
     into('META-INF/versions/9') {
@@ -203,6 +213,111 @@ artifacts {
     archives jar
     archives javadocJar
     archives sourcesJar
+}
+
+
+//
+// Maven Central publication.
+//
+// The published coordinate is a POM (packaging=pom) whose real payload is the
+// per-arch classifier bundles (openssl-jostle-<v>-x86_64.jar / -aarch64.jar),
+// each a self-contained multi-release jar carrying that architecture's native
+// libraries for all supported OSes. There is deliberately NO classifier-less
+// main jar: a bare dependency resolves to the POM only, so a consumer MUST
+// request a classifier, e.g. "org.openssl:openssl-jostle:<v>:x86_64".
+//
+// The per-arch bundles are built on separate CI runners (each with only one
+// arch's natives present) and staged into ${rootDir}/staged-jars by the publish
+// job before this runs; sources/javadoc are architecture-independent and built
+// here. Publishing only happens when the four credential env vars are present,
+// so dev builds and the CI test matrix are unaffected.
+//
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = 'org.openssl'            // TODO: confirm the Central namespace you own
+            artifactId = 'openssl-jostle'
+            version = project.version
+
+            // No main jar; this is a pom-packaged umbrella over the bundles.
+            pom.packaging = 'pom'
+
+            // Per-arch bundles, staged by the publish job. Empty (no attachments)
+            // on any build that hasn't staged them, which is fine — only `publish`
+            // consumes this publication.
+            fileTree(dir: "${rootDir}/staged-jars", include: '*.jar').each { f ->
+                def m = (f.name =~ /-(x86_64|aarch64)\.jar$/)
+                if (m) {
+                    artifact(f) { classifier = m[0][1] }
+                }
+            }
+
+            // Recommended (not required under pom packaging): sources + javadoc as
+            // classifier artifacts so IDEs still resolve them. Both tasks already
+            // set archiveClassifier = 'sources' / 'javadoc'.
+            artifact tasks.named('sourcesJar')
+            artifact tasks.named('javadocJar')
+
+            pom {
+                name = 'OpenSSL Jostle'
+                description = 'JCA/JCE provider delegating cryptography to OpenSSL via a native interface'
+                url = 'https://github.com/openssl-projects/openssl-jostle'
+                licenses {
+                    license {
+                        name = 'Apache-2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'openssl'                    // TODO: real developer/org metadata
+                        name = 'OpenSSL Jostle Authors'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/openssl-projects/openssl-jostle.git'
+                    developerConnection = 'scm:git:git@github.com:openssl-projects/openssl-jostle.git'
+                    url = 'https://github.com/openssl-projects/openssl-jostle'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'central'
+            def snapshotUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
+            // TODO: set -PcentralReleaseUrl (or the vanniktech / gradle-nexus plugin)
+            // to your Central release endpoint. The .invalid default fails loudly so
+            // a release publish can never silently push to the wrong place.
+            def releaseUrl = findProperty('centralReleaseUrl') ?: 'https://replace-with-central-release-endpoint.invalid/'
+            url = version.toString().endsWith('SNAPSHOT') ? snapshotUrl : releaseUrl
+            credentials {
+                username = System.getenv('CENTRAL_USERNAME')
+                password = System.getenv('CENTRAL_PASSWORD')
+            }
+        }
+    }
+}
+
+// REQUIRED for pom packaging + hand-attached classifier artifacts: publish a
+// plain Maven POM, NOT Gradle Module Metadata. GMM's variant model does not
+// describe raw classifier attachments, so a Gradle consumer that reads the .module
+// would fail to match a classifier request. Disabling it makes Maven and Gradle
+// both resolve the bundles the classic, predictable way.
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
+}
+
+signing {
+    def signingKey = System.getenv('SIGNING_KEY')            // ASCII-armored PGP private key
+    def signingPassword = System.getenv('SIGNING_PASSWORD')
+    if (signingKey) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign publishing.publications.mavenJava
+    }
 }
 
 
