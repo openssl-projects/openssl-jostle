@@ -262,12 +262,18 @@ jobs:
         working-directory: "jostle"
         # Slim, self-contained per-arch bundle carrying only this arch's natives.
         # The Maven classifier (archClassifier) keeps it from colliding with the
-        # aarch64 bundle under one coordinate. sources/javadoc are arch-independent
-        # and built in the publish job, not here.
+        # aarch64 bundle under one coordinate; it applies to the main jar only, so
+        # sources/javadoc keep their own classifiers. Release builds also produce
+        # the -sources/-javadoc jars Maven Central requires.
         env:
           VERSION: "${{ inputs.version }}"
+          RELEASE: "${{ inputs.release }}"
         run: |
-          ./gradlew jar -ParchClassifier=x86_64 ${VERSION:+-Pversion="$VERSION"}
+          TASKS="jar"
+          if [ "$RELEASE" = "true" ]; then
+            TASKS="jar sourcesJar javadocJar"
+          fi
+          ./gradlew $TASKS -ParchClassifier=x86_64 ${VERSION:+-Pversion="$VERSION"}
       - name: "Upload x86_64 bundle"
         uses: "actions/upload-artifact@v7"
         with:
@@ -303,12 +309,18 @@ jobs:
         working-directory: "jostle"
         # Slim, self-contained per-arch bundle carrying only this arch's natives.
         # The Maven classifier (archClassifier) keeps it from colliding with the
-        # x86_64 bundle under one coordinate. sources/javadoc are arch-independent
-        # and built in the publish job, not here.
+        # x86_64 bundle under one coordinate; it applies to the main jar only, so
+        # sources/javadoc keep their own classifiers. Release builds also produce
+        # the -sources/-javadoc jars Maven Central requires.
         env:
           VERSION: "${{ inputs.version }}"
+          RELEASE: "${{ inputs.release }}"
         run: |
-          ./gradlew jar -ParchClassifier=aarch64 ${VERSION:+-Pversion="$VERSION"}
+          TASKS="jar"
+          if [ "$RELEASE" = "true" ]; then
+            TASKS="jar sourcesJar javadocJar"
+          fi
+          ./gradlew $TASKS -ParchClassifier=aarch64 ${VERSION:+-Pversion="$VERSION"}
       - name: "Upload aarch64 bundle"
         uses: "actions/upload-artifact@v7"
         with:
@@ -316,40 +328,3 @@ jobs:
           path: "jostle/jostle/build/libs/*.jar"
           if-no-files-found: "error"
           retention-days: 7
-
-  # Publishes the pom-packaged coordinate (openssl-jostle) with both per-arch
-  # bundles attached as classifier artifacts, plus arch-independent sources and
-  # javadoc, all GPG-signed. No fat main jar and no native download: the bundles
-  # arrive pre-built from the package jobs. Gated on a release build AND a
-  # protected environment (manual approval + scoped secrets).
-  publish:
-    needs: ["package-x86_64", "package-aarch64"]
-    if: ${{ inputs.release == true }}
-    runs-on: "ubuntu-latest"
-    environment: "maven-central"
-    steps:
-      - name: "Checkout jostle"
-        uses: "actions/checkout@v7"
-        with:
-          persist-credentials: false
-          path: "jostle"
-      - uses: "actions/setup-java@v5"
-        with:
-          distribution: "corretto"
-          java-version: '25'
-      - name: "Stage the per-arch bundles"
-        uses: "actions/download-artifact@v8"
-        with:
-          pattern: "jostle-jar-*"
-          merge-multiple: true
-          path: "jostle/staged-jars"
-      - name: "Build sources + javadoc, sign, and publish"
-        working-directory: "jostle"
-        env:
-          VERSION: "${{ inputs.version }}"
-          CENTRAL_USERNAME: "${{ secrets.CENTRAL_USERNAME }}"
-          CENTRAL_PASSWORD: "${{ secrets.CENTRAL_PASSWORD }}"
-          SIGNING_KEY: "${{ secrets.SIGNING_KEY }}"
-          SIGNING_PASSWORD: "${{ secrets.SIGNING_PASSWORD }}"
-        run: |
-          ./gradlew sourcesJar javadocJar publish ${VERSION:+-Pversion="$VERSION"}
