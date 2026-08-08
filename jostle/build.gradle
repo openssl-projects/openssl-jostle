@@ -224,30 +224,30 @@ artifacts {
 // each a self-contained multi-release jar carrying that architecture's native
 // libraries for all supported OSes. There is deliberately NO classifier-less
 // main jar: a bare dependency resolves to the POM only, so a consumer MUST
-// request a classifier, e.g. "org.openssl:openssl-jostle:<v>:x86_64".
+// request a classifier, e.g. "org.openssl.jostle:openssl-jostle:<v>:x86_64".
 //
 // The per-arch bundles are built on separate CI runners (each with only one
-// arch's natives present) and staged into ${rootDir}/staged-jars by the publish
-// job before this runs; sources/javadoc are architecture-independent and built
-// here. Publishing only happens when the four credential env vars are present,
-// so dev builds and the CI test matrix are unaffected.
+// arch's natives present) and staged into ${rootDir}/staged-jars by the Jenkins
+// publish job — after it has JCE-signed them on the HSM — before this runs;
+// sources/javadoc are architecture-independent and built here. Nothing reads
+// this publication except Gradle's own `publish` task, so dev builds and the
+// CI test matrix are unaffected.
 //
 apply plugin: 'maven-publish'
-apply plugin: 'signing'
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            groupId = 'org.openssl'            // TODO: confirm the Central namespace you own
+            groupId = 'org.openssl.jostle'
             artifactId = 'openssl-jostle'
             version = project.version
 
             // No main jar; this is a pom-packaged umbrella over the bundles.
             pom.packaging = 'pom'
 
-            // Per-arch bundles, staged by the publish job. Empty (no attachments)
-            // on any build that hasn't staged them, which is fine — only `publish`
-            // consumes this publication.
+            // Per-arch bundles, staged by the Jenkins pipeline. Empty (no
+            // attachments) on any build that hasn't staged them, which is fine —
+            // nothing reads this publication except Gradle's `publish` task.
             fileTree(dir: "${rootDir}/staged-jars", include: '*.jar').each { f ->
                 def m = (f.name =~ /-(x86_64|aarch64)\.jar$/)
                 if (m) {
@@ -287,13 +287,15 @@ publishing {
     }
     repositories {
         maven {
-            name = 'central'
-            def snapshotUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
-            // TODO: set -PcentralReleaseUrl (or the vanniktech / gradle-nexus plugin)
-            // to your Central release endpoint. The .invalid default fails loudly so
-            // a release publish can never silently push to the wrong place.
-            def releaseUrl = findProperty('centralReleaseUrl') ?: 'https://replace-with-central-release-endpoint.invalid/'
-            url = version.toString().endsWith('SNAPSHOT') ? snapshotUrl : releaseUrl
+            // Staging only: render the repository tree, upload nothing. The
+            // Jenkins publish job PGP-signs it on the HSM and uploads — releases
+            // as a Central Portal bundle, snapshots to the snapshot repo.
+            // Snapshots stage too, so they cannot skip signing.
+            name = 'staging'
+            // Override to deploy straight to a repository instead.
+            url = findProperty('centralReleaseUrl')
+                    ?: layout.buildDirectory.dir('staging-deploy').get().asFile.toURI().toString()
+            // Only used when the URL above is overridden to a remote.
             credentials {
                 username = System.getenv('CENTRAL_USERNAME')
                 password = System.getenv('CENTRAL_PASSWORD')
@@ -310,16 +312,6 @@ publishing {
 tasks.withType(GenerateModuleMetadata).configureEach {
     enabled = false
 }
-
-signing {
-    def signingKey = System.getenv('SIGNING_KEY')            // ASCII-armored PGP private key
-    def signingPassword = System.getenv('SIGNING_PASSWORD')
-    if (signingKey) {
-        useInMemoryPgpKeys(signingKey, signingPassword)
-        sign publishing.publications.mavenJava
-    }
-}
-
 
 sourceSets {
     //
