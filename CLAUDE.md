@@ -17,8 +17,8 @@ Building requires Java 25; the resulting jar runs on Java 8 → Java 25 via a mu
 Two stages: native interface, then jar. **Both `OPENSSL_PREFIX` and `JAVA_HOME` (Java 25) must be set.**
 
 ```bash
-# Stage 0 (one-off): build OpenSSL 3.5 with --prefix pointing somewhere accessible,
-# then export OPENSSL_PREFIX=<that prefix>.
+# Stage 0 (one-off): build a current mainline OpenSSL 3.6.x with --prefix pointing
+# somewhere accessible, then export OPENSSL_PREFIX=<that prefix>.
 
 # Stage 1: generate JNI headers from current Java sources.
 ./gradlew clean compileJava
@@ -59,7 +59,9 @@ export BC_JDK25=/path/to/jdk-25
 ./gradlew :jostle:test --tests "org.openssl.jostle.test.crypto.AESAgreementTest.testJce_aesCfb_aliasesToCfb128"
 ```
 
-Older JDKs (`BC_JDK8`, `BC_JDK17`, `BC_JDK21`) trigger additional `testNN` tasks if their env vars are set.
+Older JDKs (`BC_JDK8`, `BC_JDK11`, `BC_JDK17`, `BC_JDK21`) trigger additional `testNN` tasks if their env vars are set.
+
+These env vars do double duty. `gradle.properties` sets `org.gradle.java.installations.fromEnv=BC_JDK8,BC_JDK11,BC_JDK17,BC_JDK21,BC_JDK25` with both `auto-detect` and `auto-download` disabled, so each var is *both* the `onlyIf` gate on its `unitTestNN` / `integrationTestNN` task **and** the only way Gradle's toolchain resolver can find that JDK. A var that isn't in that `fromEnv` list (e.g. `BC_JDK22`) is inert — adding a task for a new JDK level means updating `gradle.properties` too.
 
 To switch the native build between OPS-instrumented and not, you must rebuild the C interface — the gradle layer doesn't recompile native code on its own.
 
