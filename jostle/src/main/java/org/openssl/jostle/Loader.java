@@ -50,22 +50,42 @@ public class Loader
     /**
      * Use this property to directly load a library from the file system.
      * Use an integer suffix of "_N" To load multiple libraries, for example:
-     * "-Dorg.bouncycastle.jostle.loader.load_lib_0=path/to/lib"
-     * "-Dorg.bouncycastle.jostle.loader.load_lib_1=/path/to/another_lib"
+     * "-Dorg.openssl.jostle.loader.load_lib_0=path/to/lib"
+     * "-Dorg.openssl.jostle.loader.load_lib_1=/path/to/another_lib"
+     * <p>
+     * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
+     * used in README.md; see {@link #LOAD_NATIVE_LIBS_PADDED_FORMAT}.
      * <p>
      * Remember to also include either the relevant FFI or JNI library
      */
     public static final String LOAD_NATIVE_LIBS_FORMAT = "org.openssl.jostle.loader.load_lib_%d";
 
     /**
+     * Zero-padded spelling of {@link #LOAD_NATIVE_LIBS_FORMAT}, consulted only for indices
+     * below ten and only when the un-padded name is unset - from ten up the two formats
+     * produce the same property name.
+     */
+    public static final String LOAD_NATIVE_LIBS_PADDED_FORMAT = "org.openssl.jostle.loader.load_lib_%02d";
+
+    /**
      * Use this property to directly load a library by its name.
      * * Use an integer suffix of "_N" To load multiple libraries, for example:
-     * * "-Dorg.bouncycastle.jostle.loader.load_name_0=openssl"
-     * * "-Dorg.bouncycastle.jostle.loader.load_name_1=bc_openssl_ffi"
+     * * "-Dorg.openssl.jostle.loader.load_name_0=openssl"
+     * * "-Dorg.openssl.jostle.loader.load_name_1=bc_openssl_ffi"
+     * <p>
+     * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
+     * used in README.md; see {@link #LOAD_LIBS_BY_NAME_PADDED_FORMAT}.
      * <p>
      * Remember to also include either the relevant FFI or JNI library
      */
     public static final String LOAD_LIBS_BY_NAME_FORMAT = "org.openssl.jostle.loader.load_name_%d";
+
+    /**
+     * Zero-padded spelling of {@link #LOAD_LIBS_BY_NAME_FORMAT}, consulted only for indices
+     * below ten and only when the un-padded name is unset - from ten up the two formats
+     * produce the same property name.
+     */
+    public static final String LOAD_LIBS_BY_NAME_PADDED_FORMAT = "org.openssl.jostle.loader.load_name_%02d";
 
     /**
      * Use this property to control the extraction and loading of the interface libs.
@@ -131,6 +151,29 @@ public class Loader
         }
     }
 
+    /**
+     * Resolve one slot of an indexed loader property, accepting both the un-padded spelling
+     * ("_0") the format strings produce and the zero-padded spelling ("_00") documented in
+     * README.md. The un-padded name wins when both are set.
+     * <p>
+     * Only indices below ten need the second lookup - at ten and above "%d" and "%02d"
+     * render the same name, so the padded probe would repeat the first one.
+     *
+     * @param plainFormat  the un-padded format string.
+     * @param paddedFormat the zero-padded format string.
+     * @param index        the slot to resolve.
+     * @return the property value, or null when neither spelling is set.
+     */
+    private static String indexedProperty(String plainFormat, String paddedFormat, int index)
+    {
+        String value = Properties.getPropertyValue(String.format(plainFormat, index));
+        if (value == null && index < 10)
+        {
+            value = Properties.getPropertyValue(String.format(paddedFormat, index));
+        }
+        return value;
+    }
+
     private static void loadImpl()
             throws Throwable
     {
@@ -162,7 +205,7 @@ public class Loader
         //
         for (int t = 0; t < 100; t++)
         {
-            String loadByPath = Properties.getPropertyValue(String.format(LOAD_NATIVE_LIBS_FORMAT, t));
+            String loadByPath = indexedProperty(LOAD_NATIVE_LIBS_FORMAT, LOAD_NATIVE_LIBS_PADDED_FORMAT, t);
             if (loadByPath == null)
             {
                 break;
@@ -182,7 +225,7 @@ public class Loader
         //
         for (int t = 0; t < 100; t++)
         {
-            String name = Properties.getPropertyValue(String.format(LOAD_LIBS_BY_NAME_FORMAT, t));
+            String name = indexedProperty(LOAD_LIBS_BY_NAME_FORMAT, LOAD_LIBS_BY_NAME_PADDED_FORMAT, t);
             if (name == null)
             {
                 break;

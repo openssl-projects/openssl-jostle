@@ -795,6 +795,9 @@ for example:
 The paths must be absolute paths and the loader will count from _00 to _99 it will
 stop when it cannot find a property.
 
+Single digit suffixes are equivalent for the first ten entries, so "_0" and "_00" name the
+same slot; if both are set the un-padded one is used.
+
 Please see:
 
 https://docs.oracle.com/javase/8/docs/api/java/lang/System.html#load-java.lang.String-
@@ -813,6 +816,9 @@ whatever library lookup mechanism it has access to.
  ```
 The name must be compatible with ```System.loadLibrary(name);```. 
 The loader will count from _00 to _99 and, it will stop when it cannot find a property.
+
+Single digit suffixes are equivalent for the first ten entries, so "_0" and "_00" name the
+same slot; if both are set the un-padded one is used.
 
 Please review:
 
