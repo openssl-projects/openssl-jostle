@@ -293,12 +293,17 @@ publishing {
             // Snapshots stage too, so they cannot skip signing.
             name = 'staging'
             // Override to deploy straight to a repository instead.
-            url = findProperty('centralReleaseUrl')
+            def remote = findProperty('centralReleaseUrl')
+            url = remote
                     ?: layout.buildDirectory.dir('staging-deploy').get().asFile.toURI().toString()
-            // Only used when the URL above is overridden to a remote.
-            credentials {
-                username = System.getenv('CENTRAL_USERNAME')
-                password = System.getenv('CENTRAL_PASSWORD')
+            // Only when the URL is remote: Gradle refuses to attach an
+            // authentication scheme to a file:// repository, and validates the
+            // credentials even when it would never use them.
+            if (remote) {
+                credentials {
+                    username = System.getenv('CENTRAL_USERNAME')
+                    password = System.getenv('CENTRAL_PASSWORD')
+                }
             }
         }
     }
