@@ -781,17 +781,6 @@ directory provided by the JVM.
 **This is very useful if your host system is configured to deny
 execution from any binary file (this also includes libraries) that are installed in a temp drive.**
 
-#### Property: "org.openssl.jostle.loader.single_install"
-
-This property will cause the loader to use a fixed install location, if 
-"org.openssl.jostle.loader.install_dir" is defined it will use that otherwise it will the default 
-temp dir defined by the JVM.
-
-This property is useful on systems with multiple instances running that would otherwise
-create multiple copies of the same libraries.
-
-It is advisable to use this with: "org.openssl.jostle.loader.install_dir"
-
 #### Property: "org.openssl.jostle.loader.load_lib_NN"
 This property allows you to override the list of native libraries loaded that are not interface libraries,
 for example:
@@ -846,6 +835,17 @@ be defined by either:
 
 1. org.openssl.jostle.loader.load_name_NN, or
 2. org.openssl.jostle.loader.load_lib_NN
+
+#### Property: "org.openssl.jostle.loader.extract_openssl"
+
+Set this property to false to stop the loader extracting the bundled OpenSSL libraries; the
+default is true. Use it when the OpenSSL libraries are already present on the host and should be
+picked up from there rather than unpacked from the jar, supplying them via
+"org.openssl.jostle.loader.load_name_NN" or "org.openssl.jostle.loader.load_lib_NN".
+
+Note this only suppresses extraction when "org.openssl.jostle.loader.interface" is left at its
+default of "auto". Setting the interface property to any other value ("jni", "ffi" or "none")
+forces extraction to proceed regardless.
 
 #### "org.openssl.jostle.ossl_prov"
 

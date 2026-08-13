@@ -80,8 +80,8 @@ The module name is `org.openssl.jostle.prov`.
 ### Deployment system properties (`-D…`)
 
 1. `org.openssl.jostle.loader.install_dir=<dir>` — extract native libs to `<dir>` instead of the JVM temp dir. **Essential when the temp filesystem is mounted `noexec`** (common enterprise hardening) — otherwise the native load fails.
-2. `org.openssl.jostle.loader.single_install=true` — use a fixed install location (pair with `install_dir`); avoids duplicate extraction when many JVMs run.
-3. `org.openssl.jostle.loader.interface=auto|jni|ffi|none` — force the backend (default `auto`: FFI on Java 25, JNI otherwise).
+2. `org.openssl.jostle.loader.interface=auto|jni|ffi|none` — force the backend (default `auto`: FFI on Java 25, JNI otherwise).
+3. `org.openssl.jostle.loader.extract_openssl=false` — do not extract the bundled OpenSSL libraries (default `true`); supply them instead via `load_name_NN` / `load_lib_NN`. Only takes effect while `loader.interface` is `auto`.
 
 ### Verify the load
 
