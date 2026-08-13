@@ -16,14 +16,11 @@ module org.openssl.jostle.prov {
     exports org.openssl.jostle;
     exports org.openssl.jostle.disposal;
     exports org.openssl.jostle.util;
-    exports org.openssl.jostle.util.test;
     exports org.openssl.jostle.util.ops;
     exports org.openssl.jostle.util.io;
-    exports org.openssl.jostle.util.io.pem;
     exports org.openssl.jostle.util.encoders;
     exports org.openssl.jostle.util.asn1;
     exports org.openssl.jostle.util.asn1.oids;
-    exports org.openssl.jostle.math.raw;
     exports org.openssl.jostle.jcajce;
     exports org.openssl.jostle.jcajce.spec;
     exports org.openssl.jostle.jcajce.provider;
