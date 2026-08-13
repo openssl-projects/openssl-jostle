@@ -12,6 +12,7 @@
 package org.openssl.jostle.test.loader;
 
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.test.JvmProbe;
 
 import java.util.List;
 
@@ -27,12 +28,6 @@ import java.util.List;
  */
 public final class LoaderProbeMain
 {
-    /**
-     * Marker prefix. Lets the caller pick probe output out of a stream that also carries JVM
-     * warnings (restricted native access, etc.) on the same descriptor.
-     */
-    public static final String PREFIX = "PROBE ";
-
     private LoaderProbeMain()
     {
     }
@@ -64,11 +59,6 @@ public final class LoaderProbeMain
 
     private static void emit(String key, String value)
     {
-        //
-        // Flatten newlines: an exception message reaching "message=" must stay on one line
-        // or the caller's line-oriented parse would drop the tail.
-        //
-        String flat = value.replace('\r', ' ').replace('\n', ' ');
-        System.out.println(PREFIX + key + "=" + flat);
+        JvmProbe.emit(key, value);
     }
 }

@@ -15,17 +15,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.test.JvmProbe;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Covers the loader system properties documented in README.md "Available properties":
@@ -61,8 +57,6 @@ public class LoaderPropertyIntegrationTest
     private static final String P_LOAD_NAME = "org.openssl.jostle.loader.load_name_%d";
     private static final String P_LOAD_LIB_PADDED = "org.openssl.jostle.loader.load_lib_%02d";
     private static final String P_LOAD_NAME_PADDED = "org.openssl.jostle.loader.load_name_%02d";
-
-    private static final long PROBE_TIMEOUT_SECONDS = 120L;
 
     //
     // ---------------------------------------------------------------- install_dir
@@ -451,78 +445,12 @@ public class LoaderPropertyIntegrationTest
 
     private static Map<String, String> props(String... keyThenValue)
     {
-        if ((keyThenValue.length & 1) != 0)
-        {
-            throw new IllegalArgumentException("expected key/value pairs");
-        }
-
-        Map<String, String> out = new LinkedHashMap<>();
-        for (int t = 0; t < keyThenValue.length; t += 2)
-        {
-            out.put(keyThenValue[t], keyThenValue[t + 1]);
-        }
-        return out;
+        return JvmProbe.props(keyThenValue);
     }
 
     private static Probe runProbe(Map<String, String> properties) throws Exception
     {
-        List<String> command = new ArrayList<>();
-        command.add(javaExecutable());
-        command.add("-cp");
-        command.add(System.getProperty("java.class.path"));
-        for (Map.Entry<String, String> entry : properties.entrySet())
-        {
-            command.add("-D" + entry.getKey() + "=" + entry.getValue());
-        }
-        command.add(LoaderProbeMain.class.getName());
-
-        ProcessBuilder builder = new ProcessBuilder(command);
-        //
-        // Merge stderr in rather than draining two pipes: JVM warnings land on stderr and
-        // would otherwise risk filling the pipe buffer while we read stdout. The PROBE
-        // prefix separates our lines from theirs.
-        //
-        builder.redirectErrorStream(true);
-
-        Process process = builder.start();
-
-        List<String> output = new ArrayList<>();
-        BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream(), Charset.forName("UTF-8")));
-        try
-        {
-            String line = reader.readLine();
-            while (line != null)
-            {
-                output.add(line);
-                line = reader.readLine();
-            }
-        }
-        finally
-        {
-            reader.close();
-        }
-
-        if (!process.waitFor(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS))
-        {
-            process.destroyForcibly();
-            Assertions.fail("probe JVM did not exit within " + PROBE_TIMEOUT_SECONDS + "s");
-        }
-
-        Assertions.assertEquals(0, process.exitValue(),
-                "probe JVM exited non-zero, output:\n" + join(output));
-
-        return Probe.parse(output);
-    }
-
-    private static String javaExecutable()
-    {
-        File bin = new File(new File(System.getProperty("java.home"), "bin"), "java");
-        if (bin.isFile())
-        {
-            return bin.getAbsolutePath();
-        }
-        return new File(new File(System.getProperty("java.home"), "bin"), "java.exe").getAbsolutePath();
+        return new Probe(JvmProbe.run(LoaderProbeMain.class, properties));
     }
 
     private static List<File> filesUnder(File root)
@@ -563,60 +491,22 @@ public class LoaderPropertyIntegrationTest
         return out;
     }
 
-    private static String join(List<String> lines)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (String line : lines)
-        {
-            sb.append(line).append('\n');
-        }
-        return sb.toString();
-    }
-
     /**
-     * The {@code PROBE key=value} lines a child JVM reported, parsed.
+     * Loader-shaped view over the generic probe result: the indexed {@code lib.N} lines the
+     * loader probe reports are more usefully read as a list.
      */
     private static final class Probe
     {
-        private final Map<String, String> values;
-        private final List<String> raw;
+        private final JvmProbe.Result result;
 
-        private Probe(Map<String, String> values, List<String> raw)
+        private Probe(JvmProbe.Result result)
         {
-            this.values = values;
-            this.raw = raw;
-        }
-
-        static Probe parse(List<String> output)
-        {
-            Map<String, String> values = new LinkedHashMap<>();
-            for (String line : output)
-            {
-                if (!line.startsWith(LoaderProbeMain.PREFIX))
-                {
-                    continue;
-                }
-
-                String body = line.substring(LoaderProbeMain.PREFIX.length());
-                int eq = body.indexOf('=');
-                if (eq < 0)
-                {
-                    continue;
-                }
-
-                values.put(body.substring(0, eq), body.substring(eq + 1));
-            }
-
-            Assertions.assertFalse(values.isEmpty(),
-                    "no probe output recovered, child said:\n" + join(output));
-            return new Probe(values, output);
+            this.result = result;
         }
 
         String get(String key)
         {
-            Assertions.assertTrue(values.containsKey(key),
-                    "probe did not report '" + key + "', child said:\n" + join(raw));
-            return values.get(key);
+            return result.get(key);
         }
 
         List<String> libs()
