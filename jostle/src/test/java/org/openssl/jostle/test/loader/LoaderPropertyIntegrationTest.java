@@ -13,11 +13,11 @@ package org.openssl.jostle.test.loader;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.test.JvmProbe;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,6 +55,19 @@ public class LoaderPropertyIntegrationTest
     //
     private static final String P_LOAD_LIB = "org.openssl.jostle.loader.load_lib_%d";
     private static final String P_LOAD_NAME = "org.openssl.jostle.loader.load_name_%d";
+    //
+    // Native library names differ per platform: posix builds carry a "lib" prefix
+    // (libinterface_jni.dylib / .so) while Windows does not (interface_jni.dll), and OpenSSL
+    // ships as libcrypto.3.dylib / libcrypto.so.3 / libcrypto-3-x64.dll. Match on the
+    // platform-neutral stem so an assertion means the same thing everywhere - and so the
+    // negative assertions below cannot pass vacuously on a platform whose names never
+    // contained the fragment being searched for.
+    //
+    private static final String JNI_LIB = "interface_jni";
+    private static final String FFI_LIB = "interface_ffi";
+    private static final String ANY_INTERFACE_LIB = "interface_";
+    private static final String OPENSSL_LIB = "crypto";
+
     private static final String P_LOAD_LIB_PADDED = "org.openssl.jostle.loader.load_lib_%02d";
     private static final String P_LOAD_NAME_PADDED = "org.openssl.jostle.loader.load_name_%02d";
 
@@ -67,22 +80,30 @@ public class LoaderPropertyIntegrationTest
      * libraries - not merely be reported back by the accessor.
      */
     @Test
-    public void installDir_whenSet_isFixedAndReceivesTheExtractedLibraries(@TempDir File installDir)
-            throws Exception
+    public void installDir_whenSet_isFixedAndReceivesTheExtractedLibraries() throws Exception
     {
-        Probe probe = runProbe(props(
-                P_INSTALL_DIR, installDir.getAbsolutePath(),
-                P_INTERFACE, "jni"));
+        File installDir = createInstallDir("fixed");
+        try
+        {
+            Probe probe = runProbe(props(
+                    P_INSTALL_DIR, installDir.getAbsolutePath(),
+                    P_INTERFACE, "jni"));
 
-        probe.assertLoadSucceeded();
-        Assertions.assertEquals("true", probe.get("fixedInstallDir"));
-        Assertions.assertEquals(installDir.getAbsolutePath(), probe.get("installDir"));
+            probe.assertLoadSucceeded();
+            Assertions.assertEquals("true", probe.get("fixedInstallDir"));
+            Assertions.assertEquals(installDir.getAbsolutePath(), probe.get("installDir"));
 
-        List<File> extracted = filesUnder(installDir);
-        Assertions.assertFalse(extracted.isEmpty(),
-                "fixed install dir received no files: " + installDir);
-        Assertions.assertTrue(namesOf(extracted).toString().contains("libcrypto"),
-                "expected libcrypto under the fixed install dir, found: " + namesOf(extracted));
+            List<File> extracted = filesUnder(installDir);
+            Assertions.assertFalse(extracted.isEmpty(),
+                    "fixed install dir received no files: " + installDir);
+            Assertions.assertTrue(namesOf(extracted).toString().contains(OPENSSL_LIB),
+                    "expected the OpenSSL library under the fixed install dir, found: "
+                            + namesOf(extracted));
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
     }
 
     /**
@@ -91,16 +112,23 @@ public class LoaderPropertyIntegrationTest
      * observable rather than machine dependent.
      */
     @Test
-    public void installDir_whenUnset_fallsBackToJavaIoTmpdir(@TempDir File tmpDir)
-            throws Exception
+    public void installDir_whenUnset_fallsBackToJavaIoTmpdir() throws Exception
     {
-        Probe probe = runProbe(props(
-                "java.io.tmpdir", tmpDir.getAbsolutePath(),
-                P_INTERFACE, "jni"));
+        File tmpDir = createInstallDir("tmpdir");
+        try
+        {
+            Probe probe = runProbe(props(
+                    "java.io.tmpdir", tmpDir.getAbsolutePath(),
+                    P_INTERFACE, "jni"));
 
-        probe.assertLoadSucceeded();
-        Assertions.assertEquals("false", probe.get("fixedInstallDir"));
-        Assertions.assertEquals(tmpDir.getAbsolutePath(), probe.get("installDir"));
+            probe.assertLoadSucceeded();
+            Assertions.assertEquals("false", probe.get("fixedInstallDir"));
+            Assertions.assertEquals(tmpDir.getAbsolutePath(), probe.get("installDir"));
+        }
+        finally
+        {
+            deleteBestEffort(tmpDir);
+        }
     }
 
     //
@@ -115,9 +143,9 @@ public class LoaderPropertyIntegrationTest
         probe.assertLoadSucceeded();
         Assertions.assertEquals("JNI", probe.get("interfaceType"));
         Assertions.assertEquals("false", probe.get("isFFI"));
-        Assertions.assertTrue(probe.anyLibContains("libinterface_jni"),
+        Assertions.assertTrue(probe.anyLibContains(JNI_LIB),
                 "JNI interface library not extracted: " + probe.libs());
-        Assertions.assertFalse(probe.anyLibContains("libinterface_ffi"),
+        Assertions.assertFalse(probe.anyLibContains(FFI_LIB),
                 "FFI interface library extracted under strategy 'jni': " + probe.libs());
     }
 
@@ -129,9 +157,9 @@ public class LoaderPropertyIntegrationTest
         probe.assertLoadSucceeded();
         Assertions.assertEquals("FFI", probe.get("interfaceType"));
         Assertions.assertEquals("true", probe.get("isFFI"));
-        Assertions.assertTrue(probe.anyLibContains("libinterface_ffi"),
+        Assertions.assertTrue(probe.anyLibContains(FFI_LIB),
                 "FFI interface library not extracted: " + probe.libs());
-        Assertions.assertFalse(probe.anyLibContains("libinterface_jni"),
+        Assertions.assertFalse(probe.anyLibContains(JNI_LIB),
                 "JNI interface library extracted under strategy 'ffi': " + probe.libs());
     }
 
@@ -148,9 +176,9 @@ public class LoaderPropertyIntegrationTest
         probe.assertLoadSucceeded();
         Assertions.assertEquals("none", probe.get("interfaceType"));
         Assertions.assertEquals("false", probe.get("isFFI"));
-        Assertions.assertTrue(probe.anyLibContains("libcrypto"),
+        Assertions.assertTrue(probe.anyLibContains(OPENSSL_LIB),
                 "OpenSSL should still be extracted under strategy 'none': " + probe.libs());
-        Assertions.assertFalse(probe.anyLibContains("libinterface_"),
+        Assertions.assertFalse(probe.anyLibContains(ANY_INTERFACE_LIB),
                 "no interface library may be extracted under strategy 'none': " + probe.libs());
     }
 
@@ -214,9 +242,9 @@ public class LoaderPropertyIntegrationTest
                 P_INTERFACE, "jni"));
 
         probe.assertLoadSucceeded();
-        Assertions.assertTrue(probe.anyLibContains("libcrypto"),
+        Assertions.assertTrue(probe.anyLibContains(OPENSSL_LIB),
                 "an explicit strategy re-enables extraction: " + probe.libs());
-        Assertions.assertTrue(probe.anyLibContains("libinterface_jni"),
+        Assertions.assertTrue(probe.anyLibContains(JNI_LIB),
                 "an explicit strategy re-enables extraction: " + probe.libs());
     }
 
@@ -244,21 +272,30 @@ public class LoaderPropertyIntegrationTest
      * specific library name or path.
      */
     @Test
-    public void loadLib_absolutePath_isLoadedAndReported(@TempDir File installDir) throws Exception
+    public void loadLib_absolutePath_isLoadedAndReported() throws Exception
     {
-        File library = extractOnceAndFind(installDir, "libcrypto");
+        File installDir = createInstallDir("loadlib");
+        try
+        {
+            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
 
-        //
-        // auto + extract_openssl=false skips the extraction block entirely, so the only
-        // library the child loads is the one named here.
-        //
-        Probe probe = runProbe(props(
-                P_EXTRACT_OPENSSL, "false",
-                String.format(P_LOAD_LIB, 0), library.getAbsolutePath()));
+            //
+            // auto + extract_openssl=false skips the extraction block entirely, so the only
+            // library the child loads is the one named here.
+            //
+            Probe probe = runProbe(props(
+                    P_EXTRACT_OPENSSL, "false",
+                    String.format(P_LOAD_LIB, 0), library.getAbsolutePath()));
 
-        probe.assertLoadSucceeded();
-        Assertions.assertEquals("1", probe.get("libCount"), "expected exactly one load: " + probe.libs());
-        Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"));
+            probe.assertLoadSucceeded();
+            Assertions.assertEquals("1", probe.get("libCount"),
+                    "expected exactly one load: " + probe.libs());
+            Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"));
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
     }
 
     @Test
@@ -328,17 +365,26 @@ public class LoaderPropertyIntegrationTest
      * never looked at "_00".
      */
     @Test
-    public void loadLib_zeroPaddedIndex_isAlsoAccepted(@TempDir File installDir) throws Exception
+    public void loadLib_zeroPaddedIndex_isAlsoAccepted() throws Exception
     {
-        File library = extractOnceAndFind(installDir, "libcrypto");
+        File installDir = createInstallDir("padded");
+        try
+        {
+            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
 
-        Probe probe = runProbe(props(
-                P_EXTRACT_OPENSSL, "false",
-                String.format(P_LOAD_LIB_PADDED, 0), library.getAbsolutePath()));
+            Probe probe = runProbe(props(
+                    P_EXTRACT_OPENSSL, "false",
+                    String.format(P_LOAD_LIB_PADDED, 0), library.getAbsolutePath()));
 
-        probe.assertLoadSucceeded();
-        Assertions.assertEquals("1", probe.get("libCount"), "expected exactly one load: " + probe.libs());
-        Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"));
+            probe.assertLoadSucceeded();
+            Assertions.assertEquals("1", probe.get("libCount"),
+                    "expected exactly one load: " + probe.libs());
+            Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"));
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
     }
 
     @Test
@@ -362,20 +408,28 @@ public class LoaderPropertyIntegrationTest
      * it drifting: the fallback must stay a fallback.
      */
     @Test
-    public void loadLib_unPaddedTakesPrecedenceOverZeroPadded(@TempDir File installDir)
-            throws Exception
+    public void loadLib_unPaddedTakesPrecedenceOverZeroPadded() throws Exception
     {
-        File library = extractOnceAndFind(installDir, "libcrypto");
+        File installDir = createInstallDir("precedence");
+        try
+        {
+            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
 
-        Probe probe = runProbe(props(
-                P_EXTRACT_OPENSSL, "false",
-                String.format(P_LOAD_LIB, 0), library.getAbsolutePath(),
-                String.format(P_LOAD_LIB_PADDED, 0), "/no/such/directory/libnothing.so"));
+            Probe probe = runProbe(props(
+                    P_EXTRACT_OPENSSL, "false",
+                    String.format(P_LOAD_LIB, 0), library.getAbsolutePath(),
+                    String.format(P_LOAD_LIB_PADDED, 0), "/no/such/directory/libnothing.so"));
 
-        probe.assertLoadSucceeded();
-        Assertions.assertEquals("1", probe.get("libCount"), "expected exactly one load: " + probe.libs());
-        Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"),
-                "the un-padded value must win over the zero-padded one");
+            probe.assertLoadSucceeded();
+            Assertions.assertEquals("1", probe.get("libCount"),
+                    "expected exactly one load: " + probe.libs());
+            Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"),
+                    "the un-padded value must win over the zero-padded one");
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
     }
 
     /**
@@ -441,6 +495,45 @@ public class LoaderPropertyIntegrationTest
         Assertions.fail("no '" + nameFragment + "' library extracted under " + installDir
                 + ", found: " + namesOf(filesUnder(installDir)));
         return null;
+    }
+
+    /**
+     * A directory for the child to extract into.
+     * <p>
+     * Deliberately not JUnit's {@code @TempDir}: the probe JVM {@code System.load}s whatever
+     * it extracts, and Windows keeps a loaded DLL locked in a way that can outlive the child
+     * process, so the directory is often undeletable when the test ends. {@code @TempDir}
+     * treats that as a test failure, and the JUnit in use here (5.7.1) predates
+     * {@code CleanupMode}, which would otherwise soften it. Cleanup is therefore best-effort:
+     * a leftover directory is untidy, not a failure, and it lands in the same temp area the
+     * loader itself extracts into during normal operation.
+     */
+    private static File createInstallDir(String label) throws IOException
+    {
+        File dir = File.createTempFile("jostle-loader-" + label + "-", "");
+        if (!dir.delete() || !dir.mkdirs())
+        {
+            throw new IOException("could not create install dir at " + dir);
+        }
+        return dir;
+    }
+
+    private static void deleteBestEffort(File file)
+    {
+        File[] children = file.listFiles();
+        if (children != null)
+        {
+            for (File child : children)
+            {
+                deleteBestEffort(child);
+            }
+        }
+
+        //
+        // Ignore the result: on Windows a still-mapped DLL cannot be removed, and that is not
+        // something the test under way should fail for.
+        //
+        file.delete();
     }
 
     private static Map<String, String> props(String... keyThenValue)
