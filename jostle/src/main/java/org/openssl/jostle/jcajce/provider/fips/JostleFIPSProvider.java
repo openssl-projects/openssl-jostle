@@ -232,6 +232,11 @@ public final class JostleFIPSProvider
         new ProvFIPSDSA().configure(this);
         new ProvFIPSDH().configure(this);
         new ProvFIPSKDF().configure(this);
+        // CertificateFactory: structure parsing is not a cryptographic service;
+        // the registration is provider-bound so keys and verification flowing
+        // from parsed certificates stay inside the FIPS boundary (fail-loud on
+        // algorithms the module does not serve). See ProvFIPSX509.
+        new ProvFIPSX509().configure(this);
         // No XDH registrar: X25519/X448 key agreement is a non-approved
         // service of the FIPS module per its FIPS 140-3 certification
         // (cert #4985, security policy Tables 8/13). JSL serves XDH; further

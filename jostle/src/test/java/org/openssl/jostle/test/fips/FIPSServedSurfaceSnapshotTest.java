@@ -59,6 +59,7 @@ public class FIPSServedSurfaceSnapshotTest
             "AlgorithmParameters.DSA",
             "AlgorithmParameters.EC",
             "AlgorithmParameters.GCM",
+            "CertificateFactory.X.509",
             "Cipher.2.16.840.1.101.3.4.1.2",
             "Cipher.2.16.840.1.101.3.4.1.22",
             "Cipher.2.16.840.1.101.3.4.1.25",

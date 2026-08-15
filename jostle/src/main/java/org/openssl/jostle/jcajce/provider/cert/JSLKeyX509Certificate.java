@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Principal;
 import java.security.Provider;
+import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
@@ -32,20 +33,55 @@ import java.util.Set;
 
 /**
  * Wraps a JDK-parsed {@link X509Certificate} and re-derives its public key through
- * the JSL provider's KeyFactory, so that JSL's Signature SPIs (which require their
- * own key types) accept the certificate's public key. Everything else delegates to
- * the wrapped certificate.
+ * the named Jostle provider's KeyFactory, so that provider's Signature SPIs (which
+ * require their own key types) accept the certificate's public key. Everything else
+ * delegates to the wrapped certificate.
+ *
+ * <p>Two policies, selected by the {@code providerBound} flag:</p>
+ * <ol>
+ * <li><b>Lenient</b> (the JSL factory): when the provider cannot re-derive the key
+ * (no KeyFactory for the algorithm, or the import fails), fall back to the
+ * JDK-provided key.</li>
+ * <li><b>Provider-bound</b> (the JSLFIPS factory): never fall back — a silent
+ * JDK key would route subsequent cryptographic operations outside the provider
+ * boundary the caller chose, so {@link #getPublicKey()} fails loud with a
+ * {@link ProviderException}, and the one-argument {@link #verify(PublicKey)} pins
+ * signature verification to the provider instead of leaving it to JCA provider
+ * search. The two-argument verify overloads name a provider explicitly, so the
+ * caller's deliberate choice is honoured unchanged.</li>
+ * </ol>
  */
 class JSLKeyX509Certificate
     extends X509Certificate
 {
     private final X509Certificate delegate;
     private final String providerName;
+    private final boolean providerBound;
 
-    JSLKeyX509Certificate(X509Certificate delegate, String providerName)
+    JSLKeyX509Certificate(X509Certificate delegate, String providerName, boolean providerBound)
     {
         this.delegate = delegate;
         this.providerName = providerName;
+        this.providerBound = providerBound;
+    }
+
+    /**
+     * Whether this wrapper already carries the given policy — used by the
+     * factory's re-wrap fast-path so a certificate wrapped by one Jostle factory
+     * (e.g. the lenient JSL one) is re-wrapped rather than passed through when it
+     * flows into a factory with a different provider or binding.
+     */
+    boolean hasPolicy(String forProvider, boolean bound)
+    {
+        return providerBound == bound && providerName.equals(forProvider);
+    }
+
+    /**
+     * The JDK-parsed certificate this wrapper delegates to.
+     */
+    X509Certificate unwrap()
+    {
+        return delegate;
     }
 
     public PublicKey getPublicKey()
@@ -54,6 +90,12 @@ class JSLKeyX509Certificate
         byte[] encoded = key.getEncoded();
         if (encoded == null)
         {
+            if (providerBound)
+            {
+                throw new ProviderException(
+                    "certificate public key (" + key.getAlgorithm()
+                        + ") has no encoding to re-derive through provider " + providerName);
+            }
             return key;
         }
 
@@ -63,16 +105,35 @@ class JSLKeyX509Certificate
         // SPKI OID aliases (e.g. 1.2.840.113549.1.1.1 for RSA, 1.2.840.10045.2.1
         // for EC), whereas getAlgorithm() returns a provider-specific name that
         // may not match any registered KeyFactory.
-        PublicKey jslKey = importKey(subjectPublicKeyInfoAlgorithmOid(encoded), encoded);
+        String oid = subjectPublicKeyInfoAlgorithmOid(encoded);
+        PublicKey jslKey = importKey(oid, encoded);
         if (jslKey == null)
         {
             // No KeyFactory registered under the OID (e.g. an algorithm JSL only
             // registers by name) — fall back to the JDK key's algorithm name.
             jslKey = importKey(key.getAlgorithm(), encoded);
         }
-        // The JSL provider has no KeyFactory for this algorithm (or can't import
+        if (jslKey != null)
+        {
+            return jslKey;
+        }
+        if (providerBound)
+        {
+            // Fail loud rather than hand back a key that would route crypto
+            // outside the provider boundary. Two arms reach here and the
+            // message must be honest about both: no KeyFactory registered for
+            // the algorithm at all (e.g. EdDSA on a provider serving none), or
+            // a KeyFactory exists but refused the key (e.g. an EC key on a
+            // curve the FIPS module does not serve).
+            throw new ProviderException(
+                "provider " + providerName
+                    + " cannot re-derive the certificate public key (algorithm "
+                    + (oid != null ? oid : key.getAlgorithm())
+                    + "): no KeyFactory for the algorithm, or the key was refused");
+        }
+        // The provider has no KeyFactory for this algorithm (or can't import
         // it); fall back to the JDK-provided key.
-        return jslKey != null ? jslKey : key;
+        return key;
     }
 
     /**
@@ -337,6 +398,16 @@ class JSLKeyX509Certificate
     public void verify(PublicKey key)
         throws CertificateException, NoSuchAlgorithmException, InvalidKeyException, NoSuchProviderException, SignatureException
     {
+        if (providerBound)
+        {
+            // Pin verification to the provider rather than leaving it to JCA
+            // provider search (which this provider would win only via
+            // SupportedKeyClasses filtering). The delegate resolves the
+            // Signature from the named provider and handles any signature
+            // algorithm parameters (e.g. RSASSA-PSS) itself.
+            delegate.verify(key, providerName);
+            return;
+        }
         delegate.verify(key);
     }
 

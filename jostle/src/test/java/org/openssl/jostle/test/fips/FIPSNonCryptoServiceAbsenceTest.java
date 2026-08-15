@@ -18,17 +18,21 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.Security;
-import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 
 /**
  * Provider-scope lock: the FIPS provider ("JSLFIPS") deliberately does NOT
- * register the PKCS12 KeyStore or the X.509 CertificateFactory that the
- * non-FIPS provider ("JSL") registers, because {@code JostleFIPSProvider.setup}
- * does not invoke {@code ProvKS} / {@code ProvX509}. This pins that deliberate
- * scope: {@link KeyStore#getInstance(String, String)} and
- * {@link CertificateFactory#getInstance(String, String)} against JSLFIPS throw,
- * while the same calls against JSL succeed in the same JVM. Gated on
+ * register the PKCS12 KeyStore that the non-FIPS provider ("JSL") registers,
+ * because {@code JostleFIPSProvider.setup} does not invoke {@code ProvKS}.
+ * This pins that deliberate scope: {@link KeyStore#getInstance(String, String)}
+ * against JSLFIPS throws while the same call against JSL succeeds in the same
+ * JVM.
+ *
+ * <p>The X.509 CertificateFactory was originally excluded on the same
+ * reasoning, then deliberately added back via {@code ProvFIPSX509} in
+ * provider-bound mode (keys and verification flowing from parsed certificates
+ * stay inside the FIPS boundary); its presence is asserted positively here and
+ * its behaviour is owned by {@code FIPSX509CertificateFactoryTest}. Gated on
  * TEST_FIPS_LIB; skipped when unset.
  *
  * @see org.openssl.jostle.jcajce.provider.ProvKS
@@ -50,7 +54,7 @@ public class FIPSNonCryptoServiceAbsenceTest
     }
 
     @Test
-    public void keyStoreAndCertificateFactoryAbsentFromJslfips()
+    public void keyStoreAbsentAndCertificateFactoryPresentOnJslfips()
         throws Exception
     {
         ensureProviders();
@@ -69,12 +73,12 @@ public class FIPSNonCryptoServiceAbsenceTest
         Assertions.assertTrue(combinedMessage(ksEx).contains(PKCS12_KEYSTORE),
                 "KeyStore absence message should name the service: " + combinedMessage(ksEx));
 
-        // JSLFIPS does not register X.509: CertificateFactory.getInstance
-        // surfaces a CertificateException.
-        CertificateException certEx = Assertions.assertThrows(CertificateException.class,
-                () -> CertificateFactory.getInstance(X509_CERT_FACTORY, JostleFIPSProvider.PROVIDER_NAME));
-        Assertions.assertTrue(combinedMessage(certEx).contains(X509_CERT_FACTORY),
-                "CertificateFactory absence message should name the service: " + combinedMessage(certEx));
+        // JSLFIPS DOES register X.509 (ProvFIPSX509, provider-bound): its
+        // presence is part of the pinned scope, behaviour is covered by
+        // FIPSX509CertificateFactoryTest.
+        Assertions.assertNotNull(
+                CertificateFactory.getInstance(X509_CERT_FACTORY, JostleFIPSProvider.PROVIDER_NAME),
+                "JSLFIPS must serve the X.509 CertificateFactory");
 
         // Same JVM: the non-FIPS provider DOES serve both, proving the absence
         // above is a deliberate FIPS-provider scope decision, not a build-wide

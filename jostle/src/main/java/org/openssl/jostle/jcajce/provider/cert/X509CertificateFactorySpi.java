@@ -44,9 +44,26 @@ public class X509CertificateFactorySpi
     extends CertificateFactorySpi
 {
     private final CertificateFactory delegate;
+    private final String providerName;
+    private final boolean providerBound;
 
     public X509CertificateFactorySpi()
     {
+        this(JostleProvider.PROVIDER_NAME, false);
+    }
+
+    /**
+     * @param providerName  the Jostle provider certificates' keys are re-derived
+     *                      through (see {@link JSLKeyX509Certificate}).
+     * @param providerBound when true, never fall back outside {@code providerName}:
+     *                      key re-derivation failure is a loud error instead of a
+     *                      JDK-key fallback, and one-argument verify is pinned to
+     *                      the provider. Used by the FIPS registration.
+     */
+    public X509CertificateFactorySpi(String providerName, boolean providerBound)
+    {
+        this.providerName = providerName;
+        this.providerBound = providerBound;
         try
         {
             this.delegate = CertificateFactory.getInstance("X.509", "SUN");
@@ -80,20 +97,30 @@ public class X509CertificateFactorySpi
     }
 
     /**
-     * Re-wrap an X.509 certificate so its getPublicKey() returns a JSL-provider key
-     * (JSL Signature SPIs require their own key types). Non-X.509 results pass through.
+     * Re-wrap an X.509 certificate so its getPublicKey() returns a key from this
+     * factory's provider (its Signature SPIs require their own key types).
+     * Non-X.509 results pass through.
      */
-    private static Certificate wrap(Certificate c)
+    private Certificate wrap(Certificate c)
     {
-        // Fast-path: if it's already our wrapper, return unchanged to avoid double-wrapping.
+        // Fast-path: already wrapped with this factory's policy — return
+        // unchanged. A wrapper carrying a different provider or binding (e.g. a
+        // lenient JSL-wrapped cert flowing into the provider-bound FIPS factory
+        // via engineGenerateCertPath(List)) is re-wrapped from its delegate so
+        // this factory's policy always governs what it returns.
         if (c instanceof JSLKeyX509Certificate)
         {
-            return c;
+            JSLKeyX509Certificate wrapped = (JSLKeyX509Certificate) c;
+            if (wrapped.hasPolicy(providerName, providerBound))
+            {
+                return c;
+            }
+            return new JSLKeyX509Certificate(wrapped.unwrap(), providerName, providerBound);
         }
 
         if (c instanceof X509Certificate)
         {
-            return new JSLKeyX509Certificate((X509Certificate) c, JostleProvider.PROVIDER_NAME);
+            return new JSLKeyX509Certificate((X509Certificate) c, providerName, providerBound);
         }
         return c;
     }
