@@ -206,7 +206,7 @@ public class CCMCipherSpi extends CipherSpi
         }
         try
         {
-            AlgorithmParameters params = AlgorithmParameters.getInstance("CCM");
+            AlgorithmParameters params = JostleAlgorithmParameters.getInstance("CCM", cipherNI.providerName());
             params.init(new GCMParameterSpec(tagLenBytes * 8, iv));
             return params;
         }

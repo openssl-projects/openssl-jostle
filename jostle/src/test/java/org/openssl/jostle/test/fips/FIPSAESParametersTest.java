@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Cipher;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.SecureRandom;
+import java.security.Security;
 
 /**
  * AES parameter/AEAD-state <b>behaviour</b> through the FIPS provider ("JSLFIPS"),
@@ -350,5 +352,61 @@ public class FIPSAESParametersTest
         ok.init(valid);
         Assertions.assertEquals(12, ok.getParameterSpec(GCMParameterSpec.class).getIV().length,
                 "the well-formed baseline encoding must parse");
+    }
+
+    /**
+     * An AEAD cipher's {@code getParameters()} must come from the SAME provider
+     * that produced the cipher — including when JSL is registered alongside
+     * JSLFIPS.
+     *
+     * <p>This is a regression guard. The AEAD SPIs originally resolved
+     * {@code AlgorithmParameters.getInstance(alg)} unpinned, which handed the
+     * object to whichever provider led the JCA search order (SunJCE for "GCM",
+     * in a default JVM). Pinning it to "a Jostle provider" then still returned
+     * JSL's instance to a JSLFIPS cipher whenever both were registered. The
+     * parameters classes carry no cryptography — they are DER codecs — so the
+     * bug was invisible to any functional test; only provider attribution
+     * exposes it, and only in the dual-provider deployment.</p>
+     */
+    @Test
+    public void aeadParameters_comeFromTheCiphersOwnProvider()
+        throws Exception
+    {
+        ensureProviders();
+        // Both providers registered simultaneously — the case that regressed.
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+        Assertions.assertNotNull(Security.getProvider(JostleProvider.PROVIDER_NAME),
+                "precondition: JSL must be registered alongside JSLFIPS");
+
+        SecureRandom random = seededRandom("aeadParameters_comeFromTheCiphersOwnProvider");
+        SecretKey key = aes256Key(random);
+
+        for (String transformation : new String[]{GCM, CCM})
+        {
+            int tagBits = CCM.equals(transformation) ? 64 : 128;
+            byte[] nonce = new byte[12];
+            random.nextBytes(nonce);
+
+            Cipher cipher = Cipher.getInstance(transformation, FIPS);
+            cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagBits, nonce));
+            AlgorithmParameters params = cipher.getParameters();
+
+            Assertions.assertNotNull(params, transformation + ": AEAD cipher must expose parameters");
+            Assertions.assertEquals(FIPS, params.getProvider().getName(),
+                    transformation + ": parameters came from " + params.getProvider().getName()
+                            + ", not the cipher's own provider");
+
+            // The parameters must still drive a decrypt on the same provider.
+            byte[] msg = new byte[29];
+            random.nextBytes(msg);
+            byte[] ct = cipher.doFinal(msg);
+            Cipher dec = Cipher.getInstance(transformation, FIPS);
+            dec.init(Cipher.DECRYPT_MODE, key, params);
+            Assertions.assertArrayEquals(msg, dec.doFinal(ct),
+                    transformation + ": round-trip through the exposed parameters failed");
+        }
     }
 }

@@ -255,7 +255,7 @@ class BlockCipherSpi extends CipherSpi
                     // AEAD tag+nonce; OCB has no JCE-standard parameters type, so
                     // it reuses GCM's. The tag length is preserved on round-trip
                     // (a plain IvParameterSpec would drop it).
-                    params = AlgorithmParameters.getInstance("GCM");
+                    params = JostleAlgorithmParameters.getInstance("GCM", blockCipherNi.providerName());
                     params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
                 }
                 else

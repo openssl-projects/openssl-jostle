@@ -13,6 +13,28 @@ package org.openssl.jostle.jcajce.provider;
 
 public interface DefaultServiceNI
 {
+    /**
+     * The Jostle provider this NI's interface library belongs to.
+     *
+     * <p>An NI instance is bound at construction to one interface library, and
+     * so to one provider and one {@code OSSL_LIB_CTX} — the base library for
+     * {@code NISelector}'s instances, the FIPS library for
+     * {@code FIPSNISelector}'s. An SPI holds its NI but is otherwise given no
+     * way to learn which provider registered it, so this is how a JCE object
+     * an SPI hands back (an {@code AlgorithmParameters}, say) can be resolved
+     * from the same provider the caller asked for rather than from whichever
+     * Jostle provider happens to be first in the JCA search order.</p>
+     *
+     * <p>Defaults to the base provider; the FIPS NI implementations override
+     * it. Deliberately a per-instance method rather than a comparison against
+     * {@code FIPSNISelector}'s static fields — touching those would trigger
+     * that class's initialiser, performing the FIPS native load, in
+     * deployments that never registered the FIPS provider.</p>
+     */
+    default String providerName()
+    {
+        return JostleProvider.PROVIDER_NAME;
+    }
 
     default long baseErrorHandler(long code)
     {
