@@ -1,5 +1,5 @@
 /*
- *  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
+ *  Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
  *
  *  Licensed under the Apache License 2.0 (the "License"). You may not use
  *  this file except in compliance with the License.  You can obtain a copy
@@ -11,7 +11,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
-import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
+import org.openssl.jostle.jcajce.spec.Argon2KeySpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -22,20 +22,38 @@ import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
-public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
+/**
+ * Argon2 (RFC 9106) SecretKeyFactory, registered as {@code ARGON2} on the
+ * non-FIPS provider only — Argon2 is not an approved service of the FIPS
+ * module.
+ *
+ * <p>The type (Argon2d / Argon2i / Argon2id) and version travel in the
+ * {@link Argon2KeySpec} rather than in the service name, matching how
+ * BouncyCastle registers its own single {@code ARGON2} factory.</p>
+ */
+public class Argon2SecretKeyFactory extends SecretKeyFactorySpi
 {
+    /**
+     * Upper bound on the memory cost, rejected here rather than left to the
+     * native allocation: {@code memory} is kibibytes and a caller-controlled
+     * int, so anything approaching Integer.MAX_VALUE asks OpenSSL for terabytes.
+     * 4 GiB is far above any legitimate password-hashing configuration and
+     * still leaves the KiB→byte multiply well inside a 64-bit size_t.
+     */
+    private static final int MAX_MEMORY_KIB = 4 * 1024 * 1024;
+
     // Instance field, not a NISelector static (NISelector for JSL,
-    // FIPSNISelector for JSLFIPS) — matches PBKDF2/HKDF so scrypt runs on the
-    // injected NI's library rather than being structurally pinned to the
-    // non-FIPS libcrypto if it were ever registered for a FIPS provider.
+    // FIPSNISelector for JSLFIPS) — matches scrypt/PBKDF2/HKDF so the derive
+    // runs on the injected NI's library rather than being structurally pinned
+    // to the non-FIPS libcrypto.
     private final MemoryHardKdfNI kdfNI;
 
-    public ScryptSecretKeyFactory()
+    public Argon2SecretKeyFactory()
     {
         this(NISelector.MemoryHardKdfNI);
     }
 
-    public ScryptSecretKeyFactory(MemoryHardKdfNI kdfNI)
+    public Argon2SecretKeyFactory(MemoryHardKdfNI kdfNI)
     {
         this.kdfNI = kdfNI;
     }
@@ -43,47 +61,17 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
     @Override
     protected SecretKey engineGenerateSecret(KeySpec keySpec) throws InvalidKeySpecException
     {
-        char[] password;
-        byte[] salt;
-        int costParameter, blockSize, parallelizationParameter, keyLengthBits;
+        if (!(keySpec instanceof Argon2KeySpec))
+        {
+            throw new InvalidKeySpecException("unsupported KeySpec "
+                    + (keySpec == null ? "null" : keySpec.getClass().getName())
+                    + ", expected " + Argon2KeySpec.class.getName());
+        }
 
-        if (keySpec instanceof ScryptKeySpec)
-        {
-            ScryptKeySpec spec = (ScryptKeySpec) keySpec;
-            password = spec.getPassword();
-            salt = spec.getSalt();
-            costParameter = spec.getCostParameter();
-            blockSize = spec.getBlockSize();
-            parallelizationParameter = spec.getParallelizationParameter();
-            keyLengthBits = spec.getKeyLength();
-        }
-        else if (keySpec != null)
-        {
-            // Accept any structurally-compatible ScryptKeySpec (notably BouncyCastle's
-            // org.bouncycastle.jcajce.spec.ScryptKeySpec) without a compile-time dependency
-            // on it, so high-level PBES2/PKCS#8/PKCS#12 builders that construct that type can
-            // derive keys through this native scrypt KDF. Same accessor contract, same units
-            // (keyLength in bits); the password is UTF-8 encoded below either way. A spec
-            // missing any accessor surfaces as InvalidKeySpecException from the reflective call.
-            Class<?> cls = keySpec.getClass();
-            try
-            {
-                password = (char[]) cls.getMethod("getPassword").invoke(keySpec);
-                salt = (byte[]) cls.getMethod("getSalt").invoke(keySpec);
-                costParameter = (Integer) cls.getMethod("getCostParameter").invoke(keySpec);
-                blockSize = (Integer) cls.getMethod("getBlockSize").invoke(keySpec);
-                parallelizationParameter = (Integer) cls.getMethod("getParallelizationParameter").invoke(keySpec);
-                keyLengthBits = (Integer) cls.getMethod("getKeyLength").invoke(keySpec);
-            }
-            catch (ReflectiveOperationException | ClassCastException | NullPointerException e)
-            {
-                throw new InvalidKeySpecException("unsupported KeySpec " + cls.getName(), e);
-            }
-        }
-        else
-        {
-            throw new InvalidKeySpecException("unsupported KeySpec null");
-        }
+        Argon2KeySpec spec = (Argon2KeySpec) keySpec;
+        char[] password = spec.getPassword();
+        byte[] salt = spec.getSalt();
+        int keyLengthBits = spec.getKeyLength();
 
         // A zero/negative key length would silently mint an empty key (or throw
         // a raw NegativeArraySizeException below); require a positive,
@@ -96,39 +84,49 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         {
             throw new InvalidKeySpecException("key length must be a multiple of 8 bits");
         }
+        if (spec.getMemory() > MAX_MEMORY_KIB)
+        {
+            throw new InvalidKeySpecException("memory must not exceed " + MAX_MEMORY_KIB + " KiB");
+        }
 
         byte[] rawKey = new byte[keyLengthBits >> 3];
 
         // The UTF-8 password bytes and the derived key are secret material —
         // scrub both once the native call has consumed them, on failure paths
-        // too (JOScryptKey took its own clones). The char[] password is the
-        // caller's own array (ScryptKeySpec exposes it directly, not a copy),
-        // so it is deliberately NOT cleared here — that would corrupt the
-        // caller's spec.
+        // too (JOArgon2Key took its own clones). The char[] password is this
+        // spec's own defensive copy, so clear it here as well.
         byte[] passwordBytes = Strings.toUTF8ByteArray(password);
         try
         {
-            kdfNI.handleErrorCodes(kdfNI.scrypt(
+            kdfNI.handleErrorCodes(kdfNI.argon2(
                     passwordBytes,
                     salt,
-                    costParameter,
-                    blockSize,
-                    parallelizationParameter,
+                    spec.getType(),
+                    spec.getVersion(),
+                    spec.getIterations(),
+                    spec.getMemory(),
+                    spec.getParallelism(),
                     rawKey, 0, rawKey.length));
 
-            return new JOScryptKey("ScryptWithUTF8", password, salt, costParameter, blockSize, parallelizationParameter, rawKey);
+            return new JOArgon2Key("Argon2", password, salt, spec.getType(), spec.getVersion(),
+                    spec.getIterations(), spec.getMemory(), spec.getParallelism(), rawKey);
         }
         catch (IllegalArgumentException | OpenSSLException e)
         {
-            // The NI surfaces bad-parameter failures (r/p/N bounds, and any
-            // OpenSSL derive rejection) as unchecked exceptions; re-throw as the
-            // checked KeyFactory type per the JCE contract.
+            // The NI surfaces bad-parameter failures (type/version/iteration/
+            // lane/memory bounds, and any OpenSSL derive rejection) as unchecked
+            // exceptions; re-throw as the checked KeyFactory type per the JCE
+            // contract.
             throw new InvalidKeySpecException(e.getMessage(), e);
         }
         finally
         {
             Arrays.clear(passwordBytes);
             Arrays.clear(rawKey);
+            if (password != null)
+            {
+                Arrays.fill(password, (char) 0);
+            }
         }
     }
 
@@ -169,6 +167,5 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         }
 
         throw new InvalidKeyException("unsupported key type: " + key.getClass());
-
     }
 }

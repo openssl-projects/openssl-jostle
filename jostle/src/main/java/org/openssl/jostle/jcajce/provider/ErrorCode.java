@@ -199,6 +199,15 @@ public enum ErrorCode
     // under the JNI whole-array copy-back.
     JO_INPUT_AND_OUTPUT_ALIASED(-144),
 
+    // Argon2 parameter validation (RFC 9106), rejected by the bridge before
+    // any OpenSSL call so the Java layer can name the offending parameter.
+    JO_KDF_ARGON2_TYPE_INVALID(-145),
+    JO_KDF_ARGON2_VERSION_INVALID(-146),
+    JO_KDF_ARGON2_ITER_TOO_SMALL(-147),
+    JO_KDF_ARGON2_LANES_TOO_SMALL(-148),
+    // Below the RFC 9106 floor of 8 * lanes KiB.
+    JO_KDF_ARGON2_MEMORY_TOO_SMALL(-149),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

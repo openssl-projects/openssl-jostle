@@ -14,7 +14,6 @@
 /* *INDENT-OFF* */
 #define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf                      Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_hkdf
 #define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkdf2                    Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_pbkdf2
-#define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_scrypt                    Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_scrypt
 /* *INDENT-ON* */
 
 #include "kdf_jni.c"

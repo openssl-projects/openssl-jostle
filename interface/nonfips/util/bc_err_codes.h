@@ -310,6 +310,20 @@
  */
 #define JO_INPUT_AND_OUTPUT_ALIASED -144
 
+/*
+ * Argon2 parameter validation (RFC 9106). All five are caller-supplied
+ * values the bridge rejects before any OpenSSL call, so the Java layer can
+ * surface a typed IllegalArgumentException naming the offending parameter
+ * rather than an opaque OpenSSL error. The memory floor is the RFC's
+ * 8 * lanes KiB minimum; OpenSSL enforces it too, but rejecting at the
+ * bridge keeps the message actionable and both bridges identical.
+ */
+#define JO_KDF_ARGON2_TYPE_INVALID -145
+#define JO_KDF_ARGON2_VERSION_INVALID -146
+#define JO_KDF_ARGON2_ITER_TOO_SMALL -147
+#define JO_KDF_ARGON2_LANES_TOO_SMALL -148
+#define JO_KDF_ARGON2_MEMORY_TOO_SMALL -149
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

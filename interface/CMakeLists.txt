@@ -247,8 +247,11 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/ops.c
             nonfips/jni/ops.c
             nonfips/jni/kdf_jni.c
+            nonfips/jni/kdf_memhard_jni.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
+            nonfips/util/kdf_memhard.h
+            nonfips/util/kdf_memhard.c
             nonfips/util/mac.h
             nonfips/util/mac.c
             nonfips/util/md.c
@@ -349,8 +352,11 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/ops.h
             nonfips/util/ops.c
             nonfips/ffi/kdf_ffi.c
+            nonfips/ffi/kdf_memhard_ffi.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
+            nonfips/util/kdf_memhard.h
+            nonfips/util/kdf_memhard.c
             nonfips/util/mac.h
             nonfips/util/mac.c
             nonfips/util/md.c
@@ -510,8 +516,11 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/ops.c
             nonfips/jni/ops.c
             nonfips/jni/kdf_jni.c
+            nonfips/jni/kdf_memhard_jni.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
+            nonfips/util/kdf_memhard.h
+            nonfips/util/kdf_memhard.c
             nonfips/util/mac.h
             nonfips/util/mac.c
             nonfips/util/md.c
@@ -607,8 +616,11 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/ops.h
             nonfips/util/ops.c
             nonfips/ffi/kdf_ffi.c
+            nonfips/ffi/kdf_memhard_ffi.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
+            nonfips/util/kdf_memhard.h
+            nonfips/util/kdf_memhard.c
             nonfips/util/mac.h
             nonfips/util/mac.c
             nonfips/util/md.c
@@ -748,8 +760,11 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/ops.c
             nonfips/jni/ops.c
             nonfips/jni/kdf_jni.c
+            nonfips/jni/kdf_memhard_jni.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
+            nonfips/util/kdf_memhard.h
+            nonfips/util/kdf_memhard.c
             nonfips/util/mac.h
             nonfips/util/mac.c
             nonfips/util/md.c
@@ -840,8 +855,11 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/ops.h
             nonfips/util/ops.c
             nonfips/ffi/kdf_ffi.c
+            nonfips/ffi/kdf_memhard_ffi.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
+            nonfips/util/kdf_memhard.h
+            nonfips/util/kdf_memhard.c
             nonfips/util/mac.h
             nonfips/util/mac.c
             nonfips/util/md.c

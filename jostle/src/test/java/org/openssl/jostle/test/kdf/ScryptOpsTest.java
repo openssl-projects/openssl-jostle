@@ -21,7 +21,7 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
@@ -31,7 +31,7 @@ public class ScryptOpsTest
 {
 
 
-    KdfNI kdfNI = TestNISelector.getKDFNI();
+    MemoryHardKdfNI kdfNI = TestNISelector.getMemoryHardKDFNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
 
     @BeforeAll
@@ -59,7 +59,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_jni.c:39
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:46
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[0], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -79,7 +79,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_jni.c:50
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:57
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -99,7 +99,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_jni.c:86
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:93
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -119,7 +119,7 @@ public class ScryptOpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf.c:43
+            // Exercises interface/nonfips/util/kdf_memhard.c:56
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
             // -2 + (-1002) = -1004.
@@ -137,7 +137,7 @@ public class ScryptOpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf.c:51
+            // Exercises interface/nonfips/util/kdf_memhard.c:64
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
 
@@ -155,7 +155,7 @@ public class ScryptOpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf.c:65
+            // Exercises interface/nonfips/util/kdf_memhard.c:78
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
 

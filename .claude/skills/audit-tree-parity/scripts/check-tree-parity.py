@@ -47,6 +47,14 @@ NONFIPS_ONLY_PREFIXES = (
     # base-provider init/diagnostic glue with fips-tree counterparts under
     # different names (openssl_fips_jni.c) or no FIPS equivalent at all
     "jni/open_ssl_jni", "jni/native_info",
+    # memory-hard password KDFs (scrypt, Argon2). Neither is served by the
+    # OpenSSL FIPS provider (both build only into libdefault.a; neither appears
+    # in fipsprov.c) and neither is registered by ProvFIPSKDF, so their bridges
+    # are kept out of the FIPS interface library entirely — that library then
+    # exports no symbols for algorithms outside the validated boundary. kdf.c /
+    # kdf_jni.c / kdf_ffi.c keep the approved KDFs (PBKDF2, HKDF) and remain
+    # byte-identical twins.
+    "util/kdf_memhard", "jni/kdf_memhard", "ffi/kdf_memhard",
 )
 FIPS_ONLY_PREFIXES = (
     "util/rand/jostle_fips_ctx",      # FIPS lib ctx configuration

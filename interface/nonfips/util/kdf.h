@@ -12,16 +12,6 @@
 #include <stdint.h>
 
 
-int32_t jo_scrypt(
-    uint8_t *password, size_t password_len,
-    uint8_t *salt, size_t salt_len,
-    uint64_t n,
-    uint32_t r,
-    uint32_t p,
-    uint8_t *out,
-    size_t out_len
-);
-
 int32_t jo_pbkdf2(
     uint8_t *password, size_t password_len,
     uint8_t *salt, size_t salt_len,

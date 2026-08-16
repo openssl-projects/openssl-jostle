@@ -28,6 +28,8 @@ import org.openssl.jostle.jcajce.provider.ed.EDServiceJNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNIJNI;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNIJNI;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceJNI;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
@@ -68,6 +70,10 @@ public class NISelector
     public static final SLHDSAServiceNI SLHDSAServiceNI;
     public static final MLKEMServiceNI MLKEMServiceNI;
     public static final KdfNI KdfNI;
+
+    // Base-provider only: scrypt / Argon2 are not served by the FIPS module,
+    // so there is no FIPSNISelector counterpart (see MemoryHardKdfNI).
+    public static final MemoryHardKdfNI MemoryHardKdfNI;
     public static final MDServiceNI MDServiceNI;
     public static final EDServiceNI EDServiceNI;
     public static final RSAServiceNI RSAServiceNI;
@@ -94,6 +100,7 @@ public class NISelector
         SLHDSAServiceNI = new SLHDSAServiceJNI();
         MLKEMServiceNI = new MLKEMServiceJNI();
         KdfNI = new KdfNIJNI();
+        MemoryHardKdfNI = new MemoryHardKdfNIJNI();
         MDServiceNI = new MDServiceJNI();
         EDServiceNI = new EDServiceJNI();
         RSAServiceNI = new RSAServiceJNI();

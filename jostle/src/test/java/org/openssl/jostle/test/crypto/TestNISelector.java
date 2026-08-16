@@ -25,6 +25,7 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceJNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
@@ -88,6 +89,15 @@ public class TestNISelector extends NISelector
     public static KdfNI getKDFNI()
     {
         return KdfNI;
+    }
+
+    /**
+     * The memory-hard KDFs (scrypt, Argon2). Base provider only — there is no
+     * FIPS counterpart, by design (see MemoryHardKdfNI).
+     */
+    public static MemoryHardKdfNI getMemoryHardKDFNI()
+    {
+        return MemoryHardKdfNI;
     }
 
     public static OperationsTestNI getOperationsTestNI()

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
@@ -25,7 +25,7 @@ import java.security.Security;
 public class ScryptLimitTest
 {
 
-    KdfNI kdfNI = TestNISelector.getKDFNI();
+    MemoryHardKdfNI kdfNI = TestNISelector.getMemoryHardKDFNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
 
     @BeforeAll

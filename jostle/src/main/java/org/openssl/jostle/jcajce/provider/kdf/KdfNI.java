@@ -13,10 +13,17 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.*;
 
+/**
+ * Native entry points for the KDFs both providers serve: PBKDF2 and HKDF, each
+ * an approved service of the OpenSSL FIPS module.
+ *
+ * <p>The memory-hard password KDFs (scrypt, Argon2) are NOT here — they live on
+ * {@link MemoryHardKdfNI} so the FIPS interface library carries no bridge code
+ * for algorithms outside the validated boundary. See that interface for the
+ * rationale.</p>
+ */
 public interface KdfNI extends DefaultServiceNI
 {
-    int scrypt(byte[] password, byte[] salt, int n, int r, int p, byte[] out, int outOffset, int outLen);
-
     int pbkdf2(byte[] password, byte[] salt, int iter, String digest, byte[] out, int outOffset, int outLen);
 
     int hkdf(byte[] ikm, byte[] salt, byte[] info, String digest, byte[] out, int outOffset, int outLen);
@@ -28,30 +35,13 @@ public interface KdfNI extends DefaultServiceNI
             return code;
         }
         ErrorCode errorCode = ErrorCode.forCode(code);
+        KdfInputErrors.throwIfInputError(errorCode);
         switch (errorCode)
         {
-            case JO_KDF_PASSWORD_FAILED_ACCESS:
-                throw new AccessException("unable to access password array");
-            case JO_KDF_SALT_FAILED_ACCESS:
-                throw new AccessException("unable to access salt array");
-            case JO_KDF_PASSWORD_NULL:
-                throw new IllegalArgumentException("password is null");
-            case JO_KDF_SALT_NULL:
-                throw new IllegalArgumentException("salt is null");
-            case JO_KDF_SALT_EMPTY:
-                throw new IllegalArgumentException("salt is empty");
             case JO_KDF_PBE_ITER_NEGATIVE:
                 throw new IllegalArgumentException("iter is negative");
             case JO_KDF_PBE_UNKNOWN_DIGEST:
                 throw new IllegalArgumentException("unknown digest");
-            case JO_KDF_SCRYPT_N_TOO_SMALL:
-                throw new IllegalArgumentException("n is less than 2");
-            case JO_KDF_SCRYPT_N_NOT_POW2:
-                throw new IllegalArgumentException("n not power of 2");
-            case JO_KDF_SCRYPT_R_TOO_SMALL:
-                throw new IllegalArgumentException("r is less than 1");
-            case JO_KDF_SCRYPT_P_TOO_SMALL:
-                throw new IllegalArgumentException("p is less than 1");
             case JO_KDF_HKDF_IKM_NULL:
                 throw new IllegalArgumentException("ikm is null");
             case JO_KDF_HKDF_IKM_FAILED_ACCESS:

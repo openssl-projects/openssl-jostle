@@ -22,8 +22,8 @@ import java.util.logging.Logger;
 // These downcalls are marshalled with confined-arena copies rather than
 // Linker.Option.critical heap segments. A critical downcall pins the caller's
 // heap arrays (and on some collectors holds the GC lock) for the whole call —
-// and PBKDF2 / scrypt run for a caller-controlled duration (high iteration /
-// cost parameters take seconds by design), which is the worst case for pinning.
+// and PBKDF2 runs for a caller-controlled duration (a high iteration count
+// takes seconds by design), which is the worst case for pinning.
 // The copies cost a memcpy per array, negligible next to the derive itself.
 public class KdfNIFFI implements KdfNI
 {
@@ -33,8 +33,6 @@ public class KdfNIFFI implements KdfNI
     private static final Linker linker = Linker.nativeLinker();
 
     private final MethodHandle pbkdf2FuncHandle;
-
-    private final MethodHandle scryptFuncHandle;
 
     private final MethodHandle hkdfFuncHandle;
 
@@ -64,22 +62,6 @@ public class KdfNIFFI implements KdfNI
                 ));
 
 
-        MemorySegment scrypt = lookup.find("JoKDF_SCRYPT").orElseThrow();
-        scryptFuncHandle = linker.downcallHandle(scrypt,
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT, // return value
-                        ValueLayout.ADDRESS, // passwd
-                        ValueLayout.JAVA_LONG, // passwd_len
-                        ValueLayout.ADDRESS, // salt
-                        ValueLayout.JAVA_LONG, // salt_len
-                        ValueLayout.JAVA_INT, // n
-                        ValueLayout.JAVA_INT, // r
-                        ValueLayout.JAVA_INT, // p
-                        ValueLayout.ADDRESS, // output
-                        ValueLayout.JAVA_LONG, // output_size -- total length of output array
-                        ValueLayout.JAVA_INT, // output offset
-                        ValueLayout.JAVA_INT // output length wanted
-                ));
 
 
         MemorySegment hkdf = lookup.find("JoKDF_HKDF").orElseThrow();
@@ -99,6 +81,8 @@ public class KdfNIFFI implements KdfNI
                         ValueLayout.JAVA_INT, // output offset
                         ValueLayout.JAVA_INT // output length wanted
                 ));
+
+
 
 
     }
@@ -145,38 +129,6 @@ public class KdfNIFFI implements KdfNI
         return a == null ? 0L : a.length;
     }
 
-
-    @Override
-    public int scrypt(byte[] password, byte[] salt, int n, int r, int p, byte[] out, int outOffset, int outLen)
-    {
-        try (Arena a = Arena.ofConfined())
-        {
-            MemorySegment pwSeg = copyIn(a, password);
-            MemorySegment saltSeg = copyIn(a, salt);
-            MemorySegment output = outSeg(a, out);
-
-            int ret = (int) scryptFuncHandle.invokeExact(
-                    pwSeg, len(password),
-                    saltSeg, len(salt),
-                    n,
-                    r,
-                    p,
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
-
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
-        }
-        catch (Throwable t)
-        {
-            L.log(Level.WARNING,
-                    "FFI JoKDF_SCRYPT", t);
-            throw new RuntimeException(t.getMessage(), t);
-        }
-    }
 
     @Override
     public int pbkdf2(byte[] password, byte[] salt, int iter, String digest, byte[] out, int outOffset, int outLen)
