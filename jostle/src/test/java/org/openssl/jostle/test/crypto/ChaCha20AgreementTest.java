@@ -263,4 +263,119 @@ public class ChaCha20AgreementTest
                     () -> c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(nb)), "nonce len " + nl);
         }
     }
+
+    /**
+     * A key tagged "ChaCha7539" — BouncyCastle's name for this same RFC 7539 /
+     * 8439 engine, and what bc-java's {@code JceChaCha20Poly1305} builds its
+     * record-key {@code SecretKeySpec} with — must be accepted by the ChaCha20
+     * cipher under either cipher-name spelling. Each accepted alias must not
+     * only init without throwing but key the cipher identically to a plain
+     * "ChaCha20"-tagged key, proving the match selects the same key material
+     * rather than merely that init was permissive.
+     */
+    @Test
+    public void acceptsChaCha7539KeyAlgorithmSpelling() throws Exception
+    {
+        SecureRandom sr = seededRandom("acceptsChaCha7539KeyAlgorithmSpelling");
+        byte[] keyBytes = new byte[32];
+        sr.nextBytes(keyBytes);
+        byte[] nonce = new byte[12];
+        sr.nextBytes(nonce);
+        byte[] pt = new byte[1 + sr.nextInt(200)];
+        sr.nextBytes(pt);
+
+        Cipher ref = Cipher.getInstance(JSL_NAME, JSL);
+        ref.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "ChaCha20"), new IvParameterSpec(nonce));
+        byte[] refCt = ref.doFinal(pt);
+
+        String[] cipherNames = {JSL_NAME, BC_NAME};
+        String[] keyAliases = {"ChaCha7539", "CHACHA7539", "chacha7539"};
+        for (String cipherName : cipherNames)
+        {
+            for (String keyAlias : keyAliases)
+            {
+                String where = cipherName + "/" + keyAlias;
+
+                Cipher enc = Cipher.getInstance(cipherName, JSL);
+                enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, keyAlias), new IvParameterSpec(nonce));
+                byte[] ct = enc.doFinal(pt);
+                Assertions.assertTrue(Arrays.areEqual(refCt, ct),
+                        where + ": did not encrypt identically to a ChaCha20-tagged key");
+
+                Cipher dec = Cipher.getInstance(cipherName, JSL);
+                dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(keyBytes, keyAlias), new IvParameterSpec(nonce));
+                Assertions.assertTrue(Arrays.areEqual(pt, dec.doFinal(ct)),
+                        where + ": round-trip failed for accepted key algorithm");
+            }
+        }
+
+        // The same spelling is accepted by the AEAD SPI, which shares the
+        // "ChaCha20" key algorithm.
+        Cipher aeadRef = Cipher.getInstance("ChaCha20-Poly1305", JSL);
+        aeadRef.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "ChaCha20"), new IvParameterSpec(nonce));
+        byte[] aeadCt = aeadRef.doFinal(pt);
+
+        Cipher aead = Cipher.getInstance("ChaCha20-Poly1305", JSL);
+        aead.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "ChaCha7539"), new IvParameterSpec(nonce));
+        Assertions.assertTrue(Arrays.areEqual(aeadCt, aead.doFinal(pt)),
+                "ChaCha20-Poly1305: ChaCha7539-tagged key did not encrypt identically");
+
+        // Not a blanket accept: BouncyCastle's original 8-byte-nonce "ChaCha" is
+        // a different algorithm and stays rejected, as does an unrelated family.
+        for (String rejected : new String[]{"ChaCha", "Salsa20", "AES"})
+        {
+            Cipher c = Cipher.getInstance(JSL_NAME, JSL);
+            InvalidKeyException ex = assertThrows(InvalidKeyException.class,
+                    () -> c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, rejected),
+                            new IvParameterSpec(nonce)), rejected);
+            Assertions.assertEquals("unsupported key algorithm " + rejected, ex.getMessage());
+        }
+    }
+
+    /**
+     * The BouncyCastle-spelled key algorithm agrees with BouncyCastle, both
+     * directions — the exact configuration bc-java's TLS layer uses, where
+     * {@code JceChaCha20Poly1305} fetches a "ChaCha7539" cipher and keys it with
+     * a {@code SecretKeySpec(..., "ChaCha7539")}.
+     *
+     * <p>Distinct from {@link #acceptsChaCha7539KeyAlgorithmSpelling()}, which
+     * proves the alias selects the same key material but never leaves Jostle,
+     * and from {@link #agreesWithBC_bothDirections()}, which crosses to BC but
+     * with a "ChaCha20"-tagged key. Only this test does both at once.
+     */
+    @Test
+    public void chaCha7539KeyAlgorithm_agreesWithBC_bothDirections() throws Exception
+    {
+        SecureRandom sr = seededRandom("chaCha7539KeyAlgorithm_agreesWithBC_bothDirections");
+
+        for (int trial = 0; trial < 25; trial++)
+        {
+            byte[] keyBytes = new byte[32];
+            sr.nextBytes(keyBytes);
+            SecretKey key = new SecretKeySpec(keyBytes, "ChaCha7539");
+            byte[] nonce = new byte[12];
+            sr.nextBytes(nonce);
+            byte[] msg = new byte[sr.nextInt(400)];
+            sr.nextBytes(msg);
+            IvParameterSpec iv = new IvParameterSpec(nonce);
+
+            Cipher jslEnc = Cipher.getInstance(BC_NAME, JSL);
+            jslEnc.init(Cipher.ENCRYPT_MODE, key, iv);
+            byte[] jslCt = jslEnc.doFinal(msg);
+
+            Cipher bcEnc = Cipher.getInstance(BC_NAME, BC);
+            bcEnc.init(Cipher.ENCRYPT_MODE, key, iv);
+            byte[] bcCt = bcEnc.doFinal(msg);
+            Assertions.assertArrayEquals(bcCt, jslCt, "ciphertext (trial " + trial + ")");
+
+            // BC-encrypt -> JSL-decrypt and JSL-encrypt -> BC-decrypt.
+            Cipher jslDec = Cipher.getInstance(BC_NAME, JSL);
+            jslDec.init(Cipher.DECRYPT_MODE, key, iv);
+            Assertions.assertArrayEquals(msg, jslDec.doFinal(bcCt), "BC-enc/JSL-dec");
+
+            Cipher bcDec = Cipher.getInstance(BC_NAME, BC);
+            bcDec.init(Cipher.DECRYPT_MODE, key, iv);
+            Assertions.assertArrayEquals(msg, bcDec.doFinal(jslCt), "JSL-enc/BC-dec");
+        }
+    }
 }

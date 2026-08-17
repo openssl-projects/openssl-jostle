@@ -441,4 +441,55 @@ public class ChaCha20Poly1305AgreementTest
         SecretKey k = kg.generateKey();
         Assertions.assertEquals(32, k.getEncoded().length);
     }
+
+    /**
+     * A key tagged with BouncyCastle's "ChaCha7539" spelling agrees with
+     * BouncyCastle through this AEAD SPI, both directions. The AEAD SPI shares
+     * the "ChaCha20" key algorithm with the raw stream cipher, so it accepts the
+     * same alternate spelling; this pins that the alias keys it identically to a
+     * "ChaCha20"-tagged key rather than merely being permitted at init.
+     */
+    @Test
+    public void chaCha7539KeyAlgorithm_agreesWithBC_bothDirections() throws Exception
+    {
+        SecureRandom sr = seededRandom("chaCha7539KeyAlgorithm_agreesWithBC_bothDirections");
+
+        for (int trial = 0; trial < 25; trial++)
+        {
+            byte[] keyBytes = new byte[32];
+            sr.nextBytes(keyBytes);
+            SecretKey key = new SecretKeySpec(keyBytes, "ChaCha7539");
+            byte[] nonce = new byte[12];
+            sr.nextBytes(nonce);
+            byte[] aad = new byte[sr.nextInt(64)];
+            sr.nextBytes(aad);
+            byte[] msg = new byte[1 + sr.nextInt(200)];
+            sr.nextBytes(msg);
+            IvParameterSpec iv = new IvParameterSpec(nonce);
+
+            Cipher bcEnc = Cipher.getInstance(XFORM, BC);
+            bcEnc.init(Cipher.ENCRYPT_MODE, key, iv);
+            bcEnc.updateAAD(aad);
+            byte[] bcCt = bcEnc.doFinal(msg);
+
+            Cipher jslEnc = Cipher.getInstance(XFORM, JSL);
+            jslEnc.init(Cipher.ENCRYPT_MODE, key, iv);
+            jslEnc.updateAAD(aad);
+            byte[] jslCt = jslEnc.doFinal(msg);
+
+            Assertions.assertArrayEquals(bcCt, jslCt, "ciphertext||tag (trial " + trial + ")");
+
+            // BC-encrypt -> Jostle-decrypt
+            Cipher jslDec = Cipher.getInstance(XFORM, JSL);
+            jslDec.init(Cipher.DECRYPT_MODE, key, iv);
+            jslDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, jslDec.doFinal(bcCt), "BC-enc/JSL-dec");
+
+            // Jostle-encrypt -> BC-decrypt
+            Cipher bcDec = Cipher.getInstance(XFORM, BC);
+            bcDec.init(Cipher.DECRYPT_MODE, key, iv);
+            bcDec.updateAAD(aad);
+            Assertions.assertArrayEquals(msg, bcDec.doFinal(jslCt), "JSL-enc/BC-dec");
+        }
+    }
 }

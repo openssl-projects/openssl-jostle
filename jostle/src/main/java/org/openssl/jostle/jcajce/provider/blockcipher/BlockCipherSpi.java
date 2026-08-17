@@ -951,6 +951,12 @@ class BlockCipherSpi extends CipherSpi
             {
                 return;
             }
+            // Some families are known to the wider JCE ecosystem under a second
+            // name; a key produced by another library carries that spelling.
+            if (isAltSpellingForFamily(a))
+            {
+                return;
+            }
         }
         throw new InvalidKeyException("unsupported key algorithm " + alg);
     }
@@ -967,6 +973,27 @@ class BlockCipherSpi extends CipherSpi
         if ("AES".equalsIgnoreCase(keyAlgorithm))
         {
             return alg.startsWith("2.16.840.1.101.3.4.1.");
+        }
+        return false;
+    }
+
+    /**
+     * True when {@code upperAlg} (already upper-cased) is an alternate JCE
+     * spelling of this cipher's key algorithm. Currently only the ChaCha20
+     * family: BouncyCastle names the RFC 7539 / 8439 engine "ChaCha7539" — the
+     * same 12-byte-nonce cipher Jostle registers as "ChaCha20", and the name
+     * bc-java's TLS layer tags its record keys with
+     * ({@code JceChaCha20Poly1305} builds a {@code SecretKeySpec(..., "ChaCha7539")}).
+     * Prefix-matched for the same key-wrap-spelling reason as the primary name
+     * check above. BouncyCastle's original 8-byte-nonce "ChaCha" is a different
+     * algorithm, shares neither name, and is still rejected; key length remains
+     * the native layer's business.
+     */
+    private boolean isAltSpellingForFamily(String upperAlg)
+    {
+        if ("ChaCha20".equalsIgnoreCase(keyAlgorithm))
+        {
+            return upperAlg.startsWith("CHACHA7539");
         }
         return false;
     }
