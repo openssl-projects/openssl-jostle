@@ -516,7 +516,7 @@ public class FIPSDHKeyAgreementTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals(
-                    "DH key without subgroup order q is not supported for key agreement by the loaded provider",
+                    "DH key or parameters without subgroup order q are not supported by the loaded provider",
                     expected.getMessage());
         }
     }

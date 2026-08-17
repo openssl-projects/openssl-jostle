@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -26,6 +27,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -190,9 +192,20 @@ public class DHKeyPairGenerator extends KeyPairGenerator
             // Keep the params spec reachable across the native call so
             // its disposer can't free the parameters-only EVP_PKEY
             // mid-keygen.
-            synchronized (paramsSpec)
+            try
             {
-                ref = dhServiceNI.generateKeyPair(paramsSpec.getReference(), random);
+                synchronized (paramsSpec)
+                {
+                    ref = dhServiceNI.generateKeyPair(paramsSpec.getReference(), random);
+                }
+            }
+            catch (ProviderCapabilityException e)
+            {
+                // A FIPS provider cannot generate over q-less PKCS#3 params.
+                // Not detectable at initialize() — mainline accepts the same
+                // (p, g) — so it is diagnosed natively and surfaces here.
+                // ProviderException: generateKeyPair declares no checked type.
+                throw new ProviderException(e.getMessage(), e);
             }
         }
         else

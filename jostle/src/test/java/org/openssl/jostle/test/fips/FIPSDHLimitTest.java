@@ -22,12 +22,17 @@ import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
+import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
+import javax.crypto.spec.DHParameterSpec;
+import java.math.BigInteger;
+import java.security.KeyPairGenerator;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 
 /**
@@ -454,7 +459,7 @@ public class FIPSDHLimitTest
                         ProviderCapabilityException.class,
                         () -> dh.kexInit(ref, privRef, RND));
                 Assertions.assertEquals(
-                        "DH key without subgroup order q is not supported for key agreement by the loaded provider",
+                        "DH key or parameters without subgroup order q are not supported by the loaded provider",
                         e.getMessage());
             });
         }
@@ -462,6 +467,58 @@ public class FIPSDHLimitTest
         {
             specNI.dispose(privRef);
         }
+    }
+
+    /**
+     * Keygen twin of {@link #kexInit_qlessComponentKey_rawCodeAndTyped()}: the
+     * module needs q at keygen too, where q-less PKCS#3 parameters previously
+     * surfaced OpenSSL's "BN lib" error verbatim. Same non-named-prime
+     * requirement — OpenSSL back-fills q for recognised named groups.
+     */
+    @Test
+    public void generateKeyPair_qlessParams_rawCodeAndTyped()
+    {
+        byte[] p = Hex.decode(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX);
+        byte[] g = {0x02};
+
+        long paramsRef = dh.makeParamsFromComponents(p, g);
+        try
+        {
+            int[] err = new int[1];
+            long r = dh.ni_generateKeyPair(paramsRef, err, RND);
+            Assertions.assertEquals(0, r, "no key should be produced");
+            Assertions.assertEquals(-136, err[0]);
+            Assertions.assertEquals(ErrorCode.JO_DH_Q_REQUIRED.getCode(), err[0]);
+
+            ProviderCapabilityException e = Assertions.assertThrows(
+                    ProviderCapabilityException.class,
+                    () -> dh.generateKeyPair(paramsRef, RND));
+            Assertions.assertEquals(
+                    "DH key or parameters without subgroup order q are not supported by the loaded provider",
+                    e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(paramsRef);
+        }
+    }
+
+    /**
+     * JCE surface for the case above: {@code generateKeyPair()} declares no
+     * checked exception, so the capability failure must arrive as
+     * {@link java.security.ProviderException}.
+     */
+    @Test
+    public void keyPairGenerator_qlessParams_throwsProviderException() throws Exception
+    {
+        BigInteger p = new BigInteger(1, Hex.decode(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX));
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
+        kpg.initialize(new DHParameterSpec(p, BigInteger.valueOf(2)));
+
+        ProviderException e = Assertions.assertThrows(ProviderException.class, kpg::generateKeyPair);
+        Assertions.assertEquals(
+                "DH key or parameters without subgroup order q are not supported by the loaded provider",
+                e.getMessage());
     }
 
     @Test

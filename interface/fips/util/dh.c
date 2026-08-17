@@ -527,6 +527,23 @@ int32_t dh_generate_key(key_spec *spec, const key_spec *params,
     }
 
     if (OPS_OPENSSL_ERROR_5 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
+        // Diagnosis-on-failure, mirroring dh_kex_init: FIPS providers need
+        // q for their SP 800-56A checks, so keygen over q-less PKCS#3
+        // parameters fails here as an opaque "BN lib" error. Probe for q
+        // and return the precise code instead. Mainline accepts q-less
+        // parameters, so this never fires there and both trees stay
+        // identical. ERR marks keep the probe out of the error report.
+        ERR_set_mark();
+        BIGNUM *q_bn = NULL;
+        int has_q = 1 == EVP_PKEY_get_bn_param(params->key,
+                                               OSSL_PKEY_PARAM_FFC_Q, &q_bn)
+                    && q_bn != NULL;
+        BN_free(q_bn);
+        ERR_pop_to_mark();
+        if (!has_q) {
+            ret_code = JO_DH_Q_REQUIRED;
+            goto exit;
+        }
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5242);
         goto exit;
     }

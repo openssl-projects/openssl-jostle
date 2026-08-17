@@ -208,12 +208,12 @@ public interface DefaultServiceNI
                 throw new ProviderCapabilityException(
                         "PKCS#1 v1.5 decryption requires implicit rejection, which the loaded provider does not support");
             case JO_DH_Q_REQUIRED:
-                // FIPS-validated providers require the subgroup order q at
-                // derive-init (SP 800-56A key check), so PKCS#3 component
-                // keys cannot do agreement there. DHKeyAgreementSpi
-                // translates to InvalidKeyException at engineInit.
+                // FIPS providers need q for their SP 800-56A checks, so q-less
+                // PKCS#3 keys/parameters are refused at derive-init AND at keygen
+                // — hence the operation-neutral message. DHKeyAgreementSpi maps it
+                // to InvalidKeyException, DHKeyPairGenerator to ProviderException.
                 throw new ProviderCapabilityException(
-                        "DH key without subgroup order q is not supported for key agreement by the loaded provider");
+                        "DH key or parameters without subgroup order q are not supported by the loaded provider");
             case JO_DH_PARAMGEN_SUBSTITUTED:
                 // The provider substituted an RFC 7919 named group for the
                 // requested fresh PKCS#3 generation (FIPS module behaviour).

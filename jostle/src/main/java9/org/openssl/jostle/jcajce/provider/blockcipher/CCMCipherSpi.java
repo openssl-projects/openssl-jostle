@@ -15,6 +15,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.io.ExposedByteArrayOutputStream;
 
@@ -312,6 +313,12 @@ public class CCMCipherSpi extends CipherSpi
             // Init the native ctx. ni_init records key/iv/tag_len + opMode
             // and validates ranges; actual EVP work happens at doFinal.
             cipherNI.init(ref.getReference(), opmode, keyBytes, nonce, tagBytes);
+        }
+        catch (OpenSSLException e)
+        {
+            // Declared-type contract + provider fallback; see
+            // BlockCipherSpi.engineInit.
+            throw new InvalidKeyException(e.getMessage(), e);
         }
         finally
         {

@@ -232,4 +232,145 @@ public class AESKeyWrapTest
         }
         Assertions.assertTrue(rejected, "tampered wrapped key must fail the integrity check");
     }
+
+    /**
+     * Key wrap resolves by NAME, not only by OID, and agrees with BC both
+     * directions. The name registrations are key-size-agnostic, so the sweep
+     * runs all three KEK sizes through one name; byte-equality against the OID
+     * primary is what proves the name selects genuine RFC 3394 wrap.
+     * "AESWRAP"/"aeswrap" need no registration (lookup is case-insensitive) —
+     * included to pin that.
+     */
+    @Test
+    public void wrapResolvesByName_andAgreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("wrapResolvesByName_andAgreesWithBC");
+        String[] names = {"AESWrap", "AESWRAP", "aeswrap", "AESKW"};
+
+        for (int kekLen : new int[]{16, 24, 32})
+        {
+            byte[] kekBytes = new byte[kekLen];
+            sr.nextBytes(kekBytes);
+            Key kek = new SecretKeySpec(kekBytes, "AES");
+            byte[] cekBytes = new byte[32];
+            sr.nextBytes(cekBytes);
+            Key cek = new SecretKeySpec(cekBytes, "AES");
+
+            // Reference: the already-working size-specific OID primary.
+            String oid = (kekLen == 16) ? AES128_WRAP : (kekLen == 24) ? AES192_WRAP : AES256_WRAP;
+            Cipher ref = Cipher.getInstance(oid, JostleProvider.PROVIDER_NAME);
+            ref.init(Cipher.WRAP_MODE, kek);
+            byte[] refWrapped = ref.wrap(cek);
+
+            for (String name : names)
+            {
+                String where = name + "/kek" + kekLen;
+
+                Cipher jslWrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+                jslWrap.init(Cipher.WRAP_MODE, kek);
+                byte[] wrapped = jslWrap.wrap(cek);
+                Assertions.assertTrue(Arrays.areEqual(refWrapped, wrapped),
+                        where + ": name did not wrap identically to the OID primary");
+
+                // Jostle-wrap -> BC-unwrap.
+                Cipher bcUnwrap = Cipher.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
+                bcUnwrap.init(Cipher.UNWRAP_MODE, kek);
+                Key bcRecovered = bcUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
+                Assertions.assertTrue(Arrays.areEqual(cekBytes, bcRecovered.getEncoded()),
+                        where + ": JSL-wrap/BC-unwrap");
+
+                // BC-wrap -> Jostle-unwrap.
+                Cipher bcWrap = Cipher.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
+                bcWrap.init(Cipher.WRAP_MODE, kek);
+                byte[] bcWrapped = bcWrap.wrap(cek);
+                Assertions.assertTrue(Arrays.areEqual(refWrapped, bcWrapped),
+                        where + ": BC produced different wrapped bytes");
+
+                Cipher jslUnwrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+                jslUnwrap.init(Cipher.UNWRAP_MODE, kek);
+                Key recovered = jslUnwrap.unwrap(bcWrapped, "AES", Cipher.SECRET_KEY);
+                Assertions.assertTrue(Arrays.areEqual(cekBytes, recovered.getEncoded()),
+                        where + ": BC-wrap/JSL-unwrap");
+            }
+        }
+    }
+
+    /**
+     * KWP (RFC 5649) by name, agreeing with BC. The CEK length is not a
+     * multiple of 8 — the case plain KW rejects — so this also proves the name
+     * maps to the padded mode rather than WRAP.
+     */
+    @Test
+    public void wrapPadResolvesByName_andAgreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("wrapPadResolvesByName_andAgreesWithBC");
+        byte[] kekBytes = new byte[32];
+        sr.nextBytes(kekBytes);
+        Key kek = new SecretKeySpec(kekBytes, "AES");
+        byte[] cekBytes = new byte[20];   // not a multiple of 8
+        sr.nextBytes(cekBytes);
+        Key cek = new SecretKeySpec(cekBytes, "AES");
+
+        Cipher ref = Cipher.getInstance(AES256_WRAP_PAD, JostleProvider.PROVIDER_NAME);
+        ref.init(Cipher.WRAP_MODE, kek);
+        byte[] refWrapped = ref.wrap(cek);
+
+        for (String name : new String[]{"AESWrapPad", "AESKWP"})
+        {
+            Cipher jslWrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            jslWrap.init(Cipher.WRAP_MODE, kek);
+            byte[] wrapped = jslWrap.wrap(cek);
+            Assertions.assertTrue(Arrays.areEqual(refWrapped, wrapped),
+                    name + ": did not wrap identically to the OID primary");
+
+            Cipher jslUnwrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            jslUnwrap.init(Cipher.UNWRAP_MODE, kek);
+            Key recovered = jslUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
+            Assertions.assertTrue(Arrays.areEqual(cekBytes, recovered.getEncoded()),
+                    name + ": round trip");
+
+            Cipher bcWrap = Cipher.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
+            bcWrap.init(Cipher.WRAP_MODE, kek);
+            Assertions.assertTrue(Arrays.areEqual(refWrapped, bcWrap.wrap(cek)),
+                    name + ": BC produced different wrapped bytes");
+        }
+    }
+
+    /**
+     * Transformation form: "AES/KW/NoPadding" and "AES/KWP/NoPadding" reach the
+     * bare "AES" primary via JCE form-4 lookup, where engineSetMode maps KW /
+     * KWP onto WRAP / WRAP_PAD. Output must match the matching OID primary.
+     */
+    @Test
+    public void kwTransformationNamesResolve() throws Exception
+    {
+        SecureRandom sr = seededRandom("kwTransformationNamesResolve");
+        byte[] kekBytes = new byte[32];
+        sr.nextBytes(kekBytes);
+        Key kek = new SecretKeySpec(kekBytes, "AES");
+        byte[] cekBytes = new byte[16];
+        sr.nextBytes(cekBytes);
+        Key cek = new SecretKeySpec(cekBytes, "AES");
+
+        Cipher refKw = Cipher.getInstance(AES256_WRAP, JostleProvider.PROVIDER_NAME);
+        refKw.init(Cipher.WRAP_MODE, kek);
+        byte[] kwExpected = refKw.wrap(cek);
+
+        Cipher kw = Cipher.getInstance("AES/KW/NoPadding", JostleProvider.PROVIDER_NAME);
+        kw.init(Cipher.WRAP_MODE, kek);
+        Assertions.assertTrue(Arrays.areEqual(kwExpected, kw.wrap(cek)), "AES/KW/NoPadding");
+
+        Cipher refKwp = Cipher.getInstance(AES256_WRAP_PAD, JostleProvider.PROVIDER_NAME);
+        refKwp.init(Cipher.WRAP_MODE, kek);
+        byte[] kwpExpected = refKwp.wrap(cek);
+
+        Cipher kwp = Cipher.getInstance("AES/KWP/NoPadding", JostleProvider.PROVIDER_NAME);
+        kwp.init(Cipher.WRAP_MODE, kek);
+        Assertions.assertTrue(Arrays.areEqual(kwpExpected, kwp.wrap(cek)), "AES/KWP/NoPadding");
+
+        // KW and KWP are genuinely different modes, so the two must differ —
+        // proving the alias mapping does not collapse them onto one mode.
+        Assertions.assertFalse(Arrays.areEqual(kwExpected, kwpExpected),
+                "KW and KWP must not produce identical output");
+    }
 }

@@ -14,6 +14,7 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -119,7 +120,26 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineSetMode(String mode) throws NoSuchAlgorithmException
     {
-        String resolved = "CFB".equalsIgnoreCase(mode) ? "CFB128" : mode;
+        // JCE spellings of modes this enum names differently: "CFB" is the
+        // unqualified feedback width; KW / KWP are the SP 800-38F names for
+        // WRAP / WRAP_PAD.
+        final String resolved;
+        if ("CFB".equalsIgnoreCase(mode))
+        {
+            resolved = "CFB128";
+        }
+        else if ("KW".equalsIgnoreCase(mode))
+        {
+            resolved = "WRAP";
+        }
+        else if ("KWP".equalsIgnoreCase(mode))
+        {
+            resolved = "WRAP_PAD";
+        }
+        else
+        {
+            resolved = mode;
+        }
         try
         {
             osslMode = OSSLMode.valueOf(resolved);
@@ -408,6 +428,26 @@ class BlockCipherSpi extends CipherSpi
             try
             {
                 blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, iv, tag);
+
+                // Init succeeded: feed any AEADParameterSpec-supplied associated data
+                // now — after init, before any plaintext — so it's authenticated.
+                // This is the same native call engineUpdateAAD makes; the reuse guard
+                // is unnecessary here because the cipher was just (re)initialised.
+                if (aeadAssociatedData != null && aeadAssociatedData.length > 0)
+                {
+                    blockCipherNi.updateAAD(refWrapper.getReference(), aeadAssociatedData, 0, aeadAssociatedData.length);
+                }
+
+                engineGetBlockSize();
+            }
+            catch (OpenSSLException e)
+            {
+                // Cipher.init declares only InvalidKeyException /
+                // InvalidAlgorithmParameterException, and JCE provider fallback
+                // triggers on those alone — an unchecked OpenSSLException here
+                // (e.g. a mode the lib ctx cannot fetch) would defeat both.
+                // InvalidKeyException: the only type all three overloads declare.
+                throw new InvalidKeyException(e.getMessage(), e);
             }
             finally
             {
@@ -416,17 +456,6 @@ class BlockCipherSpi extends CipherSpi
                 // fresh copy, so clearing it cannot corrupt the caller's key.
                 Arrays.clear(keyBytes);
             }
-
-            // Init succeeded: feed any AEADParameterSpec-supplied associated data
-            // now — after init, before any plaintext — so it's authenticated.
-            // This is the same native call engineUpdateAAD makes; the reuse guard
-            // is unnecessary here because the cipher was just (re)initialised.
-            if (aeadAssociatedData != null && aeadAssociatedData.length > 0)
-            {
-                blockCipherNi.updateAAD(refWrapper.getReference(), aeadAssociatedData, 0, aeadAssociatedData.length);
-            }
-
-            engineGetBlockSize();
         }
         finally
         {

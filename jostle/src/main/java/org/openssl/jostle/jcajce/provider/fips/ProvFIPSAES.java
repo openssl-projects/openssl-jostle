@@ -53,6 +53,14 @@ class ProvFIPSAES
         provider.addAlgorithmImplementation("KeyGenerator", "AES", PREFIX + "AES", generalAesAttributes,
                 (arg) -> new AESKeyGenerator(provider.getDefaultSecureRandom()));
 
+
+        provider.addAlgorithmImplementation("Cipher", "AESWrap", PREFIX + "AESWRAPNAME", generalAesAttributes,
+                (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP));
+        provider.addAlias("Cipher", "AESWrap", "AESKW");
+        provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", generalAesAttributes,
+                (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP_PAD));
+        provider.addAlias("Cipher", "AESWrapPad", "AESKWP");
+
         provider.addAlgorithmImplementation("Cipher", "AES128", PREFIX + "AES128", generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.ECB));
         provider.addAlias("Cipher", "AES128", NISTObjectIdentifiers.id_aes128_ECB);

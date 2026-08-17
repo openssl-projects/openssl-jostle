@@ -34,6 +34,12 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", "AES", PREFIX + "Base", generalAesAttributes, (arg) -> new AESBlockCipherSpi());
         provider.addAlgorithmImplementation("KeyGenerator", "AES", PREFIX + "AES", generalAesAttributes, (arg) -> new AESKeyGenerator());
 
+
+        provider.addAlgorithmImplementation("Cipher", "AESWrap", PREFIX + "AESWRAPNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP));
+        provider.addAlias("Cipher", "AESWrap", "AESKW");
+        provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_PAD));
+        provider.addAlias("Cipher", "AESWrapPad", "AESKWP");
+
         // NIST AES OIDs are registered so that consumers which resolve algorithms by OID
         // (notably CMS, which looks up the content-encryption and key-wrap KeyGenerator
         // and Cipher by their algorithm OID) find the JSL implementations. ECB/CBC/GCM
