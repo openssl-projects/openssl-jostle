@@ -53,9 +53,11 @@ import java.util.Map;
  * signature produced by one provider is cross-verified through the other two,
  * both directions, plus a tampered-message differentiator. ECDH shared secrets
  * ARE deterministic and must be byte-identical across the three providers; a
- * different peer key is the differentiator. {@code NoneWithECDSA} is
- * deliberately absent from JSLFIPS (a non-approved service), so a SHA-2 digest
- * ({@code SHA256withECDSA}) is used throughout.
+ * different peer key is the differentiator. A SHA-2 digest
+ * ({@code SHA256withECDSA}) is used throughout. ({@code NoneWithECDSA} is also
+ * served by JSLFIPS — the SigGen Component is approved under cert #4985 — and
+ * is covered by
+ * {@code FIPSECTest.noneWithECDSA_isServedAndSignsSuppliedDigest}.)
  * <p>
  * Inputs (message content and length) are drawn from a per-test SHA1PRNG whose
  * seed is logged, so a flaky run is reproducible (per CLAUDE.md). Keypairs come

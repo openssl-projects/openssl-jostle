@@ -17,7 +17,9 @@ import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import java.math.BigInteger;
 
@@ -29,6 +31,20 @@ class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
     private final RSAServiceNI rsaServiceNI;
     private final Asn1Ni asn1NI;
 
+    /**
+     * AlgorithmIdentifier this key's SubjectPublicKeyInfo arrived with, when it
+     * differed from the one OpenSSL will emit. An id-RSASSA-PSS key is imported
+     * as plain RSA (OpenSSL has no separate type for the SPKI form we accept),
+     * so without this the identifier — and any PSS parameters — would be lost on
+     * re-encode. Callers key off the re-encoded form: BouncyCastle's TLS layer
+     * recognises an rsa_pss_pss certificate from
+     * {@code SubjectPublicKeyInfo.getInstance(getPublicKey().getEncoded())}.
+     * Null for keys generated here or imported under rsaEncryption. The
+     * AlgorithmIdentifier only — never the whole encoding, which for the private
+     * twin would mean retaining key material on the heap.
+     */
+    private final byte[] sourceAlgId;
+
     JORSAPublicKey(PKEYKeySpec spec)
     {
         this(NISelector.RSAServiceNI, NISelector.Asn1NI, spec);
@@ -36,9 +52,15 @@ class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
 
     JORSAPublicKey(RSAServiceNI rsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
     {
+        this(rsaServiceNI, asn1NI, spec, null);
+    }
+
+    JORSAPublicKey(RSAServiceNI rsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec, byte[] sourceAlgId)
+    {
         super(spec);
         this.rsaServiceNI = rsaServiceNI;
         this.asn1NI = asn1NI;
+        this.sourceAlgId = Arrays.clone(sourceAlgId);
     }
 
     @Override
@@ -58,7 +80,8 @@ class JORSAPublicKey extends AsymmetricKeyImpl implements RSAPublicKey, OSSLKey
     {
         synchronized (this)
         {
-            return ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec);
+            return KeyInfoCanonicalizer.withSubjectPublicKeyInfoAlgId(
+                    ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec), sourceAlgId);
         }
     }
 

@@ -63,8 +63,20 @@ class ProvFIPSEC
         registerEcdsaSignature(provider, attr, "SHA3-384withECDSA", "SHA3-384", "2.16.840.1.101.3.4.3.11");
         registerEcdsaSignature(provider, attr, "SHA3-512withECDSA", "SHA3-512", "2.16.840.1.101.3.4.3.12");
 
-        // NoneWithECDSA (the raw ECDSA verification component) is a
-        // non-approved service of the module per cert #4985 - not registered.
+        // NoneWithECDSA — raw ECDSA over a caller-supplied digest. This is the
+        // ECDSA SigGen/SigVer *Component* and it IS approved under cert #4985:
+        // the approved-algorithm table validates A3548 with "Component - No,
+        // Yes", the approved-services table reads "SigGen (includes SigGen
+        // Component)", the policy defines a service indicator for it
+        // (EVP_MD_get0_name returning null, "a hash is not used"), and Table 13
+        // Non-Approved Services is empty. An earlier comment here claimed the
+        // opposite and left it unregistered; that was incorrect. Live
+        // registration via the base SPI with digest "NONE", mirroring
+        // NoneWithDSA in ProvFIPSDSA. Required by TLS 1.2/1.3 ECDSA
+        // authentication (BouncyCastle's JcaTlsECDSA13Signer.generateRawSignature).
+        provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
+                PREFIX + "ECDSASignatureSpi$None", attr,
+                (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(), "NONE"));
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDH",
                 PREFIX + "ECDHKeyAgreementSpi", attr,

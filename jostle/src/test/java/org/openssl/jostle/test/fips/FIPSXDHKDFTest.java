@@ -68,9 +68,12 @@ public class FIPSXDHKDFTest
             Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
                     () -> KeyAgreement.getInstance(name, JostleFIPSProvider.PROVIDER_NAME));
         }
-        // ... and neither is the raw ECDSA verification component.
-        Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
-                () -> java.security.Signature.getInstance("NoneWithECDSA", JostleFIPSProvider.PROVIDER_NAME));
+        // NOTE: this test used to also assert NoneWithECDSA was absent. That
+        // was wrong — the ECDSA SigGen/SigVer Component IS approved under cert
+        // #4985 ("Component - No, Yes"; the services table reads "SigGen
+        // (includes SigGen Component)"), so JSLFIPS now registers it. See
+        // FIPSECTest.noneWithECDSA_isServedAndSignsSuppliedDigest. XDH's
+        // absence below is unaffected and remains correct.
 
         // ... while JSL still serves XDH in the same JVM.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("X25519", JostleProvider.PROVIDER_NAME);

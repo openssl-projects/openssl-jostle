@@ -610,6 +610,59 @@ public class FIPSX509CertificateFactoryTest
         return kpg.generateKeyPair();
     }
 
+    /**
+     * A PSS-PSS certificate — SPKI algorithm id-RSASSA-PSS
+     * (1.2.840.113549.1.1.10) rather than rsaEncryption — must yield its public
+     * key through the provider-bound factory, re-encoded under the identifier the
+     * certificate carried.
+     *
+     * <p>Two defects met here. The OID and the name "RSASSA-PSS" had no
+     * KeyFactory alias, so the bound factory could not re-derive the key at all;
+     * and the RSA import normalised the identifier to rsaEncryption, so once it
+     * could, the key it produced was unusable to callers that read the
+     * re-encoded form (BouncyCastle's TLS layer identifies an rsa_pss_pss
+     * certificate exactly that way, and briefly reported bad_certificate(46) on
+     * the non-FIPS provider because of it). Both are fixed; this pins both.
+     */
+    @Test
+    public void pssPssCertificateKeyReDerivesPreservingAlgorithmId() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", FIPS);
+        kpg.initialize(2048);
+        KeyPair kp = kpg.generateKeyPair();
+
+        SubjectPublicKeyInfo rsaSpki =
+                SubjectPublicKeyInfo.getInstance(ASN1Primitive.fromByteArray(kp.getPublic().getEncoded()));
+        byte[] pssSpki = new SubjectPublicKeyInfo(
+                new AlgorithmIdentifier(new ASN1ObjectIdentifier("1.2.840.113549.1.1.10")),
+                rsaSpki.getPublicKeyData().getBytes()).getEncoded(ASN1Encoding.DER);
+
+        byte[] der = buildCert(pssSpki, "SHA256withRSA", "1.2.840.113549.1.1.11", kp.getPrivate(), FIPS);
+        X509Certificate cert = parseFips(der);
+
+        PublicKey pk = cert.getPublicKey();
+        Assertions.assertNotNull(pk, "PSS-PSS certificate key must re-derive");
+        // Bound-factory contract: the key must come from THIS provider.
+        Assertions.assertTrue(pk.getClass().getName().startsWith("org.openssl.jostle"),
+                "expected a Jostle key, got " + pk.getClass().getName());
+        // The assertion that actually protects BC's callers: the identifier the
+        // certificate carried must survive the re-encode.
+        Assertions.assertEquals("1.2.840.113549.1.1.10",
+                SubjectPublicKeyInfo.getInstance(pk.getEncoded()).getAlgorithm().getAlgorithm().getId(),
+                "re-encoded key lost the id-RSASSA-PSS identifier");
+        Assertions.assertTrue(Arrays.areEqual(pssSpki, pk.getEncoded()),
+                "re-encoded key is not byte-identical to the certificate's SPKI");
+
+        // Both aliases resolve independently and preserve the identifier too.
+        for (String name : new String[]{"RSASSA-PSS", "1.2.840.113549.1.1.10"})
+        {
+            PublicKey decoded = java.security.KeyFactory.getInstance(name, FIPS)
+                    .generatePublic(new java.security.spec.X509EncodedKeySpec(pssSpki));
+            Assertions.assertTrue(Arrays.areEqual(pssSpki, decoded.getEncoded()),
+                    name + ": did not round-trip the id-RSASSA-PSS SPKI");
+        }
+    }
+
     private static X509Certificate parseFips(byte[] der) throws Exception
     {
         CertificateFactory cf = CertificateFactory.getInstance("X.509", FIPS);

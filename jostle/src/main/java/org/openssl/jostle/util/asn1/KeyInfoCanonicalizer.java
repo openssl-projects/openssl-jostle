@@ -187,6 +187,103 @@ public final class KeyInfoCanonicalizer
     }
 
     /**
+     * The AlgorithmIdentifier TLV of a SubjectPublicKeyInfo, or null if the bytes
+     * cannot be parsed. Non-secret and small, so it is safe to retain on a key —
+     * unlike the whole encoding, which for a private key is key material.
+     */
+    public static byte[] subjectPublicKeyInfoAlgId(byte[] spki)
+    {
+        try
+        {
+            int[] pos = {0};
+            readSequenceHeader(spki, pos);                  // SubjectPublicKeyInfo
+            int algStart = pos[0];
+            int[] algPos = {algStart};
+            int algEnd = readSequenceHeader(spki, algPos);   // AlgorithmIdentifier
+            return Arrays.copyOfRange(spki, algStart, algEnd);
+        }
+        catch (RuntimeException e)
+        {
+            return null;
+        }
+    }
+
+    /**
+     * Inverse of {@link #rsaSubjectPublicKeyInfo(byte[])}: return {@code spki} with
+     * its AlgorithmIdentifier replaced by {@code algId}, so a key imported under a
+     * canonicalised algorithm can be re-encoded under the identifier it arrived
+     * with. Returns {@code spki} unchanged if either input cannot be parsed —
+     * emitting a correct-but-normalised encoding beats emitting a malformed one.
+     */
+    public static byte[] withSubjectPublicKeyInfoAlgId(byte[] spki, byte[] algId)
+    {
+        if (algId == null)
+        {
+            return spki;
+        }
+        try
+        {
+            int[] pos = {0};
+            int end = readSequenceHeader(spki, pos);         // SubjectPublicKeyInfo
+            int[] algPos = {pos[0]};
+            int algEnd = readSequenceHeader(spki, algPos);   // AlgorithmIdentifier
+            byte[] subjectPublicKey = Arrays.copyOfRange(spki, algEnd, end);
+            return derSequence(Arrays.concatenate(algId, subjectPublicKey));
+        }
+        catch (RuntimeException e)
+        {
+            return spki;
+        }
+    }
+
+    /** Private-key counterpart of {@link #subjectPublicKeyInfoAlgId(byte[])}. */
+    public static byte[] privateKeyInfoAlgId(byte[] pki)
+    {
+        try
+        {
+            int[] pos = {0};
+            readSequenceHeader(pki, pos);                    // PrivateKeyInfo
+            int[] versionPos = {pos[0]};
+            skipTlv(pki, versionPos);                        // version INTEGER
+            int algStart = versionPos[0];
+            int[] algPos = {algStart};
+            int algEnd = readSequenceHeader(pki, algPos);     // privateKeyAlgorithm
+            return Arrays.copyOfRange(pki, algStart, algEnd);
+        }
+        catch (RuntimeException e)
+        {
+            return null;
+        }
+    }
+
+    /** Private-key counterpart of {@link #withSubjectPublicKeyInfoAlgId(byte[], byte[])}. */
+    public static byte[] withPrivateKeyInfoAlgId(byte[] pki, byte[] algId)
+    {
+        if (algId == null)
+        {
+            return pki;
+        }
+        try
+        {
+            int[] pos = {0};
+            int end = readSequenceHeader(pki, pos);           // PrivateKeyInfo
+            int versionStart = pos[0];
+            int[] versionPos = {versionStart};
+            skipTlv(pki, versionPos);                         // version INTEGER
+            int algStart = versionPos[0];
+            int[] algPos = {algStart};
+            int algEnd = readSequenceHeader(pki, algPos);      // privateKeyAlgorithm
+            byte[] version = Arrays.copyOfRange(pki, versionStart, algStart);
+            byte[] rest = Arrays.copyOfRange(pki, algEnd, end);
+            return derSequence(Arrays.concatenate(version, algId, rest));
+        }
+        catch (RuntimeException e)
+        {
+            return pki;
+        }
+    }
+
+    /**
      * True if the AlgorithmIdentifier content spanning {@code [algContentStart, algEnd)}
      * begins with the id-RSASSA-PSS OBJECT IDENTIFIER.
      */

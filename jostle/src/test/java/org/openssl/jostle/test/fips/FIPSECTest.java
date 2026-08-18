@@ -1411,4 +1411,69 @@ public class FIPSECTest
                     no[0] + " must resolve by OID " + no[1]);
         }
     }
+
+    /**
+     * NoneWithECDSA — the ECDSA SigGen/SigVer Component, approved under cert
+     * #4985 — is served by JSLFIPS and signs the caller-supplied digest
+     * directly. Used by TLS 1.2/1.3 ECDSA authentication
+     * (BouncyCastle's JcaTlsECDSA13Signer.generateRawSignature).
+     *
+     * <p>Cross-checking against SHA256withECDSA is what proves no extra
+     * hashing happens: a raw signature over H = SHA-256(m) must verify under
+     * the full verifier on m, and vice versa. A roundtrip on its own would
+     * pass even if the engine hashed the digest again.
+     */
+    @Test
+    public void noneWithECDSA_isServedAndSignsSuppliedDigest() throws Exception
+    {
+        ensureProviders();
+
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", FIPS);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        KeyPair kp = kpg.generateKeyPair();
+
+        SecureRandom sr = new SecureRandom();
+        byte[] msg = new byte[1 + sr.nextInt(512)];
+        sr.nextBytes(msg);
+        byte[] hash = java.security.MessageDigest.getInstance("SHA-256", FIPS).digest(msg);
+
+        // raw-sign(H) must verify under the hashed verifier on m
+        Signature none = Signature.getInstance("NoneWithECDSA", FIPS);
+        none.initSign(kp.getPrivate());
+        none.update(hash);
+        byte[] rawSig = none.sign();
+
+        Signature full = Signature.getInstance("SHA256withECDSA", FIPS);
+        full.initVerify(kp.getPublic());
+        full.update(msg);
+        Assertions.assertTrue(full.verify(rawSig),
+                "SHA256withECDSA did not verify a NoneWithECDSA signature over SHA-256(m)");
+
+        // and the reverse direction
+        Signature fullSigner = Signature.getInstance("SHA256withECDSA", FIPS);
+        fullSigner.initSign(kp.getPrivate());
+        fullSigner.update(msg);
+        byte[] fullSig = fullSigner.sign();
+
+        Signature noneVerify = Signature.getInstance("NoneWithECDSA", FIPS);
+        noneVerify.initVerify(kp.getPublic());
+        noneVerify.update(hash);
+        Assertions.assertTrue(noneVerify.verify(fullSig),
+                "NoneWithECDSA did not verify a SHA256withECDSA signature over the matching digest");
+
+        // Negative: a tampered digest must not verify.
+        byte[] tampered = Arrays.clone(hash);
+        tampered[0] ^= 0x01;
+        Signature bad = Signature.getInstance("NoneWithECDSA", FIPS);
+        bad.initVerify(kp.getPublic());
+        bad.update(tampered);
+        Assertions.assertFalse(bad.verify(rawSig), "tampered digest must not verify");
+
+        // A JSLFIPS raw signature must verify on JSL and vice versa — same
+        // construction on both providers, no FIPS-only divergence.
+        Signature jslVerify = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
+        jslVerify.initVerify(kp.getPublic());
+        jslVerify.update(hash);
+        Assertions.assertTrue(jslVerify.verify(rawSig), "JSL did not verify a JSLFIPS raw signature");
+    }
 }

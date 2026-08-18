@@ -161,6 +161,10 @@ public class FIPSServedSurfaceSnapshotTest
             "SecureRandom.HMAC-DRBG-SHA256",
             "SecureRandom.HMAC-DRBG-SHA512",
             "Signature.NONEWITHDSA",
+            // ECDSA SigGen/SigVer Component — approved under cert #4985
+            // ("Component - No, Yes"; services table "includes SigGen
+            // Component"). See the registration note in ProvFIPSEC.
+            "Signature.NONEWITHECDSA",
             "Signature.NONEWITHRSA",
             "Signature.RSASSA-PSS",
             "Signature.SHA1WITHDSA",

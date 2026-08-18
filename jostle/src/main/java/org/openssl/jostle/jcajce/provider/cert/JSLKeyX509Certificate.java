@@ -150,12 +150,48 @@ class JSLKeyX509Certificate
         try
         {
             KeyFactory kf = KeyFactory.getInstance(algorithm, providerName);
-            return kf.generatePublic(new X509EncodedKeySpec(encoded));
+            PublicKey imported = kf.generatePublic(new X509EncodedKeySpec(encoded));
+            if (!encodingPreserved(imported, encoded))
+            {
+                // A KeyFactory can ACCEPT an encoding while normalising its
+                // AlgorithmIdentifier away — our RSA KeyFactory takes an
+                // id-RSASSA-PSS SPKI (1.2.840.113549.1.1.10) and re-encodes it
+                // as rsaEncryption, dropping the OID and its PSS parameters.
+                // Substituting such a key silently changes what callers see:
+                // BouncyCastle's TLS layer identifies rsa_pss_pss certificates
+                // from the RE-ENCODED key (JcaTlsCertificate.getSubjectPublicKeyInfo
+                // is SubjectPublicKeyInfo.getInstance(getPublicKey().getEncoded())),
+                // so a normalised key makes an rsa_pss_pss cert unusable. Treat a
+                // lossy import as no import: the caller then keeps the JDK key
+                // (unbound) or fails loud (bound), which is the honest outcome
+                // for a key this provider cannot represent faithfully.
+                return null;
+            }
+            return imported;
         }
         catch (NoSuchAlgorithmException | NoSuchProviderException | java.security.spec.InvalidKeySpecException e)
         {
             return null;
         }
+    }
+
+    /**
+     * True when {@code imported} re-encodes to the SubjectPublicKeyInfo it was
+     * built from. Compared on the algorithm identifier rather than the whole
+     * blob: a byte-exact comparison would reject harmless DER re-canonicalisation,
+     * whereas a changed (or dropped) AlgorithmIdentifier is precisely the
+     * information loss that matters to callers keying off the encoding.
+     */
+    private static boolean encodingPreserved(PublicKey imported, byte[] sourceSpki)
+    {
+        byte[] reEncoded = imported.getEncoded();
+        if (reEncoded == null)
+        {
+            return false;
+        }
+        String before = subjectPublicKeyInfoAlgorithmOid(sourceSpki);
+        String after = subjectPublicKeyInfoAlgorithmOid(reEncoded);
+        return before != null && before.equals(after);
     }
 
     /**

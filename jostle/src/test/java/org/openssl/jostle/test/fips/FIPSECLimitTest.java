@@ -616,11 +616,13 @@ public class FIPSECLimitTest
     // -----------------------------------------------------------------
     // Functional offset-write contract (SHA-256 ECDSA path).
     //
-    // Base ECLimitTest uses the RAW ("NONE") ECDSA branch; under FIPS
-    // NoneWithECDSA is non-approved (cert #4985) so this exercises the hashed
-    // SHA-256 path instead. The bridge offset / length arithmetic under test is
-    // digest-independent (shared C for both branches), so the contract is the
-    // same. ECDSA DER length is variable: the probe returns an upper bound.
+    // Base ECLimitTest uses the RAW ("NONE") ECDSA branch; this exercises the
+    // hashed SHA-256 path instead. The bridge offset / length arithmetic under
+    // test is digest-independent (shared C for both branches), so the contract
+    // is the same. ECDSA DER length is variable: the probe returns an upper
+    // bound. (The raw branch is approved under cert #4985 — see the
+    // NoneWithECDSA registration in ProvFIPSEC — so this is now a coverage
+    // choice, not a restriction.)
     // -----------------------------------------------------------------
 
     @Test

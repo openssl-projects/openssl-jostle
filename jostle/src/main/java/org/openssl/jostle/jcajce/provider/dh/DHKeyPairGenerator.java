@@ -201,11 +201,17 @@ public class DHKeyPairGenerator extends KeyPairGenerator
             }
             catch (ProviderCapabilityException e)
             {
-                // A FIPS provider cannot generate over q-less PKCS#3 params.
-                // Not detectable at initialize() — mainline accepts the same
-                // (p, g) — so it is diagnosed natively and surfaces here.
-                // ProviderException: generateKeyPair declares no checked type.
-                throw new ProviderException(e.getMessage(), e);
+                // A FIPS provider needs q, and this SPI has no way to supply
+                // it: Jostle's DH component import carries (p, g) only — there
+                // is no q anywhere in the DH native surface — so no spec, BC's
+                // q-carrying DHDomainParameterSpec included, can satisfy the
+                // generic "needs q" message. Say what the caller CAN do
+                // instead. Not detectable at initialize(): mainline generates
+                // from the same (p, g) happily. ProviderException because
+                // generateKeyPair declares no checked type.
+                throw new ProviderException(
+                        "explicit DH parameters are not supported by the loaded provider; "
+                                + "initialise by key size to use an approved named group", e);
             }
         }
         else

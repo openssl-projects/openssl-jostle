@@ -505,8 +505,16 @@ public class FIPSDHLimitTest
 
     /**
      * JCE surface for the case above: {@code generateKeyPair()} declares no
-     * checked exception, so the capability failure must arrive as
+     * checked exception, so the capability failure arrives as
      * {@link java.security.ProviderException}.
+     *
+     * <p>The message must be actionable, not merely accurate. Jostle's DH
+     * component import carries (p, g) only — there is no q anywhere in the DH
+     * native surface — so the generic "needs q" text names something no caller
+     * can supply, BC's q-carrying DHDomainParameterSpec included. It therefore
+     * points at the route that does work. Asserting the absence of "subgroup
+     * order q" is the load-bearing half: it fails if the unactionable message
+     * ever comes back.
      */
     @Test
     public void keyPairGenerator_qlessParams_throwsProviderException() throws Exception
@@ -517,8 +525,16 @@ public class FIPSDHLimitTest
 
         ProviderException e = Assertions.assertThrows(ProviderException.class, kpg::generateKeyPair);
         Assertions.assertEquals(
-                "DH key or parameters without subgroup order q are not supported by the loaded provider",
+                "explicit DH parameters are not supported by the loaded provider; "
+                        + "initialise by key size to use an approved named group",
                 e.getMessage());
+        Assertions.assertFalse(e.getMessage().contains("subgroup order q"),
+                "must not ask the caller for a q this SPI cannot accept");
+
+        // The route the message names must actually work.
+        KeyPairGenerator bySize = KeyPairGenerator.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
+        bySize.initialize(2048);
+        Assertions.assertNotNull(bySize.generateKeyPair());
     }
 
     @Test

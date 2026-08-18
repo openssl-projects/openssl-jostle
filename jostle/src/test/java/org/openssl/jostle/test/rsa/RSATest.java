@@ -1682,11 +1682,18 @@ public class RSATest
     }
 
     /**
-     * The RSA KeyFactory must import an {@code id-RSASSA-PSS}-tagged
-     * key (OID 1.2.840.113549.1.1.10) — the encoding TLS 1.3
-     * {@code rsa_pss_pss_*} certificates carry — treating it as a plain RSA
-     * key, as BC/SunRsaSign do (JCA/TLS gap #7). An RSASSA-PSS key is
-     * structurally identical to an rsaEncryption one.
+     * The RSA KeyFactory must import an {@code id-RSASSA-PSS}-tagged key
+     * (OID 1.2.840.113549.1.1.10) — the encoding TLS 1.3 {@code rsa_pss_pss_*}
+     * certificates carry — since an RSASSA-PSS key is structurally identical to
+     * an rsaEncryption one, AND must re-encode under the identifier it arrived
+     * with rather than normalising to rsaEncryption.
+     *
+     * <p>The round trip is load-bearing, not cosmetic: BouncyCastle's TLS layer
+     * decides a certificate is {@code rsa_pss_pss} by reading
+     * {@code SubjectPublicKeyInfo.getInstance(getPublicKey().getEncoded())}, so a
+     * normalised encoding silently makes such a certificate unusable. BC
+     * preserves the identifier; SunRsaSign refuses the SPKI outright, so BC is
+     * the reference here.
      */
     @Test
     public void testKeyFactory_importsIdRSASSAPSSEncodedKey() throws Exception
@@ -1726,11 +1733,25 @@ public class RSATest
                 ((java.security.interfaces.RSAPrivateKey) jslPriv).getModulus(),
                 "private modulus differs after import");
 
-        // The imported key is a plain RSA key: it re-encodes identically to a
-        // JSL import of the equivalent rsaEncryption SPKI (PSS OID is dropped).
+        // Round trip: the re-encoded key must carry id-RSASSA-PSS again, byte
+        // for byte, and match what BC produces from the same input.
+        Assertions.assertArrayEquals(pssPub, jslPub.getEncoded(),
+                "id-RSASSA-PSS public key did not round-trip");
+        Assertions.assertArrayEquals(pssPriv, jslPriv.getEncoded(),
+                "id-RSASSA-PSS private key did not round-trip");
+        KeyFactory bcKf = KeyFactory.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
+        Assertions.assertArrayEquals(
+                bcKf.generatePublic(new X509EncodedKeySpec(pssPub)).getEncoded(),
+                jslPub.getEncoded(),
+                "JSL and BC disagree on the re-encoded id-RSASSA-PSS SPKI");
+
+        // A plain rsaEncryption import must still encode as rsaEncryption — the
+        // preservation is driven by the input, not applied to every RSA key.
         PublicKey jslPlain = kf.generatePublic(new X509EncodedKeySpec(bcKp.getPublic().getEncoded()));
-        Assertions.assertArrayEquals(jslPlain.getEncoded(), jslPub.getEncoded(),
-                "imported id-RSASSA-PSS key did not canonicalise to plain rsaEncryption");
+        Assertions.assertArrayEquals(bcKp.getPublic().getEncoded(), jslPlain.getEncoded(),
+                "a plain rsaEncryption key must not acquire a PSS identifier");
+        Assertions.assertFalse(Arrays.areEqual(jslPlain.getEncoded(), jslPub.getEncoded()),
+                "PSS and plain imports must not encode identically");
 
         // ...and it functions: a PSS round-trip with the imported keys verifies.
         SecureRandom sr = seededRandom("testKeyFactory_importsIdRSASSAPSSEncodedKey");

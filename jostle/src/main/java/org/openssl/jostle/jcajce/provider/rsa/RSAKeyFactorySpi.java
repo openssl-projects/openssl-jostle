@@ -69,15 +69,22 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof X509EncodedKeySpec)
         {
             // An id-RSASSA-PSS SPKI is a structurally-identical RSA key; rewrite
-            // it to rsaEncryption (as BC/SunRsaSign do) so it imports under RSA.
-            // A plain rsaEncryption key is returned unchanged.
-            byte[] encoded = KeyInfoCanonicalizer.rsaSubjectPublicKeyInfo(
-                    ((X509EncodedKeySpec) keySpec).getEncoded());
+            // it to rsaEncryption so it imports under RSA (OpenSSL has no separate
+            // type for this SPKI form). A plain rsaEncryption key is returned
+            // unchanged — the canonicalizer hands back the same array.
+            byte[] original = ((X509EncodedKeySpec) keySpec).getEncoded();
+            byte[] encoded = KeyInfoCanonicalizer.rsaSubjectPublicKeyInfo(original);
+            // Rewritten: remember the identifier it arrived with so getEncoded()
+            // reproduces it. Dropping it silently changes what callers see — BC's
+            // TLS layer identifies an rsa_pss_pss certificate from the re-encoded
+            // key, so a normalised encoding makes such a certificate unusable.
+            byte[] sourceAlgId = (encoded != original)
+                    ? KeyInfoCanonicalizer.subjectPublicKeyInfoAlgId(original) : null;
             try
             {
                 PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireRSA(spec);
-                return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
+                return new JORSAPublicKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
             }
             catch (RuntimeException e)
             {
@@ -124,11 +131,17 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             // allocated) once the native key is built, matching EdKeyFactorySpi.
             byte[] pkcs8 = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
             byte[] encoded = KeyInfoCanonicalizer.rsaPrivateKeyInfo(pkcs8);
+            // As on the public path: preserve the identifier when rewritten so
+            // getEncoded() reproduces what arrived. The AlgorithmIdentifier is
+            // not key material, so retaining it does not extend the exposure of
+            // the private key bytes scrubbed below.
+            byte[] sourceAlgId = (encoded != pkcs8)
+                    ? KeyInfoCanonicalizer.privateKeyInfoAlgId(pkcs8) : null;
             try
             {
                 PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
                 requireRSA(spec);
-                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
+                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
             }
             catch (RuntimeException e)
             {

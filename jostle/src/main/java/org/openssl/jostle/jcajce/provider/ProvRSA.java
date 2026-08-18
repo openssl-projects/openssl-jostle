@@ -38,6 +38,14 @@ class ProvRSA
                 PREFIX + "RSAKeyFactorySpi", attr,
                 (arg) -> new RSAKeyFactorySpi());
         provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
+        // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
+        // 1.2.840.113549.1.1.10, not rsaEncryption, and the JCA name for it is
+        // "RSASSA-PSS". The RSA KeyFactory decodes that SPKI form correctly
+        // (probe-confirmed) — only the names were missing, so a caller asking
+        // by either got NoSuchAlgorithmException, and the provider-bound
+        // CertificateFactory's OID-keyed key re-derivation failed loud
+        // (JSLKeyX509Certificate), surfacing to TLS as bad_certificate(42).
+        provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.10", "RSASSA-PSS");
 
         // PKCS#1 v1.5 Signature variants. MD5 is registered for legacy
         // interop only — callers should prefer SHA-2 / SHA-3 family.

@@ -17,7 +17,9 @@ import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
@@ -42,11 +44,25 @@ class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSS
         this(NISelector.RSAServiceNI, NISelector.Asn1NI, spec);
     }
 
+    /**
+     * PrivateKeyInfo AlgorithmIdentifier this key arrived with, when it differed
+     * from the one OpenSSL emits (an id-RSASSA-PSS PKCS#8 is imported as plain
+     * RSA). See the JORSAPublicKey twin. The identifier only — never the whole
+     * encoding, which here is key material.
+     */
+    private final byte[] sourceAlgId;
+
     JORSAPrivateKey(RSAServiceNI rsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
+        this(rsaServiceNI, asn1NI, spec, null);
+    }
+
+    JORSAPrivateKey(RSAServiceNI rsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec, byte[] sourceAlgId)
     {
         super(spec);
         this.rsaServiceNI = rsaServiceNI;
         this.asn1NI = asn1NI;
+        this.sourceAlgId = Arrays.clone(sourceAlgId);
     }
 
     @Override
@@ -72,7 +88,8 @@ class JORSAPrivateKey extends AsymmetricKeyImpl implements RSAPrivateCrtKey, OSS
     {
         synchronized (this)
         {
-            return ASN1Encoder.asPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT);
+            return KeyInfoCanonicalizer.withPrivateKeyInfoAlgId(
+                    ASN1Encoder.asPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT), sourceAlgId);
         }
     }
 
