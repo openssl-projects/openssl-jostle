@@ -77,6 +77,12 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.AES128",
             "Cipher.AES192",
             "Cipher.AES256",
+            // Key wrap by name (RFC 3394 / RFC 5649 — approved). Same
+            // implementation the wrap OIDs above already serve; naming gap only.
+            // Upper-cased because the provider upper-cases on registration;
+            // aliases AESKW / AESKWP are excluded here, as all aliases are.
+            "Cipher.AESWRAP",
+            "Cipher.AESWRAPPAD",
             "Cipher.RSA",
             "KeyAgreement.DH",
             "KeyAgreement.DHWITHRFC2631KDF",
