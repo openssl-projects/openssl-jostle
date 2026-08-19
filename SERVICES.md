@@ -345,7 +345,9 @@ The Jostle (`JSL`) provider registers **296** services across **14** JCA service
 
 # Jostle FIPS Provider (JSLFIPS) — Registered Services
 
-The Jostle FIPS (`JSLFIPS`) provider registers **153** services across **13** JCA service types — the subset the OpenSSL FIPS module serves as approved. The set is fixed by the ProvFIPS* registration code.
+The Jostle FIPS (`JSLFIPS`) provider registers **161** services across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
+
+**Approval is not asserted here.** Whether a particular operation is FIPS-*approved* is a compliance determination against the module's security policy (CMVP cert #4985 for OpenSSL FIPS 3.1.2), and it belongs to the operator. This provider does not make it, for three reasons: the module does not enforce its own validated envelope; OpenSSL 3.1.2 exposes no runtime approved-mode indicator; and the policy's non-approved entries are usage-scoped — HMAC key length, HKDF key length, X9.63 KDF PRF choice, RSA primitive modulus size — which no registration surface can express. Deployments needing an enforced restriction should use the JVM's own `jdk.security.providers.filter`.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -396,7 +398,7 @@ The Jostle FIPS (`JSLFIPS`) provider registers **153** services across **13** JC
 19. `AESWRAPPAD`
 20. `RSA`
 
-## KeyAgreement (8)
+## KeyAgreement (11)
 
 1. `DH`
 2. `DHWITHRFC2631KDF`
@@ -406,13 +408,19 @@ The Jostle FIPS (`JSLFIPS`) provider registers **153** services across **13** JC
 6. `ECDHWITHSHA256KDF`
 7. `ECDHWITHSHA384KDF`
 8. `ECDHWITHSHA512KDF`
+9. `X25519`
+10. `X448`
+11. `XDH`
 
-## KeyFactory (4)
+## KeyFactory (7)
 
 1. `DH`
 2. `DSA`
 3. `EC`
 4. `RSA`
+5. `X25519`
+6. `X448`
+7. `XDH`
 
 ## KeyGenerator (4)
 
@@ -421,12 +429,14 @@ The Jostle FIPS (`JSLFIPS`) provider registers **153** services across **13** JC
 3. `AES192`
 4. `AES256`
 
-## KeyPairGenerator (4)
+## KeyPairGenerator (6)
 
 1. `DH`
 2. `DSA`
 3. `EC`
 4. `RSA`
+5. `X25519`
+6. `X448`
 
 ## Mac (12)
 

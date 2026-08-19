@@ -63,7 +63,10 @@ import javax.security.auth.callback.UnsupportedCallbackException;
 public class KSServiceSPI
     extends KeyStoreSpi
 {
-    private static final KSServiceNI ksServiceNI = NISelector.KSServiceNI;
+    // Instance field, not a NISelector static: the SPI is bound to whichever
+    // NI backend its provider passes in - NISelector.KSServiceNI for JSL,
+    // FIPSNISelector.KSServiceNI (the FIPS interface library) for JSLFIPS.
+    private final KSServiceNI ksServiceNI;
     private static final byte[] PKCS12_AUTH_SAFE_DATA_OID = new byte[] {
             0x2a, (byte)0x86, 0x48, (byte)0x86, (byte)0xf7, 0x0d, 0x01,
             0x07, 0x01
@@ -109,14 +112,37 @@ public class KSServiceSPI
     {
         // Bare PKCS12: modern default -- AES-256-CBC keys, AES-128-CBC certs
         // (PBES2 / PBKDF2-HMAC-SHA256), HMAC-SHA256 integrity MAC.
-        this(PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+        this(NISelector.KSServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                PBE_ITERATIONS, MAC_ITERATIONS);
+    }
+
+    /**
+     * NI-bound construction, for a provider that backs this SPI with a
+     * different interface library. NO CALLER TODAY — JSLFIPS does not register
+     * PKCS#12, because the FIPS module lacks PKCS12KDF and so can neither write
+     * nor read a conventionally-MAC'd keystore (see
+     * {@code JostleFIPSProvider.setup}). Kept because holding the NI per
+     * instance rather than reading a NISelector static is the pattern every
+     * other SPI follows, and it is what a future registrar would need; the
+     * absence of callers is not an oversight.
+     */
+    public KSServiceSPI(KSServiceNI ksServiceNI)
+    {
+        this(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
                 PBE_ITERATIONS, MAC_ITERATIONS);
     }
 
     protected KSServiceSPI(int keyPbe, int certPbe, int macScheme, int macDigest,
                            int pbeIter, int macIter)
     {
-        this.ref = new KSReference(ksServiceNI.allocateKeyStore(BASE_TYPE), BASE_TYPE);
+        this(NISelector.KSServiceNI, keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter);
+    }
+
+    protected KSServiceSPI(KSServiceNI ksServiceNI, int keyPbe, int certPbe, int macScheme,
+                           int macDigest, int pbeIter, int macIter)
+    {
+        this.ksServiceNI = ksServiceNI;
+        this.ref = new KSReference(ksServiceNI, ksServiceNI.allocateKeyStore(BASE_TYPE), BASE_TYPE);
         this.keyPbe = keyPbe;
         this.certPbe = certPbe;
         this.macScheme = macScheme;
@@ -137,6 +163,12 @@ public class KSServiceSPI
             super(PBE_3DES, PBE_3DES, MAC_TRADITIONAL, MD_SHA1,
                     PBE_ITERATIONS, MAC_ITERATIONS);
         }
+
+        public PKCS12_3DES_3DES(KSServiceNI ksServiceNI)
+        {
+            super(ksServiceNI, PBE_3DES, PBE_3DES, MAC_TRADITIONAL, MD_SHA1,
+                    PBE_ITERATIONS, MAC_ITERATIONS);
+        }
     }
 
     /**
@@ -151,6 +183,12 @@ public class KSServiceSPI
             super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
                     PBE_ITERATIONS, MAC_ITERATIONS);
         }
+
+        public PKCS12_AES256_AES128(KSServiceNI ksServiceNI)
+        {
+            super(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                    PBE_ITERATIONS, MAC_ITERATIONS);
+        }
     }
 
     /**
@@ -163,6 +201,12 @@ public class KSServiceSPI
         public PKCS12_PBMAC1()
         {
             super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_PBMAC1, MD_SHA512,
+                    PBE_ITERATIONS, PBMAC1_ITERATIONS);
+        }
+
+        public PKCS12_PBMAC1(KSServiceNI ksServiceNI)
+        {
+            super(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_PBMAC1, MD_SHA512,
                     PBE_ITERATIONS, PBMAC1_ITERATIONS);
         }
     }
@@ -898,9 +942,14 @@ public class KSServiceSPI
     private static class Disposer
         extends NativeDisposer
     {
-        Disposer(long ref)
+        // The NI that allocated the keystore frees it - a FIPS-allocated
+        // PKCS12 must be disposed through the FIPS interface library.
+        private final KSServiceNI ksServiceNI;
+
+        Disposer(KSServiceNI ksServiceNI, long ref)
         {
             super(ref);
+            this.ksServiceNI = ksServiceNI;
         }
 
         @Override
@@ -913,9 +962,14 @@ public class KSServiceSPI
     private static class KSReference
         extends NativeReference
     {
-        KSReference(long reference, String name)
+        // The dispose action is built from the CONSTRUCTOR PARAMETER and handed
+        // to super(): NativeReference self-registers with the disposal daemon,
+        // which captures getDisposeAction() eagerly - before any subclass field
+        // assignment would have run. Reading an instance field here would
+        // capture null and NPE on the daemon thread later. See NativeReference.
+        KSReference(KSServiceNI ksServiceNI, long reference, String name)
         {
-            super(reference, name, new Disposer(reference));
+            super(reference, name, new Disposer(ksServiceNI, reference));
         }
 
     }

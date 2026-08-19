@@ -661,6 +661,20 @@ public class FIPSX509CertificateFactoryTest
             Assertions.assertTrue(Arrays.areEqual(pssSpki, decoded.getEncoded()),
                     name + ": did not round-trip the id-RSASSA-PSS SPKI");
         }
+
+        // Differentiator: the preservation is driven by the INPUT, not applied to
+        // every RSA key. A plain rsaEncryption certificate must still re-encode
+        // as rsaEncryption — otherwise the mechanism would be "always emit PSS",
+        // which would round-trip the test above while corrupting ordinary keys.
+        byte[] plainDer = buildCert(kp.getPublic().getEncoded(),
+                "SHA256withRSA", "1.2.840.113549.1.1.11", kp.getPrivate(), FIPS);
+        PublicKey plainKey = parseFips(plainDer).getPublicKey();
+        Assertions.assertEquals("1.2.840.113549.1.1.1",
+                SubjectPublicKeyInfo.getInstance(plainKey.getEncoded())
+                        .getAlgorithm().getAlgorithm().getId(),
+                "a plain rsaEncryption certificate key must not acquire a PSS identifier");
+        Assertions.assertFalse(Arrays.areEqual(pssSpki, plainKey.getEncoded()),
+                "PSS and plain certificate keys must not encode identically");
     }
 
     private static X509Certificate parseFips(byte[] der) throws Exception

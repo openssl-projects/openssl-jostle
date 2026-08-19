@@ -22,7 +22,7 @@ import java.util.TreeSet;
 /**
  * Exhaustive served-surface golden snapshot for the FIPS provider ("JSLFIPS").
  * <p>
- * This is the strongest single regression guard on the provider's approved
+ * This is the strongest single regression guard on the provider's served
  * surface: it enumerates every service {@code JostleFIPSProvider} registers (as
  * {@code type.algorithm} primaries, aliases excluded) and asserts the set is
  * <b>exactly</b> the checked-in golden set below. A per-family absence or
@@ -31,7 +31,9 @@ import java.util.TreeSet;
  * either, naming precisely what was added or removed.
  * <p>
  * <b>The golden set is a deliberate snapshot, not a transcribed lookup table.</b>
- * It must only change when the approved surface changes on purpose. To
+ * It records what JSLFIPS SERVES — which is what the FIPS module implements, not
+ * a subset filtered against the security policy's approved-services tables (see
+ * {@code JostleFIPSProvider.setup}). It must only change on purpose. To
  * regenerate after an intentional change, list {@code provider.getServices()}
  * (sorted {@code type + "." + algorithm}) and paste it below — the diff in the
  * commit is then the reviewable record of exactly which services changed.
@@ -92,10 +94,16 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyAgreement.ECDHWITHSHA256KDF",
             "KeyAgreement.ECDHWITHSHA384KDF",
             "KeyAgreement.ECDHWITHSHA512KDF",
+            "KeyAgreement.X25519",
+            "KeyAgreement.X448",
+            "KeyAgreement.XDH",
             "KeyFactory.DH",
             "KeyFactory.DSA",
             "KeyFactory.EC",
             "KeyFactory.RSA",
+            "KeyFactory.X25519",
+            "KeyFactory.X448",
+            "KeyFactory.XDH",
             "KeyGenerator.AES",
             "KeyGenerator.AES128",
             "KeyGenerator.AES192",
@@ -104,6 +112,8 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.DSA",
             "KeyPairGenerator.EC",
             "KeyPairGenerator.RSA",
+            "KeyPairGenerator.X25519",
+            "KeyPairGenerator.X448",
             "Mac.AESCMAC",
             "Mac.HMACSHA1",
             "Mac.HMACSHA224",
@@ -161,9 +171,6 @@ public class FIPSServedSurfaceSnapshotTest
             "SecureRandom.HMAC-DRBG-SHA256",
             "SecureRandom.HMAC-DRBG-SHA512",
             "Signature.NONEWITHDSA",
-            // ECDSA SigGen/SigVer Component — approved under cert #4985
-            // ("Component - No, Yes"; services table "includes SigGen
-            // Component"). See the registration note in ProvFIPSEC.
             "Signature.NONEWITHECDSA",
             "Signature.NONEWITHRSA",
             "Signature.RSASSA-PSS",

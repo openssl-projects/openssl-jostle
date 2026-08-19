@@ -32,7 +32,7 @@ import java.util.Arrays;
 /**
  * XDH (X25519/X448) and the KDFs (PBKDF2, HKDF) through the FIPS provider
  * ("JSLFIPS"): agreement secrets and derived keys match BouncyCastle / the
- * non-FIPS provider, and unapproved variants are rejected. Gated on
+ * non-FIPS provider, and variants the module does not serve are absent. Gated on
  * TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSXDHKDFTest
@@ -52,37 +52,56 @@ public class FIPSXDHKDFTest
         }
     }
 
+    /**
+     * XDH is SERVED by JSLFIPS, and its secrets match the non-FIPS provider.
+     *
+     * <p>The module implements X25519/X448 — keygen and agreement both succeed
+     * under the FIPS lib ctx — so JSLFIPS exposes them. Cert #4985 lists XDH key
+     * agreement as a non-approved service (Table 8, §4.4 Table 13); that is a
+     * compliance determination for the operator, not a capability this provider
+     * withholds. This test previously asserted the opposite, from the period when
+     * the surface was filtered against the policy.
+     *
+     * <p>Byte-equality against JSL over the SAME key material is the check that
+     * matters: it proves the FIPS path computes the real shared secret rather
+     * than something merely self-consistent.
+     */
     @Test
-    public void xdhIsAbsentFromJslfips()
+    public void xdhServedByJslfipsAndAgreesWithJsl()
         throws Exception
     {
         ensureProviders();
 
-        // X25519/X448 key agreement is a non-approved service of the FIPS
-        // module per its FIPS 140-3 certification (cert #4985): JSLFIPS does
-        // not register the XDH family at all...
-        for (String name : new String[]{"X25519", "X448", "XDH"})
+        for (String alg : new String[]{"X25519", "X448"})
         {
-            Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
-                    () -> KeyPairGenerator.getInstance(name, JostleFIPSProvider.PROVIDER_NAME));
-            Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
-                    () -> KeyAgreement.getInstance(name, JostleFIPSProvider.PROVIDER_NAME));
-        }
-        // NOTE: this test used to also assert NoneWithECDSA was absent. That
-        // was wrong — the ECDSA SigGen/SigVer Component IS approved under cert
-        // #4985 ("Component - No, Yes"; the services table reads "SigGen
-        // (includes SigGen Component)"), so JSLFIPS now registers it. See
-        // FIPSECTest.noneWithECDSA_isServedAndSignsSuppliedDigest. XDH's
-        // absence below is unaffected and remains correct.
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+            KeyPair alice = kpg.generateKeyPair();
+            KeyPair bob = kpg.generateKeyPair();
 
-        // ... while JSL still serves XDH in the same JVM.
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("X25519", JostleProvider.PROVIDER_NAME);
-        KeyPair alice = kpg.generateKeyPair();
-        KeyPair bob = kpg.generateKeyPair();
-        KeyAgreement ka = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
-        ka.init(alice.getPrivate());
-        ka.doPhase(bob.getPublic(), true);
-        Assertions.assertNotNull(ka.generateSecret());
+            KeyAgreement fips = KeyAgreement.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+            fips.init(alice.getPrivate());
+            fips.doPhase(bob.getPublic(), true);
+            byte[] fipsSecret = fips.generateSecret();
+            Assertions.assertEquals("X25519".equals(alg) ? 32 : 56, fipsSecret.length);
+
+            // Same key material through JSL: secrets must be identical.
+            KeyFactory jslKf = KeyFactory.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            KeyAgreement jsl = KeyAgreement.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            jsl.init(jslKf.generatePrivate(
+                    new java.security.spec.PKCS8EncodedKeySpec(alice.getPrivate().getEncoded())));
+            jsl.doPhase(jslKf.generatePublic(
+                    new X509EncodedKeySpec(bob.getPublic().getEncoded())), true);
+            Assertions.assertArrayEquals(jsl.generateSecret(), fipsSecret,
+                    alg + ": JSLFIPS and JSL shared secrets differ");
+
+            // Differentiator: a third party's key must give a different secret.
+            KeyPair carol = kpg.generateKeyPair();
+            KeyAgreement other = KeyAgreement.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+            other.init(alice.getPrivate());
+            other.doPhase(carol.getPublic(), true);
+            Assertions.assertFalse(Arrays.equals(fipsSecret, other.generateSecret()),
+                    alg + ": a different peer key produced the same secret");
+        }
     }
 
     @Test
@@ -149,7 +168,7 @@ public class FIPSXDHKDFTest
     }
 
     @Test
-    public void unapprovedKdfsRejected()
+    public void kdfsNotServedByModuleRejected()
         throws Exception
     {
         ensureProviders();
@@ -166,15 +185,17 @@ public class FIPSXDHKDFTest
     }
 
     @Test
-    public void unapprovedKdfsRejected_md5sha1AndBlake2()
+    public void kdfsNotServedByModule_md5sha1AndBlake2()
         throws Exception
     {
         ensureProviders();
 
-        // MD5-SHA1 and both BLAKE2 PBKDF2 PRFs are named in ProvFIPSKDF's
-        // deliberately-absent Javadoc: JSL registers them (ProvPBKDF lines
-        // 48/49/53) but they are not FIPS-approved, so JSLFIPS must not serve
-        // them. Completes the approved-surface lock alongside unapprovedKdfsRejected.
+        // MD5-SHA1 and both BLAKE2 PBKDF2 PRFs: JSL registers them, JSLFIPS does
+        // not, because the FIPS module does not implement those digests at all
+        // (probe-confirmed: MD5, MD5-SHA1, BLAKE2S-256 and BLAKE2B-512 all fail
+        // to fetch under the FIPS lib ctx). The PRF is unavailable, so the
+        // PBKDF2 variant over it cannot work. Completes the served-surface lock
+        // alongside kdfsNotServedByModuleRejected.
         for (String name : new String[]{"PBKDF2WITHHMACMD5-SHA1", "PBKDF2WITHHMACBLAKE2B-512", "PBKDF2WITHHMACBLAKE2S-256"})
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,

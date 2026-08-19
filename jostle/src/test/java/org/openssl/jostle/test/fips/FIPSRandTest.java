@@ -38,7 +38,7 @@ public class FIPSRandTest
     // The FIPS-approved DRBG set: CTR-DRBG (all AES sizes) plus HASH-/HMAC-DRBG
     // over the FIPS 140-3 IG D.R digests (SHA-1, SHA2-256, SHA2-512). The
     // truncated-digest variants (SHA-224, SHA-384) are not registered by
-    // ProvFIPSRand - see unapprovedDrbgsRejected.
+    // ProvFIPSRand - see drbgsNotServedByModuleRejected.
     private static final String[] DRBGS = {
             "DRBG", "DEFAULT",
             "CTR-DRBG", "CTR-DRBG-AES128", "CTR-DRBG-AES192", "CTR-DRBG-AES256",
@@ -46,7 +46,7 @@ public class FIPSRandTest
             "HMAC-DRBG", "HMAC-DRBG-SHA1", "HMAC-DRBG-SHA256", "HMAC-DRBG-SHA512"
     };
 
-    private static final String[] UNAPPROVED_DRBGS = {
+    private static final String[] NOT_SERVED_DRBGS = {
             "HASH-DRBG-SHA224", "HASH-DRBG-SHA384",
             "HMAC-DRBG-SHA224", "HMAC-DRBG-SHA384"
     };
@@ -107,12 +107,12 @@ public class FIPSRandTest
     }
 
     @Test
-    public void unapprovedDrbgsRejected()
+    public void drbgsNotServedByModuleRejected()
         throws Exception
     {
         ensureProviders();
 
-        for (String name : UNAPPROVED_DRBGS)
+        for (String name : NOT_SERVED_DRBGS)
         {
             Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
                     () -> SecureRandom.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),
@@ -194,7 +194,7 @@ public class FIPSRandTest
         }
 
         // The truncated-digest DRBGs must be filtered out by isFipsApproved.
-        for (String name : UNAPPROVED_DRBGS)
+        for (String name : NOT_SERVED_DRBGS)
         {
             Assertions.assertNull(provider.getService("SecureRandom", name),
                     name + " (truncated DRBG digest) must not be registered");

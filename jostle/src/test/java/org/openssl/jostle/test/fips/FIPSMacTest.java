@@ -27,7 +27,7 @@ import java.security.Security;
  * Mac through the FIPS provider ("JSLFIPS"): the approved HMACs and AES-CMAC
  * agree with the non-FIPS provider and BouncyCastle in the same JVM, MACs
  * differentiate on key and message changes, reuse behaves, and the
- * unapproved MACs are rejected. Gated on TEST_FIPS_LIB; skipped when
+ * MACs the module does not serve are absent. Gated on TEST_FIPS_LIB; skipped when
  * unset.
  */
 public class FIPSMacTest
@@ -43,7 +43,7 @@ public class FIPSMacTest
             "AESCMAC"
     };
 
-    private static final String[] UNAPPROVED = {
+    private static final String[] NOT_SERVED_BY_MODULE = {
             "POLY1305", "HMACMD5", "HMACSM3", "HMACRIPEMD160"
     };
 
@@ -178,12 +178,12 @@ public class FIPSMacTest
     }
 
     @Test
-    public void unapprovedMacsRejected()
+    public void macsNotServedByModuleRejected()
         throws Exception
     {
         ensureProviders();
 
-        for (String name : UNAPPROVED)
+        for (String name : NOT_SERVED_BY_MODULE)
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
                     () -> Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),

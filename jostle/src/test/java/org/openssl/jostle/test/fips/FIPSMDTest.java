@@ -26,7 +26,7 @@ import java.security.Security;
 
 /**
  * MessageDigest <b>behaviour</b> through the FIPS provider ("JSLFIPS"): clone
- * and reuse-after-reset, OID-alias resolution, and rejection of the unapproved
+ * and reuse-after-reset, OID-alias resolution, and absence of the not-served
  * digests. Cross-provider byte-for-byte agreement over the approved set (vs the
  * non-FIPS provider and BouncyCastle) lives in the dedicated
  * {@code FIPSMDAgreementTest}. Gated on TEST_FIPS_LIB; skipped when unset.
@@ -35,7 +35,7 @@ public class FIPSMDTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private static final String[] UNAPPROVED = {
+    private static final String[] NOT_SERVED_BY_MODULE = {
             "MD5", "MD5-SHA1", "SM3", "BLAKE2B-512", "BLAKE2S-256", "RIPEMD-160"
     };
 
@@ -94,12 +94,12 @@ public class FIPSMDTest
     }
 
     @Test
-    public void unapprovedDigestsRejected()
+    public void digestsNotServedByModuleRejected()
         throws Exception
     {
         ensureProviders();
 
-        for (String name : UNAPPROVED)
+        for (String name : NOT_SERVED_BY_MODULE)
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
                     () -> MessageDigest.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),

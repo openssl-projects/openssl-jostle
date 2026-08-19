@@ -54,10 +54,9 @@ import java.util.Map;
  * both directions, plus a tampered-message differentiator. ECDH shared secrets
  * ARE deterministic and must be byte-identical across the three providers; a
  * different peer key is the differentiator. A SHA-2 digest
- * ({@code SHA256withECDSA}) is used throughout. ({@code NoneWithECDSA} is also
- * served by JSLFIPS — the SigGen Component is approved under cert #4985 — and
- * is covered by
- * {@code FIPSECTest.noneWithECDSA_isServedAndSignsSuppliedDigest}.)
+ * ({@code SHA256withECDSA}) is used throughout. ({@code NoneWithECDSA} is served
+ * by JSLFIPS in both directions and is covered by
+ * {@code FIPSECTest.noneWithECDSA_servedBothDirectionsOverSuppliedDigest}.)
  * <p>
  * Inputs (message content and length) are drawn from a per-test SHA1PRNG whose
  * seed is logged, so a flaky run is reproducible (per CLAUDE.md). Keypairs come
@@ -76,9 +75,10 @@ public class FIPSECAgreementTest
     private static final int TRIALS = 4;
 
     // Registered ECDHwithSHAnnnKDF KeyAgreement variants (ECDH shared secret run
-    // through an X9.63 KDF to derive a wrapping KEK). SHA-1 as a KDF PRF is
-    // approved even though SHA-1 signature generation is not (see
-    // FIPSSha1SignatureGateTest).
+    // through an X9.63 KDF to derive a wrapping KEK). All five PRFs are served:
+    // the module performs X963KDF with a SHA-1 PRF under fips=yes. Cert #4985
+    // Table 8 lists that usage as non-approved, which is the operator's
+    // compliance determination rather than a capability we withhold.
     private static final String[] ECDH_KDF_NAMES = {
             "ECDHWITHSHA1KDF", "ECDHWITHSHA224KDF", "ECDHWITHSHA256KDF", "ECDHWITHSHA384KDF", "ECDHWITHSHA512KDF"
     };

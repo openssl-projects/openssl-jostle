@@ -118,9 +118,23 @@ def render_markdown(total, groups, fips_total=None, fips_groups=None):
         out.append("# Jostle FIPS Provider (JSLFIPS) — Registered Services")
         out.append("")
         out.append("The Jostle FIPS (`JSLFIPS`) provider registers **{0}** services across "
-                   "**{1}** JCA service types — the subset the OpenSSL FIPS module serves as "
-                   "approved. The set is fixed by the ProvFIPS* registration code.".format(
+                   "**{1}** JCA service types — what the OpenSSL FIPS module serves, not a "
+                   "subset filtered against its security policy. The module decides what is "
+                   "available: its implementations carry a `fips=yes`/`fips=no` property and "
+                   "the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, "
+                   "ChaCha20 and OCB (for instance) are simply not fetchable.".format(
                        fips_total, len(fips_groups)))
+        out.append("")
+        out.append("**Approval is not asserted here.** Whether a particular operation is "
+                   "FIPS-*approved* is a compliance determination against the module's "
+                   "security policy (CMVP cert #4985 for OpenSSL FIPS 3.1.2), and it belongs "
+                   "to the operator. This provider does not make it, for three reasons: the "
+                   "module does not enforce its own validated envelope; OpenSSL 3.1.2 exposes "
+                   "no runtime approved-mode indicator; and the policy's non-approved entries "
+                   "are usage-scoped — HMAC key length, HKDF key length, X9.63 KDF PRF choice, "
+                   "RSA primitive modulus size — which no registration surface can express. "
+                   "Deployments needing an enforced restriction should use the JVM's own "
+                   "`jdk.security.providers.filter`.")
         out.append("")
         for service_type, algorithms in fips_groups:
             out.append("## {0} ({1})".format(service_type, len(algorithms)))

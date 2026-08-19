@@ -90,6 +90,7 @@ public final class JostleFIPSProvider
 
     private final boolean configured;
 
+
     private transient SecureRandom defaultSecureRandom;
 
     public JostleFIPSProvider()
@@ -220,9 +221,24 @@ public final class JostleFIPSProvider
 
     private void setup()
     {
-        // FIPS-approved services only: each ProvFIPS* registers the subset of
-        // its family the FIPS module serves as approved (fips=yes) - the
-        // lib ctx's fips=yes default properties are the enforcement backstop.
+        // JSLFIPS exposes what the FIPS MODULE SERVES, not a subset filtered
+        // against the security policy's approved-services tables. The module is
+        // the arbiter of what is available: its implementations carry a fips=yes
+        // or fips=no property and the lib ctx's fips=yes default property query
+        // is what excludes the latter, so Triple-DES, ChaCha20 and OCB (for
+        // example) fail at the native fetch without any Java-side list.
+        //
+        // We deliberately do NOT filter further. Whether a given operation is
+        // FIPS-APPROVED is a determination about compliance, per cert #4985's
+        // policy, and it is the operator's to make: the module does not enforce
+        // its own validated envelope (it signs happily with a 3072-bit key
+        // through a service the policy caps at 2048), 3.1.2 exposes no runtime
+        // approved-mode indicator, and the policy's non-approved entries are
+        // usage-scoped (HMAC key length, X963KDF PRF choice) rather than
+        // per-service — so no registration surface could express them. A
+        // hand-maintained approved-subset was a second, drift-prone copy of a
+        // determination we cannot make correctly, and mistakes in it removed
+        // working algorithms from callers. See SERVICES.md.
         new ProvFIPSMD().configure(this);
         new ProvFIPSAES().configure(this);
         new ProvFIPSMac().configure(this);
@@ -232,15 +248,27 @@ public final class JostleFIPSProvider
         new ProvFIPSDSA().configure(this);
         new ProvFIPSDH().configure(this);
         new ProvFIPSKDF().configure(this);
+        new ProvFIPSXDH().configure(this);
+        // No PKCS#12 KeyStore registrar. This is a module capability limit, not
+        // an approval judgement: the traditional PKCS#12 integrity MAC derives
+        // its key with PKCS12KDF, which OpenSSL registers in the DEFAULT
+        // provider only (the FIPS provider serves HKDF, TLS13-KDF, SSKDF,
+        // PBKDF2, SSHKDF, X963KDF, X942KDF, TLS1-PRF, KBKDF, CTR-DRBG). The
+        // consequence is not merely that we cannot WRITE a conventional
+        // keystore - we cannot READ one either, whoever wrote it, because
+        // verifying its MAC needs that KDF. Only RFC 9579 PBMAC1 keystores
+        // (PBKDF2-derived MAC key) work, and those are rare and recent.
+        //
+        // Registering the service would therefore offer callers something that
+        // fails on essentially every .p12 they already have, which is worse than
+        // its absence. JSL serves PKCS#12; use it, or a PBMAC1 keystore.
         // CertificateFactory: structure parsing is not a cryptographic service;
         // the registration is provider-bound so keys and verification flowing
         // from parsed certificates stay inside the FIPS boundary (fail-loud on
         // algorithms the module does not serve). See ProvFIPSX509.
         new ProvFIPSX509().configure(this);
-        // No XDH registrar: X25519/X448 key agreement is a non-approved
-        // service of the FIPS module per its FIPS 140-3 certification
-        // (cert #4985, security policy Tables 8/13). JSL serves XDH; further
-        // restriction of either provider's surface belongs to the JVM's own
-        // mechanisms (e.g. the jdk.security.providers.filter property).
+        // A deployment needing to restrict this provider's surface should use the
+        // JVM's own mechanism (jdk.security.providers.filter) rather than expect
+        // JSLFIPS to withhold what the module implements.
     }
 }

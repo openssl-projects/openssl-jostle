@@ -63,17 +63,16 @@ class ProvFIPSEC
         registerEcdsaSignature(provider, attr, "SHA3-384withECDSA", "SHA3-384", "2.16.840.1.101.3.4.3.11");
         registerEcdsaSignature(provider, attr, "SHA3-512withECDSA", "SHA3-512", "2.16.840.1.101.3.4.3.12");
 
-        // NoneWithECDSA — raw ECDSA over a caller-supplied digest. This is the
-        // ECDSA SigGen/SigVer *Component* and it IS approved under cert #4985:
-        // the approved-algorithm table validates A3548 with "Component - No,
-        // Yes", the approved-services table reads "SigGen (includes SigGen
-        // Component)", the policy defines a service indicator for it
-        // (EVP_MD_get0_name returning null, "a hash is not used"), and Table 13
-        // Non-Approved Services is empty. An earlier comment here claimed the
-        // opposite and left it unregistered; that was incorrect. Live
-        // registration via the base SPI with digest "NONE", mirroring
-        // NoneWithDSA in ProvFIPSDSA. Required by TLS 1.2/1.3 ECDSA
-        // authentication (BouncyCastle's JcaTlsECDSA13Signer.generateRawSignature).
+        // NoneWithECDSA — raw ECDSA over a caller-supplied digest, both
+        // directions. The module serves it, so we expose it: JSLFIPS's surface
+        // is what the FIPS module implements, not a subset filtered against the
+        // security policy's approved-services tables. Determining whether a
+        // given use is FIPS-approved is the operator's, not this provider's.
+        //
+        // For the record, since it was previously restricted here: cert #4985
+        // approves the SigGen Component ("Component - No, Yes"; services table
+        // "SigGen (includes SigGen Component)") and lists the SigVer Component
+        // as non-approved (Table 8, §4.4 Table 13). The module performs both.
         provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
                 PREFIX + "ECDSASignatureSpi$None", attr,
                 (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(), "NONE"));
@@ -84,7 +83,11 @@ class ProvFIPSEC
         // id-ecDH (SECG SEC1) — so CMS/PKIX KeyAgreeRecipientInfo can resolve
         // the EC agreement by OID, mirroring the non-FIPS ProvEC surface.
         provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
-        // X9.63 dhSinglePass-stdDH-sha*kdf-scheme OIDs, likewise for CMS.
+        // X9.63 dhSinglePass-stdDH-sha*kdf-scheme OIDs, likewise for CMS. All
+        // five PRFs are served: the module performs X963KDF with a SHA-1 PRF
+        // under fips=yes (probe-confirmed), so it is exposed. Cert #4985 Table 8
+        // lists that particular USAGE as non-approved — a caller-chosen PRF the
+        // module does not police — which is the operator's determination to make.
         registerKdfAgreement(provider, attr, "ECDHWITHSHA1KDF", "SHA-1", "1.3.133.16.840.63.0.2");
         registerKdfAgreement(provider, attr, "ECDHWITHSHA224KDF", "SHA-224", "1.3.132.1.11.0");
         registerKdfAgreement(provider, attr, "ECDHWITHSHA256KDF", "SHA-256", "1.3.132.1.11.1");

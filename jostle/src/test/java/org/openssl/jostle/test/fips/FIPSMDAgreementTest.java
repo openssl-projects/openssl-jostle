@@ -24,7 +24,7 @@ import java.security.Security;
  * Cross-provider agreement for the FIPS provider's MessageDigest surface — the
  * MD analogue of {@code FIPSAESAgreementTest}, and the dedicated home for
  * digest agreement (the behavioural concerns — clone/reuse, OID aliasing,
- * rejection of unapproved digests — live in {@code FIPSMDTest}).
+ * absence of digests the module does not serve — live in {@code FIPSMDTest}).
  * <p>
  * Every approved digest is exercised two ways in the same JVM: JSLFIPS vs the
  * non-FIPS provider (JSL) over the full approved set, and JSLFIPS vs

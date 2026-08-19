@@ -66,8 +66,18 @@ public class FIPSNonCryptoServiceAbsenceTest
         Assertions.assertNotNull(Security.getProvider(JostleProvider.PROVIDER_NAME),
                 "JSL provider must be registered");
 
-        // JSLFIPS does not register PKCS12: KeyStore.getInstance surfaces a
-        // KeyStoreException wrapping a NoSuchAlgorithmException.
+        // JSLFIPS does not register PKCS12, and the reason is a MODULE CAPABILITY
+        // limit rather than an approval judgement (JSLFIPS does not filter on
+        // approval — see JostleFIPSProvider.setup). The traditional PKCS#12
+        // integrity MAC derives its key with PKCS12KDF, which OpenSSL registers
+        // in the DEFAULT provider only; the FIPS provider serves HKDF,
+        // TLS13-KDF, SSKDF, PBKDF2, SSHKDF, X963KDF, X942KDF, TLS1-PRF, KBKDF
+        // and CTR-DRBG. So a FIPS-backed PKCS#12 could neither write nor READ a
+        // conventional keystore — verifying the MAC of an existing .p12 needs
+        // that KDF, whoever wrote it (probe-confirmed against files written by
+        // JSL and by BouncyCastle). Only RFC 9579 PBMAC1 keystores would work.
+        // Offering a service that fails on essentially every .p12 a caller
+        // already has is worse than its absence, so it is not registered.
         KeyStoreException ksEx = Assertions.assertThrows(KeyStoreException.class,
                 () -> KeyStore.getInstance(PKCS12_KEYSTORE, JostleFIPSProvider.PROVIDER_NAME));
         Assertions.assertTrue(combinedMessage(ksEx).contains(PKCS12_KEYSTORE),

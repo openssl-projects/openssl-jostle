@@ -29,101 +29,137 @@ public class KSServiceFFI
     implements KSServiceNI
 {
     private static final Logger L = Logger.getLogger("KS_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MethodHandle allocateH = linker.downcallHandle(
-            lookup.find("JoKS_Allocate").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle disposeH = linker.downcallHandle(
-            lookup.find("JoKS_Dispose").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
+    private final MethodHandle allocateH;
+    private final MethodHandle disposeH;
+    private final MethodHandle loadH;
+    private final MethodHandle storeLenH;
+    private final MethodHandle storeH;
+    private final MethodHandle getKeyLenH;
+    private final MethodHandle getKeyH;
+    private final MethodHandle setKeyH;
+    private final MethodHandle getCertificateChainLenH;
+    private final MethodHandle getCertificateChainH;
+    private final MethodHandle setCertificateChainH;
+    private final MethodHandle setCertificateEntryH;
+    private final MethodHandle deleteEntryH;
+    private final MethodHandle getAliasesLenH;
+    private final MethodHandle getAliasesH;
+    private final MethodHandle containsAliasH;
+    private final MethodHandle sizeH;
+    private final MethodHandle isKeyEntryH;
+    private final MethodHandle isCertificateEntryH;
+    private final MethodHandle getCreationDateH;
+
+    public KSServiceFFI()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    /**
+     * Symbol resolution is parameterised so the same marshalling serves both
+     * interface libraries: the base library via the process-global
+     * loaderLookup, and the FIPS library via a library-scoped lookup (see
+     * KSServiceFIPSFFI). The handles are therefore INSTANCE fields — a static
+     * handle would bind whichever library initialised the class first.
+     */
+    public KSServiceFFI(SymbolLookup lookup)
+    {
+        this.allocateH = linker.downcallHandle(
+                lookup.find("JoKS_Allocate").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.disposeH = linker.downcallHandle(
+                lookup.find("JoKS_Dispose").orElseThrow(),
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.loadH = linker.downcallHandle(
+                lookup.find("JoKS_Load").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.storeLenH = linker.downcallHandle(
+                lookup.find("JoKS_StoreLen").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        this.storeH = linker.downcallHandle(
+                lookup.find("JoKS_Store").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        this.getKeyLenH = linker.downcallHandle(
+                lookup.find("JoKS_GetKeyLen").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.getKeyH = linker.downcallHandle(
+                lookup.find("JoKS_GetKey").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                Linker.Option.critical(true));
+        this.setKeyH = linker.downcallHandle(
+                lookup.find("JoKS_SetKey").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                Linker.Option.critical(true));
+        this.getCertificateChainLenH = linker.downcallHandle(
+                lookup.find("JoKS_GetCertificateChainLen").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.getCertificateChainH = linker.downcallHandle(
+                lookup.find("JoKS_GetCertificateChain").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                Linker.Option.critical(true));
+        this.setCertificateChainH = linker.downcallHandle(
+                lookup.find("JoKS_SetCertificateChain").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                Linker.Option.critical(true));
+        this.setCertificateEntryH = linker.downcallHandle(
+                lookup.find("JoKS_SetCertificateEntry").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                Linker.Option.critical(true));
+        this.deleteEntryH = linker.downcallHandle(
+                lookup.find("JoKS_DeleteEntry").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.getAliasesLenH = linker.downcallHandle(
+                lookup.find("JoKS_GetAliasesLen").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.getAliasesH = linker.downcallHandle(
+                lookup.find("JoKS_GetAliases").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                Linker.Option.critical(true));
+        this.containsAliasH = linker.downcallHandle(
+                lookup.find("JoKS_ContainsAlias").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.sizeH = linker.downcallHandle(
+                lookup.find("JoKS_Size").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.isKeyEntryH = linker.downcallHandle(
+                lookup.find("JoKS_IsKeyEntry").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.isCertificateEntryH = linker.downcallHandle(
+                lookup.find("JoKS_IsCertificateEntry").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+        this.getCreationDateH = linker.downcallHandle(
+                lookup.find("JoKS_GetCreationDate").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                Linker.Option.critical(true));
+    }
+
     // loadH is deliberately NOT critical: ks_load runs a PBKDF2 (hundreds of
     // thousands of iterations) per shrouded key bag plus MAC verification, so a
     // critical downcall would suppress GC for that whole multi-second span.
     // Buffers are copied off-heap from a confined arena in ni_load instead.
-    private static final MethodHandle loadH = linker.downcallHandle(
-            lookup.find("JoKS_Load").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
     // storeLenH / storeH are deliberately NOT critical: ks_store generates
     // PKCS#12 salts via the Jostle lib ctx, which up-calls Java for entropy --
     // forbidden from a critical downcall. Buffers are passed off-heap (see
     // ni_store), and the trailing ADDRESS before output/err is the entropy
     // upcall stub.
-    private static final MethodHandle storeLenH = linker.downcallHandle(
-            lookup.find("JoKS_StoreLen").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-    private static final MethodHandle storeH = linker.downcallHandle(
-            lookup.find("JoKS_Store").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                    ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                    ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
     private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
     private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
-    private static final MethodHandle getKeyLenH = linker.downcallHandle(
-            lookup.find("JoKS_GetKeyLen").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle getKeyH = linker.downcallHandle(
-            lookup.find("JoKS_GetKey").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
-    private static final MethodHandle setKeyH = linker.downcallHandle(
-            lookup.find("JoKS_SetKey").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
-    private static final MethodHandle getCertificateChainLenH = linker.downcallHandle(
-            lookup.find("JoKS_GetCertificateChainLen").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle getCertificateChainH = linker.downcallHandle(
-            lookup.find("JoKS_GetCertificateChain").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
-    private static final MethodHandle setCertificateChainH = linker.downcallHandle(
-            lookup.find("JoKS_SetCertificateChain").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
-    private static final MethodHandle setCertificateEntryH = linker.downcallHandle(
-            lookup.find("JoKS_SetCertificateEntry").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
-    private static final MethodHandle deleteEntryH = linker.downcallHandle(
-            lookup.find("JoKS_DeleteEntry").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle getAliasesLenH = linker.downcallHandle(
-            lookup.find("JoKS_GetAliasesLen").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle getAliasesH = linker.downcallHandle(
-            lookup.find("JoKS_GetAliases").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-            Linker.Option.critical(true));
-    private static final MethodHandle containsAliasH = linker.downcallHandle(
-            lookup.find("JoKS_ContainsAlias").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle sizeH = linker.downcallHandle(
-            lookup.find("JoKS_Size").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle isKeyEntryH = linker.downcallHandle(
-            lookup.find("JoKS_IsKeyEntry").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle isCertificateEntryH = linker.downcallHandle(
-            lookup.find("JoKS_IsCertificateEntry").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
-    private static final MethodHandle getCreationDateH = linker.downcallHandle(
-            lookup.find("JoKS_GetCreationDate").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
-            Linker.Option.critical(true));
 
     @Override
     public long ni_allocateKeyStore(String type, int[] err)

@@ -34,7 +34,8 @@ import java.security.Security;
 /**
  * AES through the FIPS provider ("JSLFIPS"): CBC/GCM/CCM/CTR/ECB and
  * key-wrap agree with the non-FIPS provider and BouncyCastle in the same
- * JVM, AEAD tampering is rejected, and unapproved ciphers are absent. Gated
+ * JVM, AEAD tampering is rejected, and ciphers the module does not serve are
+ * absent. Gated
  * on TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSAESTest
@@ -237,7 +238,7 @@ public class FIPSAESTest
     }
 
     @Test
-    public void unapprovedCiphersRejected()
+    public void ciphersNotServedByModuleRejected()
         throws Exception
     {
         ensureProviders();
@@ -485,7 +486,7 @@ public class FIPSAESTest
     }
 
     /**
-     * Positive complement to unapprovedCiphersRejected: every registered AES
+     * Positive complement to ciphersNotServedByModuleRejected: every registered AES
      * OID transformation (id-aes{128,192,256}-{CBC,GCM,wrap,wrap_pad}) and
      * the bare AES128/AES192/AES256 primaries must resolve through JSLFIPS.
      * A registration drift that dropped an approved OID would surface here as
