@@ -5,10 +5,12 @@ done. Auto-imported by CLAUDE.md.
 
 ### Test-discipline checklist — run before declaring a test file done
 
-Whenever you write or modify a roundtrip-style unit test (sign/verify, encrypt/decrypt, MAC, digest, encap/decap, KDF), audit the test against the following two rules **before declaring the work complete**. The full rationale for each rule lives in the named sections below; this checklist is the enforcement summary:
+Whenever you write or modify a roundtrip-style unit test (sign/verify, encrypt/decrypt, MAC, digest, encap/decap, KDF), audit the test against the following three rules **before declaring the work complete**. The full rationale for each rule lives in the named sections below; this checklist is the enforcement summary:
 
 1. **Random inputs.** Every key, IV / nonce, salt, AAD, plaintext, message, and password used in a non-KAT roundtrip MUST be derived from a `SecureRandom` (via `nextBytes`, a `KeyGenerator`, or a `KeyPairGenerator`) — not a hardcoded `byte[]` literal, hex string, or `"...".getBytes()`. KAT tests that pin a published vector are exempt. See **"Vary the chunking, and randomise the inputs"** and **"Run agreement tests against BouncyCastle, with random inputs"** for the full rules.
 2. **Negative path.** Every roundtrip primitive covered in the file MUST have at least one accompanying test that proves the operation actually transforms its input: tampered ciphertext → decrypt diverges, tampered message → verify returns false, wrong key → roundtrip fails, distinct inputs → distinct digests / MACs / derived keys. A KAT alone is insufficient — pair it with at least one differentiator. See **"Tests must exercise the negative path"** for the per-primitive expectations.
+
+3. **Assert the property, not the mechanism.** The assertion MUST fail when the behaviour a caller depends on is absent — not merely when the code path is absent. `clone()` returned, `getEncoded()` returned a Jostle key, a warning was logged, `store()` succeeded: each is a mechanism, each passed while the property was false. See **"Assert the property a caller depends on, not the mechanism"** for the five worked failures and the falsification procedure.
 
 **Automation.** Run the `audit-test-coverage` skill (in `.claude/skills/audit-test-coverage/`) before declaring a test file done; it scans the test tree for both classes of gap and reports per-file findings. The skill is heuristic but fast, and surfaces the same kinds of issues the historical audits caught (hardcoded `"hello world".getBytes()` in sign/verify roundtrips, BC-agreement KDF tests without a `KDF(salt1) != KDF(salt2)` differentiator, etc.).
 
@@ -23,6 +25,34 @@ A roundtrip-only test (sign → verify, encrypt → decrypt, hash → compare, e
 - **KAT vectors** — pair every "input → expected output" with at least one "modified input → output differs", so an implementation that ignores some input bits can't pass. Use multiple vectors of different lengths where the spec offers them.
 
 This matters more in this codebase than most: many algorithms have a Java path and a native path, and a pure-positive test will accept either path producing wrong-but-self-consistent output. Negative tests are often what surface a divergence between the two.
+
+### Assert the property a caller depends on, not the mechanism
+
+**Symptom: the test is green, the feature is broken, and nobody noticed.** Five instances in one week, every one of which passed a plausible assertion while the property it existed to protect was false:
+
+| Test asserted (mechanism) | Property that was false | Caller-visible failure |
+|---|---|---|
+| key re-derives, and is a Jostle key | re-encoded SPKI keeps `id-RSASSA-PSS` (1.2.840.113549.1.1.10) | BC reads `getPublicKey().getEncoded()` → `certificate_unknown(46)`, "No support for rsa_pss_pss" |
+| gate probes `Signature.ED25519` | the real dependency is `Signature.NONEwithECDSA` | test skipped a working feature indefinitely, silently |
+| "a warning is logged" | the warning names the flag | `MessageFormat` quote-escaping emitted literal `{0}`; operator told they left approved mode, not which setting did it |
+| `KeyStore.store()` succeeds (PBMAC1) | a conventional `.p12` can be **read** | `PKCS12 keystore integrity check failed` on every existing keystore |
+| clones fed different data diverge | the clone carried the absorbed state | hollow clone → silently wrong MAC tags |
+
+Note the last row. Divergence is NOT continuation: two EMPTY clones fed different remainders also diverge, so `assertFalse(equal(a, b))` passes for a hollow clone. Only comparison against an independent implementation over the whole message detects it.
+
+**Rules.**
+
+1. Name the property in caller terms before writing the assertion. "BC decides rsa_pss_pss from the re-encoded AlgorithmIdentifier", not "the key re-derives".
+2. Where an independent implementation exists (BouncyCastle, the JDK), compare against it over the whole operation. A self-consistency check between two of our own objects cannot detect a shared-but-wrong state.
+3. Cover BOTH directions of a service. `store` is not `load`; `sign` is not `verify`; `getInstance` is not `init`. Registration is not usability — `getInstance` succeeded and `init` failed for AES/OCB, `NoneWithRSA`, and bare `PKCS12`.
+4. Assert content, not occurrence. Pin the message text (see "Pin the exception message"), the OID, the algorithm identifier — not that a call returned or an exception was thrown.
+
+**Falsification procedure — required for any test guarding a property that a plausible-but-wrong implementation would satisfy.** Prose already prescribes this for hard guards in `native-code.md` ("verify the guard works by temporarily disabling the property, confirming the test fails, then reverting"). Two additions:
+
+1. **Break the property, not the code path.** Substitute a plausible-but-wrong implementation — `EVP_MAC_CTX_dup` → `EVP_MAC_CTX_new` (hollow clone), `implicit_rejection` → 0, a preserved AlgorithmIdentifier → the normalised one. Deleting the call instead usually produces an exception, which proves nothing about the assertion.
+2. **Keep a control.** An untouched sibling test MUST stay green while the target tests fail. Worked example: sabotaging `mac_copy` failed `CloneStateTest.macCloneContinuesSameState`, `macClonesAreIndependentAndDiverge` and `macCloneAtStateBoundaries`, while `digestCloneContinuesSameState` and `digestClonesAreIndependentAndDiverge` stayed green. Without the control a broad failure (build broken, provider unregistered) is indistinguishable from the assertion firing.
+
+Revert the sabotage, rebuild, and re-verify green before declaring done. For native changes that means re-running `interface/build.sh` — the Gradle build does not recompile C.
 
 ### Vary the chunking, and randomise the inputs
 

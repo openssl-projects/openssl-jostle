@@ -1,16 +1,38 @@
 ---
 name: audit-test-coverage
-description: Scan Jostle's unit-test tree for two recurring discipline gaps — roundtrip tests that use hardcoded keys/messages instead of random inputs, and roundtrip tests with no negative-path differentiator (tampered ciphertext, tampered signature, wrong key, distinct inputs producing distinct outputs). Use this skill whenever the user wants to audit test discipline — including phrases like "audit test coverage", "find tests with hardcoded keys", "check tests for negative-path coverage", "scan for tests that need random inputs", "verify tests have tamper checks", "find tests that don't randomise inputs", and similar. Also useful before declaring a new test file done, after a refactor that changed input-derivation patterns, or as part of a broader test-quality sweep.
+description: Scan Jostle's unit-test tree for two mechanically-detectable discipline gaps — roundtrip tests that use hardcoded keys/messages instead of random inputs, and roundtrip tests with no negative-path differentiator (tampered ciphertext, tampered signature, wrong key, distinct inputs producing distinct outputs) — then review by hand for the third gap the scanner cannot see: assertions that test the mechanism rather than the property. Use this skill whenever the user wants to audit test discipline — including phrases like "audit test coverage", "find tests with hardcoded keys", "check tests for negative-path coverage", "scan for tests that need random inputs", "verify tests have tamper checks", "find tests that don't randomise inputs", and similar. Also useful before declaring a new test file done, after a refactor that changed input-derivation patterns, or as part of a broader test-quality sweep.
 ---
 
 # Audit unit tests for random-input + negative-path discipline
 
-CLAUDE.md mandates two rules for every roundtrip-style unit test:
+CLAUDE.md mandates three rules for every roundtrip-style unit test. The script checks the first two. **The third is manual and is the one that has actually shipped bugs** — see "Rule 3" below.
 
 1. **Random inputs** — keys, messages, IVs, salts, AADs MUST be derived from `SecureRandom` / `KeyGenerator` / `KeyPairGenerator`, not hardcoded literals (`"...".getBytes()`, `Hex.decode("...")`, `new byte[]{0x01, 0x02, ...}`). KAT tests that pin a published vector are exempt.
 2. **Negative path** — every roundtrip primitive in a file MUST have at least one accompanying test proving the operation actually transforms its input: tampered ciphertext → decrypt diverges, tampered message → verify returns false, distinct inputs → distinct digests / MACs / derived keys.
 
 The full rationale lives in CLAUDE.md sections "Tests must exercise the negative path", "Vary the chunking, and randomise the inputs", and "Run agreement tests against BouncyCastle, with random inputs". This skill scans the test tree mechanically and reports gaps so they can be triaged and fixed.
+
+## Rule 3 — assert the property, not the mechanism (manual; the script cannot see this)
+
+The scanner checks that inputs are random and that a differentiator exists. It cannot check that the assertion tests the right thing. Five tests in one week were green while the property they protected was false:
+
+1. `clone()` returned → but the clone carried no state.
+2. `getEncoded()` returned a Jostle key → but the re-encoded SPKI had lost `id-RSASSA-PSS`.
+3. "a warning is logged" → but the warning emitted literal `{0}` instead of the flag name.
+4. `KeyStore.store()` succeeded → but no conventional `.p12` could be **read**.
+5. clones fed different data diverged → but a HOLLOW clone also diverges, so the assertion proved nothing.
+
+Full table, rules and worked examples: the **"Assert the property a caller depends on, not the mechanism"** section of `.claude/guides/testing.md`. When reviewing a file the script has passed, check each assertion against: *would this fail if the caller-visible behaviour were absent?*
+
+### Falsification, with a control
+
+For any test guarding a property that a plausible-but-wrong implementation would satisfy, prove the test can fail:
+
+1. **Substitute a plausible-but-wrong implementation** — not a deleted call. `EVP_MAC_CTX_dup` → `EVP_MAC_CTX_new`; a preserved AlgorithmIdentifier → the normalised one; `implicit_rejection` → 0. A deleted call usually throws, which proves nothing about the assertion.
+2. **Keep a control.** An untouched sibling MUST stay green while the target fails. Sabotaging `mac_copy` failed the three `CloneStateTest` MAC tests while `digestCloneContinuesSameState` and `digestClonesAreIndependentAndDiverge` stayed green. Without a control, a broad failure (build broken, provider unregistered, `TEST_FIPS_LIB` unset) is indistinguishable from the assertion firing.
+3. **Revert, rebuild, re-verify green.** Native changes need `interface/build.sh` — Gradle does not recompile C.
+
+`native-code.md` prescribes the same procedure for security hard guards ("verify the guard works by temporarily disabling the property, confirming the test fails, then reverting"); the control requirement above applies there too.
 
 ## When to use this skill
 
