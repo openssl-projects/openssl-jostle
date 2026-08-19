@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
@@ -34,11 +35,21 @@ import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
  */
 public class OpenSSLFIPSNITest
 {
-    @Test
-    public void fipsValidationAndRolledBackFailures()
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
     {
         Assumptions.assumeFalse(org.openssl.jostle.test.TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
+    }
+
+    @Test
+    public void fipsValidationAndRolledBackFailures()
+    {
         // Forward slashes: this test drives setOSSLFIPSModule directly, so the
         // config path must be native-ready. OpenSSL's config .include parser
         // treats '\' as an escape and mangles a Windows backslash path; '/' is

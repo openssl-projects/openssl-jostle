@@ -55,6 +55,12 @@ public class FIPSProviderFallbackTest
     @BeforeEach
     public void snapshotProviders()
     {
+        // Gate here rather than per test method so it fails closed — a test
+        // added later is gated automatically. @BeforeEach rather than
+        // @BeforeAll because installFipsAheadOfJsl must run per test (tearDown
+        // restores the snapshot each time).
+        FIPSTestUtil.assumeFipsProvider();
+
         // Snapshot the pristine provider order BEFORE any test reorders it or
         // adds the FIPS/JSL providers, so tearDown restores exactly this.
         savedProviders = Security.getProviders();

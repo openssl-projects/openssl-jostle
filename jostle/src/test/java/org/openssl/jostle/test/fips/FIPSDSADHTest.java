@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -35,6 +36,17 @@ public class FIPSDSADHTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -52,8 +64,6 @@ public class FIPSDSADHTest
     public void dsaSignaturesAgreeWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", JostleFIPSProvider.PROVIDER_NAME);
         kpg.initialize(2048);
         KeyPair kp = kpg.generateKeyPair();
@@ -100,8 +110,6 @@ public class FIPSDSADHTest
     public void dhSharedSecretsMatchBouncyCastle()
         throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
         kpg.initialize(2048);
         KeyPair alice = kpg.generateKeyPair();

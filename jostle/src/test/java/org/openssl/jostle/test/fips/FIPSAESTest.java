@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -44,6 +45,17 @@ public class FIPSAESTest
 
     private static final int[] KEY_SIZES = {16, 24, 32};
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -68,8 +80,6 @@ public class FIPSAESTest
     public void cbcAgreesAcrossProviders()
         throws Exception
     {
-        ensureProviders();
-
         for (int keySize : KEY_SIZES)
         {
             for (int t = 0; t < 5; t++)
@@ -109,8 +119,6 @@ public class FIPSAESTest
     public void gcmAgreesAndAuthenticates()
         throws Exception
     {
-        ensureProviders();
-
         for (int keySize : KEY_SIZES)
         {
             SecretKey key = randomKey(keySize);
@@ -152,8 +160,6 @@ public class FIPSAESTest
     public void ccmAgreesWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
-
         SecretKey key = randomKey(32);
         byte[] nonce = new byte[12];
         RANDOM.nextBytes(nonce);
@@ -185,8 +191,6 @@ public class FIPSAESTest
     public void ctrAndEcbAgreeViaBarePrimary()
         throws Exception
     {
-        ensureProviders();
-
         SecretKey key = randomKey(32);
         byte[] message = new byte[1 + RANDOM.nextInt(1024)];
         RANDOM.nextBytes(message);
@@ -210,8 +214,6 @@ public class FIPSAESTest
     public void keyWrapAgreesWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
-
         SecretKey kek = randomKey(32);
         SecretKey target = randomKey(16);
 
@@ -241,8 +243,6 @@ public class FIPSAESTest
     public void ciphersNotServedByModuleRejected()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : new String[]{"ChaCha20", "CAMELLIA", "ARIA", "SM4", "DESede"})
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
@@ -266,8 +266,6 @@ public class FIPSAESTest
     public void wrongKeyAlgorithmRejectedWithInvalidKeyException()
         throws Exception
     {
-        ensureProviders();
-
         SecretKeySpec wrongSpec = new SecretKeySpec(new byte[16], "ARIA");
 
         try
@@ -311,8 +309,6 @@ public class FIPSAESTest
     public void ccmIvParameterSpecAgreesWithBc()
         throws Exception
     {
-        ensureProviders();
-
         String xform = "AES/CCM/NoPadding";
         byte[] key = new byte[16];
         RANDOM.nextBytes(key);
@@ -362,8 +358,6 @@ public class FIPSAESTest
     public void ccmModeAndParamRejections()
         throws Exception
     {
-        ensureProviders();
-
         String xform = "AES/CCM/NoPadding";
         byte[] key = new byte[16];
         RANDOM.nextBytes(key);
@@ -433,8 +427,6 @@ public class FIPSAESTest
     public void cbcResetReuseAcrossOperations()
         throws Exception
     {
-        ensureProviders();
-
         String xform = "AES/CBC/PKCS5Padding";
         SecretKey key = randomKey(32);
         byte[] iv = new byte[16];
@@ -496,8 +488,6 @@ public class FIPSAESTest
     public void approvedOidSurfaceResolves()
         throws Exception
     {
-        ensureProviders();
-
         String[] oids =
                 {
                         NISTObjectIdentifiers.id_aes128_CBC.getId(),
@@ -538,8 +528,6 @@ public class FIPSAESTest
     public void unfetchableMode_initThrowsDeclaredJceException()
         throws Exception
     {
-        ensureProviders();
-
         // getInstance succeeds today — that is the premise of the test.
         Cipher c = Cipher.getInstance("AES/OCB/NoPadding", JostleFIPSProvider.PROVIDER_NAME);
         Assertions.assertNotNull(c);

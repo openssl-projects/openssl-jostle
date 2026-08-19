@@ -18,6 +18,7 @@ import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
 import org.bouncycastle.crypto.params.HKDFParameters;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -118,6 +119,17 @@ public class FIPSKDFAgreementTest
         return sr;
     }
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -203,7 +215,6 @@ public class FIPSKDFAgreementTest
     @Test
     public void pbkdf2AgreesThreeWay() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("pbkdf2AgreesThreeWay");
 
         for (String alg : PBKDF2_THREE_WAY)
@@ -245,7 +256,6 @@ public class FIPSKDFAgreementTest
     @Test
     public void pbkdf2TruncatedVariantsAgreeWithJsl() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("pbkdf2TruncatedVariantsAgreeWithJsl");
 
         for (String alg : PBKDF2_TWO_WAY)
@@ -285,7 +295,6 @@ public class FIPSKDFAgreementTest
     @Test
     public void hkdfAgreesThreeWay() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("hkdfAgreesThreeWay");
 
         for (String alg : HKDF_ALGS)
@@ -333,7 +342,6 @@ public class FIPSKDFAgreementTest
     @Test
     public void hkdfOutputLengthBoundaryRejectedAtJceSurface() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("hkdfOutputLengthBoundaryRejectedAtJceSurface");
         byte[] ikm = randomBytes(32, sr);
         byte[] salt = randomBytes(16, sr);
@@ -366,7 +374,6 @@ public class FIPSKDFAgreementTest
     @Test
     public void hkdfJceSurfaceNegativePathsRejected() throws Exception
     {
-        ensureProviders();
         SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", FIPS);
 
         try
@@ -438,7 +445,6 @@ public class FIPSKDFAgreementTest
     @Test
     public void pbkdf2PrfMismatchRejectedAtJceSurface() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("pbkdf2PrfMismatchRejectedAtJceSurface");
 
         char[] password = randomPassword(sr);

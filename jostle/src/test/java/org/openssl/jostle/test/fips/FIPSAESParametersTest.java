@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -65,6 +66,17 @@ public class FIPSAESParametersTest
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -110,8 +122,6 @@ public class FIPSAESParametersTest
     public void gcmMalformedTagLengthRejected()
         throws Exception
     {
-        ensureProviders();
-
         SecureRandom random = seededRandom("gcmMalformedTagLengthRejected");
         SecretKey key = aes256Key(random);
         byte[] iv = new byte[12];
@@ -154,8 +164,6 @@ public class FIPSAESParametersTest
     public void gcmEncryptReuseWithoutReinitRejected()
         throws Exception
     {
-        ensureProviders();
-
         SecureRandom random = seededRandom("gcmEncryptReuseWithoutReinitRejected");
         SecretKey key = aes256Key(random);
         byte[] msg = new byte[29];
@@ -197,8 +205,6 @@ public class FIPSAESParametersTest
     public void gcmAutoIvExposedAndRoundTrips()
         throws Exception
     {
-        ensureProviders();
-
         SecureRandom random = seededRandom("gcmAutoIvExposedAndRoundTrips");
         SecretKey key = aes256Key(random);
         byte[] msg = new byte[40];
@@ -243,8 +249,6 @@ public class FIPSAESParametersTest
     public void algorithmParametersResolveAndRoundTrip()
         throws Exception
     {
-        ensureProviders();
-
         SecureRandom random = seededRandom("algorithmParametersResolveAndRoundTrip");
 
         // GCM by bare name and by AES-256-GCM OID.
@@ -314,8 +318,6 @@ public class FIPSAESParametersTest
     public void ccmAlgorithmParametersRejectMalformedDer()
         throws Exception
     {
-        ensureProviders();
-
         // OCTET STRING of a valid 12-byte nonce: 04 0C 00..0B
         byte[] octetString = {0x04, 0x0c, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b};
         // A well-formed baseline (ICV default omitted): 30 0E <octetString>.
@@ -372,7 +374,6 @@ public class FIPSAESParametersTest
     public void aeadParameters_comeFromTheCiphersOwnProvider()
         throws Exception
     {
-        ensureProviders();
         // Both providers registered simultaneously — the case that regressed.
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
         {

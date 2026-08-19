@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -39,6 +40,17 @@ public class FIPSMDTest
             "MD5", "MD5-SHA1", "SM3", "BLAKE2B-512", "BLAKE2S-256", "RIPEMD-160"
     };
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -56,8 +68,6 @@ public class FIPSMDTest
     public void cloneAndReuse()
         throws Exception
     {
-        ensureProviders();
-
         byte[] message = new byte[512];
         RANDOM.nextBytes(message);
 
@@ -82,8 +92,6 @@ public class FIPSMDTest
     public void oidAliasesResolve()
         throws Exception
     {
-        ensureProviders();
-
         byte[] message = new byte[64];
         RANDOM.nextBytes(message);
         byte[] byName = MessageDigest.getInstance("SHA-256", JostleFIPSProvider.PROVIDER_NAME)
@@ -97,8 +105,6 @@ public class FIPSMDTest
     public void digestsNotServedByModuleRejected()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : NOT_SERVED_BY_MODULE)
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
@@ -120,8 +126,6 @@ public class FIPSMDTest
     public void distinctInputsProduceDistinctDigests()
         throws Exception
     {
-        ensureProviders();
-
         byte[] a = new byte[64 + RANDOM.nextInt(256)];
         byte[] b = new byte[64 + RANDOM.nextInt(256)];
         RANDOM.nextBytes(a);
@@ -151,8 +155,6 @@ public class FIPSMDTest
     public void digestIntoUndersizedBuffer_throwsDigestException()
         throws Exception
     {
-        ensureProviders();
-
         MessageDigest md = MessageDigest.getInstance("SHA-256", JostleFIPSProvider.PROVIDER_NAME);
         byte[] message = new byte[64];
         RANDOM.nextBytes(message);
@@ -176,8 +178,6 @@ public class FIPSMDTest
     public void getDigestLengthPerApprovedAlgorithm()
         throws Exception
     {
-        ensureProviders();
-
         Object[][] expected = new Object[][]{
                 {"SHA1", 20},
                 {"SHA2-224", 28},
@@ -217,8 +217,6 @@ public class FIPSMDTest
     public void cloneXofShake256_512_snapshotAndIndependence()
         throws Exception
     {
-        ensureProviders();
-
         byte[] prefix = new byte[16 + RANDOM.nextInt(64)];
         RANDOM.nextBytes(prefix);
         byte[] suffix = new byte[16 + RANDOM.nextInt(64)];
@@ -266,8 +264,6 @@ public class FIPSMDTest
     public void explicitResetMidStreamDiscardsState()
         throws Exception
     {
-        ensureProviders();
-
         byte[] discard = new byte[64];
         byte[] message = new byte[64];
         RANDOM.nextBytes(discard);
@@ -296,8 +292,6 @@ public class FIPSMDTest
     public void emptyInputKatPerApprovedAlgorithm()
         throws Exception
     {
-        ensureProviders();
-
         String[][] vectors = new String[][]{
                 {"SHA1", "da39a3ee5e6b4b0d3255bfef95601890afd80709"},
                 {"SHA2-224", "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"},

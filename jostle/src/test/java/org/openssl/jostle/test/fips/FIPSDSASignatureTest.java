@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -108,6 +109,17 @@ public class FIPSDSASignatureTest
     // -----------------------------------------------------------------
 
     /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        FIPSTestUtil.assumeFipsProvider();
+    }
+
+    /**
      * An RSA key handed to a DSA Signature on JSLFIPS must be rejected with
      * {@link InvalidKeyException} — the type JCE relies on for provider-chain
      * fallback. Mirrors {@code DSASignatureTest.testDsa_RejectsForeignPublicKey}
@@ -116,7 +128,6 @@ public class FIPSDSASignatureTest
     @Test
     public void dsaSignatureRejectsForeignKey_throwsInvalidKeyException() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         KeyPair rsa = generateRsaKeyPair();
 
         Signature verifier = Signature.getInstance("SHA256withDSA", FIPS);
@@ -160,8 +171,6 @@ public class FIPSDSASignatureTest
     @Test
     public void dsaSignatureBeforeInit_throwsSignatureException() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
-
         Signature updater = Signature.getInstance("SHA256withDSA", FIPS);
         try
         {
@@ -223,7 +232,6 @@ public class FIPSDSASignatureTest
     @Test
     public void dsaSignatureResetReuse_sameMessageDiffers_and_failureDoesNotPoisonState() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         SecureRandom sr = seededRandom(
                 "dsaSignatureResetReuse_sameMessageDiffers_and_failureDoesNotPoisonState");
         KeyPair kp = generateDsaKeyPair();
@@ -312,7 +320,6 @@ public class FIPSDSASignatureTest
     @Test
     public void dsaKeyPairGeneratorRejectsInvalidSize() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", FIPS);
         for (int size : new int[]{0, 512, 1023, 1025, 2047, 2049, 3071, 3073, 4096})
         {
@@ -346,7 +353,6 @@ public class FIPSDSASignatureTest
     @Test
     public void keyFactoryRejectsForeignAlgorithmAndMalformedDer() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         SecureRandom sr = seededRandom("keyFactoryRejectsForeignAlgorithmAndMalformedDer");
         KeyFactory kf = KeyFactory.getInstance("DSA", FIPS);
 
@@ -408,7 +414,6 @@ public class FIPSDSASignatureTest
     @Test
     public void noneWithDsaRawSignature_currentBehaviorLocked() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         SecureRandom sr = seededRandom("noneWithDsaRawSignature_currentBehaviorLocked");
         KeyPair kp = generateDsaKeyPair();
 
@@ -471,7 +476,6 @@ public class FIPSDSASignatureTest
     @Test
     public void dsaOidAliasesResolveThroughJslfips() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         SecureRandom sr = seededRandom("dsaOidAliasesResolveThroughJslfips");
 
         // id-dsa key infrastructure OID.

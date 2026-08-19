@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -73,6 +74,17 @@ public class FIPSMDAgreementTest
         return sr;
     }
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -100,7 +112,6 @@ public class FIPSMDAgreementTest
     @Test
     public void approvedDigestsAgreeAcrossProviders() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("approvedDigestsAgreeAcrossProviders");
 
         for (String name : APPROVED)
@@ -139,7 +150,6 @@ public class FIPSMDAgreementTest
     @Test
     public void chunkingVariantsAgree() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("chunkingVariantsAgree");
 
         for (String name : new String[]{"SHA-256", "SHA3-256", "SHA2-512", "SHAKE128-256"})
@@ -179,7 +189,6 @@ public class FIPSMDAgreementTest
     @Test
     public void distinctInputsProduceDistinctDigests() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("distinctInputsProduceDistinctDigests");
 
         for (String name : APPROVED)

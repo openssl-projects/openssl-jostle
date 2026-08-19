@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
@@ -61,6 +62,17 @@ public class FIPSDHKeyAgreementTest
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -89,8 +101,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhKeyAgreementRejectsForeignKey_throwsInvalidKeyException() throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator rsaKpg = KeyPairGenerator.getInstance("RSA", FIPS);
         rsaKpg.initialize(2048);
         KeyPair rsa = rsaKpg.generateKeyPair();
@@ -130,8 +140,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhKeyAgreementStateMachineGuards_throwIllegalState() throws Exception
     {
-        ensureProviders();
-
         // generateSecret before doPhase.
         KeyPair kp = generateKeyPair();
         KeyAgreement kaNoPhase = KeyAgreement.getInstance("DH", FIPS);
@@ -173,8 +181,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhGenerateSecretAtOffset_prefixUntouchedAndShortBufferRejected() throws Exception
     {
-        ensureProviders();
-
         KeyPair a = generateKeyPair();
         KeyPair b = generateKeyPair();
 
@@ -239,8 +245,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhGroupMismatch_rejectedAtDoPhase_throwsInvalidKeyException() throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", FIPS);
         kpg.initialize(2048);
         KeyPair k2048 = kpg.generateKeyPair();
@@ -270,8 +274,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhKeyPairGeneratorRejectsInvalidSize() throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", FIPS);
         // Boundary probes around the supported set {2048,3072,4096,6144,8192}.
         for (int size : new int[]{0, 512, 1024, 2047, 2049, 3071, 4097, 8193})
@@ -298,8 +300,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void keyFactoryRejectsForeignAlgorithmAndMalformedDer() throws Exception
     {
-        ensureProviders();
-
         // An RSA SPKI handed to the DH KeyFactory must be rejected with a typed
         // InvalidKeySpecException naming the mismatch.
         KeyPairGenerator rsaKpg = KeyPairGenerator.getInstance("RSA", FIPS);
@@ -347,8 +347,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dsaAndDhOidAliasesResolveThroughJslfips() throws Exception
     {
-        ensureProviders();
-
         // The JCA standard name, the "DiffieHellman" alias, the PKCS#3 OID and
         // the X9.42 OID must all resolve through JSLFIPS.
         Assertions.assertNotNull(KeyPairGenerator.getInstance("DiffieHellman", FIPS));
@@ -380,8 +378,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhReuseAfterGenerateSecret_tracksNewPeer() throws Exception
     {
-        ensureProviders();
-
         // JCE contract: generateSecret resets the KA to its post-init state; a
         // fresh doPhase against a different peer must work and change the secret.
         KeyPair a = generateKeyPair();
@@ -415,8 +411,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhGenerateSecretNamedAndBlankAlgorithm() throws Exception
     {
-        ensureProviders();
-
         KeyPair a = generateKeyPair();
         KeyPair b = generateKeyPair();
 
@@ -463,8 +457,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhAlgorithmParameterGeneratorRefusesNamedGroupSubstitution() throws Exception
     {
-        ensureProviders();
-
         AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DH", FIPS);
         apg.init(2048, RANDOM);
         try
@@ -496,8 +488,6 @@ public class FIPSDHKeyAgreementTest
     @Test
     public void dhQlessComponentPrivateKey_initThrowsInvalidKeyException() throws Exception
     {
-        ensureProviders();
-
         BigInteger p = new BigInteger(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX, 16);
         BigInteger g = BigInteger.valueOf(2);
         // Random private value; the set top bit keeps it non-zero (and it is

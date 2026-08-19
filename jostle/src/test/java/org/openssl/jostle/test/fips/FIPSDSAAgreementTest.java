@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
@@ -109,6 +110,17 @@ public class FIPSDSAAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
     }
 
     private static void ensureProviders()
@@ -227,7 +239,6 @@ public class FIPSDSAAgreementTest
     @Test
     public void dsaSignaturesAgreeWithJslAndBc() throws Exception
     {
-        ensureProviders();
         ensureSharedKeyPair();
         SecureRandom sr = seededRandom("dsaSignaturesAgreeWithJslAndBc");
 
@@ -257,7 +268,6 @@ public class FIPSDSAAgreementTest
     @Test
     public void sha3DsaSignaturesAgreeWithBc() throws Exception
     {
-        ensureProviders();
         ensureSharedKeyPair();
         SecureRandom sr = seededRandom("sha3DsaSignaturesAgreeWithBc");
 
@@ -286,7 +296,6 @@ public class FIPSDSAAgreementTest
     @Test
     public void keyEncodingRoundTripsThroughBC() throws Exception
     {
-        ensureProviders();
         ensureSharedKeyPair();
         SecureRandom sr = seededRandom("keyEncodingRoundTripsThroughBC");
         byte[] msg = randomMessage(sr);

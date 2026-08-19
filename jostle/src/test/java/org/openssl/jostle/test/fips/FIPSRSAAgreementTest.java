@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -96,6 +97,17 @@ public class FIPSRSAAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
     }
 
     private static void ensureProviders()
@@ -251,7 +263,6 @@ public class FIPSRSAAgreementTest
     @Test
     public void pkcs1SignaturesAreDeterministicAndAgree() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("pkcs1SignaturesAreDeterministicAndAgree");
 
         String[] digests = {"SHA256withRSA", "SHA512withRSA"};
@@ -310,7 +321,6 @@ public class FIPSRSAAgreementTest
     @Test
     public void pssSignaturesCrossVerify() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("pssSignaturesCrossVerify");
 
         final String alg = "RSASSA-PSS";
@@ -359,7 +369,6 @@ public class FIPSRSAAgreementTest
     @Test
     public void oaepEncryptionCrossDecrypts() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("oaepEncryptionCrossDecrypts");
 
         for (int trial = 0; trial < TRIALS; trial++)
@@ -413,7 +422,6 @@ public class FIPSRSAAgreementTest
     @Test
     public void keyEncodingRoundTripsBetweenFipsAndBc() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keyEncodingRoundTripsBetweenFipsAndBc");
 
         byte[] msg = new byte[1 + sr.nextInt(512)];

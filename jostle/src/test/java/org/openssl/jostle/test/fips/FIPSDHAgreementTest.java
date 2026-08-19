@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -90,6 +91,17 @@ public class FIPSDHAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
     }
 
     private static void ensureProviders()
@@ -198,7 +210,6 @@ public class FIPSDHAgreementTest
     @Test
     public void sharedSecretAgreesAcrossProviders() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("sharedSecretAgreesAcrossProviders");
 
         for (int trial = 0; trial < TRIALS; trial++)
@@ -258,7 +269,6 @@ public class FIPSDHAgreementTest
     @Test
     public void differentPeerYieldsDifferentSecret() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("differentPeerYieldsDifferentSecret");
 
         for (int trial = 0; trial < TRIALS; trial++)
@@ -295,7 +305,6 @@ public class FIPSDHAgreementTest
     @Test
     public void rfc2631KdfAgreesAcrossProviders() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("rfc2631KdfAgreesAcrossProviders");
 
         for (int trial = 0; trial < TRIALS; trial++)
@@ -349,7 +358,6 @@ public class FIPSDHAgreementTest
     @Test
     public void keyEncodingRoundTripsThroughBC() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keyEncodingRoundTripsThroughBC");
         DHParameterSpec params = ffdhe2048Spec(sr);
 

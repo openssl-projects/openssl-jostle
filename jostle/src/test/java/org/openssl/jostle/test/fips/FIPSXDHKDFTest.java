@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -38,6 +39,17 @@ import java.util.Arrays;
 public class FIPSXDHKDFTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
 
     private static void ensureProviders()
     {
@@ -70,8 +82,6 @@ public class FIPSXDHKDFTest
     public void xdhServedByJslfipsAndAgreesWithJsl()
         throws Exception
     {
-        ensureProviders();
-
         for (String alg : new String[]{"X25519", "X448"})
         {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
@@ -108,8 +118,6 @@ public class FIPSXDHKDFTest
     public void pbkdf2AgreesAcrossProviders()
         throws Exception
     {
-        ensureProviders();
-
         char[] password = "correct horse battery staple".toCharArray();
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
@@ -136,8 +144,6 @@ public class FIPSXDHKDFTest
     public void hkdfAgreesWithNonFipsProvider()
         throws Exception
     {
-        ensureProviders();
-
         // HKDF key material enters through the JSL/JSLFIPS-specific KeySpec;
         // agreement is checked against the non-FIPS provider (BC's HKDF SKF
         // uses a different spec type).
@@ -171,8 +177,6 @@ public class FIPSXDHKDFTest
     public void kdfsNotServedByModuleRejected()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : new String[]{"SCRYPT", "PBKDF2WITHHMACMD5", "PBKDF2WITHHMACSM3", "PBKDF2WITHHMACRIPEMD160"})
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
@@ -188,8 +192,6 @@ public class FIPSXDHKDFTest
     public void kdfsNotServedByModule_md5sha1AndBlake2()
         throws Exception
     {
-        ensureProviders();
-
         // MD5-SHA1 and both BLAKE2 PBKDF2 PRFs: JSL registers them, JSLFIPS does
         // not, because the FIPS module does not implement those digests at all
         // (probe-confirmed: MD5, MD5-SHA1, BLAKE2S-256 and BLAKE2B-512 all fail

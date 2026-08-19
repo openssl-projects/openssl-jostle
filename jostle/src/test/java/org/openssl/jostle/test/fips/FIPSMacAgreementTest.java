@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -84,6 +85,17 @@ public class FIPSMacAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
     }
 
     private static void ensureProviders()
@@ -225,7 +237,6 @@ public class FIPSMacAgreementTest
     @Test
     public void hmacSha1AndSha2Agree() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("hmacSha1AndSha2Agree");
         runFamily(HMAC_SHA1_SHA2, sr);
     }
@@ -233,7 +244,6 @@ public class FIPSMacAgreementTest
     @Test
     public void hmacSha3Agree() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("hmacSha3Agree");
         runFamily(HMAC_SHA3, sr);
     }
@@ -241,7 +251,6 @@ public class FIPSMacAgreementTest
     @Test
     public void aesCmacAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("aesCmacAgrees");
         runFamily(new String[]{"AESCMAC"}, sr);
     }

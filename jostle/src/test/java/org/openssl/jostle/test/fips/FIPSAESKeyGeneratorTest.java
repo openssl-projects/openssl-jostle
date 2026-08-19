@@ -12,6 +12,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -47,6 +48,17 @@ public class FIPSAESKeyGeneratorTest
 {
     private static final String FIPS = JostleFIPSProvider.PROVIDER_NAME;
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -55,7 +67,6 @@ public class FIPSAESKeyGeneratorTest
     @Test
     public void keyGenInvalidSizeRejected() throws Exception
     {
-        ensureProviders();
         KeyGenerator keyGen = KeyGenerator.getInstance("AES", FIPS);
         for (int size : new int[]{0, 127, 129, 191, 193, 255, 257})
         {
@@ -73,7 +84,6 @@ public class FIPSAESKeyGeneratorTest
     @Test
     public void keyGenFixedSizeMismatchRejected() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = new SecureRandom();
 
         KeyGenerator keyGen = KeyGenerator.getInstance("AES128", FIPS);
@@ -110,8 +120,6 @@ public class FIPSAESKeyGeneratorTest
     @Test
     public void keyGenDefault256AndNonZeroFromModuleDrbg() throws Exception
     {
-        ensureProviders();
-
         // Bare "AES" defaults to 256 bits without an explicit init().
         KeyGenerator keyGen = KeyGenerator.getInstance("AES", FIPS);
         byte[] keyBytes = keyGen.generateKey().getEncoded();
@@ -148,8 +156,6 @@ public class FIPSAESKeyGeneratorTest
     @Test
     public void resolveProviderRandom_prefersModuleDrbgOverNonProviderRandom() throws Exception
     {
-        ensureProviders();
-
         SecureRandom moduleDrbg = SecureRandom.getInstance("DEFAULT", FIPS);
         SecureRandom fipsBacked = SecureRandom.getInstance("DEFAULT", FIPS);
         SecureRandom nonFips = SecureRandom.getInstance("SHA1PRNG");
@@ -194,7 +200,6 @@ public class FIPSAESKeyGeneratorTest
     @Test
     public void nonProviderCallerRandom_doesNotDetermineKey() throws Exception
     {
-        ensureProviders();
         Assertions.assertTrue(CryptoServicesRegistrar.isProviderRandomEnforced(),
                 "test assumes the default (enforced) policy");
 

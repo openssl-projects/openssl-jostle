@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
@@ -45,6 +46,17 @@ public class FIPSNativeLengthSourcingTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -70,8 +82,6 @@ public class FIPSNativeLengthSourcingTest
     public void rsaSignatureLengthEqualsModulusSize()
         throws Exception
     {
-        ensureProviders();
-
         int[][] variants = new int[][]{
                 {2048, 256},
                 {3072, 384},
@@ -123,8 +133,6 @@ public class FIPSNativeLengthSourcingTest
     public void aesBlockSizeIsSixteenForEveryMode()
         throws Exception
     {
-        ensureProviders();
-
         SecretKey key = randomAesKey(16);
 
         // Modes taking an explicit IV / auto-IV in ENCRYPT mode.
@@ -158,8 +166,6 @@ public class FIPSNativeLengthSourcingTest
     public void aesGcmIvLengthIsTwelve()
         throws Exception
     {
-        ensureProviders();
-
         SecretKey key = randomAesKey(32);
         byte[] nonce = new byte[12];
         RANDOM.nextBytes(nonce);
@@ -199,8 +205,6 @@ public class FIPSNativeLengthSourcingTest
     public void ecdhSharedSecretLengthEqualsFieldSize()
         throws Exception
     {
-        ensureProviders();
-
         Object[][] curves = new Object[][]{
                 {"secp256r1", 32},
                 {"secp384r1", 48},

@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -40,6 +41,17 @@ import java.security.Signature;
  */
 public class FIPSPQCAbsenceTest
 {
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -92,8 +104,6 @@ public class FIPSPQCAbsenceTest
     public void pqcAlgorithmsAbsentFromJslfips()
         throws Exception
     {
-        ensureProviders();
-
         // ML-DSA: KeyPairGenerator / Signature / KeyFactory (ProvMLDSA).
         for (String name : new String[]{"MLDSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
         {
@@ -134,8 +144,6 @@ public class FIPSPQCAbsenceTest
     public void eddsaAlgorithmsAbsentFromJslfips()
         throws Exception
     {
-        ensureProviders();
-
         // ProvED registers no FIPS counterpart: the 3.1.2 module does not
         // approve FIPS 186-5 EdDSA. KeyPairGenerator / KeyFactory carry the
         // bare "ED" name (with "EDDSA" alias) plus the curve names; Signature

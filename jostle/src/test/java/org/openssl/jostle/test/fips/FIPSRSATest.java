@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -65,6 +66,17 @@ public class FIPSRSATest
 
     private static KeyPair fipsKeyPair;
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -94,7 +106,6 @@ public class FIPSRSATest
     public void pkcs1SignaturesAgreeWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         byte[] message = new byte[1 + RANDOM.nextInt(1024)];
@@ -132,7 +143,6 @@ public class FIPSRSATest
     public void pssSignaturesAgreeWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         byte[] message = new byte[1 + RANDOM.nextInt(1024)];
@@ -172,7 +182,6 @@ public class FIPSRSATest
     public void oaepEncryptionAgreesWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         byte[] message = new byte[1 + RANDOM.nextInt(100)];
@@ -202,7 +211,6 @@ public class FIPSRSATest
     public void keysRoundTripThroughBouncyCastleEncodings()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         // JSLFIPS encodings decode through BC and verify a JSLFIPS signature.
@@ -240,8 +248,6 @@ public class FIPSRSATest
     public void moduleKeySizeFloorAndUnapprovedGate()
         throws Exception
     {
-        ensureProviders();
-
         // The FIPS module's RSA generation floor is 2048 bits, enforced at
         // the JCE boundary with a typed exception and a clear message.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
@@ -290,8 +296,6 @@ public class FIPSRSATest
     public void signatureRejectsNonRsaKey()
         throws Exception
     {
-        ensureProviders();
-
         // A clearly-foreign (EC) key from the SAME FIPS provider.
         KeyPairGenerator ec = KeyPairGenerator.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
         ec.initialize(256);
@@ -317,7 +321,6 @@ public class FIPSRSATest
     public void oaepCipherRejectsWrongDirectionKey()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         Cipher dec = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
@@ -342,7 +345,6 @@ public class FIPSRSATest
     public void oaepUnwrapVandalisedCiphertextThrowsInvalidKey()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         KeyGenerator kg = KeyGenerator.getInstance("AES", JostleFIPSProvider.PROVIDER_NAME);
@@ -386,7 +388,6 @@ public class FIPSRSATest
     public void oaepSetParameterRejectsBadSpecs()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         // Non-MGF1 mask generation function.
@@ -416,8 +417,6 @@ public class FIPSRSATest
     public void pssSetParameterRejectsBadSpecs()
         throws Exception
     {
-        ensureProviders();
-
         // Non-MGF1.
         Signature s1 = Signature.getInstance("RSASSA-PSS", JostleFIPSProvider.PROVIDER_NAME);
         PSSParameterSpec nonMgf1 = new PSSParameterSpec(
@@ -460,8 +459,6 @@ public class FIPSRSATest
     public void signatureOperationsBeforeInitThrowIllegalState()
         throws Exception
     {
-        ensureProviders();
-
         // The JCE may translate the SPI's IllegalStateException into a
         // SignatureException for the Signature API; either is acceptable, as
         // long as no NPE from the null native handle escapes.
@@ -508,8 +505,6 @@ public class FIPSRSATest
     public void oaepCipherOperationsBeforeInitThrowIllegalState()
         throws Exception
     {
-        ensureProviders();
-
         Cipher c1 = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         Assertions.assertThrows(IllegalStateException.class,
                 () -> c1.update(new byte[]{1, 2, 3}),
@@ -547,7 +542,6 @@ public class FIPSRSATest
     public void keyPairGeneratorRejectsInvalidParameters()
         throws Exception
     {
-        ensureProviders();
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
 
         // Above the ceiling on the int-only surface.
@@ -601,7 +595,6 @@ public class FIPSRSATest
     public void oidAliasesResolveToRegisteredAlgorithms()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         // Key services under the rsaEncryption OID.
@@ -664,7 +657,6 @@ public class FIPSRSATest
     public void allRegisteredPkcs1DigestsRoundTrip()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         String[] algs = {
@@ -717,7 +709,6 @@ public class FIPSRSATest
     public void pkcs1SignatureResetAndRoleFlip()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         byte[] msgA = randomMessage(64);
@@ -784,7 +775,6 @@ public class FIPSRSATest
     public void keyFactorySpecFormatsAndRejections()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
         KeyFactory kf = KeyFactory.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
 
@@ -855,7 +845,6 @@ public class FIPSRSATest
     public void oaepMaxInputLengthBoundary()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
         OAEPParameterSpec oaep = oaepSpec("SHA-256");
 
@@ -888,7 +877,6 @@ public class FIPSRSATest
     public void oaepLabelAndDigestAreApplied()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         // Label matters.
@@ -944,7 +932,6 @@ public class FIPSRSATest
     public void pkcs1SignatureChunkingByteIdentical()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = keyPair();
 
         byte[] msg = randomMessage(1024);

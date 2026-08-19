@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -155,6 +156,17 @@ public class FIPSECTest
         return rsaKpg.generateKeyPair();
     }
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -180,8 +192,6 @@ public class FIPSECTest
     public void ecdsaAgreesWithBouncyCastle()
         throws Exception
     {
-        ensureProviders();
-
         for (String curve : new String[]{"secp256r1", "secp384r1", "secp521r1"})
         {
             KeyPair kp = generate(curve);
@@ -221,8 +231,6 @@ public class FIPSECTest
     public void ecdhSharedSecretsMatchBouncyCastle()
         throws Exception
     {
-        ensureProviders();
-
         KeyPair alice = generate("secp256r1");
         KeyPair bob = generate("secp256r1");
 
@@ -249,8 +257,6 @@ public class FIPSECTest
     public void keysRoundTripThroughBouncyCastleEncodings()
         throws Exception
     {
-        ensureProviders();
-
         KeyPair kp = generate("secp256r1");
 
         KeyFactory bcKf = KeyFactory.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
@@ -286,8 +292,6 @@ public class FIPSECTest
     public void curveNotServedByModuleRejected()
         throws Exception
     {
-        ensureProviders();
-
         // secp256k1 is not served by the FIPS module: generation must fail
         // through JSLFIPS while JSL still serves it in the same JVM.
         KeyPairGenerator fipsKpg = KeyPairGenerator.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
@@ -317,7 +321,6 @@ public class FIPSECTest
     public void allRegisteredEcdsaDigestsRoundTrip()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("allRegisteredEcdsaDigestsRoundTrip");
         KeyPair kp = generate("P-256");
 
@@ -342,7 +345,6 @@ public class FIPSECTest
     public void ecdsaRejectsForeignPublicKey()
         throws Exception
     {
-        ensureProviders();
         KeyPair rsa = generateRsa();
 
         Signature verifier = Signature.getInstance("SHA256withECDSA", FIPS);
@@ -363,7 +365,6 @@ public class FIPSECTest
     public void ecdsaRejectsForeignPrivateKey()
         throws Exception
     {
-        ensureProviders();
         KeyPair rsa = generateRsa();
 
         Signature signer = Signature.getInstance("SHA256withECDSA", FIPS);
@@ -384,7 +385,6 @@ public class FIPSECTest
     public void ecdhRejectsForeignPrivateKey()
         throws Exception
     {
-        ensureProviders();
         PrivateKey rsaPriv = generateRsa().getPrivate();
 
         KeyAgreement ka = KeyAgreement.getInstance("ECDH", FIPS);
@@ -404,7 +404,6 @@ public class FIPSECTest
     public void ecdhRejectsForeignPublicKey()
         throws Exception
     {
-        ensureProviders();
         KeyPair ec = generate("P-256");
         PublicKey rsaPub = generateRsa().getPublic();
 
@@ -430,7 +429,6 @@ public class FIPSECTest
     public void ecdhStateMachineGuards()
         throws Exception
     {
-        ensureProviders();
         KeyPair alice = generate("P-256");
         KeyPair bob = generate("P-256");
 
@@ -481,8 +479,6 @@ public class FIPSECTest
     public void ecdsaStateMachineGuardsBeforeInit()
         throws Exception
     {
-        ensureProviders();
-
         // update before init.
         Signature s1 = Signature.getInstance("SHA256withECDSA", FIPS);
         try
@@ -534,7 +530,6 @@ public class FIPSECTest
     public void keyPairGeneratorRejectsUnsupportedBitSizes()
         throws Exception
     {
-        ensureProviders();
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", FIPS);
         for (int bad : new int[]{0, 1, 192, 224, 255, 257, 4096})
         {
@@ -556,8 +551,6 @@ public class FIPSECTest
     public void keyPairGeneratorSpecRejections()
         throws Exception
     {
-        ensureProviders();
-
         // null spec.
         KeyPairGenerator kpg1 = KeyPairGenerator.getInstance("EC", FIPS);
         try
@@ -606,7 +599,6 @@ public class FIPSECTest
     public void keyFactoryRejectsForeignSpec()
         throws Exception
     {
-        ensureProviders();
         KeyFactory kf = KeyFactory.getInstance("EC", FIPS);
 
         RSAPublicKeySpec rsaSpec = new RSAPublicKeySpec(
@@ -649,7 +641,6 @@ public class FIPSECTest
     public void keyFactoryRawComponentSpecRoundTrip()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keyFactoryRawComponentSpecRoundTrip");
 
         for (String curve : new String[]{"P-256", "P-384", "P-521"})
@@ -728,7 +719,6 @@ public class FIPSECTest
     public void keyFactoryPrivateSpecKeyEncodesAndSigns()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keyFactoryPrivateSpecKeyEncodesAndSigns");
 
         for (String curve : new String[]{"P-256", "P-384", "P-521"})
@@ -794,7 +784,6 @@ public class FIPSECTest
     public void ecdhCurveMismatchRejected()
         throws Exception
     {
-        ensureProviders();
         KeyPair alice = generate("P-256");
         KeyPair bob = generate("P-384");
 
@@ -821,7 +810,6 @@ public class FIPSECTest
     public void ecdhGenerateSecretIntoBufferValidation()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdhGenerateSecretIntoBufferValidation");
         KeyPair alice = generate("P-256");
         KeyPair bob = generate("P-256");
@@ -917,7 +905,6 @@ public class FIPSECTest
     public void ecdhGenerateSecretRejectsBlankAlgorithmName()
         throws Exception
     {
-        ensureProviders();
         KeyPair alice = generate("P-256");
         KeyPair bob = generate("P-256");
 
@@ -945,7 +932,6 @@ public class FIPSECTest
     public void ecdhGenerateSecretAsAesKey()
         throws Exception
     {
-        ensureProviders();
         KeyPair alice = generate("P-256");
         KeyPair bob = generate("P-256");
 
@@ -963,7 +949,6 @@ public class FIPSECTest
     public void ecdhRejectsAlgorithmParameterSpec()
         throws Exception
     {
-        ensureProviders();
         KeyPair kp = generate("P-256");
         KeyAgreement ka = KeyAgreement.getInstance("ECDH", FIPS);
         try
@@ -987,7 +972,6 @@ public class FIPSECTest
     public void ecdsaSameMessageTwiceSignaturesDiffer()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdsaSameMessageTwiceSignaturesDiffer");
         KeyPair kp = generate("P-256");
         byte[] msg = randomMessage(sr, 64);
@@ -1016,7 +1000,6 @@ public class FIPSECTest
     public void ecdsaResetReuseSequences()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdsaResetReuseSequences");
         KeyPair kp = generate("P-256");
 
@@ -1106,7 +1089,6 @@ public class FIPSECTest
     public void ecdsaSignWritesAtOffsetWithoutClobberingPrefix_jce()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdsaSignWritesAtOffsetWithoutClobberingPrefix_jce");
         KeyPair kp = generate("P-256");
         byte[] msg = randomMessage(sr, 64);
@@ -1177,7 +1159,6 @@ public class FIPSECTest
     public void ecdsaChunkingMatrixAllVerify()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdsaChunkingMatrixAllVerify");
         KeyPair kp = generate("P-256");
         byte[] msg = randomMessage(sr, 1024);
@@ -1219,7 +1200,6 @@ public class FIPSECTest
     public void resolvesByRegisteredOids()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("resolvesByRegisteredOids");
         KeyPair kp = generate("P-256");
         byte[] msg = randomMessage(sr, 64);
@@ -1253,8 +1233,6 @@ public class FIPSECTest
     public void algorithmParametersEcResolvesAndRoundTrips()
         throws Exception
     {
-        ensureProviders();
-
         AlgorithmParameters ap = AlgorithmParameters.getInstance("EC", FIPS);
         ap.init(new ECGenParameterSpec("secp256r1"));
         ECParameterSpec spec = ap.getParameterSpec(ECParameterSpec.class);
@@ -1279,7 +1257,6 @@ public class FIPSECTest
     public void ecdsaTamperedSignatureDoesNotVerify()
         throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdsaTamperedSignatureDoesNotVerify");
         KeyPair kp = generate("P-256");
         byte[] msg = randomMessage(sr, 256);
@@ -1311,8 +1288,6 @@ public class FIPSECTest
     public void ecdsaParameterOverloadsUnsupported()
         throws Exception
     {
-        ensureProviders();
-
         Signature s1 = Signature.getInstance("SHA256withECDSA", FIPS);
         try
         {
@@ -1362,8 +1337,6 @@ public class FIPSECTest
     public void curveNotServedByModule_typedAndMessagePinned()
         throws Exception
     {
-        ensureProviders();
-
         // secp256k1 is not an approved curve and is absent from the FIPS
         // lib ctx: the refusal surfaces at initialize() as a typed
         // InvalidAlgorithmParameterException naming the curve.
@@ -1393,8 +1366,6 @@ public class FIPSECTest
     public void ecdhAgreementOidAliasesResolve()
         throws Exception
     {
-        ensureProviders();
-
         String[][] nameToOid = {
                 {"ECDH", "1.3.132.1.12"},
                 {"ECDHWITHSHA1KDF", "1.3.133.16.840.63.0.2"},
@@ -1430,8 +1401,6 @@ public class FIPSECTest
     @Test
     public void noneWithECDSA_servedBothDirectionsOverSuppliedDigest() throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", FIPS);
         kpg.initialize(new ECGenParameterSpec("P-256"));
         KeyPair kp = kpg.generateKeyPair();

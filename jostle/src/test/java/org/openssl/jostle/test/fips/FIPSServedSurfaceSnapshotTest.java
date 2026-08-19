@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
@@ -211,6 +212,17 @@ public class FIPSServedSurfaceSnapshotTest
             "Signature.SHA512WITHRSA",
             "Signature.SHA512WITHRSAANDMGF1",
     };
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        FIPSTestUtil.assumeFipsProvider();
+    }
 
     /**
      * The configured JSLFIPS provider serves EXACTLY the golden set — no more

@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
@@ -36,6 +37,17 @@ public class FIPSNIParityTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -48,8 +60,6 @@ public class FIPSNIParityTest
     @Test
     public void mdBridgeCodesMatch()
     {
-        ensureProviders();
-
         // Null digest name is rejected at the bridge.
         int[] baseErr = new int[1];
         int[] fipsErr = new int[1];
@@ -67,8 +77,6 @@ public class FIPSNIParityTest
     @Test
     public void macBridgeCodesMatch()
     {
-        ensureProviders();
-
         int[] baseErr = new int[1];
         int[] fipsErr = new int[1];
         NISelector.MacServiceNI.ni_allocateMac(null, "SHA2-256", baseErr);
@@ -80,8 +88,6 @@ public class FIPSNIParityTest
     @Test
     public void kdfBridgeCodesMatch()
     {
-        ensureProviders();
-
         // Null password, then negative iteration count - both bridge-validated.
         int base = NISelector.KdfNI.pbkdf2(null, new byte[8], 100, "SHA-256", new byte[16], 0, 16);
         int fips = FIPSNISelector.KdfNI.pbkdf2(null, new byte[8], 100, "SHA-256", new byte[16], 0, 16);
@@ -95,8 +101,6 @@ public class FIPSNIParityTest
     @Test
     public void randBridgeCodesMatch()
     {
-        ensureProviders();
-
         // Unknown DRBG mechanism fails the fetch in both rand lib ctxs.
         int base = NISelector.RandServiceNI.ni_drbgStrength("NOT-A-MECHANISM", "SHA2-256");
         int fips = FIPSNISelector.RandServiceNI.ni_drbgStrength("NOT-A-MECHANISM", "SHA2-256");
@@ -107,8 +111,6 @@ public class FIPSNIParityTest
     @Test
     public void asn1BridgeCodesMatch()
     {
-        ensureProviders();
-
         // Structurally invalid DER fails the decode in both lib ctxs; the
         // failure is rolled back (no PKEY allocated).
         byte[] garbage = new byte[64];

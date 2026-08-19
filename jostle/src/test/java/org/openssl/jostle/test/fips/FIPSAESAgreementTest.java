@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -69,6 +70,17 @@ public class FIPSAESAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
     }
 
     private static void ensureProviders()
@@ -193,7 +205,6 @@ public class FIPSAESAgreementTest
     @Test
     public void cbcAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("cbcAgrees");
         crossCipher("AES/CBC/PKCS5Padding", 16, JSL, sr);
         crossCipher("AES/CBC/PKCS5Padding", 16, BC, sr);
@@ -202,7 +213,6 @@ public class FIPSAESAgreementTest
     @Test
     public void ctrAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ctrAgrees");
         crossCipher("AES/CTR/NoPadding", 16, JSL, sr);
         crossCipher("AES/CTR/NoPadding", 16, BC, sr);
@@ -211,7 +221,6 @@ public class FIPSAESAgreementTest
     @Test
     public void ecbAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecbAgrees");
         crossCipher("AES/ECB/PKCS5Padding", -1, JSL, sr);
         crossCipher("AES/ECB/PKCS5Padding", -1, BC, sr);
@@ -220,7 +229,6 @@ public class FIPSAESAgreementTest
     @Test
     public void gcmAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("gcmAgrees");
         crossAead("AES/GCM/NoPadding", 12, 128, JSL, sr);
         crossAead("AES/GCM/NoPadding", 12, 128, BC, sr);
@@ -229,7 +237,6 @@ public class FIPSAESAgreementTest
     @Test
     public void ccmAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ccmAgrees");
         // CCM is not registered by the non-FIPS provider under this name in
         // every build; BC is the authoritative reference for CCM.
@@ -239,7 +246,6 @@ public class FIPSAESAgreementTest
     @Test
     public void keyWrapAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keyWrapAgrees");
 
         // RFC 3394 AES-256 key wrap, registered by OID in both Jostle
@@ -267,7 +273,6 @@ public class FIPSAESAgreementTest
     @Test
     public void keyWrapPadAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keyWrapPadAgrees");
 
         // RFC 5649 AES-256 key wrap WITH PADDING (KWP), registered by OID in
@@ -314,7 +319,6 @@ public class FIPSAESAgreementTest
     @Test
     public void cbcAndGcmChunkingIsByteIdentical() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("cbcAndGcmChunkingIsByteIdentical");
 
         // chunk == 0 is the one-shot reference; 1 is byte-by-byte; 15/16/17

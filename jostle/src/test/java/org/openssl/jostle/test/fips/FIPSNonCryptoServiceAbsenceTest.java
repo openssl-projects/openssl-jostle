@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -44,6 +45,17 @@ public class FIPSNonCryptoServiceAbsenceTest
     private static final String PKCS12_KEYSTORE = "PKCS12";
     private static final String X509_CERT_FACTORY = "X.509";
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -57,8 +69,6 @@ public class FIPSNonCryptoServiceAbsenceTest
     public void keyStoreAbsentAndCertificateFactoryPresentOnJslfips()
         throws Exception
     {
-        ensureProviders();
-
         // Sanity: both providers are actually present in this JVM, so a failure
         // below is genuine service absence, not a missing provider.
         Assertions.assertNotNull(Security.getProvider(JostleFIPSProvider.PROVIDER_NAME),

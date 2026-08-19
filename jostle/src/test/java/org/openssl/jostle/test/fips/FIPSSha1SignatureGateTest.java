@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -47,6 +48,17 @@ public class FIPSSha1SignatureGateTest
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
 
     private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
 
     private static void ensureProviders()
     {
@@ -93,8 +105,6 @@ public class FIPSSha1SignatureGateTest
     @Test
     public void sha1SignatureGenerationRejected() throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator rsaKpg = KeyPairGenerator.getInstance("RSA", FIPS);
         rsaKpg.initialize(2048);
         KeyPair rsa = rsaKpg.generateKeyPair();
@@ -126,8 +136,6 @@ public class FIPSSha1SignatureGateTest
     @Test
     public void sha1DsaSignatureGenerationRejected() throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator dsaKpg = KeyPairGenerator.getInstance("DSA", FIPS);
         dsaKpg.initialize(2048);
         KeyPair dsa = dsaKpg.generateKeyPair();
@@ -147,8 +155,6 @@ public class FIPSSha1SignatureGateTest
     @Test
     public void sha1VerificationRemainsAllowed() throws Exception
     {
-        ensureProviders();
-
         byte[] msg = new byte[64];
         RANDOM.nextBytes(msg);
 

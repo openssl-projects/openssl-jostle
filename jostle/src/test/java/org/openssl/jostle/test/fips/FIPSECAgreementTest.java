@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -101,6 +102,17 @@ public class FIPSECAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
     }
 
     private static void ensureProviders()
@@ -226,7 +238,6 @@ public class FIPSECAgreementTest
     @Test
     public void ecdsaAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdsaAgrees");
 
         for (String curve : CURVES)
@@ -272,8 +283,6 @@ public class FIPSECAgreementTest
     @Test
     public void ecdhAgrees() throws Exception
     {
-        ensureProviders();
-
         for (String curve : CURVES)
         {
             for (int trial = 0; trial < TRIALS; trial++)
@@ -311,7 +320,6 @@ public class FIPSECAgreementTest
     @Test
     public void ecdhKdfAgrees() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("ecdhKdfAgrees");
 
         for (String name : ECDH_KDF_NAMES)
@@ -360,7 +368,6 @@ public class FIPSECAgreementTest
     @Test
     public void keysRoundTripThroughBouncyCastle() throws Exception
     {
-        ensureProviders();
         SecureRandom sr = seededRandom("keysRoundTripThroughBouncyCastle");
 
         for (String curve : CURVES)

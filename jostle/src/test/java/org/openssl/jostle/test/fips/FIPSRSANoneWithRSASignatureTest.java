@@ -12,6 +12,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -76,6 +77,17 @@ public class FIPSRSANoneWithRSASignatureTest
     }
 
     /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        FIPSTestUtil.assumeFipsProvider();
+    }
+
+    /**
      * {@code NoneWithRSA} resolves through JSLFIPS (registered) but the module
      * refuses to initialise a raw signature: {@code initSign} fails with an
      * {@link OpenSSLException} whose message reports the unsupported {@code NONE}
@@ -84,7 +96,6 @@ public class FIPSRSANoneWithRSASignatureTest
     @Test
     public void noneWithRsaResolvesButModuleRefusesSign() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         KeyPair kp = generateFipsKeyPair();
 
         // Registered: resolution succeeds.
@@ -118,7 +129,6 @@ public class FIPSRSANoneWithRSASignatureTest
     @Test
     public void noneWithRsaResolvesButModuleRefusesVerify() throws Exception
     {
-        FIPSTestUtil.assumeFipsProvider();
         KeyPair kp = generateFipsKeyPair();
 
         Signature verifier = Signature.getInstance("NoneWithRSA", FIPS);

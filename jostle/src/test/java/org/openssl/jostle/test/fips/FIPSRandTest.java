@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
@@ -51,6 +52,17 @@ public class FIPSRandTest
             "HMAC-DRBG-SHA224", "HMAC-DRBG-SHA384"
     };
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -76,8 +88,6 @@ public class FIPSRandTest
     public void drbgsProduceDivergingOutput()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : DRBGS)
         {
             SecureRandom random = SecureRandom.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);
@@ -110,8 +120,6 @@ public class FIPSRandTest
     public void drbgsNotServedByModuleRejected()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : NOT_SERVED_DRBGS)
         {
             Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
@@ -124,8 +132,6 @@ public class FIPSRandTest
     public void largeRequestSpansChunks()
         throws Exception
     {
-        ensureProviders();
-
         // Larger than the DRBG max-request boundary, so the native loop chunks.
         SecureRandom random = SecureRandom.getInstance("DEFAULT", JostleFIPSProvider.PROVIDER_NAME);
         byte[] big = new byte[70000];
@@ -138,8 +144,6 @@ public class FIPSRandTest
     public void keyGeneratorDrawsWorkingAesKeys()
         throws Exception
     {
-        ensureProviders();
-
         // Default size (256) without init.
         KeyGenerator kg = KeyGenerator.getInstance("AES", JostleFIPSProvider.PROVIDER_NAME);
         SecretKey key = kg.generateKey();
@@ -182,8 +186,6 @@ public class FIPSRandTest
     @Test
     public void fipsSecureRandomRegistrationSurfaceIsLocked()
     {
-        ensureProviders();
-
         Provider provider = Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
 
         // Exactly the 14 approved DRBG names (plus DEFAULT alias) must resolve.
@@ -210,8 +212,6 @@ public class FIPSRandTest
     @Test
     public void drbgThreadSafeAttribute()
     {
-        ensureProviders();
-
         Provider provider = Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
 
         // ProvFIPSRand registers every DRBG ThreadSafe so the JCE does not
@@ -223,8 +223,6 @@ public class FIPSRandTest
     public void generateSeedReturnsRequestedLengthAndRejectsNegative()
         throws Exception
     {
-        ensureProviders();
-
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleFIPSProvider.PROVIDER_NAME);
 
         byte[] seed = random.generateSeed(14);
@@ -237,8 +235,6 @@ public class FIPSRandTest
     public void nextBytesRejectsNull()
         throws Exception
     {
-        ensureProviders();
-
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleFIPSProvider.PROVIDER_NAME);
 
         Assertions.assertThrows(NullPointerException.class, () -> random.nextBytes(null));
@@ -248,8 +244,6 @@ public class FIPSRandTest
     public void serializationIsNotSupported()
         throws Exception
     {
-        ensureProviders();
-
         // A native-backed DRBG instance holds an EVP_RAND_CTX handle that cannot
         // be persisted, so serialization is deliberately forbidden: writeObject
         // throws and SecureRandom serialization fails deterministically.

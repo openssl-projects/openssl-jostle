@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -47,6 +48,17 @@ public class FIPSMacTest
             "POLY1305", "HMACMD5", "HMACSM3", "HMACRIPEMD160"
     };
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -71,8 +83,6 @@ public class FIPSMacTest
     public void approvedMacsAgreeAcrossProviders()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : APPROVED)
         {
             for (int t = 0; t < 5; t++)
@@ -129,8 +139,6 @@ public class FIPSMacTest
     public void chunkingAndReuse()
         throws Exception
     {
-        ensureProviders();
-
         SecretKeySpec key = randomKey("HMACSHA256", 32);
         byte[] message = new byte[257 + RANDOM.nextInt(1024)];
         RANDOM.nextBytes(message);
@@ -164,8 +172,6 @@ public class FIPSMacTest
     public void aliasesResolve()
         throws Exception
     {
-        ensureProviders();
-
         SecretKeySpec key = randomKey("HMACSHA256", 32);
         byte[] message = new byte[64];
         RANDOM.nextBytes(message);
@@ -181,8 +187,6 @@ public class FIPSMacTest
     public void macsNotServedByModuleRejected()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : NOT_SERVED_BY_MODULE)
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
@@ -204,8 +208,6 @@ public class FIPSMacTest
     public void getMacLengthPerApprovedAlgorithm()
         throws Exception
     {
-        ensureProviders();
-
         Object[][] expected = new Object[][]{
                 {"HMACSHA1", 20},
                 {"HMACSHA224", 28},
@@ -240,8 +242,6 @@ public class FIPSMacTest
     public void explicitResetDiscardsAccumulatedState()
         throws Exception
     {
-        ensureProviders();
-
         SecretKeySpec key = randomKey("HMACSHA256", 32);
         byte[] message = new byte[257 + RANDOM.nextInt(1024)];
         RANDOM.nextBytes(message);
@@ -268,8 +268,6 @@ public class FIPSMacTest
     public void initNullKeyThrowsInvalidKeyException()
         throws Exception
     {
-        ensureProviders();
-
         for (String name : new String[]{"HMACSHA256", "AESCMAC"})
         {
             Mac mac = Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);

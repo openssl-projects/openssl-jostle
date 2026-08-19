@@ -13,6 +13,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
@@ -78,6 +79,17 @@ public class FIPSRSAPSSNamedSignatureTest
             {"SHA3-512WITHRSAANDMGF1", "SHA3-512", "64"},
     };
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before() throws Exception
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders() throws Exception
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -131,8 +143,6 @@ public class FIPSRSAPSSNamedSignatureTest
     @Test
     public void namedPssDefaultsMatchExplicitParams() throws Exception
     {
-        ensureProviders();
-
         for (String[] c : CASES)
         {
             String jslName = c[0];
@@ -190,7 +200,6 @@ public class FIPSRSAPSSNamedSignatureTest
     @Test
     public void namedPss_RSASSA_PSS_alias_resolves() throws Exception
     {
-        ensureProviders();
         for (String[] c : CASES)
         {
             String pssAlias = c[0].replace("WITHRSAANDMGF1", "WITHRSASSA-PSS");

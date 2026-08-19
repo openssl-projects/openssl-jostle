@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
@@ -42,14 +43,23 @@ import java.util.Locale;
 public class FIPSInterfaceSelectionTest
 {
     /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        FIPSTestUtil.assumeFipsProvider();
+    }
+
+    /**
      * The FIPS interface library that loaded is the fips-suffixed one, and the
      * resolved NI impls match the active JNI/FFI bridge flavour.
      */
     @Test
     public void fipsNiSelectorHonoursInterfaceOverrideAndLoadsFipsSuffixedLib()
     {
-        FIPSTestUtil.assumeFipsProvider();
-
         // Touch a selector field: forces FIPSNISelector's static init, which
         // calls Loader.loadFipsInterface() - the load these assertions observe.
         Object mdImpl = FIPSNISelector.MDServiceNI;

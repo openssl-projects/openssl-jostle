@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -46,6 +47,17 @@ public class FIPSKeyIsolationTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /**
+     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
+     * Gating here rather than per test method fails closed, so a test added
+     * later is gated automatically.
+     */
+    @BeforeAll
+    static void before()
+    {
+        ensureProviders();
+    }
+
     private static void ensureProviders()
     {
         FIPSTestUtil.assumeFipsProvider();
@@ -77,8 +89,6 @@ public class FIPSKeyIsolationTest
     public void rsaPrivateKeysIsolatedPublicKeysShared()
         throws Exception
     {
-        ensureProviders();
-
         KeyPairGenerator jslKpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         jslKpg.initialize(2048);
         KeyPair jslKp = jslKpg.generateKeyPair();
@@ -142,8 +152,6 @@ public class FIPSKeyIsolationTest
     public void ecDhAndXdhPolicy()
         throws Exception
     {
-        ensureProviders();
-
         // EC: private isolated...
         KeyPairGenerator fipsEc = KeyPairGenerator.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
         fipsEc.initialize(new ECGenParameterSpec("secp256r1"));
@@ -176,8 +184,6 @@ public class FIPSKeyIsolationTest
     public void symmetricKeysAreUnaffected()
         throws Exception
     {
-        ensureProviders();
-
         // SecretKeys are raw bytes with no native residency: a key generated
         // by JSL's KeyGenerator works in a JSLFIPS cipher (and vice versa).
         javax.crypto.KeyGenerator jslKg = javax.crypto.KeyGenerator.getInstance("AES", JostleProvider.PROVIDER_NAME);
@@ -211,7 +217,6 @@ public class FIPSKeyIsolationTest
     public void keyIsolationCompleteAcrossAllAsymmetricFamiliesBothDirections()
         throws Exception
     {
-        ensureProviders();
         final String fips = JostleFIPSProvider.PROVIDER_NAME;
         final String jsl = JostleProvider.PROVIDER_NAME;
 
