@@ -33,6 +33,18 @@ mac_ctx *JoMAC_allocate(const char *mac_name, const char *function_name, int32_t
     return out_ctx;
 }
 
+mac_ctx *JoMAC_copy(mac_ctx *ctx, int32_t *err) {
+    jo_assert(err != NULL);
+
+    // Caller-derived handle: typed code, never jo_assert.
+    if (ctx == NULL) {
+        *err = JO_MAC_CTX_IS_NULL;
+        return NULL;
+    }
+
+    return mac_copy(ctx, err);
+}
+
 int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
 
     if (ctx == NULL) {

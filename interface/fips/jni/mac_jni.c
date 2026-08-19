@@ -77,6 +77,38 @@ exit:
     return (jlong) mac_ctx;
 }
 
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
+ * Method:    ni_copyMac
+ * Signature: (J[I)J
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1copyMac
+(JNIEnv *env, jobject self, jlong ref, jintArray _err) {
+    UNUSED(self);
+
+    int32_t *err = NULL;
+    mac_ctx *new_ctx = NULL;
+
+    jo_assert(_err != NULL);
+    err = (*env)->GetIntArrayElements(env, _err, NULL);
+    jo_assert(err != NULL);
+
+    // Caller-derived handle: typed code, never jo_assert.
+    mac_ctx *ctx = (mac_ctx *) ref;
+    if (ctx == NULL) {
+        err[0] = JO_MAC_CTX_IS_NULL;
+        (*env)->ReleaseIntArrayElements(env, _err, err, 0);
+        return (jlong) NULL;
+    }
+
+    new_ctx = mac_copy(ctx, err);
+
+    (*env)->ReleaseIntArrayElements(env, _err, err, 0);
+
+    return (jlong) new_ctx;
+}
+
+
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1init
 (JNIEnv *env, jobject self, jlong ref, jbyteArray keyBytes) {
     UNUSED(self);

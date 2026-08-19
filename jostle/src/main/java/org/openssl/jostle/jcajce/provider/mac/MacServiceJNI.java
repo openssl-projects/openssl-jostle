@@ -16,6 +16,9 @@ public class MacServiceJNI implements MacServiceNI
     public native long ni_allocateMac(String macName, String canonicalDigestName, int[] err);
 
     @Override
+    public native long ni_copyMac(long ref, int[] err);
+
+    @Override
     public native int ni_init(long ref, byte[] keyBytes);
 
     @Override

@@ -141,6 +141,80 @@ exit:
     return NULL;
 }
 
+/*
+ * Deep-copy a MAC context, running state included, for Mac.clone().
+ *
+ * EVP_MAC_CTX_dup snapshots the absorbed bytes: the provider's dupctx
+ * (hmac_dup and its siblings) copies the inner HMAC_CTX and digest state and
+ * re-allocates the key into secure memory rather than sharing the pointer, so
+ * the clone is independent of the source in both directions.
+ *
+ * The copy takes its own reference on the EVP_MAC and its own copies of the
+ * name strings and key, because mac_free releases all of them unconditionally
+ * and must be balanced for each ctx.
+ */
+mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
+    // Bridge-validated: the source handle is checked there, asserted here.
+    jo_assert(err != NULL);
+    jo_assert(src != NULL);
+    jo_assert(src->ctx != NULL);
+    jo_assert(src->mac != NULL);
+    jo_assert(src->mac_name != NULL);
+    jo_assert(src->function_name != NULL);
+
+    ERR_clear_error();
+
+    mac_ctx *mctx = OPENSSL_zalloc(sizeof(*mctx));
+    jo_assert(mctx != NULL);
+
+    size_t len = strlen(src->mac_name) + 1;
+    mctx->mac_name = OPENSSL_malloc(len);
+    jo_assert(mctx->mac_name != NULL);
+    memcpy(mctx->mac_name, src->mac_name, len);
+
+    len = strlen(src->function_name) + 1;
+    mctx->function_name = OPENSSL_malloc(len);
+    jo_assert(mctx->function_name != NULL);
+    memcpy(mctx->function_name, src->function_name, len);
+
+    // Cast away const: up_ref mutates only the refcount (mirrors
+    // md_ctx_copy's EVP_MD_up_ref cast).
+    if (OPS_OPENSSL_ERROR_8 1 != EVP_MAC_up_ref((EVP_MAC *) src->mac)) {
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(1015);
+        goto exit;
+    }
+    mctx->mac = src->mac;
+
+    mctx->ctx = EVP_MAC_CTX_dup(src->ctx);
+    if (OPS_OPENSSL_ERROR_9 mctx->ctx == NULL) {
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(1016);
+        goto exit;
+    }
+
+    // The key is retained so the clone can be reset like any other ctx
+    // (mac_reset re-inits from it). Secret material, so clear_free on release.
+    if (src->key != NULL) {
+        mctx->key = OPENSSL_malloc(src->key_len == 0 ? 1 : src->key_len);
+        jo_assert(mctx->key != NULL);
+        if (src->key_len > 0) {
+            memcpy(mctx->key, src->key, src->key_len);
+        }
+        mctx->key_len = src->key_len;
+    }
+    mctx->initialized = src->initialized;
+
+    *err = JO_SUCCESS;
+    return mctx;
+
+exit:
+
+    // mac_free is NULL-tolerant per field and clear_frees the key, so it is the
+    // right cleanup for a partially-built ctx.
+    mac_free(mctx);
+    return NULL;
+}
+
+
 int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len) {
     uint8_t *new_key;
     int32_t ret;

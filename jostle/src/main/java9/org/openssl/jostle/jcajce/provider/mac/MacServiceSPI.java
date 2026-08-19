@@ -25,7 +25,7 @@ import java.security.Key;
 import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 
-public class MacServiceSPI extends MacSpi
+public class MacServiceSPI extends MacSpi implements Cloneable
 {
     // Instance field, not a NISelector static: the SPI is bound to whichever
     // NI backend its provider passes in - NISelector.MacServiceNI for JSL,
@@ -41,6 +41,17 @@ public class MacServiceSPI extends MacSpi
     public MacServiceSPI(String macName, String function)
     {
         this(NISelector.MacServiceNI, macName, function);
+    }
+
+    //
+    // Clone path: adopt an already-copied native handle. cacheKey is carried
+    // verbatim so the clone shares the memoized MAC length of its source.
+    //
+    private MacServiceSPI(MacServiceNI macServiceNI, String cacheKey, MacReference ref)
+    {
+        this.macServiceNI = macServiceNI;
+        this.cacheKey = cacheKey;
+        this.ref = ref;
     }
 
     public MacServiceSPI(MacServiceNI macServiceNI, String macName, String function)
@@ -188,6 +199,33 @@ public class MacServiceSPI extends MacSpi
         try
         {
             macServiceNI.reset(ref.getReference());
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    //
+    // Mac.clone() routes here. See the Java 8 baseline copy for the rationale;
+    // this override keeps the SPI reachable across the native copy with
+    // Reference.reachabilityFence instead of synchronized(this).
+    //
+    @Override
+    public Object clone() throws CloneNotSupportedException
+    {
+        try
+        {
+            long clonedRef = macServiceNI.copyMac(ref.getReference());
+            return new MacServiceSPI(macServiceNI, cacheKey,
+                    new MacReference(macServiceNI, clonedRef, cacheKey));
+        }
+        catch (RuntimeException e)
+        {
+            CloneNotSupportedException cnse =
+                    new CloneNotSupportedException("unable to clone mac");
+            cnse.initCause(e);
+            throw cnse;
         }
         finally
         {

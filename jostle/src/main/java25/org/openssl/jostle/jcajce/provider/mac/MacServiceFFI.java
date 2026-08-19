@@ -13,6 +13,7 @@ public class MacServiceFFI implements MacServiceNI
     private static final Linker LINKER = Linker.nativeLinker();
 
     private final MethodHandle MH_new;
+    private final MethodHandle MH_copy;
     private final MethodHandle MH_init;
     private final MethodHandle MH_updateByte;
     private final MethodHandle MH_update;
@@ -37,6 +38,14 @@ public class MacServiceFFI implements MacServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS
+                ));
+
+        MH_copy = LINKER.downcallHandle(
+                lookup.find("JoMAC_copy").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS, // returned ctx
+                        ValueLayout.ADDRESS, // *ctx to copy
+                        ValueLayout.ADDRESS  // *err
                 ));
 
         MH_init = LINKER.downcallHandle(
@@ -119,6 +128,27 @@ public class MacServiceFFI implements MacServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI MAC_new", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public long ni_copyMac(long ref, int[] err)
+    {
+        // NOT critical: mac_copy allocates and calls into OpenSSL, and the err
+        // out-parameter is read back after the call, so the confined-arena copy
+        // is the correct marshalling (mirrors ni_allocateMac).
+        try (Arena arena = Arena.ofConfined())
+        {
+            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment outPtr = (MemorySegment) MH_copy.invokeExact(
+                    MemorySegment.ofAddress(ref), errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+            return outPtr.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI MAC_copy", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

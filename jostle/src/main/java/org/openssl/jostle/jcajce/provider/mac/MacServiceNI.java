@@ -19,6 +19,8 @@ public interface MacServiceNI extends DefaultServiceNI
 {
     long ni_allocateMac(String macName, String canonicalDigestName, int[] err);
 
+    long ni_copyMac(long ref, int[] err);
+
     int ni_init(long ref, byte[] keyBytes);
 
     int ni_updateByte(long ref, byte b);
@@ -43,6 +45,16 @@ public interface MacServiceNI extends DefaultServiceNI
     {
         int[] err = new int[1];
         long v = ni_allocateMac(macName, functionName, err);
+        handleErrors(err[0]);
+        return v;
+    }
+
+    // Clone the native MAC state (EVP_MAC_CTX_dup). Returns a fresh native
+    // handle that the caller wraps in its own NativeReference/Disposer.
+    default long copyMac(long ref)
+    {
+        int[] err = new int[1];
+        long v = ni_copyMac(ref, err);
         handleErrors(err[0]);
         return v;
     }

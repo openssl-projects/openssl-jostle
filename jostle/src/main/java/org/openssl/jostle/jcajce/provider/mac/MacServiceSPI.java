@@ -24,7 +24,7 @@ import java.security.Key;
 import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 
-public class MacServiceSPI extends MacSpi
+public class MacServiceSPI extends MacSpi implements Cloneable
 {
     // Instance field, not a NISelector static: the SPI is bound to whichever
     // NI backend its provider passes in - NISelector.MacServiceNI for JSL,
@@ -40,6 +40,17 @@ public class MacServiceSPI extends MacSpi
     public MacServiceSPI(String macName, String function)
     {
         this(NISelector.MacServiceNI, macName, function);
+    }
+
+    //
+    // Clone path: adopt an already-copied native handle. cacheKey is carried
+    // verbatim so the clone shares the memoized MAC length of its source.
+    //
+    private MacServiceSPI(MacServiceNI macServiceNI, String cacheKey, MacReference ref)
+    {
+        this.macServiceNI = macServiceNI;
+        this.cacheKey = cacheKey;
+        this.ref = ref;
     }
 
     public MacServiceSPI(MacServiceNI macServiceNI, String macName, String function)
@@ -173,6 +184,39 @@ public class MacServiceSPI extends MacSpi
         synchronized (this)
         {
             macServiceNI.reset(ref.getReference());
+        }
+    }
+
+    //
+    // Mac.clone() routes here (the JCA Delegate calls Object.clone() on the SPI
+    // when it is Cloneable). A shallow Object.clone() would share the single
+    // native EVP_MAC_CTX between the original and the copy — a double-free and
+    // cross-talk hazard — so we deep-copy the native state via EVP_MAC_CTX_dup
+    // and hand the clone its own MacReference/Disposer. The provider's dupctx
+    // copies the running state and re-allocates the key into secure memory, so
+    // the clone continues the same MAC rather than starting fresh.
+    //
+    @Override
+    public Object clone() throws CloneNotSupportedException
+    {
+        synchronized (this)
+        {
+            try
+            {
+                long clonedRef = macServiceNI.copyMac(ref.getReference());
+                return new MacServiceSPI(macServiceNI, cacheKey,
+                        new MacReference(macServiceNI, clonedRef, cacheKey));
+            }
+            catch (RuntimeException e)
+            {
+                // A native copy failure surfaces from copyMac as an unchecked
+                // exception; honour the declared clone() contract by reporting
+                // it as CloneNotSupportedException with the failure as cause.
+                CloneNotSupportedException cnse =
+                        new CloneNotSupportedException("unable to clone mac");
+                cnse.initCause(e);
+                throw cnse;
+            }
         }
     }
 
