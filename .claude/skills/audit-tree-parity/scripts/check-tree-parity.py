@@ -58,6 +58,12 @@ NONFIPS_ONLY_PREFIXES = (
 )
 FIPS_ONLY_PREFIXES = (
     "util/rand/jostle_fips_ctx",      # FIPS lib ctx configuration
+    # Capability probes on the loaded FIPS module. JSLFIPS serves one build
+    # against two modules that disagree about what they implement (validated
+    # 3.1.2 and a 3.5.x once certified), so its registered surface is decided
+    # from whichever module is loaded. The base provider links one mainline
+    # libcrypto whose surface is fixed at build time — nothing to probe.
+    "util/capability",
 )
 # fips/jni holds the rename-re-include wrappers (<x>_fips_jni.c) — fips-only.
 def fips_only(rel):

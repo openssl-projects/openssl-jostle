@@ -146,6 +146,13 @@ public class DumpInfo
             System.out.println("  FIPS Load Successful: " + Loader.isFipsLoadSuccessful());
             // -DM System.out.println
             System.out.println("  FIPS Loader Message: " + Loader.getFipsMessage());
+            // Which module is actually loaded. Diagnostics only — nothing
+            // branches on this (see OpenSSLFIPSNI.moduleVersion) — but it is
+            // the first thing to check when JSLFIPS serves a different surface
+            // than expected, since the validated 3.1.2 and a 3.5.x module
+            // disagree about what they implement.
+            // -DM System.out.println
+            System.out.println("  FIPS Module: " + JostleFIPSProvider.moduleDescription());
         }
 
         if (services)

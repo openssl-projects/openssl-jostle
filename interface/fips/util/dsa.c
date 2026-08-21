@@ -48,6 +48,127 @@ static int32_t check_is_dsa(const EVP_PKEY *pkey) {
 }
 
 
+/*
+ * A failure whose code carries an OPS offset was INJECTED by the
+ * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros
+ * expand to nothing in a release build, so only an unadorned JO_OPENSSL_ERROR
+ * can be a real one. The classifiers below must not reinterpret a synthetic
+ * failure as a provider capability: doing so would swallow the offset that
+ * identifies which call site the test drove, and would report a capability
+ * the provider may well have.
+ */
+#define JO_ERROR_WAS_INJECTED(code) ((code) != JO_OPENSSL_ERROR)
+
+/*
+ * Classify a FAILED DSA generation call. Returns JO_DSA_KEYGEN_UNAVAILABLE
+ * when the provider serving this ctx gates DSA keygen behind its FIPS
+ * "sign-check" indicator, JO_OPENSSL_ERROR otherwise.
+ *
+ * Diagnosis-on-failure (the dh_kex_init pattern), never pre-validation: the
+ * generation is attempted first and only its failure is explained. OpenSSL's
+ * 3.5+ FIPS module refuses DSA keygen in strict mode via
+ * OSSL_FIPS_IND_ON_UNAPPROVED(..., "DSA", "Keygen", ...) and returns 0
+ * WITHOUT raising an error of its own, so libcrypto reports only the generic
+ * "provider keymgmt failure" - unusable for a precise message. The gate's own
+ * settable, OSSL_PKEY_PARAM_FIPS_SIGN_CHECK, is present on the gen ctx
+ * exactly where the gate exists.
+ *
+ * Probe-measured on both supported modules (fips-c-review/probes/dsa_gate_probe.c),
+ * at both call sites (paramgen ctx and keygen-from-parameters ctx):
+ *
+ *   3.1.2 : settable ABSENT,  generation SUCCEEDS  -> branch never taken
+ *   3.5.7 : settable PRESENT, generation REFUSED   -> precise code returned
+ *
+ * Because the branch cannot fire on a provider that performs the operation,
+ * the identical source serves the fips and nonfips trees. ERR marks scope the
+ * probe so its own noise cannot disturb the primary error report.
+ */
+static int32_t classify_dsa_gen_failure(EVP_PKEY_CTX *ctx, int32_t generic) {
+    jo_assert(ctx != NULL);
+
+    ERR_set_mark();
+    const OSSL_PARAM *settable = EVP_PKEY_CTX_settable_params(ctx);
+    int gated = settable != NULL
+                && OSSL_PARAM_locate_const(settable,
+                                           OSSL_PKEY_PARAM_FIPS_SIGN_CHECK) != NULL;
+    ERR_pop_to_mark();
+
+    if (gated) {
+        return JO_DSA_KEYGEN_UNAVAILABLE;
+    }
+    return generic;
+}
+
+
+
+
+/*
+ * Reference digest for the sign probe below. An input we CHOOSE, not a value
+ * read back from OpenSSL, so hard-coding it is correct: SHA-256 is approved
+ * for DSA signing by every FIPS module we support (and by mainline), which is
+ * exactly what makes it usable as the control.
+ */
+#define DSA_SIGN_PROBE_DIGEST "SHA256"
+
+/*
+ * Classify a FAILED DSA sign-init. Returns JO_DSA_SIGN_UNAVAILABLE only when
+ * the provider refuses to SIGN with this key at all while still VERIFYING
+ * with it; JO_OPENSSL_ERROR otherwise.
+ *
+ * Diagnosis-on-failure, and both probes ask for the property semantically
+ * rather than reading an indicator name that could drift:
+ *
+ *   1. Retry the sign init with a digest the provider certainly approves. If
+ *      THAT works, the provider does sign DSA and the caller's failure was
+ *      about something else - the digest it asked for, or the raw mode.
+ *   2. Only then check that verification does work, which is what the
+ *      returned message claims.
+ *
+ * Probe 1 is not optional, and leaving it out is a bug that shipped for
+ * exactly one test run: the 3.1.2 module signs DSA happily but refuses SHA-1
+ * (ossl_fips_ind_digest_sign_check), and a verify-only probe classified that
+ * as "DSA signature generation is not supported" - telling the caller the
+ * algorithm was unavailable when only one digest was.
+ *
+ * Worth the extra calls because the real capability failure is otherwise
+ * mute: OpenSSL's 3.5+ FIPS module runs dsa_sig.c::dsa_sign_check_approved
+ * only when signing and returns 0 WITHOUT raising, so the error queue is empty
+ * and the generic path reports "OpenSSL Error: null" (probe-measured). A
+ * provider that signs never reaches this, so the identical source serves both
+ * trees.
+ *
+ * ERR marks scope both probes: a probe failing for its own reasons must not
+ * displace the sign-init error the caller is about to be told about.
+ */
+static int32_t classify_dsa_sign_failure(OSSL_LIB_CTX *libctx, EVP_PKEY *key,
+                                         int32_t generic) {
+    jo_assert(libctx != NULL);
+    jo_assert(key != NULL);
+
+    ERR_set_mark();
+
+    EVP_MD_CTX *sign_probe = EVP_MD_CTX_new();
+    int sign_ok = sign_probe != NULL
+                  && 1 == EVP_DigestSignInit_ex(sign_probe, NULL,
+                                                DSA_SIGN_PROBE_DIGEST, libctx,
+                                                NULL, key, NULL);
+    EVP_MD_CTX_free(sign_probe);
+
+    int verify_ok = 0;
+    if (!sign_ok) {
+        EVP_PKEY_CTX *verify_probe = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL);
+        verify_ok = verify_probe != NULL && 1 == EVP_PKEY_verify_init(verify_probe);
+        EVP_PKEY_CTX_free(verify_probe);
+    }
+
+    ERR_pop_to_mark();
+
+    if (!sign_ok && verify_ok) {
+        return JO_DSA_SIGN_UNAVAILABLE;
+    }
+    return generic;
+}
+
 // =============================================================
 // Domain-parameter generation
 // =============================================================
@@ -95,6 +216,9 @@ int32_t dsa_generate_parameters(key_spec *spec, int32_t p_bits,
 
     if (OPS_OPENSSL_ERROR_4 1 != EVP_PKEY_paramgen(ctx, &(spec->key))) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(5003);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_dsa_gen_failure(ctx, ret_code);
+        }
         goto exit;
     }
 
@@ -388,6 +512,9 @@ int32_t dsa_generate_key(key_spec *spec, const key_spec *params,
 
     if (OPS_OPENSSL_ERROR_5 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5032);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_dsa_gen_failure(ctx, ret_code);
+        }
         goto exit;
     }
 
@@ -555,7 +682,11 @@ static int32_t dsa_raw_init(dsa_ctx *ctx, OSSL_LIB_CTX *libctx,
                       : EVP_PKEY_verify_init(pctx);
     if (OPS_FAILED_INIT_2 1 != init_rc) {
         EVP_PKEY_CTX_free(pctx);
-        return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_2(5093);
+        int32_t generic = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_2(5093);
+        if (op == DSA_OP_SIGN && !JO_ERROR_WAS_INJECTED(generic)) {
+            return classify_dsa_sign_failure(libctx, key, generic);
+        }
+        return generic;
     }
 
     ctx->raw_pctx = pctx;
@@ -655,6 +786,9 @@ int32_t dsa_ctx_init_sign(dsa_ctx *ctx, const key_spec *key,
     if (OPS_OPENSSL_ERROR_4 1 != EVP_DigestSignInit_ex(
             md_ctx, &pctx, digest_name, libctx, NULL, key->key, NULL)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(5041);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_dsa_sign_failure(libctx, key->key, ret_code);
+        }
         goto exit;
     }
 

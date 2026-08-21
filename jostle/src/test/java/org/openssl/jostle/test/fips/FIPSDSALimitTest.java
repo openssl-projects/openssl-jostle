@@ -69,15 +69,21 @@ public class FIPSDSALimitTest
     private static long keyRef = 0;
 
     @BeforeAll
-    public static void beforeAll()
+    public static void beforeAll() throws Exception
     {
         Assumptions.assumeFalse(TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
         TestUtil.addFipsProvider();
         dsa = FIPSNISelector.DSAServiceNI;
         specNI = FIPSNISelector.SpecNI;
-        paramsRef = dsa.generateParameters(2048, 256, RND);
-        keyRef = dsa.generateKeyPair(paramsRef, RND);
+        // Imported, not generated: OpenSSL's 3.5.x FIPS module refuses both
+        // generateParameters and generateKeyPair while still importing keys and
+        // verifying, so a generated fixture would make this whole class
+        // unrunnable there. The handles are equivalent either way — the bridge
+        // validation these tests exercise is downstream of how the key arrived.
+        long[] handles = FIPSTestUtil.dsaNiHandles(dsa, RND);
+        paramsRef = handles[0];
+        keyRef = handles[1];
     }
 
     @AfterAll
@@ -474,6 +480,7 @@ public class FIPSDSALimitTest
     @Test
     public void verify_afterInitSign_isUnexpectedState()
     {
+        assumeDsaSigns();
         withSigner(ref ->
         {
             dsa.initSign(ref, keyRef, DIGEST, RND);
@@ -489,14 +496,14 @@ public class FIPSDSALimitTest
     @Test
     public void update_nullInput()
     {
-        withInitedSigner(ref -> assertNPE("input is null",
+        withInitedStream(ref -> assertNPE("input is null",
                 () -> dsa.update(ref, null, 0, 0)));
     }
 
     @Test
     public void update_negativeOffset()
     {
-        withInitedSigner(ref ->
+        withInitedStream(ref ->
         {
             for (int off : new int[]{-1, Integer.MIN_VALUE})
             {
@@ -508,7 +515,7 @@ public class FIPSDSALimitTest
     @Test
     public void update_negativeLen()
     {
-        withInitedSigner(ref ->
+        withInitedStream(ref ->
         {
             for (int len : new int[]{-1, Integer.MIN_VALUE})
             {
@@ -521,7 +528,7 @@ public class FIPSDSALimitTest
     public void update_offsetPlusLenOutOfRange()
     {
         // Boundary probe: 1 + 16 > 16, and 0 + 17 > 16.
-        withInitedSigner(ref ->
+        withInitedStream(ref ->
         {
             assertIAE("input offset + length is out of range",
                     () -> dsa.update(ref, new byte[16], 1, 16));
@@ -626,6 +633,7 @@ public class FIPSDSALimitTest
     @Test
     public void sign_writesAtOffsetWithoutClobberingPrefix() throws Exception
     {
+        assumeDsaSigns();
         long signRef = 0;
         long verifyRef = 0;
         try
@@ -717,6 +725,7 @@ public class FIPSDSALimitTest
 
     private static void assertAliasedSignVerifies(int msgLen, int sigOff)
     {
+        assumeDsaSigns();
         long signRef = 0;
         long verifyRef = 0;
         try
@@ -821,13 +830,72 @@ public class FIPSDSALimitTest
         }
     }
 
+    /**
+     * A signer context bound for SIGNING. Skips the calling test when the
+     * loaded module is verify-only for DSA — OpenSSL's 3.5.x FIPS module
+     * refuses {@code initSign} outright, so a sign-path bridge check simply
+     * cannot be reached there.
+     * <p>
+     * The skip is not silent about its cause: {@link FIPSTestUtil#fipsDsaCanSign()}
+     * pins the refusal's type and message before answering false, and
+     * {@code FIPSDSAAgreementTest.dsaSigningRefusedTypedOrWorks} locks it at the
+     * JCE surface. Bridge checks that do not care about direction use
+     * {@link #withInitedStream} instead and keep running on both modules.
+     */
     private static void withInitedSigner(SignerBody body)
     {
+        assumeDsaSigns();
         withSigner(ref ->
         {
             dsa.initSign(ref, keyRef, DIGEST, RND);
             body.run(ref);
         });
+    }
+
+    /**
+     * A signer context bound for whichever direction the module supports —
+     * signing where available, verification otherwise.
+     * <p>
+     * For the update-side bridge checks (null input, negative offset/length,
+     * offset+length range) the direction is irrelevant: {@code dsa_ctx_update}
+     * and its bridge run the same validation either way. Binding whichever
+     * direction works keeps that coverage alive on a verify-only module rather
+     * than skipping it along with the genuinely sign-only tests.
+     */
+    private static void withInitedStream(SignerBody body)
+    {
+        withSigner(ref ->
+        {
+            if (dsaSigns())
+            {
+                dsa.initSign(ref, keyRef, DIGEST, RND);
+            }
+            else
+            {
+                dsa.initVerify(ref, keyRef, DIGEST);
+            }
+            body.run(ref);
+        });
+    }
+
+    private static boolean dsaSigns()
+    {
+        try
+        {
+            return FIPSTestUtil.fipsDsaCanSign();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("could not probe DSA signing", e);
+        }
+    }
+
+    private static void assumeDsaSigns()
+    {
+        Assumptions.assumeTrue(dsaSigns(),
+                "the loaded FIPS module is verify-only for DSA, so initSign cannot be reached"
+                        + " (the refusal itself is pinned by FIPSTestUtil.fipsDsaCanSign and"
+                        + " FIPSDSAAgreementTest.dsaSigningRefusedTypedOrWorks)");
     }
 
     private static void withInitedVerifier(SignerBody body)

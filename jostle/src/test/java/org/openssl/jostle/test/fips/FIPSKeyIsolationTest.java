@@ -245,14 +245,28 @@ public class FIPSKeyIsolationTest
         assertKaReencodeAndPublicCross("ECDH", "EC", jslEc, jslEc2);
 
         // ---- DSA ----
-        KeyPair jslDsa = genKp("DSA", jsl, 2048);
-        KeyPair fipsDsa = genKp("DSA", fips, 2048);
+        // Both halves decode the SAME key material through each provider's own
+        // KeyFactory. That is stronger than two independently generated pairs:
+        // identical material still isolated proves the check is on the key's
+        // PROVENANCE (which interface library / lib ctx made the handle), not
+        // on its contents. It also keeps this runnable on OpenSSL's 3.5.x FIPS
+        // module, which refuses every DSA generation path.
+        KeyPair jslDsa = FIPSTestUtil.dsaKeyPair(jsl);
+        KeyPair fipsDsa = FIPSTestUtil.dsaKeyPair(fips);
         PrivKeyOp dsaOp = (p, k) -> Signature.getInstance("SHA256withDSA", p).initSign(k);
         assertPrivateIsolatedBothDirections(jslDsa.getPrivate(), fipsDsa.getPrivate(), dsaOp);
-        assertSignVerifyAcross("SHA256withDSA", fips, jsl, fipsDsa);
         assertSignVerifyAcross("SHA256withDSA", jsl, fips, jslDsa);
-        assertSigReencodeRoute("SHA256withDSA", "DSA", fips, jsl, jslDsa);
         assertSigReencodeRoute("SHA256withDSA", "DSA", jsl, fips, fipsDsa);
+        if (FIPSTestUtil.fipsDsaCanSign())
+        {
+            // The FIPS-signs directions need a module that signs with DSA.
+            // Where one does not, the two above still cover the crossing in
+            // the direction it can be exercised, and
+            // FIPSDSAAgreementTest.dsaSigningRefusedTypedOrWorks pins the
+            // refusal itself.
+            assertSignVerifyAcross("SHA256withDSA", fips, jsl, fipsDsa);
+            assertSigReencodeRoute("SHA256withDSA", "DSA", fips, jsl, jslDsa);
+        }
 
         // ---- DH ----
         KeyPair jslDh = genKp("DH", jsl, 2048);

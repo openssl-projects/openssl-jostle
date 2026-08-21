@@ -60,50 +60,72 @@ public class FIPSDSADHTest
         }
     }
 
+    /**
+     * DSA agreement with BouncyCastle, in whichever directions the loaded
+     * module supports.
+     * <p>
+     * BC-signs / JSLFIPS-verifies runs always: verification is the one DSA
+     * operation both supported modules perform, and it is what proves the FIPS
+     * verifier accepts a real signature from an independent implementation.
+     * The reverse direction runs only where the module signs — OpenSSL's 3.5.x
+     * FIPS module is verify-only for DSA (see
+     * {@link FIPSTestUtil#fipsDsaCanSign()}). The keypair comes from
+     * {@link FIPSTestUtil#dsaKeyPair} for the same reason: 3.5.x refuses every
+     * DSA generation path.
+     */
     @Test
     public void dsaSignaturesAgreeWithBouncyCastle()
         throws Exception
     {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", JostleFIPSProvider.PROVIDER_NAME);
-        kpg.initialize(2048);
-        KeyPair kp = kpg.generateKeyPair();
+        KeyPair kp = FIPSTestUtil.dsaKeyPair(JostleFIPSProvider.PROVIDER_NAME);
 
         byte[] message = new byte[1 + RANDOM.nextInt(512)];
         RANDOM.nextBytes(message);
+        byte[] tampered = message.clone();
+        tampered[RANDOM.nextInt(tampered.length)] ^= 0x01;
 
+        // BC sign -> JSLFIPS verify, plus the tamper differentiator.
+        Signature bcSigner = Signature.getInstance("SHA256withDSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcSigner.initSign(kp.getPrivate());
+        bcSigner.update(message);
+        byte[] bcSig = bcSigner.sign();
+
+        Signature fipsVerifier = Signature.getInstance("SHA256withDSA", JostleFIPSProvider.PROVIDER_NAME);
+        fipsVerifier.initVerify(kp.getPublic());
+        fipsVerifier.update(message);
+        Assertions.assertTrue(fipsVerifier.verify(bcSig), "BC sign -> JSLFIPS verify");
+
+        fipsVerifier.initVerify(kp.getPublic());
+        fipsVerifier.update(tampered);
+        Assertions.assertFalse(fipsVerifier.verify(bcSig), "tampered message verified");
+
+        // Encoding round-trip: BC decodes the JSLFIPS public key and verifies
+        // a signature it did not make against that decoded key.
+        KeyFactory bcKf = KeyFactory.getInstance("DSA", BouncyCastleProvider.PROVIDER_NAME);
+        PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
+        Signature bcVerifier = Signature.getInstance("SHA256withDSA", BouncyCastleProvider.PROVIDER_NAME);
+        bcVerifier.initVerify(bcPub);
+        bcVerifier.update(message);
+        Assertions.assertTrue(bcVerifier.verify(bcSig), "BC-decoded DSA public key verifies");
+
+        if (!FIPSTestUtil.fipsDsaCanSign())
+        {
+            return;
+        }
+
+        // JSLFIPS sign -> BC verify.
         Signature signer = Signature.getInstance("SHA256withDSA", JostleFIPSProvider.PROVIDER_NAME);
         signer.initSign(kp.getPrivate());
         signer.update(message);
         byte[] sig = signer.sign();
 
-        Signature bcVerifier = Signature.getInstance("SHA256withDSA", BouncyCastleProvider.PROVIDER_NAME);
-        bcVerifier.initVerify(kp.getPublic());
+        bcVerifier.initVerify(bcPub);
         bcVerifier.update(message);
         Assertions.assertTrue(bcVerifier.verify(sig), "JSLFIPS sign -> BC verify");
 
-        // Tampered message must not verify.
-        byte[] tampered = message.clone();
-        tampered[RANDOM.nextInt(tampered.length)] ^= 0x01;
-        Signature fipsVerifier = Signature.getInstance("SHA256withDSA", JostleFIPSProvider.PROVIDER_NAME);
-        fipsVerifier.initVerify(kp.getPublic());
-        fipsVerifier.update(tampered);
-        Assertions.assertFalse(fipsVerifier.verify(sig), "tampered message verified");
-
-        // BC sign -> JSLFIPS verify.
-        Signature bcSigner = Signature.getInstance("SHA256withDSA", BouncyCastleProvider.PROVIDER_NAME);
-        bcSigner.initSign(kp.getPrivate());
-        bcSigner.update(message);
-        byte[] bcSig = bcSigner.sign();
-        fipsVerifier.initVerify(kp.getPublic());
-        fipsVerifier.update(message);
-        Assertions.assertTrue(fipsVerifier.verify(bcSig), "BC sign -> JSLFIPS verify");
-
-        // Encoding round-trip: BC decodes the JSLFIPS public key and verifies.
-        KeyFactory bcKf = KeyFactory.getInstance("DSA", BouncyCastleProvider.PROVIDER_NAME);
-        PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
         bcVerifier.initVerify(bcPub);
-        bcVerifier.update(message);
-        Assertions.assertTrue(bcVerifier.verify(sig), "BC-decoded DSA public key verifies");
+        bcVerifier.update(tampered);
+        Assertions.assertFalse(bcVerifier.verify(sig), "tampered message verified (BC)");
     }
 
     @Test

@@ -17,6 +17,7 @@
 #include "rand_upcall_jni.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
+#include "../util/capability.h"
 #include "../util/jo_assert.h"
 #include "../util/rand.h"
 #include "../util/rand/jostle_fips_ctx.h"
@@ -154,4 +155,59 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFI
     jstring str = (*env)->NewStringUTF(env, ret);
     free(ret);
     return str;
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI
+ * Method:    canFetch
+ * Signature: (ILjava/lang/String;)I
+ *
+ * Bridge responsibilities per the project rules: null-check the
+ * caller-supplied name, range-check the caller-supplied op type, translate a
+ * failed GetStringUTFChars — never let any of the three reach a util
+ * jo_assert. Returns identical codes to the FFI twin for identical inputs.
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI_canFetch(
+    JNIEnv *env, jobject jo, jint op_type, jstring _name) {
+    UNUSED(jo);
+
+    if (_name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+    if (op_type < JO_CAP_OP_MIN || op_type > JO_CAP_OP_MAX) {
+        return JO_UNEXPECTED_STATE;
+    }
+
+    const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
+    if (name == NULL) {
+        return JO_UNABLE_TO_ACCESS_NAME;
+    }
+
+    int32_t result = capability_can_fetch(op_type, name);
+
+    (*env)->ReleaseStringUTFChars(env, _name, name);
+    return result;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI
+ * Method:    moduleVersion
+ * Signature: ()Ljava/lang/String;
+ *
+ * Returns null when the provider cannot be queried; the Java side treats that
+ * as "unknown" and never gates on it. The buffer is local, so unlike the FFI
+ * twin there is no caller-supplied length to validate. 256 is far above
+ * anything a provider reports ("OpenSSL FIPS Provider 3.5.7" is 27) and
+ * capability_module_version truncates rather than overruns regardless.
+ */
+JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI_moduleVersion(
+    JNIEnv *env, jobject jo) {
+    UNUSED(jo);
+
+    char buf[256];
+    if (capability_module_version(buf, sizeof(buf)) <= 0) {
+        return NULL;
+    }
+    return (*env)->NewStringUTF(env, buf);
 }

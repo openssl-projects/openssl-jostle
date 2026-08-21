@@ -25,7 +25,11 @@ package org.openssl.jostle.jcajce.provider;
  *       ({@code JO_DH_Q_REQUIRED});</li>
  *   <li>DH parameter generation when the provider substitutes an
  *       RFC 7919 named group instead of running the PKCS#3 safe-prime
- *       search ({@code JO_DH_PARAMGEN_SUBSTITUTED}).</li>
+ *       search ({@code JO_DH_PARAMGEN_SUBSTITUTED});</li>
+ *   <li>DSA key / domain-parameter generation when the provider gates it
+ *       behind the FIPS "sign-check" indicator — OpenSSL's 3.5+ FIPS module
+ *       refuses generation while still importing keys and verifying
+ *       signatures ({@code JO_DSA_KEYGEN_UNAVAILABLE}).</li>
  * </ul>
  *
  * <p>Subclasses {@link OpenSSLException} so callers that handle the

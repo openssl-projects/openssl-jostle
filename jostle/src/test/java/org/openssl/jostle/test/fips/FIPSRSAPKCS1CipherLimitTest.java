@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -42,19 +43,32 @@ import java.util.Arrays;
  * rsa_pkcs1_ni_jni.c re-included under renamed symbols. Mirrors the base
  * {@code RSAPKCS1CipherLimitTest} where the FIPS contract allows.
  *
- * <p><b>Fail-loud decrypt contract (hard guard).</b> The 3.1.2 FIPS module
- * does NOT implement {@code OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION} (the
- * Bleichenbacher mitigation entered OpenSSL 3.2), and
+ * <p><b>The two supported modules mirror each other here, and neither serves
+ * both directions:</b>
+ * <pre>
+ *   3.1.2 : encrypt WORKS   / decrypt-init refused (no implicit rejection)
+ *   3.5.7 : encrypt REFUSED / decrypt-init works   (implicit rejection present)
+ * </pre>
+ * <b>Decrypt.</b> {@code OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION} (the
+ * Bleichenbacher mitigation) entered OpenSSL 3.2, and
  * {@code EVP_PKEY_CTX_set_params} silently ignores unknown params — so
  * {@code rsa_pkcs1_init} probes {@code EVP_PKEY_CTX_settable_params} for the
  * parameter before initialising any DECRYPT session and refuses with
  * {@code JO_IMPLICIT_REJECTION_UNAVAILABLE} (-135,
  * {@link ProviderCapabilityException}) when the provider cannot honour it.
- * Under this module EVERY PKCS#1 v1.5 decrypt init fails that way; running
- * decryption without the mitigation would be a padding oracle. Encrypt is
- * unaffected. Consequently the round-trip validations in this class decrypt
- * FIPS-produced ciphertext through the base (JSL) provider — which supports
- * implicit rejection — with the private key shared via its PKCS#8 encoding.
+ * Running decryption without the mitigation would be a padding oracle. That
+ * probe fails on 3.1.2 and passes on 3.5.x.
+ *
+ * <p><b>Encrypt.</b> 3.5.x gates PKCS#1 v1.5 <i>encryption</i> behind its
+ * {@code rsa-pkcs15-pad-disabled} FIPS indicator
+ * ({@code rsa_enc.c::rsa_encrypt}) and refuses it with
+ * {@code invalid padding mode}; 3.1.2 encrypts happily.
+ *
+ * <p>So the bridge is kept rather than dropped — each module needs one half of
+ * it — and this class asserts <b>the contract</b> rather than either module's
+ * answer, probing through {@link FIPSTestUtil#fipsPkcs1CanEncrypt}. Round-trip
+ * validations pair the FIPS side with the base (JSL) provider, which serves
+ * both directions, with the key shared via its PKCS#8 / X.509 encoding.
  *
  * <p>Keygen uses the 2048 module floor; {@link TestUtil#RNDSrc} satisfies the
  * bridge null-check (FIPS entropy path does not consult it).
@@ -151,47 +165,110 @@ public class FIPSRSAPKCS1CipherLimitTest
     // -----------------------------------------------------------------
 
     /**
-     * NI-level hard guard: the 3.1.2 module fails the implicit-rejection
-     * capability probe, so {@code ni_init(OP_DECRYPT)} returns the raw
-     * {@code JO_IMPLICIT_REJECTION_UNAVAILABLE} code (-135 — deliberately
-     * carries no OPS offset) and the wrapped {@code init} surfaces
-     * {@link ProviderCapabilityException} with the pinned message. This is
-     * the runtime guard referenced by the block comment in
-     * {@code interface/fips/util/rsa_pkcs1.c}.
+     * The decrypt-init capability contract, both ways round.
+     * <p>
+     * A module WITHOUT implicit rejection must refuse every PKCS#1 v1.5
+     * decrypt init — {@code ni_init(OP_DECRYPT)} returning the raw
+     * {@code JO_IMPLICIT_REJECTION_UNAVAILABLE} code (-135, deliberately
+     * carrying no OPS offset) and the wrapped {@code init} surfacing
+     * {@link ProviderCapabilityException} with the pinned message. That is the
+     * runtime guard referenced by the block comment in
+     * {@code interface/fips/util/rsa_pkcs1.c}, and running decryption without
+     * the mitigation would be a padding oracle.
+     * <p>
+     * A module WITH it must accept the init and then actually decrypt — the
+     * refusal must not linger as a stale gate once the capability arrives.
+     * Asserting only the refusal would let a provider that gained implicit
+     * rejection keep being turned away for a reason that no longer holds; the
+     * round-trip is what proves the accepted init is real and not merely
+     * un-refused.
      */
     @Test
-    public void initDecrypt_failsLoud_implicitRejectionUnavailable()
+    public void initDecrypt_refusedWithoutImplicitRejection_worksWithIt() throws Exception
     {
-        withCipherAndKey((ref, keyRef) ->
+        final long ref = cipherNI.allocateCipher();
+        try
         {
-            Assertions.assertEquals(-135,
-                    cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, RND));
+            KeyPair kp = generateFipsJceKeyPair();
+            long pubRef = ((OSSLKey) kp.getPublic()).getSpec().getReference();
+            long privRef = ((OSSLKey) kp.getPrivate()).getSpec().getReference();
 
-            ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
-                    () -> cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, RND));
-            Assertions.assertEquals(IMPLICIT_REJECTION_UNAVAILABLE_MESSAGE, e.getMessage());
-        });
+            int code = cipherNI.ni_init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND);
+            if (code == -135)
+            {
+                ProviderCapabilityException e = Assertions.assertThrows(
+                        ProviderCapabilityException.class,
+                        () -> cipherNI.init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND));
+                Assertions.assertEquals(
+                        FIPSTestUtil.IMPLICIT_REJECTION_UNAVAILABLE_MESSAGE, e.getMessage());
+                return;
+            }
+
+            Assertions.assertEquals(0, code,
+                    "decrypt init must either refuse with -135 or succeed");
+
+            // The capability is present, so decryption must genuinely work.
+            // Ciphertext comes from the base provider because this module may
+            // be one that refuses to ENCRYPT.
+            byte[] msg = {9, 8, 7, 6, 5};
+            byte[] ct = baseProviderEncrypt(kp, msg);
+
+            cipherNI.init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND);
+            int needed = cipherNI.doFinal(ref, ct, 0, ct.length, null, 0, RND);
+            byte[] out = new byte[needed];
+            int written = cipherNI.doFinal(ref, ct, 0, ct.length, out, 0, RND);
+            Assertions.assertArrayEquals(msg, Arrays.copyOf(out, written),
+                    "a module with implicit rejection must actually decrypt");
+            Assertions.assertNotEquals(0, pubRef);
+        }
+        finally
+        {
+            cipherNI.disposeCipher(ref);
+        }
     }
 
     /**
-     * Negative-then-positive on one cipher ctx: a refused decrypt init must
-     * not poison the ctx — a subsequent encrypt init on the SAME ref succeeds
-     * and produces working ciphertext (validated via the base provider).
+     * Negative-then-positive on one cipher ctx: a refused init must not poison
+     * it — a subsequent init in the direction the module DOES serve succeeds
+     * on the same ref and produces a working result.
+     * <p>
+     * Which direction is refused depends on the module (see the class
+     * Javadoc), so the test drives whichever pairing the loaded module gives
+     * and asserts the same property either way.
      */
     @Test
-    public void initDecrypt_refused_thenEncryptInitSucceeds() throws Exception
+    public void initRefused_thenTheOtherDirectionSucceeds() throws Exception
     {
-        long ref = 0;
+        final long ref = cipherNI.allocateCipher();
         try
         {
-            ref = cipherNI.allocateCipher();
             KeyPair kp = generateFipsJceKeyPair();
-            long keyRef = ((OSSLKey) kp.getPublic()).getSpec().getReference();
+            long pubRef = ((OSSLKey) kp.getPublic()).getSpec().getReference();
+            long privRef = ((OSSLKey) kp.getPrivate()).getSpec().getReference();
 
+            if (!encryptAvailable(kp))
+            {
+                // 3.5.x shape: encrypt is refused, decrypt works.
+                cipherNI.init(ref, pubRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
+                byte[] msg = {1, 2, 3, 4};
+                Assertions.assertThrows(OpenSSLException.class,
+                        () -> cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, RND));
+
+                byte[] ct = baseProviderEncrypt(kp, msg);
+                cipherNI.init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND);
+                int needed = cipherNI.doFinal(ref, ct, 0, ct.length, null, 0, RND);
+                byte[] out = new byte[needed];
+                int written = cipherNI.doFinal(ref, ct, 0, ct.length, out, 0, RND);
+                Assertions.assertArrayEquals(msg, Arrays.copyOf(out, written),
+                        "decrypt after a refused encrypt produced the wrong plaintext");
+                return;
+            }
+
+            // 3.1.2 shape: decrypt init is refused, encrypt works.
             Assertions.assertEquals(-135,
-                    cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, RND));
+                    cipherNI.ni_init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND));
 
-            cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
+            cipherNI.init(ref, pubRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
             byte[] msg = {1, 2, 3, 4};
             int needed = cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, RND);
             byte[] ct = new byte[needed];
@@ -214,6 +291,7 @@ public class FIPSRSAPKCS1CipherLimitTest
     @Test
     public void encrypt_stillSucceeds_ciphertextIsModulusLength() throws Exception
     {
+        assumeEncryptAvailable();
         long encRef = 0;
         try
         {
@@ -310,8 +388,12 @@ public class FIPSRSAPKCS1CipherLimitTest
     }
 
     @Test
-    public void doFinal_outputTooSmall()
+    public void doFinal_outputTooSmall() throws Exception
     {
+        // The bridge asks the module for the output size before comparing it
+        // with the caller's buffer, so this check sits behind a working
+        // encrypt.
+        assumeEncryptAvailable();
         withEncryptCipher((ref, keyRef) ->
         {
             IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
@@ -323,6 +405,7 @@ public class FIPSRSAPKCS1CipherLimitTest
     @Test
     public void doFinal_writesAtOffsetWithoutClobberingPrefix() throws Exception
     {
+        assumeEncryptAvailable();
         long encRef = 0;
         try
         {
@@ -366,13 +449,13 @@ public class FIPSRSAPKCS1CipherLimitTest
     }
 
     @Test
-    public void doFinal_inPlace_sameOffset()
+    public void doFinal_inPlace_sameOffset() throws Exception
     {
         assertInPlaceRoundTrips(0);
     }
 
     @Test
-    public void doFinal_inPlace_atOffset()
+    public void doFinal_inPlace_atOffset() throws Exception
     {
         assertInPlaceRoundTrips(5);
     }
@@ -383,8 +466,9 @@ public class FIPSRSAPKCS1CipherLimitTest
      * matches the plaintext, with every byte outside the ciphertext region
      * byte-identical to a pre-call snapshot.
      */
-    private void assertInPlaceRoundTrips(int outOff)
+    private void assertInPlaceRoundTrips(int outOff) throws Exception
     {
+        assumeEncryptAvailable();
         long encRef = 0;
         try
         {
@@ -460,6 +544,39 @@ public class FIPSRSAPKCS1CipherLimitTest
         return kpg.generateKeyPair();
     }
 
+    /** Encrypt {@code msg} with the base (JSL) provider over the same key. */
+    private byte[] baseProviderEncrypt(KeyPair kp, byte[] msg) throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        java.security.PublicKey pub = kf.generatePublic(
+                new java.security.spec.X509EncodedKeySpec(kp.getPublic().getEncoded()));
+        Cipher enc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, pub);
+        return enc.doFinal(msg);
+    }
+
+    /**
+     * Does the loaded module encrypt with PKCS#1 v1.5?
+     * <p>
+     * Probed once per JVM through {@link FIPSTestUtil#fipsPkcs1CanEncrypt},
+     * which also pins the refusal message. Tests that need a working encrypt
+     * skip when it answers false; the refusal itself is asserted by
+     * {@link #initRefused_thenTheOtherDirectionSucceeds()}.
+     */
+    private boolean encryptAvailable(KeyPair kp)
+    {
+        return FIPSTestUtil.fipsPkcs1CanEncrypt(cipherNI,
+                ((OSSLKey) kp.getPublic()).getSpec().getReference(), RND);
+    }
+
+    /** Skip the calling test when the module refuses PKCS#1 v1.5 encryption. */
+    private void assumeEncryptAvailable() throws Exception
+    {
+        Assumptions.assumeTrue(encryptAvailable(generateFipsJceKeyPair()),
+                "the loaded FIPS module refuses PKCS#1 v1.5 encryption"
+                        + " (the refusal is pinned by initRefused_thenTheOtherDirectionSucceeds)");
+    }
+
     /** Decrypt {@code ct} with the base (JSL) provider over the same key. */
     private byte[] baseProviderDecrypt(KeyPair kp, byte[] ct) throws Exception
     {
@@ -505,6 +622,14 @@ public class FIPSRSAPKCS1CipherLimitTest
         }
     }
 
+    /**
+     * A cipher ctx bound for ENCRYPT over a fresh NI-level key.
+     * <p>
+     * Bridge-validation checks (null input, negative offset, range) are
+     * rejected before any OpenSSL call and so run on either module; the
+     * output-size and functional checks need the module to encrypt, and those
+     * callers add {@link #assumeEncryptAvailable()} themselves.
+     */
     private void withEncryptCipher(PairBody body)
     {
         withCipherAndKey((ref, keyRef) ->

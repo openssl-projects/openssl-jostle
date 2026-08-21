@@ -33,6 +33,13 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
 
     private static final Linker linker = Linker.nativeLinker();
 
+    /**
+     * Buffer for {@link #moduleVersion()}. The C side writes
+     * "&lt;name&gt; &lt;version&gt;" and truncates to fit; 256 is far above
+     * anything a provider reports ("OpenSSL FIPS Provider 3.5.7" is 27).
+     */
+    private static final int VERSION_BUFFER_BYTES = 256;
+
     private final SymbolLookup lookup;
 
     OpenSSLFIPSFFI()
@@ -64,6 +71,52 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
             throw new ProviderException(t.getMessage(), t);
         }
 
+    }
+
+    @Override
+    public int canFetch(int opType, String name)
+    {
+        try (Arena arena = Arena.ofConfined())
+        {
+            var func = lookup.find("JoFips_can_fetch").orElseThrow();
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+
+            var n = name != null ? arena.allocateFrom(name) : MemorySegment.ofAddress(0);
+
+            return (int) handle.invokeExact(opType, n);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "ffi JoFips_can_fetch", t);
+            throw new ProviderException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public String moduleVersion()
+    {
+        try (Arena arena = Arena.ofConfined())
+        {
+            var func = lookup.find("JoFips_module_version").orElseThrow();
+            // Writes into a caller-supplied buffer rather than returning a
+            // heap pointer, so there is nothing to free across the boundary.
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+
+            var buf = arena.allocate(VERSION_BUFFER_BYTES);
+            int written = (int) handle.invokeExact(buf, VERSION_BUFFER_BYTES);
+            if (written <= 0)
+            {
+                return null;
+            }
+            return buf.getString(0);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "ffi JoFips_module_version", t);
+            throw new ProviderException(t.getMessage(), t);
+        }
     }
 
     @Override

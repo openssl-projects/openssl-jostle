@@ -26,4 +26,18 @@ int32_t JoFips_set_openssl_module(const char *module_dir, const char *prov_name,
                                   const char *config_path);
 
 
+/*
+ * Capability probes on the loaded FIPS module (util/capability.c). Jo*-
+ * prefixed like every other export of this library so no name can shadow a
+ * libcrypto symbol at load time.
+ *
+ * JoFips_can_fetch returns 1/0, or JO_NAME_IS_NULL / JO_UNEXPECTED_STATE for
+ * an unusable argument. JoFips_module_version writes "<name> <version>" into
+ * the caller's buffer and returns the byte count, or a negative JO_* code.
+ */
+int32_t JoFips_can_fetch(int32_t op_type, const char *name);
+
+int32_t JoFips_module_version(char *out, int32_t out_len);
+
+
 #endif //OPENSSL_FIPS_FFI_H

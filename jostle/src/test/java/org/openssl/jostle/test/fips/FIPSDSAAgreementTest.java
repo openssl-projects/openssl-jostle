@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
+import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -103,6 +104,7 @@ public class FIPSDSAAgreementTest
     private static volatile byte[] pubEnc;
     private static volatile byte[] privEnc;
 
+
     private static SecureRandom seededRandom(String testName) throws Exception
     {
         long seed = RANDOM.nextLong();
@@ -136,22 +138,11 @@ public class FIPSDSAAgreementTest
         }
     }
 
-    /**
-     * Generate the shared 2048/256 (FIPS 186-4) DSA keypair once via JSLFIPS
-     * and cache its X.509 / PKCS#8 encodings. Callers must have run
-     * {@link #ensureProviders()} first so the FIPS provider is registered.
-     */
-    private static synchronized void ensureSharedKeyPair() throws Exception
+    /** Delegates to the shared fixture — see {@link FIPSTestUtil#dsaPublicEncoding()}. */
+    private static void ensureSharedKeyPair() throws Exception
     {
-        if (pubEnc != null)
-        {
-            return;
-        }
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", FIPS);
-        kpg.initialize(2048); // FIPS 186-4: L=2048 forces a 256-bit q (N=256).
-        KeyPair kp = kpg.generateKeyPair();
-        pubEnc = kp.getPublic().getEncoded();
-        privEnc = kp.getPrivate().getEncoded();
+        pubEnc = FIPSTestUtil.dsaPublicEncoding();
+        privEnc = FIPSTestUtil.dsaPrivateEncoding();
     }
 
     private static final class ProviderKeys
@@ -202,37 +193,98 @@ public class FIPSDSAAgreementTest
     }
 
     /**
-     * For one signature transformation and one reference provider: JSLFIPS
-     * signs and the reference verifies, the reference signs and JSLFIPS
-     * verifies, and both signatures fail against a tampered message.
+     * For one signature transformation and one reference provider: the
+     * reference signs and JSLFIPS verifies, and — where the module signs at
+     * all — JSLFIPS signs and the reference verifies. Both signatures must
+     * fail against a tampered message.
+     * <p>
+     * The reference-signs / JSLFIPS-verifies direction runs unconditionally
+     * and is the load-bearing one: it is the only DSA operation a verify-only
+     * module supports, and it is what proves the FIPS verifier accepts a real
+     * signature from an independent implementation rather than being stubbed
+     * true. The JSLFIPS-signs direction runs only where the module signs (see
+     * {@link FIPSTestUtil#fipsDsaCanSign()}), which pins the refusal in its own right.
      */
     private void crossVerify(String sigAlg, String ref, SecureRandom sr) throws Exception
     {
         ProviderKeys fips = keysFor(FIPS);
         ProviderKeys refKeys = keysFor(ref);
+        boolean fipsSigns = FIPSTestUtil.fipsDsaCanSign();
 
         for (int trial = 0; trial < TRIALS; trial++)
         {
             byte[] msg = randomMessage(sr);
             String tag = sigAlg + " ref=" + ref + " trial=" + trial + " len=" + msg.length;
 
+            byte[] tampered = msg.clone();
+            tampered[sr.nextInt(tampered.length)] ^= 0x01;
+
+            // Reference signs, JSLFIPS verifies. Always available.
+            byte[] sigRef = sign(sigAlg, ref, refKeys.priv, msg);
+            Assertions.assertTrue(verify(sigAlg, FIPS, fips.pub, msg, sigRef),
+                    tag + ": " + ref + " sign -> JSLFIPS verify");
+            Assertions.assertFalse(verify(sigAlg, FIPS, fips.pub, tampered, sigRef),
+                    tag + ": tampered message must not verify (JSLFIPS)");
+
+            if (!fipsSigns)
+            {
+                continue;
+            }
+
             // DSA is randomised: cross-verify rather than compare bytes.
             byte[] sigFips = sign(sigAlg, FIPS, fips.priv, msg);
             Assertions.assertTrue(verify(sigAlg, ref, refKeys.pub, msg, sigFips),
                     tag + ": JSLFIPS sign -> " + ref + " verify");
-
-            byte[] sigRef = sign(sigAlg, ref, refKeys.priv, msg);
-            Assertions.assertTrue(verify(sigAlg, FIPS, fips.pub, msg, sigRef),
-                    tag + ": " + ref + " sign -> JSLFIPS verify");
-
-            // Negative path: one flipped message byte must break verification
-            // on both the JSLFIPS and the reference verifier.
-            byte[] tampered = msg.clone();
-            tampered[sr.nextInt(tampered.length)] ^= 0x01;
-            Assertions.assertFalse(verify(sigAlg, FIPS, fips.pub, tampered, sigFips),
-                    tag + ": tampered message must not verify (JSLFIPS)");
-            Assertions.assertFalse(verify(sigAlg, ref, refKeys.pub, tampered, sigRef),
+            Assertions.assertFalse(verify(sigAlg, ref, refKeys.pub, tampered, sigFips),
                     tag + ": tampered message must not verify (" + ref + ")");
+        }
+    }
+
+    /**
+     * DSA signature GENERATION is refused typed, and verification is
+     * unaffected — or generation works. Whichever the module does, it must do
+     * consistently across every registered DSA transformation.
+     * <p>
+     * This is the behaviour lock the capability split needs: a module that
+     * signs must not have generation quietly gated, and a module that does not
+     * must refuse through {@link InvalidKeyException} carrying the capability
+     * message rather than an opaque error — the refusal raises nothing on the
+     * OpenSSL error queue, so the untyped path would report
+     * "OpenSSL Error: null". Verification is asserted alive in the same test so
+     * a regression that disabled DSA wholesale cannot pass as "verify-only".
+     */
+    @Test
+    public void dsaSigningRefusedTypedOrWorks_verificationUnaffected() throws Exception
+    {
+        ensureSharedKeyPair();
+        SecureRandom sr = seededRandom("dsaSigningRefusedTypedOrWorks");
+
+        ProviderKeys fips = keysFor(FIPS);
+        ProviderKeys jsl = keysFor(JSL);
+        boolean fipsSigns = FIPSTestUtil.fipsDsaCanSign();
+        byte[] msg = randomMessage(sr);
+
+        for (String sigAlg : SHA2_DSA)
+        {
+            // Verification is alive on every transformation, either way.
+            byte[] sigJsl = sign(sigAlg, JSL, jsl.priv, msg);
+            Assertions.assertTrue(verify(sigAlg, FIPS, fips.pub, msg, sigJsl),
+                    sigAlg + ": JSLFIPS must verify a JSL signature");
+
+            if (fipsSigns)
+            {
+                Assertions.assertNotNull(sign(sigAlg, FIPS, fips.priv, msg),
+                        sigAlg + ": module signs, so every transformation must");
+                continue;
+            }
+
+            // All-or-nothing: fipsDsaCanSign() probed SHA256withDSA, so a
+            // transformation that signed here would mean a partial gate.
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> Signature.getInstance(sigAlg, FIPS).initSign(fips.priv),
+                    sigAlg + ": a verify-only module must refuse initSign");
+            Assertions.assertEquals(FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE, e.getMessage(),
+                    sigAlg + ": refusal must name the capability");
         }
     }
 
@@ -310,10 +362,6 @@ public class FIPSDSAAgreementTest
         PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(pubEnc));
         PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(privEnc));
 
-        byte[] sigFips = sign("SHA256withDSA", FIPS, fipsPriv, msg);
-        Assertions.assertTrue(verify("SHA256withDSA", BC, bcPub, msg, sigFips),
-                "JSLFIPS-encoded public key, decoded by BC, verifies a JSLFIPS signature");
-
         byte[] sigBc = sign("SHA256withDSA", BC, bcPriv, msg);
         Assertions.assertTrue(verify("SHA256withDSA", FIPS, fipsPub, msg, sigBc),
                 "BC signature over the JSLFIPS-encoded private key verifies in JSLFIPS");
@@ -322,16 +370,37 @@ public class FIPSDSAAgreementTest
         PublicKey fipsPubFromBc = fipsKf.generatePublic(new X509EncodedKeySpec(bcPub.getEncoded()));
         PrivateKey fipsPrivFromBc = fipsKf.generatePrivate(new PKCS8EncodedKeySpec(bcPriv.getEncoded()));
 
+        // The re-encoded public key must verify a signature it did not make —
+        // the check that the round-trip preserved the key material, and the one
+        // that survives a verify-only module.
+        Assertions.assertTrue(verify("SHA256withDSA", FIPS, fipsPubFromBc, msg, sigBc),
+                "BC-encoded public key, decoded by JSLFIPS, verifies a BC signature");
+
+        byte[] tampered = msg.clone();
+        tampered[sr.nextInt(tampered.length)] ^= 0x01;
+        Assertions.assertFalse(verify("SHA256withDSA", FIPS, fipsPubFromBc, tampered, sigBc),
+                "tampered message must not verify against the round-tripped key");
+
+        // The private half round-trips too, but only a signing module can
+        // demonstrate it operationally. On a verify-only module the decode
+        // above is the whole of what can be asserted about it.
+        if (!FIPSTestUtil.fipsDsaCanSign())
+        {
+            Assertions.assertNotNull(fipsPrivFromBc,
+                    "BC-encoded private key must still decode through JSLFIPS");
+            return;
+        }
+
+        byte[] sigFips = sign("SHA256withDSA", FIPS, fipsPriv, msg);
+        Assertions.assertTrue(verify("SHA256withDSA", BC, bcPub, msg, sigFips),
+                "JSLFIPS-encoded public key, decoded by BC, verifies a JSLFIPS signature");
+
         byte[] sig2 = sign("SHA256withDSA", FIPS, fipsPrivFromBc, msg);
         Assertions.assertTrue(verify("SHA256withDSA", BC, bcPub, msg, sig2),
                 "BC-encoded private key, decoded by JSLFIPS, produces a BC-verifiable signature");
         Assertions.assertTrue(verify("SHA256withDSA", FIPS, fipsPubFromBc, msg, sig2),
                 "BC-encoded public key, decoded by JSLFIPS, verifies the signature");
-
-        // Negative path on the round-tripped keys.
-        byte[] tampered = msg.clone();
-        tampered[sr.nextInt(tampered.length)] ^= 0x01;
         Assertions.assertFalse(verify("SHA256withDSA", BC, bcPub, tampered, sig2),
-                "tampered message must not verify against the round-tripped key");
+                "tampered message must not verify against the round-tripped key (BC)");
     }
 }

@@ -83,6 +83,10 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 #
 set(FIPS_UTIL_SOURCES
         fips/util/jo_assert.h
+        # FIPS-tree only: the base provider links one mainline libcrypto whose
+        # surface is fixed at build time, so it has nothing to probe.
+        fips/util/capability.h
+        fips/util/capability.c
         fips/util/encapdecap.h
         fips/util/encapdecap.c
         fips/util/block_cipher_ctx.h

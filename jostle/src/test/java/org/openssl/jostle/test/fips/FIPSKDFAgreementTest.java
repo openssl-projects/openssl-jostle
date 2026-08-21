@@ -301,7 +301,9 @@ public class FIPSKDFAgreementTest
         {
             for (int trial = 0; trial < 10; trial++)
             {
-                byte[] ikm = randomBytes(1 + sr.nextInt(64), sr);
+                // IKM is the HKDF key: the module enforces the 112-bit floor
+                // on it (FIPSTestUtil.HMAC_MIN_KEY_BYTES), so draw from there up.
+                byte[] ikm = randomBytes(FIPSTestUtil.HMAC_MIN_KEY_BYTES + sr.nextInt(51), sr);
                 byte[] salt = randomBytes(sr.nextInt(48), sr);
                 byte[] info = randomBytes(sr.nextInt(48), sr);
                 int len = 1 + sr.nextInt(96);

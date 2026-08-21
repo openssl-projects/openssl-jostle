@@ -87,10 +87,11 @@ public class FIPSMacTest
         {
             for (int t = 0; t < 5; t++)
             {
-                // CMAC requires an AES-sized key; HMAC takes any reasonable size.
+                // CMAC requires an AES-sized key; HMAC takes any size at or
+                // above the module's 112-bit floor (FIPSTestUtil.HMAC_MIN_KEY_BYTES).
                 SecretKeySpec key = name.equals("AESCMAC")
                         ? randomKey("AES", new int[]{16, 24, 32}[RANDOM.nextInt(3)])
-                        : randomKey(name, 1 + RANDOM.nextInt(64));
+                        : randomKey(name, FIPSTestUtil.HMAC_MIN_KEY_BYTES + RANDOM.nextInt(51));
                 byte[] message = new byte[1 + RANDOM.nextInt(1024)];
                 RANDOM.nextBytes(message);
 
@@ -115,10 +116,10 @@ public class FIPSMacTest
                 Assertions.assertFalse(java.util.Arrays.equals(tag, fips2.doFinal(tampered)),
                         name + ": tampered message produced identical MAC");
 
-                // Ensure the "different" key genuinely differs: HMAC keys here
-                // can be as short as 1 byte (line above), so a same-length redraw
-                // collides with `key` ~1/256 of the time and would then produce
-                // an identical MAC — a spurious failure of this differentiator.
+                // Ensure the "different" key genuinely differs. At the 14-byte
+                // floor a same-length redraw collides with negligible
+                // probability, but the loop costs nothing and keeps the
+                // differentiator sound if the floor ever drops again.
                 SecretKeySpec otherKey;
                 do
                 {

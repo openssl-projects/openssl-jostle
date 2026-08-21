@@ -13,7 +13,9 @@ package org.openssl.jostle.test.fips;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 
 import java.security.Provider;
 import java.util.Arrays;
@@ -214,6 +216,35 @@ public class FIPSServedSurfaceSnapshotTest
     };
 
     /**
+     * Services that may legitimately be ABSENT from {@link #GOLDEN}, because
+     * the loaded module cannot perform them at all.
+     * <p>
+     * JSLFIPS ships one build for two modules that disagree about what they
+     * implement, so a single hardcoded golden set cannot be right for both.
+     * Rather than keep one golden per module — which would let a real
+     * regression hide behind "wrong module, wrong list" — the golden set stays
+     * the FULL surface and each capability-gated group is recorded here with
+     * its measured evidence and its probe. Absence is then only acceptable
+     * when the module genuinely refuses, and only for the whole group at once.
+     * <p>
+     * XDH (X25519 / X448), measured through the keymgmt fetch under
+     * {@code fips=yes}: 3.1.2 resolves it and JSLFIPS registers; 3.5.7 answers
+     * {@code inner_evp_generic_fetch: unsupported ... Non-default} and
+     * ProvFIPSXDH registers nothing. See {@code FIPSCapabilities} for the
+     * scoping rule and {@code FIPSXDHKDFTest} for the operation-level lock.
+     */
+    private static final String[] XDH_GATED = {
+            "KeyAgreement.X25519",
+            "KeyAgreement.X448",
+            "KeyAgreement.XDH",
+            "KeyFactory.X25519",
+            "KeyFactory.X448",
+            "KeyFactory.XDH",
+            "KeyPairGenerator.X25519",
+            "KeyPairGenerator.X448",
+    };
+
+    /**
      * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
      * Gating here rather than per test method fails closed, so a test added
      * later is gated automatically.
@@ -228,6 +259,11 @@ public class FIPSServedSurfaceSnapshotTest
      * The configured JSLFIPS provider serves EXACTLY the golden set — no more
      * (a non-approved service crept in), no fewer (an approved service was
      * dropped) — and every service reports the JSLFIPS instance as its provider.
+     * <p>
+     * The single sanctioned exception is a capability-gated group
+     * ({@link #XDH_GATED}), which may be absent only when the loaded module
+     * genuinely cannot serve it. That is verified against the module here, not
+     * assumed: see {@link #assertGatedAbsenceIsJustified}.
      */
     @Test
     public void servedServiceSetEqualsApprovedGolden()
@@ -248,10 +284,52 @@ public class FIPSServedSurfaceSnapshotTest
         SortedSet<String> removed = new TreeSet<>(golden);
         removed.removeAll(actual);
 
-        Assertions.assertTrue(added.isEmpty() && removed.isEmpty(),
-                "JSLFIPS served surface drifted from the approved golden set."
+        Assertions.assertTrue(added.isEmpty(),
+                "JSLFIPS served surface grew beyond the golden set."
                         + "\n  ADDED (present now, not in golden — review against the security policy): " + added
-                        + "\n  REMOVED (in golden, gone now — an approved service was dropped): " + removed
                         + "\nIf the change is intentional, regenerate the golden set (see class Javadoc).");
+
+        SortedSet<String> unexplained = new TreeSet<>(removed);
+        unexplained.removeAll(Arrays.asList(XDH_GATED));
+        Assertions.assertTrue(unexplained.isEmpty(),
+                "JSLFIPS dropped services that are not capability-gated."
+                        + "\n  REMOVED (in golden, gone now, no recorded gate): " + unexplained
+                        + "\nIf the change is intentional, regenerate the golden set (see class Javadoc).");
+
+        assertGatedAbsenceIsJustified(removed);
+    }
+
+    /**
+     * A capability-gated group may be absent only if the module actually
+     * refuses it, and only as a whole.
+     * <p>
+     * Without the module check this degrades into "absence is always fine",
+     * and a bug that dropped XDH on a module that serves it would pass — the
+     * regression the golden set exists to catch. The all-or-nothing check
+     * catches the other half: a partial registration is a real defect, not a
+     * capability.
+     */
+    private static void assertGatedAbsenceIsJustified(SortedSet<String> removed)
+    {
+        SortedSet<String> gated = new TreeSet<>(Arrays.asList(XDH_GATED));
+        SortedSet<String> missing = new TreeSet<>(gated);
+        missing.retainAll(removed);
+
+        if (missing.isEmpty())
+        {
+            return;
+        }
+
+        Assertions.assertEquals(gated, missing,
+                "XDH is only partly registered — a capability gate is all-or-nothing."
+                        + "\n  MISSING: " + missing);
+
+        // Ask the module itself. Same probe ProvFIPSXDH gates on, so a green
+        // result here means the registrar and the module agree.
+        int fetch = FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, "X25519");
+        Assertions.assertEquals(0, fetch,
+                "XDH is unregistered but the loaded module ("
+                        + FIPSNISelector.OpenSSLFIPSNI.moduleVersion()
+                        + ") resolves X25519 — a working algorithm was removed from callers");
     }
 }

@@ -128,7 +128,7 @@ public class FIPSDSAOpsTest
 
 
     @BeforeAll
-    public static void beforeAll()
+    public static void beforeAll() throws Exception
     {
         Assumptions.assumeFalse(TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
@@ -140,8 +140,15 @@ public class FIPSDSAOpsTest
         {
             ops.resetFlags();
         }
-        paramsRef = dsa.generateParameters(2048, 256, TestUtil.RNDSrc);
-        keyRef = dsa.generateKeyPair(paramsRef, TestUtil.RNDSrc);
+        // Imported, not generated: OpenSSL's 3.5.x FIPS module refuses both
+        // generateParameters and generateKeyPair while still importing keys and
+        // verifying, so a generated fixture would make this whole class
+        // unrunnable there. The handles are equivalent either way — the
+        // fault-injection sites these tests drive are downstream of how the key
+        // arrived.
+        long[] handles = FIPSTestUtil.dsaNiHandles(dsa, TestUtil.RNDSrc);
+        paramsRef = handles[0];
+        keyRef = handles[1];
     }
 
     @AfterAll
@@ -170,6 +177,50 @@ public class FIPSDSAOpsTest
         {
             ops.resetFlags();
         }
+    }
+
+    /**
+     * Skip the calling test when the loaded module is verify-only for DSA.
+     * <p>
+     * These fault-injection sites sit downstream of a REAL {@code initSign};
+     * OpenSSL's 3.5.x FIPS module refuses that outright, so the site cannot be
+     * reached there. The skip is not silent about its cause:
+     * {@link FIPSTestUtil#fipsDsaCanSign()} pins the refusal's type and message
+     * before answering false, and
+     * {@code FIPSDSAAgreementTest.dsaSigningRefusedTypedOrWorks} locks it at
+     * the JCE surface. The base tree's {@code DSAOpsTest} exercises the same C
+     * sites unconditionally.
+     */
+    private static void assumeDsaSigns()
+    {
+        boolean signs;
+        try
+        {
+            signs = FIPSTestUtil.fipsDsaCanSign();
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("could not probe DSA signing", e);
+        }
+        Assumptions.assumeTrue(signs,
+                "the loaded FIPS module is verify-only for DSA, so a sign-path fault site"
+                        + " cannot be reached");
+    }
+
+    /**
+     * Skip the calling test when the loaded module refuses DSA generation.
+     * <p>
+     * Same shape as {@link #assumeDsaSigns()}, for the sites that need a REAL
+     * paramgen / keygen to succeed before the injected check is evaluated (the
+     * {@code spec->key == NULL} guards, which sit after the generation call).
+     * Probed independently rather than inferred from the signing answer — see
+     * {@link FIPSTestUtil#fipsDsaCanGenerate}.
+     */
+    private static void assumeDsaGenerates()
+    {
+        Assumptions.assumeTrue(FIPSTestUtil.fipsDsaCanGenerate(dsa, TestUtil.RNDSrc),
+                "the loaded FIPS module refuses DSA generation, so a post-generation fault"
+                        + " site cannot be reached");
     }
 
     /** Expected code when a fault site at {@code offset} fires. */
@@ -250,6 +301,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_generateParameters_specKeyNull_failure()
     {
+        assumeDsaGenerates();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         // Exercises interface/fips/util/dsa.c:100
@@ -553,6 +605,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_generateKeyPair_specKeyNull_failure()
     {
+        assumeDsaGenerates();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         // Exercises interface/fips/util/dsa.c:393
@@ -698,6 +751,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_update_signMode_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         long ref = dsa.allocateSigner();
@@ -745,6 +799,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_sign_probe_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         long ref = dsa.allocateSigner();
@@ -767,6 +822,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_sign_fetch_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         long ref = dsa.allocateSigner();
@@ -789,6 +845,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_sign_sigLenOverflow_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         long ref = dsa.allocateSigner();
@@ -883,6 +940,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_rawSign_probe_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
         long ref = dsa.allocateSigner();
@@ -1253,6 +1311,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_update_accessInput_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         long ref = dsa.allocateSigner();
@@ -1274,6 +1333,7 @@ public class FIPSDSAOpsTest
     @Test
     public void dsa_sign_accessOutput_failure()
     {
+        assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
         Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
         long ref = dsa.allocateSigner();

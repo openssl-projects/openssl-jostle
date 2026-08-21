@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.dsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -25,6 +26,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.DSAParameterSpec;
@@ -219,22 +221,44 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
     @Override
     public KeyPair generateKeyPair()
     {
-        PKEYKeySpec paramsSpec;
-        if (explicitParams != null)
-        {
-            paramsSpec = makeParamsSpec(explicitParams);
-        }
-        else
-        {
-            paramsSpec = cachedParamsSpec(keySize, random);
-        }
-
         long ref;
-        // Keep the params spec reachable across the native call so its
-        // disposer can't free the parameters-only EVP_PKEY mid-keygen.
-        synchronized (paramsSpec)
+        try
         {
-            ref = dsaServiceNI.generateKeyPair(paramsSpec.getReference(), random);
+            PKEYKeySpec paramsSpec;
+            if (explicitParams != null)
+            {
+                paramsSpec = makeParamsSpec(explicitParams);
+            }
+            else
+            {
+                paramsSpec = cachedParamsSpec(keySize, random);
+            }
+
+            // Keep the params spec reachable across the native call so its
+            // disposer can't free the parameters-only EVP_PKEY mid-keygen.
+            synchronized (paramsSpec)
+            {
+                ref = dsaServiceNI.generateKeyPair(paramsSpec.getReference(), random);
+            }
+        }
+        catch (ProviderCapabilityException e)
+        {
+            // The loaded provider refuses DSA key generation (OpenSSL's 3.5+
+            // FIPS module gates it behind the "sign-check" indicator, since
+            // FIPS 140-3 does not approve DSA signature generation). Covers
+            // both the paramgen path (cachedParamsSpec) and keygen-from-
+            // supplied-parameters, which the module refuses alike.
+            //
+            // Not detectable at initialize(): the 3.1.2 module generates from
+            // the very same call sequence, so nothing cheap distinguishes them
+            // (see the migration plan, task 7). ProviderException because
+            // generateKeyPair declares no checked type — and note there is no
+            // provider-fallback path from here, so this is terminal for the
+            // caller. Point at what still works instead.
+            throw new ProviderException(
+                    e.getMessage()
+                            + " — obtain a DSA key from an external source and import it via"
+                            + " KeyFactory.getInstance(\"DSA\")", e);
         }
         if (ref == 0)
         {

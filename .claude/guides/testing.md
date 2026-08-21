@@ -232,6 +232,66 @@ The two providers' asymmetric keys share Java classes (`JORSAPublicKey`, `JOECPr
 
 `FIPSKeyIsolationTest` owns the contract (`rsaPrivateKeysIsolatedPublicKeysShared`, `keyIsolationCompleteAcrossAllAsymmetricFamiliesBothDirections`) — new asymmetric families must be added to its sweep, with both the private-rejection (exact message per "Pin the exception message" above) and the public-crossing positive. Surfaces that consume keys indirectly (a CertificateFactory's pinned `verify`, a KeyAgreement `doPhase`) should pin their own view of the policy too — `FIPSX509CertificateFactoryTest.jslGeneratedKeypair_functionsThroughFipsFactory` is the reference — so a future tightening of the shared-public rule names every behaviour it changes. Don't confuse this class of test with *wrong-algorithm* rejection (`"expected a DSAPublicKey from the Jostle provider"` for an RSA key into a DSA Signature): same exception type, different check, both worth pinning separately.
 
+### Where two supported environments disagree, assert the CONTRACT, not one environment's answer
+
+JSLFIPS ships one build that must serve two FIPS modules which disagree in
+**both** directions — X25519 fetchable on 3.1.2 and not on 3.5.x; DSA
+generation and signing available on 3.1.2 and refused on 3.5.x; PKCS#1 v1.5
+encrypt on 3.1.2 versus decrypt on 3.5.x. A test that pins either module's
+answer is wrong against the other, and "just pin the newer one" silently drops
+coverage of the validated module. Four rules, all learned by getting them
+wrong first:
+
+1. **Probe, then assert both branches.** `initDecrypt_refusedWithoutImplicitRejection_worksWithIt`
+   is the shape: if the capability is absent, pin the exact code (-135) and the
+   exact `ProviderCapabilityException` message; if it is present, require the
+   operation to *actually work*. Asserting only the refusal lets a stale gate
+   survive the capability arriving — the operation would keep being turned away
+   for a reason that no longer holds, and every test would stay green.
+2. **A probe that answers "unavailable" MUST pin the refusal before answering.**
+   `FIPSTestUtil.fipsDsaCanSign` / `fipsDsaCanGenerate` / `fipsPkcs1CanEncrypt`
+   each assert the typed exception and its message on the way to returning
+   false. Without that the probe degrades into "skip whenever anything goes
+   wrong", and a genuine regression reads as an absent capability. This is what
+   makes the resulting `Assumptions.assumeTrue` skips legitimate rather than
+   the silent-skip failure described above.
+3. **Gate the narrowest thing.** Direction-agnostic bridge checks keep running:
+   `FIPSDSALimitTest.withInitedStream` binds sign where available and verify
+   otherwise, so the update-side null/negative/range checks still execute on a
+   verify-only module; only the genuinely sign-only tests (`sign_*`, the
+   aliasing/offset-write set) take the skip via `withInitedSigner`.
+4. **Source fixtures from the provider that can always make them.** The FIPS
+   DSA tests generate their keypair through **JSL** (mainline libcrypto) once
+   per JVM and share it as encodings, decoding through each provider's own
+   KeyFactory — the sanctioned crossing. That keeps the fixture random per JVM
+   (no pinned key) while working on a module that refuses generation, and it is
+   what a real caller on such a module has to do anyway. `FIPSTestUtil.dsaKeyPair`
+   / `dsaNiHandles` (the NI-level twin, importing via
+   `makeParamsFromComponents` / `makePrivateFromComponents`) are the reference.
+
+**Where a capability gates REGISTRATION, assert it all-or-nothing and verify
+the absence against the module.** `FIPSXDHKDFTest.xdhServedIffModuleImplementsIt`
+checks every XDH service agrees — a partial registration (KeyFactory present,
+KeyAgreement absent) is a real defect a single-service check misses — and
+`FIPSServedSurfaceSnapshotTest` accepts a gated group's absence only after
+asking the module itself (`canFetch`) whether it really cannot serve it.
+Without that last check the golden set degrades to "absence is always fine",
+and a bug that dropped a working algorithm passes.
+
+### Registration is not usability — pair the golden surface with a smoke test
+
+`FIPSServedSurfaceSnapshotTest` enumerates `provider.getServices()` and never
+uses them, so it passed untouched while five algorithm families broke under a
+module change; 59 tests scattered across the suite were what reported it.
+`FIPSServedSurfaceSmokeTest` is the companion: every registered primary must be
+constructible **both** through `Service.newInstance` and through the ordinary
+JCE `getInstance` (they disagree when a class name or alias is wrong), and for
+the types where a minimal operation generalises — MessageDigest, Mac,
+SecureRandom — the operation runs and its OUTPUT is checked with a
+differentiator, so a stub cannot pass. Collect failures and report them as one
+list naming each service rather than failing at the first, so a module change
+reads as one legible diff instead of a fix-one-rerun-repeat loop.
+
 ### `TEST_FIPS_LIB` is not a Gradle test-task input — a cached green run can mask wholesale-skipped FIPS classes
 
 Gradle's up-to-date check hashes task inputs (classpaths, class files), not arbitrary environment variables. A test task that last ran WITHOUT `TEST_FIPS_LIB` is considered UP-TO-DATE when re-invoked WITH it: the cached result — in which every FIPS class assumption-skipped in full — is replayed as `BUILD SUCCESSFUL` in milliseconds, and the FIPS tests never execute. The tells: a full suite "passing" in under a second, and result files where a FIPS class reports `tests == skipped > 0`.

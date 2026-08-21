@@ -48,13 +48,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.7-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.6.3"
+          ref: "openssl-3.5.7"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
@@ -91,52 +91,69 @@ jobs:
           path: "jostle/jostle/src/main/resources/native"
           if-no-files-found: "error"
           retention-days: 1
-      # ----- FIPS module (validated OpenSSL 3.1.2, enable-fips) -----
-      # The interface links against the mainline (3.6.3) libcrypto above; at
-      # runtime the JSLFIPS provider loads THIS validated 3.1.2 module into its
-      # own lib ctx. TEST_FIPS_LIB points the FIPS tests at the module file,
-      # with fipsmodule.cnf sitting beside it (see TestUtil.FIPS_LIB_ENV).
-      - name: "Cache FIPS module (OpenSSL 3.1.2 enable-fips)"
+      # ----- FIPS modules (both supported versions, enable-fips) -----
+      # The interface links against the mainline libcrypto above; at runtime
+      # the JSLFIPS provider loads one of THESE modules into its own lib ctx.
+      # TEST_FIPS_LIB points the FIPS tests at a module file, with
+      # fipsmodule.cnf sitting beside it (see TestUtil.FIPS_LIB_ENV).
+      #
+      # BOTH are built, and the FIPS test job runs against each in turn.
+      # That is not redundancy: JSLFIPS ships ONE build that has to serve two
+      # modules which disagree about what they implement, in both directions
+      # (X25519, DSA generation and signing, PKCS#1 v1.5 encrypt vs decrypt),
+      # so a green run against one proves nothing about the other. The
+      # registration probes and the failure classifiers exist precisely to
+      # span that gap; testing one module would leave them unverified.
+      #
+      # 3.1.2 is the CMVP-validated module (cert #4985), usable with libcrypto
+      # 3.0-3.5+. The 3.5 FIPS provider is NOT yet validated - 3.5.4 was
+      # submitted in Oct 2025 and awaits certificate issuance - but is what a
+      # deployment tracking current OpenSSL will have.
+      - name: "Cache FIPS modules"
         id: "cache-fips"
         uses: "actions/cache@v6"
         with:
-          path: "openssl-fips/dist"
-          key: "openssl-fips-3.1.2-${{ runner.os }}-${{ runner.arch }}"
-      - name: "Checkout OpenSSL 3.1.2 (FIPS module source)"
+          path: "fips-out"
+          key: "openssl-fips-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+      - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
-        uses: "actions/checkout@v7"
-        with:
-          repository: "openssl/openssl"
-          ref: "openssl-3.1.2"
-          persist-credentials: false
-          path: "openssl-fips"
-      - name: "Build the OpenSSL 3.1.2 FIPS module"
-        if: steps.cache-fips.outputs.cache-hit != 'true'
-        working-directory: "openssl-fips"
+        shell: "bash"
         run: |
-          # no-tests: we only need libcrypto, the fips module, and openssl(1)
-          # for fipsinstall — never OpenSSL's own test programs (3.1.2's
-          # test sources fail to compile under newer toolchains).
-          ./config enable-fips no-tests --prefix=$(pwd)/dist
-          make -j
-          make install_sw install_fips
-      - name: "Stage the FIPS module with its fipsmodule.cnf alongside"
-        run: |
-          prefix="${{ github.workspace }}/openssl-fips/dist"
-          modfile="$(find "$prefix" \( -name fips.so -o -name fips.dylib \) | head -1)"
-          if [ -z "$modfile" ]; then echo "FIPS module not found under $prefix" >&2; exit 1; fi
+          set -eu
           out="${{ github.workspace }}/fips-out"
-          mkdir -p "$out"
-          cp "$modfile" "$out/"
-          export LD_LIBRARY_PATH="$prefix/lib64:$prefix/lib:$LD_LIBRARY_PATH"
-          export DYLD_LIBRARY_PATH="$prefix/lib64:$prefix/lib:$DYLD_LIBRARY_PATH"
-          # Regenerate the config beside the copied module: TestUtil expects
-          # fipsmodule.cnf to sit next to the module named by TEST_FIPS_LIB.
-          "$prefix/bin/openssl" fipsinstall \
-            -module "$out/$(basename "$modfile")" \
-            -out "$out/fipsmodule.cnf"
-          ls -l "$out"
-      - name: "Upload FIPS module"
+          for ver in 3.5.7 3.1.2; do
+            src="${{ github.workspace }}/openssl-fips-$ver"
+            rm -rf "$src"
+            git clone --depth 1 --branch "openssl-$ver" \
+              https://github.com/openssl/openssl.git "$src"
+            cd "$src"
+            # no-tests: we only need libcrypto, the fips module, and openssl(1)
+            # for fipsinstall, never OpenSSL's own test programs. Keeps the
+            # build short and sidesteps test-source/toolchain incompatibilities
+            # (which is why 3.1.2 required it outright).
+            ./config enable-fips no-tests --prefix="$src/dist"
+            make -j
+            make install_sw install_fips
+            modfile="$(find "$src/dist" \( -name fips.so -o -name fips.dylib \) | head -1)"
+            if [ -z "$modfile" ]; then
+              echo "FIPS module not found under $src/dist" >&2
+              exit 1
+            fi
+            mkdir -p "$out/$ver"
+            cp "$modfile" "$out/$ver/"
+            export LD_LIBRARY_PATH="$src/dist/lib64:$src/dist/lib:${LD_LIBRARY_PATH:-}"
+            export DYLD_LIBRARY_PATH="$src/dist/lib64:$src/dist/lib:${DYLD_LIBRARY_PATH:-}"
+            # Regenerate the config beside the copied module: TestUtil expects
+            # fipsmodule.cnf to sit next to the module named by TEST_FIPS_LIB,
+            # and the MAC covers the file at that path.
+            "$src/dist/bin/openssl" fipsinstall \
+              -module "$out/$ver/$(basename "$modfile")" \
+              -out "$out/$ver/fipsmodule.cnf"
+            ls -l "$out/$ver"
+            cd "${{ github.workspace }}"
+            rm -rf "$src"
+          done
+      - name: "Upload FIPS modules"
         uses: "actions/upload-artifact@v7"
         with:
           name: "fips-module-${{ matrix.runner }}"
@@ -219,6 +236,13 @@ jobs:
         config:
           - { name: "fips-jni", tasks: "fipsTest25JNI" }
           - { name: "fips-ffi", tasks: "fipsTest25FFI" }
+        # One build, two modules that disagree about what they implement - so
+        # both are exercised. See the module-build step in build-posix for why
+        # a green run against one proves nothing about the other. The Windows
+        # FIPS job covers both modules too, on the same reasoning.
+        module:
+          - "3.5.7"
+          - "3.1.2"
     runs-on: ${{ matrix.runner }}
     steps:
       - name: "Checkout jostle"
@@ -250,7 +274,7 @@ jobs:
             macOS) ext=dylib ;;
             *)     echo "unexpected runner.os ${{ runner.os }}" >&2; exit 1 ;;
           esac
-          echo "TEST_FIPS_LIB=${{ github.workspace }}/fips-module/fips.$ext" >> "$GITHUB_ENV"
+          echo "TEST_FIPS_LIB=${{ github.workspace }}/fips-module/${{ matrix.module }}/fips.$ext" >> "$GITHUB_ENV"
       - name: "Run FIPS tests"
         working-directory: "jostle"
         env:
@@ -264,7 +288,7 @@ jobs:
         uses: "mikepenz/action-junit-report@v6"
         if: success() || failure()
         with:
-          check_name: "${{ matrix.runner }} - ${{ matrix.config.name }}"
+          check_name: "${{ matrix.runner }} - ${{ matrix.config.name }} - module ${{ matrix.module }}"
           report_paths: "**/build/test-results/**/TEST-*.xml"
 
   build-windows:
@@ -281,13 +305,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.6.3-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.7-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.6.3"
+          ref: "openssl-3.5.7"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
@@ -347,48 +371,85 @@ jobs:
           path: "jostle/jostle/src/main/resources/native"
           if-no-files-found: "error"
           retention-days: 1
-      # ----- FIPS module (validated OpenSSL 3.1.2, enable-fips) -----
-      - name: "Cache FIPS module (OpenSSL 3.1.2 enable-fips)"
+      # ----- FIPS modules (both supported versions, enable-fips) -----
+      # Mirrors the POSIX job: JSLFIPS ships ONE build that must serve the
+      # CMVP-validated 3.1.2 module (cert #4985) and a 3.5.x one, and they
+      # disagree in both directions, so both are built and the FIPS test job
+      # runs against each. See build-posix for the full rationale.
+      #
+      # Cloned rather than checked out per version because a composite action
+      # cannot be looped; the cache holds only the staged modules, not the
+      # source or dist trees.
+      - name: "Cache FIPS modules"
         id: "cache-fips"
         uses: "actions/cache@v6"
         with:
-          path: "openssl-fips/dist"
-          key: "openssl-fips-3.1.2-${{ runner.os }}-${{ runner.arch }}"
-      - name: "Checkout OpenSSL 3.1.2 (FIPS module source)"
+          path: "fips-out"
+          key: "openssl-fips-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+      - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
-        uses: "actions/checkout@v7"
-        with:
-          repository: "openssl/openssl"
-          ref: "openssl-3.1.2"
-          persist-credentials: false
-          path: "openssl-fips"
-      - name: "Build the OpenSSL 3.1.2 FIPS module"
-        if: steps.cache-fips.outputs.cache-hit != 'true'
-        working-directory: "openssl-fips"
         shell: "cmd"
         run: |
-          call "%VCVARS%"
-          rem no-tests: 3.1.2's test programs (e.g. test\build_wincrypt_test.c)
-          rem use a bare #warning that MSVC on windows-2025 rejects (C1188).
-          rem We only need libcrypto, the fips module, and openssl.exe.
-          perl Configure VC-WIN64A enable-fips no-tests --prefix=${{ github.workspace }}\openssl-fips\dist
-          nmake
-          nmake install_sw install_fips
-      - name: "Stage the FIPS module with its fipsmodule.cnf alongside"
+          call "%VCVARS%" || exit /b 1
+          rem no-tests: we only need libcrypto, the fips module and openssl.exe
+          rem for fipsinstall. Keeps the build short and sidesteps test-source
+          rem and toolchain incompatibilities - 3.1.2 requires it outright, its
+          rem test\build_wincrypt_test.c using a bare #warning MSVC rejects with
+          rem C1188.
+          rem
+          rem Source dirs are fips-357 / fips-312, NOT openssl-fips-3.5.7:
+          rem OpenSSL's build tree is deep and the runner workspace already eats
+          rem ~30 chars, so MAX_PATH is a live constraint here. These are shorter
+          rem than the single-module build's "openssl-fips" was, so covering two
+          rem versions costs no path budget rather than 6 chars each.
+          rem
+          rem Written out twice rather than looped. A batch for-block is
+          rem truncated by the first unescaped ")" in a rem inside it, and
+          rem pairing a short dir with a dotted version needs nested for /f
+          rem token splitting - neither testable without pushing to CI. Two
+          rem plain copies have no such failure mode.
+          rmdir /s /q "${{ github.workspace }}\fips-357" 2>nul
+          git clone --depth 1 --branch openssl-3.5.7 https://github.com/openssl/openssl.git "${{ github.workspace }}\fips-357" || exit /b 1
+          pushd "${{ github.workspace }}\fips-357" || exit /b 1
+          perl Configure VC-WIN64A enable-fips no-tests --prefix=${{ github.workspace }}\fips-357\dist || exit /b 1
+          nmake || exit /b 1
+          nmake install_sw install_fips || exit /b 1
+          popd
+
+          rmdir /s /q "${{ github.workspace }}\fips-312" 2>nul
+          git clone --depth 1 --branch openssl-3.1.2 https://github.com/openssl/openssl.git "${{ github.workspace }}\fips-312" || exit /b 1
+          pushd "${{ github.workspace }}\fips-312" || exit /b 1
+          perl Configure VC-WIN64A enable-fips no-tests --prefix=${{ github.workspace }}\fips-312\dist || exit /b 1
+          nmake || exit /b 1
+          nmake install_sw install_fips || exit /b 1
+          popd
+      - name: "Stage both FIPS modules with their fipsmodule.cnf alongside"
+        if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "pwsh"
         run: |
-          $prefix = "${{ github.workspace }}\openssl-fips\dist"
-          $mod = Get-ChildItem -Path $prefix -Recurse -Filter "fips.dll" | Select-Object -First 1
-          if ($null -eq $mod) { throw "FIPS module fips.dll not found under $prefix" }
-          $out = "${{ github.workspace }}\fips-out"
-          New-Item -ItemType Directory -Force -Path $out | Out-Null
-          Copy-Item $mod.FullName (Join-Path $out "fips.dll") -Force
-          # Regenerate the config beside the copied module (TestUtil expects
-          # fipsmodule.cnf next to the module named by TEST_FIPS_LIB).
-          & "$prefix\bin\openssl.exe" fipsinstall -module (Join-Path $out "fips.dll") -out (Join-Path $out "fipsmodule.cnf")
-          if ($LASTEXITCODE -ne 0) { throw "fipsinstall failed ($LASTEXITCODE)" }
-          Get-ChildItem $out
-      - name: "Upload FIPS module"
+          $ErrorActionPreference = "Stop"
+          # Keyed short-dir -> version; see the build step for why the source
+          # trees are not named after the version.
+          foreach ($pair in @(@("357", "3.5.7"), @("312", "3.1.2"))) {
+            $dir, $ver = $pair
+            $prefix = "${{ github.workspace }}\fips-$dir\dist"
+            $mod = Get-ChildItem -Path $prefix -Recurse -Filter "fips.dll" | Select-Object -First 1
+            if ($null -eq $mod) { throw "FIPS module fips.dll not found under $prefix" }
+            $out = "${{ github.workspace }}\fips-out\$ver"
+            New-Item -ItemType Directory -Force -Path $out | Out-Null
+            Copy-Item $mod.FullName (Join-Path $out "fips.dll") -Force
+            # Regenerate the config beside the copied module, with THAT
+            # version's openssl.exe: TestUtil expects fipsmodule.cnf next to
+            # the module named by TEST_FIPS_LIB, and the MAC covers the file
+            # at that path.
+            & "$prefix\bin\openssl.exe" fipsinstall -module (Join-Path $out "fips.dll") -out (Join-Path $out "fipsmodule.cnf")
+            if ($LASTEXITCODE -ne 0) { throw "fipsinstall failed for $ver ($LASTEXITCODE)" }
+            Get-ChildItem $out
+            # The source and dist trees are large and are not cached; only the
+            # staged module and its config are.
+            Remove-Item -Recurse -Force "${{ github.workspace }}\fips-$dir"
+          }
+      - name: "Upload FIPS modules"
         uses: "actions/upload-artifact@v7"
         with:
           name: "fips-module-${{ matrix.runner }}"
@@ -461,6 +522,12 @@ jobs:
         config:
           - { name: "fips-jni", tasks: "fipsTest25JNI" }
           - { name: "fips-ffi", tasks: "fipsTest25FFI" }
+        # Both supported modules, as on POSIX. The two disagree about what
+        # they implement, so a green run against one proves nothing about the
+        # other - see the module-build step in build-posix.
+        module:
+          - "3.5.7"
+          - "3.1.2"
     runs-on: "windows-2025"
     steps:
       - name: "Checkout jostle"
@@ -489,7 +556,7 @@ jobs:
           echo "BC_JDK25=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
           ws='${{ github.workspace }}'
           ws="${ws//\\//}"
-          echo "TEST_FIPS_LIB=$ws/fips-module/fips.dll" >> "$GITHUB_ENV"
+          echo "TEST_FIPS_LIB=$ws/fips-module/${{ matrix.module }}/fips.dll" >> "$GITHUB_ENV"
       - name: "Run FIPS tests"
         working-directory: "jostle"
         shell: "pwsh"
@@ -503,5 +570,5 @@ jobs:
         uses: "mikepenz/action-junit-report@v6"
         if: success() || failure()
         with:
-          check_name: "windows-2025 - ${{ matrix.config.name }}"
+          check_name: "windows-2025 - ${{ matrix.config.name }} - module ${{ matrix.module }}"
           report_paths: "**/build/test-results/**/TEST-*.xml"

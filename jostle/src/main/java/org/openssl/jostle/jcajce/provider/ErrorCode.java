@@ -208,6 +208,17 @@ public enum ErrorCode
     // Below the RFC 9106 floor of 8 * lanes KiB.
     JO_KDF_ARGON2_MEMORY_TOO_SMALL(-149),
 
+    // The provider serving the operation refuses DSA key generation. OpenSSL's
+    // 3.5+ FIPS module gates keygen behind its "sign-check" FIPS indicator and
+    // declines in strict (default) mode; import and verification stay
+    // available, so only generation is gated.
+    JO_DSA_KEYGEN_UNAVAILABLE(-150),
+
+    // The other half of a verify-only DSA posture: the provider refuses to
+    // SIGN with a key it will happily verify with. Distinct from the keygen
+    // code because the caller's options differ — verification keeps working.
+    JO_DSA_SIGN_UNAVAILABLE(-151),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

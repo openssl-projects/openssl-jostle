@@ -251,4 +251,3 @@ exit:
 
     return ret_code;
 }
-

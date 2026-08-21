@@ -9,6 +9,7 @@
 
 
 #include <stddef.h>
+#include "../util/capability.h"
 #include "../util/rand.h"
 #include "../util/rand/jostle_fips_ctx.h"
 #include "../util/rand/jostle_lib_ctx.h"
@@ -76,4 +77,29 @@ int32_t JoFips_set_openssl_module(const char *module_dir, const char *prov_name,
 
 exit:
     return result;
+}
+
+/*
+ * Capability probes. Bridge responsibilities per the project rules: null-check
+ * the caller-supplied name, range-check the caller-supplied op type, and
+ * surface both as typed codes — never let either reach a util jo_assert.
+ */
+int32_t JoFips_can_fetch(int32_t op_type, const char *name) {
+    if (name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+    if (op_type < JO_CAP_OP_MIN || op_type > JO_CAP_OP_MAX) {
+        return JO_UNEXPECTED_STATE;
+    }
+    return capability_can_fetch(op_type, name);
+}
+
+int32_t JoFips_module_version(char *out, int32_t out_len) {
+    if (out == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+    if (out_len <= 0) {
+        return JO_OUTPUT_LEN_IS_NEGATIVE;
+    }
+    return capability_module_version(out, (size_t) out_len);
 }

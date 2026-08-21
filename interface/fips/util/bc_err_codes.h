@@ -325,6 +325,42 @@
 #define JO_KDF_ARGON2_MEMORY_TOO_SMALL -149
 
 /*
+ * DSA key generation refused by the provider. OpenSSL's 3.5+ FIPS module
+ * gates DSA keygen behind the "sign-check" FIPS indicator and refuses it in
+ * strict (default) mode - DSA signature generation is not approved under
+ * FIPS 140-3, so the module drops keygen with it. Import and verification
+ * remain available, which is why the family stays registered and only
+ * generation is gated.
+ *
+ * Diagnosis-on-failure, not pre-validation: the generation call is made and
+ * only a FAILURE is classified, by asking the gen ctx whether it carries the
+ * gate's own settable (OSSL_PKEY_PARAM_FIPS_SIGN_CHECK). The 3.1.2 module
+ * predates the indicator machinery entirely - the param is absent and
+ * generation succeeds - so the branch never fires there and the identical
+ * source serves both trees (probe: fips-c-review/probes/dsa_gate_probe.c).
+ */
+#define JO_DSA_KEYGEN_UNAVAILABLE -150
+
+/*
+ * DSA signature GENERATION refused by the provider, while verification with
+ * the same key still works. Same gate as JO_DSA_KEYGEN_UNAVAILABLE, the other
+ * half of the module's verify-only posture: dsa_sig.c's
+ * dsa_sign_check_approved refuses only when signing.
+ *
+ * Distinct code because the caller's options differ - a DSA verifier keeps
+ * working, so this is not "DSA is unavailable" - and because the failure is
+ * otherwise silent: the 3.5.x indicator returns 0 WITHOUT raising, so the
+ * error queue is EMPTY and a generic JO_OPENSSL_ERROR would surface as
+ * "OpenSSL Error: null" (probe-measured).
+ *
+ * Diagnosis-on-failure: the sign init is attempted and, only on failure, a
+ * verify init on the same key is tried. Verify succeeding where sign failed
+ * IS the verify-only property, asked directly rather than inferred from a
+ * provider version or an indicator name. Never fires on a provider that signs.
+ */
+#define JO_DSA_SIGN_UNAVAILABLE -151
+
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config

@@ -98,8 +98,17 @@ public class FIPSSha1SignatureGateTest
         Throwable openssl = (ex instanceof OpenSSLException) ? ex : ex.getCause();
         Assertions.assertTrue(openssl instanceof OpenSSLException,
                 sigAlg + ": expected an OpenSSLException (possibly wrapped in InvalidKeyException), got: " + ex);
-        Assertions.assertTrue(String.valueOf(openssl.getMessage()).contains("digest not allowed"),
-                sigAlg + ": expected a module 'digest not allowed' rejection, got: " + openssl.getMessage());
+        // The module's wording for this refusal changed between the two
+        // supported versions, so both are pinned rather than either being
+        // matched loosely:
+        //   3.1.2 : "... securitycheck: digest not allowed"
+        //   3.5.7 : "... ossl_fips_ind_digest_sign_check: invalid digest"
+        // Both name the digest as the cause, which is what distinguishes this
+        // from a key or provider problem — the SHA-256 control above rules
+        // those out.
+        String m = String.valueOf(openssl.getMessage());
+        Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
+                sigAlg + ": expected a module digest rejection, got: " + m);
     }
 
     @Test
@@ -133,12 +142,31 @@ public class FIPSSha1SignatureGateTest
         assertSha1SignRejected(ec, "SHA1withECDSA");
     }
 
+    /**
+     * SHA-1 DSA signature GENERATION is refused.
+     * <p>
+     * Only meaningful where the module signs with DSA at all. OpenSSL's 3.5.x
+     * FIPS module refuses DSA signing outright, which subsumes the SHA-1 gate
+     * — asserted explicitly rather than skipped, so a module that quietly
+     * started signing SHA-1 DSA could not pass by looking verify-only. The
+     * keypair comes from {@link FIPSTestUtil#dsaKeyPair} because 3.5.x also
+     * refuses every DSA generation path.
+     */
     @Test
     public void sha1DsaSignatureGenerationRejected() throws Exception
     {
-        KeyPairGenerator dsaKpg = KeyPairGenerator.getInstance("DSA", FIPS);
-        dsaKpg.initialize(2048);
-        KeyPair dsa = dsaKpg.generateKeyPair();
+        KeyPair dsa = FIPSTestUtil.dsaKeyPair(FIPS);
+
+        if (!FIPSTestUtil.fipsDsaCanSign())
+        {
+            // The broader gate must cover SHA-1 too: no DSA digest may sign.
+            java.security.InvalidKeyException e = Assertions.assertThrows(
+                    java.security.InvalidKeyException.class,
+                    () -> Signature.getInstance("SHA1withDSA", FIPS).initSign(dsa.getPrivate()),
+                    "a verify-only module must refuse SHA1withDSA signing too");
+            Assertions.assertEquals(FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE, e.getMessage());
+            return;
+        }
 
         // Control: SHA-256 signing works (proves the key/provider are sound, so
         // the SHA-1 rejection below is specifically about the digest).

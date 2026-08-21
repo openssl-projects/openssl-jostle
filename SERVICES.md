@@ -347,6 +347,26 @@ The Jostle (`JSL`) provider registers **296** services across **14** JCA service
 
 The Jostle FIPS (`JSLFIPS`) provider registers **161** services across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
 
+**The surface is module-dependent.** JSLFIPS ships one build that serves two FIPS
+modules — the CMVP-validated 3.1.2 (cert #4985) and a 3.5.x one once certified —
+and they disagree about what they implement. Where a difference is cheaply
+detectable at startup the provider asks the loaded module and registers
+accordingly, so the list below is what a **3.1.2** module yields:
+
+- **X25519 / X448** (`KeyAgreement`, `KeyFactory`, `KeyPairGenerator`, and the
+  `XDH` names) are registered only when the module resolves the keymgmt fetch.
+  3.1.2 does; 3.5.x does not, and against it these eight services are absent
+  and `getInstance` throws `NoSuchAlgorithmException` so a caller can fall
+  through to another provider.
+
+Differences that no cheap probe can detect stay registered and refuse at use
+with a typed exception — DSA key generation and signature generation are
+refused by 3.5.x (`ProviderException` / `InvalidKeyException` naming the
+capability) while DSA import and verification keep working, and PKCS#1 v1.5
+encryption is refused there although the FIPS provider registers no PKCS#1
+Cipher for a caller to reach. This is **capability** filtering, never approval
+filtering.
+
 **Approval is not asserted here.** Whether a particular operation is FIPS-*approved* is a compliance determination against the module's security policy (CMVP cert #4985 for OpenSSL FIPS 3.1.2), and it belongs to the operator. This provider does not make it, for three reasons: the module does not enforce its own validated envelope; OpenSSL 3.1.2 exposes no runtime approved-mode indicator; and the policy's non-approved entries are usage-scoped — HMAC key length, HKDF key length, X9.63 KDF PRF choice, RSA primitive modulus size — which no registration surface can express. Deployments needing an enforced restriction should use the JVM's own `jdk.security.providers.filter`.
 
 ## AlgorithmParameterGenerator (2)

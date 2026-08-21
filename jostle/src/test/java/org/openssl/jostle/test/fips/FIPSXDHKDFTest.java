@@ -65,23 +65,62 @@ public class FIPSXDHKDFTest
     }
 
     /**
-     * XDH is SERVED by JSLFIPS, and its secrets match the non-FIPS provider.
+     * XDH is served by JSLFIPS <b>if and only if</b> the loaded module
+     * implements it, and where served its secrets match the non-FIPS provider.
      *
-     * <p>The module implements X25519/X448 — keygen and agreement both succeed
-     * under the FIPS lib ctx — so JSLFIPS exposes them. Cert #4985 lists XDH key
-     * agreement as a non-approved service (Table 8, §4.4 Table 13); that is a
-     * compliance determination for the operator, not a capability this provider
-     * withholds. This test previously asserted the opposite, from the period when
-     * the surface was filtered against the policy.
+     * <p>The two supported modules disagree, which is why this asserts a
+     * contract rather than an answer:
      *
-     * <p>Byte-equality against JSL over the SAME key material is the check that
-     * matters: it proves the FIPS path computes the real shared secret rather
-     * than something merely self-consistent.
+     * <pre>
+     *   3.1.2 : keymgmt fetch succeeds -> ProvFIPSXDH registers; agreement works
+     *   3.5.7 : fetch refused ("unsupported ... Non-default") -> nothing registered
+     * </pre>
+     *
+     * <p>Both halves are load-bearing. Where the module serves XDH, refusing to
+     * register would remove a working algorithm from callers — the exact
+     * failure the approval audit describes. Where it does not, registering
+     * would hand back a service that fails at first use instead of a clean
+     * {@code NoSuchAlgorithmException} the caller can fall through from.
+     *
+     * <p>The all-or-nothing assertion matters too: a partial registration
+     * (KeyFactory present, KeyAgreement absent) is a real bug that a
+     * single-service check would miss.
+     *
+     * <p>Where served, byte-equality against JSL over the SAME key material is
+     * the check that matters: it proves the FIPS path computes the real shared
+     * secret rather than something merely self-consistent.
      */
     @Test
-    public void xdhServedByJslfipsAndAgreesWithJsl()
+    public void xdhServedIffModuleImplementsIt()
         throws Exception
     {
+        boolean served = xdhIsRegistered();
+
+        // All-or-nothing across every XDH service, both curves.
+        for (String alg : new String[]{"X25519", "X448", "XDH"})
+        {
+            Assertions.assertEquals(served, resolves("KeyFactory", alg),
+                    "KeyFactory." + alg + " registration disagrees with the rest of XDH");
+            Assertions.assertEquals(served, resolves("KeyAgreement", alg),
+                    "KeyAgreement." + alg + " registration disagrees with the rest of XDH");
+        }
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            Assertions.assertEquals(served, resolves("KeyPairGenerator", alg),
+                    "KeyPairGenerator." + alg + " registration disagrees with the rest of XDH");
+        }
+
+        if (!served)
+        {
+            // The module genuinely cannot do it — JSL, on mainline libcrypto,
+            // still can. Proves the absence is this module's limit and not a
+            // Jostle-wide regression.
+            Assertions.assertNotNull(
+                    KeyPairGenerator.getInstance("X25519", JostleProvider.PROVIDER_NAME),
+                    "X25519 must still resolve through JSL");
+            return;
+        }
+
         for (String alg : new String[]{"X25519", "X448"})
         {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
@@ -112,6 +151,23 @@ public class FIPSXDHKDFTest
             Assertions.assertFalse(Arrays.equals(fipsSecret, other.generateSecret()),
                     alg + ": a different peer key produced the same secret");
         }
+    }
+
+    /**
+     * Does JSLFIPS carry the XDH surface at all? Keyed off KeyPairGenerator
+     * X25519 — {@link #xdhServedIffModuleImplementsIt} then asserts every
+     * other XDH service agrees with this answer, so the choice of probe here
+     * cannot hide a partial registration.
+     */
+    private static boolean xdhIsRegistered()
+    {
+        return resolves("KeyPairGenerator", "X25519");
+    }
+
+    private static boolean resolves(String type, String algorithm)
+    {
+        return java.security.Security.getProvider(JostleFIPSProvider.PROVIDER_NAME)
+                .getService(type, algorithm) != null;
     }
 
     @Test

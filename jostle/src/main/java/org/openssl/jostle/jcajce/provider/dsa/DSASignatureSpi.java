@@ -20,6 +20,8 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+
 import java.security.*;
 
 /**
@@ -157,7 +159,22 @@ public class DSASignatureSpi extends SignatureSpi
         {
             JODSAPrivateKey key = importPrivate(privateKey);
             lastKey = key;
-            initSignInternal(key);
+            try
+            {
+                initSignInternal(key);
+            }
+            catch (ProviderCapabilityException e)
+            {
+                // The loaded provider verifies DSA signatures but refuses to
+                // generate them (OpenSSL's 3.5+ FIPS module gates signing
+                // behind its "sign-check" indicator). InvalidKeyException is
+                // the JCE-canonical initSign failure AND the provider-fallback
+                // trigger, so a deployment that also registers a signing-capable
+                // provider falls through to it instead of dying on a runtime
+                // exception. Not detectable before init: the same key verifies
+                // fine, and 3.1.2 signs with it.
+                throw new InvalidKeyException(e.getMessage(), e);
+            }
         }
     }
 

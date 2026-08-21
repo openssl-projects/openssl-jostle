@@ -105,7 +105,19 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
     @Override
     protected AlgorithmParameters engineGenerateParameters()
     {
-        long paramsRef = dsaServiceNI.generateParameters(pBits, qBits, random);
+        long paramsRef;
+        try
+        {
+            paramsRef = dsaServiceNI.generateParameters(pBits, qBits, random);
+        }
+        catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+        {
+            // The loaded provider refuses DSA domain-parameter generation
+            // (OpenSSL's 3.5+ FIPS module gates it behind the "sign-check"
+            // FIPS indicator). ProviderException per the JCE contract —
+            // engineGenerateParameters declares no checked type.
+            throw new ProviderException(e.getMessage(), e);
+        }
         PKEYKeySpec paramsSpec = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
         DSAParameterSpec spec = DSAComponents.getParams(dsaServiceNI, paramsSpec);
         try

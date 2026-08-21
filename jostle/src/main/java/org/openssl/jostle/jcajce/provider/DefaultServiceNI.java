@@ -221,6 +221,27 @@ public interface DefaultServiceNI
                 // ProviderException.
                 throw new ProviderCapabilityException(
                         "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead");
+            case JO_DSA_KEYGEN_UNAVAILABLE:
+                // The loaded provider refuses DSA key generation (OpenSSL's
+                // 3.5+ FIPS module gates it behind the "sign-check" FIPS
+                // indicator). Import and verification are unaffected, hence
+                // the generation-specific message. DSAKeyPairGenerator and
+                // DSAAlgorithmParameterGenerator translate it at their own
+                // boundaries; note KeyPairGenerator.generateKeyPair has no
+                // provider-fallback path, so the caller sees a hard failure.
+                throw new ProviderCapabilityException(
+                        "DSA key generation is not supported by the loaded provider; DSA key import and signature verification remain available");
+            case JO_DSA_SIGN_UNAVAILABLE:
+                // Verify-only DSA: the provider verifies with this key but
+                // refuses to sign with it (OpenSSL's 3.5+ FIPS module runs its
+                // "sign-check" indicator only on the signing path). Named
+                // separately from the keygen code because verification still
+                // works, and reported at all because the module's refusal is
+                // silent — it raises nothing, so the generic path would say
+                // "OpenSSL Error: null". DSASignatureSpi translates at
+                // engineInitSign.
+                throw new ProviderCapabilityException(
+                        "DSA signature generation is not supported by the loaded provider; signature verification remains available");
             case JO_DER_TRAILING_DATA:
                 // Strict DER: a well-formed value decoded but trailing bytes
                 // remained. KeyFactory decode paths translate the parent

@@ -219,6 +219,24 @@ public final class JostleFIPSProvider
         return defaultSecureRandom;
     }
 
+    /**
+     * The loaded FIPS module's self-reported name and version, e.g.
+     * {@code "OpenSSL FIPS Provider 3.1.2"}, or {@code "unknown FIPS module"}
+     * when it cannot be queried.
+     *
+     * <p><b>Diagnostics only.</b> Nothing in this provider branches on it —
+     * a version names the build, not the capability, and keying behaviour on
+     * one is the transcribed table {@code java-spi.md} forbids (see
+     * {@link FIPSCapabilities}). It is exposed because it is the first thing
+     * to check when JSLFIPS serves a different surface than expected: the
+     * validated 3.1.2 module and a 3.5.x one disagree about what they
+     * implement. Only meaningful after the provider has been configured.
+     */
+    public static String moduleDescription()
+    {
+        return FIPSCapabilities.describeModule();
+    }
+
     private void setup()
     {
         // JSLFIPS exposes what the FIPS MODULE SERVES, not a subset filtered
@@ -239,6 +257,16 @@ public final class JostleFIPSProvider
         // hand-maintained approved-subset was a second, drift-prone copy of a
         // determination we cannot make correctly, and mistakes in it removed
         // working algorithms from callers. See SERVICES.md.
+        //
+        // A registrar MAY still decline to register when the loaded module
+        // cannot perform the algorithm AT ALL — that is capability, not
+        // approval, and it is decided by asking this module rather than by a
+        // compiled-in list (JSLFIPS serves one build against both the
+        // validated 3.1.2 and a future 3.5.x, which disagree in both
+        // directions). ProvFIPSXDH is the only such registrar today; see
+        // FIPSCapabilities for the scoping rule that keeps it that way, and
+        // note this runs AFTER FIPSOpenSSL.initialise above, so the lib ctx
+        // the probes query already exists.
         new ProvFIPSMD().configure(this);
         new ProvFIPSAES().configure(this);
         new ProvFIPSMac().configure(this);

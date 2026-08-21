@@ -84,6 +84,33 @@ public class FIPSRSAPKCS1CipherOpsTest
     // init — distinguishable failure paths via offset codes
     // -----------------------------------------------------------------
 
+    /**
+     * Skip the calling test when the loaded module refuses PKCS#1 v1.5
+     * encryption.
+     * <p>
+     * These fault sites sit behind a real encrypt — including the
+     * {@code out == NULL} size probe, which OpenSSL evaluates AFTER its FIPS
+     * padding-mode gate — so they cannot be reached on a module that declines
+     * it. OpenSSL's 3.5.x FIPS module does; 3.1.2 does not (see
+     * {@link FIPSTestUtil#fipsPkcs1CanEncrypt}, which pins the refusal
+     * message). The base tree's {@code RSAPKCS1CipherOpsTest} exercises the
+     * same C sites unconditionally.
+     */
+    private void assumeEncryptAvailable()
+    {
+        long keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+        try
+        {
+            Assumptions.assumeTrue(
+                    FIPSTestUtil.fipsPkcs1CanEncrypt(cipherNI, keyRef, TestUtil.RNDSrc),
+                    "the loaded FIPS module refuses PKCS#1 v1.5 encryption");
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
+
     @Test
     public void RSAPKCS1Cipher_init_evpPkeyCtxNew_failure() throws Exception
     {
@@ -229,6 +256,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_doFinal_int32Overflow() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        assumeEncryptAvailable();
 
         long ref = 0;
         long keyRef = 0;
@@ -259,6 +287,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_doFinal_finalCall_opensslError() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        assumeEncryptAvailable();
 
         long ref = 0;
         long keyRef = 0;
@@ -329,6 +358,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_doFinal_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        assumeEncryptAvailable();
         Assumptions.assumeFalse(Loader.isFFI());
 
         long ref = 0;

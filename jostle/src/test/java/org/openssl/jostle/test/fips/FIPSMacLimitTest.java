@@ -122,16 +122,52 @@ public class FIPSMacLimitTest
         }
     }
 
+    /**
+     * A zero-length HMAC key is answered by the MODULE, and the two supported
+     * modules answer differently: 3.1.2 accepts it, 3.5.x refuses it
+     * ({@code hmac_setkey: invalid key length}) under the SP 800-131A 112-bit
+     * floor. That floor is a runtime-parameter constraint the caller chooses,
+     * not a capability, so the NI passes the key through unchanged and neither
+     * answer is wrong.
+     * <p>
+     * What this pins is the same on both: the answer arrives as a <b>typed</b>
+     * outcome at the Java surface — never a {@code jo_assert} abort, and never
+     * a silent success that then yields a tag from an uninitialised context.
+     * The refusal branch doubles as a real-trigger negative-then-positive reset
+     * test: a failed {@code init} must leave the ctx usable with a conforming
+     * key rather than poisoned.
+     */
     @Test
     public void init_emptyKey() throws Exception
     {
-        // The native layer accepts a zero-length HMAC key (SecretKeySpec would
-        // not, but that guard lives above the NI).
         long ref = macNI.allocateMac("HMAC", "SHA-256");
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[0]);
+            boolean accepted;
+            try
+            {
+                macNI.engineInit(ref, new byte[0]);
+                accepted = true;
+            }
+            catch (OpenSSLException e)
+            {
+                Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"),
+                        "empty-key refusal must surface as a typed OpenSSL error, got: " + e.getMessage());
+                accepted = false;
+            }
+
+            if (!accepted)
+            {
+                // Negative-then-positive: the refused init must not have
+                // poisoned the ctx.
+                macNI.engineInit(ref, new byte[32]);
+            }
+
+            byte[] tag = new byte[32];
+            Assertions.assertEquals(32, macNI.doFinal(ref, tag, 0));
+            Assertions.assertFalse(Arrays.equals(tag, new byte[32]),
+                    "mac tag is all-zero (uninitialised context?)");
         }
         finally
         {

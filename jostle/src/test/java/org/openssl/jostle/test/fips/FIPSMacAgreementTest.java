@@ -113,7 +113,8 @@ public class FIPSMacAgreementTest
 
     /**
      * A random key sized for the algorithm: AES-CMAC needs a 16/24/32-byte AES
-     * key; HMAC accepts any reasonable size.
+     * key; HMAC accepts any size at or above
+     * {@link FIPSTestUtil#HMAC_MIN_KEY_BYTES}.
      */
     private static SecretKey randomKey(String name, SecureRandom sr)
     {
@@ -126,7 +127,7 @@ public class FIPSMacAgreementTest
         }
         else
         {
-            byte[] keyBytes = new byte[1 + sr.nextInt(64)];
+            byte[] keyBytes = new byte[FIPSTestUtil.HMAC_MIN_KEY_BYTES + sr.nextInt(51)];
             sr.nextBytes(keyBytes);
             return new SecretKeySpec(keyBytes, name);
         }

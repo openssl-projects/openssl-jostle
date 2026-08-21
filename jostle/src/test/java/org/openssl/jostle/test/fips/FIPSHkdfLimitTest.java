@@ -49,6 +49,19 @@ public class FIPSHkdfLimitTest
 
     private final KdfNI kdfNI = FIPSNISelector.KdfNI;
 
+    /**
+     * IKM that clears the module's HMAC key floor
+     * ({@link FIPSTestUtil#HMAC_MIN_KEY_BYTES}). Only the tests that expect a
+     * successful derive need it — the rejection tests are refused by the
+     * bridge's own validation before the module sees the key.
+     */
+    private static byte[] conformingIkm()
+    {
+        byte[] ikm = new byte[FIPSTestUtil.HMAC_MIN_KEY_BYTES];
+        java.util.Arrays.fill(ikm, (byte) 0x0b);
+        return ikm;
+    }
+
     @Test
     public void testHKDF_null_ikm()
     {
@@ -62,8 +75,9 @@ public class FIPSHkdfLimitTest
     {
         // salt and info are optional at the NI surface: null salt means
         // "HashLen zeros" (RFC 5869), null info means "no context info".
+        // The IKM must clear the module's 112-bit key floor.
         byte[] out = new byte[32];
-        int code = kdfNI.hkdf(new byte[]{0x0b}, null, null, "SHA-256", out, 0, out.length);
+        int code = kdfNI.hkdf(conformingIkm(), null, null, "SHA-256", out, 0, out.length);
         Assertions.assertEquals(0, code, "null salt + null info must derive successfully");
         Assertions.assertFalse(Arrays.areEqual(out, new byte[32]), "derived output is all-zero (stub?)");
     }
@@ -130,7 +144,7 @@ public class FIPSHkdfLimitTest
     public void testHKDF_output_range_atEnd_accepted()
     {
         // Positive companion: offset + len == size is exactly in range.
-        int code = kdfNI.hkdf(new byte[]{0x0b}, new byte[1], new byte[1], "SHA-256", new byte[42], 10, 32);
+        int code = kdfNI.hkdf(conformingIkm(), new byte[1], new byte[1], "SHA-256", new byte[42], 10, 32);
         Assertions.assertEquals(0, code);
     }
 

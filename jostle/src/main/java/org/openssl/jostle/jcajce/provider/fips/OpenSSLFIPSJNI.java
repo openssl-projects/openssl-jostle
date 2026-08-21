@@ -26,4 +26,10 @@ class OpenSSLFIPSJNI implements OpenSSLFIPSNI
 
     @Override
     public native String getOSSLErrors();
+
+    @Override
+    public native int canFetch(int opType, String name);
+
+    @Override
+    public native String moduleVersion();
 }
