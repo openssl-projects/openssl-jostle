@@ -229,12 +229,17 @@ public class FIPSRSAPKCS1CipherLimitTest
 
     /**
      * Negative-then-positive on one cipher ctx: a refused init must not poison
-     * it — a subsequent init in the direction the module DOES serve succeeds
-     * on the same ref and produces a working result.
+     * it — a subsequent init in the direction the deployment DOES serve
+     * succeeds on the same ref and produces a working result.
      * <p>
-     * Which direction is refused depends on the module (see the class
-     * Javadoc), so the test drives whichever pairing the loaded module gives
-     * and asserts the same property either way.
+     * Which direction is refused is decided at runtime, not assumed. All four
+     * combinations are legitimate and this drives whichever it finds:
+     * <pre>
+     *   encrypt yes / decrypt no   3.1.2 - no implicit rejection
+     *   encrypt no  / decrypt yes  3.5.x with rsa-pkcs15-pad-disabled = 1
+     *   encrypt yes / decrypt yes  3.5.x at fipsinstall defaults
+     *   encrypt no  / decrypt no   not observed; the round-trip is skipped
+     * </pre>
      */
     @Test
     public void initRefused_thenTheOtherDirectionSucceeds() throws Exception
@@ -245,41 +250,75 @@ public class FIPSRSAPKCS1CipherLimitTest
             KeyPair kp = generateFipsJceKeyPair();
             long pubRef = ((OSSLKey) kp.getPublic()).getSpec().getReference();
             long privRef = ((OSSLKey) kp.getPrivate()).getSpec().getReference();
+            byte[] msg = {1, 2, 3, 4};
 
-            if (!encryptAvailable(kp))
+            boolean encrypts = encryptAvailable(kp);
+            // -135 is JO_IMPLICIT_REJECTION_UNAVAILABLE; anything else must be
+            // success, since a decrypt init has no other legitimate failure
+            // against a freshly generated key.
+            int decryptInit = cipherNI.ni_init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND);
+            boolean decrypts = decryptInit != -135;
+            Assertions.assertTrue(decrypts || decryptInit == -135,
+                    "unexpected decrypt-init code " + decryptInit);
+            if (decrypts)
             {
-                // 3.5.x shape: encrypt is refused, decrypt works.
+                Assertions.assertEquals(0, decryptInit,
+                        "decrypt init must either refuse with -135 or succeed");
+            }
+
+            if (!encrypts)
+            {
+                // Encrypt is refused. Prove the refusal, then that the ctx is
+                // still usable in the other direction.
                 cipherNI.init(ref, pubRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
-                byte[] msg = {1, 2, 3, 4};
                 Assertions.assertThrows(OpenSSLException.class,
                         () -> cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, RND));
 
-                byte[] ct = baseProviderEncrypt(kp, msg);
-                cipherNI.init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND);
-                int needed = cipherNI.doFinal(ref, ct, 0, ct.length, null, 0, RND);
-                byte[] out = new byte[needed];
-                int written = cipherNI.doFinal(ref, ct, 0, ct.length, out, 0, RND);
-                Assertions.assertArrayEquals(msg, Arrays.copyOf(out, written),
+                Assumptions.assumeTrue(decrypts,
+                        "neither direction is served, so there is no recovery to assert");
+                assertDecryptsTo(ref, privRef, baseProviderEncrypt(kp, msg), msg,
                         "decrypt after a refused encrypt produced the wrong plaintext");
                 return;
             }
 
-            // 3.1.2 shape: decrypt init is refused, encrypt works.
-            Assertions.assertEquals(-135,
-                    cipherNI.ni_init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND));
+            if (!decrypts)
+            {
+                // Decrypt init is refused (no implicit rejection). Encrypt on
+                // the SAME ref must still work.
+                cipherNI.init(ref, pubRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
+                int needed = cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, RND);
+                byte[] ct = new byte[needed];
+                cipherNI.doFinal(ref, msg, 0, msg.length, ct, 0, RND);
+                Assertions.assertArrayEquals(msg, baseProviderDecrypt(kp, ct),
+                        "encrypt after a refused decrypt init produced bad ciphertext");
+                return;
+            }
 
+            // Neither direction is refused. There is no poisoning to test, but
+            // the flip between directions on one ctx is still worth pinning:
+            // encrypt, then decrypt the result back on the SAME ref.
             cipherNI.init(ref, pubRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
-            byte[] msg = {1, 2, 3, 4};
             int needed = cipherNI.doFinal(ref, msg, 0, msg.length, null, 0, RND);
             byte[] ct = new byte[needed];
             cipherNI.doFinal(ref, msg, 0, msg.length, ct, 0, RND);
-            Assertions.assertArrayEquals(msg, baseProviderDecrypt(kp, ct),
-                    "encrypt after a refused decrypt init produced bad ciphertext");
+
+            assertDecryptsTo(ref, privRef, ct, msg,
+                    "encrypt then decrypt on one ctx did not round-trip");
         }
         finally
         {
             cipherNI.disposeCipher(ref);
         }
+    }
+
+    /** Re-init {@code ref} for decrypt and assert {@code ct} yields {@code expected}. */
+    private void assertDecryptsTo(long ref, long privRef, byte[] ct, byte[] expected, String message)
+    {
+        cipherNI.init(ref, privRef, RSAPKCS1CipherNI.OP_DECRYPT, RND);
+        int needed = cipherNI.doFinal(ref, ct, 0, ct.length, null, 0, RND);
+        byte[] out = new byte[needed];
+        int written = cipherNI.doFinal(ref, ct, 0, ct.length, out, 0, RND);
+        Assertions.assertArrayEquals(expected, Arrays.copyOf(out, written), message);
     }
 
     /**

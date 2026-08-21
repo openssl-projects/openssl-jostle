@@ -164,9 +164,34 @@ jobs:
             # Regenerate the config beside the copied module: TestUtil expects
             # fipsmodule.cnf to sit next to the module named by TEST_FIPS_LIB,
             # and the MAC covers the file at that path.
-            "$src/dist/bin/openssl" fipsinstall \
+            #
+            # -pedantic on 3.5.x, plain on 3.1.2, matching the local dev setup.
+            # This is NOT cosmetic. Most of the strictness that distinguishes
+            # the two modules is a fipsinstall OPTION, not a module property:
+            # dsa-sign-disabled, rsa-pkcs15-pad-disabled and hmac-key-check are
+            # all off at fipsinstall defaults, and with them off the capability
+            # gates this provider added are never exercised at all - CI would
+            # be green without running the code under test. 3.1.2 predates most
+            # of these switches and is left at its defaults.
+            pedantic=""
+            case "$ver" in 3.5.*) pedantic="-pedantic" ;; esac
+            # shellcheck disable=SC2086
+            "$src/dist/bin/openssl" fipsinstall $pedantic \
               -module "$out/$ver/$(basename "$modfile")" \
               -out "$out/$ver/fipsmodule.cnf"
+            cat "$out/$ver/fipsmodule.cnf"
+            # Third shape, POSIX only and costing no extra OpenSSL build: the
+            # SAME 3.5.x module at fipsinstall DEFAULTS. Its own directory
+            # because the MAC covers the module at its path, so each config
+            # needs its own copy beside it.
+            if [ "$ver" != "${ver#3.5.}" ]; then
+              mkdir -p "$out/$ver-default"
+              cp "$modfile" "$out/$ver-default/"
+              "$src/dist/bin/openssl" fipsinstall \
+                -module "$out/$ver-default/$(basename "$modfile")" \
+                -out "$out/$ver-default/fipsmodule.cnf"
+              cat "$out/$ver-default/fipsmodule.cnf"
+            fi
             ls -l "$out/$ver"
             cd "${{ github.workspace }}"
             rm -rf "$src"
@@ -254,13 +279,29 @@ jobs:
         config:
           - { name: "fips-jni", tasks: "fipsTest25JNI" }
           - { name: "fips-ffi", tasks: "fipsTest25FFI" }
-        # One build, two modules that disagree about what they implement - so
-        # both are exercised. See the module-build step in build-posix for why
-        # a green run against one proves nothing about the other. The Windows
-        # FIPS job covers both modules too, on the same reasoning.
+        # One build, several module CONFIGURATIONS that disagree about what
+        # they permit - so each is exercised. See the module-build step in
+        # build-posix for why a green run against one proves nothing about
+        # another. The Windows FIPS job covers both modules too.
+        #
+        # "3.5.7" is the -pedantic config; "3.1.2" is that module's default.
         module:
           - "3.5.7"
           - "3.1.2"
+        # "3.5.7-default" is the same 3.5.x module at fipsinstall defaults,
+        # where dsa-sign-disabled / rsa-pkcs15-pad-disabled / hmac-key-check /
+        # signature-digest-check are all 0. That is a legitimate deployment and
+        # it is the shape that broke the first CI run, so it is covered - but
+        # on one runner only, via include rather than a matrix axis, because
+        # the difference is in the module CONFIG and has nothing to do with the
+        # platform.
+        include:
+          - runner: "ubuntu-latest"
+            config: { name: "fips-jni", tasks: "fipsTest25JNI" }
+            module: "3.5.7-default"
+          - runner: "ubuntu-latest"
+            config: { name: "fips-ffi", tasks: "fipsTest25FFI" }
+            module: "3.5.7-default"
     runs-on: ${{ matrix.runner }}
     steps:
       - name: "Checkout jostle"
@@ -465,9 +506,14 @@ jobs:
             # version's openssl.exe: TestUtil expects fipsmodule.cnf next to
             # the module named by TEST_FIPS_LIB, and the MAC covers the file
             # at that path.
-            & "$prefix\bin\openssl.exe" fipsinstall -module (Join-Path $out "fips.dll") -out (Join-Path $out "fipsmodule.cnf")
+            # -pedantic on 3.5.x, plain on 3.1.2 - see the POSIX build step:
+            # dsa-sign-disabled / rsa-pkcs15-pad-disabled / hmac-key-check are
+            # fipsinstall OPTIONS, off by default, and without them the
+            # capability gates are never exercised.
+            $pedantic = if ($ver -like "3.5.*") { @("-pedantic") } else { @() }
+            & "$prefix\bin\openssl.exe" fipsinstall @pedantic -module (Join-Path $out "fips.dll") -out (Join-Path $out "fipsmodule.cnf")
             if ($LASTEXITCODE -ne 0) { throw "fipsinstall failed for $ver ($LASTEXITCODE)" }
-            Get-ChildItem $out
+            Get-Content (Join-Path $out "fipsmodule.cnf")
             # The source and dist trees are large and are not cached; only the
             # staged module and its config are.
             Remove-Item -Recurse -Force "${{ github.workspace }}\fips-$dir"

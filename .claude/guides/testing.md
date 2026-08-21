@@ -232,6 +232,39 @@ The two providers' asymmetric keys share Java classes (`JORSAPublicKey`, `JOECPr
 
 `FIPSKeyIsolationTest` owns the contract (`rsaPrivateKeysIsolatedPublicKeysShared`, `keyIsolationCompleteAcrossAllAsymmetricFamiliesBothDirections`) — new asymmetric families must be added to its sweep, with both the private-rejection (exact message per "Pin the exception message" above) and the public-crossing positive. Surfaces that consume keys indirectly (a CertificateFactory's pinned `verify`, a KeyAgreement `doPhase`) should pin their own view of the policy too — `FIPSX509CertificateFactoryTest.jslGeneratedKeypair_functionsThroughFipsFactory` is the reference — so a future tightening of the shared-public rule names every behaviour it changes. Don't confuse this class of test with *wrong-algorithm* rejection (`"expected a DSAPublicKey from the Jostle provider"` for an RSA key into a DSA Signature): same exception type, different check, both worth pinning separately.
 
+### A FIPS module's strictness is mostly `fipsinstall` CONFIG, not its version
+
+`fipsmodule.cnf` carries a dozen strictness switches that `openssl fipsinstall`
+leaves **off by default** and `-pedantic` turns **on**. The ones that matter
+here:
+
+| Switch | what it gates |
+|---|---|
+| `dsa-sign-disabled` | DSA key generation AND signature generation |
+| `rsa-pkcs15-pad-disabled` | PKCS#1 v1.5 *encryption* (decryption is unaffected) |
+| `hmac-key-check` / `hkdf-key-check` | the SP 800-131A 112-bit key floor |
+| `signature-digest-check` | SHA-1 (and other legacy digests) for signing |
+
+So "the 3.5.x module refuses DSA signing" is **wrong as stated** — a
+default-configured 3.5.x module signs DSA happily. Only two of the differences
+across the 3.1.2 → 3.5.x migration were genuine module-version properties
+(X25519 becoming unfetchable; implicit rejection becoming available); the rest
+were `-pedantic`.
+
+Consequences for tests:
+
+1. **Never write "module X does Y" into an assertion.** Probe and assert the
+   contract, per the section below. The tests that did this passed a full
+   matrix against the strict config and failed on the first CI run, which used
+   the default.
+2. **Diff the two `fipsmodule.cnf` files before concluding anything about a
+   module difference.** It is one `cat` and it distinguishes a version change
+   from a config change — which the error messages do not.
+3. **CI must pin the strict config for the version whose gates you are
+   testing** (`fipsinstall -pedantic`). At defaults the capability gates never
+   fire, so the suite goes green without executing the code under test — the
+   worst kind of passing build.
+
 ### Where two supported environments disagree, assert the CONTRACT, not one environment's answer
 
 JSLFIPS ships one build that must serve two FIPS modules which disagree in

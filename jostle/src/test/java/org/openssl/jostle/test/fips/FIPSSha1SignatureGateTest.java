@@ -37,10 +37,18 @@ import java.security.spec.ECGenParameterSpec;
  * to gate the sign direction — exactly as it relies on the module to gate
  * non-approved curves (see {@code FIPSECTest}).
  * <p>
- * This test pins that reliance: if a future module or configuration ever allowed
- * SHA-1 signing (or disallowed legacy SHA-1 verification), it fails loudly rather
- * than silently drifting into a non-approved capability. Gated on
- * {@code TEST_FIPS_LIB}; skipped when unset.
+ * This test pins that reliance — but on the CONTRACT, not on one answer.
+ * Whether SHA-1 signing is refused is a deployment configuration:
+ * {@code signature-digest-check} is a {@code fipsinstall} option, set by
+ * {@code -pedantic} and <b>0 at defaults</b>. A module configured either way is
+ * a legitimate deployment, so each SHA-1 transformation must be refused naming
+ * the digest, or work and produce a verifying signature — never fail some third
+ * way, and never produce a signature that does not verify.
+ * <p>
+ * Legacy SHA-1 VERIFICATION must remain available regardless; that half is
+ * unconditional.
+ * <p>
+ * Gated on {@code TEST_FIPS_LIB}; skipped when unset.
  */
 public class FIPSSha1SignatureGateTest
 {
@@ -81,38 +89,70 @@ public class FIPSSha1SignatureGateTest
      * raw {@link OpenSSLException}. This helper accepts either shape and requires
      * the underlying module "digest not allowed" message in both.
      */
-    private static void assertSha1SignRejected(KeyPair kp, String sigAlg)
+    /**
+     * SHA-1 signature generation is either refused naming the digest, or it
+     * works and produces a signature that verifies.
+     * <p>
+     * Whether it is refused is a <b>deployment configuration</b>, not a module
+     * property: {@code signature-digest-check} is a {@code fipsinstall}
+     * option, set by {@code -pedantic} and <b>0 at defaults</b>. So an
+     * unconditional "must be rejected" assertion fails against a
+     * default-configured module while proving nothing about it — the same
+     * hardcoded-answer bug as the DSA and PKCS#1 tests.
+     * <p>
+     * Both branches are load-bearing. The refusal must name the DIGEST (not a
+     * key or provider problem — the SHA-256 control in each caller rules those
+     * out), and where SHA-1 is permitted the signature must actually verify
+     * rather than being silently wrong.
+     */
+    private static void assertSha1SignRefusedOrWorks(KeyPair kp, String sigAlg) throws Exception
     {
         byte[] msg = new byte[32];
         RANDOM.nextBytes(msg);
-        Exception ex = Assertions.assertThrows(Exception.class, () ->
+
+        byte[] sig;
+        try
         {
             Signature s = Signature.getInstance(sigAlg, FIPS);
             s.initSign(kp.getPrivate());
             s.update(msg);
-            s.sign();
-        }, sigAlg + ": the FIPS module must reject SHA-1 signature generation");
+            sig = s.sign();
+        }
+        catch (Exception ex)
+        {
+            // Unwrap the RSA InvalidKeyException down to its OpenSSLException
+            // cause; EC/DSA already are an OpenSSLException.
+            Throwable openssl = (ex instanceof OpenSSLException) ? ex : ex.getCause();
+            Assertions.assertTrue(openssl instanceof OpenSSLException,
+                    sigAlg + ": expected an OpenSSLException (possibly wrapped in InvalidKeyException), got: " + ex);
+            // The module's wording changed between the two supported versions,
+            // so both are pinned rather than either being matched loosely:
+            //   3.1.2 : "... securitycheck: digest not allowed"
+            //   3.5.7 : "... ossl_fips_ind_digest_sign_check: invalid digest"
+            String m = String.valueOf(openssl.getMessage());
+            Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
+                    sigAlg + ": expected a module digest rejection, got: " + m);
+            return;
+        }
 
-        // Unwrap the RSA InvalidKeyException down to its OpenSSLException cause;
-        // EC/DSA already are an OpenSSLException.
-        Throwable openssl = (ex instanceof OpenSSLException) ? ex : ex.getCause();
-        Assertions.assertTrue(openssl instanceof OpenSSLException,
-                sigAlg + ": expected an OpenSSLException (possibly wrapped in InvalidKeyException), got: " + ex);
-        // The module's wording for this refusal changed between the two
-        // supported versions, so both are pinned rather than either being
-        // matched loosely:
-        //   3.1.2 : "... securitycheck: digest not allowed"
-        //   3.5.7 : "... ossl_fips_ind_digest_sign_check: invalid digest"
-        // Both name the digest as the cause, which is what distinguishes this
-        // from a key or provider problem — the SHA-256 control above rules
-        // those out.
-        String m = String.valueOf(openssl.getMessage());
-        Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
-                sigAlg + ": expected a module digest rejection, got: " + m);
+        // Permitted by this configuration - then it must be a real signature.
+        Signature v = Signature.getInstance(sigAlg, FIPS);
+        v.initVerify(kp.getPublic());
+        v.update(msg);
+        Assertions.assertTrue(v.verify(sig),
+                sigAlg + ": SHA-1 signing was permitted but the signature does not verify");
+
+        byte[] tampered = msg.clone();
+        tampered[0] ^= 0x01;
+        Signature t = Signature.getInstance(sigAlg, FIPS);
+        t.initVerify(kp.getPublic());
+        t.update(tampered);
+        Assertions.assertFalse(t.verify(sig),
+                sigAlg + ": a tampered message verified");
     }
 
     @Test
-    public void sha1SignatureGenerationRejected() throws Exception
+    public void sha1SignatureGeneration_refusedOrWorks() throws Exception
     {
         KeyPairGenerator rsaKpg = KeyPairGenerator.getInstance("RSA", FIPS);
         rsaKpg.initialize(2048);
@@ -127,8 +167,8 @@ public class FIPSSha1SignatureGateTest
         control.update(msg);
         Assertions.assertTrue(control.sign().length > 0, "SHA-256 RSA signing must work");
 
-        assertSha1SignRejected(rsa, "SHA1withRSA");
-        assertSha1SignRejected(rsa, "SHA1withRSAandMGF1");
+        assertSha1SignRefusedOrWorks(rsa, "SHA1withRSA");
+        assertSha1SignRefusedOrWorks(rsa, "SHA1withRSAandMGF1");
 
         KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", FIPS);
         ecKpg.initialize(new ECGenParameterSpec("secp256r1"));
@@ -139,7 +179,7 @@ public class FIPSSha1SignatureGateTest
         ecControl.update(msg);
         Assertions.assertTrue(ecControl.sign().length > 0, "SHA-256 ECDSA signing must work");
 
-        assertSha1SignRejected(ec, "SHA1withECDSA");
+        assertSha1SignRefusedOrWorks(ec, "SHA1withECDSA");
     }
 
     /**
@@ -153,7 +193,7 @@ public class FIPSSha1SignatureGateTest
      * refuses every DSA generation path.
      */
     @Test
-    public void sha1DsaSignatureGenerationRejected() throws Exception
+    public void sha1DsaSignatureGeneration_refusedOrWorks() throws Exception
     {
         KeyPair dsa = FIPSTestUtil.dsaKeyPair(FIPS);
 
@@ -177,7 +217,7 @@ public class FIPSSha1SignatureGateTest
         control.update(msg);
         Assertions.assertTrue(control.sign().length > 0, "SHA-256 DSA signing must work");
 
-        assertSha1SignRejected(dsa, "SHA1withDSA");
+        assertSha1SignRefusedOrWorks(dsa, "SHA1withDSA");
     }
 
     @Test
