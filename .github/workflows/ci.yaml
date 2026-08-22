@@ -585,10 +585,21 @@ jobs:
             # dsa-sign-disabled / rsa-pkcs15-pad-disabled / hmac-key-check are
             # fipsinstall OPTIONS, off by default, and without them the
             # capability gates are never exercised.
-            $pedantic = if ($ver -like "3.5.*") { @("-pedantic") } else { @() }
-            & "$prefix\bin\openssl.exe" fipsinstall @pedantic -module (Join-Path $out "fips.dll") -out (Join-Path $out "fipsmodule.cnf")
+            #
+            # Two plain invocations rather than splatting an argument array:
+            # "@pedantic" reached openssl.exe as a bare "-" ("fipsinstall:
+            # Unknown option: -"). PowerShell array splatting onto a NATIVE
+            # command is not worth reasoning about in a script that can only be
+            # tested by pushing to CI.
+            $cnf = Join-Path $out "fipsmodule.cnf"
+            $dll = Join-Path $out "fips.dll"
+            if ($ver -like "3.5.*") {
+              & "$prefix\bin\openssl.exe" fipsinstall -pedantic -module $dll -out $cnf
+            } else {
+              & "$prefix\bin\openssl.exe" fipsinstall -module $dll -out $cnf
+            }
             if ($LASTEXITCODE -ne 0) { throw "fipsinstall failed for $ver ($LASTEXITCODE)" }
-            Get-Content (Join-Path $out "fipsmodule.cnf")
+            Get-Content $cnf
             # The source and dist trees are large and are not cached; only the
             # staged module and its config are.
             Remove-Item -Recurse -Force "${{ github.workspace }}\fips-$dir"
