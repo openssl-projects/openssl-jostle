@@ -23,6 +23,18 @@ jobs:
         with:
           distribution: "corretto"
           java-version: "25"
+      # Gradle distribution + resolved dependencies. Without this every job in
+      # the matrix downloads the Gradle distribution AND resolves the nohttp
+      # plugin from Maven Central, and with ~75 jobs that reliably earns an
+      # HTTP 429 - which fails the job at CONFIGURATION time, before a single
+      # test runs.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Writes. A cache written here is visible to the test jobs in the
+          # SAME run (they `needs:` this one), which is what makes this work on
+          # a feature branch where no main-branch cache exists yet.
+          cache-read-only: false
       - name: "Run Checkstyle"
         working-directory: "jostle"
         # The project scopes the checkstyle gate to the main source set
@@ -85,6 +97,16 @@ jobs:
         with:
           distribution: "corretto"
           java-version: '25'
+      # See the other jobs: without a Gradle cache every job re-downloads the
+      # distribution and re-resolves the nohttp plugin from Maven Central,
+      # which earns an HTTP 429 at configuration time.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Writes. A cache written here is visible to the test jobs in the
+          # SAME run (they `needs:` this one), which is what makes this work on
+          # a feature branch where no main-branch cache exists yet.
+          cache-read-only: false
       - name: "Build headers"
         working-directory: "jostle"
         run: |
@@ -126,7 +148,12 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "fips-out"
-          key: "openssl-fips-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          # v2 is a LAYOUT version, bumped whenever this step's staged output
+          # changes shape - adding the 3.5.7-default directory was such a
+          # change. Without it the step is skipped on a hit and the old tree is
+          # restored, so a config that was never staged silently goes missing
+          # and every FIPS class dies with a bare ProviderException.
+          key: "openssl-fips-v2-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "bash"
@@ -244,6 +271,17 @@ jobs:
         with:
           distribution: "corretto"
           java-version: "25"
+      # Gradle distribution + resolved dependencies. Without this every job in
+      # the matrix downloads the Gradle distribution AND resolves the nohttp
+      # plugin from Maven Central, and with ~75 jobs that reliably earns an
+      # HTTP 429 - which fails the job at CONFIGURATION time, before a single
+      # test runs.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Read-only: the build job in this run already seeded it, and matrix
+          # jobs writing concurrently just race each other.
+          cache-read-only: true
       - name: "Point BC_JDK at the target toolchain"
         if: matrix.config.bcjdk != ''
         shell: "bash"
@@ -324,6 +362,17 @@ jobs:
         with:
           distribution: "corretto"
           java-version: "25"
+      # Gradle distribution + resolved dependencies. Without this every job in
+      # the matrix downloads the Gradle distribution AND resolves the nohttp
+      # plugin from Maven Central, and with ~75 jobs that reliably earns an
+      # HTTP 429 - which fails the job at CONFIGURATION time, before a single
+      # test runs.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Read-only: the build job in this run already seeded it, and matrix
+          # jobs writing concurrently just race each other.
+          cache-read-only: true
       - name: "Point BC_JDK25 and TEST_FIPS_LIB at the toolchain / module"
         shell: "bash"
         run: |
@@ -333,7 +382,18 @@ jobs:
             macOS) ext=dylib ;;
             *)     echo "unexpected runner.os ${{ runner.os }}" >&2; exit 1 ;;
           esac
-          echo "TEST_FIPS_LIB=${{ github.workspace }}/fips-module/${{ matrix.module }}/fips.$ext" >> "$GITHUB_ENV"
+          lib="${{ github.workspace }}/fips-module/${{ matrix.module }}/fips.$ext"
+          # Check here rather than letting the provider fail: a missing module
+          # surfaces as a bare ProviderException from every FIPS class at once,
+          # which says nothing about the cause. Usually a stale module cache -
+          # see the layout version in the build job's cache key.
+          if [ ! -f "$lib" ]; then
+            echo "FIPS module not staged at $lib" >&2
+            echo "staged tree:" >&2
+            ls -R "${{ github.workspace }}/fips-module" >&2 || true
+            exit 1
+          fi
+          echo "TEST_FIPS_LIB=$lib" >> "$GITHUB_ENV"
       - name: "Run FIPS tests"
         working-directory: "jostle"
         env:
@@ -409,6 +469,16 @@ jobs:
         with:
           distribution: "corretto"
           java-version: '25'
+      # See the other jobs: without a Gradle cache every job re-downloads the
+      # distribution and re-resolves the nohttp plugin from Maven Central,
+      # which earns an HTTP 429 at configuration time.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Writes. A cache written here is visible to the test jobs in the
+          # SAME run (they `needs:` this one), which is what makes this work on
+          # a feature branch where no main-branch cache exists yet.
+          cache-read-only: false
       - name: "Set up interface build tools (clang-cl, ninja)"
         shell: "pwsh"
         run: |
@@ -449,7 +519,12 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "fips-out"
-          key: "openssl-fips-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          # v2 is a LAYOUT version, bumped whenever this step's staged output
+          # changes shape - adding the 3.5.7-default directory was such a
+          # change. Without it the step is skipped on a hit and the old tree is
+          # restored, so a config that was never staged silently goes missing
+          # and every FIPS class dies with a bare ProviderException.
+          key: "openssl-fips-v2-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "cmd"
@@ -561,6 +636,17 @@ jobs:
         with:
           distribution: "corretto"
           java-version: "25"
+      # Gradle distribution + resolved dependencies. Without this every job in
+      # the matrix downloads the Gradle distribution AND resolves the nohttp
+      # plugin from Maven Central, and with ~75 jobs that reliably earns an
+      # HTTP 429 - which fails the job at CONFIGURATION time, before a single
+      # test runs.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Read-only: the build job in this run already seeded it, and matrix
+          # jobs writing concurrently just race each other.
+          cache-read-only: true
       - name: "Point BC_JDK at the target toolchain"
         if: matrix.config.bcjdk != ''
         shell: "bash"
@@ -619,13 +705,30 @@ jobs:
         with:
           distribution: "corretto"
           java-version: "25"
+      # Gradle distribution + resolved dependencies. Without this every job in
+      # the matrix downloads the Gradle distribution AND resolves the nohttp
+      # plugin from Maven Central, and with ~75 jobs that reliably earns an
+      # HTTP 429 - which fails the job at CONFIGURATION time, before a single
+      # test runs.
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          # Read-only: the build job in this run already seeded it, and matrix
+          # jobs writing concurrently just race each other.
+          cache-read-only: true
       - name: "Point BC_JDK25 and TEST_FIPS_LIB at the toolchain / module"
         shell: "bash"
         run: |
           echo "BC_JDK25=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
           ws='${{ github.workspace }}'
           ws="${ws//\\//}"
-          echo "TEST_FIPS_LIB=$ws/fips-module/${{ matrix.module }}/fips.dll" >> "$GITHUB_ENV"
+          lib="$ws/fips-module/${{ matrix.module }}/fips.dll"
+          if [ ! -f "$lib" ]; then
+            echo "FIPS module not staged at $lib" >&2
+            ls -R "$ws/fips-module" >&2 || true
+            exit 1
+          fi
+          echo "TEST_FIPS_LIB=$lib" >> "$GITHUB_ENV"
       - name: "Run FIPS tests"
         working-directory: "jostle"
         shell: "pwsh"
