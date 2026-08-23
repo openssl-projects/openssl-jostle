@@ -64,19 +64,51 @@ public class FIPSEdLimitTest
     /** Class-wide Ed25519 keypair; allocated in beforeAll, disposed after. */
     private static long keyRef = 0;
 
+    /**
+     * Whether the loaded module implements Ed at all. 3.1.2 does not; 3.5.x
+     * does. Only the tests that need a WORKING key are gated on it — see
+     * {@link #assumeEdKey()}.
+     */
+    private static boolean edServed;
+
     @BeforeAll
     public static void beforeAll()
     {
         Assumptions.assumeFalse(TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
         TestUtil.addFipsProvider();
-        Assumptions.assumeTrue(
-                FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, "ED25519") != 0,
-                "the loaded FIPS module does not implement Ed25519/Ed448");
         ed = FIPSNISelector.EDServiceNI;
         specNI = FIPSNISelector.SpecNI;
-        keyRef = ed.generateKeyPair(OSSLKeyType.ED25519.getKsType(), RND);
-        Assertions.assertTrue(keyRef > 0, "could not generate the Ed25519 fixture key");
+
+        edServed = FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, "ED25519") != 0;
+        if (edServed)
+        {
+            keyRef = ed.generateKeyPair(OSSLKeyType.ED25519.getKsType(), RND);
+            Assertions.assertTrue(keyRef > 0, "could not generate the Ed25519 fixture key");
+        }
+    }
+
+    /**
+     * Gate for the tests that need a real Ed key.
+     * <p>
+     * Deliberately NOT a class-level assumption. Gating the whole class on the
+     * module serving Ed makes it skip wholesale against 3.1.2, and a
+     * wholesale-skipped FIPS class is what {@code verify-results.py
+     * --require-fips} exists to reject — it is indistinguishable from a class
+     * that was silently dropped. It also throws away real coverage: most of
+     * this file probes the BRIDGE (null handles, null arrays, negative
+     * offsets, out-of-range lengths, wrong key types), and none of that
+     * depends on the module implementing Ed. Those checks must run on BOTH
+     * supported modules, because the bridge is the same code either way.
+     * <p>
+     * This is testing.md's "gate the narrowest thing", and the same shape as
+     * {@code FIPSDSALimitTest}, which keeps its direction-agnostic checks
+     * running on a module that refuses DSA signing.
+     */
+    private static void assumeEdKey()
+    {
+        Assumptions.assumeTrue(edServed,
+                "the loaded FIPS module does not implement Ed25519/Ed448, so no key fixture exists");
     }
 
     @AfterAll
@@ -97,6 +129,7 @@ public class FIPSEdLimitTest
     @Test
     public void nullSignerCtx_allEntryPointsRejectedTyped()
     {
+        assumeEdKey();
         byte[] sig = new byte[64];
         byte[] ctx = new byte[0];
 
@@ -157,6 +190,7 @@ public class FIPSEdLimitTest
     @Test
     public void initSign_nullName_rejectedTyped()
     {
+        assumeEdKey();
         withSigner(ref ->
         {
             assertNPE("name is null",
@@ -175,6 +209,7 @@ public class FIPSEdLimitTest
     @Test
     public void sign_nullRand()
     {
+        assumeEdKey();
         // IllegalArgumentException, not NPE: JO_RANDOM_IS_NULL maps to the
         // IAE arm of the base error handler, matching the base EdDSALimitTest.
         withSigner(ref -> assertIAE("supplied random source was null",
@@ -278,6 +313,7 @@ public class FIPSEdLimitTest
     @Test
     public void sign_writesAtOffsetWithoutClobberingPrefix()
     {
+        assumeEdKey();
         long signRef = 0;
         long verifyRef = 0;
         try
@@ -366,6 +402,7 @@ public class FIPSEdLimitTest
      */
     private static void assertAliasedSignVerifies(int msgLen, int sigOff)
     {
+        assumeEdKey();
         long signRef = 0;
         try
         {
@@ -506,6 +543,7 @@ public class FIPSEdLimitTest
 
     private static void withInitedSigner(RefAction action)
     {
+        assumeEdKey();
         withSigner(ref ->
         {
             ed.initSign(ref, keyRef, "Ed25519", null, 0, RND);
@@ -515,6 +553,7 @@ public class FIPSEdLimitTest
 
     private static void withInitedVerifier(RefAction action)
     {
+        assumeEdKey();
         withSigner(ref ->
         {
             ed.initVerify(ref, keyRef, "Ed25519", null, 0);

@@ -22,7 +22,9 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
@@ -358,5 +360,50 @@ public class FIPSEdAgreementTest
             return new Ed25519phSigner(context);
         }
         return new Ed448phSigner(context);
+    }
+
+    /**
+     * Runs on EVERY module, and exists so this class never skips wholesale.
+     * <p>
+     * The three agreement tests below genuinely cannot run without the module
+     * implementing Ed — there is nothing to agree about — so each takes
+     * {@link #assumeEdServed()}. Against 3.1.2 that left the entire class
+     * skipped, which {@code verify-results.py --require-fips} rejects, and
+     * rightly: a class that skips in full is indistinguishable from one
+     * silently dropped, and the "absence" it leaves behind is asserted by
+     * nobody.
+     * <p>
+     * So the class keeps one test that is meaningful on both modules: the
+     * registration must track what the module actually implements, in BOTH
+     * directions. Served-but-unimplemented would mean {@code getInstance}
+     * resolves and every {@code init} fails; implemented-but-unserved would
+     * mean a working algorithm was dropped from callers. Same shape as
+     * {@code FIPSEdSignatureTest.edServedIffModuleImplementsIt}, and the
+     * reason that class does not skip wholesale either.
+     */
+    @Test
+    public void edAgreementIsAvailableIffTheModuleImplementsIt()
+    {
+        boolean served = Security.getProvider(FIPS)
+                .getService("KeyPairGenerator", "ED25519") != null;
+        boolean implemented = FIPSNISelector.OpenSSLFIPSNI
+                .canFetch(OpenSSLFIPSNI.OP_KEYMGMT, "ED25519") != 0;
+
+        Assertions.assertEquals(implemented, served,
+                served
+                        ? "JSLFIPS registers Ed25519 but the loaded module does not implement it — "
+                          + "getInstance would resolve and every init would fail"
+                        : "the loaded module implements Ed25519 but JSLFIPS does not register it — "
+                          + "a working algorithm was dropped from callers");
+
+        // A control, so the probe cannot pass by answering the same thing to
+        // everything: the module must resolve a digest it certainly has, and
+        // must NOT resolve an algorithm no FIPS module carries.
+        Assertions.assertTrue(
+                FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_MD, "SHA-256") != 0,
+                "the capability probe cannot see the module at all");
+        Assertions.assertEquals(0,
+                FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_CIPHER, "ChaCha20"),
+                "the capability probe answers yes to everything, so it proves nothing");
     }
 }
