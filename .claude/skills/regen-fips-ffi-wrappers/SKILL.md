@@ -6,7 +6,7 @@ description: Regenerate or verify the interface/fips/ffi/<x>_fips_ffi.c rename w
 # Regenerate the FIPS FFI rename wrappers
 
 The FIPS interface library must export **no entry-point name the base library
-also exports**. It achieves that with 22 generated wrappers under
+also exports**. It achieves that with 21 generated wrappers under
 `interface/fips/ffi/`: each `#define`s every `Jo`-named export of its
 byte-identical twin to a `JoFIPS_`-prefixed name, then `#include`s the twin —
 the same trick `fips/jni/<x>_fips_jni.c` uses for JNI.
@@ -60,7 +60,17 @@ the same `#define` to the calling file's wrapper, not to suppress the check.
 
 ## What it deliberately does not touch
 
-1. **`openssl_fips_ffi.c`** — FIPS-only, already `JoFIPS_`-named, not a twin.
+1. **`openssl_fips_ffi.c`** — FIPS-only, already `JoFIPS_`-named, not a twin. It
+   also owns `JoFIPS_get_openssl_errors`. There is **no `openssl_ffi.c` in the
+   FIPS tree** and no wrapper for one: until 2026-08-23 the twin was re-included
+   purely to reach `JoOpenSSL_getErrors`, which also exported
+   `JoOpenSSL_setModule` — a function that builds a lib ctx with
+   `jostle_ctx_init_new` (no fipsinstall config, no `fips=yes` properties) and
+   installs it as the FIPS global. Nothing bound it, but its only possible
+   effect was to make FIPS fetches resolve to mainline, and `fips/jni/` never
+   carried the equivalent. Pinned by
+   `FIPSLibraryLookupParityTest.fipsLibraryDoesNotCarryTheBaseInitGlue`. Do not
+   re-add the twin to save writing a small function.
 2. **`rand_upcall_ffi.c`** — defines no `Jo` export (internal, called from C).
    Reported as "not wrapped" rather than treated as an error.
 3. **`util/` symbols.** Only `ffi/` glue is wrapped. A util function the Java
@@ -81,6 +91,12 @@ correct, and both run on ordinary non-FIPS CI legs:
 2. `FIPSLibraryLookupParityTest.builtLibrariesHaveDisjointEntryPoints` — probes
    the built artefacts: the FIPS library exports `JoFIPS_X` and not `X`, the base
    library the reverse.
+3. `FIPSLibraryLookupParityTest.fipsLibraryDoesNotCarryTheBaseInitGlue` — the
+   FIPS library owns `JoFIPS_get_openssl_errors` and exports neither spelling of
+   the base `JoOpenSSL_*` init glue.
+4. `FIPSLibraryLookupParityTest.libCtxAccessorsAreNamedApartAcrossTheTwoLibraries`
+   — the lib ctx accessors are `get/set_global_jostle_fips_*` in the FIPS library
+   and unprefixed in the base one, so neither name exists in both.
 
 Background: `reviews/fips-ffi-distinct-symbols-plan.md`, and the
 symbol-collision section of `.claude/guides/native-code.md`.

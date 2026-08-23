@@ -192,7 +192,7 @@ int32_t dsa_generate_parameters(key_spec *spec, int32_t p_bits,
     unsigned int pbits_u = (unsigned int) p_bits;
     unsigned int qbits_u = (unsigned int) q_bits;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      "DSA", NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5000);
@@ -315,7 +315,7 @@ static int32_t dsa_fromdata(key_spec *spec,
             // success but yields a key with no public half, which
             // breaks encoding and public-side operations later.
             // Compute y = g^x mod p ourselves.
-            bn_ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
+            bn_ctx = BN_CTX_new_ex(get_global_jostle_fips_ossl_lib_ctx());
             y_bn = BN_new();
             if (OPS_OPENSSL_ERROR_5 bn_ctx == NULL || y_bn == NULL) {
                 ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5021);
@@ -363,7 +363,7 @@ static int32_t dsa_fromdata(key_spec *spec,
         goto exit;
     }
 
-    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                       "DSA", NULL);
     if (OPS_OPENSSL_ERROR_1 pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5017);
@@ -496,7 +496,7 @@ int32_t dsa_generate_key(key_spec *spec, const key_spec *params,
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(),
                                      params->key, NULL);
     // Reuses flags 3..5 (also used in paramgen / fromdata); each test
     // drives only one entry point per flag.
@@ -757,7 +757,7 @@ int32_t dsa_ctx_init_sign(dsa_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
@@ -823,7 +823,7 @@ int32_t dsa_ctx_init_verify(dsa_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;

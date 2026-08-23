@@ -35,7 +35,7 @@ int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred,
 
     rand_set_java_srand_call(rnd_src);
 
-    EVP_RAND_CTX *ctx = RAND_get0_public(get_global_jostle_ossl_lib_ctx());
+    EVP_RAND_CTX *ctx = RAND_get0_public(get_global_jostle_fips_ossl_lib_ctx());
     // The generate call reads the thread-local up-call target; clear it
     // only after the draw completes.
     int ret = EVP_RAND_generate(ctx, buf, len, strength, pred, NULL, 0);

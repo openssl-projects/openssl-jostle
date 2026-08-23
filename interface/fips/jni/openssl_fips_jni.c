@@ -98,7 +98,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJ
         goto exit;
     }
 
-    result = set_global_jostle_lib_ctx(provider_ctx);
+    result = set_global_jostle_fips_lib_ctx(provider_ctx);
     if (UNSUCCESSFUL(result)) {
         if (rand_created) {
             rand_destroy();

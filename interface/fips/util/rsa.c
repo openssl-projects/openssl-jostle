@@ -82,7 +82,7 @@ static int32_t fromdata_construct(OSSL_PARAM_BLD *bld, int selection,
         goto exit;
     }
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "RSA", NULL);
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(), "RSA", NULL);
     if (OPS_OPENSSL_ERROR_8 ctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(1031);
         goto exit;
@@ -145,7 +145,7 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
     EVP_PKEY_CTX *ctx = NULL;
     BIGNUM *e_bn = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "RSA", NULL);
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(), "RSA", NULL);
     // OPS slot _6 is reused — currently fires in configure_padding's
     // PSS-saltlen branch, which is unreachable from rsa_generate_key.
     if (OPS_OPENSSL_ERROR_6 ctx == NULL) {
@@ -670,7 +670,7 @@ int32_t rsa_ctx_init_sign(rsa_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
@@ -748,7 +748,7 @@ int32_t rsa_ctx_init_verify(rsa_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;

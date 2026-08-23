@@ -475,7 +475,7 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
 
     // Pass &new_key with new_key == NULL so d2i allocates fresh; on failure
     // it leaves *new_key NULL, avoiding the d2i-may-free-pre-alloc footgun.
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     const EVP_PKEY *new_key_ = d2i_PrivateKey_ex(EVP_PKEY_NONE, &new_key, &_src, _src_len, libctx, NULL);
 
     if (new_key_ == NULL) {
@@ -532,7 +532,7 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
 
     // Pass &new_key with new_key == NULL so d2i allocates fresh; on failure
     // it leaves *new_key NULL, avoiding the d2i-may-free-pre-alloc footgun.
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     const EVP_PKEY *new_key_ = d2i_PUBKEY_ex(&new_key, &_src, _src_len, libctx, NULL);
 
     if (new_key_ == NULL) {

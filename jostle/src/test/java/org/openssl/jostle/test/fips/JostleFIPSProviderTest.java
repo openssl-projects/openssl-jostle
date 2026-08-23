@@ -117,7 +117,13 @@ public class JostleFIPSProviderTest
                 fipsDir, "fips", fipsDir + "/fipsmodule.cnf");
         Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), rc);
         String errors = FIPSNISelector.OpenSSLFIPSNI.getOSSLErrors();
-        Assertions.assertTrue(errors != null && errors.contains("set_global_jostle_lib_ctx already called"),
+        // The fips_ prefix is load-bearing, not cosmetic: the FIPS tree names
+        // its lib ctx accessors apart from the base tree's so neither symbol
+        // exists in both interface libraries (see the name-separation note in
+        // interface/fips/util/rand/jostle_lib_ctx.h). This message reaching us
+        // unprefixed would mean the guard that fired lives in the BASE library.
+        Assertions.assertTrue(
+                errors != null && errors.contains("set_global_jostle_fips_lib_ctx already called"),
                 "expected one-shot guard message, got: " + errors);
 
         // --- coexistence -----------------------------------------------------

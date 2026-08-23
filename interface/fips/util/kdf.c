@@ -41,7 +41,7 @@ int32_t jo_pbkdf2(
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
+    kdf = EVP_KDF_fetch(get_global_jostle_fips_ossl_lib_ctx(), "PBKDF2", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(2002);
         goto exit;
@@ -96,7 +96,7 @@ int32_t jo_hkdf(
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "HKDF", NULL);
+    kdf = EVP_KDF_fetch(get_global_jostle_fips_ossl_lib_ctx(), "HKDF", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3002);
         goto exit;

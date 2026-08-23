@@ -94,6 +94,10 @@ public class FIPSLibraryLookupParityTest
      * Spread across families so a wrapper file omitted from
      * {@code FIPS_FFI_GLUE_SOURCES} is caught rather than only the one family a
      * single probe happened to name.
+     * <p>
+     * {@code JoOpenSSL_*} is deliberately absent: {@code ffi/openssl_ffi.c} is
+     * not a twin any more, so the FIPS library has no prefixed counterpart to
+     * find. {@link #fipsLibraryDoesNotCarryTheBaseInitGlue()} pins that instead.
      */
     private static final String[] ENTRY_POINTS = {
             "JoMD_Allocate", "JoMAC_allocate", "JoRSA_allocateSigner",
@@ -101,7 +105,7 @@ public class FIPSLibraryLookupParityTest
             "JoMLDSA_sign", "JoMLKEM_generateKeyPair", "JoSLHDSA_sign",
             "JoSpec_Encap", "JoASN1_allocate", "JoRand_createContext",
             "JoCCM_init", "JoKDF_HKDF", "JoXEC_generateKeyPair",
-            "JoBlockCipher_init", "JoOpenSSL_getErrors",
+            "JoBlockCipher_init",
             "JoNative_isAvailable", "JoFFI_freeUnsecureNullSafe",
     };
 
@@ -231,6 +235,151 @@ public class FIPSLibraryLookupParityTest
 
         Assertions.assertTrue(problems.isEmpty(),
                 "FIPS and base interface libraries do not have disjoint entry points:\n  "
+                        + String.join("\n  ", problems));
+    }
+
+    /**
+     * The lib ctx accessors are named apart across the two trees, so no
+     * same-named symbol exists for the dynamic loader to bind wrongly.
+     * <p>
+     * This is the deepest of the FIPS/base separations and the one whose
+     * failure is quietest. The entry-point test above catches a Java class
+     * bound to the wrong library. This catches the layer beneath it: a FIPS
+     * library that resolved {@code get_global_jostle_ossl_lib_ctx} to the BASE
+     * library's definition would run every {@code EVP_*_fetch} in the FIPS tree
+     * against the non-FIPS lib ctx — correct-looking crypto from the wrong
+     * provider, invisible to every functional test for any algorithm mainline
+     * implements identically.
+     * <p>
+     * Until 2026-08-23 that was prevented only by {@code -Wl,-Bsymbolic} on the
+     * FIPS targets (and macOS's two-level namespace). Both still apply and
+     * still matter for the ~180 other shared util symbols, but a link option is
+     * one edit away from being dropped and its absence is silent. Distinct
+     * names make the property observable, which is what this test observes.
+     * <p>
+     * Both directions are asserted, so a probe that found nothing at all would
+     * fail rather than pass vacuously.
+     */
+    @Test
+    public void libCtxAccessorsAreNamedApartAcrossTheTwoLibraries()
+    {
+        Loader.load();
+        Assumptions.assumeTrue(Loader.isFFI(), "FFI interface not in use");
+        Loader.loadFipsInterface();
+        String fipsPath = Loader.getFipsInterfaceLibPath();
+        Assumptions.assumeTrue(fipsPath != null,
+                "FIPS interface library not extracted: " + Loader.getFipsMessage());
+
+        SymbolLookup fips = SymbolLookup.libraryLookup(Paths.get(fipsPath), Arena.global());
+        SymbolLookup base = SymbolLookup.loaderLookup();
+
+        // base name -> the fips tree's name for the same accessor.
+        String[][] pairs = {
+                {"get_global_jostle_ossl_lib_ctx", "get_global_jostle_fips_ossl_lib_ctx"},
+                {"set_global_jostle_lib_ctx", "set_global_jostle_fips_lib_ctx"},
+        };
+
+        List<String> problems = new ArrayList<>();
+        for (String[] pair : pairs)
+        {
+            String baseName = pair[0];
+            String fipsName = pair[1];
+
+            if (fips.find(baseName).isPresent())
+            {
+                problems.add("FIPS library exports \"" + baseName + "\" — the base library"
+                        + " exports it too, so load-order interposition has a symbol to bind"
+                        + " and FIPS fetches could run against the non-FIPS lib ctx");
+            }
+            if (fips.find(fipsName).isEmpty())
+            {
+                problems.add("FIPS library does not export \"" + fipsName
+                        + "\" — the fips-named accessor is missing, so this test cannot tell"
+                        + " separation from a library that failed to build");
+            }
+            if (base.find(fipsName).isPresent())
+            {
+                problems.add("base library exports \"" + fipsName
+                        + "\" — the fips name no longer identifies the FIPS library");
+            }
+            if (base.find(baseName).isEmpty())
+            {
+                problems.add("base library does not export \"" + baseName
+                        + "\" — with neither library exporting it the assertions above"
+                        + " would pass vacuously");
+            }
+        }
+
+        Assertions.assertTrue(problems.isEmpty(),
+                "lib ctx accessors are not named apart across the interface libraries:\n  "
+                        + String.join("\n  ", problems));
+    }
+
+    /**
+     * The FIPS library owns its error reader and does NOT carry the base tree's
+     * init glue.
+     * <p>
+     * Until 2026-08-23 {@code interface/fips/ffi/} held a byte-identical twin of
+     * {@code openssl_ffi.c}, re-included so the FIPS library could reach
+     * {@code JoOpenSSL_getErrors}. That also exported {@code JoOpenSSL_setModule},
+     * which builds a lib ctx with {@code jostle_ctx_init_new} — no fipsinstall
+     * config, no {@code fips=yes} default properties — and installs it as this
+     * library's global. Nothing bound it, so it was never a live defect, but its
+     * only possible effect was to make every FIPS fetch resolve to mainline.
+     * <p>
+     * The JNI side never had it: {@code fips/jni/} holds only
+     * {@code openssl_fips_jni.c} with its own {@code getOSSLErrors}. This test
+     * pins the FFI side to the same shape, so restoring the twin as a shortcut
+     * fails here rather than quietly re-adding the entry point.
+     */
+    @Test
+    public void fipsLibraryDoesNotCarryTheBaseInitGlue()
+    {
+        Loader.load();
+        Assumptions.assumeTrue(Loader.isFFI(), "FFI interface not in use");
+        Loader.loadFipsInterface();
+        String fipsPath = Loader.getFipsInterfaceLibPath();
+        Assumptions.assumeTrue(fipsPath != null,
+                "FIPS interface library not extracted: " + Loader.getFipsMessage());
+
+        SymbolLookup fips = SymbolLookup.libraryLookup(Paths.get(fipsPath), Arena.global());
+        SymbolLookup base = SymbolLookup.loaderLookup();
+
+        List<String> problems = new ArrayList<>();
+
+        // The FIPS library owns its error reader, under its own name.
+        if (fips.find("JoFIPS_get_openssl_errors").isEmpty())
+        {
+            problems.add("FIPS library does not export \"JoFIPS_get_openssl_errors\""
+                    + " — OpenSSLFIPSFFI.getOSSLErrors would throw at first use");
+        }
+
+        // Neither spelling of the base init glue may be present.
+        for (String gone : new String[]{
+                "JoOpenSSL_setModule", "JoFIPS_JoOpenSSL_setModule",
+                "JoOpenSSL_getErrors", "JoFIPS_JoOpenSSL_getErrors"})
+        {
+            if (fips.find(gone).isPresent())
+            {
+                problems.add("FIPS library exports \"" + gone + "\" — the openssl_ffi.c twin"
+                        + " is back in FIPS_FFI_GLUE_SOURCES, which also re-exports a"
+                        + " setModule that installs a NON-FIPS lib ctx as the FIPS global");
+            }
+        }
+
+        // Control: the base library still has both, so a probe that found
+        // nothing anywhere could not pass this test vacuously.
+        for (String kept : new String[]{"JoOpenSSL_setModule", "JoOpenSSL_getErrors"})
+        {
+            if (base.find(kept).isEmpty())
+            {
+                problems.add("base library does not export \"" + kept
+                        + "\" — the absence assertions above would pass vacuously");
+            }
+        }
+
+        Assertions.assertTrue(problems.isEmpty(),
+                "FIPS FFI library init-glue surface is wrong:\n  "
                         + String.join("\n  ", problems));
     }
 

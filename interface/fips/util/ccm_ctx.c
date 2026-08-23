@@ -70,7 +70,7 @@ static EVP_CIPHER *ccm_fetch_evp_cipher(uint32_t cipher_id, size_t key_len, int3
             *err = JO_INVALID_CIPHER;
             return NULL;
     }
-    EVP_CIPHER *evp = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), name, NULL);
+    EVP_CIPHER *evp = EVP_CIPHER_fetch(get_global_jostle_fips_ossl_lib_ctx(), name, NULL);
     if (OPS_FAILED_CREATE_1 evp == NULL) {
         *err = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_1(4001);
         return NULL;

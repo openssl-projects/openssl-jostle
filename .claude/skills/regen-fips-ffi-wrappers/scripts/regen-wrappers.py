@@ -29,11 +29,17 @@ CMAKE = pathlib.Path("interface/CMakeLists.txt")
 PREFIX = "JoFIPS_"
 
 # FIPS-only, already JoFIPS_-named: it is not a twin and has no base counterpart.
+#
+# openssl_ffi.c has no wrapper because it is not in this tree at all. The FIPS
+# library owns its getErrors in openssl_fips_ffi.c: re-including the base twin
+# to get it would also export a setModule building a lib ctx via
+# jostle_ctx_init_new - no fipsinstall config, no fips=yes properties - and
+# installing it as the FIPS global. Nothing bound it, but the only thing it
+# could do was make FIPS fetches resolve to mainline. fips/jni never carried
+# the equivalent. Do not add the twin back.
 SKIP = {"openssl_fips_ffi.c"}
 
-# openssl_ffi.c's wrapper cannot be openssl_fips_ffi.c - that name is taken by
-# the FIPS-only capability/init file above.
-STEM_OVERRIDE = {"openssl_ffi.c": "openssl_ni"}
+STEM_OVERRIDE = {}
 
 HEADER = """//  Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
 //

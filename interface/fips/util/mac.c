@@ -106,7 +106,7 @@ mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) 
 
 
     ERR_clear_error();
-    mctx->mac = EVP_MAC_fetch(get_global_jostle_ossl_lib_ctx(), mctx->mac_name, NULL);
+    mctx->mac = EVP_MAC_fetch(get_global_jostle_fips_ossl_lib_ctx(), mctx->mac_name, NULL);
     if (OPS_OPENSSL_ERROR_1 mctx->mac == NULL) {
         *err = JO_OPENSSL_ERROR;
         goto exit;
@@ -317,7 +317,7 @@ int32_t mac_len_for(mac_ctx *mctx) {
     jo_assert(mctx->mac_name != NULL);
     jo_assert(mctx->function_name != NULL);
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     EVP_MD *md = NULL;
     EVP_CIPHER *cipher = NULL;
     int32_t ret;

@@ -33,10 +33,21 @@ else
   echo "WARNING: TEST_FIPS_LIB unset — FIPS-gated classes will skip." >&2
 fi
 
-TASKS=(test unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI)
+# Task names may be given as arguments; the five-task matrix is the default.
+# The OPS pass uses this to run only integrationTest25JNI/FFI, where every
+# *OpsTest lives - repeating the 27-minute base `test` task would add nothing.
+# JOSTLE_REQUIRE_OPS=1 additionally demands the OpsTest classes actually ran.
+TASKS=("$@")
+if [ "${#TASKS[@]}" -eq 0 ]; then
+  TASKS=(test unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI)
+fi
+
+REQUIRE_OPS=""
+[ -n "${JOSTLE_REQUIRE_OPS:-}" ] && REQUIRE_OPS="--require-ops"
+
 for t in "${TASKS[@]}"; do
   echo "=== :jostle:$t --rerun ==="
   ./gradlew ":jostle:$t" --rerun
 done
 
-python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS "${TASKS[@]}"
+python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${TASKS[@]}"

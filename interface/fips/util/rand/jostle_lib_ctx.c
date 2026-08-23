@@ -8,7 +8,10 @@
 #include "../jo_assert.h"
 
 
-static jostle_lib_ctx *global_rand_ctx = NULL;
+// FIPS-only state, deliberately named apart from the base tree's
+// global_rand_ctx: this holds the lib ctx that carries the validated module.
+// See the name-separation note in jostle_lib_ctx.h.
+static jostle_lib_ctx *global_fips_lib_ctx = NULL;
 static CRYPTO_THREAD_LOCAL java_srand_id;
 
 
@@ -25,8 +28,11 @@ static CRYPTO_THREAD_LOCAL java_srand_id;
 //      (bridge-less). Reached only through the base-named FFI init export
 //      (ffi/openssl_ffi.c, part of the shared FFI glue set); the JSLFIPS
 //      Java classes always use jostle_ctx_init_fips instead.
-//   2. set_global_jostle_lib_ctx / get_global_jostle_ossl_lib_ctx — the
-//      provider-wide lib ctx accessor used by every util module.
+//   2. set_global_jostle_fips_lib_ctx / get_global_jostle_fips_ossl_lib_ctx —
+//      the provider-wide lib ctx accessor used by every util module. Named
+//      apart from the base tree's pair on purpose, so neither symbol exists
+//      twice across the four interface libraries; the byte-identical util
+//      twins reach them through the redirect in jostle_lib_ctx.h.
 //   3. rand_set_java_srand_call — sets the per-thread up-call target. The
 //      bridge glue calls it on every entropy-accepting entry point (the
 //      util twins are byte-identical across trees), but in the FIPS tree
@@ -73,7 +79,7 @@ void jostle_ctx_destroy(jostle_lib_ctx *ctx) {
 }
 
 // No provider-unload path today. State held for JVM lifetime, freed at JVM
-// shutdown. Future teardown must: clear global_rand_ctx, jostle_ctx_destroy,
+// shutdown. Future teardown must: clear global_fips_lib_ctx, jostle_ctx_destroy,
 // DeleteGlobalRef target_class, CRYPTO_THREAD_cleanup_local java_srand_id.
 
 
@@ -87,13 +93,13 @@ static void init_thread_local_once(void) {
     }
 }
 
-int32_t set_global_jostle_lib_ctx(jostle_lib_ctx *new_ctx) {
+int32_t set_global_jostle_fips_lib_ctx(jostle_lib_ctx *new_ctx) {
     // Call once at provider startup. Second call rejected.
-    // Check-then-assign on global_rand_ctx is not atomic; concurrent callers
-    // may leak a jostle_lib_ctx. Acceptable given single-call contract.
-    if (global_rand_ctx != NULL) {
+    // Check-then-assign on global_fips_lib_ctx is not atomic; concurrent
+    // callers may leak a jostle_lib_ctx. Acceptable given single-call contract.
+    if (global_fips_lib_ctx != NULL) {
         ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
-                       "set_global_jostle_lib_ctx already called; provider startup must invoke it once");
+                       "set_global_jostle_fips_lib_ctx already called; provider startup must invoke it once");
         return JO_OPENSSL_ERROR;
     }
 
@@ -102,20 +108,21 @@ int32_t set_global_jostle_lib_ctx(jostle_lib_ctx *new_ctx) {
         return JO_OPENSSL_ERROR;
     }
 
-    global_rand_ctx = new_ctx;
+    global_fips_lib_ctx = new_ctx;
     return JO_SUCCESS;
 }
 
 
 /**
  * Getter for the underlying OSSL_LIB_CTX (FIPS tree: no rand bridge).
- * Non-mutating, thread safe but no locks, expects set_global_jostle_lib_ctx to have
- * been called with valid jostle_lib_ctx before use.
+ * Non-mutating, thread safe but no locks, expects
+ * set_global_jostle_fips_lib_ctx to have been called with valid
+ * jostle_lib_ctx before use.
  * @return an OSSL_LIB_CTX
  */
-OSSL_LIB_CTX *get_global_jostle_ossl_lib_ctx(void) {
-    jo_assert(global_rand_ctx != NULL);
-    return global_rand_ctx->ossl_libctx;
+OSSL_LIB_CTX *get_global_jostle_fips_ossl_lib_ctx(void) {
+    jo_assert(global_fips_lib_ctx != NULL);
+    return global_fips_lib_ctx->ossl_libctx;
 }
 
 

@@ -89,7 +89,7 @@ int32_t ec_curve_supported(const char *curve_name) {
     EVP_PKEY_CTX *ctx = NULL;
     EVP_PKEY *pkey = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      "EC", NULL);
     if (ctx == NULL) {
         goto exit;
@@ -145,7 +145,7 @@ int32_t ec_generate_key(key_spec *spec, const char *curve_name,
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      "EC", NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3000);
@@ -389,14 +389,14 @@ int32_t ec_make_private_from_components(key_spec *spec,
             OSSL_PKEY_PARAM_GROUP_NAME, (char *) curve_name, 0);
     group_params[1] = OSSL_PARAM_construct_end();
     group = EC_GROUP_new_from_params(group_params,
-                                     get_global_jostle_ossl_lib_ctx(), NULL);
+                                     get_global_jostle_fips_ossl_lib_ctx(), NULL);
     if (OPS_OPENSSL_ERROR_3 group == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3019);
         goto exit;
     }
 
     pub_point = EC_POINT_new(group);
-    bn_ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
+    bn_ctx = BN_CTX_new_ex(get_global_jostle_fips_ossl_lib_ctx());
     if (OPS_OPENSSL_ERROR_4 pub_point == NULL || bn_ctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3022);
         goto exit;
@@ -453,7 +453,7 @@ int32_t ec_make_private_from_components(key_spec *spec,
         goto exit;
     }
 
-    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                       "EC", NULL);
     if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3015);
@@ -640,7 +640,7 @@ int32_t ec_ctx_init_sign(ec_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
@@ -703,7 +703,7 @@ int32_t ec_ctx_init_verify(ec_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;
@@ -1029,7 +1029,7 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
     ctx->peer_set = 0;
 
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(
-            get_global_jostle_ossl_lib_ctx(), my_priv->key, NULL);
+            get_global_jostle_fips_ossl_lib_ctx(), my_priv->key, NULL);
     if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
         rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3070);

@@ -152,7 +152,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         String result = null;
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("JoFIPS_JoOpenSSL_getErrors").orElseThrow();
+            var func = lookup.find("JoFIPS_get_openssl_errors").orElseThrow();
             var len = arena.allocate(ValueLayout.ADDRESS);
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 

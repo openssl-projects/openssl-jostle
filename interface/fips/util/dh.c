@@ -67,7 +67,7 @@ int32_t dh_group_supported(const char *group_name) {
     EVP_PKEY_CTX *ctx = NULL;
     EVP_PKEY *pkey = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      "DH", NULL);
     if (ctx == NULL) {
         goto exit;
@@ -123,7 +123,7 @@ int32_t dh_generate_key_by_group(key_spec *spec, const char *group_name,
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      "DH", NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5200);
@@ -187,7 +187,7 @@ int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
     EVP_PKEY_CTX *ctx = NULL;
     unsigned int pbits_u = (unsigned int) p_bits;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      "DH", NULL);
     // Reuses flags 6..9 (flags 1..5 cover the named-group keygen path);
     // each test drives only one entry point per flag.
@@ -340,7 +340,7 @@ static int32_t dh_fromdata(key_spec *spec,
             // breaks encoding and public-side operations later.
             // Compute y = g^x mod p ourselves (dsa_fromdata
             // rationale).
-            bn_ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
+            bn_ctx = BN_CTX_new_ex(get_global_jostle_fips_ossl_lib_ctx());
             y_bn = BN_new();
             if (OPS_OPENSSL_ERROR_5 bn_ctx == NULL || y_bn == NULL) {
                 ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5223);
@@ -387,7 +387,7 @@ static int32_t dh_fromdata(key_spec *spec,
         goto exit;
     }
 
-    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                       "DH", NULL);
     if (OPS_OPENSSL_ERROR_1 pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5230);
@@ -512,7 +512,7 @@ int32_t dh_generate_key(key_spec *spec, const key_spec *params,
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(),
                                      params->key, NULL);
     // Reuses flags 3..6 (dsa_generate_key precedent); each test drives
     // only one entry point per flag.
@@ -701,7 +701,7 @@ int32_t dh_kex_init(dh_kex_ctx *ctx, const key_spec *my_priv,
     ctx->peer_set = 0;
 
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(
-            get_global_jostle_ossl_lib_ctx(), my_priv->key, NULL);
+            get_global_jostle_fips_ossl_lib_ctx(), my_priv->key, NULL);
     if (OPS_OPENSSL_ERROR_11 pctx == NULL) {
         rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(5260);

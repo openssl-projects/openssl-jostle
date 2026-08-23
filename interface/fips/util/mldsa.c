@@ -75,7 +75,7 @@ int setup_hash(int hash, int32_t *ret_code, EVP_MD_CTX **ctx) {
     }
 
     if (hash == MLDSA_HASH_NONE) {
-        EVP_MD *evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
+        EVP_MD *evp_md = EVP_MD_fetch(get_global_jostle_fips_ossl_lib_ctx(), "SHAKE-256",NULL);
         jo_assert(evp_md != NULL);
         const int init_ok = EVP_DigestInit_ex2(*ctx, evp_md, NULL);
         EVP_MD_free(evp_md);
@@ -147,7 +147,7 @@ int extract_tr(const key_spec *key_spec, int32_t type, uint8_t *tr, int32_t *ret
         goto exit;
     }
 
-    evp_md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), "SHAKE-256",NULL);
+    evp_md = EVP_MD_fetch(get_global_jostle_fips_ossl_lib_ctx(), "SHAKE-256",NULL);
     jo_assert(evp_md != NULL);
 
     if (OPS_FAILED_INIT_1 1 != EVP_DigestInit_ex2(shake, evp_md, NULL)) {
@@ -275,15 +275,15 @@ int32_t mldsa_generate_key_pair(key_spec *spec, int32_t type, uint8_t *seed, siz
 
     switch (type) {
         case KS_MLDSA_44:
-            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-DSA-44", NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(), "ML-DSA-44", NULL);
             break;
 
         case KS_MLDSA_65:
-            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-DSA-65", NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(), "ML-DSA-65", NULL);
             break;
 
         case KS_MLDSA_87:
-            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "ML-DSA-87", NULL);
+            ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(), "ML-DSA-87", NULL);
             break;
         default:
             ret_code = JO_INCORRECT_KEY_TYPE;
@@ -570,7 +570,7 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
         // the provider rejects for a 32-byte value, so a seed MUST go through
         // fromdata. Deterministic expansion - consumes no entropy, so no
         // rnd_src is needed on this path.
-        fromdata_ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), type, NULL);
+        fromdata_ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(), type, NULL);
         if (OPS_OPENSSL_ERROR_2 fromdata_ctx == NULL) {
             ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2050);
             goto exit;
@@ -591,7 +591,7 @@ int32_t mldsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
             goto exit;
         }
     } else if (min_len == src_len) {
-        key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+        key_spec->key = EVP_PKEY_new_raw_private_key_ex(get_global_jostle_fips_ossl_lib_ctx(), type,NULL, src, src_len);
     } else {
         ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
         goto exit;
@@ -679,7 +679,7 @@ int32_t mldsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
         key_spec->key = NULL;
     }
 
-    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
+    key_spec->key = EVP_PKEY_new_raw_public_key_ex(get_global_jostle_fips_ossl_lib_ctx(), type,NULL, src, src_len);
 
 #ifdef JOSTLE_OPS
     if (OPS_OPENSSL_ERROR_1 0) {
@@ -812,7 +812,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
 
     int32_t typeId = KS_NONE;
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
 
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
@@ -989,7 +989,7 @@ int32_t mldsa_ctx_init_verify(
     }
 
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
 
     int32_t typeId = KS_NONE;
     if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {

@@ -38,7 +38,7 @@ int32_t capability_can_fetch(int32_t op_type, const char *name) {
     jo_assert(name != NULL);
     jo_assert(op_type >= JO_CAP_OP_MIN && op_type <= JO_CAP_OP_MAX);
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     int32_t found = 0;
 
     // Scoped so a failed fetch cannot leave "unsupported algorithm" noise on
@@ -117,7 +117,7 @@ int32_t capability_module_version(char *out, size_t out_len) {
 
     out[0] = '\0';
 
-    OSSL_PROVIDER *prov = OSSL_PROVIDER_load(get_global_jostle_ossl_lib_ctx(),
+    OSSL_PROVIDER *prov = OSSL_PROVIDER_load(get_global_jostle_fips_ossl_lib_ctx(),
                                              FIPS_PROVIDER_NAME);
     if (prov == NULL) {
         ERR_clear_error();
@@ -168,7 +168,7 @@ int32_t capability_implementing_provider(int32_t op_type, const char *name,
 
     out[0] = '\0';
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     const OSSL_PROVIDER *prov = NULL;
 
     // Scoped: an unfetchable name is a legitimate answer here, not an error to

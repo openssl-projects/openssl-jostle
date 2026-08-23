@@ -39,7 +39,7 @@ int32_t xec_generate_key(key_spec *spec, const char *name, void *rnd_src) {
     int32_t ret_code = JO_FAIL;
     EVP_PKEY_CTX *ctx = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
                                      name, NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         // Unknown type name lands here too (EVP_PKEY_CTX_new_from_name

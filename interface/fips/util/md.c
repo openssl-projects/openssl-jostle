@@ -25,7 +25,7 @@
 md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     ERR_clear_error();
 
-    EVP_MD *md = EVP_MD_fetch(get_global_jostle_ossl_lib_ctx(), name,NULL);
+    EVP_MD *md = EVP_MD_fetch(get_global_jostle_fips_ossl_lib_ctx(), name,NULL);
     if (md == NULL) {
         *err = JO_NAME_NOT_FOUND;
         return NULL;

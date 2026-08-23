@@ -17,13 +17,46 @@ On drift the report prints the diff stat and the cp commands for BOTH
 directions — the human/agent picks the direction; the script never writes.
 """
 
+import difflib
 import os
-import subprocess
 import sys
 
 REPO = os.getcwd()
 NONFIPS = "interface/nonfips"
 FIPS = "interface/fips"
+
+# --- sanctioned UNIFORM renames --------------------------------------------
+
+# The FIPS tree names its lib ctx accessors apart from the base tree's, so that
+# no symbol of either name exists in both interface libraries - see the
+# name-separation note in interface/fips/util/rand/jostle_lib_ctx.h. Every call
+# site in the FIPS tree spells the fips name directly (deliberately: an alias
+# in the header would hide the very fact the separation exists to make visible).
+#
+# That is a uniform, mechanical rename, not drift. Normalising it away before
+# comparing keeps the ~20 affected util files under full twin discipline for
+# every OTHER difference - which is the point. Listing them in
+# DIVERGENT_CONTENT instead would stop checking them entirely, and a fix
+# applied to one tree and not the other is exactly what this script exists to
+# catch.
+ACCESSOR_ALIASES = (
+    (b"get_global_jostle_fips_ossl_lib_ctx", b"get_global_jostle_ossl_lib_ctx"),
+    (b"set_global_jostle_fips_lib_ctx", b"set_global_jostle_lib_ctx"),
+)
+
+
+def normalise(data):
+    """Map the fips-named accessors back onto the base names. A no-op on base
+    tree content, which never mentions the fips names."""
+    for fips_name, base_name in ACCESSOR_ALIASES:
+        data = data.replace(fips_name, base_name)
+    return data
+
+
+def renamed(data):
+    """True if this file carries the accessor rename, so a raw cp between the
+    trees would clobber it (and break the FIPS build at link time)."""
+    return any(f in data for f, _ in ACCESSOR_ALIASES)
 
 # --- sanctioned divergences -------------------------------------------------
 
@@ -32,7 +65,13 @@ DIVERGENT_CONTENT = {
     "util/rand.c",                    # rand_init_fips added in the fips tree
     "util/rand.h",                    # rand_init_fips declaration
     "util/rand/jostle_lib_ctx.c",     # nonfips: jrand bridge + RAND_set_DRBG_type;
-                                      # fips: bridge excised (2026-07-12), bridge-less init
+                                      # fips: bridge excised (2026-07-12), bridge-less init;
+                                      # fips-named accessors + static (2026-08-23)
+    "util/rand/jostle_lib_ctx.h",     # fips: declares the fips-named lib ctx accessors and
+                                      # redirects the base names onto them, so the FIPS
+                                      # libraries define neither base symbol. Keeps the ~20
+                                      # util callers byte-identical twins; see the
+                                      # name-separation note in the fips header.
     "util/bc_err_codes.h",            # fips adds the -400 JO_FIPS_* block
 }
 
@@ -51,8 +90,16 @@ NONFIPS_ONLY_PREFIXES = (
     "jni/ed_", "jni/edec", "jni/ks_",
     "ffi/ed_", "ffi/edec", "ffi/ks_",
     # base-provider init/diagnostic glue with fips-tree counterparts under
-    # different names (openssl_fips_jni.c) or no FIPS equivalent at all
-    "jni/open_ssl_jni", "jni/native_info",
+    # different names (openssl_fips_{jni,ffi}.c) or no FIPS equivalent at all.
+    #
+    # ffi/openssl_ffi was a twin until 2026-08-23: the FIPS library re-included
+    # it for JoOpenSSL_getErrors and thereby also exported JoOpenSSL_setModule,
+    # which installs a lib ctx built by jostle_ctx_init_new - no fipsinstall
+    # config, no fips=yes properties - as the FIPS global. Nothing bound it, but
+    # its only possible effect was to make FIPS fetches resolve to mainline.
+    # openssl_fips_ffi.c now owns JoFIPS_get_openssl_errors, matching what
+    # jni/open_ssl_jni had always done. Do not restore the twin.
+    "jni/open_ssl_jni", "jni/native_info", "ffi/openssl_ffi",
     # memory-hard password KDFs (scrypt, Argon2). Neither is served by the
     # OpenSSL FIPS provider (both build only into libdefault.a; neither appears
     # in fipsprov.c) and neither is registered by ProvFIPSKDF, so their bridges
@@ -111,8 +158,11 @@ def main():
             print(f"FILE-SET: {rel} exists only in fips (not in the sanctioned fips-only list)")
             violations += 1
             continue
-        # present in both
-        same = open(a[rel], "rb").read() == open(b[rel], "rb").read()
+        # present in both. Compared after normalising the sanctioned accessor
+        # rename, so those files stay under twin discipline for everything else.
+        raw_a = open(a[rel], "rb").read()
+        raw_b = open(b[rel], "rb").read()
+        same = normalise(raw_a) == normalise(raw_b)
         if rel in DIVERGENT_CONTENT:
             if same and not quiet:
                 print(f"NOTE: {rel} is sanctioned-divergent but currently identical "
@@ -123,18 +173,24 @@ def main():
             continue
         violations += 1
         print(f"DRIFT: {rel} differs between trees but is required to be a byte-identical twin")
-        diff = subprocess.run(
-            ["diff", "--brief" if quiet else "-u",
-             os.path.join(NONFIPS, rel), os.path.join(FIPS, rel)],
-            capture_output=True, text=True, cwd=REPO)
         if not quiet:
-            lines = diff.stdout.splitlines()
+            # Diff the NORMALISED content: the accessor rename is sanctioned, so
+            # showing it here would bury the real drift in noise.
+            lines = list(difflib.unified_diff(
+                normalise(raw_a).decode("utf-8", "replace").splitlines(),
+                normalise(raw_b).decode("utf-8", "replace").splitlines(),
+                fromfile=f"{NONFIPS}/{rel}", tofile=f"{FIPS}/{rel}", lineterm=""))
             for line in lines[:20]:
                 print("    " + line)
             if len(lines) > 20:
                 print(f"    ... ({len(lines) - 20} more diff lines)")
-        print(f"    sync nonfips->fips: cp {NONFIPS}/{rel} {FIPS}/{rel}")
-        print(f"    sync fips->nonfips: cp {FIPS}/{rel} {NONFIPS}/{rel}")
+        if renamed(raw_b):
+            print(f"    NOTE: the fips copy carries the lib ctx accessor rename; a raw cp"
+                  f" either way clobbers it and breaks the FIPS build. Port the real"
+                  f" change by hand, keeping the fips accessor names.")
+        else:
+            print(f"    sync nonfips->fips: cp {NONFIPS}/{rel} {FIPS}/{rel}")
+            print(f"    sync fips->nonfips: cp {FIPS}/{rel} {NONFIPS}/{rel}")
 
     print(f"\n{ok_twins} twin files identical, {violations} violation(s)")
     if violations == 0:

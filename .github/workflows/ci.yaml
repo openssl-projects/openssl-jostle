@@ -125,6 +125,37 @@ jobs:
           path: "jostle/jostle/src/main/resources/native"
           if-no-files-found: "error"
           retention-days: 1
+      # ----- the SHIPPED library -----
+      # Everything above is built with JOSTLE_OPS_TEST, which is right: it is
+      # the only way the ~40 *OpsTest classes run at all (the OPS_* macros
+      # expand to nothing otherwise, and every one of them assumption-skips
+      # while the suite still reports green).
+      #
+      # But that left no test job anywhere exercising the library we actually
+      # ship. release-build.yaml builds it uninstrumented and runs no tests.
+      # The OPS build is very nearly a superset - `OPS_X cond` expands to
+      # `is_ops_set(N) || cond`, which with no flag set is just `cond` - but
+      # "very nearly" was carrying the whole argument, and the OPS build also
+      # exports the operations-test entry points, so it is not the same
+      # artifact.
+      #
+      # One runner, rebuilt from the OpenSSL already built in this job, so the
+      # cost is a single C compile. Consumed by test-posix-shipped.
+      - name: "Rebuild the interface WITHOUT ops instrumentation"
+        if: matrix.runner == 'ubuntu-latest'
+        working-directory: "jostle"
+        env:
+          OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
+        run: |
+          ./interface/build.sh
+      - name: "Upload shipped native libraries"
+        if: matrix.runner == 'ubuntu-latest'
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-shipped-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
       # ----- FIPS modules (both supported versions, enable-fips) -----
       # The interface links against the mainline libcrypto above; at runtime
       # the JSLFIPS provider loads one of THESE modules into its own lib ctx.
@@ -408,6 +439,110 @@ jobs:
         if: success() || failure()
         with:
           check_name: "${{ matrix.runner }} - ${{ matrix.config.name }} - module ${{ matrix.module }}"
+          report_paths: "**/build/test-results/**/TEST-*.xml"
+
+  # The shipped library, which no other job tests.
+  #
+  # Every other test job runs against the JOSTLE_OPS_TEST build (see the
+  # "SHIPPED library" note in build-posix). That is the right default - it is
+  # what makes the *OpsTest classes run - but it means the uninstrumented
+  # artifact that release-build.yaml produces had no test coverage at all.
+  #
+  # Deliberately narrow, because this covers a difference in the BUILD, not in
+  # the platform or the module: one runner, one module configuration, JNI and
+  # FFI. The *OpsTest classes skip here by design (no instrumentation) - that
+  # is expected, not a gap, and it is why the OPS jobs above still carry the
+  # fault-injection coverage. Widening this to every runner would re-run the
+  # same comparison many times over.
+  test-posix-shipped:
+    needs: "build-posix"
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { name: "shipped-jni", tasks: "unitTest25JNI integrationTest25JNI" }
+          - { name: "shipped-ffi", tasks: "unitTest25FFI integrationTest25FFI" }
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      # NOTE the artifact: native-shipped-*, NOT native-*. Downloading the
+      # wrong one silently turns this job into a duplicate of test-posix.
+      - name: "Download shipped native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-ubuntu-latest"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download FIPS module"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "fips-module-ubuntu-latest"
+          path: "fips-module"
+      - name: "Set up Java 25"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          cache-read-only: true
+      - name: "Point BC_JDK25 and TEST_FIPS_LIB at the toolchain / module"
+        shell: "bash"
+        run: |
+          echo "BC_JDK25=${JAVA_HOME_25_X64:-$JAVA_HOME_25_ARM64}" >> "$GITHUB_ENV"
+          # 3.5.7 is the -pedantic config: the strictest of the three, so the
+          # capability gates actually fire rather than sitting dormant.
+          lib="${{ github.workspace }}/fips-module/3.5.7/fips.so"
+          if [ ! -f "$lib" ]; then
+            echo "FIPS module not staged at $lib" >&2
+            ls -R "${{ github.workspace }}/fips-module" >&2 || true
+            exit 1
+          fi
+          echo "TEST_FIPS_LIB=$lib" >> "$GITHUB_ENV"
+      # Fail loudly if the artifact was instrumented after all - otherwise this
+      # job would quietly become a second OPS run and the shipped library would
+      # go back to being untested, with nothing to show for it.
+      - name: "Assert the artifact is NOT ops-instrumented"
+        shell: "bash"
+        working-directory: "jostle"
+        run: |
+          set -eu
+          # Resolve the library explicitly. A glob that matches nothing would
+          # make grep exit non-zero, which reads as "not instrumented" - the
+          # answer we want, for the wrong reason. Absent means unknown, and
+          # unknown must fail.
+          lib=$(ls jostle/src/main/resources/native/linux/*/libinterface_ffi.so 2>/dev/null | head -1)
+          if [ -z "$lib" ]; then
+            echo "no linux interface library in the downloaded artifact" >&2
+            find jostle/src/main/resources/native -type f >&2 || true
+            exit 1
+          fi
+          # JoOps_setFlag exists only under JOSTLE_OPS (ffi/ops_ffi.c is inside
+          # #ifdef JOSTLE_OPS). Symbol names appear literally in ELF, so a byte
+          # search needs no toolchain. Same probe as the verify-test-matrix
+          # skill's verify-results.py.
+          if grep -qa "JoOps_setFlag" "$lib"; then
+            echo "$lib IS ops-instrumented — the plain rebuild step in" >&2
+            echo "build-posix did not take effect, so this job would be a" >&2
+            echo "duplicate of test-posix and the shipped library untested." >&2
+            exit 1
+          fi
+          echo "confirmed shipped (uninstrumented) library: $lib"
+      - name: "Run tests against the shipped library"
+        working-directory: "jostle"
+        env:
+          GRADLE_TASKS: "${{ matrix.config.tasks }}"
+        run: |
+          ./gradlew --rerun-tasks ${GRADLE_TASKS}
+      - name: "Publish Test Report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: success() || failure()
+        with:
+          check_name: "ubuntu-latest - ${{ matrix.config.name }} - shipped build"
           report_paths: "**/build/test-results/**/TEST-*.xml"
 
   build-windows:

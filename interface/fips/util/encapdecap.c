@@ -34,7 +34,7 @@ int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t
 
     ERR_clear_error();
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1101);
@@ -122,7 +122,7 @@ int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, c
 
     ERR_clear_error();
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(), key_spec->key, NULL);
     if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1201);
         goto exit;

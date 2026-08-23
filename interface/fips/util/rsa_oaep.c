@@ -98,7 +98,7 @@ int32_t rsa_oaep_init(rsa_oaep_ctx *ctx, const key_spec *key,
         return check;
     }
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 

@@ -189,8 +189,9 @@ set(FIPS_FFI_GLUE_SOURCES
         fips/ffi/types.h
         fips/ffi/native_info_ffi.h
         fips/ffi/native_info_fips_ffi.c
-        fips/ffi/openssl_ffi.h
-        fips/ffi/openssl_ni_fips_ffi.c
+        # No openssl_ffi.c twin here: the FIPS library owns its getErrors in
+        # openssl_fips_ffi.c. Re-including the twin would also export a
+        # setModule that installs a NON-FIPS lib ctx as this library's global.
         fips/ffi/openssl_fips_ffi.h
         fips/ffi/openssl_fips_ffi.c
         fips/ffi/ops_fips_ffi.c
@@ -702,11 +703,16 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
     #
     # --- FIPS JNI + FFI Libraries (no OPS / coverage instrumentation; see
     #     the FIPS source-list comment above). -Bsymbolic is REQUIRED here:
-    #     with two interface libraries exporting the same util symbols, ELF
+    #     the two trees still share ~180 internal util symbol names, and ELF
     #     load-order interposition would otherwise bind the FIPS library's
-    #     internal calls to the base library's copies - silently running
-    #     "FIPS" operations against the non-FIPS lib ctx. -Bsymbolic binds
-    #     this library's references to its own definitions at link time.
+    #     internal calls to the base library's copies. -Bsymbolic binds this
+    #     library's references to its own definitions at link time.
+    #
+    #     Do NOT read this as the only thing keeping FIPS work in the FIPS
+    #     lib ctx. The lib ctx accessors are named apart in the FIPS tree
+    #     (get/set_global_jostle_fips_*), so no same-named symbol exists for
+    #     interposition to reach - that guarantee is in the names and holds
+    #     without this flag. See interface/fips/util/rand/jostle_lib_ctx.h.
     #
     add_library(interface_fips_jni SHARED ${FIPS_JNI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
     target_include_directories(interface_fips_jni PUBLIC "${OPENSSL_PREFIX}/include" "${JNI_INCLUDE}")

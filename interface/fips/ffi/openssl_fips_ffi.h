@@ -48,4 +48,16 @@ int32_t JoFIPS_implementing_provider(int32_t op_type, const char *name,
                                      char *out, int32_t out_len);
 
 
+/*
+ * Drain this library's OpenSSL error queue into a caller-owned, NUL-terminated
+ * heap string; *len receives the allocation size including the terminator.
+ * Freed from Java with JoFFI_freeUnsecureNullSafe.
+ *
+ * The FIPS library owns this rather than re-including the base tree's
+ * openssl_ffi.c: that twin also exports a setModule which would install a
+ * non-FIPS lib ctx as this library's global. See the note on the definition.
+ */
+char *JoFIPS_get_openssl_errors(uint64_t *len);
+
+
 #endif //OPENSSL_FIPS_FFI_H

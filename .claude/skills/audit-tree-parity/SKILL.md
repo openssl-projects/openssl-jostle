@@ -1,6 +1,6 @@
 ---
 name: audit-tree-parity
-description: Verify the interface/nonfips and interface/fips native trees honour the twin discipline — byte-identical files everywhere except the sanctioned divergence list (rand.c, rand.h, jostle_lib_ctx.c, bc_err_codes.h, the fips-only/nonfips-only file sets) — and report unsanctioned drift with sync commands. Use this skill whenever the user wants the two trees checked or synchronized — including phrases like "check tree parity", "did the fips tree get the fix", "are the twins in sync", "audit fips/nonfips drift", "sync the trees", "cross-tree check", and similar. Run after ANY edit to interface/ (both-tree fixes are applied deliberately, never automatically) and before declaring a native change done.
+description: Verify the interface/nonfips and interface/fips native trees honour the twin discipline — byte-identical files everywhere except the sanctioned divergence list (rand.c, rand.h, jostle_lib_ctx.c/.h, bc_err_codes.h, the fips-only/nonfips-only file sets) and the normalised lib ctx accessor rename — and report unsanctioned drift with sync commands. Use this skill whenever the user wants the two trees checked or synchronized — including phrases like "check tree parity", "did the fips tree get the fix", "are the twins in sync", "audit fips/nonfips drift", "sync the trees", "cross-tree check", and similar. Run after ANY edit to interface/ (both-tree fixes are applied deliberately, never automatically) and before declaring a native change done.
 ---
 
 # Audit fips/nonfips tree parity
@@ -21,13 +21,14 @@ python3 .claude/skills/audit-tree-parity/scripts/check-tree-parity.py           
 python3 .claude/skills/audit-tree-parity/scripts/check-tree-parity.py --quiet   # violations only
 ```
 
-Exit 0 = clean, 1 = at least one violation. The script never writes; on drift it prints the diff head plus the `cp` command for **both** directions — choosing the direction is the reviewer's job, because "which tree has the correct version" is exactly the question a sync tool must not answer mechanically.
+Exit 0 = clean, 1 = at least one violation. The script never writes; on drift it prints the diff head plus the `cp` command for **both** directions — choosing the direction is the reviewer's job, because "which tree has the correct version" is exactly the question a sync tool must not answer mechanically. For files carrying a sanctioned uniform rename (category 4 below) the `cp` advice is replaced by a warning, because a raw copy either way clobbers the rename.
 
-## The sanctioned divergences (2026-07-12)
+## The sanctioned divergences
 
-1. **Content divergence** (same path, different bytes allowed): `util/rand.c` / `util/rand.h` (the fips tree adds `rand_init_fips`), `util/rand/jostle_lib_ctx.c` (nonfips carries the jrand bridge + `RAND_set_DRBG_type` install; the fips copy had the bridge excised so it cannot be wired in by accident), and `util/bc_err_codes.h` (fips appends the -400 `JO_FIPS_*` block; the shared range MUST still match — the script can't see partial-file drift there, so eyeball new shared codes land in both).
-2. **Nonfips-only files**: the algorithm families the FIPS provider doesn't ship (edec, ks, mldsa, mlkem, slhdsa/slh_dsa in util/jni/ffi) plus `jni/open_ssl_jni.c` and `jni/native_info_jni.c` (base init/diagnostic glue; the fips tree has its own `openssl_fips_jni.c`).
-3. **Fips-only files**: `util/rand/jostle_fips_ctx.*` and every `*_fips_jni.c` / `*_fips_*` rename-re-include wrapper.
+1. **Content divergence** (same path, different bytes allowed): `util/rand.c` / `util/rand.h` (the fips tree adds `rand_init_fips`), `util/rand/jostle_lib_ctx.c` and `util/rand/jostle_lib_ctx.h` (nonfips carries the jrand bridge + `RAND_set_DRBG_type` install; the fips copy had the bridge excised so it cannot be wired in by accident, and declares the fips-named lib ctx accessors), and `util/bc_err_codes.h` (fips appends the -400 `JO_FIPS_*` block; the shared range MUST still match — the script can't see partial-file drift there, so eyeball new shared codes land in both).
+2. **Nonfips-only files**: the algorithm families the FIPS provider doesn't ship — `edec`, `ks` and the memory-hard KDFs (`kdf_memhard`) in util/jni/ffi — plus `jni/open_ssl_jni.c` and `jni/native_info_jni.c` (base init/diagnostic glue; the fips tree has its own `openssl_fips_jni.c`). **ML-DSA / ML-KEM / SLH-DSA are NOT on this list any more** — the 3.5.x module implements all three, so they are ordinary twins as of 2026-08-23.
+3. **Fips-only files**: `util/rand/jostle_fips_ctx.*`, `util/capability.*`, and every `*_fips_jni.c` / `*_fips_*` rename-re-include wrapper.
+4. **Uniform renames, normalised rather than exempted** (`ACCESSOR_ALIASES`): the FIPS tree names its lib ctx accessors apart (`get_global_jostle_fips_ossl_lib_ctx`, `set_global_jostle_fips_lib_ctx`) so no symbol of either name exists in both interface libraries. The ~20 util files that call them are **not** exempted — the script maps the fips names back to the base names before comparing, so those files stay under full twin discipline for every other difference, and prints normalised diffs so the rename cannot bury a real change. Renaming an accessor without updating `ACCESSOR_ALIASES` turns ~20 twins into unexplained drift. Prefer this shape over `DIVERGENT_CONTENT` for any future mechanical rename: exempting a file stops checking it entirely.
 
 ## Interpreting findings
 
