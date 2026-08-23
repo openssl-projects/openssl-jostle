@@ -131,6 +131,12 @@ set(FIPS_UTIL_SOURCES
         fips/util/dh.c
         fips/util/xec.h
         fips/util/xec.c
+        # EdDSA. Added 2026-08-23: the 3.5.x module serves ED25519 and ED448
+        # (probe: fips-c-review/probes/ed_gate_probe.c) while 3.1.2 refuses
+        # both — the exact inverse of xec above, so ProvFIPSED gates
+        # registration on the loaded module actually serving them.
+        fips/util/edec.h
+        fips/util/edec.c
         # PQC. Added 2026-08-23: the 3.5.x module implements ML-KEM, ML-DSA and
         # SLH-DSA (probe: fips-c-review/probes/pqc_op_probe.c); 3.1.2 does not,
         # and ProvFIPS{MLDSA,MLKEM,SLHDSA} gate registration on the loaded
@@ -160,6 +166,7 @@ set(FIPS_JNI_GLUE_SOURCES
         fips/jni/dsa_fips_jni.c
         fips/jni/dh_fips_jni.c
         fips/jni/xec_fips_jni.c
+        fips/jni/ed_fips_jni.c
         fips/jni/kdf_fips_jni.c
         fips/jni/mldsa_fips_jni.c
         fips/jni/mlkem_fips_jni.c
@@ -209,6 +216,7 @@ set(FIPS_FFI_GLUE_SOURCES
         fips/ffi/dsa_ni_fips_ffi.c
         fips/ffi/dh_ni_fips_ffi.c
         fips/ffi/xec_ni_fips_ffi.c
+        fips/ffi/ed_ni_fips_ffi.c
         fips/ffi/mldsa_ni_fips_ffi.c
         fips/ffi/mlkem_ni_fips_ffi.c
         fips/ffi/slh_dsa_ni_fips_ffi.c

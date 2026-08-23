@@ -16,8 +16,10 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
@@ -29,7 +31,12 @@ import java.util.Map;
 
 public class EdDSAKeyPairGenerator extends KeyPairGenerator
 {
-    private static final EDServiceNI edServiceNI = NISelector.EDServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final EDServiceNI edServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
     private OSSLKeyType keyType = OSSLKeyType.NONE;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
@@ -47,7 +54,15 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
 
     public EdDSAKeyPairGenerator(Object algorithm)
     {
+        this(NISelector.EDServiceNI, NISelector.SpecNI, NISelector.Asn1NI, algorithm);
+    }
+
+    public EdDSAKeyPairGenerator(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
+    {
         super(algorithmName(algorithm));
+        this.edServiceNI = edServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
         keyType = paramToTypeMap.get(algorithm);
 
         if (keyType == null)
@@ -132,8 +147,8 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
 
-        PKEYKeySpec spec = new PKEYKeySpec(res, effectiveType);
-        return new KeyPair(new JOEdPublicKey(spec), new JOEdPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, effectiveType);
+        return new KeyPair(new JOEdPublicKey(edServiceNI, asn1NI, spec), new JOEdPrivateKey(edServiceNI, asn1NI, spec));
     }
 
 

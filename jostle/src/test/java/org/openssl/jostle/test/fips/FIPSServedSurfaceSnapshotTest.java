@@ -100,6 +100,9 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyFactory.DH",
             "KeyFactory.DSA",
             "KeyFactory.EC",
+            "KeyFactory.ED",   // EdDSA, capability-gated (see ED_GATED)
+            "KeyFactory.ED25519",   // EdDSA, capability-gated (see ED_GATED)
+            "KeyFactory.ED448",   // EdDSA, capability-gated (see ED_GATED)
             "KeyFactory.ML-DSA-44",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.ML-DSA-65",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.ML-DSA-87",   // PQC, capability-gated (see PQC_GATED)
@@ -136,6 +139,9 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.DH",
             "KeyPairGenerator.DSA",
             "KeyPairGenerator.EC",
+            "KeyPairGenerator.ED",   // EdDSA, capability-gated (see ED_GATED)
+            "KeyPairGenerator.ED25519",   // EdDSA, capability-gated (see ED_GATED)
+            "KeyPairGenerator.ED448",   // EdDSA, capability-gated (see ED_GATED)
             "KeyPairGenerator.ML-DSA-44",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.ML-DSA-65",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.ML-DSA-87",   // PQC, capability-gated (see PQC_GATED)
@@ -218,6 +224,12 @@ public class FIPSServedSurfaceSnapshotTest
             "SecureRandom.HMAC-DRBG-SHA512",
             "Signature.DET-SLH-DSA-NONE",   // PQC, capability-gated (see PQC_GATED)
             "Signature.DET-SLH-DSA-PURE",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.ED25519",   // EdDSA, capability-gated (see ED_GATED)
+            "Signature.ED25519CTX",   // EdDSA, capability-gated per NAME (see ED_CTX_GATED)
+            "Signature.ED25519PH",   // EdDSA, capability-gated (see ED_GATED)
+            "Signature.ED448",   // EdDSA, capability-gated (see ED_GATED)
+            "Signature.ED448PH",   // EdDSA, capability-gated (see ED_GATED)
+            "Signature.EDDSA",   // EdDSA, capability-gated (see ED_GATED)
             "Signature.ML-DSA-44",   // PQC, capability-gated (see PQC_GATED)
             "Signature.ML-DSA-65",   // PQC, capability-gated (see PQC_GATED)
             "Signature.ML-DSA-87",   // PQC, capability-gated (see PQC_GATED)
@@ -308,6 +320,53 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyFactory.XDH",
             "KeyPairGenerator.X25519",
             "KeyPairGenerator.X448",
+    };
+
+
+    /**
+     * EdDSA, the third capability-gated group — and the one that runs the
+     * OPPOSITE way to {@link #XDH_GATED}: 3.1.2 refuses the whole family
+     * ({@code EVP_PKEY_CTX_new_from_name("ED25519")} → "unsupported", and every
+     * {@code EVP_SIGNATURE} name refused), while 3.5.7 serves it. A reader
+     * looking for "newer module, fewer algorithms" will not find that pattern
+     * here. Measured by {@code fips-c-review/probes/ed_gate_probe.c}; ProvFIPSED
+     * gates the family on the keymgmt fetch.
+     * <p>
+     * {@code Signature.ED25519CTX} is deliberately NOT in this array — see
+     * {@link #ED_CTX_GATED}. Putting it here would break the all-or-nothing
+     * check on 3.5.7, which serves everything else in the family.
+     */
+    private static final String[] ED_GATED = {
+            "KeyFactory.ED",
+            "KeyFactory.ED25519",
+            "KeyFactory.ED448",
+            "KeyPairGenerator.ED",
+            "KeyPairGenerator.ED25519",
+            "KeyPairGenerator.ED448",
+            "Signature.ED25519",
+            "Signature.ED25519PH",
+            "Signature.ED448",
+            "Signature.ED448PH",
+            "Signature.EDDSA",
+    };
+
+    /**
+     * {@code Signature.ED25519CTX}, gated on its own — the only per-NAME gate
+     * in the provider.
+     * <p>
+     * The 3.5.x module registers ED25519, ED25519PH, ED448 and ED448PH as
+     * signature algorithms but NOT ED25519CTX, so the family's keymgmt fetch
+     * (which answers only "is there an Ed25519 key type?") says yes while this
+     * one name is unusable: driving {@code EVP_DigestSignInit_ex} with
+     * {@code instance="Ed25519ctx"} returns "invalid eddsa instance for
+     * attempted operation". {@code EdSignatureSpi} passes that instance
+     * unconditionally for the forced type, so a registration would resolve and
+     * then fail at every init. Probed with {@code OP_SIGNATURE}, not
+     * {@code OP_KEYMGMT}, which is why {@link #assertGatedAbsenceIsJustified}
+     * takes the operation type.
+     */
+    private static final String[] ED_CTX_GATED = {
+            "Signature.ED25519CTX",
     };
 
 
@@ -413,7 +472,8 @@ public class FIPSServedSurfaceSnapshotTest
      * dropped) — and every service reports the JSLFIPS instance as its provider.
      * <p>
      * The single sanctioned exception is a capability-gated group
-     * ({@link #XDH_GATED}), which may be absent only when the loaded module
+     * ({@link #XDH_GATED}, {@link #PQC_GATED}, {@link #ED_GATED},
+     * {@link #ED_CTX_GATED}), which may be absent only when the loaded module
      * genuinely cannot serve it. That is verified against the module here, not
      * assumed: see {@link #assertGatedAbsenceIsJustified}.
      */
@@ -444,17 +504,23 @@ public class FIPSServedSurfaceSnapshotTest
         SortedSet<String> unexplained = new TreeSet<>(removed);
         unexplained.removeAll(Arrays.asList(XDH_GATED));
         unexplained.removeAll(Arrays.asList(PQC_GATED));
+        unexplained.removeAll(Arrays.asList(ED_GATED));
+        unexplained.removeAll(Arrays.asList(ED_CTX_GATED));
         Assertions.assertTrue(unexplained.isEmpty(),
                 "JSLFIPS dropped services that are not capability-gated."
                         + "\n  REMOVED (in golden, gone now, no recorded gate): " + unexplained
                         + "\nIf the change is intentional, regenerate the golden set (see class Javadoc).");
 
-        assertGatedAbsenceIsJustified("XDH", XDH_GATED, "X25519", removed);
+        assertGatedAbsenceIsJustified("XDH", XDH_GATED, OpenSSLFIPSNI.OP_KEYMGMT, "X25519", removed);
         // One probe per family: each is registered as a unit, and the
         // all-or-nothing check below is what proves the unit held.
-        assertGatedAbsenceIsJustified("ML-KEM", pqcSubset("ML-KEM", "MLKEM"), "ML-KEM-768", removed);
-        assertGatedAbsenceIsJustified("ML-DSA", pqcSubset("ML-DSA", "MLDSA"), "ML-DSA-65", removed);
-        assertGatedAbsenceIsJustified("SLH-DSA", pqcSubset("SLH-DSA", "SLHDSA"), "SLH-DSA-SHA2-128S", removed);
+        assertGatedAbsenceIsJustified("ML-KEM", pqcSubset("ML-KEM", "MLKEM"), OpenSSLFIPSNI.OP_KEYMGMT, "ML-KEM-768", removed);
+        assertGatedAbsenceIsJustified("ML-DSA", pqcSubset("ML-DSA", "MLDSA"), OpenSSLFIPSNI.OP_KEYMGMT, "ML-DSA-65", removed);
+        assertGatedAbsenceIsJustified("SLH-DSA", pqcSubset("SLH-DSA", "SLHDSA"), OpenSSLFIPSNI.OP_KEYMGMT, "SLH-DSA-SHA2-128S", removed);
+        assertGatedAbsenceIsJustified("EdDSA", ED_GATED, OpenSSLFIPSNI.OP_KEYMGMT, "ED25519", removed);
+        // Per-NAME, and probed as a SIGNATURE: the family's keymgmt resolves on
+        // 3.5.7 while this one instance does not.
+        assertGatedAbsenceIsJustified("Ed25519ctx", ED_CTX_GATED, OpenSSLFIPSNI.OP_SIGNATURE, "ED25519CTX", removed);
     }
 
     /** The {@link #PQC_GATED} entries belonging to one family. */
@@ -486,7 +552,8 @@ public class FIPSServedSurfaceSnapshotTest
      * capability.
      */
     private static void assertGatedAbsenceIsJustified(String family, String[] group,
-                                                      String probeName, SortedSet<String> removed)
+                                                      int probeOp, String probeName,
+                                                      SortedSet<String> removed)
     {
         SortedSet<String> gated = new TreeSet<>(Arrays.asList(group));
         SortedSet<String> missing = new TreeSet<>(gated);
@@ -503,7 +570,7 @@ public class FIPSServedSurfaceSnapshotTest
 
         // Ask the module itself. Same probe the registrar gates on, so a green
         // result here means the registrar and the module agree.
-        int fetch = FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, probeName);
+        int fetch = FIPSNISelector.OpenSSLFIPSNI.canFetch(probeOp, probeName);
         Assertions.assertEquals(0, fetch,
                 family + " is unregistered but the loaded module ("
                         + FIPSNISelector.OpenSSLFIPSNI.moduleVersion()

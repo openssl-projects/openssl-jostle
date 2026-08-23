@@ -93,6 +93,7 @@ public class FIPSX509CertificateFactoryTest
     private static final String SHA256_RSA_OID = "1.2.840.113549.1.1.11";
     private static final String SHA256_ECDSA_OID = "1.2.840.10045.4.3.2";
     private static final String ED25519_OID = "1.3.101.112";
+    private static final String X25519_OID = "1.3.101.110";
     private static final String EC_PUBKEY_OID = "1.2.840.10045.2.1";
 
     /**
@@ -182,36 +183,63 @@ public class FIPSX509CertificateFactoryTest
     // -----------------------------------------------------------------
 
     /**
-     * The load-bearing strict-mode test: an Ed25519-keyed certificate parses
-     * (structure is not crypto) but {@code getPublicKey()} must fail loud —
-     * JSLFIPS registers no EdDSA KeyFactory, and silently returning the JDK/BC
-     * key would route subsequent operations outside the FIPS boundary. The
-     * same certificate through the lenient JSL factory still resolves a key,
-     * proving the two factories' policies actually differ rather than both
-     * accidentally sharing whichever behaviour this test pins.
+     * The load-bearing strict-mode test, asserted as a CONTRACT because the two
+     * supported modules disagree about Ed25519: 3.1.2 refuses the family
+     * outright, 3.5.7 serves it (probe:
+     * {@code fips-c-review/probes/ed_gate_probe.c}).
+     *
+     * <p>An Ed25519-keyed certificate always parses — structure is not crypto —
+     * and then {@code getPublicKey()} must follow the module:
+     *
+     * <ul>
+     *   <li>module does NOT serve Ed25519 → fail loud with the pinned message.
+     *       Silently returning the JDK/BC key would route subsequent operations
+     *       outside the FIPS boundary.</li>
+     *   <li>module DOES serve it → resolve, and the key must be a Jostle key,
+     *       i.e. re-derived through JSLFIPS's own KeyFactory rather than
+     *       borrowed from another provider.</li>
+     * </ul>
+     *
+     * <p>Asserting only the failure would have been wrong the moment
+     * {@code ProvFIPSED} landed: it would keep passing while callers were
+     * refused a key the module can perfectly well provide. The lenient JSL
+     * half runs in both branches and proves the two factories' policies differ
+     * rather than both accidentally sharing whichever behaviour is pinned.
      */
     @Test
-    public void ed25519Cert_getPublicKey_failsLoudOnFips_lenientOnJsl() throws Exception
+    public void ed25519Cert_getPublicKey_matchesModuleCapability() throws Exception
     {
         byte[] der = bcEd25519SelfSigned();
+        boolean fipsServesEd = Security.getProvider(FIPS).getService("KeyFactory", "ED25519") != null;
 
         X509Certificate fipsCert = parseFips(der);
-        try
+        if (fipsServesEd)
         {
-            fipsCert.getPublicKey();
-            Assertions.fail("expected ProviderException for an Ed25519 key on JSLFIPS");
+            PublicKey pub = fipsCert.getPublicKey();
+            Assertions.assertNotNull(pub, "JSLFIPS serves Ed25519 but returned no key");
+            Assertions.assertTrue(pub.getClass().getName().startsWith("org.openssl.jostle"),
+                    "the key must be re-derived through JSLFIPS's own KeyFactory, got "
+                            + pub.getClass().getName());
         }
-        catch (ProviderException e)
+        else
         {
-            Assertions.assertEquals(
-                    "provider " + FIPS
-                            + " cannot re-derive the certificate public key (algorithm "
-                            + ED25519_OID + "): no KeyFactory for the algorithm, or the key was refused",
-                    e.getMessage());
+            try
+            {
+                fipsCert.getPublicKey();
+                Assertions.fail("expected ProviderException for an Ed25519 key on JSLFIPS");
+            }
+            catch (ProviderException e)
+            {
+                Assertions.assertEquals(
+                        "provider " + FIPS
+                                + " cannot re-derive the certificate public key (algorithm "
+                                + ED25519_OID + "): no KeyFactory for the algorithm, or the key was refused",
+                        e.getMessage());
+            }
         }
 
-        // Regression pair: the lenient JSL factory resolves a key for the same
-        // certificate (JSL serves EdDSA, and even without it would fall back).
+        // Regression pair, in BOTH branches: the lenient JSL factory resolves a
+        // key for the same certificate (JSL serves EdDSA unconditionally).
         CertificateFactory jsl = CertificateFactory.getInstance("X.509", JSL);
         X509Certificate jslCert = (X509Certificate) jsl.generateCertificate(new ByteArrayInputStream(der));
         Assertions.assertNotNull(jslCert.getPublicKey(),
@@ -225,15 +253,29 @@ public class FIPSX509CertificateFactoryTest
     /**
      * A certificate wrapped by the lenient JSL factory carries JSL's fallback
      * policy. Feeding it into the FIPS factory's {@code generateCertPath(List)}
-     * must re-wrap it under the bound policy — pinned by the Ed25519 cert whose
-     * key resolves under JSL but must fail loud once the path element is
-     * FIPS-bound. Without the re-wrap, the JSL wrapper would pass through the
-     * double-wrap fast-path and quietly keep its lenient policy.
+     * must re-wrap it under the bound policy. Without the re-wrap, the JSL
+     * wrapper would pass through the double-wrap fast-path and quietly keep its
+     * lenient policy.
+     *
+     * <p>The vehicle has to be a certificate whose key JSL resolves and JSLFIPS
+     * does NOT — otherwise the two policies produce the same answer and the
+     * test cannot see the difference. No single algorithm is unresolvable on
+     * both supported modules, but two are unresolvable on exactly one each, in
+     * opposite directions: 3.1.2 refuses Ed25519 and serves X25519, 3.5.7 the
+     * reverse. So the vehicle is CHOSEN AT RUNTIME from what the loaded module
+     * cannot serve, which keeps the re-wrap covered on both.
+     *
+     * <p>This used to hard-code the Ed25519 cert, which was correct while
+     * JSLFIPS registered no EdDSA at all and silently became a no-op assertion
+     * the day {@code ProvFIPSED} landed — the test would have kept passing
+     * against a factory that had stopped re-wrapping.
      */
     @Test
     public void certPath_reWrapsForeignPolicyWrappers() throws Exception
     {
-        byte[] der = bcEd25519SelfSigned();
+        byte[] der = certWithAKeyThisModuleCannotResolve();
+        String expectedOid = fipsServes("ED25519") ? X25519_OID : ED25519_OID;
+
         CertificateFactory jsl = CertificateFactory.getInstance("X.509", JSL);
         Certificate jslWrapped = jsl.generateCertificate(new ByteArrayInputStream(der));
         Assertions.assertNotNull(((X509Certificate) jslWrapped).getPublicKey(),
@@ -252,9 +294,69 @@ public class FIPSX509CertificateFactoryTest
             Assertions.assertEquals(
                     "provider " + FIPS
                             + " cannot re-derive the certificate public key (algorithm "
-                            + ED25519_OID + "): no KeyFactory for the algorithm, or the key was refused",
+                            + expectedOid + "): no KeyFactory for the algorithm, or the key was refused",
                     e.getMessage());
         }
+    }
+
+    /** Does JSLFIPS register a KeyFactory for {@code name}? */
+    private static boolean fipsServes(String name)
+    {
+        return Security.getProvider(FIPS).getService("KeyFactory", name) != null;
+    }
+
+    /**
+     * A self-signed certificate whose SUBJECT key algorithm the loaded FIPS
+     * module cannot re-derive — X25519 when the module serves Ed25519, Ed25519
+     * otherwise. Skips if a future module somehow serves both, rather than
+     * silently degrading into a test that proves nothing.
+     */
+    private static byte[] certWithAKeyThisModuleCannotResolve() throws Exception
+    {
+        if (!fipsServes("ED25519"))
+        {
+            return bcEd25519SelfSigned();
+        }
+        org.junit.jupiter.api.Assumptions.assumeFalse(fipsServes("X25519"),
+                "the loaded module serves both Ed25519 and X25519 — no unresolvable "
+                        + "key algorithm is available as a vehicle for the re-wrap check");
+        return bcX25519KeyedCert();
+    }
+
+    /**
+     * A certificate carrying an X25519 SUBJECT key, signed with Ed25519 — a
+     * certificate's subject key need not match its signing key, and X25519 has
+     * no signature algorithm of its own. Only {@code getPublicKey()} is
+     * exercised on it, never {@code verify}.
+     */
+    private static byte[] bcX25519KeyedCert() throws Exception
+    {
+        KeyPair subject = KeyPairGenerator.getInstance("X25519",
+                BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
+        KeyPair signer = KeyPairGenerator.getInstance("Ed25519",
+                BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
+
+        AlgorithmIdentifier sigAlgId = new AlgorithmIdentifier(new ASN1ObjectIdentifier(ED25519_OID));
+        V1TBSCertificateGenerator tbsGen = new V1TBSCertificateGenerator();
+        tbsGen.setSerialNumber(new ASN1Integer(BigInteger.valueOf(1)));
+        tbsGen.setSignature(sigAlgId);
+        tbsGen.setIssuer(new X500Name("CN=Jostle FIPS CF X25519"));
+        tbsGen.setStartDate(new Time(new Date(1700000000000L)));
+        tbsGen.setEndDate(new Time(new Date(1900000000000L)));
+        tbsGen.setSubject(new X500Name("CN=Jostle FIPS CF X25519"));
+        tbsGen.setSubjectPublicKeyInfo(SubjectPublicKeyInfo.getInstance(
+                ASN1Primitive.fromByteArray(subject.getPublic().getEncoded())));
+        TBSCertificate tbs = tbsGen.generateTBSCertificate();
+
+        Signature sig = Signature.getInstance("Ed25519", BouncyCastleProvider.PROVIDER_NAME);
+        sig.initSign(signer.getPrivate());
+        sig.update(tbs.getEncoded(ASN1Encoding.DER));
+
+        ASN1EncodableVector v = new ASN1EncodableVector();
+        v.add(tbs);
+        v.add(sigAlgId);
+        v.add(new DERBitString(sig.sign()));
+        return new DERSequence(v).getEncoded(ASN1Encoding.DER);
     }
 
     @Test

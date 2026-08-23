@@ -345,25 +345,32 @@ The Jostle (`JSL`) provider registers **296** services across **14** JCA service
 
 # Jostle FIPS Provider (JSLFIPS) — Registered Services
 
-The Jostle FIPS (`JSLFIPS`) provider registers **161** services against a 3.1.2 module (223 against a 3.5.x one, the difference being PQC) across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
+The Jostle FIPS (`JSLFIPS`) provider registers **161** services against a 3.1.2 module (**234** against a 3.5.x one) across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
 
-**The surface is module-dependent.** JSLFIPS ships one build that serves two FIPS
-modules — the CMVP-validated 3.1.2 (cert #4985) and a 3.5.x one once certified —
-and they disagree about what they implement. Where a difference is cheaply
-detectable at startup the provider asks the loaded module and registers
-accordingly, so the list below is what a **3.1.2** module yields:
+**The surface is module-dependent, and the list below is the 3.5.x one.**
+JSLFIPS ships one build that serves two FIPS modules — the CMVP-validated 3.1.2
+(cert #4985) and a 3.5.x one once certified — and they disagree about what they
+implement, in both directions. Where a difference is cheaply detectable at
+startup the provider asks the loaded module and registers accordingly:
 
 - **X25519 / X448** (`KeyAgreement`, `KeyFactory`, `KeyPairGenerator`, and the
   `XDH` names) are registered only when the module resolves the keymgmt fetch.
   3.1.2 does; 3.5.x does not, and against it these eight services are absent
   and `getInstance` throws `NoSuchAlgorithmException` so a caller can fall
-  through to another provider.
+  through to another provider. They are therefore NOT in the list below.
 - **ML-KEM, ML-DSA and SLH-DSA** go the other way: 3.5.x implements all three
   and 3.1.2 implements none, so the 70 PQC services below appear only against a
   3.5.x module. Gated the same way, on the keymgmt fetch — which is a complete
   answer here, because unlike DSA signing no `fipsinstall` switch affects them
   (verified with real operations under both the `-pedantic` and the default
   config).
+- **Ed25519 / Ed448** run the same way as PQC — refused outright by 3.1.2,
+  served by 3.5.x — and are the one family gated **per name** rather than as a
+  unit: 3.5.x registers `ED25519`, `ED25519PH`, `ED448` and `ED448PH` as
+  signature algorithms but **not** `ED25519CTX`, so that one Signature is
+  absent below even though the rest of the family is present. A registration
+  would resolve and then fail at every `init`, since the SPI drives the
+  `Ed25519ctx` instance unconditionally for that name.
 
 Differences that no cheap probe can detect stay registered and refuse at use
 with a typed exception — DSA key generation and signature generation are
@@ -401,7 +408,7 @@ filtering.
 
 1. `X.509`
 
-## Cipher (20)
+## Cipher (21)
 
 1. `2.16.840.1.101.3.4.1.2`
 2. `2.16.840.1.101.3.4.1.22`
@@ -422,9 +429,10 @@ filtering.
 17. `AES256`
 18. `AESWRAP`
 19. `AESWRAPPAD`
-20. `RSA`
+20. `ML-KEM`
+21. `RSA`
 
-## KeyAgreement (11)
+## KeyAgreement (8)
 
 1. `DH`
 2. `DHWITHRFC2631KDF`
@@ -434,35 +442,79 @@ filtering.
 6. `ECDHWITHSHA256KDF`
 7. `ECDHWITHSHA384KDF`
 8. `ECDHWITHSHA512KDF`
-9. `X25519`
-10. `X448`
-11. `XDH`
 
-## KeyFactory (7)
+## KeyFactory (28)
 
 1. `DH`
 2. `DSA`
 3. `EC`
-4. `RSA`
-5. `X25519`
-6. `X448`
-7. `XDH`
+4. `ED`
+5. `ED25519`
+6. `ED448`
+7. `ML-DSA-44`
+8. `ML-DSA-65`
+9. `ML-DSA-87`
+10. `ML-KEM-1024`
+11. `ML-KEM-512`
+12. `ML-KEM-768`
+13. `MLDSA`
+14. `MLKEM`
+15. `RSA`
+16. `SLH-DSA-SHA2-128F`
+17. `SLH-DSA-SHA2-128S`
+18. `SLH-DSA-SHA2-192F`
+19. `SLH-DSA-SHA2-192S`
+20. `SLH-DSA-SHA2-256F`
+21. `SLH-DSA-SHA2-256S`
+22. `SLH-DSA-SHAKE-128F`
+23. `SLH-DSA-SHAKE-128S`
+24. `SLH-DSA-SHAKE-192F`
+25. `SLH-DSA-SHAKE-192S`
+26. `SLH-DSA-SHAKE-256F`
+27. `SLH-DSA-SHAKE-256S`
+28. `SLHDSA`
 
-## KeyGenerator (4)
+## KeyGenerator (8)
 
 1. `AES`
 2. `AES128`
 3. `AES192`
 4. `AES256`
+5. `ML-KEM-1024`
+6. `ML-KEM-512`
+7. `ML-KEM-768`
+8. `MLKEM`
 
-## KeyPairGenerator (6)
+## KeyPairGenerator (28)
 
 1. `DH`
 2. `DSA`
 3. `EC`
-4. `RSA`
-5. `X25519`
-6. `X448`
+4. `ED`
+5. `ED25519`
+6. `ED448`
+7. `ML-DSA-44`
+8. `ML-DSA-65`
+9. `ML-DSA-87`
+10. `ML-KEM-1024`
+11. `ML-KEM-512`
+12. `ML-KEM-768`
+13. `MLDSA`
+14. `MLKEM`
+15. `RSA`
+16. `SLH-DSA-SHA2-128F`
+17. `SLH-DSA-SHA2-128S`
+18. `SLH-DSA-SHA2-192F`
+19. `SLH-DSA-SHA2-192S`
+20. `SLH-DSA-SHA2-256F`
+21. `SLH-DSA-SHA2-256S`
+22. `SLH-DSA-SHAKE-128F`
+23. `SLH-DSA-SHAKE-128S`
+24. `SLH-DSA-SHAKE-192F`
+25. `SLH-DSA-SHAKE-192S`
+26. `SLH-DSA-SHAKE-256F`
+27. `SLH-DSA-SHAKE-256S`
+28. `SLHDSA`
 
 ## Mac (12)
 
@@ -532,45 +584,73 @@ filtering.
 13. `HMAC-DRBG-SHA256`
 14. `HMAC-DRBG-SHA512`
 
-## Signature (40)
+## Signature (68)
 
-1. `NONEWITHDSA`
-2. `NONEWITHECDSA`
-3. `NONEWITHRSA`
-4. `RSASSA-PSS`
-5. `SHA1WITHDSA`
-6. `SHA1WITHECDSA`
-7. `SHA1WITHRSA`
-8. `SHA1WITHRSAANDMGF1`
-9. `SHA224WITHDSA`
-10. `SHA224WITHECDSA`
-11. `SHA224WITHRSA`
-12. `SHA224WITHRSAANDMGF1`
-13. `SHA256WITHDSA`
-14. `SHA256WITHECDSA`
-15. `SHA256WITHRSA`
-16. `SHA256WITHRSAANDMGF1`
-17. `SHA3-224WITHDSA`
-18. `SHA3-224WITHECDSA`
-19. `SHA3-224WITHRSA`
-20. `SHA3-224WITHRSAANDMGF1`
-21. `SHA3-256WITHDSA`
-22. `SHA3-256WITHECDSA`
-23. `SHA3-256WITHRSA`
-24. `SHA3-256WITHRSAANDMGF1`
-25. `SHA3-384WITHDSA`
-26. `SHA3-384WITHECDSA`
-27. `SHA3-384WITHRSA`
-28. `SHA3-384WITHRSAANDMGF1`
-29. `SHA3-512WITHDSA`
-30. `SHA3-512WITHECDSA`
-31. `SHA3-512WITHRSA`
-32. `SHA3-512WITHRSAANDMGF1`
-33. `SHA384WITHDSA`
-34. `SHA384WITHECDSA`
-35. `SHA384WITHRSA`
-36. `SHA384WITHRSAANDMGF1`
-37. `SHA512WITHDSA`
-38. `SHA512WITHECDSA`
-39. `SHA512WITHRSA`
-40. `SHA512WITHRSAANDMGF1`
+1. `DET-SLH-DSA-NONE`
+2. `DET-SLH-DSA-PURE`
+3. `ED25519`
+4. `ED25519PH`
+5. `ED448`
+6. `ED448PH`
+7. `EDDSA`
+8. `ML-DSA-44`
+9. `ML-DSA-65`
+10. `ML-DSA-87`
+11. `ML-DSA-CALCULATE-MU`
+12. `ML-DSA-EXTERNAL-MU`
+13. `MLDSA`
+14. `NONEWITHDSA`
+15. `NONEWITHECDSA`
+16. `NONEWITHRSA`
+17. `RSASSA-PSS`
+18. `SHA1WITHDSA`
+19. `SHA1WITHECDSA`
+20. `SHA1WITHRSA`
+21. `SHA1WITHRSAANDMGF1`
+22. `SHA224WITHDSA`
+23. `SHA224WITHECDSA`
+24. `SHA224WITHRSA`
+25. `SHA224WITHRSAANDMGF1`
+26. `SHA256WITHDSA`
+27. `SHA256WITHECDSA`
+28. `SHA256WITHRSA`
+29. `SHA256WITHRSAANDMGF1`
+30. `SHA3-224WITHDSA`
+31. `SHA3-224WITHECDSA`
+32. `SHA3-224WITHRSA`
+33. `SHA3-224WITHRSAANDMGF1`
+34. `SHA3-256WITHDSA`
+35. `SHA3-256WITHECDSA`
+36. `SHA3-256WITHRSA`
+37. `SHA3-256WITHRSAANDMGF1`
+38. `SHA3-384WITHDSA`
+39. `SHA3-384WITHECDSA`
+40. `SHA3-384WITHRSA`
+41. `SHA3-384WITHRSAANDMGF1`
+42. `SHA3-512WITHDSA`
+43. `SHA3-512WITHECDSA`
+44. `SHA3-512WITHRSA`
+45. `SHA3-512WITHRSAANDMGF1`
+46. `SHA384WITHDSA`
+47. `SHA384WITHECDSA`
+48. `SHA384WITHRSA`
+49. `SHA384WITHRSAANDMGF1`
+50. `SHA512WITHDSA`
+51. `SHA512WITHECDSA`
+52. `SHA512WITHRSA`
+53. `SHA512WITHRSAANDMGF1`
+54. `SLH-DSA-NONE`
+55. `SLH-DSA-PURE`
+56. `SLH-DSA-SHA2-128F`
+57. `SLH-DSA-SHA2-128S`
+58. `SLH-DSA-SHA2-192F`
+59. `SLH-DSA-SHA2-192S`
+60. `SLH-DSA-SHA2-256F`
+61. `SLH-DSA-SHA2-256S`
+62. `SLH-DSA-SHAKE-128F`
+63. `SLH-DSA-SHAKE-128S`
+64. `SLH-DSA-SHAKE-192F`
+65. `SLH-DSA-SHAKE-192S`
+66. `SLH-DSA-SHAKE-256F`
+67. `SLH-DSA-SHAKE-256S`
+68. `SLHDSA`

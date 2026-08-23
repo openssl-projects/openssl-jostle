@@ -21,57 +21,59 @@ import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries. A static
+// SymbolLookup.loaderLookup() would resolve into whichever library loaded
+// first — both export the same Jo* names — so a FIPS subclass over it would
+// silently drive the BASE library (see MDServiceFFI, FIPSLibraryLookup).
 public class EdDSAServiceFFI implements EDServiceNI
 {
 
     private static final Logger L = Logger.getLogger("EdDSA_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment generateKeyPairFunc;
-    private static final MethodHandle generateKeyPairFuncHandle;
+    private final MethodHandle generateKeyPairFuncHandle;
+    private final MethodHandle getPublicKeyFuncHandle;
+    private final MethodHandle getPrivateKeyFuncHandle;
+    private final MethodHandle decodePublicKeyFuncHandle;
+    private final MethodHandle decodePrivateKeyFuncHandle;
+    private final MethodHandle allocSignerFuncHandle;
+    private final MethodHandle disposeSignerFuncHandle;
+    private final MethodHandle initVerifyFuncHandle;
+    private final MethodHandle initSignerFuncHandle;
+    private final MethodHandle updateSignerFuncHandle;
+    private final MethodHandle signerFuncHandle;
+    private final MethodHandle verifierFuncHandle;
 
-    private static final MemorySegment getPublicKeyFunc;
-    private static final MethodHandle getPublicKeyFuncHandle;
+    // Lookup-independent constants for the RandSource entropy upcall stub.
+    private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
+    private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
 
-    private static final MemorySegment getPrivateKeyFunc;
-    private static final MethodHandle getPrivateKeyFuncHandle;
-
-    private static final MemorySegment decodePublicKeyFunc;
-    private static final MethodHandle decodePublicKeyFuncHandle;
-
-    private static final MemorySegment decodePrivateKeyFunc;
-    private static final MethodHandle decodePrivateKeyFuncHandle;
-
-    private static final MemorySegment allocSignerFunc;
-    private static final MethodHandle allocSignerFuncHandle;
-
-    private static final MemorySegment disposeSignerFunc;
-    private static final MethodHandle disposeSignerFuncHandle;
-
-    private static final MemorySegment initVerifyFunc;
-    private static final MethodHandle initVerifyFuncHandle;
-
-    private static final MemorySegment initSignerFunc;
-    private static final MethodHandle initSignerFuncHandle;
-
-    private static final MemorySegment updateSignerFunc;
-    private static final MethodHandle updateSignerFuncHandle;
-
-    private static final MemorySegment signerFunc;
-    private static final MethodHandle signerFuncHandle;
-
-    private static final MemorySegment verifierFunc;
-    private static final MethodHandle verifierFuncHandle;
-
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
-
-
-    static
+    public EdDSAServiceFFI()
     {
-        generateKeyPairFunc = lookup.find("JoEDDSA_generateKeyPair").orElseThrow();
-        generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public EdDSAServiceFFI(SymbolLookup lookup)
+    {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public EdDSAServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
+        generateKeyPairFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_generateKeyPair").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,
@@ -79,9 +81,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.ADDRESS // upcall
                 ));
 
-
-        getPublicKeyFunc = lookup.find("JoEDDSA_getPublicKey").orElseThrow();
-        getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
+        getPublicKeyFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_getPublicKey").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -89,8 +90,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getPrivateKeyFunc = lookup.find("JoEDDSA_getPrivateKey").orElseThrow();
-        getPrivateKeyFuncHandle = linker.downcallHandle(getPrivateKeyFunc,
+        getPrivateKeyFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_getPrivateKey").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -98,9 +99,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-
-        decodePublicKeyFunc = lookup.find("JoEDDSA_decodePublicKey").orElseThrow();
-        decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
+        decodePublicKeyFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_decodePublicKey").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -111,8 +111,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-        decodePrivateKeyFunc = lookup.find("JoEDDSA_decodePrivateKey").orElseThrow();
-        decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
+        decodePrivateKeyFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_decodePrivateKey").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -123,23 +123,20 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-
-        allocSignerFunc = lookup.find("JoEDDSA_allocateSigner").orElseThrow();
-        allocSignerFuncHandle = linker.downcallHandle(allocSignerFunc,
+        allocSignerFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_allocateSigner").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, ValueLayout.ADDRESS
                 ));
 
-
-        disposeSignerFunc = lookup.find("JoEDDSA_disposeSigner").orElseThrow();
-        disposeSignerFuncHandle = linker.downcallHandle(disposeSignerFunc,
+        disposeSignerFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_disposeSigner").orElseThrow(),
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS
                 ));
 
-
-        initVerifyFunc = lookup.find("JoEDDSA_initVerifier").orElseThrow();
-        initVerifyFuncHandle = linker.downcallHandle(initVerifyFunc,
+        initVerifyFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_initVerifier").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return code
                         ValueLayout.ADDRESS, // ctx
@@ -151,8 +148,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_INT // context_len
                 ));
 
-        initSignerFunc = lookup.find("JoEDDSA_initSign").orElseThrow();
-        initSignerFuncHandle = linker.downcallHandle(initSignerFunc,
+        initSignerFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_initSign").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return code
                         ValueLayout.ADDRESS, // ctx
@@ -165,9 +162,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-
-        updateSignerFunc = lookup.find("JoEDDSA_update").orElseThrow();
-        updateSignerFuncHandle = linker.downcallHandle(updateSignerFunc,
+        updateSignerFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_update").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -177,9 +173,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
 
-
-        signerFunc = lookup.find("JoEDDSA_sign").orElseThrow();
-        signerFuncHandle = linker.downcallHandle(signerFunc,
+        signerFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_sign").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -189,8 +184,8 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        verifierFunc = lookup.find("JoEDDSA_verify").orElseThrow();
-        verifierFuncHandle = linker.downcallHandle(verifierFunc,
+        verifierFuncHandle = linker.downcallHandle(
+                lookup.find(symPrefix + "JoEDDSA_verify").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -198,13 +193,6 @@ public class EdDSAServiceFFI implements EDServiceNI
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT
                 ), Linker.Option.critical(true));
-
-
-        entropyFd = EntropyUpcall.DESCRIPTOR;
-
-        entropyMt = EntropyUpcall.METHOD_TYPE;
-
-
     }
 
 

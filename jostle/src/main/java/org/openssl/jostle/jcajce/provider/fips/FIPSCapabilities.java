@@ -46,7 +46,11 @@ package org.openssl.jostle.jcajce.provider.fips;
  *       the fetch is a COMPLETE answer, verified by running real operations
  *       under both the -pedantic and the default fipsinstall config
  *       ({@code fips-c-review/probes/pqc_op_probe.c}): unlike DSA signing, no
- *       config switch gates it, so no failure classifier is needed.</li>
+ *       config switch gates it, so no failure classifier is needed. Also
+ *       Ed25519 / Ed448 — the inverse of X25519/X448, absent on 3.1.2 and
+ *       present on 3.5.7 — which additionally need
+ *       {@link #canFetchSignature} because that family is not
+ *       all-or-nothing.</li>
  *   <li><b>"Will this operation actually work?"</b> — answerable only by doing
  *       it, so it is <b>not</b> here. DSA key generation and PKCS#1 v1.5
  *       encrypt both fetch and init happily on either module; only the real
@@ -92,6 +96,38 @@ final class FIPSCapabilities
     static boolean canFetchKeyMgmt(String name)
     {
         return FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, name) != 0;
+    }
+
+    /**
+     * Whether the loaded module registers {@code name} as a signature
+     * algorithm. Same "any answer other than a definite no registers" rule as
+     * {@link #canFetchKeyMgmt}.
+     *
+     * <p>Needed because the Ed family is not all-or-nothing the way XDH and
+     * PQC are: the 3.5.x module registers ED25519, ED25519PH, ED448 and
+     * ED448PH but <b>not</b> ED25519CTX, so the keymgmt fetch (which answers
+     * only "is there an Ed25519 key type?") cannot decide which Signature
+     * names to register. Measured across all three supported configurations by
+     * {@code fips-c-review/probes/ed_gate_probe.c}:
+     *
+     * <pre>
+     *   3.1.2               : every Ed name REFUSED (fips=no on that module)
+     *   3.5.7 default       : ED25519 ok, ED25519PH ok, ED448 ok, ED448PH ok,
+     *                         ED25519CTX REFUSED
+     *   3.5.7 -pedantic     : identical to default — no cnf switch gates Ed
+     * </pre>
+     *
+     * <p>The probe verified that the fetch answer tracks reality: driving
+     * {@code EVP_DigestSignInit_ex} with {@code instance="Ed25519ctx"} on
+     * 3.5.7 fails with "invalid eddsa instance for attempted operation", while
+     * every name that fetches signs and verifies. Registering ED25519CTX would
+     * therefore be the "registration is not usability" trap —
+     * {@code EdSignatureSpi} passes that instance unconditionally for the
+     * forced type, so every init would fail.
+     */
+    static boolean canFetchSignature(String name)
+    {
+        return FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_SIGNATURE, name) != 0;
     }
 
     /**

@@ -311,6 +311,26 @@ public class FIPSKeyIsolationTest
             assertPrivateIsolatedBothDirections(jslMlKem.getPrivate(), fipsMlKem.getPrivate(), mlkemOp);
         }
 
+        // ---- EdDSA ----
+        // Only when the module serves the family: 3.5.x does, 3.1.2 refuses it
+        // outright (the inverse of XDH), and ProvFIPSED gates registration on
+        // the keymgmt fetch. The base provider always serves it, so the
+        // JSL-side keypair for the crossing checks is always available.
+        if (Security.getProvider(fips).getService("KeyPairGenerator", "ED25519") != null)
+        {
+            for (String edAlg : new String[]{"ED25519", "ED448"})
+            {
+                KeyPair jslEd = genPqcKp(edAlg, jsl);
+                KeyPair fipsEd = genPqcKp(edAlg, fips);
+                PrivKeyOp edOp = (p, k) -> Signature.getInstance(edAlg, p).initSign(k);
+                assertPrivateIsolatedBothDirections(jslEd.getPrivate(), fipsEd.getPrivate(), edOp);
+                assertSignVerifyAcross(edAlg, fips, jsl, fipsEd);
+                assertSignVerifyAcross(edAlg, jsl, fips, jslEd);
+                assertSigReencodeRoute(edAlg, edAlg, fips, jsl, jslEd);
+                assertSigReencodeRoute(edAlg, edAlg, jsl, fips, fipsEd);
+            }
+        }
+
         // ---- DH ----
         KeyPair jslDh = genKp("DH", jsl, 2048);
         KeyPair jslDh2 = genKp("DH", jsl, 2048);

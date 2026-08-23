@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -27,6 +28,14 @@ import java.util.Map;
 
 public class EdKeyFactorySpi extends KeyFactorySpi
 {
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS). A KeyFactory welded to the base statics
+    // could never serve JSLFIPS — it would hand FIPS callers keys made by the
+    // base interface library and its OSSL_LIB_CTX.
+    private final EDServiceNI edServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
     private final OSSLKeyType fixedType;
 
     private static final Map<EdDSAParameterSpec, OSSLKeyType> typeMap = Collections.unmodifiableMap(new HashMap<EdDSAParameterSpec, OSSLKeyType>()
@@ -39,13 +48,30 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
     public EdKeyFactorySpi(OSSLKeyType fixedType)
     {
-        this.fixedType = fixedType;
-        assert fixedType != null;
+        this(NISelector.EDServiceNI, NISelector.SpecNI, NISelector.Asn1NI, fixedType);
     }
 
     public EdKeyFactorySpi()
     {
-        this.fixedType = OSSLKeyType.NONE;
+        this(NISelector.EDServiceNI, NISelector.SpecNI, NISelector.Asn1NI, OSSLKeyType.NONE);
+    }
+
+    public EdKeyFactorySpi(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType fixedType)
+    {
+        assert fixedType != null;
+        this.edServiceNI = edServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+        this.fixedType = fixedType;
+    }
+
+    /**
+     * The SpecNI this factory's keys are bound to — the identity used to tell
+     * a JSL key from a JSLFIPS one in {@link #importPrivateKey}.
+     */
+    SpecNI ownSpecNI()
+    {
+        return specNI;
     }
 
 
@@ -58,7 +84,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             PKEYKeySpec pkeySpec;
             try
             {
-                pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
             }
             catch (RuntimeException e)
             {
@@ -80,7 +106,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
             }
 
-            return new JOEdPublicKey(pkeySpec);
+            return new JOEdPublicKey(edServiceNI, asn1NI, pkeySpec);
         }
         else
         {
@@ -98,11 +124,11 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = ((EdDSAPublicKeySpec) keySpec).getPublicData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI.allocate(), osslKeyType);
 
-                    NISelector.EDServiceNI.decode_publicKey(
+                    edServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
-                    return new JOEdPublicKey(pkeySpec);
+                    return new JOEdPublicKey(edServiceNI, asn1NI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -129,7 +155,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -145,7 +171,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
                 }
 
-                return new JOEdPrivateKey(pkeySpec);
+                return new JOEdPrivateKey(edServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -174,11 +200,11 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                    NISelector.EDServiceNI.decode_privateKey(
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI.allocate(), osslKeyType);
+                    edServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
-                    return new JOEdPrivateKey(pkeySpec);
+                    return new JOEdPrivateKey(edServiceNI, asn1NI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -269,7 +295,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
      * layer hits when a peer certificate's key was decoded by a different
      * provider (GH issue: JCA/TLS gap #5).
      */
-    static JOEdPublicKey importPublicKey(PublicKey key) throws InvalidKeyException
+    JOEdPublicKey importPublicKey(PublicKey key) throws InvalidKeyException
     {
         if (key == null)
         {
@@ -277,6 +303,9 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         if (key instanceof JOEdPublicKey)
         {
+            // Public keys carry no secret material and may cross between the
+            // Jostle providers freely (OpenSSL imports the public components
+            // into this library's lib ctx); only PRIVATE keys are isolated.
             return (JOEdPublicKey) key;
         }
         byte[] encoded = key.getEncoded();
@@ -288,12 +317,12 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         try
         {
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
             switch (pkeySpec.getType())
             {
                 case ED25519:
                 case ED448:
-                    return new JOEdPublicKey(pkeySpec);
+                    return new JOEdPublicKey(edServiceNI, asn1NI, pkeySpec);
                 default:
                     throw new InvalidKeyException(
                             "not an EdDSA public key: " + pkeySpec.getType());
@@ -313,10 +342,11 @@ public class EdKeyFactorySpi extends KeyFactorySpi
     /**
      * Counterpart of {@link #importPublicKey(PublicKey)} for private
      * keys: re-decodes a foreign EdDSA private key's PKCS#8
-     * PrivateKeyInfo into a Jostle-native {@link JOEdPrivateKey}. Jostle
-     * keys are returned unchanged.
+     * PrivateKeyInfo into a Jostle-native {@link JOEdPrivateKey}. A Jostle key
+     * made by THIS provider is returned unchanged; one made by the other
+     * Jostle provider is refused — see below.
      */
-    static JOEdPrivateKey importPrivateKey(PrivateKey key) throws InvalidKeyException
+    JOEdPrivateKey importPrivateKey(PrivateKey key) throws InvalidKeyException
     {
         if (key == null)
         {
@@ -324,7 +354,17 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         if (key instanceof JOEdPrivateKey)
         {
-            return (JOEdPrivateKey) key;
+            JOEdPrivateKey joKey = (JOEdPrivateKey) key;
+            if (joKey.getSpec().getSpecNI() != specNI)
+            {
+                // Keys are bound to the interface library (and OSSL_LIB_CTX)
+                // that created them; JSL and JSLFIPS keys must not cross
+                // implicitly. The sanctioned crossing is the one the message
+                // names, and it is what a caller has to do anyway.
+                throw new InvalidKeyException(
+                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
         }
         byte[] encoded = key.getEncoded();
         if (encoded == null)
@@ -335,12 +375,12 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         try
         {
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
             switch (pkeySpec.getType())
             {
                 case ED25519:
                 case ED448:
-                    return new JOEdPrivateKey(pkeySpec);
+                    return new JOEdPrivateKey(edServiceNI, asn1NI, pkeySpec);
                 default:
                     throw new InvalidKeyException(
                             "not an EdDSA private key: " + pkeySpec.getType());

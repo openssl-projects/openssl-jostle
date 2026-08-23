@@ -31,9 +31,16 @@ import java.security.spec.AlgorithmParameterSpec;
 public class EdSignatureSpi extends SignatureSpi
 {
 
-    private static final EDServiceNI edServiceNI = NISelector.EDServiceNI;
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS); foreign keys translate through the
+    // matching KeyFactory.
+    private final EDServiceNI edServiceNI;
+    private final EdKeyFactorySpi keyFactory;
 
-    // OpenSSL-probed signature lengths, memoized once per key type (see NativeLengthCache).
+    // OpenSSL-probed signature lengths, memoized once per key type (see
+    // NativeLengthCache). Shared across both providers deliberately: RFC 8032
+    // fixes the Ed25519 / Ed448 signature length, so the two interface
+    // libraries cannot disagree about it, and OSSLKeyType is a complete key.
     private static final NativeLengthCache<OSSLKeyType> signatureLengths = new NativeLengthCache<OSSLKeyType>();
 
     private final OSSLKeyType forcedType;
@@ -46,6 +53,13 @@ public class EdSignatureSpi extends SignatureSpi
 
     public EdSignatureSpi(OSSLKeyType forcedType)
     {
+        this(NISelector.EDServiceNI, new EdKeyFactorySpi(), forcedType);
+    }
+
+    public EdSignatureSpi(EDServiceNI edServiceNI, EdKeyFactorySpi keyFactory, OSSLKeyType forcedType)
+    {
+        this.edServiceNI = edServiceNI;
+        this.keyFactory = keyFactory;
         this.forcedType = forcedType;
     }
 
@@ -80,7 +94,7 @@ public class EdSignatureSpi extends SignatureSpi
             // keys (SunEC/BC) by re-decoding their X.509 encoding, so a
             // verify with a public key decoded by another provider works
             // (JCA/TLS gap #5).
-            JOEdPublicKey key = EdKeyFactorySpi.importPublicKey(publicKey);
+            JOEdPublicKey key = keyFactory.importPublicKey(publicKey);
             lastKey = key;
             initVerifyInternal(key);
         }
@@ -102,7 +116,7 @@ public class EdSignatureSpi extends SignatureSpi
             // Accept Jostle-native keys directly and adopt foreign EdDSA
             // keys (SunEC/BC) by re-decoding their PKCS#8 encoding
             // (JCA/TLS gap #5).
-            JOEdPrivateKey key = EdKeyFactorySpi.importPrivateKey(privateKey);
+            JOEdPrivateKey key = keyFactory.importPrivateKey(privateKey);
             lastKey = key;
             initSignInternal(key);
         }
@@ -126,7 +140,7 @@ public class EdSignatureSpi extends SignatureSpi
 
         if (ref == null)
         {
-            ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
+            ref = new EdDsaRef(edServiceNI, edServiceNI.allocateSigner(), key.getAlgorithm());
         }
 
         byte[] context = null;
@@ -171,7 +185,7 @@ public class EdSignatureSpi extends SignatureSpi
 
         if (ref == null)
         {
-            ref = new EdDsaRef(edServiceNI.allocateSigner(), key.getAlgorithm());
+            ref = new EdDsaRef(edServiceNI, edServiceNI.allocateSigner(), key.getAlgorithm());
         }
 
         byte[] context = null;
@@ -382,9 +396,12 @@ public class EdSignatureSpi extends SignatureSpi
     protected static class Disposer
             extends NativeDisposer
     {
-        Disposer(long ref)
+        private final EDServiceNI edServiceNI;
+
+        Disposer(EDServiceNI edServiceNI, long ref)
         {
             super(ref);
+            this.edServiceNI = edServiceNI;
         }
 
         @Override
@@ -396,9 +413,13 @@ public class EdSignatureSpi extends SignatureSpi
 
     protected static class EdDsaRef extends NativeReference
     {
-        protected EdDsaRef(long reference, String name)
+        // The dispose action is built from CONSTRUCTOR PARAMETERS and handed to
+        // super(): NativeReference's constructor captures it eagerly, before
+        // any subclass field assignment has run, so reading an instance field
+        // here would capture a null NI and NPE on the disposal daemon thread.
+        protected EdDsaRef(EDServiceNI edServiceNI, long reference, String name)
         {
-            super(reference, name, new EdSignatureSpi.Disposer(reference));
+            super(reference, name, new EdSignatureSpi.Disposer(edServiceNI, reference));
         }
 
     }

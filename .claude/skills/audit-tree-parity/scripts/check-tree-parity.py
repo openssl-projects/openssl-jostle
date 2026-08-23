@@ -86,9 +86,16 @@ NONFIPS_ONLY_PREFIXES = (
     # fips-c-review/probes/pqc_op_probe.c), so they are now byte-identical
     # twins like every other shared family, and ProvFIPS{MLDSA,MLKEM,SLHDSA}
     # gate registration on the loaded module actually serving them.
-    "util/edec", "util/ks",
-    "jni/ed_", "jni/edec", "jni/ks_",
-    "ffi/ed_", "ffi/edec", "ffi/ks_",
+    #
+    # The Ed family (util/edec, jni/ed_, ffi/ed_) came off this list on the
+    # same date and for the same reason, in the opposite direction to xec:
+    # 3.1.2 refuses ED25519/ED448 outright while 3.5.7 serves both (probe:
+    # fips-c-review/probes/ed_gate_probe.c), so they are ordinary twins now and
+    # ProvFIPSED gates registration per NAME on the loaded module - which also
+    # excludes ED25519CTX, the one member 3.5.7 does not register.
+    "util/ks",
+    "jni/ks_",
+    "ffi/ks_",
     # base-provider init/diagnostic glue with fips-tree counterparts under
     # different names (openssl_fips_{jni,ffi}.c) or no FIPS equivalent at all.
     #

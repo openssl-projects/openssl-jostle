@@ -105,6 +105,7 @@ public class FIPSLibraryLookupParityTest
             "JoMLDSA_sign", "JoMLKEM_generateKeyPair", "JoSLHDSA_sign",
             "JoSpec_Encap", "JoASN1_allocate", "JoRand_createContext",
             "JoCCM_init", "JoKDF_HKDF", "JoXEC_generateKeyPair",
+            "JoEDDSA_generateKeyPair",
             "JoBlockCipher_init",
             "JoNative_isAvailable", "JoFFI_freeUnsecureNullSafe",
     };

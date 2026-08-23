@@ -98,6 +98,22 @@ final class FIPSTestUtil
     }
 
     /**
+     * Does the loaded module register {@code name} as a signature algorithm?
+     * <p>
+     * Asks the module directly, through the same
+     * {@code capability_can_fetch(JO_CAP_OP_SIGNATURE, ...)} the registrar
+     * gates on, so a test using it asserts that the registration AGREES with
+     * the module rather than pinning either module's answer. Needed for the Ed
+     * family, whose per-name gate ({@code ED25519CTX} absent on 3.5.7 while the
+     * rest of the family is served) has no keymgmt-level signal.
+     */
+    static boolean moduleServesSignature(String name)
+    {
+        return FIPSNISelector.OpenSSLFIPSNI.canFetch(
+                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_SIGNATURE, name) != 0;
+    }
+
+    /**
      * The message a verify-only FIPS module's {@code initSign} must carry.
      * Pinned once so every DSA test asserts the same text — see
      * {@code DefaultServiceNI.baseErrorHandler}'s

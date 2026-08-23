@@ -17,12 +17,27 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
 {
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS): the key's native handle belongs to the
+    // interface library that created it, so the NIs that read it must be the
+    // same ones.
+    private final EDServiceNI edServiceNI;
+    private final Asn1Ni asn1NI;
+
     public JOEdPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.EDServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    public JOEdPublicKey(EDServiceNI edServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.edServiceNI = edServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -45,7 +60,7 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
     {
         synchronized (this)
         {
-            return ASN1Encoder.asSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asSubjectPublicKeyInfo(asn1NI, spec);
         }
     }
 
@@ -62,9 +77,9 @@ public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey
     {
         synchronized (this)
         {
-            int len = NISelector.EDServiceNI.getPublicKey(spec.getReference(), null);
+            int len = edServiceNI.getPublicKey(spec.getReference(), null);
             byte[] raw = new byte[len];
-            NISelector.EDServiceNI.getPublicKey(spec.getReference(), raw);
+            edServiceNI.getPublicKey(spec.getReference(), raw);
             return raw;
         }
     }

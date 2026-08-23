@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
+import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
@@ -58,6 +59,11 @@ public class FIPSNISelector
     public static final DHServiceNI DHServiceNI;
     public static final XECServiceNI XECServiceNI;
 
+    // EdDSA. Served by the 3.5.x module, absent from 3.1.2 - the inverse of
+    // XDH above. The NI is always constructed; ProvFIPSED decides per NAME
+    // whether to register (probe: fips-c-review/probes/ed_gate_probe.c).
+    public static final EDServiceNI EDServiceNI;
+
     // PQC. Served by the 3.5.x module, absent from 3.1.2 - the NIs are always
     // constructed; ProvFIPS{MLDSA,MLKEM,SLHDSA} decide whether to register.
     public static final MLDSAServiceNI MLDSAServiceNI;
@@ -84,6 +90,7 @@ public class FIPSNISelector
         DSAServiceNI = new DSAServiceFIPSJNI();
         DHServiceNI = new DHServiceFIPSJNI();
         XECServiceNI = new XECServiceFIPSJNI();
+        EDServiceNI = new EDServiceFIPSJNI();
         MLDSAServiceNI = new MLDSAServiceFIPSJNI();
         MLKEMServiceNI = new MLKEMServiceFIPSJNI();
         SLHDSAServiceNI = new SLHDSAServiceFIPSJNI();

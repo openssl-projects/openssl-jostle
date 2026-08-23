@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.lang.ref.Reference;
@@ -30,16 +31,30 @@ import java.util.Optional;
 public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey, OSSLKey, EdECPrivateKey
 {
 
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS): the key's native handle belongs to the
+    // interface library that created it, so the NIs that read it must be the
+    // same ones.
+    private final EDServiceNI edServiceNI;
+    private final Asn1Ni asn1NI;
+
     public JOEdPrivateKey(PKEYKeySpec spec)
     {
+        this(NISelector.EDServiceNI, NISelector.Asn1NI, spec);
+    }
+
+    public JOEdPrivateKey(EDServiceNI edServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.edServiceNI = edServiceNI;
+        this.asn1NI = asn1NI;
     }
 
 
     @Override
     public EdDSAPublicKey getPublicKey()
     {
-        return new JOEdPublicKey(spec);
+        return new JOEdPublicKey(edServiceNI, asn1NI, spec);
     }
 
     @Override
@@ -60,7 +75,7 @@ public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey
     {
         try
         {
-            return ASN1Encoder.asPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT);
         }
         finally
         {
@@ -84,9 +99,9 @@ public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey
     {
         try
         {
-            int len = NISelector.EDServiceNI.getPrivateKey(spec.getReference(), null);
+            int len = edServiceNI.getPrivateKey(spec.getReference(), null);
             byte[] raw = new byte[len];
-            NISelector.EDServiceNI.getPrivateKey(spec.getReference(), raw);
+            edServiceNI.getPrivateKey(spec.getReference(), raw);
             return raw;
         }
         finally
@@ -103,9 +118,9 @@ public class JOEdPrivateKey extends AsymmetricKeyImpl implements EdDSAPrivateKey
     {
         try
         {
-            int len = NISelector.EDServiceNI.getPublicKey(spec.getReference(), null);
+            int len = edServiceNI.getPublicKey(spec.getReference(), null);
             byte[] raw = new byte[len];
-            NISelector.EDServiceNI.getPublicKey(spec.getReference(), raw);
+            edServiceNI.getPublicKey(spec.getReference(), raw);
             return raw;
         }
         finally

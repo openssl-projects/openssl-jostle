@@ -153,6 +153,65 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * EdDSA specifically, named rather than swept — same reasoning as
+     * {@link #pqcIsImplementedByTheFipsModuleWhenServed}.
+     * <p>
+     * The bundled mainline libcrypto implements Ed25519 and Ed448 exactly as
+     * the 3.5.x module does, so every signature, encoding and BC-agreement
+     * test passes identically whether the work happened in the module or in
+     * mainline's default provider. Asking which provider implements it is the
+     * only check that can tell them apart.
+     * <p>
+     * Both branches are asserted: registered ⇒ the module implements it;
+     * unregistered ⇒ the module must genuinely not resolve it, so a working
+     * algorithm cannot be quietly dropped from callers.
+     */
+    @Test
+    public void edIsImplementedByTheFipsModuleWhenServed()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        for (String alg : new String[]{"ED25519", "ED448"})
+        {
+            boolean registered = provider.getService("KeyPairGenerator", alg) != null;
+            String impl = FIPSNISelector.OpenSSLFIPSNI
+                    .implementingProvider(OpenSSLFIPSNI.OP_KEYMGMT, alg);
+
+            if (!registered)
+            {
+                Assertions.assertNull(impl,
+                        alg + " is unregistered but the FIPS lib ctx resolves it to \""
+                                + impl + "\" — a working algorithm was dropped from callers");
+                continue;
+            }
+            Assertions.assertEquals(FIPS_PROVIDER, impl,
+                    alg + " is served by JSLFIPS but implemented by \"" + impl
+                            + "\" — mainline implements EdDSA identically, so this is the only "
+                            + "check that can catch it");
+        }
+
+        // The signature side separately: a keymgmt that resolves to the module
+        // does not prove the SIGNATURE implementation does, and the Ed family
+        // is registered per signature name.
+        for (String alg : new String[]{"ED25519", "ED25519PH", "ED448", "ED448PH", "ED25519CTX"})
+        {
+            boolean registered = provider.getService("Signature", alg) != null;
+            String impl = FIPSNISelector.OpenSSLFIPSNI
+                    .implementingProvider(OpenSSLFIPSNI.OP_SIGNATURE, alg);
+
+            if (!registered)
+            {
+                Assertions.assertNull(impl,
+                        "Signature." + alg + " is unregistered but the FIPS lib ctx resolves it to \""
+                                + impl + "\" — a working algorithm was dropped from callers");
+                continue;
+            }
+            Assertions.assertEquals(FIPS_PROVIDER, impl,
+                    "Signature." + alg + " is served by JSLFIPS but implemented by \"" + impl + "\"");
+        }
+    }
+
+    /**
      * The probe reports a real answer, not a constant.
      * <p>
      * Without this the two tests above would pass against a stub that always

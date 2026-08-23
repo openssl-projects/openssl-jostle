@@ -30,8 +30,15 @@ import java.security.Signature;
  * Served-surface lock for the families whose presence in JSLFIPS depends on the
  * loaded module - or is unconditional.
  *
- * <p><b>EdDSA is absent unconditionally.</b> No {@code ProvFIPSED} exists, so
- * Ed25519 / Ed448 never resolve through JSLFIPS whatever module is loaded.
+ * <p><b>EdDSA is module-dependent too</b>, and in the OPPOSITE direction to
+ * XDH: 3.1.2 refuses ED25519 / ED448 outright while 3.5.7 serves them (probe:
+ * {@code fips-c-review/probes/ed_gate_probe.c}). This test asserted
+ * unconditional absence until 2026-08-23, when {@code ProvFIPSED} was added;
+ * it is now an <b>iff</b> for the same reason PQC is. The one member gated on
+ * its OWN capability, {@code Signature.ED25519CTX}, is deliberately not swept
+ * here — {@code FIPSEdSignatureTest.edServedIffModuleImplementsIt} owns it,
+ * because it is absent on 3.5.7 while the rest of the family is present and
+ * would break the all-or-nothing check.
  *
  * <p><b>PQC is module-dependent</b>, and this test changed shape on 2026-08-23
  * when support was added. It previously asserted ML-DSA / ML-KEM / SLH-DSA were
@@ -96,20 +103,6 @@ public class FIPSPQCAbsenceTest
         default:
             throw new IllegalArgumentException("unhandled service type " + type);
         }
-    }
-
-    /**
-     * Lock a single (type, name) pair: absent from JSLFIPS, present in JSL.
-     */
-    private static void assertAbsentFromJslfipsButServedByJsl(String type, String name)
-        throws Exception
-    {
-        Assertions.assertThrows(NoSuchAlgorithmException.class,
-                () -> getInstance(type, name, JostleFIPSProvider.PROVIDER_NAME),
-                type + " " + name + " must not resolve through JSLFIPS");
-
-        Assertions.assertNotNull(getInstance(type, name, JostleProvider.PROVIDER_NAME),
-                type + " " + name + " must resolve through JSL");
     }
 
     /**
@@ -188,22 +181,31 @@ public class FIPSPQCAbsenceTest
         }
     }
 
+    /**
+     * Every EdDSA name resolves through JSLFIPS iff the module serves the
+     * family, and every name agrees with the rest.
+     * <p>
+     * {@code Signature.ED25519CTX} is excluded on purpose: 3.5.7 serves the
+     * family but does NOT register that instance, so it is gated on its own
+     * signature-level probe and sweeping it here would fail the
+     * all-or-nothing assertion. {@code FIPSEdSignatureTest} pins it.
+     */
     @Test
-    public void eddsaAlgorithmsAbsentFromJslfips()
+    public void eddsaAlgorithmsServedIffModuleImplementsThem()
         throws Exception
     {
-        // ProvED registers no FIPS counterpart: the 3.1.2 module does not
-        // approve FIPS 186-5 EdDSA. KeyPairGenerator / KeyFactory carry the
-        // bare "ED" name (with "EDDSA" alias) plus the curve names; Signature
-        // carries "EDDSA" as a primary name plus the curve names.
-        for (String name : new String[]{"ED", "EDDSA", "ED25519", "ED448"})
-        {
-            assertAbsentFromJslfipsButServedByJsl("KeyPairGenerator", name);
-            assertAbsentFromJslfipsButServedByJsl("KeyFactory", name);
-        }
-        for (String name : new String[]{"EDDSA", "ED25519", "ED448"})
-        {
-            assertAbsentFromJslfipsButServedByJsl("Signature", name);
-        }
+        // KeyPairGenerator / KeyFactory carry the bare "ED" name (with "EDDSA"
+        // alias) plus the curve names; Signature carries "EDDSA" as a primary
+        // name plus the curve names and the two prehash variants.
+        assertFamilyIff("ED25519",
+                new String[][]{
+                        {"KeyPairGenerator", "ED"}, {"KeyPairGenerator", "EDDSA"},
+                        {"KeyPairGenerator", "ED25519"}, {"KeyPairGenerator", "ED448"},
+                        {"KeyFactory", "ED"}, {"KeyFactory", "EDDSA"},
+                        {"KeyFactory", "ED25519"}, {"KeyFactory", "ED448"},
+                        {"Signature", "EDDSA"}, {"Signature", "ED25519"},
+                        {"Signature", "ED25519PH"}, {"Signature", "ED448"},
+                        {"Signature", "ED448PH"},
+                });
     }
 }
