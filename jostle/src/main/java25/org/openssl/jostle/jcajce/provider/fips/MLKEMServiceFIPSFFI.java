@@ -25,7 +25,7 @@ class MLKEMServiceFIPSFFI extends MLKEMServiceFFI
 {
     MLKEMServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 
     /**

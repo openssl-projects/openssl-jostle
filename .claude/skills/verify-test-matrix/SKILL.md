@@ -1,6 +1,6 @@
 ---
 name: verify-test-matrix
-description: Run Jostle's full test matrix (base test, unitTest25JNI/FFI, integrationTest25JNI/FFI) with forced execution and the FIPS module wired, then verify the result XML proves it — zero failures AND no FIPS-gated class wholesale-skipped. Use this skill whenever the user wants the suite run and trusted — including phrases like "run the full test matrix", "run all the tests including FIPS", "verify everything is green", "did the FIPS tests actually run", "full verification pass", "declare the branch green", and similar. Exists because gradle does not treat TEST_FIPS_LIB as a task input: a cached green run silently replays wholesale-skipped FIPS classes in milliseconds.
+description: Run Jostle's full test matrix (base test, unitTest25JNI/FFI, integrationTest25JNI/FFI) with forced execution and the FIPS module wired, then verify the result XML proves it — zero failures AND no FIPS-gated class wholesale-skipped. Also sweeps every FIPS module CONFIGURATION (sweep-fips-configs.sh), since most strictness differences are fipsinstall config rather than module version and a default-config run leaves the capability gates unexercised. Use this skill whenever the user wants the suite run and trusted — including phrases like "run the full test matrix", "run all the tests including FIPS", "verify everything is green", "did the FIPS tests actually run", "test both FIPS modules", "full verification pass", "declare the branch green", and similar. Exists because gradle does not treat TEST_FIPS_LIB as a task input: a cached green run silently replays wholesale-skipped FIPS classes in milliseconds.
 ---
 
 # Run and verify the full test matrix
@@ -27,6 +27,64 @@ python3 .claude/skills/verify-test-matrix/scripts/verify-results.py --require-fi
 ```
 
 On this machine the canonical values are `JAVA_HOME=/Users/meganwoods/openjdk/zulu25.28.85-ca-jdk25.0.0-macosx_aarch64` and `TEST_FIPS_LIB=/Users/meganwoods/openssl/openssls/osx_3_1_2/lib/ossl-modules/fips.dylib`. The full run takes ~30 minutes (the base `test` task dominates); run it in the background and read the verifier's table at the end.
+
+## Sweeping every FIPS module configuration
+
+`run-matrix.sh` runs ONE configuration — whatever `TEST_FIPS_LIB` points at,
+with whatever `fipsmodule.cnf` happens to be installed. That is not enough to
+trust a FIPS change, because **most of the strictness difference between modules
+is `fipsinstall` config, not module version** (see the "A FIPS module's
+strictness is mostly `fipsinstall` CONFIG" section of `testing.md`). At default
+settings the 3.5.x capability gates never fire, so the suite goes green without
+executing the code under test — the worst kind of passing build, and exactly how
+a full matrix passed locally then failed on the first CI run.
+
+```bash
+export JAVA_HOME=/Users/meganwoods/openjdk/zulu25.28.85-ca-jdk25.0.0-macosx_aarch64
+bash .claude/skills/verify-test-matrix/scripts/sweep-fips-configs.sh
+```
+
+With no `JOSTLE_FIPS_CONFIGS` it discovers every module under
+`${JOSTLE_OPENSSLS_DIR:-$HOME/openssl/openssls}` and runs each with its installed
+cnf. To pin the three configurations JSLFIPS must serve, be explicit — the
+`name|module|cnf` third field swaps a cnf into place and restores it afterwards:
+
+```bash
+P=/Users/meganwoods/openssl/openssls
+export JOSTLE_FIPS_CONFIGS="3.1.2-default|$P/osx_3_1_2/lib/ossl-modules/fips.dylib|
+3.5.7-pedantic|$P/osx_3_5_7/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_7_pedantic.cnf
+3.5.7-default|$P/osx_3_5_7/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_7_default.cnf"
+bash .claude/skills/verify-test-matrix/scripts/sweep-fips-configs.sh
+```
+
+Generate the two 3.5.7 cnf variants once, with the matching `openssl` binary —
+`-pedantic` is what turns the gates on:
+
+```bash
+cd $P/osx_3_5_7
+./bin/openssl fipsinstall -module lib/ossl-modules/fips.dylib -provider_name fips \
+    -out /tmp/cnf_3_5_7_default.cnf
+./bin/openssl fipsinstall -module lib/ossl-modules/fips.dylib -provider_name fips \
+    -pedantic -out /tmp/cnf_3_5_7_pedantic.cnf
+```
+
+Three properties worth knowing:
+
+1. **It prints the switches in force** (`dsa-sign-disabled`,
+   `rsa-pkcs15-pad-disabled`, `hmac-key-check`, `signature-digest-check`) before
+   each run, so the transcript records which configuration was actually tested
+   rather than leaving it to be inferred. Diffing two `fipsmodule.cnf` files is
+   the one cheap step that separates a module-version difference from a config
+   difference, and skipping it has caused a wrong write-up before.
+2. **It restores every cnf it overwrites on any exit path**, including Ctrl-C —
+   the cnf belongs to a shared OpenSSL install.
+3. **A missing module or cnf is a FAIL, not a skip.** Exit 1 with the
+   configuration named, so an absent install cannot read as a pass.
+
+`JOSTLE_SWEEP_DRYRUN=1` exercises discovery, the swap and the restore without
+running the matrix; it reports "NOT verified" and never counts as a sweep.
+
+Budget roughly 30 minutes per configuration.
 
 ## What the verifier checks
 

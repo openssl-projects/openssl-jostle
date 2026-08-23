@@ -50,22 +50,38 @@ public class SpecFFI implements SpecNI
 
     public SpecFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
 
-        MemorySegment allocateFunc = lookup.find("JoSpec_allocateKeySpec").orElseThrow();
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public SpecFFI(SymbolLookup lookup, String symPrefix)
+    {
+
+        MemorySegment allocateFunc = lookup.find(symPrefix + "JoSpec_allocateKeySpec").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return prt
                         ValueLayout.ADDRESS // err out
                 ));
 
-        MemorySegment disposeFunc = lookup.find("JoSpec_disposeKeySpec").orElseThrow();
+        MemorySegment disposeFunc = lookup.find(symPrefix + "JoSpec_disposeKeySpec").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // ptr
                 ));
 
 
-        MemorySegment encapFunc = lookup.find("JoSpec_Encap").orElseThrow();
+        MemorySegment encapFunc = lookup.find(symPrefix + "JoSpec_Encap").orElseThrow();
         encapFuncHandle = linker.downcallHandle(encapFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -76,7 +92,7 @@ public class SpecFFI implements SpecNI
                         ValueLayout.ADDRESS
                 ));
 
-        MemorySegment decapFunc = lookup.find("JoSpec_Decap").orElseThrow();
+        MemorySegment decapFunc = lookup.find(symPrefix + "JoSpec_Decap").orElseThrow();
         decapFuncHandle = linker.downcallHandle(decapFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -88,7 +104,7 @@ public class SpecFFI implements SpecNI
                 ));
 
 
-        MemorySegment getNameFunc = lookup.find("JoSpec_GetName").orElseThrow();
+        MemorySegment getNameFunc = lookup.find(symPrefix + "JoSpec_GetName").orElseThrow();
         getNameFuncHandle = linker.downcallHandle(getNameFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return

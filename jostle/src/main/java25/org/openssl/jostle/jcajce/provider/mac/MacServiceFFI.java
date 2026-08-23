@@ -31,8 +31,24 @@ public class MacServiceFFI implements MacServiceNI
 
     public MacServiceFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public MacServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
         MH_new = LINKER.downcallHandle(
-                lookup.find("JoMAC_allocate").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_allocate").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
@@ -41,7 +57,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_copy = LINKER.downcallHandle(
-                lookup.find("JoMAC_copy").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_copy").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // returned ctx
                         ValueLayout.ADDRESS, // *ctx to copy
@@ -49,7 +65,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_init = LINKER.downcallHandle(
-                lookup.find("JoMAC_init").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_init").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
@@ -58,7 +74,7 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_updateByte = LINKER.downcallHandle(
-                lookup.find("JoMAC_updateByte").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_updateByte").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
@@ -66,7 +82,7 @@ public class MacServiceFFI implements MacServiceNI
                 ));
 
         MH_update = LINKER.downcallHandle(
-                lookup.find("JoMAC_update").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_update").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -77,7 +93,7 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_final = LINKER.downcallHandle(
-                lookup.find("JoMAC_final").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_final").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -87,28 +103,28 @@ public class MacServiceFFI implements MacServiceNI
                 ), Linker.Option.critical(true));
 
         MH_len = LINKER.downcallHandle(
-                lookup.find("JoMAC_len").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_len").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
                 ));
 
         MH_lenMeta = LINKER.downcallHandle(
-                lookup.find("JoMAC_lenMeta").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_lenMeta").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS
                 ));
 
         MH_reset = LINKER.downcallHandle(
-                lookup.find("JoMAC_reset").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_reset").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS)
         );
 
         MH_free = LINKER.downcallHandle(
-                lookup.find("JoMAC_free").orElseThrow(),
+                lookup.find(symPrefix + "JoMAC_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
     }

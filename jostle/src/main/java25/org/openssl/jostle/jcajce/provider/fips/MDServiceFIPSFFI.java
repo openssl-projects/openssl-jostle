@@ -21,6 +21,6 @@ class MDServiceFIPSFFI extends MDServiceFFI
 {
     MDServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

@@ -23,6 +23,6 @@ class OperationsTestFIPSFFI extends OperationsTestFFI
 {
     OperationsTestFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

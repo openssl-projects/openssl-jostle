@@ -67,16 +67,32 @@ public class RSAServiceFFI implements RSAServiceNI
 
     public RSAServiceFFI(SymbolLookup lookup)
     {
-        allocSignerH = bind(lookup, "JoRSA_allocateSigner",
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public RSAServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
+        allocSignerH = bind(lookup, symPrefix + "JoRSA_allocateSigner",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeSignerH = linker.downcallHandle(
-                lookup.find("JoRSA_disposeSigner").orElseThrow(),
+                lookup.find(symPrefix + "JoRSA_disposeSigner").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // RSA_generateKeyPair(int bits, uint8_t* pubexp, size_t pubexp_len,
         //                    int32_t* err, void* rnd_src) -> key_spec*
-        generateKeyPairH = bind(lookup, "JoRSA_generateKeyPair",
+        generateKeyPairH = bind(lookup, symPrefix + "JoRSA_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,    // bits
@@ -85,7 +101,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.ADDRESS,     // err out
                         ValueLayout.ADDRESS));   // rnd_src upcall
 
-        decodePublicComponentsH = bind(lookup, "JoRSA_decodePublicComponents",
+        decodePublicComponentsH = bind(lookup, symPrefix + "JoRSA_decodePublicComponents",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -93,7 +109,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        decodePrivateComponentsH = bind(lookup, "JoRSA_decodePrivateComponents",
+        decodePrivateComponentsH = bind(lookup, symPrefix + "JoRSA_decodePrivateComponents",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -103,7 +119,7 @@ public class RSAServiceFFI implements RSAServiceNI
                 /* critical */ true);
 
         // 8 (ptr,len) pairs after the spec pointer.
-        decodePrivateComponentsCrtH = bind(lookup, "JoRSA_decodePrivateComponentsCrt",
+        decodePrivateComponentsCrtH = bind(lookup, symPrefix + "JoRSA_decodePrivateComponentsCrt",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -118,7 +134,7 @@ public class RSAServiceFFI implements RSAServiceNI
                 /* critical */ true);
 
         // RSA_getComponent(key_spec*, int32_t component, uint8_t* out, size_t out_len)
-        getComponentH = bind(lookup, "JoRSA_getComponent",
+        getComponentH = bind(lookup, symPrefix + "JoRSA_getComponent",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -129,7 +145,7 @@ public class RSAServiceFFI implements RSAServiceNI
 
         // RSA_initSign(rsa_ctx*, key_spec*, const char* digest, int padding,
         //              const char* mgf1, int salt_len, void* rnd_src)
-        initSignH = bind(lookup, "JoRSA_initSign",
+        initSignH = bind(lookup, symPrefix + "JoRSA_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx
@@ -140,7 +156,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.JAVA_INT,   // salt_len
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        initVerifyH = bind(lookup, "JoRSA_initVerify",
+        initVerifyH = bind(lookup, symPrefix + "JoRSA_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -151,7 +167,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.JAVA_INT));
 
         // RSA_update(rsa_ctx*, uint8_t* in, size_t in_size, int in_off, int in_len)
-        updateH = bind(lookup, "JoRSA_update",
+        updateH = bind(lookup, symPrefix + "JoRSA_update",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -162,7 +178,7 @@ public class RSAServiceFFI implements RSAServiceNI
                 /* critical */ true);
 
         // RSA_sign(rsa_ctx*, uint8_t* out, size_t out_size, int out_off, void* rnd_src)
-        signH = bind(lookup, "JoRSA_sign",
+        signH = bind(lookup, symPrefix + "JoRSA_sign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -172,7 +188,7 @@ public class RSAServiceFFI implements RSAServiceNI
                         ValueLayout.ADDRESS));
 
         // RSA_verify(rsa_ctx*, uint8_t* sig, size_t sig_size, int sig_len)
-        verifyH = bind(lookup, "JoRSA_verify",
+        verifyH = bind(lookup, symPrefix + "JoRSA_verify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,

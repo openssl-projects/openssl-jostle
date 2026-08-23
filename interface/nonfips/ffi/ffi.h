@@ -16,7 +16,7 @@
 * Use this in cases where security is not relevant, otherwise
 * use the appropriate free for whatever you are doing.
 */
-void ffi_free_unsecure_null_safe(void *ptr);
+void JoFFI_freeUnsecureNullSafe(void *ptr);
 
 
 

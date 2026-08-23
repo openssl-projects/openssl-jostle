@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-void ffi_free_unsecure_null_safe(void *ptr) {
+void JoFFI_freeUnsecureNullSafe(void *ptr) {
     if (ptr != NULL) {
         free(ptr);
     }

@@ -33,7 +33,7 @@ public class NativeServiceFFI implements NativeServiceNI
     {
         try
         {
-            var funcPtr = lookup.find("is_native_available").orElseThrow();
+            var funcPtr = lookup.find("JoNative_isAvailable").orElseThrow();
             var linker = Linker.nativeLinker();
             var dch = linker.downcallHandle(funcPtr, FunctionDescriptor.of(ValueLayout.JAVA_BYTE));
             return FFI.ffi_bool((byte) dch.invokeExact());
@@ -50,7 +50,7 @@ public class NativeServiceFFI implements NativeServiceNI
         try (Arena a = Arena.ofConfined())
         {
             SymbolLookup stdLib = SymbolLookup.loaderLookup();
-            var funcPtr = stdLib.find("openssl_library_version").orElseThrow();
+            var funcPtr = stdLib.find("JoNative_libraryVersion").orElseThrow();
             var linker = Linker.nativeLinker();
             var dch = linker.downcallHandle(funcPtr, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
             var len = a.allocate(ValueLayout.JAVA_LONG);

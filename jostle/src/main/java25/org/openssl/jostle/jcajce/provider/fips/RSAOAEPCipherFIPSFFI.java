@@ -21,6 +21,6 @@ class RSAOAEPCipherFIPSFFI extends RSAOAEPCipherFFI
 {
     RSAOAEPCipherFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

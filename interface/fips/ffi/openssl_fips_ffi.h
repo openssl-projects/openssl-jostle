@@ -17,12 +17,12 @@
 /*
  * Initialise this library's own global lib ctx with the OpenSSL FIPS module
  * + base provider (jostle_ctx_init_fips) and pin it to fips=yes default
- * properties. One-shot per library instance. Distinctly (JoFips_) named so
+ * properties. One-shot per library instance. Distinctly (JoFIPS_) named so
  * an nm audit trivially separates it from the base library's
  * set_openssl_module; FIPS FFI callers resolve this library's exports via a
  * library-scoped lookup, never the process-global loader lookup.
  */
-int32_t JoFips_set_openssl_module(const char *module_dir, const char *prov_name,
+int32_t JoFIPS_set_openssl_module(const char *module_dir, const char *prov_name,
                                   const char *config_path);
 
 
@@ -31,20 +31,20 @@ int32_t JoFips_set_openssl_module(const char *module_dir, const char *prov_name,
  * prefixed like every other export of this library so no name can shadow a
  * libcrypto symbol at load time.
  *
- * JoFips_can_fetch returns 1/0, or JO_NAME_IS_NULL / JO_UNEXPECTED_STATE for
- * an unusable argument. JoFips_module_version writes "<name> <version>" into
+ * JoFIPS_can_fetch returns 1/0, or JO_NAME_IS_NULL / JO_UNEXPECTED_STATE for
+ * an unusable argument. JoFIPS_module_version writes "<name> <version>" into
  * the caller's buffer and returns the byte count, or a negative JO_* code.
  */
-int32_t JoFips_can_fetch(int32_t op_type, const char *name);
+int32_t JoFIPS_can_fetch(int32_t op_type, const char *name);
 
-int32_t JoFips_module_version(char *out, int32_t out_len);
+int32_t JoFIPS_module_version(char *out, int32_t out_len);
 
 /*
  * Names the OSSL_PROVIDER that implements an algorithm in this library's lib
  * ctx ("fips" / "default") - the only direct evidence an operation runs inside
  * the module. See util/capability.h.
  */
-int32_t JoFips_implementing_provider(int32_t op_type, const char *name,
+int32_t JoFIPS_implementing_provider(int32_t op_type, const char *name,
                                      char *out, int32_t out_len);
 
 

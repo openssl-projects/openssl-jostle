@@ -66,8 +66,24 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
 
     public MLKEMServiceFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public MLKEMServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
         this.lookup = lookup;
-        generateKeyPairFunc = lookup.find("JoMLKEM_generateKeyPair").orElseThrow();
+        generateKeyPairFunc = lookup.find(symPrefix + "JoMLKEM_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -76,7 +92,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        generateKeyPairWithSeedFunc = lookup.find("JoMLKEM_generateKeyPairSeed").orElseThrow();
+        generateKeyPairWithSeedFunc = lookup.find(symPrefix + "JoMLKEM_generateKeyPairSeed").orElseThrow();
         generateKeyPairWithSeedFuncHandle = linker.downcallHandle(generateKeyPairWithSeedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
@@ -89,7 +105,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                 ));
 
 
-        getPublicKeyFunc = lookup.find("JoMLKEM_getPublicKey").orElseThrow();
+        getPublicKeyFunc = lookup.find(symPrefix + "JoMLKEM_getPublicKey").orElseThrow();
         getPublicKeyFuncHandle = linker.downcallHandle(getPublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -98,7 +114,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getPrivateKeyFunc = lookup.find("JoMLKEM_getPrivateKey").orElseThrow();
+        getPrivateKeyFunc = lookup.find(symPrefix + "JoMLKEM_getPrivateKey").orElseThrow();
         getPrivateKeyFuncHandle = linker.downcallHandle(getPrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -107,7 +123,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        getSeedKeyFunc = lookup.find("JoMLKEM_getSeed").orElseThrow();
+        getSeedKeyFunc = lookup.find(symPrefix + "JoMLKEM_getSeed").orElseThrow();
         getSeedKeyFuncHandle = linker.downcallHandle(getSeedKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -116,7 +132,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        decodePublicKeyFunc = lookup.find("JoMLKEM_decodePublicKey").orElseThrow();
+        decodePublicKeyFunc = lookup.find(symPrefix + "JoMLKEM_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -129,7 +145,7 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
                         ValueLayout.ADDRESS
                 ));
 
-        decodePrivateKeyFunc = lookup.find("JoMLKEM_decodePrivateKey").orElseThrow();
+        decodePrivateKeyFunc = lookup.find(symPrefix + "JoMLKEM_decodePrivateKey").orElseThrow();
         decodePrivateKeyFuncHandle = linker.downcallHandle(decodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,

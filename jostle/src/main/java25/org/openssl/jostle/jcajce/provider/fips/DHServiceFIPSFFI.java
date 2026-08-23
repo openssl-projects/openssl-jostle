@@ -21,6 +21,6 @@ class DHServiceFIPSFFI extends DHServiceFFI
 {
     DHServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

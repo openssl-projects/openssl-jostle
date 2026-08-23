@@ -21,6 +21,6 @@ class DSAServiceFIPSFFI extends DSAServiceFFI
 {
     DSAServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

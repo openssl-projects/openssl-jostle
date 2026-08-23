@@ -45,19 +45,35 @@ public class CCMCipherFFI implements CCMCipherNI
 
     public CCMCipherFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public CCMCipherFFI(SymbolLookup lookup, String symPrefix)
+    {
         makeInstanceH = linker.downcallHandle(
-                lookup.find("JoCCM_makeInstance").orElseThrow(),
+                lookup.find(symPrefix + "JoCCM_makeInstance").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,    // cipher_id
                         ValueLayout.ADDRESS));   // *err
 
         disposeH = linker.downcallHandle(
-                lookup.find("JoCCM_dispose").orElseThrow(),
+                lookup.find(symPrefix + "JoCCM_dispose").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoCCM_init(ctx, op_mode, key*, key_len, iv*, iv_len, tag_len) -> int
         initH = linker.downcallHandle(
-                lookup.find("JoCCM_init").orElseThrow(),
+                lookup.find(symPrefix + "JoCCM_init").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx
@@ -72,7 +88,7 @@ public class CCMCipherFFI implements CCMCipherNI
         //               input*, input_size, in_off, in_len,
         //               output*, output_size, out_off) -> int
         doFinalH = linker.downcallHandle(
-                lookup.find("JoCCM_doFinal").orElseThrow(),
+                lookup.find(symPrefix + "JoCCM_doFinal").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx
@@ -88,7 +104,7 @@ public class CCMCipherFFI implements CCMCipherNI
                         ValueLayout.JAVA_INT)); // out_off
 
         getOutputSizeH = linker.downcallHandle(
-                lookup.find("JoCCM_getOutputSize").orElseThrow(),
+                lookup.find(symPrefix + "JoCCM_getOutputSize").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx

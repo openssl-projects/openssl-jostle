@@ -17,12 +17,12 @@
 /*
 * set the openssl module
 */
-int32_t set_openssl_module(const char *prov_name);
+int32_t JoOpenSSL_setModule(const char *prov_name);
 
 /*
 * return any available openssl errors
 */
-char *get_ossl_errors(uint64_t *len);
+char *JoOpenSSL_getErrors(uint64_t *len);
 
 
 #endif //OPENSSL_FFI_H

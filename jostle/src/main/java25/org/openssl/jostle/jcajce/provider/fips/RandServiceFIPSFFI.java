@@ -21,6 +21,6 @@ class RandServiceFIPSFFI extends RandServiceFFI
 {
     RandServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

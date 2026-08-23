@@ -43,8 +43,24 @@ public class KdfNIFFI implements KdfNI
 
     public KdfNIFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
 
-        MemorySegment pbkdf2 = lookup.find("JoKDF_PBKDF2").orElseThrow();
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public KdfNIFFI(SymbolLookup lookup, String symPrefix)
+    {
+
+        MemorySegment pbkdf2 = lookup.find(symPrefix + "JoKDF_PBKDF2").orElseThrow();
         pbkdf2FuncHandle = linker.downcallHandle(pbkdf2,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value
@@ -64,7 +80,7 @@ public class KdfNIFFI implements KdfNI
 
 
 
-        MemorySegment hkdf = lookup.find("JoKDF_HKDF").orElseThrow();
+        MemorySegment hkdf = lookup.find(symPrefix + "JoKDF_HKDF").orElseThrow();
         hkdfFuncHandle = linker.downcallHandle(hkdf,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // return value

@@ -45,7 +45,23 @@ public class RandServiceFFI implements RandServiceNI
 
     public RandServiceFFI(SymbolLookup lookup)
     {
-        MemorySegment createContextFunc = lookup.find("JoRand_createContext").orElseThrow();
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public RandServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
+        MemorySegment createContextFunc = lookup.find(symPrefix + "JoRand_createContext").orElseThrow();
         createContextFuncHandle = linker.downcallHandle(createContextFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // JO_RAND_CTX* return
@@ -60,12 +76,12 @@ public class RandServiceFFI implements RandServiceNI
                 )
         );
 
-        MemorySegment disposeContextFunc = lookup.find("JoRand_disposeContext").orElseThrow();
+        MemorySegment disposeContextFunc = lookup.find(symPrefix + "JoRand_disposeContext").orElseThrow();
         disposeContextFuncHandle = linker.downcallHandle(disposeContextFunc,
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
         );
 
-        MemorySegment contextRandomBytesFunc = lookup.find("JoRand_contextRandomBytes").orElseThrow();
+        MemorySegment contextRandomBytesFunc = lookup.find(symPrefix + "JoRand_contextRandomBytes").orElseThrow();
         contextRandomBytesFuncHandle = linker.downcallHandle(contextRandomBytesFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -80,7 +96,7 @@ public class RandServiceFFI implements RandServiceNI
                 )
         );
 
-        MemorySegment contextReseedFunc = lookup.find("JoRand_contextReseed").orElseThrow();
+        MemorySegment contextReseedFunc = lookup.find(symPrefix + "JoRand_contextReseed").orElseThrow();
         contextReseedFuncHandle = linker.downcallHandle(contextReseedFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -92,7 +108,7 @@ public class RandServiceFFI implements RandServiceNI
                 )
         );
 
-        MemorySegment drbgStrengthFunc = lookup.find("JoRand_drbgStrength").orElseThrow();
+        MemorySegment drbgStrengthFunc = lookup.find(symPrefix + "JoRand_drbgStrength").orElseThrow();
         drbgStrengthFuncHandle = linker.downcallHandle(drbgStrengthFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,    // strength return

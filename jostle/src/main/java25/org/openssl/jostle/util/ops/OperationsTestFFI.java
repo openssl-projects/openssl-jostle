@@ -50,14 +50,30 @@ public class OperationsTestFFI implements OperationsTestNI
 
     public OperationsTestFFI(SymbolLookup lookup)
     {
-        Optional<MemorySegment> func = lookup.find("set_ops_test");
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public OperationsTestFFI(SymbolLookup lookup, String symPrefix)
+    {
+        Optional<MemorySegment> func = lookup.find(symPrefix + "JoOps_setFlag");
         opsAvailable = func.isPresent();
         if (opsAvailable)
         {
             setOpsFuncHandler = linker.downcallHandle(func.get(),
                     FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
 
-            MemorySegment getRandomBytesFunc = lookup.find("OPS_GetRandomBytes").orElseThrow();
+            MemorySegment getRandomBytesFunc = lookup.find(symPrefix + "JoOps_getRandomBytes").orElseThrow();
             getRandomBytes = linker.downcallHandle(getRandomBytesFunc, FunctionDescriptor.of(
                     ValueLayout.JAVA_INT, // return code
                     ValueLayout.ADDRESS,

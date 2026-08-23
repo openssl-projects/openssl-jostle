@@ -21,7 +21,7 @@ class CCMCipherFIPSFFI extends CCMCipherFFI
 {
     CCMCipherFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 
     /**

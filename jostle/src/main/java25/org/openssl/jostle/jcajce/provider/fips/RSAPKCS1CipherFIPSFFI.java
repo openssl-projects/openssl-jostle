@@ -21,6 +21,6 @@ class RSAPKCS1CipherFIPSFFI extends RSAPKCS1CipherFFI
 {
     RSAPKCS1CipherFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

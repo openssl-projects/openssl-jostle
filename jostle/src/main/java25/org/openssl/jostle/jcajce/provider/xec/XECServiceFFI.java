@@ -52,9 +52,25 @@ public class XECServiceFFI implements XECServiceNI
 
     public XECServiceFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public XECServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
         // JoXEC_generateKeyPair(const char* name, int32_t* err, void* rnd_src) -> key_spec*
         generateKeyPairH = linker.downcallHandle(
-                lookup.find("JoXEC_generateKeyPair").orElseThrow(),
+                lookup.find(symPrefix + "JoXEC_generateKeyPair").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // name

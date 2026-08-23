@@ -21,6 +21,6 @@ class KdfFIPSFFI extends KdfNIFFI
 {
     KdfFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

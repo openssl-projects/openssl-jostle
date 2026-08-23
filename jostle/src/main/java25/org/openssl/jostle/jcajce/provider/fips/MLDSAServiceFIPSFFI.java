@@ -25,7 +25,7 @@ class MLDSAServiceFIPSFFI extends MLDSAServiceFFI
 {
     MLDSAServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 
     /**

@@ -52,7 +52,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
     {
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("JoFips_set_openssl_module").orElseThrow();
+            var func = lookup.find("JoFIPS_set_openssl_module").orElseThrow();
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
@@ -64,7 +64,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "ffi JoFips_set_openssl_module", t);
+            L.log(Level.WARNING, "ffi JoFIPS_set_openssl_module", t);
             // ProviderException (not a bare RuntimeException) so a failed FIPS
             // module init surfaces as the JCA-conventional type, consistent with
             // FIPSOpenSSL.initialise's JO_FIPS_* -> typed-exception mapping.
@@ -78,7 +78,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
     {
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("JoFips_can_fetch").orElseThrow();
+            var func = lookup.find("JoFIPS_can_fetch").orElseThrow();
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
 
@@ -88,7 +88,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "ffi JoFips_can_fetch", t);
+            L.log(Level.WARNING, "ffi JoFIPS_can_fetch", t);
             throw new ProviderException(t.getMessage(), t);
         }
     }
@@ -98,7 +98,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
     {
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("JoFips_module_version").orElseThrow();
+            var func = lookup.find("JoFIPS_module_version").orElseThrow();
             // Writes into a caller-supplied buffer rather than returning a
             // heap pointer, so there is nothing to free across the boundary.
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
@@ -114,7 +114,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "ffi JoFips_module_version", t);
+            L.log(Level.WARNING, "ffi JoFIPS_module_version", t);
             throw new ProviderException(t.getMessage(), t);
         }
     }
@@ -124,7 +124,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
     {
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("JoFips_implementing_provider").orElseThrow();
+            var func = lookup.find("JoFIPS_implementing_provider").orElseThrow();
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
                     ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
@@ -141,7 +141,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         }
         catch (Throwable t)
         {
-            L.log(Level.WARNING, "ffi JoFips_implementing_provider", t);
+            L.log(Level.WARNING, "ffi JoFIPS_implementing_provider", t);
             throw new ProviderException(t.getMessage(), t);
         }
     }
@@ -152,7 +152,7 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
         String result = null;
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("get_ossl_errors").orElseThrow();
+            var func = lookup.find("JoFIPS_JoOpenSSL_getErrors").orElseThrow();
             var len = arena.allocate(ValueLayout.ADDRESS);
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 

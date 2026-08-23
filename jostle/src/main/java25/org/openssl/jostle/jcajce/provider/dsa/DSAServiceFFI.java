@@ -64,11 +64,27 @@ public class DSAServiceFFI implements DSAServiceNI
 
     public DSAServiceFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public DSAServiceFFI(SymbolLookup lookup, String symPrefix)
+    {
         // JoDSA_generateParameters(int32_t p_bits, int32_t q_bits,
         //                          int32_t* err, void* rnd_src) -> key_spec*
         // NON-critical: paramgen's prime search draws from the Java RAND
         // upcall.
-        generateParametersH = bind(lookup, "JoDSA_generateParameters",
+        generateParametersH = bind(lookup, symPrefix + "JoDSA_generateParameters",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT,   // p_bits
@@ -78,7 +94,7 @@ public class DSAServiceFFI implements DSAServiceNI
 
         // JoDSA_makeParamsFromComponents(p, p_size, q, q_size, g, g_size,
         //                                err_out) -> key_spec*
-        makeParamsFromComponentsH = bind(lookup, "JoDSA_makeParamsFromComponents",
+        makeParamsFromComponentsH = bind(lookup, symPrefix + "JoDSA_makeParamsFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -91,7 +107,7 @@ public class DSAServiceFFI implements DSAServiceNI
 
         // JoDSA_generateKeyPair(key_spec* params, int32_t* err,
         //                       void* rnd_src) -> key_spec*
-        generateKeyPairH = bind(lookup, "JoDSA_generateKeyPair",
+        generateKeyPairH = bind(lookup, symPrefix + "JoDSA_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // params spec
@@ -101,7 +117,7 @@ public class DSAServiceFFI implements DSAServiceNI
         // JoDSA_makePrivateFromComponents(p, p_size, q, q_size, g, g_size,
         //                                 x, x_size, err_out, rnd_src) -> key_spec*
         // NON-critical: the entropy upcall must be allowed during import.
-        makePrivateFromComponentsH = bind(lookup, "JoDSA_makePrivateFromComponents",
+        makePrivateFromComponentsH = bind(lookup, symPrefix + "JoDSA_makePrivateFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -117,7 +133,7 @@ public class DSAServiceFFI implements DSAServiceNI
 
         // JoDSA_makePublicFromComponents(p, p_size, q, q_size, g, g_size,
         //                                y, y_size, err_out) -> key_spec*
-        makePublicFromComponentsH = bind(lookup, "JoDSA_makePublicFromComponents",
+        makePublicFromComponentsH = bind(lookup, symPrefix + "JoDSA_makePublicFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
@@ -131,7 +147,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS));  // err out
 
         // JoDSA_getComponent(key_spec*, int32_t, uint8_t*, size_t) -> int32_t
-        getComponentH = bind(lookup, "JoDSA_getComponent",
+        getComponentH = bind(lookup, symPrefix + "JoDSA_getComponent",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -140,15 +156,15 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        allocSignerH = bind(lookup, "JoDSA_allocateSigner",
+        allocSignerH = bind(lookup, symPrefix + "JoDSA_allocateSigner",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeSignerH = linker.downcallHandle(
-                lookup.find("JoDSA_disposeSigner").orElseThrow(),
+                lookup.find(symPrefix + "JoDSA_disposeSigner").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoDSA_initSign(dsa_ctx*, key_spec*, const char* digest, void* rnd_src) -> int
-        initSignH = bind(lookup, "JoDSA_initSign",
+        initSignH = bind(lookup, symPrefix + "JoDSA_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -156,7 +172,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS));
 
-        initVerifyH = bind(lookup, "JoDSA_initVerify",
+        initVerifyH = bind(lookup, symPrefix + "JoDSA_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -164,7 +180,7 @@ public class DSAServiceFFI implements DSAServiceNI
                         ValueLayout.ADDRESS));
 
         // JoDSA_update(dsa_ctx*, uint8_t* in, size_t in_size, int32_t off, int32_t len) -> int
-        updateH = bind(lookup, "JoDSA_update",
+        updateH = bind(lookup, symPrefix + "JoDSA_update",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -179,7 +195,7 @@ public class DSAServiceFFI implements DSAServiceNI
         // NON-critical: DSA signing consumes RAND for the per-signature
         // nonce, and the entropy upcall is forbidden inside critical
         // regions.
-        signH = bind(lookup, "JoDSA_sign",
+        signH = bind(lookup, symPrefix + "JoDSA_sign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -192,7 +208,7 @@ public class DSAServiceFFI implements DSAServiceNI
         //              void* rnd_src) -> int
         // NON-critical: the RAND upcall is bound on the verify path for
         // parity with EC (see DSAServiceNI.ni_verify).
-        verifyH = bind(lookup, "JoDSA_verify",
+        verifyH = bind(lookup, symPrefix + "JoDSA_verify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,

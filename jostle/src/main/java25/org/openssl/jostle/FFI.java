@@ -47,7 +47,7 @@ public class FFI
 
         try
         {
-            var func = lookup.find("ffi_free_unsecure_null_safe").orElseThrow();
+            var func = lookup.find("JoFFI_freeUnsecureNullSafe").orElseThrow();
             var handle = linker.downcallHandle(func,
                     FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
             );

@@ -26,7 +26,7 @@ inline bool range_check(const size_t size, const size_t len, const size_t offset
  * @param padding >0 is padded
  * @return NULL if failed or a pointer to a block_cipher_ctx
  */
-uint64_t BlockCipherNI_make_instance(int32_t cipherId, int32_t modeId, int32_t padding, int32_t *err) {
+uint64_t JoBlockCipher_make_instance(int32_t cipherId, int32_t modeId, int32_t padding, int32_t *err) {
     block_cipher_ctx *ctx = block_cipher_ctx_create(cipherId, modeId, padding, err);
     return (uint64_t) ctx;
 }
@@ -41,7 +41,7 @@ uint64_t BlockCipherNI_make_instance(int32_t cipherId, int32_t modeId, int32_t p
  * @param iv_size length of iv array or 0 if null
  * @return success failure code
  */
-int32_t BlockCipherNI_init(
+int32_t JoBlockCipher_init(
     uint64_t ref,
     int32_t opp_mode,
     uint8_t *key,
@@ -83,7 +83,7 @@ exit:
  * @param ref pointer to block_cipher_ctx
  * @return block size
  */
-int32_t BlockCipherNI_getBlockSize(uint64_t ref) {
+int32_t JoBlockCipher_getBlockSize(uint64_t ref) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
     jo_assert(ctx != NULL);
     return block_cipher_ctx_get_block_size(ctx);
@@ -99,7 +99,7 @@ int32_t BlockCipherNI_getBlockSize(uint64_t ref) {
  * @param in_len length of input to use as aad
  * @return
  */
-int32_t BlockCipherNI_updateAAD
+int32_t JoBlockCipher_updateAAD
 (
     uint64_t ref,
     uint8_t *input,
@@ -157,7 +157,7 @@ exit:
  * @param in_len number of bytes to process
  * @return number of bytes written to output array
  */
-int32_t BlockCipherNI_update
+int32_t JoBlockCipher_update
 (
     uint64_t ref,
     uint8_t *output,
@@ -232,7 +232,7 @@ exit:
  * @param out_off the offset without the output array
  * @return number of bytes written to output array
  */
-int32_t BlockCipherNI_doFinal(block_cipher_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off) {
+int32_t JoBlockCipher_doFinal(block_cipher_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off) {
     jo_assert(ctx != NULL);
 
     int32_t return_code = JO_FAIL;
@@ -263,7 +263,7 @@ exit:
     return return_code;
 }
 
-int32_t BlockCipherNI_getUpdateSize(block_cipher_ctx *ctx, int32_t len) {
+int32_t JoBlockCipher_getUpdateSize(block_cipher_ctx *ctx, int32_t len) {
     jo_assert(ctx != NULL);
     int32_t return_code = JO_FAIL;
 
@@ -279,7 +279,7 @@ exit:
 }
 
 
-int32_t BlockCipherNI_getFinalSize(block_cipher_ctx *ctx, int32_t len) {
+int32_t JoBlockCipher_getFinalSize(block_cipher_ctx *ctx, int32_t len) {
     jo_assert(ctx != NULL);
     int32_t return_code = JO_FAIL;
 
@@ -299,7 +299,7 @@ exit:
  * Dispose of the block cipher instance, underlying implementation is null safe
  * @param ctx pointer to block_cipher_ctx
  */
-void BlockCipherNI_dispose
+void JoBlockCipher_dispose
 (block_cipher_ctx *ctx) {
     if (ctx == NULL) {
         return;

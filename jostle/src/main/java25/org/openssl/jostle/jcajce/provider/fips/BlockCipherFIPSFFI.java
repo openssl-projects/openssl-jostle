@@ -21,7 +21,7 @@ class BlockCipherFIPSFFI extends BlockCipherFFI
 {
     BlockCipherFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 
     /**

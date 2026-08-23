@@ -21,6 +21,6 @@ class Asn1FIPSFFI extends Asn1NIFFI
 {
     Asn1FIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

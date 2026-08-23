@@ -53,7 +53,23 @@ public class BlockCipherFFI implements BlockCipherNI
 
     public BlockCipherFFI(SymbolLookup lookup)
     {
-        MemorySegment makeInstanceFunc = lookup.find("BlockCipherNI_make_instance").orElseThrow();
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public BlockCipherFFI(SymbolLookup lookup, String symPrefix)
+    {
+        MemorySegment makeInstanceFunc = lookup.find(symPrefix + "JoBlockCipher_make_instance").orElseThrow();
         makeInstanceFuncHandle = linker.downcallHandle(makeInstanceFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_LONG, // Return ptr
@@ -63,7 +79,7 @@ public class BlockCipherFFI implements BlockCipherNI
                         ValueLayout.ADDRESS
                 ));
 
-        MemorySegment initFunc = lookup.find("BlockCipherNI_init").orElseThrow();
+        MemorySegment initFunc = lookup.find(symPrefix + "JoBlockCipher_init").orElseThrow();
         initFuncHandle = linker.downcallHandle(initFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // Return code
@@ -77,7 +93,7 @@ public class BlockCipherFFI implements BlockCipherNI
                 ), Linker.Option.critical(true));
 
 
-        MemorySegment getBlockSizeFunc = lookup.find("BlockCipherNI_getBlockSize").orElseThrow();
+        MemorySegment getBlockSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getBlockSize").orElseThrow();
         getBlockSizeFuncHandle = linker.downcallHandle(getBlockSizeFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -85,7 +101,7 @@ public class BlockCipherFFI implements BlockCipherNI
                 ));
 
 
-        MemorySegment updateFunc = lookup.find("BlockCipherNI_update").orElseThrow();
+        MemorySegment updateFunc = lookup.find(symPrefix + "JoBlockCipher_update").orElseThrow();
         updateFuncHandle = linker.downcallHandle(updateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // Return code
@@ -99,7 +115,7 @@ public class BlockCipherFFI implements BlockCipherNI
                         ValueLayout.JAVA_INT // in_len
                 ), Linker.Option.critical(true));
 
-        MemorySegment updateAADFunc = lookup.find("BlockCipherNI_updateAAD").orElseThrow();
+        MemorySegment updateAADFunc = lookup.find(symPrefix + "JoBlockCipher_updateAAD").orElseThrow();
         updateAADFuncHandle = linker.downcallHandle(updateAADFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // Return code
@@ -110,7 +126,7 @@ public class BlockCipherFFI implements BlockCipherNI
                         ValueLayout.JAVA_INT // in_len
                 ), Linker.Option.critical(true));
 
-        MemorySegment finalFunc = lookup.find("BlockCipherNI_doFinal").orElseThrow();
+        MemorySegment finalFunc = lookup.find(symPrefix + "JoBlockCipher_doFinal").orElseThrow();
         finalFuncHandle = linker.downcallHandle(finalFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT, // Return code
@@ -120,7 +136,7 @@ public class BlockCipherFFI implements BlockCipherNI
                         ValueLayout.JAVA_INT // out_off
                 ), Linker.Option.critical(true));
 
-        MemorySegment finalSizeFunc = lookup.find("BlockCipherNI_getFinalSize").orElseThrow();
+        MemorySegment finalSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getFinalSize").orElseThrow();
         finalSizeFuncHandle = linker.downcallHandle(finalSizeFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -129,7 +145,7 @@ public class BlockCipherFFI implements BlockCipherNI
                 ));
 
 
-        MemorySegment updateSizeFunc = lookup.find("BlockCipherNI_getUpdateSize").orElseThrow();
+        MemorySegment updateSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getUpdateSize").orElseThrow();
         updateSizeFuncHandle = linker.downcallHandle(updateSizeFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -138,7 +154,7 @@ public class BlockCipherFFI implements BlockCipherNI
                 ));
 
 
-        MemorySegment disposeFunc = lookup.find("BlockCipherNI_dispose").orElseThrow();
+        MemorySegment disposeFunc = lookup.find(symPrefix + "JoBlockCipher_dispose").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 

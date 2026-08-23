@@ -21,6 +21,6 @@ class ECServiceFIPSFFI extends ECServiceFFI
 {
     ECServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

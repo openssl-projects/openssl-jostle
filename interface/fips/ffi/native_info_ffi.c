@@ -10,11 +10,11 @@
 #include "openssl/opensslconf.h"
 
 
-const char * openssl_library_version(size_t *len) {
+const char * JoNative_libraryVersion(size_t *len) {
     *len = sizeof(OPENSSL_FULL_VERSION_STR);
     return OPENSSL_FULL_VERSION_STR;
 }
 
-int32_t is_native_available(void) {
+int32_t JoNative_isAvailable(void) {
     return FFI_TRUE;
 }

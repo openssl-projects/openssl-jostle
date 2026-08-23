@@ -25,7 +25,7 @@ class SLHDSAServiceFIPSFFI extends SLHDSAServiceFFI
 {
     SLHDSAServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 
     /**

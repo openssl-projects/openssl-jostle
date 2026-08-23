@@ -45,20 +45,36 @@ public class Asn1NIFFI implements Asn1Ni
 
     public Asn1NIFFI(SymbolLookup lookup)
     {
-        MemorySegment allocateFunc = lookup.find("JoASN1_allocate").orElseThrow();
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public Asn1NIFFI(SymbolLookup lookup, String symPrefix)
+    {
+        MemorySegment allocateFunc = lookup.find(symPrefix + "JoASN1_allocate").orElseThrow();
         allocateFuncHandle = linker.downcallHandle(allocateFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,// Return ptr
                         ValueLayout.ADDRESS // err
                 ));
 
-        MemorySegment disposeFunc = lookup.find("JoASN1_dispose").orElseThrow();
+        MemorySegment disposeFunc = lookup.find(symPrefix + "JoASN1_dispose").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS // ptr
                 ));
 
-        MemorySegment encodePublicKeyFunc = lookup.find("JoASN1_encodePublicKey").orElseThrow();
+        MemorySegment encodePublicKeyFunc = lookup.find(symPrefix + "JoASN1_encodePublicKey").orElseThrow();
         encodePublicKeyFuncHandle = linker.downcallHandle(encodePublicKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -66,7 +82,7 @@ public class Asn1NIFFI implements Asn1Ni
                         ValueLayout.ADDRESS
                 ), Linker.Option.critical(true));
 
-        MemorySegment encodePrivateKeyFunc = lookup.find("JoASN1_encodePrivateKey").orElseThrow();
+        MemorySegment encodePrivateKeyFunc = lookup.find(symPrefix + "JoASN1_encodePrivateKey").orElseThrow();
         encodePrivateKeyFuncHandle = linker.downcallHandle(encodePrivateKeyFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -76,7 +92,7 @@ public class Asn1NIFFI implements Asn1Ni
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        MemorySegment getDataFunc = lookup.find("JoASN1_getData").orElseThrow();
+        MemorySegment getDataFunc = lookup.find(symPrefix + "JoASN1_getData").orElseThrow();
         getDataFuncHandle = linker.downcallHandle(getDataFunc,
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -86,7 +102,7 @@ public class Asn1NIFFI implements Asn1Ni
                 ), Linker.Option.critical(true));
 
 
-        MemorySegment fromPrivateKeyInfoFunc = lookup.find("JoASN1_fromPrivateKeyInfo").orElseThrow();
+        MemorySegment fromPrivateKeyInfoFunc = lookup.find(symPrefix + "JoASN1_fromPrivateKeyInfo").orElseThrow();
         fromPrivateKeyInfoFuncHandle = linker.downcallHandle(fromPrivateKeyInfoFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // key_spec*
@@ -98,7 +114,7 @@ public class Asn1NIFFI implements Asn1Ni
                 ), Linker.Option.critical(true));
 
 
-        MemorySegment fromPublicKeyInfoFunc = lookup.find("JoASN1_fromPublicKeyInfo").orElseThrow();
+        MemorySegment fromPublicKeyInfoFunc = lookup.find(symPrefix + "JoASN1_fromPublicKeyInfo").orElseThrow();
         fromPublicKeyInfoFuncHandle = linker.downcallHandle(fromPublicKeyInfoFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // key_spec*

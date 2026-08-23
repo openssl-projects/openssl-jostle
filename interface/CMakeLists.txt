@@ -67,10 +67,12 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 # deliberately does NOT compile the base jni/ glue (identical Java_* symbols
 # in two loaded libraries would resolve by load order).
 #
-# FFI glue is shared as-is: FFI callers resolve the FIPS library's exports
-# with a library-scoped lookup (SymbolLookup.libraryLookup on the extracted
-# FIPS lib), so identical export names across the two libraries are
-# unambiguous. JoFips_set_openssl_module is the FIPS-specific init entry.
+# FFI glue is FIPS-specific too, since 2026-08-23: every entry point the Java
+# layer resolves is exported under a JoFIPS_ prefix (see the
+# FIPS_FFI_GLUE_SOURCES comment). A library-scoped lookup was the ONLY thing
+# keeping FFI callers off the base library, and getting it wrong ran
+# non-FIPS crypto silently; distinct names make each single mistake - wrong
+# lookup, or wrong prefix - resolve correctly or fail loudly.
 #
 # The FIPS targets carry no operations-test fault injection and no coverage
 # instrumentation in a SHIPPED build - neither must ship inside the FIPS
@@ -170,36 +172,45 @@ set(FIPS_JNI_GLUE_SOURCES
         fips/jni/bytearrays.h
 )
 
+#
+# The <x>_fips_ffi.c entries are rename wrappers: each #defines the base
+# bridge's export names to JoFIPS_-prefixed ones and #includes its
+# byte-identical twin, exactly as fips/jni/<x>_fips_jni.c does for JNI. The
+# twins are therefore compiled THROUGH the wrappers and must not be listed
+# here as well. Distinct exports mean a FIPS class handed the wrong
+# SymbolLookup fails to link rather than silently running base-library crypto.
+#
 set(FIPS_FFI_GLUE_SOURCES
-        fips/ffi/md_ffi.c
-        fips/ffi/rand_ffi.c
-        fips/ffi/mac_ffi.c
+        fips/ffi/md_fips_ffi.c
+        fips/ffi/rand_fips_ffi.c
+        fips/ffi/mac_fips_ffi.c
         fips/ffi/ffi.h
-        fips/ffi/ffi.c
+        fips/ffi/ffi_fips_ffi.c
         fips/ffi/types.h
         fips/ffi/native_info_ffi.h
-        fips/ffi/native_info_ffi.c
+        fips/ffi/native_info_fips_ffi.c
         fips/ffi/openssl_ffi.h
-        fips/ffi/openssl_ffi.c
+        fips/ffi/openssl_ni_fips_ffi.c
         fips/ffi/openssl_fips_ffi.h
         fips/ffi/openssl_fips_ffi.c
-        fips/ffi/block_cipher_ni_ffi.c
-        fips/ffi/ccm_ni_ffi.c
-        fips/ffi/spec_ni_ffi.c
-        fips/ffi/asn1_ni_ffi.c
-        fips/ffi/kdf_ffi.c
+        fips/ffi/ops_fips_ffi.c
+        fips/ffi/block_cipher_ni_fips_ffi.c
+        fips/ffi/ccm_ni_fips_ffi.c
+        fips/ffi/spec_ni_fips_ffi.c
+        fips/ffi/asn1_ni_fips_ffi.c
+        fips/ffi/kdf_fips_ffi.c
         fips/ffi/rand_upcall_ffi.h
         fips/ffi/rand_upcall_ffi.c
-        fips/ffi/rsa_ni_ffi.c
-        fips/ffi/rsa_oaep_ni_ffi.c
-        fips/ffi/rsa_pkcs1_ni_ffi.c
-        fips/ffi/ec_ni_ffi.c
-        fips/ffi/dsa_ni_ffi.c
-        fips/ffi/dh_ni_ffi.c
-        fips/ffi/xec_ni_ffi.c
-        fips/ffi/mldsa_ni_ffi.c
-        fips/ffi/mlkem_ni_ffi.c
-        fips/ffi/slh_dsa_ni_ffi.c
+        fips/ffi/rsa_ni_fips_ffi.c
+        fips/ffi/rsa_oaep_ni_fips_ffi.c
+        fips/ffi/rsa_pkcs1_ni_fips_ffi.c
+        fips/ffi/ec_ni_fips_ffi.c
+        fips/ffi/dsa_ni_fips_ffi.c
+        fips/ffi/dh_ni_fips_ffi.c
+        fips/ffi/xec_ni_fips_ffi.c
+        fips/ffi/mldsa_ni_fips_ffi.c
+        fips/ffi/mlkem_ni_fips_ffi.c
+        fips/ffi/slh_dsa_ni_fips_ffi.c
 )
 
 
@@ -334,6 +345,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/ffi/mac_ffi.c
             nonfips/ffi/ffi.h
             nonfips/ffi/ffi.c
+            nonfips/ffi/ops_ffi.c
             nonfips/ffi/types.h
             nonfips/ffi/native_info_ffi.h
             nonfips/ffi/native_info_ffi.c
@@ -598,6 +610,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/ffi/mac_ffi.c
             nonfips/ffi/ffi.h
             nonfips/ffi/ffi.c
+            nonfips/ffi/ops_ffi.c
             nonfips/ffi/types.h
             nonfips/ffi/native_info_ffi.h
             nonfips/ffi/native_info_ffi.c
@@ -834,6 +847,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
     add_library(interface_ffi SHARED
             nonfips/ffi/ffi.h
             nonfips/ffi/ffi.c
+            nonfips/ffi/ops_ffi.c
             nonfips/ffi/types.h
             nonfips/ffi/native_info_ffi.h
             nonfips/ffi/native_info_ffi.c

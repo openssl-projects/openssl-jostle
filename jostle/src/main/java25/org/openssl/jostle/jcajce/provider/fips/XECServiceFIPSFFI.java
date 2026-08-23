@@ -21,6 +21,6 @@ class XECServiceFIPSFFI extends XECServiceFFI
 {
     XECServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

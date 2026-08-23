@@ -12,8 +12,8 @@
 #include <stdint.h>
 #include "types.h"
 
-const char * openssl_library_version(size_t *len);
+const char * JoNative_libraryVersion(size_t *len);
 
-FFI_BOOL is_native_available(void);
+FFI_BOOL JoNative_isAvailable(void);
 
 #endif //NATIVE_INFO_FFI_H

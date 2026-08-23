@@ -21,6 +21,6 @@ class SpecFIPSFFI extends SpecFFI
 {
     SpecFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

@@ -33,7 +33,7 @@ class OpenSSLFFI implements OpenSSLNI
     {
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("set_openssl_module").orElseThrow();
+            var func = lookup.find("JoOpenSSL_setModule").orElseThrow();
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
 
             var provName = provider != null ? arena.allocateFrom(provider) : MemorySegment.ofAddress(0);
@@ -54,7 +54,7 @@ class OpenSSLFFI implements OpenSSLNI
         String result = null;
         try (Arena arena = Arena.ofConfined())
         {
-            var func = lookup.find("get_ossl_errors").orElseThrow();
+            var func = lookup.find("JoOpenSSL_getErrors").orElseThrow();
             var len = arena.allocate(ValueLayout.ADDRESS);
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 

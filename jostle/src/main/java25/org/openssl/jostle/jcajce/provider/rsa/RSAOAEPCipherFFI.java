@@ -57,18 +57,34 @@ public class RSAOAEPCipherFFI implements RSAOAEPCipherNI
 
     public RSAOAEPCipherFFI(SymbolLookup lookup)
     {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffi.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public RSAOAEPCipherFFI(SymbolLookup lookup, String symPrefix)
+    {
         allocCipherH = linker.downcallHandle(
-                lookup.find("JoRSAOAEP_allocateCipher").orElseThrow(),
+                lookup.find(symPrefix + "JoRSAOAEP_allocateCipher").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         disposeCipherH = linker.downcallHandle(
-                lookup.find("JoRSAOAEP_disposeCipher").orElseThrow(),
+                lookup.find(symPrefix + "JoRSAOAEP_disposeCipher").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
         // JoRSAOAEP_init(ctx, key, op_mode, oaep_md*, mgf1_md*,
         //                label*, label_len, rnd_src) -> int
         initH = linker.downcallHandle(
-                lookup.find("JoRSAOAEP_init").orElseThrow(),
+                lookup.find(symPrefix + "JoRSAOAEP_init").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx
@@ -83,7 +99,7 @@ public class RSAOAEPCipherFFI implements RSAOAEPCipherNI
         // JoRSAOAEP_doFinal(ctx, in*, in_size, in_off, in_len,
         //                   out*, out_size, out_off, rnd_src) -> int
         doFinalH = linker.downcallHandle(
-                lookup.find("JoRSAOAEP_doFinal").orElseThrow(),
+                lookup.find(symPrefix + "JoRSAOAEP_doFinal").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx

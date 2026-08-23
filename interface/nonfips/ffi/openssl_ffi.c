@@ -22,7 +22,7 @@
 /*
 * set the openssl module
 */
-int32_t set_openssl_module(const char *prov_name /* JVM */) {
+int32_t JoOpenSSL_setModule(const char *prov_name /* JVM */) {
     int32_t result = JO_FAIL;
     int32_t rand_created = 0;
 
@@ -72,7 +72,7 @@ exit:
 /*
 * return any available openssl errors
 */
-char *get_ossl_errors(uint64_t *len) {
+char *JoOpenSSL_getErrors(uint64_t *len) {
     BIO *bio = BIO_new(BIO_s_mem());
     if (bio == NULL) {
         // Allocation failure: return a usable diagnostic string instead of

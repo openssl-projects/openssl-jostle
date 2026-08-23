@@ -21,6 +21,6 @@ class MacServiceFIPSFFI extends MacServiceFFI
 {
     MacServiceFIPSFFI()
     {
-        super(FIPSLibraryLookup.get());
+        super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 }

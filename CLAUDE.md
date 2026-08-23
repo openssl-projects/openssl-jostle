@@ -131,7 +131,7 @@ Direct buffer access (JNI critical regions) cannot make up-calls — fetch rando
 
 ## Style and submission
 
-1. Checkstyle config: `config/checkstyle/checkstyle.xml`. PRs must pass.
+1. Checkstyle config: `config/checkstyle/checkstyle.xml`. PRs must pass. **It applies to `main` only** — `build.gradle` sets `checkstyle { sourceSets = [project.sourceSets.main] }`, so `check`/`build` never run `checkstyleTest` and the test tree is deliberately out of scope. Verify with `:jostle:checkstyleMain`; invoking `:jostle:checkstyleTest` by hand reports pre-existing violations that are not defects and must not be "fixed" (e.g. the `} catch (...)` bodies throughout `*LimitTest`). The braces-on-every-`if` rule in this file is a code-review convention, enforced by reading, not by Checkstyle.
 2. Match existing code style — Java looks Java, C looks C. Look at `MDServiceSPI`/`MDServiceNI`/`md.c` as the canonical reference for newer transformations; some older code follows an earlier pattern where error handling lived in the SPI rather than in `*NI` default methods.
 3. SPI sub-packages under `org.openssl.jostle.jcajce.provider` are usually named after the transformation (`mldsa`, `kdf`); `Prov<NAME>` classes register them with the provider.
 4. AUTHORS.md, LICENSE, CONTRIBUTING.md exist — read CONTRIBUTING.md before significant changes; it is the source of truth for code organization, testing expectations, and the JNI-FFI split.
