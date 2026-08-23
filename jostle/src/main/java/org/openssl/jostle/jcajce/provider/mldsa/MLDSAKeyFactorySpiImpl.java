@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import java.security.*;
@@ -32,6 +33,12 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
     private final OSSLKeyType fixedType;
 
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final MLDSAServiceNI mldsaServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
     private static final Map<MLDSAParameterSpec, OSSLKeyType> typeMap = Collections.unmodifiableMap(new HashMap<MLDSAParameterSpec, OSSLKeyType>()
     {
         {
@@ -43,13 +50,36 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
     public MLDSAKeyFactorySpiImpl(OSSLKeyType keyType)
     {
-        this.fixedType = keyType;
-        assert keyType != null;
+        this(NISelector.MLDSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, keyType);
     }
 
     public MLDSAKeyFactorySpiImpl()
     {
-        this.fixedType = OSSLKeyType.NONE;
+        this(NISelector.MLDSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, OSSLKeyType.NONE);
+    }
+
+    public MLDSAKeyFactorySpiImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
+        this(mldsaServiceNI, specNI, asn1NI, OSSLKeyType.NONE);
+    }
+
+    public MLDSAKeyFactorySpiImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                                  OSSLKeyType keyType)
+    {
+        this.mldsaServiceNI = mldsaServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+        this.fixedType = keyType;
+        assert keyType != null;
+    }
+
+    /**
+     * The SpecNI this factory's keys are bound to - used by the key-import
+     * helpers to reject a key made by the other Jostle provider.
+     */
+    SpecNI ownSpecNI()
+    {
+        return specNI;
     }
 
     @Override
@@ -61,7 +91,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -78,7 +108,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOMLDSAPublicKey(pkeySpec);
+                return new JOMLDSAPublicKey(mldsaServiceNI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -111,11 +141,11 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                 byte[] encoded = pubSpec.getPublicData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
 
-                    NISelector.MLDSAServiceNI.decode_publicKey(
+                    mldsaServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
-                    return new JOMLDSAPublicKey(pkeySpec);
+                    return new JOMLDSAPublicKey(mldsaServiceNI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -145,7 +175,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -162,7 +192,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOMLDSAPrivateKey(pkeySpec);
+                return new JOMLDSAPrivateKey(mldsaServiceNI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -209,11 +239,11 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                 }
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                    NISelector.MLDSAServiceNI.decode_privateKey(
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
+                    mldsaServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
-                    return new JOMLDSAPrivateKey(pkeySpec, spec.isSeed());
+                    return new JOMLDSAPrivateKey(mldsaServiceNI, pkeySpec, spec.isSeed());
                 }
                 catch (RuntimeException e)
                 {

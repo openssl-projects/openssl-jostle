@@ -21,6 +21,9 @@ import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
+import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
+import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
@@ -51,6 +54,12 @@ public class FIPSNISelector
     public static final DSAServiceNI DSAServiceNI;
     public static final DHServiceNI DHServiceNI;
     public static final XECServiceNI XECServiceNI;
+
+    // PQC. Served by the 3.5.x module, absent from 3.1.2 - the NIs are always
+    // constructed; ProvFIPS{MLDSA,MLKEM,SLHDSA} decide whether to register.
+    public static final MLDSAServiceNI MLDSAServiceNI;
+    public static final MLKEMServiceNI MLKEMServiceNI;
+    public static final SLHDSAServiceNI SLHDSAServiceNI;
     public static final KdfNI KdfNI;
     public static final OperationsTestNI OperationsTestNI;
 
@@ -74,6 +83,9 @@ public class FIPSNISelector
             DSAServiceNI = new DSAServiceFIPSFFI();
             DHServiceNI = new DHServiceFIPSFFI();
             XECServiceNI = new XECServiceFIPSFFI();
+            MLDSAServiceNI = new MLDSAServiceFIPSFFI();
+            MLKEMServiceNI = new MLKEMServiceFIPSFFI();
+            SLHDSAServiceNI = new SLHDSAServiceFIPSFFI();
             KdfNI = new KdfFIPSFFI();
             OperationsTestNI = new OperationsTestFIPSFFI();
         }
@@ -94,6 +106,9 @@ public class FIPSNISelector
             DSAServiceNI = new DSAServiceFIPSJNI();
             DHServiceNI = new DHServiceFIPSJNI();
             XECServiceNI = new XECServiceFIPSJNI();
+            MLDSAServiceNI = new MLDSAServiceFIPSJNI();
+            MLKEMServiceNI = new MLKEMServiceFIPSJNI();
+            SLHDSAServiceNI = new SLHDSAServiceFIPSJNI();
             KdfNI = new KdfFIPSJNI();
             OperationsTestNI = new OperationsTestFIPSJNI();
         }

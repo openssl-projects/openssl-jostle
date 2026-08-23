@@ -16,7 +16,9 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
@@ -85,6 +87,24 @@ public class MLKEMKTSCipherSpi
     // truth, no transcribed 768/1088/1568 table.
     private static final NativeLengthCache<OSSLKeyType> encapsulationLengths = new NativeLengthCache<OSSLKeyType>();
 
+    // Bound to one interface library. The factory translates a foreign key
+    // into THIS provider's lib ctx; specNI is what a Jostle key's own spec is
+    // checked against, so a private key from the other provider is rejected
+    // rather than driven through the wrong library.
+    private final MLKEMKeyFactorySpi keyFactory;
+    private final SpecNI specNI;
+
+    public MLKEMKTSCipherSpi()
+    {
+        this(new MLKEMKeyFactorySpi(), NISelector.SpecNI);
+    }
+
+    public MLKEMKTSCipherSpi(MLKEMKeyFactorySpi keyFactory, SpecNI specNI)
+    {
+        this.keyFactory = keyFactory;
+        this.specNI = specNI;
+    }
+
     private int opmode;
     private PKEYKeySpec keySpec;
     private RandSource randSource;
@@ -135,7 +155,7 @@ public class MLKEMKTSCipherSpi
             }
             try
             {
-                key = new MLKEMKeyFactorySpi().engineTranslateKey(key);
+                key = keyFactory.engineTranslateKey(key);
             }
             catch (InvalidKeyException e)
             {
@@ -153,6 +173,16 @@ public class MLKEMKTSCipherSpi
         }
 
         PKEYKeySpec spec = ((OSSLKey) key).getSpec();
+        // Provider isolation, private side only: a key is bound to the
+        // interface library - and OSSL_LIB_CTX - that created it, so a JSL
+        // private key must not be unwrapped through the JSLFIPS NI or vice
+        // versa. PUBLIC keys (WRAP_MODE) deliberately cross freely; see
+        // java-spi.md "JSL <-> JSLFIPS key sharing".
+        if (opmode == Cipher.UNWRAP_MODE && spec.getSpecNI() != specNI)
+        {
+            throw new InvalidKeyException(
+                    "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+        }
         switch (spec.getType())
         {
         case ML_KEM_512:

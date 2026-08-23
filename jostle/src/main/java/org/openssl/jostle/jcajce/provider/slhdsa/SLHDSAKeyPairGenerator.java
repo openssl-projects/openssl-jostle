@@ -10,9 +10,11 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -70,9 +72,26 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
      *                  Java Security Standard Algorithm Names Specification</a>
      *                  for information about standard algorithm names.
      */
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final SLHDSAServiceNI slhdsaServiceNI;
+    private final SpecNI specNI;
+
     public SLHDSAKeyPairGenerator(Object algorithm)
     {
+        this(NISelector.SLHDSAServiceNI, NISelector.SpecNI, algorithm);
+    }
+
+    /**
+     * NI-injecting form. The SPI is bound to whichever interface library its
+     * NIs came from - NISelector for JSL, FIPSNISelector for JSLFIPS - so it
+     * must never reach for the base provider's statics.
+     */
+    public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Object algorithm)
+    {
         super(algorithm.toString());
+        this.slhdsaServiceNI = slhdsaServiceNI;
+        this.specNI = specNI;
         forcedType = paramToTypeMap.get(algorithm);
 
         if (forcedType == null)
@@ -90,7 +109,12 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         // For the umbrella "SLH-DSA" alias (NONE), fall back to the
         // 128-bit category — generateKeyPair pre-init will fail at the
         // native layer anyway.
-        randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(keyType));
+        // A strength-targeted DRBG costs a SecureRandom.getInstance("DRBG",
+        // DrbgParameters...) per instance; under a provider that supplies its
+        // own entropy nothing reads it, so take the plain default there.
+        randSource = slhdsaServiceNI.providerManagesEntropy()
+                ? DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
+                : DefaultRandSource.replaceWith(null, null, strengthForKeyType(keyType));
     }
 
     public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
@@ -150,13 +174,20 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         // (plain new SecureRandom(), Java 8, custom subclasses) return
         // 0 here and are accepted — the C-side RAND gate is the safety
         // net for those.
-        int suppliedStrength = DefaultRandSource.strengthOf(random);
-        if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+        // Skipped under a provider that supplies its own entropy (the FIPS
+        // module): the caller's SecureRandom is never consulted there, so
+        // rejecting it would turn a caller away over a value nothing reads.
+        // See DefaultServiceNI.providerManagesEntropy.
+        if (!slhdsaServiceNI.providerManagesEntropy())
         {
-            throw new InvalidAlgorithmParameterException(
-                    "supplied SecureRandom reports " + suppliedStrength
-                            + "-bit strength but " + specName
-                            + " requires " + strengthBits);
+            int suppliedStrength = DefaultRandSource.strengthOf(random);
+            if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "supplied SecureRandom reports " + suppliedStrength
+                                + "-bit strength but " + specName
+                                + " requires " + strengthBits);
+            }
         }
 
         // Resolve / upgrade the RandSource to match the now-final keyType.
@@ -175,10 +206,25 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
 
     public KeyPair generateKeyPair()
     {
-        long res = NISelector.SLHDSAServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        if (keyType == null)
+        {
+            // The umbrella "SLH-DSA" / "SLHDSA" generator has no parameter set
+            // until initialize(SLHDSAParameterSpec) supplies one. Without this
+            // the null deref below surfaced as a raw NullPointerException,
+            // which is the wrong failure mode for an SPI state-machine misuse
+            // (java-spi.md); callers expect a typed exception naming what is
+            // missing. Found by FIPSServedSurfaceSmokeTest's KeyPairGenerator
+            // tier; the same held on the base provider.
+            throw new IllegalStateException(
+                    "SLH-DSA is parameter-set based; call initialize(SLHDSAParameterSpec) "
+                            + "before generateKeyPair(), or use a typed generator "
+                            + "(e.g. KeyPairGenerator.getInstance(\"SLH-DSA-SHA2-128S\"))");
+        }
+        long res = slhdsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
-        PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
-        return new KeyPair(new JOSLHDSAPublicKey(spec), new JOSLHDSAPrivateKey(spec));
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType);
+        return new KeyPair(new JOSLHDSAPublicKey(slhdsaServiceNI, spec),
+                new JOSLHDSAPrivateKey(slhdsaServiceNI, spec));
     }
 
 

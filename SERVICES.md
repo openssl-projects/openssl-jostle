@@ -345,7 +345,7 @@ The Jostle (`JSL`) provider registers **296** services across **14** JCA service
 
 # Jostle FIPS Provider (JSLFIPS) — Registered Services
 
-The Jostle FIPS (`JSLFIPS`) provider registers **161** services across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
+The Jostle FIPS (`JSLFIPS`) provider registers **161** services against a 3.1.2 module (223 against a 3.5.x one, the difference being PQC) across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
 
 **The surface is module-dependent.** JSLFIPS ships one build that serves two FIPS
 modules — the CMVP-validated 3.1.2 (cert #4985) and a 3.5.x one once certified —
@@ -358,6 +358,12 @@ accordingly, so the list below is what a **3.1.2** module yields:
   3.1.2 does; 3.5.x does not, and against it these eight services are absent
   and `getInstance` throws `NoSuchAlgorithmException` so a caller can fall
   through to another provider.
+- **ML-KEM, ML-DSA and SLH-DSA** go the other way: 3.5.x implements all three
+  and 3.1.2 implements none, so the 70 PQC services below appear only against a
+  3.5.x module. Gated the same way, on the keymgmt fetch — which is a complete
+  answer here, because unlike DSA signing no `fipsinstall` switch affects them
+  (verified with real operations under both the `-pedantic` and the default
+  config).
 
 Differences that no cheap probe can detect stay registered and refuse at use
 with a typed exception — DSA key generation and signature generation are

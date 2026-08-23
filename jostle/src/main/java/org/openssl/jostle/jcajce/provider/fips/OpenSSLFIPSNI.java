@@ -109,4 +109,37 @@ public interface OpenSSLFIPSNI
      * {@code DumpInfo}, not in an {@code if}.
      */
     String moduleVersion();
+
+    /**
+     * Names the OpenSSL provider that actually IMPLEMENTS {@code name} for
+     * {@code opType} in the FIPS interface library's lib ctx - {@code "fips"}
+     * for the module, {@code "default"} for mainline's built-in provider - or
+     * null when the algorithm is not fetchable there at all.
+     *
+     * <p><b>This is the only direct evidence that an operation runs inside the
+     * FIPS module.</b> Every other signal is indirect. Absence tests
+     * (Triple-DES, ChaCha20, OCB) show the lib ctx carries {@code fips=yes}
+     * default properties; behavioural refusals (q-less DH, SHA-1 signing,
+     * DSA generation) show the module is in the path for THOSE algorithms.
+     * Neither helps for a family mainline implements identically - and the
+     * bundled libcrypto implements ML-KEM, ML-DSA and SLH-DSA exactly as the
+     * 3.5.x module does, so for PQC there is no behaviour to tell them apart.
+     *
+     * <p><b>What it does NOT prove.</b> The answer describes the lib ctx
+     * reachable through THIS NI - the FIPS interface library's - not the one a
+     * particular algorithm SPI happens to be bound to. A single {@code *FIPSFFI}
+     * class that resolved its symbols through the process-global
+     * {@code loaderLookup} instead of {@link FIPSLibraryLookup} would drive the
+     * BASE library while this probe still answered {@code "fips"}, because the
+     * probe runs through a different, correctly-bound class. Verified by
+     * deliberately reintroducing that bug: this test stayed green.
+     *
+     * <p>Per-family symbol binding is therefore enforced structurally instead,
+     * by {@code FIPSLibraryLookupParityTest} - the invariant cannot be observed
+     * behaviourally for a family mainline implements identically.
+     *
+     * <p>Unlike {@link #moduleVersion()} this IS a legitimate thing to assert
+     * on - it reports what OpenSSL resolved, not what a build claims.
+     */
+    String implementingProvider(int opType, String name);
 }

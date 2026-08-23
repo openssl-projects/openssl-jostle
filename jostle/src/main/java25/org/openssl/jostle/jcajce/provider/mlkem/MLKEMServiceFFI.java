@@ -26,37 +26,47 @@ public class MLKEMServiceFFI implements MLKEMServiceNI
 
 
     private static final Logger L = Logger.getLogger("MLKEM_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
+    // Per-instance, NOT the process-global loaderLookup: the base and FIPS
+    // interface libraries export the SAME symbol names, so a global lookup
+    // resolves into whichever loaded first. The FIPS subclass passes a
+    // library-scoped lookup (see FIPSLibraryLookup).
+    private final SymbolLookup lookup;
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment generateKeyPairFunc;
-    private static final MethodHandle generateKeyPairFuncHandle;
+    private final MemorySegment generateKeyPairFunc;
+    private final MethodHandle generateKeyPairFuncHandle;
 
-    private static final MemorySegment generateKeyPairWithSeedFunc;
-    private static final MethodHandle generateKeyPairWithSeedFuncHandle;
-
-
-    private static final MemorySegment getPublicKeyFunc;
-    private static final MethodHandle getPublicKeyFuncHandle;
-
-    private static final MemorySegment getPrivateKeyFunc;
-    private static final MethodHandle getPrivateKeyFuncHandle;
-
-    private static final MemorySegment getSeedKeyFunc;
-    private static final MethodHandle getSeedKeyFuncHandle;
-
-    private static final MemorySegment decodePublicKeyFunc;
-    private static final MethodHandle decodePublicKeyFuncHandle;
-
-    private static final MemorySegment decodePrivateKeyFunc;
-    private static final MethodHandle decodePrivateKeyFuncHandle;
-
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    private final MemorySegment generateKeyPairWithSeedFunc;
+    private final MethodHandle generateKeyPairWithSeedFuncHandle;
 
 
-    static
+    private final MemorySegment getPublicKeyFunc;
+    private final MethodHandle getPublicKeyFuncHandle;
+
+    private final MemorySegment getPrivateKeyFunc;
+    private final MethodHandle getPrivateKeyFuncHandle;
+
+    private final MemorySegment getSeedKeyFunc;
+    private final MethodHandle getSeedKeyFuncHandle;
+
+    private final MemorySegment decodePublicKeyFunc;
+    private final MethodHandle decodePublicKeyFuncHandle;
+
+    private final MemorySegment decodePrivateKeyFunc;
+    private final MethodHandle decodePrivateKeyFuncHandle;
+
+    private final FunctionDescriptor entropyFd;
+    private final MethodType entropyMt;
+
+
+    public MLKEMServiceFFI()
     {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public MLKEMServiceFFI(SymbolLookup lookup)
+    {
+        this.lookup = lookup;
         generateKeyPairFunc = lookup.find("JoMLKEM_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(

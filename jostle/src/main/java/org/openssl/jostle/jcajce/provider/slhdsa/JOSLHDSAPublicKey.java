@@ -19,10 +19,20 @@ import org.openssl.jostle.util.asn1.ASN1Encoder;
 
 class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
 {
+    // Instance field, not a NISelector static: the key is bound to whichever
+    // interface library created its PKEY - NISelector for JSL, FIPSNISelector
+    // for JSLFIPS - so it must not reach for the base provider's NI.
+    private final SLHDSAServiceNI slhdsaServiceNI;
 
     public JOSLHDSAPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.SLHDSAServiceNI, spec);
+    }
+
+    public JOSLHDSAPublicKey(SLHDSAServiceNI slhdsaServiceNI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.slhdsaServiceNI = slhdsaServiceNI;
     }
 
     @Override
@@ -76,9 +86,9 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
         //
         synchronized (this)
         {
-            long len = NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), null);
+            long len = slhdsaServiceNI.getPublicKey(spec.getReference(), null);
             byte[] out = new byte[(int) len];
-            NISelector.SLHDSAServiceNI.getPublicKey(spec.getReference(), out);
+            slhdsaServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;
         }

@@ -103,3 +103,20 @@ int32_t JoFips_module_version(char *out, int32_t out_len) {
     }
     return capability_module_version(out, (size_t) out_len);
 }
+
+int32_t JoFips_implementing_provider(int32_t op_type, const char *name,
+                                     char *out, int32_t out_len) {
+    if (name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+    if (out == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+    if (out_len <= 0) {
+        return JO_OUTPUT_LEN_IS_NEGATIVE;
+    }
+    if (op_type < JO_CAP_OP_MIN || op_type > JO_CAP_OP_MAX) {
+        return JO_UNEXPECTED_STATE;
+    }
+    return capability_implementing_provider(op_type, name, out, (size_t) out_len);
+}

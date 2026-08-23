@@ -211,3 +211,40 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFI
     }
     return (*env)->NewStringUTF(env, buf);
 }
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI
+ * Method:    implementingProvider
+ * Signature: (ILjava/lang/String;)Ljava/lang/String;
+ *
+ * Returns null when the algorithm is not fetchable at all; the Java side reads
+ * that as "the module does not implement it", which is a legitimate answer and
+ * is what proves the probe reports a real result rather than a constant.
+ */
+JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI_implementingProvider(
+    JNIEnv *env, jobject jo, jint op_type, jstring _name) {
+    UNUSED(jo);
+
+    if (_name == NULL) {
+        return NULL;
+    }
+    if (op_type < JO_CAP_OP_MIN || op_type > JO_CAP_OP_MAX) {
+        return NULL;
+    }
+
+    const char *name = (*env)->GetStringUTFChars(env, _name, NULL);
+    if (name == NULL) {
+        return NULL;
+    }
+
+    char buf[128];
+    int32_t rc = capability_implementing_provider(op_type, name, buf, sizeof(buf));
+
+    (*env)->ReleaseStringUTFChars(env, _name, name);
+
+    if (rc <= 0) {
+        return NULL;
+    }
+    return (*env)->NewStringUTF(env, buf);
+}

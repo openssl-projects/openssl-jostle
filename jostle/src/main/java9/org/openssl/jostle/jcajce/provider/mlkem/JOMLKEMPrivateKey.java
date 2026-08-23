@@ -29,15 +29,30 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
 {
     final boolean seedOnly;
 
+    // Instance field, not a NISelector static: the key is bound to whichever
+    // interface library created its PKEY - NISelector for JSL, FIPSNISelector
+    // for JSLFIPS - so it must not reach for the base provider's NI.
+    private final MLKEMServiceNI mlkemServiceNI;
+
     public JOMLKEMPrivateKey(PKEYKeySpec spec)
     {
-        super(spec);
-        seedOnly = false;
+        this(NISelector.MLKEMServiceNI, spec, false);
     }
 
     public JOMLKEMPrivateKey(PKEYKeySpec spec, boolean seedOnly)
     {
+        this(NISelector.MLKEMServiceNI, spec, seedOnly);
+    }
+
+    public JOMLKEMPrivateKey(MLKEMServiceNI mlkemServiceNI, PKEYKeySpec spec)
+    {
+        this(mlkemServiceNI, spec, false);
+    }
+
+    public JOMLKEMPrivateKey(MLKEMServiceNI mlkemServiceNI, PKEYKeySpec spec, boolean seedOnly)
+    {
         super(spec);
+        this.mlkemServiceNI = mlkemServiceNI;
         this.seedOnly = seedOnly;
     }
 
@@ -83,14 +98,14 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             // private-key encoding) answers null rather than surfacing a generic
             // OpenSSL error. getPrivateKey(preferSeedOnly) relies on this null
             // to fall back to the expanded key.
-            int len = NISelector.MLKEMServiceNI.ni_getSeed(spec.getReference(), null);
+            int len = mlkemServiceNI.ni_getSeed(spec.getReference(), null);
             if (len == ErrorCode.JO_SEED_UNAVAILABLE.getCode())
             {
                 return null;
             }
-            NISelector.MLKEMServiceNI.handleErrors(len);
+            mlkemServiceNI.handleErrors(len);
             byte[] out = new byte[len];
-            NISelector.MLKEMServiceNI.handleErrors(NISelector.MLKEMServiceNI.ni_getSeed(spec.getReference(), out));
+            mlkemServiceNI.handleErrors(mlkemServiceNI.ni_getSeed(spec.getReference(), out));
 
             return out;
         }
@@ -110,8 +125,10 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             {
                 OSSLKeyType type = getType();
                 return new JOMLKEMPrivateKey(
+                        mlkemServiceNI,
                         new PKEYKeySpec(
-                                NISelector.MLKEMServiceNI.generateKeyPair(
+                                spec.getSpecNI(),
+                                mlkemServiceNI.generateKeyPair(
                                         type.getKsType(),
                                         seed,
                                         seed.length,
@@ -122,7 +139,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             }
         }
 
-        return new JOMLKEMPrivateKey(spec);
+        return new JOMLKEMPrivateKey(mlkemServiceNI, spec);
     }
 
     public byte[] getDirectEncoding()
@@ -132,9 +149,9 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
         //
         try
         {
-            long len = NISelector.MLKEMServiceNI.getPrivateKey(spec.getReference(), null);
+            long len = mlkemServiceNI.getPrivateKey(spec.getReference(), null);
             byte[] out = new byte[(int) len];
-            NISelector.MLKEMServiceNI.getPrivateKey(spec.getReference(), out);
+            mlkemServiceNI.getPrivateKey(spec.getReference(), out);
 
             return out;
         }

@@ -120,6 +120,33 @@ class OpenSSLFIPSFFI implements OpenSSLFIPSNI
     }
 
     @Override
+    public String implementingProvider(int opType, String name)
+    {
+        try (Arena arena = Arena.ofConfined())
+        {
+            var func = lookup.find("JoFips_implementing_provider").orElseThrow();
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+
+            var n = name != null ? arena.allocateFrom(name) : MemorySegment.ofAddress(0);
+            var buf = arena.allocate(VERSION_BUFFER_BYTES);
+
+            int written = (int) handle.invokeExact(opType, n, buf, VERSION_BUFFER_BYTES);
+            if (written <= 0)
+            {
+                return null;
+            }
+            return buf.getString(0);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "ffi JoFips_implementing_provider", t);
+            throw new ProviderException(t.getMessage(), t);
+        }
+    }
+
+    @Override
     public String getOSSLErrors()
     {
         String result = null;

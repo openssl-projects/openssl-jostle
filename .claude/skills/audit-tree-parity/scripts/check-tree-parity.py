@@ -38,12 +38,18 @@ DIVERGENT_CONTENT = {
 
 # Basenames/patterns that legitimately exist in only ONE tree.
 NONFIPS_ONLY_PREFIXES = (
-    # algorithm families the FIPS provider does not ship
-    "util/edec", "util/ks", "util/mldsa", "util/mlkem", "util/slhdsa",
-    "jni/ed_", "jni/edec", "jni/ks_", "jni/mldsa", "jni/mlkem",
-    "jni/slhdsa", "jni/slh_dsa",
-    "ffi/ed_", "ffi/edec", "ffi/ks_", "ffi/mldsa", "ffi/mlkem",
-    "ffi/slhdsa", "ffi/slh_dsa",
+    # algorithm families the FIPS provider does not ship.
+    #
+    # ML-DSA / ML-KEM / SLH-DSA were here until 2026-08-23. They were correct
+    # to exclude while 3.1.2 was the only target - it implements no PQC, so the
+    # bridges would have been unreachable code inside the FIPS library. The
+    # 3.5.x module implements all three (probe:
+    # fips-c-review/probes/pqc_op_probe.c), so they are now byte-identical
+    # twins like every other shared family, and ProvFIPS{MLDSA,MLKEM,SLHDSA}
+    # gate registration on the loaded module actually serving them.
+    "util/edec", "util/ks",
+    "jni/ed_", "jni/edec", "jni/ks_",
+    "ffi/ed_", "ffi/edec", "ffi/ks_",
     # base-provider init/diagnostic glue with fips-tree counterparts under
     # different names (openssl_fips_jni.c) or no FIPS equivalent at all
     "jni/open_ssl_jni", "jni/native_info",

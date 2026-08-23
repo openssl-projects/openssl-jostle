@@ -322,12 +322,27 @@ public class FIPSServedSurfaceSmokeTest
             }
             catch (ProviderException e)
             {
-                // The sanctioned refusal. Must name the capability, not just
-                // report that something went wrong.
+                // The sanctioned capability refusal. Must name the capability,
+                // not just report that something went wrong.
                 String m = String.valueOf(e.getMessage());
                 if (!m.contains("not supported by the loaded provider"))
                 {
                     broken.add(alg + " -> ProviderException that does not name a capability: " + m);
+                }
+            }
+            catch (IllegalStateException | IllegalArgumentException e)
+            {
+                // An umbrella generator for a parameter-set-based family
+                // ("MLDSA", "MLKEM", "SLHDSA") has no parameter set until
+                // initialize() supplies one, so generateKeyPair() without it is
+                // caller error, not a provider defect. It must still be TYPED
+                // and say so - SLHDSA threw a raw NullPointerException here
+                // until this tier caught it. Anything that is not an umbrella
+                // name has no business needing initialisation.
+                if (!isUmbrella(alg))
+                {
+                    broken.add(alg + " -> needs initialize() but is not an umbrella name: "
+                            + e.getClass().getSimpleName() + ": " + e.getMessage());
                 }
             }
             catch (Exception e)
@@ -423,6 +438,28 @@ public class FIPSServedSurfaceSmokeTest
                 return java.security.cert.CertificateFactory.getInstance(alg, FIPS);
             default:
                 return null;
+        }
+    }
+
+    /**
+     * Is {@code alg} an umbrella name for a parameter-set-based family - one
+     * that legitimately requires {@code initialize()} before it can generate?
+     * Deliberately an exact list rather than a pattern: a typed name like
+     * "ML-DSA-65" must never fall into this branch.
+     */
+    private static boolean isUmbrella(String alg)
+    {
+        switch (alg)
+        {
+            case "MLDSA":
+            case "ML-DSA":
+            case "MLKEM":
+            case "ML-KEM":
+            case "SLHDSA":
+            case "SLH-DSA":
+                return true;
+            default:
+                return false;
         }
     }
 

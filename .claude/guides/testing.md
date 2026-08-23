@@ -232,6 +232,46 @@ The two providers' asymmetric keys share Java classes (`JORSAPublicKey`, `JOECPr
 
 `FIPSKeyIsolationTest` owns the contract (`rsaPrivateKeysIsolatedPublicKeysShared`, `keyIsolationCompleteAcrossAllAsymmetricFamiliesBothDirections`) — new asymmetric families must be added to its sweep, with both the private-rejection (exact message per "Pin the exception message" above) and the public-crossing positive. Surfaces that consume keys indirectly (a CertificateFactory's pinned `verify`, a KeyAgreement `doPhase`) should pin their own view of the policy too — `FIPSX509CertificateFactoryTest.jslGeneratedKeypair_functionsThroughFipsFactory` is the reference — so a future tightening of the shared-public rule names every behaviour it changes. Don't confuse this class of test with *wrong-algorithm* rejection (`"expected a DSAPublicKey from the Jostle provider"` for an RSA key into a DSA Signature): same exception type, different check, both worth pinning separately.
 
+### Prove the FIPS module is the one doing the work — behaviour alone cannot
+
+"The FIPS tests pass" does not mean the FIPS module ran. Most FIPS evidence in
+this suite is **indirect**, and it only covers algorithms where the module and
+mainline libcrypto differ:
+
+| Signal | What it actually proves |
+|---|---|
+| Absence tests (Triple-DES, ChaCha20, OCB, scrypt, MD5) | the lib ctx carries `fips=yes` default properties |
+| Behavioural refusals (q-less DH, SHA-1 signing, DSA generation, PKCS#1 encrypt) | the module is in the path *for those algorithms* |
+| `moduleVersion()` | what the loaded provider *claims*; never assert on it |
+
+None of that covers a family mainline implements identically — and mainline
+implements ML-KEM, ML-DSA and SLH-DSA exactly as the 3.5.x module does. Every
+PQC test passed identically whether the work happened in the module or in
+mainline's default provider.
+
+**The direct question is "which provider implements this?", and OpenSSL will
+answer it**: `EVP_*_fetch` → `EVP_*_get0_provider` → `OSSL_PROVIDER_get0_name`
+returns `"fips"` or `"default"`. Exposed as
+`OpenSSLFIPSNI.implementingProvider(opType, name)` and swept over the whole
+registered surface by `FIPSModuleIsActuallyUsedTest`. Include a control that
+the probe can answer something *other* than the wanted value (ChaCha20 must
+come back null) — otherwise a stub returning `"fips"` passes.
+
+**But scope that claim by falsification, because it is narrower than it looks.**
+The probe reports on the lib ctx reachable through *its own* NI. A single
+`*FIPSFFI` class mis-bound to the process-global `loaderLookup` drives the BASE
+library while the probe — running through a different, correctly-bound class —
+still answers `"fips"`. That was tried: rebinding `MLDSAServiceFIPSFFI` left the
+whole PQC suite AND the provider probe green.
+
+**Where behaviour cannot distinguish two correct-looking implementations,
+enforce the invariant structurally.** `FIPSLibraryLookupParityTest` reads the
+`*FIPSFFI` sources and requires `FIPSLibraryLookup.get()`, never
+`loaderLookup()` — the same shape as `NativeReferenceParityTest`, and for the
+same reason: the defect is invisible at runtime until far too late. Strip
+comments before matching; the first version flagged every correctly-written
+class because their Javadoc explains why *not* to use `loaderLookup`.
+
 ### A FIPS module's strictness is mostly `fipsinstall` CONFIG, not its version
 
 `fipsmodule.cnf` carries a dozen strictness switches that `openssl fipsinstall`

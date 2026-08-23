@@ -1,0 +1,355 @@
+//  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
+//
+//  Licensed under the Apache License 2.0 (the "License"). You may not use
+//  this file except in compliance with the License.  You can obtain a copy
+//  in the file LICENSE in the source distribution or at
+//  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+
+
+#include <openssl/asn1.h>
+
+#include "bytearrays.h"
+#include "byte_array_critical.h"
+#include "org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI.h"
+#include "types.h"
+#include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
+#include "../util/key_spec.h"
+#include "../util/mlkem.h"
+#include "../util/ops.h"
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_generateKeyPair
+ * Signature: (I[ILorg/openssl/jostle/rand/RandSource;)J
+ */
+JNIEXPORT jlong JNICALL
+Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPair__I_3ILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jintArray err_out, jobject rnd_src) {
+    UNUSED(jo);
+    UNUSED(env);
+
+    jo_assert(err_out != NULL);
+
+    jint ret_val = JO_FAIL;
+    key_spec *key_spec = NULL;
+
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    key_spec = create_spec();
+    ret_val = mlkem_generate_key_pair(key_spec, type, NULL, 0, rnd_src);
+
+    if (ret_val != JO_SUCCESS) {
+        free_key_spec(key_spec);
+        key_spec = NULL;
+    }
+
+exit:
+    (*env)->SetIntArrayRegion(env, err_out, 0, 1, &ret_val);
+    return (jlong) key_spec;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_generateKeyPair
+ * Signature: (I[I[BILorg/openssl/jostle/rand/RandSource;)J
+ */
+JNIEXPORT jlong JNICALL
+Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPair__I_3I_3BILorg_openssl_jostle_rand_RandSource_2
+(JNIEnv *env, jobject jo, jint type, jintArray _err_out, jbyteArray _seed, jint seed_len, jobject rnd_src) {
+    UNUSED(jo);
+    UNUSED(env);
+
+    jo_assert(_err_out != NULL);
+
+    key_spec *key_spec = NULL;
+
+    java_bytearray_ctx seed; // Non critical access
+    init_bytearray_ctx(&seed);
+
+    int32_t ret_code = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        ret_code = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    if (_seed == NULL) {
+        ret_code = JO_SEED_IS_NULL;
+        goto exit;
+    }
+
+    if (seed_len < 0) {
+        ret_code = JO_SEED_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&seed, env, _seed)) {
+        ret_code = JO_FAILED_ACCESS_SEED;
+        goto exit;
+    }
+
+    if ((size_t) seed_len > seed.size) {
+        ret_code = JO_INVALID_SEED_LEN_OUT_OF_RANGE;
+        goto exit;
+    }
+
+
+    key_spec = create_spec();
+    ret_code = mlkem_generate_key_pair(key_spec, type, seed.bytearray, seed_len, rnd_src);
+
+
+
+    if (ret_code != JO_SUCCESS) {
+        free_key_spec(key_spec);
+        key_spec = NULL;
+    }
+
+exit:
+    release_bytearray_ctx(&seed);
+    (*env)->SetIntArrayRegion(env, _err_out, 0, 1, &ret_code);
+    return (jlong) key_spec;
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_getPublicKey
+ * Signature: (J[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1getPublicKey(
+    JNIEnv *env, jobject o, jlong ref,  jbyteArray _output) {
+    UNUSED(o);
+    key_spec *key_spec = (void *) ref;
+
+    if (key_spec == NULL) {
+        return JO_KEY_SPEC_IS_NULL;
+    }
+
+
+    java_bytearray_ctx output; // Non critical access
+    init_bytearray_ctx(&output);
+
+    int32_t ret_code = JO_FAIL;
+
+    if (_output == NULL) {
+        ret_code = mlkem_get_public_encoded(key_spec,NULL, 0);
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    ret_code = mlkem_get_public_encoded(key_spec, output.bytearray, output.size);
+
+exit:
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_getPrivateKey
+ * Signature: (J[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1getPrivateKey(
+    JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
+    UNUSED(o);
+    key_spec *key_spec = (void *) ref;
+
+    java_bytearray_ctx output; // Non critical access
+    init_bytearray_ctx(&output);
+
+    int32_t ret_code = JO_FAIL;
+
+
+    if (key_spec == NULL) {
+        ret_code = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+
+    if (_output == NULL) {
+        ret_code = mlkem_get_private_encoded(key_spec,NULL, 0);
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    ret_code = mlkem_get_private_encoded(key_spec, output.bytearray, output.size);
+
+exit:
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_getSeed
+ * Signature: (J[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1getSeed
+(JNIEnv *env, jobject o, jlong ref, jbyteArray _output) {
+    UNUSED(o);
+    key_spec *key_spec = (void *) ref;
+
+
+    java_bytearray_ctx output; // Non critical access
+    init_bytearray_ctx(&output);
+
+    int32_t ret_code = JO_FAIL;
+
+    if (key_spec == NULL) {
+        ret_code = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (_output == NULL) {
+        ret_code = mlkem_get_private_seed(key_spec,NULL, 0);
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    ret_code = mlkem_get_private_seed(key_spec, output.bytearray, output.size);
+
+exit:
+    release_bytearray_ctx(&output);
+    return ret_code;
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_decode_publicKey
+ * Signature: (JI[BIILorg/openssl/jostle/rand/RandSource;)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1decode_1publicKey
+(JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len,
+ jobject rnd_src) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    key_spec *key_spec = (void *) ref;
+
+
+    jint ret_val = JO_FAIL;
+    java_bytearray_ctx input; // Non critical access
+    init_bytearray_ctx(&input);
+
+    if (key_spec == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+        ret_val = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (input.array == NULL) {
+        ret_val = JO_INPUT_IS_NULL;;
+        goto exit;
+    }
+
+    if (in_off < 0) {
+        ret_val = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+        ret_val = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    // key_spec->type = key_type;
+
+    uint8_t *start = input.bytearray + in_off;
+    ret_val = mlkem_decode_public_key(key_spec, key_type, start, in_len, rnd_src);
+
+
+exit:
+    release_bytearray_ctx(&input);
+    return ret_val;
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI
+ * Method:    ni_decode_privateKey
+ * Signature: (JI[BIILorg/openssl/jostle/rand/RandSource;)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1decode_1privateKey
+(JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len,
+ jobject rnd_src) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    key_spec *key_spec = (void *) ref;
+
+
+    jint ret_val = JO_FAIL;
+    java_bytearray_ctx input; // Non critical access
+    init_bytearray_ctx(&input);
+
+    if (key_spec == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+        ret_val = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+
+    if (input.array == NULL) {
+        ret_val = JO_INPUT_IS_NULL;;
+        goto exit;
+    }
+
+    if (in_off < 0) {
+        ret_val = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+        ret_val = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    // key_spec->type = key_type;
+
+    uint8_t *start = input.bytearray + in_off;
+    ret_val = mlkem_decode_private_key(key_spec, key_type, start, in_len, rnd_src);
+
+
+exit:
+    release_bytearray_ctx(&input);
+    return ret_val;
+}

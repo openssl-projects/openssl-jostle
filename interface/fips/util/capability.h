@@ -78,4 +78,27 @@ int32_t capability_can_fetch(int32_t op_type, const char *name);
  */
 int32_t capability_module_version(char *out, size_t out_len);
 
+/**
+ * Name the OSSL_PROVIDER that actually IMPLEMENTS name for op_type in this
+ * library's lib ctx - "fips" for the FIPS module, "default" for mainline's
+ * built-in provider.
+ *
+ * This is the only direct evidence that an operation runs inside the module.
+ * Every other signal is indirect: absence tests (Triple-DES, ChaCha20) show
+ * the lib ctx carries fips=yes properties, and behavioural refusals (q-less
+ * DH, SHA-1 signing) show the module is in the path for THOSE algorithms. For
+ * a family mainline implements identically - all three PQC families do - there
+ * is no behavioural difference to observe, so nothing else can distinguish
+ * "ran in the module" from "ran in mainline's default provider".
+ *
+ * Preconditions asserted as invariants (both bridges enforce them):
+ * name != NULL, out != NULL, out_len > 0, and
+ * JO_CAP_OP_MIN <= op_type <= JO_CAP_OP_MAX.
+ *
+ * @return bytes written excluding the terminator, or JO_NAME_NOT_FOUND when
+ * the algorithm is not fetchable at all.
+ */
+int32_t capability_implementing_provider(int32_t op_type, const char *name,
+                                         char *out, size_t out_len);
+
 #endif //CAPABILITY_H

@@ -10,10 +10,12 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -79,9 +81,26 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
      *                  Java Security Standard Algorithm Names Specification</a>
      *                  for information about standard algorithm names.
      */
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final MLKEMServiceNI mlkemServiceNI;
+    private final SpecNI specNI;
+
     public MLKEMKeyPairGenerator(Object algorithm)
     {
+        this(NISelector.MLKEMServiceNI, NISelector.SpecNI, algorithm);
+    }
+
+    /**
+     * NI-injecting form. The SPI is bound to whichever interface library its
+     * NIs came from - NISelector for JSL, FIPSNISelector for JSLFIPS - so it
+     * must never reach for the base provider's statics.
+     */
+    public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Object algorithm)
+    {
         super(algorithm.toString());
+        this.mlkemServiceNI = mlkemServiceNI;
+        this.specNI = specNI;
         keyType = paramToTypeMap.get(algorithm);
 
         if (keyType == null)
@@ -97,7 +116,12 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
         // "ML-KEM" alias resolves to NONE; fall back to the 128-bit
         // category — generateKeyPair on a NONE instance without
         // initialize() will fail at the native layer anyway.
-        randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(keyType));
+        // A strength-targeted DRBG costs a SecureRandom.getInstance("DRBG",
+        // DrbgParameters...) per instance; under a provider that supplies its
+        // own entropy nothing reads it, so take the plain default there.
+        randSource = mlkemServiceNI.providerManagesEntropy()
+                ? DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
+                : DefaultRandSource.replaceWith(null, null, strengthForKeyType(keyType));
     }
 
 
@@ -181,13 +205,20 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
         // (plain new SecureRandom(), Java 8, custom subclasses) return
         // 0 here and are accepted — the C-side RAND gate is the safety
         // net for those.
-        int suppliedStrength = DefaultRandSource.strengthOf(random);
-        if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+        // Skipped under a provider that supplies its own entropy (the FIPS
+        // module): the caller's SecureRandom is never consulted there, so
+        // rejecting it would turn a caller away over a value nothing reads.
+        // See DefaultServiceNI.providerManagesEntropy.
+        if (!mlkemServiceNI.providerManagesEntropy())
         {
-            throw new InvalidAlgorithmParameterException(
-                    "supplied SecureRandom reports " + suppliedStrength
-                            + "-bit strength but " + specName
-                            + " requires " + strengthBits);
+            int suppliedStrength = DefaultRandSource.strengthOf(random);
+            if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "supplied SecureRandom reports " + suppliedStrength
+                                + "-bit strength but " + specName
+                                + " requires " + strengthBits);
+            }
         }
 
         // Resolve / upgrade the RandSource to match the now-final keyType.
@@ -206,9 +237,9 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
     @Override
     public KeyPair generateKeyPair()
     {
-        long res = NISelector.MLKEMServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        long res = mlkemServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
-        PKEYKeySpec spec = new PKEYKeySpec(res, keyType);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType);
         return new KeyPair(new JOMLKEMPublicKey(spec), new JOMLKEMPrivateKey(spec));
     }
 

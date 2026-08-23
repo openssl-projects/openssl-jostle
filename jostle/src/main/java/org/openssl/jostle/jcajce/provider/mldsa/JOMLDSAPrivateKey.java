@@ -29,15 +29,30 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
 {
     final boolean seedOnly;
 
+    // Instance field, not a NISelector static: the key is bound to whichever
+    // interface library created its PKEY - NISelector for JSL, FIPSNISelector
+    // for JSLFIPS - so it must not reach for the base provider's NI.
+    private final MLDSAServiceNI mldsaServiceNI;
+
     public JOMLDSAPrivateKey(PKEYKeySpec spec)
     {
-        super(spec);
-        seedOnly = false;
+        this(NISelector.MLDSAServiceNI, spec, false);
     }
 
     public JOMLDSAPrivateKey(PKEYKeySpec spec, boolean seedOnly)
     {
+        this(NISelector.MLDSAServiceNI, spec, seedOnly);
+    }
+
+    public JOMLDSAPrivateKey(MLDSAServiceNI mldsaServiceNI, PKEYKeySpec spec)
+    {
+        this(mldsaServiceNI, spec, false);
+    }
+
+    public JOMLDSAPrivateKey(MLDSAServiceNI mldsaServiceNI, PKEYKeySpec spec, boolean seedOnly)
+    {
         super(spec);
+        this.mldsaServiceNI = mldsaServiceNI;
         this.seedOnly = seedOnly;
     }
 
@@ -79,14 +94,14 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
             // the raw NI getter returns JO_SEED_UNAVAILABLE, which we answer as
             // null (rather than surfacing it as an error) so getPrivateKey(true)
             // can fall back to the expanded key.
-            int len = NISelector.MLDSAServiceNI.ni_getSeed(spec.getReference(), null);
+            int len = mldsaServiceNI.ni_getSeed(spec.getReference(), null);
             if (len == ErrorCode.JO_SEED_UNAVAILABLE.getCode())
             {
                 return null;
             }
-            NISelector.MLDSAServiceNI.handleErrors(len);
+            mldsaServiceNI.handleErrors(len);
             byte[] out = new byte[len];
-            NISelector.MLDSAServiceNI.handleErrors(NISelector.MLDSAServiceNI.ni_getSeed(spec.getReference(), out));
+            mldsaServiceNI.handleErrors(mldsaServiceNI.ni_getSeed(spec.getReference(), out));
 
             return out;
         }
@@ -100,9 +115,9 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
         //
         synchronized (this)
         {
-            long len = NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), null);
+            long len = mldsaServiceNI.getPrivateKey(spec.getReference(), null);
             byte[] out = new byte[(int) len];
-            NISelector.MLDSAServiceNI.getPrivateKey(spec.getReference(), out);
+            mldsaServiceNI.getPrivateKey(spec.getReference(), out);
 
             return out;
         }
@@ -119,10 +134,11 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
                 {
                     OSSLKeyType type = getType();
                     return new JOMLDSAPrivateKey(
+                            mldsaServiceNI,
                             new PKEYKeySpec(
-
-                                            NISelector.MLDSAServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
-                                                    DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
+                                    spec.getSpecNI(),
+                                    mldsaServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
+                                            DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
                                     ), type), preferSeedOnly
                     );
                 }
@@ -134,14 +150,14 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
             }
         }
 
-        return new JOMLDSAPrivateKey(spec);
+        return new JOMLDSAPrivateKey(mldsaServiceNI, spec);
     }
 
 
     @Override
     public MLDSAPublicKey getPublicKey()
     {
-        return new JOMLDSAPublicKey(spec);
+        return new JOMLDSAPublicKey(mldsaServiceNI, spec);
     }
 
     public PKEYKeySpec getSpec()

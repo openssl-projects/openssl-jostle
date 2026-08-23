@@ -21,10 +21,20 @@ import java.lang.ref.Reference;
 
 class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
 {
+    // Instance field, not a NISelector static: the key is bound to whichever
+    // interface library created its PKEY - NISelector for JSL, FIPSNISelector
+    // for JSLFIPS - so it must not reach for the base provider's NI.
+    private final MLKEMServiceNI mlkemServiceNI;
 
     public JOMLKEMPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.MLKEMServiceNI, spec);
+    }
+
+    public JOMLKEMPublicKey(MLKEMServiceNI mlkemServiceNI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.mlkemServiceNI = mlkemServiceNI;
     }
 
     @Override
@@ -83,9 +93,9 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
         //
         try
         {
-            long len = NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), null);
+            long len = mlkemServiceNI.getPublicKey(spec.getReference(), null);
             byte[] out = new byte[(int) len];
-            NISelector.MLKEMServiceNI.getPublicKey(spec.getReference(), out);
+            mlkemServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;
         }

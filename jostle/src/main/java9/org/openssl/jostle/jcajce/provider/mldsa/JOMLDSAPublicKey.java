@@ -21,10 +21,20 @@ import java.lang.ref.Reference;
 
 class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
 {
+    // Instance field, not a NISelector static: the key is bound to whichever
+    // interface library created its PKEY - NISelector for JSL, FIPSNISelector
+    // for JSLFIPS - so it must not reach for the base provider's NI.
+    private final MLDSAServiceNI mldsaServiceNI;
 
     public JOMLDSAPublicKey(PKEYKeySpec spec)
     {
+        this(NISelector.MLDSAServiceNI, spec);
+    }
+
+    public JOMLDSAPublicKey(MLDSAServiceNI mldsaServiceNI, PKEYKeySpec spec)
+    {
         super(spec);
+        this.mldsaServiceNI = mldsaServiceNI;
     }
 
     @Override
@@ -65,9 +75,9 @@ class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
         //
         try
         {
-            long len = NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), null);
+            long len = mldsaServiceNI.getPublicKey(spec.getReference(), null);
             byte[] out = new byte[(int) len];
-            NISelector.MLDSAServiceNI.getPublicKey(spec.getReference(), out);
+            mldsaServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;
         }

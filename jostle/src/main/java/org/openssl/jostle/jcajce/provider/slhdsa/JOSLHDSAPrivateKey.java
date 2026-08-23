@@ -24,10 +24,20 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
 {
 //    final boolean seedOnly;
 
+    // Instance field, not a NISelector static: the key is bound to whichever
+    // interface library created its PKEY - NISelector for JSL, FIPSNISelector
+    // for JSLFIPS - so it must not reach for the base provider's NI.
+    private final SLHDSAServiceNI slhdsaServiceNI;
+
     public JOSLHDSAPrivateKey(PKEYKeySpec spec)
     {
-        super(spec);
+        this(NISelector.SLHDSAServiceNI, spec);
+    }
 
+    public JOSLHDSAPrivateKey(SLHDSAServiceNI slhdsaServiceNI, PKEYKeySpec spec)
+    {
+        super(spec);
+        this.slhdsaServiceNI = slhdsaServiceNI;
     }
 
 
@@ -64,9 +74,9 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
         //
         synchronized (this)
         {
-            long len = NISelector.SLHDSAServiceNI.getPrivateKey(spec.getReference(), null);
+            long len = slhdsaServiceNI.getPrivateKey(spec.getReference(), null);
             byte[] out = new byte[(int) len];
-            NISelector.SLHDSAServiceNI.getPrivateKey(spec.getReference(), out);
+            slhdsaServiceNI.getPrivateKey(spec.getReference(), out);
 
             return out;
         }
@@ -76,7 +86,7 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
     @Override
     public SLHDSAPublicKey getPublicKey()
     {
-        return new JOSLHDSAPublicKey(this.getSpec());
+        return new JOSLHDSAPublicKey(slhdsaServiceNI, this.getSpec());
     }
 
 

@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import java.security.*;
@@ -34,6 +35,12 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
     private final OSSLKeyType fixedType;
 
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final MLKEMServiceNI mlkemServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
     private static final Map<MLKEMParameterSpec, OSSLKeyType> typeMap = Collections.unmodifiableMap(new HashMap<MLKEMParameterSpec, OSSLKeyType>()
     {
         {
@@ -45,13 +52,36 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
     public MLKEMKeyFactorySpi(OSSLKeyType keyType)
     {
-        this.fixedType = keyType;
-        assert keyType != null;
+        this(NISelector.MLKEMServiceNI, NISelector.SpecNI, NISelector.Asn1NI, keyType);
     }
 
     public MLKEMKeyFactorySpi()
     {
-        this.fixedType = OSSLKeyType.NONE;
+        this(NISelector.MLKEMServiceNI, NISelector.SpecNI, NISelector.Asn1NI, OSSLKeyType.NONE);
+    }
+
+    public MLKEMKeyFactorySpi(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Asn1Ni asn1NI)
+    {
+        this(mlkemServiceNI, specNI, asn1NI, OSSLKeyType.NONE);
+    }
+
+    public MLKEMKeyFactorySpi(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                              OSSLKeyType keyType)
+    {
+        this.mlkemServiceNI = mlkemServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+        this.fixedType = keyType;
+        assert keyType != null;
+    }
+
+    /**
+     * The SpecNI this factory's keys are bound to - used by the key-import
+     * helpers to reject a key made by the other Jostle provider.
+     */
+    SpecNI ownSpecNI()
+    {
+        return specNI;
     }
 
     @Override
@@ -63,7 +93,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -80,7 +110,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
                 }
 
-                return new JOMLKEMPublicKey(pkeySpec);
+                return new JOMLKEMPublicKey(mlkemServiceNI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -112,12 +142,12 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = pubSpec.getPublicData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
 
-                    NISelector.MLKEMServiceNI.decode_publicKey(
+                    mlkemServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length,
                             DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-                    return new JOMLKEMPublicKey(pkeySpec);
+                    return new JOMLKEMPublicKey(mlkemServiceNI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -145,7 +175,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -162,7 +192,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
                 }
 
-                return new JOMLKEMPrivateKey(pkeySpec);
+                return new JOMLKEMPrivateKey(mlkemServiceNI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -216,22 +246,22 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         // than via decode_privateKey (which only accepts the
                         // long form).
                         material = spec.getSeed();
-                        long ref = NISelector.MLKEMServiceNI.generateKeyPair(
+                        long ref = mlkemServiceNI.generateKeyPair(
                                 osslKeyType.getKsType(),
                                 material, material.length,
                                 DefaultRandSource.replaceWith(null, null, strengthBits));
-                        pkeySpec = new PKEYKeySpec(ref, osslKeyType);
+                        pkeySpec = new PKEYKeySpec(specNI, ref, osslKeyType);
                     }
                     else
                     {
                         material = spec.getPrivateData();
-                        pkeySpec = new PKEYKeySpec(NISelector.SpecNI.allocate(), osslKeyType);
-                        NISelector.MLKEMServiceNI.decode_privateKey(
+                        pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
+                        mlkemServiceNI.decode_privateKey(
                                 pkeySpec.getReference(), osslKeyType.getKsType(),
                                 material, 0, material.length,
                                 DefaultRandSource.replaceWith(null, null, strengthBits));
                     }
-                    return new JOMLKEMPrivateKey(pkeySpec, spec.isSeed());
+                    return new JOMLKEMPrivateKey(mlkemServiceNI, pkeySpec, spec.isSeed());
                 }
                 catch (RuntimeException e)
                 {

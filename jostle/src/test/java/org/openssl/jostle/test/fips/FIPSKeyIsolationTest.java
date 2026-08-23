@@ -268,6 +268,49 @@ public class FIPSKeyIsolationTest
             assertSigReencodeRoute("SHA256withDSA", "DSA", fips, jsl, jslDsa);
         }
 
+        // ---- PQC: ML-DSA, ML-KEM, SLH-DSA ----
+        // Only when the module serves them: 3.5.x does, 3.1.2 does not, and
+        // ProvFIPS{MLDSA,MLKEM,SLHDSA} gate registration on the keymgmt fetch.
+        // The base provider always serves them, so a JSL-side keypair is
+        // always available for the crossing checks.
+        if (Security.getProvider(fips).getService("KeyPairGenerator", "ML-DSA-65") != null)
+        {
+            KeyPair jslMlDsa = genPqcKp("ML-DSA-65", jsl);
+            KeyPair fipsMlDsa = genPqcKp("ML-DSA-65", fips);
+            PrivKeyOp mldsaOp = (p, k) -> Signature.getInstance("ML-DSA-65", p).initSign(k);
+            assertPrivateIsolatedBothDirections(jslMlDsa.getPrivate(), fipsMlDsa.getPrivate(), mldsaOp);
+            assertSignVerifyAcross("ML-DSA-65", fips, jsl, fipsMlDsa);
+            assertSignVerifyAcross("ML-DSA-65", jsl, fips, jslMlDsa);
+            assertSigReencodeRoute("ML-DSA-65", "ML-DSA-65", fips, jsl, jslMlDsa);
+            assertSigReencodeRoute("ML-DSA-65", "ML-DSA-65", jsl, fips, fipsMlDsa);
+
+            KeyPair jslSlhDsa = genPqcKp("SLH-DSA-SHA2-128S", jsl);
+            KeyPair fipsSlhDsa = genPqcKp("SLH-DSA-SHA2-128S", fips);
+            PrivKeyOp slhdsaOp = (p, k) -> Signature.getInstance("SLH-DSA-SHA2-128S", p).initSign(k);
+            assertPrivateIsolatedBothDirections(jslSlhDsa.getPrivate(), fipsSlhDsa.getPrivate(), slhdsaOp);
+            assertSignVerifyAcross("SLH-DSA-SHA2-128S", fips, jsl, fipsSlhDsa);
+            assertSignVerifyAcross("SLH-DSA-SHA2-128S", jsl, fips, jslSlhDsa);
+
+            // ML-KEM has no Signature surface; its private key is reached
+            // through the KTS Cipher's unwrap side instead.
+            KeyPair jslMlKem = genPqcKp("ML-KEM-768", jsl);
+            KeyPair fipsMlKem = genPqcKp("ML-KEM-768", fips);
+            // The KTS cipher validates its parameter spec before looking at
+            // the key, so a bare init(UNWRAP_MODE, key) fails on the missing
+            // spec and never reaches the isolation check.
+            org.bouncycastle.jcajce.spec.KTSParameterSpec kts =
+                    new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256, new byte[16])
+                            .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                                    org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
+                                    new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)))
+                            .build();
+            PrivKeyOp mlkemOp = (p, k) ->
+                    javax.crypto.Cipher.getInstance("ML-KEM", p)
+                            .init(javax.crypto.Cipher.UNWRAP_MODE, k, kts);
+            assertPrivateIsolatedBothDirections(jslMlKem.getPrivate(), fipsMlKem.getPrivate(), mlkemOp);
+        }
+
         // ---- DH ----
         KeyPair jslDh = genKp("DH", jsl, 2048);
         KeyPair jslDh2 = genKp("DH", jsl, 2048);
@@ -283,6 +326,13 @@ public class FIPSKeyIsolationTest
         KeyPairGenerator g = KeyPairGenerator.getInstance(alg, provider);
         g.initialize(bits);
         return g.generateKeyPair();
+    }
+
+    /** A PQC keypair from {@code provider}; the parameter set is the alg name. */
+    private static KeyPair genPqcKp(String alg, String provider)
+        throws Exception
+    {
+        return KeyPairGenerator.getInstance(alg, provider).generateKeyPair();
     }
 
     private static KeyPair genEcKp(String provider)

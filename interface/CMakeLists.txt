@@ -129,6 +129,16 @@ set(FIPS_UTIL_SOURCES
         fips/util/dh.c
         fips/util/xec.h
         fips/util/xec.c
+        # PQC. Added 2026-08-23: the 3.5.x module implements ML-KEM, ML-DSA and
+        # SLH-DSA (probe: fips-c-review/probes/pqc_op_probe.c); 3.1.2 does not,
+        # and ProvFIPS{MLDSA,MLKEM,SLHDSA} gate registration on the loaded
+        # module actually serving them.
+        fips/util/mldsa.h
+        fips/util/mldsa.c
+        fips/util/mlkem.h
+        fips/util/mlkem.c
+        fips/util/slhdsa.h
+        fips/util/slhdsa.c
 )
 
 set(FIPS_JNI_GLUE_SOURCES
@@ -149,6 +159,9 @@ set(FIPS_JNI_GLUE_SOURCES
         fips/jni/dh_fips_jni.c
         fips/jni/xec_fips_jni.c
         fips/jni/kdf_fips_jni.c
+        fips/jni/mldsa_fips_jni.c
+        fips/jni/mlkem_fips_jni.c
+        fips/jni/slhdsa_fips_jni.c
         fips/jni/rand_upcall_jni.h
         fips/jni/rand_upcall_jni.c
         fips/jni/byte_array_critical.c
@@ -184,6 +197,9 @@ set(FIPS_FFI_GLUE_SOURCES
         fips/ffi/dsa_ni_ffi.c
         fips/ffi/dh_ni_ffi.c
         fips/ffi/xec_ni_ffi.c
+        fips/ffi/mldsa_ni_ffi.c
+        fips/ffi/mlkem_ni_ffi.c
+        fips/ffi/slh_dsa_ni_ffi.c
 )
 
 

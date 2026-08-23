@@ -157,3 +157,103 @@ exit:
     OSSL_PROVIDER_unload(prov);
     return ret;
 }
+
+int32_t capability_implementing_provider(int32_t op_type, const char *name,
+                                         char *out, size_t out_len) {
+    // Bridge-validated invariants.
+    jo_assert(name != NULL);
+    jo_assert(out != NULL);
+    jo_assert(out_len > 0);
+    jo_assert(op_type >= JO_CAP_OP_MIN && op_type <= JO_CAP_OP_MAX);
+
+    out[0] = '\0';
+
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
+    const OSSL_PROVIDER *prov = NULL;
+
+    // Scoped: an unfetchable name is a legitimate answer here, not an error to
+    // leave on the queue for an unrelated call to report.
+    ERR_set_mark();
+
+    // Each fetch is freed before the provider name is copied out. That is safe:
+    // OSSL_PROVIDER_get0_name returns storage owned by the provider, which the
+    // lib ctx keeps loaded for its own lifetime - it does not belong to the
+    // fetched algorithm object.
+    switch (op_type) {
+        case JO_CAP_OP_KEYMGMT: {
+            EVP_KEYMGMT *o = EVP_KEYMGMT_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_KEYMGMT_get0_provider(o) : NULL;
+            EVP_KEYMGMT_free(o);
+            break;
+        }
+        case JO_CAP_OP_KEYEXCH: {
+            EVP_KEYEXCH *o = EVP_KEYEXCH_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_KEYEXCH_get0_provider(o) : NULL;
+            EVP_KEYEXCH_free(o);
+            break;
+        }
+        case JO_CAP_OP_SIGNATURE: {
+            EVP_SIGNATURE *o = EVP_SIGNATURE_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_SIGNATURE_get0_provider(o) : NULL;
+            EVP_SIGNATURE_free(o);
+            break;
+        }
+        case JO_CAP_OP_ASYM_CIPHER: {
+            EVP_ASYM_CIPHER *o = EVP_ASYM_CIPHER_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_ASYM_CIPHER_get0_provider(o) : NULL;
+            EVP_ASYM_CIPHER_free(o);
+            break;
+        }
+        case JO_CAP_OP_MD: {
+            EVP_MD *o = EVP_MD_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_MD_get0_provider(o) : NULL;
+            EVP_MD_free(o);
+            break;
+        }
+        case JO_CAP_OP_CIPHER: {
+            EVP_CIPHER *o = EVP_CIPHER_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_CIPHER_get0_provider(o) : NULL;
+            EVP_CIPHER_free(o);
+            break;
+        }
+        case JO_CAP_OP_KDF: {
+            EVP_KDF *o = EVP_KDF_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_KDF_get0_provider(o) : NULL;
+            EVP_KDF_free(o);
+            break;
+        }
+        case JO_CAP_OP_MAC: {
+            EVP_MAC *o = EVP_MAC_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_MAC_get0_provider(o) : NULL;
+            EVP_MAC_free(o);
+            break;
+        }
+        default: {
+            // JO_CAP_OP_RAND; the bridges bound op_type to the valid range.
+            EVP_RAND *o = EVP_RAND_fetch(libctx, name, NULL);
+            prov = o != NULL ? EVP_RAND_get0_provider(o) : NULL;
+            EVP_RAND_free(o);
+            break;
+        }
+    }
+
+    ERR_pop_to_mark();
+
+    if (prov == NULL) {
+        return JO_NAME_NOT_FOUND;
+    }
+
+    const char *pname = OSSL_PROVIDER_get0_name(prov);
+    if (pname == NULL) {
+        return JO_FAIL;
+    }
+
+    // snprintf, never strcpy: truncates rather than overruns, and always NUL
+    // terminates when out_len > 0.
+    int written = snprintf(out, out_len, "%s", pname);
+    if (written < 0) {
+        out[0] = '\0';
+        return JO_FAIL;
+    }
+    return (size_t) written >= out_len ? (int32_t) (out_len - 1) : (int32_t) written;
+}

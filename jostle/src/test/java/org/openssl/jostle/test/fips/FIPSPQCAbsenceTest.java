@@ -14,7 +14,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -25,19 +27,29 @@ import java.security.Security;
 import java.security.Signature;
 
 /**
- * Served-surface lock: the FIPS provider ("JSLFIPS") registers NO post-quantum
- * (ML-DSA / ML-KEM / SLH-DSA) or EdDSA (Ed25519 / Ed448) services. The FIPS
- * module Jostle validates against is OpenSSL 3.1.2, which predates FIPS 186-5
- * EdDSA and the NIST PQC standards, so {@code JostleFIPSProvider.setup()} wires
- * none of {@code ProvMLDSA}/{@code ProvMLKEM}/{@code ProvSLHDSA}/{@code ProvED}.
+ * Served-surface lock for the families whose presence in JSLFIPS depends on the
+ * loaded module - or is unconditional.
  *
- * <p>For every name the non-FIPS provider (JSL) registers in these families,
- * {@code getInstance(name, JSLFIPS)} must throw {@link NoSuchAlgorithmException}
- * while {@code getInstance(name, JSL)} still resolves in the same JVM. This
- * guards against accidental registration of a non-approved algorithm through the
- * FIPS surface. Mirrors the absence-lock shape of
- * {@code FIPSXDHKDFTest.xdhIsAbsentFromJslfips}. Gated on TEST_FIPS_LIB; skipped
- * when unset.
+ * <p><b>EdDSA is absent unconditionally.</b> No {@code ProvFIPSED} exists, so
+ * Ed25519 / Ed448 never resolve through JSLFIPS whatever module is loaded.
+ *
+ * <p><b>PQC is module-dependent</b>, and this test changed shape on 2026-08-23
+ * when support was added. It previously asserted ML-DSA / ML-KEM / SLH-DSA were
+ * unconditionally absent, which was correct while 3.1.2 was the only target -
+ * that module implements no PQC. The 3.5.x module implements all three, so the
+ * families are now registered when, and only when, the module serves them
+ * ({@code ProvFIPS{MLDSA,MLKEM,SLHDSA}}, gated on the keymgmt fetch). Asserting
+ * unconditional absence now would codify a stale premise and hide a working
+ * algorithm being dropped.
+ *
+ * <p>So PQC is asserted as an <b>iff</b>: absent exactly when the module cannot
+ * fetch it, present otherwise - and all-or-nothing per family, since a partial
+ * registration is a real defect rather than a capability. The functional half
+ * lives in {@code FIPSPQCTest}.
+ *
+ * <p>For every name asserted absent, {@code getInstance(name, JSL)} must still
+ * resolve in the same JVM - proving the absence is the FIPS module's limit and
+ * not a Jostle-wide regression. Gated on TEST_FIPS_LIB; skipped when unset.
  */
 public class FIPSPQCAbsenceTest
 {
@@ -100,43 +112,79 @@ public class FIPSPQCAbsenceTest
                 type + " " + name + " must resolve through JSL");
     }
 
+    /**
+     * Every PQC name resolves through JSLFIPS iff the module serves the family,
+     * and every name in a family agrees with the rest.
+     */
     @Test
-    public void pqcAlgorithmsAbsentFromJslfips()
+    public void pqcAlgorithmsServedIffModuleImplementsThem()
         throws Exception
     {
-        // ML-DSA: KeyPairGenerator / Signature / KeyFactory (ProvMLDSA).
-        for (String name : new String[]{"MLDSA", "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
-        {
-            assertAbsentFromJslfipsButServedByJsl("KeyPairGenerator", name);
-            assertAbsentFromJslfipsButServedByJsl("Signature", name);
-            assertAbsentFromJslfipsButServedByJsl("KeyFactory", name);
-        }
+        assertFamilyIff("ML-DSA-65",
+                new String[][]{
+                        {"KeyPairGenerator", "MLDSA"}, {"KeyPairGenerator", "ML-DSA-44"},
+                        {"KeyPairGenerator", "ML-DSA-65"}, {"KeyPairGenerator", "ML-DSA-87"},
+                        {"Signature", "MLDSA"}, {"Signature", "ML-DSA-44"},
+                        {"Signature", "ML-DSA-65"}, {"Signature", "ML-DSA-87"},
+                        {"KeyFactory", "MLDSA"}, {"KeyFactory", "ML-DSA-44"},
+                        {"KeyFactory", "ML-DSA-65"}, {"KeyFactory", "ML-DSA-87"},
+                });
 
-        // ML-KEM: KeyPairGenerator / KeyGenerator / KeyFactory (ProvMLKEM).
-        for (String name : new String[]{"MLKEM", "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
-        {
-            assertAbsentFromJslfipsButServedByJsl("KeyPairGenerator", name);
-            assertAbsentFromJslfipsButServedByJsl("KeyGenerator", name);
-            assertAbsentFromJslfipsButServedByJsl("KeyFactory", name);
-        }
+        assertFamilyIff("ML-KEM-768",
+                new String[][]{
+                        {"KeyPairGenerator", "MLKEM"}, {"KeyPairGenerator", "ML-KEM-512"},
+                        {"KeyPairGenerator", "ML-KEM-768"}, {"KeyPairGenerator", "ML-KEM-1024"},
+                        {"KeyGenerator", "MLKEM"}, {"KeyGenerator", "ML-KEM-512"},
+                        {"KeyGenerator", "ML-KEM-768"}, {"KeyGenerator", "ML-KEM-1024"},
+                        {"KeyFactory", "MLKEM"}, {"KeyFactory", "ML-KEM-512"},
+                        {"KeyFactory", "ML-KEM-768"}, {"KeyFactory", "ML-KEM-1024"},
+                        {"Cipher", "MLKEM"}, {"Cipher", "ML-KEM"},
+                });
 
-        // ML-KEM KTS Cipher: registered only under the bare family names
-        // (ProvMLKEM registers "ML-KEM" + alias "MLKEM"; no per-variant Cipher).
-        for (String name : new String[]{"MLKEM", "ML-KEM"})
-        {
-            assertAbsentFromJslfipsButServedByJsl("Cipher", name);
-        }
+        assertFamilyIff("SLH-DSA-SHA2-128S",
+                new String[][]{
+                        {"KeyPairGenerator", "SLHDSA"}, {"KeyPairGenerator", "SLH-DSA-SHA2-128S"},
+                        {"KeyFactory", "SLHDSA"}, {"KeyFactory", "SLH-DSA-SHA2-128S"},
+                        {"Signature", "SLHDSA"}, {"Signature", "SLH-DSA-PURE"},
+                        {"Signature", "SLH-DSA-NONE"}, {"Signature", "SLH-DSA-SHA2-128S"},
+                });
+    }
 
-        // SLH-DSA: KeyPairGenerator / KeyFactory (bare family + a representative
-        // parameter set) and Signature (bare family + PURE/NONE + a variant).
-        for (String name : new String[]{"SLHDSA", "SLH-DSA-SHA2-128S"})
+    /**
+     * One family: every {type, name} is present iff the module fetches
+     * {@code probeName}, and JSL serves all of them regardless.
+     * <p>
+     * The all-or-nothing part is the point - a partial registration
+     * (KeyFactory present, Signature absent) is a defect a single-name check
+     * would miss.
+     */
+    private static void assertFamilyIff(String probeName, String[][] services)
+        throws Exception
+    {
+        boolean served = FIPSNISelector.OpenSSLFIPSNI
+                .canFetch(OpenSSLFIPSNI.OP_KEYMGMT, probeName) != 0;
+
+        for (String[] svc : services)
         {
-            assertAbsentFromJslfipsButServedByJsl("KeyPairGenerator", name);
-            assertAbsentFromJslfipsButServedByJsl("KeyFactory", name);
-        }
-        for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "SLH-DSA-NONE", "SLH-DSA-SHA2-128S"})
-        {
-            assertAbsentFromJslfipsButServedByJsl("Signature", name);
+            Assertions.assertNotNull(getInstance(svc[0], svc[1], JostleProvider.PROVIDER_NAME),
+                    svc[0] + " " + svc[1] + " must resolve through JSL");
+
+            if (served)
+            {
+                Assertions.assertNotNull(
+                        getInstance(svc[0], svc[1], JostleFIPSProvider.PROVIDER_NAME),
+                        svc[0] + " " + svc[1] + " must resolve through JSLFIPS: the module ("
+                                + FIPSNISelector.OpenSSLFIPSNI.moduleVersion() + ") serves "
+                                + probeName);
+            }
+            else
+            {
+                Assertions.assertThrows(NoSuchAlgorithmException.class,
+                        () -> getInstance(svc[0], svc[1], JostleFIPSProvider.PROVIDER_NAME),
+                        svc[0] + " " + svc[1] + " must not resolve through JSLFIPS: the module ("
+                                + FIPSNISelector.OpenSSLFIPSNI.moduleVersion() + ") cannot fetch "
+                                + probeName);
+            }
         }
     }
 

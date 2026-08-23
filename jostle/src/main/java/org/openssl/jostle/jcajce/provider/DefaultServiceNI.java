@@ -36,6 +36,34 @@ public interface DefaultServiceNI
         return JostleProvider.PROVIDER_NAME;
     }
 
+    /**
+     * Does the OpenSSL provider behind this NI supply its own entropy,
+     * ignoring any caller-supplied {@code SecureRandom}?
+     *
+     * <p>True for the FIPS interface library. Its lib ctx deliberately does
+     * NOT install the {@code java_rand_bridge} (see
+     * {@code interface/fips/util/rand/jostle_fips_ctx.c}, which carries a
+     * comment warning against "completing" it) - the validated module runs on
+     * its own internal {@code OSSL_LIB_CTX} seeded straight from OS entropy,
+     * so a bridge there would be a placebo and a caller's SecureRandom is
+     * never read.
+     *
+     * <p>The PQ SPIs use this to skip their caller-strength check: rejecting a
+     * 128-bit DRBG for ML-DSA-87 is wrong when the module will generate the
+     * key at full strength from entropy of its own and never look at the value
+     * supplied. Note the C-side {@code JO_RAND_INSUFFICIENT_STRENGTH} backstop
+     * cannot fire there either - it lives in the base tree's RAND gate, which
+     * is not in that chain.
+     *
+     * <p>Derived from {@link #providerName()} rather than overridden per class
+     * so a new NI cannot forget it. {@code JostleProvider.PROVIDER_NAME} is a
+     * compile-time constant, so this triggers no class initialisation.
+     */
+    default boolean providerManagesEntropy()
+    {
+        return !JostleProvider.PROVIDER_NAME.equals(providerName());
+    }
+
     default long baseErrorHandler(long code)
     {
 

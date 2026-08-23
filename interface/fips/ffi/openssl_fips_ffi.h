@@ -39,5 +39,13 @@ int32_t JoFips_can_fetch(int32_t op_type, const char *name);
 
 int32_t JoFips_module_version(char *out, int32_t out_len);
 
+/*
+ * Names the OSSL_PROVIDER that implements an algorithm in this library's lib
+ * ctx ("fips" / "default") - the only direct evidence an operation runs inside
+ * the module. See util/capability.h.
+ */
+int32_t JoFips_implementing_provider(int32_t op_type, const char *name,
+                                     char *out, int32_t out_len);
+
 
 #endif //OPENSSL_FIPS_FFI_H

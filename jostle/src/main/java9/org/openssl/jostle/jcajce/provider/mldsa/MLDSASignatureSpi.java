@@ -54,8 +54,25 @@ public class MLDSASignatureSpi extends SignatureSpi
     private boolean updateCalled = false;
     private MuHandling muHandling = MuHandling.INTERNAL;
 
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final MLDSAServiceNI mldsaServiceNI;
+
+    // Bound to the same interface library as mldsaServiceNI. Used to translate
+    // a foreign key AND to reject one made by the other Jostle provider - a
+    // base-provider factory here would do neither correctly under JSLFIPS.
+    private final MLDSAKeyFactorySpiImpl keyFactory;
+
     public MLDSASignatureSpi(OSSLKeyType forcedType, MuHandling forcedMu)
     {
+        this(NISelector.MLDSAServiceNI, new MLDSAKeyFactorySpiImpl(forcedType), forcedType, forcedMu);
+    }
+
+    public MLDSASignatureSpi(MLDSAServiceNI mldsaServiceNI, MLDSAKeyFactorySpiImpl keyFactory,
+                             OSSLKeyType forcedType, MuHandling forcedMu)
+    {
+        this.mldsaServiceNI = mldsaServiceNI;
+        this.keyFactory = keyFactory;
         this.forcedType = forcedType;
         algorithmParameterSpec = ContextParameterSpec.EMPTY_CONTEXT_SPEC;
         muHandling = forcedMu;
@@ -83,7 +100,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
             if (ref == null)
             {
-                ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), key.getAlgorithm());
+                ref = new MLDSARef(mldsaServiceNI, mldsaServiceNI.allocateSigner(), key.getAlgorithm());
             }
 
             byte[] context = null;
@@ -97,7 +114,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
             try
             {
-                NISelector.MLDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, muHandling.ordinal());
+                mldsaServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, muHandling.ordinal());
             }
             catch (IllegalArgumentException e)
             {
@@ -139,7 +156,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
             if (ref == null)
             {
-                ref = new MLDSARef(NISelector.MLDSAServiceNI.allocateSigner(), key.getAlgorithm());
+                ref = new MLDSARef(mldsaServiceNI, mldsaServiceNI.allocateSigner(), key.getAlgorithm());
             }
 
             byte[] context = null;
@@ -153,7 +170,7 @@ public class MLDSASignatureSpi extends SignatureSpi
 
             try
             {
-                NISelector.MLDSAServiceNI.initSign(
+                mldsaServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
                         context, contextLen, muHandling.ordinal(), randSource);
@@ -184,7 +201,7 @@ public class MLDSASignatureSpi extends SignatureSpi
         {
             return (MLDSAPublicKey) publicKey;
         }
-        Key translated = new MLDSAKeyFactorySpiImpl(forcedType).engineTranslateKey(publicKey);
+        Key translated = keyFactory.engineTranslateKey(publicKey);
         if (translated instanceof MLDSAPublicKey)
         {
             return (MLDSAPublicKey) translated;
@@ -200,9 +217,20 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         if (privateKey instanceof MLDSAPrivateKey)
         {
+            // Provider isolation: a key is bound to the interface library - and
+            // OSSL_LIB_CTX - that created it, so a JSL private key must not be
+            // driven through the JSLFIPS NI or vice versa. Same check and same
+            // message as ECKeyImport / RSAKeyImport. PUBLIC keys deliberately
+            // cross freely; see java-spi.md "JSL <-> JSLFIPS key sharing".
+            if (privateKey instanceof JOMLDSAPrivateKey
+                    && ((JOMLDSAPrivateKey) privateKey).getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            {
+                throw new InvalidKeyException(
+                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+            }
             return (MLDSAPrivateKey) privateKey;
         }
-        Key translated = new MLDSAKeyFactorySpiImpl(forcedType).engineTranslateKey(privateKey);
+        Key translated = keyFactory.engineTranslateKey(privateKey);
         if (translated instanceof MLDSAPrivateKey)
         {
             return (MLDSAPrivateKey) translated;
@@ -222,7 +250,7 @@ public class MLDSASignatureSpi extends SignatureSpi
         try
         {
             updateCalled = true;
-            NISelector.MLDSAServiceNI.update(ref.getReference(), b, off, len);
+            mldsaServiceNI.update(ref.getReference(), b, off, len);
         }
         finally
         {
@@ -246,7 +274,7 @@ public class MLDSASignatureSpi extends SignatureSpi
             }
             if (len == NativeLengthCache.UNKNOWN)
             {
-                len = NISelector.MLDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
+                len = mldsaServiceNI.sign(ref.getReference(), null, 0, randSource);
                 if (fixedLength)
                 {
                     // Memoize OpenSSL's reported length for this parameter set.
@@ -254,7 +282,7 @@ public class MLDSASignatureSpi extends SignatureSpi
                 }
             }
             sig = new byte[len];
-            int written = NISelector.MLDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+            int written = mldsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
             if (written != sig.length)
             {
                 throw new SignatureException("signature length mismatch");
@@ -273,7 +301,7 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         try
         {
-            int code = NISelector.MLDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
+            int code = mldsaServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
             return code == ErrorCode.JO_SUCCESS.getCode();
         }
         finally
@@ -368,24 +396,33 @@ public class MLDSASignatureSpi extends SignatureSpi
     protected static class Disposer
             extends NativeDisposer
     {
-        Disposer(long ref)
+        private final MLDSAServiceNI mldsaServiceNI;
+
+        Disposer(MLDSAServiceNI mldsaServiceNI, long ref)
         {
             super(ref);
+            this.mldsaServiceNI = mldsaServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.MLDSAServiceNI.disposeSigner(reference);
+            mldsaServiceNI.disposeSigner(reference);
         }
     }
 
     protected static class MLDSARef extends NativeReference
     {
 
-        protected MLDSARef(long reference, String name)
+        protected MLDSARef(MLDSAServiceNI mldsaServiceNI, long reference, String name)
         {
-            super(reference, name, new MLDSASignatureSpi.Disposer(reference));
+            // The action is built from CONSTRUCTOR PARAMETERS and handed to
+            // super(): NativeReference's constructor registers with the
+            // disposal daemon, which captures getDisposeAction() eagerly -
+            // before any field of this subclass has been assigned. Reading an
+            // instance field here would capture null and NPE on the disposal
+            // thread, leaking the native ctx. See CLAUDE.md.
+            super(reference, name, new MLDSASignatureSpi.Disposer(mldsaServiceNI, reference));
         }
 
     }

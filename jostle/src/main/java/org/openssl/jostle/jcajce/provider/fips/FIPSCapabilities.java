@@ -41,7 +41,12 @@ package org.openssl.jostle.jcajce.provider.fips;
  *       contract than a service that resolves and then refuses, and it lets
  *       the caller fall through to another provider. This class serves that
  *       question. Currently: X25519 / X448, whose keymgmt fetch succeeds on
- *       3.1.2 and fails on 3.5.7.</li>
+ *       3.1.2 and fails on 3.5.7; and ML-KEM / ML-DSA / SLH-DSA, the other way
+ *       round - 3.5.x implements all three and 3.1.2 implements none. For PQC
+ *       the fetch is a COMPLETE answer, verified by running real operations
+ *       under both the -pedantic and the default fipsinstall config
+ *       ({@code fips-c-review/probes/pqc_op_probe.c}): unlike DSA signing, no
+ *       config switch gates it, so no failure classifier is needed.</li>
  *   <li><b>"Will this operation actually work?"</b> — answerable only by doing
  *       it, so it is <b>not</b> here. DSA key generation and PKCS#1 v1.5
  *       encrypt both fetch and init happily on either module; only the real

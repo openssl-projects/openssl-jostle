@@ -277,6 +277,11 @@ public final class JostleFIPSProvider
         new ProvFIPSDH().configure(this);
         new ProvFIPSKDF().configure(this);
         new ProvFIPSXDH().configure(this);
+        // PQC. Registered only when the loaded module serves the family:
+        // 3.5.x does, 3.1.2 does not. See FIPSCapabilities.
+        new ProvFIPSMLDSA().configure(this);
+        new ProvFIPSMLKEM().configure(this);
+        new ProvFIPSSLHDSA().configure(this);
         // No PKCS#12 KeyStore registrar. This is a module capability limit, not
         // an approval judgement: the traditional PKCS#12 integrity MAC derives
         // its key with PKCS12KDF, which OpenSSL registers in the DEFAULT

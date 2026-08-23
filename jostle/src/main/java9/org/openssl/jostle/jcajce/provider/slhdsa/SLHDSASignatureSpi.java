@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -59,8 +60,24 @@ public class SLHDSASignatureSpi extends SignatureSpi
     private Deterministic deterministic = Deterministic.NON_DETERMINISTIC;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
+    // Instance field, not a NISelector static (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final SLHDSAServiceNI slhdsaServiceNI;
+
+    // The SpecNI this SPI is bound to. A private key whose spec came from a
+    // different one was made by the other Jostle provider and must be rejected.
+    private final SpecNI specNI;
+
     public SLHDSASignatureSpi(OSSLKeyType forcedType, MessageEncoding messageEncoding, Deterministic deterministic)
     {
+        this(NISelector.SLHDSAServiceNI, NISelector.SpecNI, forcedType, messageEncoding, deterministic);
+    }
+
+    public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, OSSLKeyType forcedType,
+                              MessageEncoding messageEncoding, Deterministic deterministic)
+    {
+        this.slhdsaServiceNI = slhdsaServiceNI;
+        this.specNI = specNI;
         this.forcedType = forcedType;
         algorithmParameterSpec = ContextParameterSpec.EMPTY_CONTEXT_SPEC;
         this.messageEncoding = messageEncoding;
@@ -101,7 +118,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new SLHDSARef(NISelector.SLHDSAServiceNI.allocateSigner(), publicKey.getAlgorithm());
+                    ref = new SLHDSARef(slhdsaServiceNI, slhdsaServiceNI.allocateSigner(), publicKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -113,7 +130,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                     contextLen = context.length;
                 }
 
-                NISelector.SLHDSAServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, messageEncoding.ordinal(), deterministic.ordinal());
+                slhdsaServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, messageEncoding.ordinal(), deterministic.ordinal());
                 return;
             }
             finally
@@ -139,6 +156,16 @@ public class SLHDSASignatureSpi extends SignatureSpi
             {
 
                 JOSLHDSAPrivateKey key = (JOSLHDSAPrivateKey) privateKey;
+                // Provider isolation: a key is bound to the interface library -
+                // and OSSL_LIB_CTX - that created it, so a JSL private key must
+                // not be driven through the JSLFIPS NI or vice versa. Same
+                // check and message as ECKeyImport / RSAKeyImport. PUBLIC keys
+                // deliberately cross freely; see java-spi.md.
+                if (key.getSpec().getSpecNI() != specNI)
+                {
+                    throw new InvalidKeyException(
+                            "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                }
                 lastKey = key;
                 updateCalled = false;
 
@@ -149,7 +176,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
                 if (ref == null)
                 {
-                    ref = new SLHDSARef(NISelector.SLHDSAServiceNI.allocateSigner(), privateKey.getAlgorithm());
+                    ref = new SLHDSARef(slhdsaServiceNI, slhdsaServiceNI.allocateSigner(), privateKey.getAlgorithm());
                 }
 
                 byte[] context = null;
@@ -161,7 +188,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                     contextLen = context.length;
                 }
 
-                NISelector.SLHDSAServiceNI.initSign(
+                slhdsaServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
                         context, contextLen, messageEncoding.ordinal(), deterministic.ordinal(),
@@ -188,7 +215,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
         try
         {
             updateCalled = true;
-            NISelector.SLHDSAServiceNI.update(ref.getReference(), b, off, len);
+            slhdsaServiceNI.update(ref.getReference(), b, off, len);
         }
         finally
         {
@@ -211,7 +238,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 }
                 if (len == NativeLengthCache.UNKNOWN)
                 {
-                    len = (int) NISelector.SLHDSAServiceNI.sign(ref.getReference(), null, 0, randSource);
+                    len = (int) slhdsaServiceNI.sign(ref.getReference(), null, 0, randSource);
                     if (lastKey != null)
                     {
                         // Memoize OpenSSL's reported length for this parameter set.
@@ -219,7 +246,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
                     }
                 }
                 sig = new byte[len];
-                long written = NISelector.SLHDSAServiceNI.sign(ref.getReference(), sig, 0, randSource);
+                long written = slhdsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
                 if (written != sig.length)
                 {
                     throw new SignatureException("signature length mismatch");
@@ -245,7 +272,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
         {
             try
             {
-                int code = NISelector.SLHDSAServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
+                int code = slhdsaServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
             }
@@ -341,24 +368,33 @@ public class SLHDSASignatureSpi extends SignatureSpi
     protected static class Disposer
             extends NativeDisposer
     {
-        Disposer(long ref)
+        private final SLHDSAServiceNI slhdsaServiceNI;
+
+        Disposer(SLHDSAServiceNI slhdsaServiceNI, long ref)
         {
             super(ref);
+            this.slhdsaServiceNI = slhdsaServiceNI;
         }
 
         @Override
         protected void dispose(long reference)
         {
-            NISelector.SLHDSAServiceNI.disposeSigner(reference);
+            slhdsaServiceNI.disposeSigner(reference);
         }
     }
 
     protected static class SLHDSARef extends NativeReference
     {
 
-        protected SLHDSARef(long reference, String name)
+        protected SLHDSARef(SLHDSAServiceNI slhdsaServiceNI, long reference, String name)
         {
-            super(reference, name, new SLHDSASignatureSpi.Disposer(reference));
+            // The action is built from CONSTRUCTOR PARAMETERS and handed to
+            // super(): NativeReference's constructor registers with the
+            // disposal daemon, which captures getDisposeAction() eagerly -
+            // before any field of this subclass has been assigned. Reading an
+            // instance field here would capture null and NPE on the disposal
+            // thread, leaking the native ctx. See CLAUDE.md.
+            super(reference, name, new SLHDSASignatureSpi.Disposer(slhdsaServiceNI, reference));
         }
 
     }

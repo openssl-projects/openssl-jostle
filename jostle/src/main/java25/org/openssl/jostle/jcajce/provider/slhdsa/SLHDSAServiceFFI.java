@@ -25,54 +25,64 @@ public class SLHDSAServiceFFI implements SLHDSAServiceNI
 {
 
     private static final Logger L = Logger.getLogger("SLH_DSA_NI_FFI");
-    private static final SymbolLookup lookup = SymbolLookup.loaderLookup();
+    // Per-instance, NOT the process-global loaderLookup: the base and FIPS
+    // interface libraries export the SAME symbol names, so a global lookup
+    // resolves into whichever loaded first. The FIPS subclass passes a
+    // library-scoped lookup (see FIPSLibraryLookup).
+    private final SymbolLookup lookup;
     private static final Linker linker = Linker.nativeLinker();
 
-    private static final MemorySegment generateKeyPairFunc;
-    private static final MethodHandle generateKeyPairFuncHandle;
+    private final MemorySegment generateKeyPairFunc;
+    private final MethodHandle generateKeyPairFuncHandle;
 
-    private static final MemorySegment generateKeyPairWithSeedFunc;
-    private static final MethodHandle generateKeyPairWithSeedFuncHandle;
+    private final MemorySegment generateKeyPairWithSeedFunc;
+    private final MethodHandle generateKeyPairWithSeedFuncHandle;
 
-    private static final MemorySegment getPublicKeyFunc;
-    private static final MethodHandle getPublicKeyFuncHandle;
+    private final MemorySegment getPublicKeyFunc;
+    private final MethodHandle getPublicKeyFuncHandle;
 
-    private static final MemorySegment getPrivateKeyFunc;
-    private static final MethodHandle getPrivateKeyFuncHandle;
+    private final MemorySegment getPrivateKeyFunc;
+    private final MethodHandle getPrivateKeyFuncHandle;
 
-    private static final MemorySegment decodePublicKeyFunc;
-    private static final MethodHandle decodePublicKeyFuncHandle;
+    private final MemorySegment decodePublicKeyFunc;
+    private final MethodHandle decodePublicKeyFuncHandle;
 
-    private static final MemorySegment decodePrivateKeyFunc;
-    private static final MethodHandle decodePrivateKeyFuncHandle;
+    private final MemorySegment decodePrivateKeyFunc;
+    private final MethodHandle decodePrivateKeyFuncHandle;
 
-    private static final MemorySegment allocSignerFunc;
-    private static final MethodHandle allocSignerFuncHandle;
+    private final MemorySegment allocSignerFunc;
+    private final MethodHandle allocSignerFuncHandle;
 
-    private static final MemorySegment disposeSignerFunc;
-    private static final MethodHandle disposeSignerFuncHandle;
+    private final MemorySegment disposeSignerFunc;
+    private final MethodHandle disposeSignerFuncHandle;
 
-    private static final MemorySegment initVerifyFunc;
-    private static final MethodHandle initVerifyFuncHandle;
+    private final MemorySegment initVerifyFunc;
+    private final MethodHandle initVerifyFuncHandle;
 
-    private static final MemorySegment initSignerFunc;
-    private static final MethodHandle initSignerFuncHandle;
+    private final MemorySegment initSignerFunc;
+    private final MethodHandle initSignerFuncHandle;
 
-    private static final MemorySegment updateSignerFunc;
-    private static final MethodHandle updateSignerFuncHandle;
+    private final MemorySegment updateSignerFunc;
+    private final MethodHandle updateSignerFuncHandle;
 
-    private static final MemorySegment signerFunc;
-    private static final MethodHandle signerFuncHandle;
+    private final MemorySegment signerFunc;
+    private final MethodHandle signerFuncHandle;
 
-    private static final MemorySegment verifierFunc;
-    private static final MethodHandle verifierFuncHandle;
+    private final MemorySegment verifierFunc;
+    private final MethodHandle verifierFuncHandle;
 
-    private static final FunctionDescriptor entropyFd;
-    private static final MethodType entropyMt;
+    private final FunctionDescriptor entropyFd;
+    private final MethodType entropyMt;
 
 
-    static
+    public SLHDSAServiceFFI()
     {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public SLHDSAServiceFFI(SymbolLookup lookup)
+    {
+        this.lookup = lookup;
         generateKeyPairFunc = lookup.find("JoSLHDSA_generateKeyPair").orElseThrow();
         generateKeyPairFuncHandle = linker.downcallHandle(generateKeyPairFunc,
                 FunctionDescriptor.of(

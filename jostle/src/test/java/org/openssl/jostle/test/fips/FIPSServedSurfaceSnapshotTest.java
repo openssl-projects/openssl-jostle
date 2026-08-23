@@ -82,12 +82,9 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.AES128",
             "Cipher.AES192",
             "Cipher.AES256",
-            // Key wrap by name (RFC 3394 / RFC 5649 — approved). Same
-            // implementation the wrap OIDs above already serve; naming gap only.
-            // Upper-cased because the provider upper-cases on registration;
-            // aliases AESKW / AESKWP are excluded here, as all aliases are.
             "Cipher.AESWRAP",
             "Cipher.AESWRAPPAD",
+            "Cipher.ML-KEM",   // PQC, capability-gated (see PQC_GATED)
             "Cipher.RSA",
             "KeyAgreement.DH",
             "KeyAgreement.DHWITHRFC2631KDF",
@@ -103,7 +100,28 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyFactory.DH",
             "KeyFactory.DSA",
             "KeyFactory.EC",
+            "KeyFactory.ML-DSA-44",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.ML-DSA-65",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.ML-DSA-87",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.ML-KEM-1024",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.ML-KEM-512",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.ML-KEM-768",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.MLDSA",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.MLKEM",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.RSA",
+            "KeyFactory.SLH-DSA-SHA2-128F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHA2-128S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHA2-192F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHA2-192S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHA2-256F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHA2-256S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHAKE-128F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHAKE-128S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHAKE-192F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHAKE-192S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHAKE-256F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLH-DSA-SHAKE-256S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyFactory.SLHDSA",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.X25519",
             "KeyFactory.X448",
             "KeyFactory.XDH",
@@ -111,10 +129,35 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyGenerator.AES128",
             "KeyGenerator.AES192",
             "KeyGenerator.AES256",
+            "KeyGenerator.ML-KEM-1024",   // PQC, capability-gated (see PQC_GATED)
+            "KeyGenerator.ML-KEM-512",   // PQC, capability-gated (see PQC_GATED)
+            "KeyGenerator.ML-KEM-768",   // PQC, capability-gated (see PQC_GATED)
+            "KeyGenerator.MLKEM",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.DH",
             "KeyPairGenerator.DSA",
             "KeyPairGenerator.EC",
+            "KeyPairGenerator.ML-DSA-44",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.ML-DSA-65",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.ML-DSA-87",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.ML-KEM-1024",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.ML-KEM-512",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.ML-KEM-768",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.MLDSA",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.MLKEM",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.RSA",
+            "KeyPairGenerator.SLH-DSA-SHA2-128F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHA2-128S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHA2-192F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHA2-192S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHA2-256F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHA2-256S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHAKE-128F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHAKE-128S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHAKE-192F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHAKE-192S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHAKE-256F",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLH-DSA-SHAKE-256S",   // PQC, capability-gated (see PQC_GATED)
+            "KeyPairGenerator.SLHDSA",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.X25519",
             "KeyPairGenerator.X448",
             "Mac.AESCMAC",
@@ -173,6 +216,14 @@ public class FIPSServedSurfaceSnapshotTest
             "SecureRandom.HMAC-DRBG-SHA1",
             "SecureRandom.HMAC-DRBG-SHA256",
             "SecureRandom.HMAC-DRBG-SHA512",
+            "Signature.DET-SLH-DSA-NONE",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.DET-SLH-DSA-PURE",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.ML-DSA-44",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.ML-DSA-65",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.ML-DSA-87",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.ML-DSA-CALCULATE-MU",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.ML-DSA-EXTERNAL-MU",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.MLDSA",   // PQC, capability-gated (see PQC_GATED)
             "Signature.NONEWITHDSA",
             "Signature.NONEWITHECDSA",
             "Signature.NONEWITHRSA",
@@ -213,6 +264,21 @@ public class FIPSServedSurfaceSnapshotTest
             "Signature.SHA512WITHECDSA",
             "Signature.SHA512WITHRSA",
             "Signature.SHA512WITHRSAANDMGF1",
+            "Signature.SLH-DSA-NONE",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-PURE",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHA2-128F",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHA2-128S",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHA2-192F",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHA2-192S",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHA2-256F",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHA2-256S",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHAKE-128F",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHAKE-128S",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHAKE-192F",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHAKE-192S",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHAKE-256F",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLH-DSA-SHAKE-256S",   // PQC, capability-gated (see PQC_GATED)
+            "Signature.SLHDSA",   // PQC, capability-gated (see PQC_GATED)
     };
 
     /**
@@ -242,6 +308,92 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyFactory.XDH",
             "KeyPairGenerator.X25519",
             "KeyPairGenerator.X448",
+    };
+
+
+    /**
+     * PQC, the second capability-gated group. ML-KEM, ML-DSA and SLH-DSA are
+     * implemented by the 3.5.x module and by no 3.1.2 module, so
+     * ProvFIPS{MLKEM,MLDSA,SLHDSA} register them only when the keymgmt fetch
+     * resolves.
+     * <p>
+     * Unlike DSA signing, this is a module-VERSION difference and not a
+     * fipsinstall configuration one: real operations succeed identically under
+     * both the -pedantic and the default config
+     * ({@code fips-c-review/probes/pqc_op_probe.c}), so a fetch is a complete
+     * answer and a registration-time gate is sound.
+     */
+    private static final String[] PQC_GATED = {
+            "Cipher.ML-KEM",
+            "KeyFactory.ML-DSA-44",
+            "KeyFactory.ML-DSA-65",
+            "KeyFactory.ML-DSA-87",
+            "KeyFactory.ML-KEM-1024",
+            "KeyFactory.ML-KEM-512",
+            "KeyFactory.ML-KEM-768",
+            "KeyFactory.MLDSA",
+            "KeyFactory.MLKEM",
+            "KeyFactory.SLH-DSA-SHA2-128F",
+            "KeyFactory.SLH-DSA-SHA2-128S",
+            "KeyFactory.SLH-DSA-SHA2-192F",
+            "KeyFactory.SLH-DSA-SHA2-192S",
+            "KeyFactory.SLH-DSA-SHA2-256F",
+            "KeyFactory.SLH-DSA-SHA2-256S",
+            "KeyFactory.SLH-DSA-SHAKE-128F",
+            "KeyFactory.SLH-DSA-SHAKE-128S",
+            "KeyFactory.SLH-DSA-SHAKE-192F",
+            "KeyFactory.SLH-DSA-SHAKE-192S",
+            "KeyFactory.SLH-DSA-SHAKE-256F",
+            "KeyFactory.SLH-DSA-SHAKE-256S",
+            "KeyFactory.SLHDSA",
+            "KeyGenerator.ML-KEM-1024",
+            "KeyGenerator.ML-KEM-512",
+            "KeyGenerator.ML-KEM-768",
+            "KeyGenerator.MLKEM",
+            "KeyPairGenerator.ML-DSA-44",
+            "KeyPairGenerator.ML-DSA-65",
+            "KeyPairGenerator.ML-DSA-87",
+            "KeyPairGenerator.ML-KEM-1024",
+            "KeyPairGenerator.ML-KEM-512",
+            "KeyPairGenerator.ML-KEM-768",
+            "KeyPairGenerator.MLDSA",
+            "KeyPairGenerator.MLKEM",
+            "KeyPairGenerator.SLH-DSA-SHA2-128F",
+            "KeyPairGenerator.SLH-DSA-SHA2-128S",
+            "KeyPairGenerator.SLH-DSA-SHA2-192F",
+            "KeyPairGenerator.SLH-DSA-SHA2-192S",
+            "KeyPairGenerator.SLH-DSA-SHA2-256F",
+            "KeyPairGenerator.SLH-DSA-SHA2-256S",
+            "KeyPairGenerator.SLH-DSA-SHAKE-128F",
+            "KeyPairGenerator.SLH-DSA-SHAKE-128S",
+            "KeyPairGenerator.SLH-DSA-SHAKE-192F",
+            "KeyPairGenerator.SLH-DSA-SHAKE-192S",
+            "KeyPairGenerator.SLH-DSA-SHAKE-256F",
+            "KeyPairGenerator.SLH-DSA-SHAKE-256S",
+            "KeyPairGenerator.SLHDSA",
+            "Signature.DET-SLH-DSA-NONE",
+            "Signature.DET-SLH-DSA-PURE",
+            "Signature.ML-DSA-44",
+            "Signature.ML-DSA-65",
+            "Signature.ML-DSA-87",
+            "Signature.ML-DSA-CALCULATE-MU",
+            "Signature.ML-DSA-EXTERNAL-MU",
+            "Signature.MLDSA",
+            "Signature.SLH-DSA-NONE",
+            "Signature.SLH-DSA-PURE",
+            "Signature.SLH-DSA-SHA2-128F",
+            "Signature.SLH-DSA-SHA2-128S",
+            "Signature.SLH-DSA-SHA2-192F",
+            "Signature.SLH-DSA-SHA2-192S",
+            "Signature.SLH-DSA-SHA2-256F",
+            "Signature.SLH-DSA-SHA2-256S",
+            "Signature.SLH-DSA-SHAKE-128F",
+            "Signature.SLH-DSA-SHAKE-128S",
+            "Signature.SLH-DSA-SHAKE-192F",
+            "Signature.SLH-DSA-SHAKE-192S",
+            "Signature.SLH-DSA-SHAKE-256F",
+            "Signature.SLH-DSA-SHAKE-256S",
+            "Signature.SLHDSA",
     };
 
     /**
@@ -291,12 +443,36 @@ public class FIPSServedSurfaceSnapshotTest
 
         SortedSet<String> unexplained = new TreeSet<>(removed);
         unexplained.removeAll(Arrays.asList(XDH_GATED));
+        unexplained.removeAll(Arrays.asList(PQC_GATED));
         Assertions.assertTrue(unexplained.isEmpty(),
                 "JSLFIPS dropped services that are not capability-gated."
                         + "\n  REMOVED (in golden, gone now, no recorded gate): " + unexplained
                         + "\nIf the change is intentional, regenerate the golden set (see class Javadoc).");
 
-        assertGatedAbsenceIsJustified(removed);
+        assertGatedAbsenceIsJustified("XDH", XDH_GATED, "X25519", removed);
+        // One probe per family: each is registered as a unit, and the
+        // all-or-nothing check below is what proves the unit held.
+        assertGatedAbsenceIsJustified("ML-KEM", pqcSubset("ML-KEM", "MLKEM"), "ML-KEM-768", removed);
+        assertGatedAbsenceIsJustified("ML-DSA", pqcSubset("ML-DSA", "MLDSA"), "ML-DSA-65", removed);
+        assertGatedAbsenceIsJustified("SLH-DSA", pqcSubset("SLH-DSA", "SLHDSA"), "SLH-DSA-SHA2-128S", removed);
+    }
+
+    /** The {@link #PQC_GATED} entries belonging to one family. */
+    private static String[] pqcSubset(String... markers)
+    {
+        SortedSet<String> out = new TreeSet<>();
+        for (String s : PQC_GATED)
+        {
+            for (String m : markers)
+            {
+                if (s.contains(m))
+                {
+                    out.add(s);
+                }
+            }
+        }
+        Assertions.assertFalse(out.isEmpty(), "no PQC_GATED entries matched " + Arrays.toString(markers));
+        return out.toArray(new String[0]);
     }
 
     /**
@@ -309,9 +485,10 @@ public class FIPSServedSurfaceSnapshotTest
      * catches the other half: a partial registration is a real defect, not a
      * capability.
      */
-    private static void assertGatedAbsenceIsJustified(SortedSet<String> removed)
+    private static void assertGatedAbsenceIsJustified(String family, String[] group,
+                                                      String probeName, SortedSet<String> removed)
     {
-        SortedSet<String> gated = new TreeSet<>(Arrays.asList(XDH_GATED));
+        SortedSet<String> gated = new TreeSet<>(Arrays.asList(group));
         SortedSet<String> missing = new TreeSet<>(gated);
         missing.retainAll(removed);
 
@@ -321,15 +498,16 @@ public class FIPSServedSurfaceSnapshotTest
         }
 
         Assertions.assertEquals(gated, missing,
-                "XDH is only partly registered — a capability gate is all-or-nothing."
+                family + " is only partly registered — a capability gate is all-or-nothing."
                         + "\n  MISSING: " + missing);
 
-        // Ask the module itself. Same probe ProvFIPSXDH gates on, so a green
+        // Ask the module itself. Same probe the registrar gates on, so a green
         // result here means the registrar and the module agree.
-        int fetch = FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, "X25519");
+        int fetch = FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, probeName);
         Assertions.assertEquals(0, fetch,
-                "XDH is unregistered but the loaded module ("
+                family + " is unregistered but the loaded module ("
                         + FIPSNISelector.OpenSSLFIPSNI.moduleVersion()
-                        + ") resolves X25519 — a working algorithm was removed from callers");
+                        + ") resolves " + probeName
+                        + " — a working algorithm was removed from callers");
     }
 }
