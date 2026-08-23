@@ -520,6 +520,9 @@ public class MacTest
                 {"HmacMD5SHA1", 36},
                 {"HmacRIPEMD160", 20},
                 {"AESCMAC", 16},
+                // GMAC's tag is the GCM block size and answers before init,
+                // from EVP_MAC_CTX_get_mac_size on the unkeyed ctx.
+                {"AESGMAC", 16},
         };
 
         for (Object[] row : expected)

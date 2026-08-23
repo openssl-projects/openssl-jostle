@@ -18,8 +18,8 @@ import java.util.Map;
 /**
  * Mac registrations for the FIPS provider: the subset of ProvMac's MACs the
  * OpenSSL FIPS module serves as approved (fips=yes) - HMAC over the approved
- * digests, and AES-CMAC. Deliberately absent: Poly1305 and the HMACs over
- * unapproved digests (MD5, MD5-SHA1, SM3, RIPEMD-160). Names and aliases
+ * digests, AES-CMAC and AES-GMAC. Deliberately absent: Poly1305 and the HMACs
+ * over unapproved digests (MD5, MD5-SHA1, SM3, RIPEMD-160). Names and aliases
  * mirror ProvMac so approved MACs resolve identically through either
  * provider.
  */
@@ -54,6 +54,22 @@ class ProvFIPSMac
         // AES variant follows the key size (as in ProvMac).
         provider.addAlgorithmImplementation("Mac", "AESCMAC", PREFIX + "MacServiceSPI$AESCMAC",
                 generalAttributes, (arg) -> new MacServiceSPI(FIPSNISelector.MacServiceNI, "CMAC", "aes-cbc"));
+
+        // AES GMAC -- registered UNCONDITIONALLY, unlike the gated families:
+        // EVP_MAC_fetch("GMAC") succeeds under fips=yes on BOTH supported
+        // modules, and 3.1.2, 3.5.7 and mainline produce byte-identical tags
+        // for identical inputs (fips-c-review/probes/gmac_probe.c Q1).
+        //
+        // The one place the two modules DISAGREE is Mac.clone(): 3.1.2 refuses
+        // EVP_MAC_CTX_dup for GMAC ("not able to copy ctx") while serving the
+        // MAC itself perfectly, and 3.5.7 allows it. The refusal is
+        // GMAC-specific -- HMAC and CMAC dup fine on both. MacServiceSPI.clone
+        // already reports a native copy failure as CloneNotSupportedException,
+        // which is the JCE-correct answer, so nothing is gated here; see
+        // FIPSMacTest for the contract test that pins both branches.
+        provider.addAlgorithmImplementation("Mac", "AESGMAC", PREFIX + "MacServiceSPI$AESGMAC",
+                generalAttributes, (arg) -> new MacServiceSPI(FIPSNISelector.MacServiceNI, "GMAC", "aes-gcm"));
+        provider.addAlias("Mac", "AESGMAC", "AES-GMAC");
     }
 
     private void addMac(JostleFIPSProvider provider, String type, String name, String function)

@@ -650,16 +650,15 @@ is a no-op, a different configuration throws `IllegalStateException`.
 ### What JSLFIPS serves
 
 MessageDigest (SHA-1/SHA-2/SHA-3/SHAKE), Cipher AES (modes via the module, key wrap RFC 3394/5649, CCM),
-Mac (HMAC over the approved digests, AES-CMAC), SecureRandom (SP 800-90A DRBGs over the FIPS 140-3 approved
+Mac (HMAC over the approved digests, AES-CMAC, AES-GMAC), SecureRandom (SP 800-90A DRBGs over the FIPS 140-3 approved
 digest set), KeyGenerator AES (keyed from the module's DRBG), RSA (key generation ≥ 2048, KeyFactory,
 PKCS#1 v1.5 and PSS signatures, OAEP encryption), EC (ECDSA, ECDH — the module gates curve
 approval), DSA, DH, and SecretKeyFactory PBKDF2/HKDF.
 
 Deliberately absent because the module does not serve them (or does not serve them as approved): MD5, SM3,
-RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, DESede, Poly1305, scrypt, Ed25519/Ed448, and the post-quantum
-families (ML-KEM, ML-DSA, SLH-DSA). Also absent per the module's FIPS 140-3 certification (certificate
-#4985): X25519/X448 key agreement and the raw `NoneWithECDSA` verification component (security policy
-Tables 8/13); and RSA **PKCS#1 v1.5 encryption** (`RSA/ECB/PKCS1Padding`) — the security policy approves RSA
+RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, DESede, Poly1305 and scrypt. Also absent per the module's
+FIPS 140-3 certification (certificate #4985): the raw `NoneWithECDSA` verification component (security
+policy Tables 8/13); and RSA **PKCS#1 v1.5 encryption** (`RSA/ECB/PKCS1Padding`) — the security policy approves RSA
 key transport via OAEP only (KTS-4, SP 800-56Br2), so PKCS#1 v1.5 encryption is non-approved, and the 3.1.2
 module additionally does not honour the implicit-rejection Bleichenbacher mitigation for it. The module
 serves these under `fips=yes`, but using them places it in the non-approved mode of operation, so `JSLFIPS`
@@ -668,6 +667,13 @@ Requests for any of these through `JSLFIPS` fail with
 `NoSuchAlgorithmException` while `JSL` continues to serve them in the same JVM. To restrict either
 provider's surface further, use the JVM's own mechanisms (e.g. the `jdk.security.providers.filter`
 security property).
+
+Four more families are **module-dependent** rather than absent, because JSLFIPS ships one build for two
+FIPS modules that disagree about what they implement — in both directions. Ed25519/Ed448 and the
+post-quantum families (ML-KEM, ML-DSA, SLH-DSA) are refused by the 3.1.2 module and served by a 3.5.x one;
+X25519/X448 key agreement goes the other way. The provider asks the loaded module at startup and registers
+accordingly, so `getInstance` either works or throws `NoSuchAlgorithmException` and a caller can fall
+through to another provider. `SERVICES.md` records the full per-module surface.
 
 ### Behavioural differences under the FIPS module
 

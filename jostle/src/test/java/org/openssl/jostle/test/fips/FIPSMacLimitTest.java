@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -113,7 +114,7 @@ public class FIPSMacLimitTest
         try
         {
             InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                    () -> macNI.engineInit(ref, null));
+                    () -> macNI.engineInit(ref, null, null));
             Assertions.assertEquals("key is null", e.getMessage());
         }
         finally
@@ -147,7 +148,7 @@ public class FIPSMacLimitTest
             boolean accepted;
             try
             {
-                macNI.engineInit(ref, new byte[0]);
+                macNI.engineInit(ref, new byte[0], null);
                 accepted = true;
             }
             catch (OpenSSLException e)
@@ -161,7 +162,7 @@ public class FIPSMacLimitTest
             {
                 // Negative-then-positive: the refused init must not have
                 // poisoned the ctx.
-                macNI.engineInit(ref, new byte[32]);
+                macNI.engineInit(ref, new byte[32], null);
             }
 
             byte[] tag = new byte[32];
@@ -183,9 +184,9 @@ public class FIPSMacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16]);
-            macNI.engineInit(ref, new byte[32]);
-            macNI.engineInit(ref, new byte[64]);
+            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[32], null);
+            macNI.engineInit(ref, new byte[64], null);
         }
         finally
         {
@@ -204,7 +205,7 @@ public class FIPSMacLimitTest
         try
         {
             InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                    () -> macNI.engineInit(ref, new byte[17]));
+                    () -> macNI.engineInit(ref, new byte[17], null));
             Assertions.assertEquals("invalid key length for mac type", e.getMessage());
         }
         finally
@@ -223,7 +224,7 @@ public class FIPSMacLimitTest
         try
         {
             IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
-                    () -> macNI.engineInit(ref, new byte[16]));
+                    () -> macNI.engineInit(ref, new byte[16], null));
             Assertions.assertEquals("unexpected state", e.getMessage());
         }
         finally
@@ -370,7 +371,7 @@ public class FIPSMacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16]);
+            macNI.engineInit(ref, new byte[16], null);
             IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
                     () -> macNI.doFinal(ref, new byte[32], 1));
             Assertions.assertEquals("output offset + mac len is out of range", e.getMessage());
@@ -417,7 +418,7 @@ public class FIPSMacLimitTest
         long refA = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(refA, key);
+            macNI.engineInit(refA, key, null);
             macNI.engineUpdate(refA, input, 0, input.length);
             Assertions.assertEquals(32, macNI.doFinal(refA, reference, 0));
         }
@@ -434,7 +435,7 @@ public class FIPSMacLimitTest
         long refB = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(refB, key);
+            macNI.engineInit(refB, key, null);
             macNI.engineUpdate(refB, input, 0, input.length);
             Assertions.assertEquals(32, macNI.doFinal(refB, big, prefix));
         }
@@ -487,45 +488,55 @@ public class FIPSMacLimitTest
         assertAliasedMacCorrect(64, 16);
     }
 
+    private void assertAliasedMacCorrect(int msgLen, int tagOff) throws Exception
+    {
+        assertAliasedMacCorrect("HMAC", "SHA-256", 32, null, msgLen, tagOff);
+    }
+
     /**
      * update from {@code buf[0..msgLen)} then write the MAC into the SAME
      * array at {@code tagOff}, and assert: (1) the tag region equals the
      * reference MAC of the message, and (2) every byte of the destination
      * OUTSIDE the tag region is byte-identical to a pre-call snapshot —
      * nothing accidentally clobbered.
+     *
+     * <p>Parameterised by MAC so GMAC — whose init additionally carries an IV —
+     * gets the same whole-destination scrutiny as HMAC, rather than a
+     * near-duplicate helper that could drift from it.
      */
-    private void assertAliasedMacCorrect(int msgLen, int tagOff) throws Exception
+    private void assertAliasedMacCorrect(String macName, String function, int macLen,
+                                         byte[] iv, int msgLen, int tagOff) throws Exception
     {
-        byte[] key = new byte[32];
+        byte[] key = new byte[macName.equals("HMAC") ? 32 : 16];
         byte[] msg = new byte[msgLen];
         RANDOM.nextBytes(key);
         RANDOM.nextBytes(msg);
 
-        // Reference HMAC-SHA256 of the message via separate buffers.
-        byte[] reference = new byte[32];
-        long refA = macNI.allocateMac("HMAC", "SHA-256");
+        // Reference MAC of the message via separate buffers.
+        byte[] reference = new byte[macLen];
+        long refA = macNI.allocateMac(macName, function);
         try
         {
-            macNI.engineInit(refA, key);
+            macNI.engineInit(refA, key, iv);
             macNI.engineUpdate(refA, msg, 0, msg.length);
-            Assertions.assertEquals(32, macNI.doFinal(refA, reference, 0));
+            Assertions.assertEquals(macLen, macNI.doFinal(refA, reference, 0));
         }
         finally
         {
             macNI.dispose(refA);
         }
 
-        int cap = Math.max(msgLen, tagOff + 32) + 8;
+        int cap = Math.max(msgLen, tagOff + macLen) + 8;
         byte[] buf = new byte[cap];
         RANDOM.nextBytes(buf);
         System.arraycopy(msg, 0, buf, 0, msgLen);
         byte[] snapshot = buf.clone();   // includes the planted message
 
         int written;
-        long ref = macNI.allocateMac("HMAC", "SHA-256");
+        long ref = macNI.allocateMac(macName, function);
         try
         {
-            macNI.engineInit(ref, key);
+            macNI.engineInit(ref, key, iv);
             macNI.engineUpdate(ref, buf, 0, msgLen);
             written = macNI.doFinal(ref, buf, tagOff);
         }
@@ -534,8 +545,8 @@ public class FIPSMacLimitTest
             macNI.dispose(ref);
         }
 
-        String where = "msgLen=" + msgLen + " tagOff=" + tagOff;
-        Assertions.assertEquals(32, written, where + " tag length");
+        String where = macName + " msgLen=" + msgLen + " tagOff=" + tagOff;
+        Assertions.assertEquals(macLen, written, where + " tag length");
 
         // (1) tag region equals the reference MAC.
         Assertions.assertArrayEquals(reference, Arrays.copyOfRange(buf, tagOff, tagOff + written),
@@ -657,7 +668,7 @@ public class FIPSMacLimitTest
     public void init_nullCtx_rejectedTyped()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineInit(0L, new byte[16]));
+                () -> macNI.engineInit(0L, new byte[16], null));
         Assertions.assertEquals("mac context is null", e.getMessage());
     }
 
@@ -704,6 +715,180 @@ public class FIPSMacLimitTest
     }
 
     // ---------------------------------------------------------------------
+    // GMAC: the IV parameter ni_init gained for it (WI-2). GMAC is the only
+    // registered MAC that takes a nonce, so the surface has two sides to pin —
+    // GMAC refusing to run WITHOUT one, and every other MAC refusing to run
+    // WITH one. The second is reachable only from the NI (MacServiceSPI
+    // rejects the spec for non-GMAC MACs), which is exactly why it lives here.
+    //
+    // Both modules serve GMAC (fips=yes) so none of this is capability-gated;
+    // see fips-c-review/probes/gmac_probe.c Q1.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void gmac_initWithoutIv_rejectedTyped()
+    {
+        long ref = macNI.allocateMac("GMAC", "aes-gcm");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            InvalidAlgorithmParameterException e =
+                    Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                            () -> macNI.engineInit(ref, new byte[16], null));
+            Assertions.assertEquals("iv is null", e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void gmac_initWithZeroLengthIv_refusedByOpenSSL()
+    {
+        // A zero-length IV is NOT pre-checked here: GMAC inherits GCM's
+        // variable-length nonce and only 0 is illegal, so OpenSSL owns that
+        // legality ("invalid iv length"). Prefix-matched per testing.md
+        // because the queue text is version-dependent.
+        long ref = macNI.allocateMac("GMAC", "aes-gcm");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
+                    () -> macNI.engineInit(ref, new byte[16], new byte[0]));
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void gmac_everyAcceptedIvLengthInitsAndProducesA16ByteTag() throws Exception
+    {
+        // Measured as accepted on both modules; a length-restricting change
+        // would break a caller who is within GCM's rules.
+        for (int ivLen : new int[]{1, 8, 11, 12, 13, 16, 32})
+        {
+            long ref = macNI.allocateMac("GMAC", "aes-gcm");
+            Assertions.assertTrue(ref > 0);
+            try
+            {
+                byte[] iv = new byte[ivLen];
+                RANDOM.nextBytes(iv);
+                macNI.engineInit(ref, new byte[16], iv);
+                macNI.engineUpdate(ref, new byte[64], 0, 64);
+                Assertions.assertEquals(16, macNI.doFinal(ref, new byte[16], 0),
+                        "ivLen=" + ivLen);
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void nonGmacMacs_initWithIv_rejectedTyped()
+    {
+        // Fail loud rather than ignore: a silently-dropped IV yields a tag the
+        // caller believes was nonce-bound and is not.
+        String[][] macs = {{"HMAC", "SHA-256"}, {"CMAC", "aes-cbc"}};
+        for (String[] m : macs)
+        {
+            long ref = macNI.allocateMac(m[0], m[1]);
+            Assertions.assertTrue(ref > 0);
+            try
+            {
+                InvalidAlgorithmParameterException e =
+                        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                                () -> macNI.engineInit(ref, new byte[16], new byte[12]),
+                                m[0] + " accepted an IV");
+                Assertions.assertEquals("mac takes no iv", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void gmac_invalidKeyLen()
+    {
+        // The AES variant follows the key length, so anything outside
+        // {16, 24, 32} has no cipher to select.
+        for (int keyLen : new int[]{0, 1, 15, 17, 23, 25, 31, 33, 64})
+        {
+            long ref = macNI.allocateMac("GMAC", "aes-gcm");
+            Assertions.assertTrue(ref > 0);
+            try
+            {
+                InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                        () -> macNI.engineInit(ref, new byte[keyLen], new byte[12]),
+                        "keyLen=" + keyLen);
+                Assertions.assertEquals("invalid key length for mac type", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void gmac_nullMacCtx_initRejectedTyped()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> macNI.engineInit(0L, new byte[16], new byte[12]));
+        Assertions.assertEquals("mac context is null", e.getMessage());
+    }
+
+    @Test
+    public void gmac_macLengthMeta_beforeInit_returnsBlockSize()
+    {
+        // GMAC's tag length is the GCM block size and is answered by
+        // EVP_MAC_CTX_get_mac_size on the unkeyed ctx — the query
+        // engineGetMacLength relies on before any init.
+        long ref = macNI.allocateMac("GMAC", "aes-gcm");
+        Assertions.assertTrue(ref > 0);
+        try
+        {
+            Assertions.assertEquals(16, macNI.macLengthMeta(ref));
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void gmac_doFinal_aliased_tagAfterMessage() throws Exception
+    {
+        assertAliasedMacCorrect("GMAC", "aes-gcm", 16, gmacIv(), 40, 40);
+    }
+
+    @Test
+    public void gmac_doFinal_aliased_tagOverwritesMessageStart() throws Exception
+    {
+        assertAliasedMacCorrect("GMAC", "aes-gcm", 16, gmacIv(), 40, 0);
+    }
+
+    @Test
+    public void gmac_doFinal_aliased_tagMidMessage() throws Exception
+    {
+        assertAliasedMacCorrect("GMAC", "aes-gcm", 16, gmacIv(), 64, 16);
+    }
+
+    private static byte[] gmacIv()
+    {
+        byte[] iv = new byte[12];
+        RANDOM.nextBytes(iv);
+        return iv;
+    }
+
+    // ---------------------------------------------------------------------
 
     private interface RefBody
     {
@@ -716,7 +901,7 @@ public class FIPSMacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16]);
+            macNI.engineInit(ref, new byte[16], null);
             body.run(ref);
         }
         catch (Exception e)

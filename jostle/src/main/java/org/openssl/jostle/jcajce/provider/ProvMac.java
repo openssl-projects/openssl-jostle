@@ -52,6 +52,23 @@ class ProvMac
         provider.addAlgorithmImplementation("Mac", "AESCMAC", PREFIX + "MacServiceSPI$AESCMAC",
                 generalAttributes, (arg) -> new MacServiceSPI("CMAC", "aes-cbc"));
 
+        // AES GMAC (NIST SP 800-38D) -- GCM with no plaintext, so every input
+        // byte is absorbed as AAD. Like AESCMAC, "aes-gcm" is a placeholder:
+        // the C arm picks aes-128/192/256-gcm from the key length. Requires an
+        // IvParameterSpec or GCMParameterSpec at init; see MacServiceSPI.
+        //
+        // Names match BouncyCastle's addGMacAlgorithm, which registers
+        // "AES-GMAC" with an "AESGMAC" alias, so a caller resolves the same
+        // spelling through either provider.
+        //
+        // The RFC 9044 OIDs BC also registers (id_aes128/192/256_GMAC) are
+        // deliberately NOT registered here. Each names a key size, but the tag
+        // and cipher variant follow the key the caller supplies, so an
+        // OID-named service could not enforce the size its own name claims.
+        provider.addAlgorithmImplementation("Mac", "AESGMAC", PREFIX + "MacServiceSPI$AESGMAC",
+                generalAttributes, (arg) -> new MacServiceSPI("GMAC", "aes-gcm"));
+        provider.addAlias("Mac", "AESGMAC", "AES-GMAC");
+
         // Poly1305 (RFC 8439) — a one-time-key MAC (32-byte key, 16-byte tag).
         // The function name is a placeholder (Poly1305 takes no cipher/digest);
         // the C POLY1305 branch ignores it. Uppercase "POLY1305" matches the

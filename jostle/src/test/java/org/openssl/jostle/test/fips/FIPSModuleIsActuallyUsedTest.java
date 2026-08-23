@@ -212,6 +212,51 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * The cipher-backed MACs specifically, named rather than swept.
+     * <p>
+     * The sweep above probes each service under its JCE name, and for these two
+     * that name is not the EVP one: JSLFIPS registers {@code Mac.AESCMAC} and
+     * {@code Mac.AESGMAC} while OpenSSL knows them as {@code CMAC} and
+     * {@code GMAC} (the AES variant follows the key length, so it is not part
+     * of the fetched name). {@code implementingProvider} therefore answers null
+     * for both and the sweep skips them — silently, and with no evidence either
+     * way.
+     * <p>
+     * That blind spot matters most for GMAC, where mainline 3.6.2, FIPS 3.1.2
+     * and FIPS 3.5.7 produce byte-identical tags for identical inputs
+     * (measured, {@code fips-c-review/probes/gmac_probe.c}), so no agreement,
+     * negative or chunking test can tell the module from mainline. Asking which
+     * provider implements it is the only check that can.
+     */
+    @Test
+    public void cipherBackedMacsAreImplementedByTheFipsModule()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        // JCE registration name -> the name OpenSSL fetches it under.
+        String[][] macs = {{"AESCMAC", "CMAC"}, {"AESGMAC", "GMAC"}};
+
+        for (String[] mac : macs)
+        {
+            boolean registered = provider.getService("Mac", mac[0]) != null;
+            String impl = FIPSNISelector.OpenSSLFIPSNI
+                    .implementingProvider(OpenSSLFIPSNI.OP_MAC, mac[1]);
+
+            if (!registered)
+            {
+                Assertions.assertNull(impl,
+                        "Mac." + mac[0] + " is unregistered but the FIPS lib ctx resolves "
+                                + mac[1] + " to \"" + impl
+                                + "\" — a working algorithm was dropped from callers");
+                continue;
+            }
+            Assertions.assertEquals(FIPS_PROVIDER, impl,
+                    "Mac." + mac[0] + " is served by JSLFIPS but " + mac[1]
+                            + " is implemented by \"" + impl + "\"");
+        }
+    }
+
+    /**
      * The probe reports a real answer, not a constant.
      * <p>
      * Without this the two tests above would pass against a stub that always

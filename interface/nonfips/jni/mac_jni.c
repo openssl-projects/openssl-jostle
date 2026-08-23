@@ -109,8 +109,15 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
 }
 
 
+/*
+ * ivBytes carries GMAC's nonce and is LEGITIMATELY null for every other MAC,
+ * so a null array is passed through as NULL/0 rather than rejected here -
+ * init_mac_ctx's GMAC arm returns JO_IV_IS_NULL when the MAC needs one. Both
+ * ctxs are init'd before any goto so the shared cleanup label can release them
+ * unconditionally (the ccm pattern).
+ */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1init
-(JNIEnv *env, jobject self, jlong ref, jbyteArray keyBytes) {
+(JNIEnv *env, jobject self, jlong ref, jbyteArray keyBytes, jbyteArray ivBytes) {
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
@@ -119,9 +126,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     }
 
     critical_bytearray_ctx key;
+    critical_bytearray_ctx iv;
     int32_t ret;
 
     init_critical_ctx(&key, env, keyBytes);
+    init_critical_ctx(&iv, env, ivBytes);
+
     if (key.array == NULL) {
         ret = JO_KEY_IS_NULL;
         goto exit;
@@ -132,9 +142,16 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
         goto exit;
     }
 
-    ret = mac_init(mac_ctx, key.critical, key.size);
+    if (iv.array != NULL && (OPS_FAILED_ACCESS_5 !load_critical_ctx(&iv))) {
+        ret = JO_FAILED_ACCESS_IV;
+        goto exit;
+    }
+
+    ret = mac_init(mac_ctx, key.critical, key.size,
+                   iv.array == NULL ? NULL : iv.critical, iv.size);
 
 exit:
+    release_critical_ctx(&iv);
     release_critical_ctx(&key);
     return ret;
 }

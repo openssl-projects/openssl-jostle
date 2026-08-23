@@ -20,6 +20,7 @@ import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -254,5 +255,196 @@ public class FIPSMacAgreementTest
     {
         SecureRandom sr = seededRandom("aesCmacAgrees");
         runFamily(new String[]{"AESCMAC"}, sr);
+    }
+
+    /**
+     * AES-GMAC across all three providers.
+     * <p>
+     * GMAC needs a nonce, so it does not fit {@link #runFamily}'s
+     * {@code init(key)} shape and gets its own driver. Everything else is the
+     * same contract: the tag must be byte-identical JSLFIPS vs JSL and JSLFIPS
+     * vs BC, over random keys, random (legal) IV lengths and the length matrix,
+     * with the streaming paths agreeing with the one-shot on both sides.
+     * <p>
+     * Registered unconditionally — {@code EVP_MAC_fetch("GMAC")} succeeds under
+     * {@code fips=yes} on both supported modules
+     * ({@code fips-c-review/probes/gmac_probe.c} Q1) — so there is no
+     * capability branch here, unlike XDH or Ed.
+     */
+    @Test
+    public void aesGmacAgrees() throws Exception
+    {
+        SecureRandom sr = seededRandom("aesGmacAgrees");
+        int[] ivLengths = {1, 8, 11, 12, 13, 16, 32};
+
+        for (String name : new String[]{"AESGMAC", "AES-GMAC"})
+        {
+            for (int i = 0; i < LENGTHS.length; i++)
+            {
+                int len = (i == LENGTHS.length - 1) ? 512 + sr.nextInt(2048) : LENGTHS[i];
+
+                byte[] keyBytes = new byte[new int[]{16, 24, 32}[sr.nextInt(3)]];
+                sr.nextBytes(keyBytes);
+                SecretKey key = new SecretKeySpec(keyBytes, "AES");
+
+                byte[] iv = new byte[ivLengths[sr.nextInt(ivLengths.length)]];
+                sr.nextBytes(iv);
+                IvParameterSpec spec = new IvParameterSpec(iv);
+
+                byte[] msg = new byte[len];
+                sr.nextBytes(msg);
+
+                String tag = name + " keyLen=" + keyBytes.length + " ivLen=" + iv.length
+                        + " msgLen=" + len;
+
+                byte[] fips = gmacOneShot(name, FIPS, key, spec, msg);
+                Assertions.assertEquals(16, fips.length, tag + ": tag length");
+
+                Assertions.assertArrayEquals(fips, gmacOneShot(name, JSL, key, spec, msg),
+                        tag + ": one-shot JSLFIPS vs JSL");
+                Assertions.assertArrayEquals(fips, gmacOneShot(name, BC, key, spec, msg),
+                        tag + ": one-shot JSLFIPS vs BC");
+                Assertions.assertArrayEquals(fips, gmacSplit(name, FIPS, key, spec, msg, sr),
+                        tag + ": JSLFIPS random-split");
+                Assertions.assertArrayEquals(fips, gmacSplit(name, BC, key, spec, msg, sr),
+                        tag + ": BC random-split vs JSLFIPS one-shot");
+            }
+        }
+
+        // Differentiators: the tag must depend on the message, the key AND the
+        // nonce. Without the last one an implementation that dropped the IV
+        // would still agree with nothing, but one that mishandled it silently
+        // could still pass every equality check above with a fixed IV.
+        byte[] keyBytes = new byte[16];
+        sr.nextBytes(keyBytes);
+        SecretKey key = new SecretKeySpec(keyBytes, "AES");
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        byte[] msg = new byte[1 + sr.nextInt(512)];
+        sr.nextBytes(msg);
+
+        byte[] base = gmacOneShot("AESGMAC", FIPS, key, new IvParameterSpec(iv), msg);
+
+        byte[] tampered = Arrays.clone(msg);
+        tampered[sr.nextInt(tampered.length)] ^= (byte) (1 + sr.nextInt(255));
+        Assertions.assertFalse(Arrays.areEqual(base,
+                        gmacOneShot("AESGMAC", FIPS, key, new IvParameterSpec(iv), tampered)),
+                "GMAC: tampered message produced an identical tag");
+
+        byte[] iv2 = Arrays.clone(iv);
+        iv2[sr.nextInt(iv2.length)] ^= (byte) 0x01;
+        Assertions.assertFalse(Arrays.areEqual(base,
+                        gmacOneShot("AESGMAC", FIPS, key, new IvParameterSpec(iv2), msg)),
+                "GMAC: a one-bit IV change produced an identical tag");
+
+        byte[] otherKey = new byte[16];
+        sr.nextBytes(otherKey);
+        Assertions.assertFalse(Arrays.areEqual(base,
+                        gmacOneShot("AESGMAC", FIPS, new SecretKeySpec(otherKey, "AES"),
+                                new IvParameterSpec(iv), msg)),
+                "GMAC: a different key produced an identical tag");
+    }
+
+    /**
+     * {@code Mac.clone()} over GMAC is the one place the two supported modules
+     * DISAGREE, so this asserts the CONTRACT rather than either module's answer.
+     * <p>
+     * Measured ({@code fips-c-review/probes/gmac_probe.c} Q4): 3.1.2 refuses
+     * {@code EVP_MAC_CTX_dup} for GMAC with "not able to copy ctx" while
+     * serving the MAC itself perfectly, and 3.5.7 allows it. The refusal is
+     * GMAC-specific — HMAC and CMAC dup fine on both, which the control below
+     * pins so a module that lost cloning wholesale cannot pass as "3.1.2".
+     * <p>
+     * Both branches are real requirements. Where dup works, the clone must
+     * CONTINUE the absorbed state (compared against an independent BC MAC over
+     * the whole message — divergence is not continuation). Where it does not,
+     * the failure must arrive as {@code CloneNotSupportedException}, the
+     * JCE-declared answer, and NOT as a native runtime exception escaping
+     * {@code clone()}.
+     */
+    @Test
+    public void gmacCloneFollowsTheModulesCapability() throws Exception
+    {
+        SecureRandom sr = seededRandom("gmacCloneFollowsTheModulesCapability");
+
+        byte[] keyBytes = new byte[16];
+        sr.nextBytes(keyBytes);
+        SecretKey key = new SecretKeySpec(keyBytes, "AES");
+        byte[] iv = new byte[12];
+        sr.nextBytes(iv);
+        IvParameterSpec spec = new IvParameterSpec(iv);
+        byte[] msg = new byte[128];
+        sr.nextBytes(msg);
+        int split = 37;
+
+        // CONTROL first: HMAC must clone on every supported module. If this
+        // fails, a CloneNotSupportedException below is not the GMAC-specific
+        // refusal this test is about.
+        Mac hmacSrc = Mac.getInstance("HMACSHA256", FIPS);
+        hmacSrc.init(new SecretKeySpec(keyBytes, "HMACSHA256"));
+        hmacSrc.update(msg, 0, split);
+        Mac hmacCopy = (Mac) hmacSrc.clone();
+        hmacCopy.update(msg, split, msg.length - split);
+        Assertions.assertArrayEquals(
+                macOneShot("HMACSHA256", BC, new SecretKeySpec(keyBytes, "HMACSHA256"), msg),
+                hmacCopy.doFinal(),
+                "the HMAC clone control failed — this module cannot clone ANY mac, so the "
+                        + "GMAC branch below would be measuring the wrong thing");
+
+        Mac source = Mac.getInstance("AESGMAC", FIPS);
+        source.init(key, spec);
+        source.update(msg, 0, split);
+
+        Mac copy;
+        try
+        {
+            copy = (Mac) source.clone();
+        }
+        catch (CloneNotSupportedException e)
+        {
+            // 3.1.2 branch. Pin the message, and prove the refusal is confined
+            // to cloning: the source MAC must still finish correctly.
+            Assertions.assertEquals("unable to clone mac", e.getMessage());
+            source.update(msg, split, msg.length - split);
+            Assertions.assertArrayEquals(
+                    gmacOneShot("AESGMAC", BC, key, spec, msg), source.doFinal(),
+                    "the module refused to clone GMAC and also disturbed the source");
+            return;
+        }
+
+        // 3.5.7 branch: the clone must CONTINUE, judged against BC over the
+        // whole message — a hollow clone diverges from the source but cannot
+        // match this.
+        copy.update(msg, split, msg.length - split);
+        Assertions.assertArrayEquals(gmacOneShot("AESGMAC", BC, key, spec, msg), copy.doFinal(),
+                "the GMAC clone did not continue the absorbed state");
+
+        // ... and the source is independent of it.
+        source.update(msg, split, msg.length - split);
+        Assertions.assertArrayEquals(gmacOneShot("AESGMAC", BC, key, spec, msg), source.doFinal(),
+                "the source was disturbed by cloning");
+    }
+
+    private static byte[] gmacOneShot(String name, String provider, SecretKey key,
+                                      IvParameterSpec spec, byte[] msg) throws Exception
+    {
+        Mac mac = Mac.getInstance(name, provider);
+        mac.init(key, spec);
+        return mac.doFinal(msg);
+    }
+
+    private static byte[] gmacSplit(String name, String provider, SecretKey key,
+                                    IvParameterSpec spec, byte[] msg, SecureRandom sr) throws Exception
+    {
+        Mac mac = Mac.getInstance(name, provider);
+        mac.init(key, spec);
+        int offset = 0;
+        while (offset < msg.length)
+        {
+            int chunk = Math.min(1 + sr.nextInt(97), msg.length - offset);
+            mac.update(msg, offset, chunk);
+            offset += chunk;
+        }
+        return mac.doFinal();
     }
 }

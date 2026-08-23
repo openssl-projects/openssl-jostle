@@ -20,13 +20,24 @@ typedef struct jo_mac_ctx
     char *function_name;
     uint8_t *key;
     size_t key_len;
+    // GMAC's nonce; NULL for every other arm. Retained for the lifetime of the
+    // ctx because mac_reset re-inits from held state, and a GMAC ctx cannot be
+    // restored by a NULL-key/NULL-param re-init - measured, see
+    // fips-c-review/probes/gmac_probe.c Q8.
+    uint8_t *iv;
+    size_t iv_len;
     int initialized;
 } mac_ctx;
 
 
 mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err);
 mac_ctx *mac_copy(const mac_ctx *src, int32_t *err);
-int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len);
+
+// iv/iv_len carry GMAC's nonce; every other MAC passes NULL/0. A NULL iv is
+// legitimate here rather than a bridge-level rejection, because only the
+// per-MAC arm in init_mac_ctx knows whether this MAC needs one.
+int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
+                 const uint8_t *iv, size_t iv_len);
 int32_t mac_update(mac_ctx *ctx, const uint8_t *in, int32_t off, int32_t len);
 int32_t mac_final(mac_ctx *ctx, uint8_t *out, int32_t off, int32_t out_len);
 int32_t mac_len(mac_ctx *ctx);

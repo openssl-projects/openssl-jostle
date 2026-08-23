@@ -65,8 +65,9 @@
 // Slot index must match OpsTestFlag.ordinal() in OperationsTestNI — new
 // flags are appended, never inserted next to their family.
 #define OPS_FAILED_ACCESS_5 is_ops_set(34) ||
+#define OPS_ALTERNATE_4 !is_ops_set(35) &&
 
-#define OPS_MAX_TEST 35
+#define OPS_MAX_TEST 36
 
 // Per-flag offset macros. Pairs with OPS_OPENSSL_ERROR_N (same suffix).
 // Expansion includes the leading "+" so non-OPS builds drop entirely.
@@ -150,6 +151,7 @@ int get_ops_test(const uint32_t index);
 #define OPS_ALTERNATE_1
 #define OPS_ALTERNATE_2
 #define OPS_ALTERNATE_3
+#define OPS_ALTERNATE_4
 
 #define OPS_OPENSSL_ERROR_7
 #define OPS_OPENSSL_ERROR_8

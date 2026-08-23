@@ -56,7 +56,28 @@ if [ -z "${JOSTLE_FIPS_CONFIGS:-}" ]; then
 fi
 
 # Restore every cnf we overwrite, whatever happens.
+#
+# ONE backup per target, taken the FIRST time that target is swapped, so the
+# restore always writes the install's ORIGINAL content back. Two configs
+# routinely target the same install - 3.5.7-default and 3.5.7-pedantic both
+# swap openssls/osx_3_5_7/.../fipsmodule.cnf - and a per-swap backup would
+# capture the PREVIOUS config's cnf on the second pass and restore that,
+# leaving the install silently holding the wrong strictness. That is worse
+# than untidy: the pedantic-only gates (no-short-mac, dsa-sign-disabled,
+# hmac-key-check, ...) then never fire in any later run, which is exactly the
+# "green without executing the code under test" failure this script exists to
+# prevent. Observed for real on 2026-08-23, from a dry run.
 declare -a BACKUPS=()
+backup_once () {
+  local target="$1" pair b
+  for pair in "${BACKUPS[@]:-}"; do
+    [ -n "$pair" ] || continue
+    if [ "${pair##*::}" = "$target" ]; then
+      return 0    # already have this target's ORIGINAL content
+    fi
+  done
+  b=$(mktemp); cp "$target" "$b"; BACKUPS+=("$b::$target")
+}
 restore () {
   for pair in "${BACKUPS[@]:-}"; do
     [ -n "$pair" ] || continue
@@ -89,7 +110,7 @@ while IFS='|' read -r NAME MODULE CNF; do
       continue
     fi
     for t in $TARGETS; do
-      b=$(mktemp); cp "$t" "$b"; BACKUPS+=("$b::$t")
+      backup_once "$t"
       cp "$CNF" "$t"
     done
   fi

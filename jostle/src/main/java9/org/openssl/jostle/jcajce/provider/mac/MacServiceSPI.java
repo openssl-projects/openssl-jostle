@@ -18,6 +18,8 @@ import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.MacSpi;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
 import java.lang.ref.Reference;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -35,8 +37,14 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     // OpenSSL-probed MAC lengths, memoized once per (macName, function) (see NativeLengthCache).
     private static final NativeLengthCache<String> macLengths = new NativeLengthCache<String>();
 
+    // The one registered MAC that takes a nonce. Named here for the same reason
+    // the native init_mac_ctx dispatches on it: which parameter specs a
+    // registration accepts is a JCE-surface fact, not a value OpenSSL reports.
+    private static final String GMAC = "GMAC";
+
     private final MacReference ref;
     private final String cacheKey;
+    private final String macName;
 
     public MacServiceSPI(String macName, String function)
     {
@@ -47,9 +55,10 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     // Clone path: adopt an already-copied native handle. cacheKey is carried
     // verbatim so the clone shares the memoized MAC length of its source.
     //
-    private MacServiceSPI(MacServiceNI macServiceNI, String cacheKey, MacReference ref)
+    private MacServiceSPI(MacServiceNI macServiceNI, String macName, String cacheKey, MacReference ref)
     {
         this.macServiceNI = macServiceNI;
+        this.macName = macName;
         this.cacheKey = cacheKey;
         this.ref = ref;
     }
@@ -57,10 +66,65 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     public MacServiceSPI(MacServiceNI macServiceNI, String macName, String function)
     {
         this.macServiceNI = macServiceNI;
+        this.macName = macName;
         // Composite cache key: a space cannot appear in a real mac/digest/cipher
         // name (e.g. "HMAC", "SHA2-256", "aes-cbc"), so it is unambiguous.
         this.cacheKey = macName + ' ' + function;
         this.ref = new MacReference(macServiceNI, macServiceNI.allocateMac(macName, function), function);
+    }
+
+    /**
+     * The IV for this init, or null when this MAC takes none.
+     *
+     * <p>GMAC inherits GCM's variable-length nonce — 1, 8, 11, 12, 13, 16 and 32
+     * bytes are all accepted by mainline and by both FIPS modules, and only 0 is
+     * refused, by the provider itself — so no length check happens here.
+     *
+     * <p>{@code GCMParameterSpec} is accepted for BouncyCastle parity (BC's
+     * AES-GMAC takes it, and RFC 9044 CMS callers construct one), but only at
+     * the full tag length. OpenSSL's GMAC has no {@code size} in
+     * {@code EVP_MAC_CTX_settable_params}, so a shorter tag cannot be honoured;
+     * refusing is the fail-loud answer, where accepting would hand the caller a
+     * 16-byte tag it did not ask for. The comparison value is queried from
+     * OpenSSL, never transcribed.
+     */
+    private byte[] resolveIv(AlgorithmParameterSpec params)
+            throws InvalidAlgorithmParameterException
+    {
+        if (!GMAC.equals(macName))
+        {
+            if (params != null)
+            {
+                throw new InvalidAlgorithmParameterException("params not supported");
+            }
+            return null;
+        }
+
+        if (params == null)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    macName + " requires an IvParameterSpec or GCMParameterSpec carrying the nonce");
+        }
+
+        if (params instanceof IvParameterSpec)
+        {
+            return ((IvParameterSpec) params).getIV();
+        }
+
+        if (params instanceof GCMParameterSpec)
+        {
+            GCMParameterSpec gcmSpec = (GCMParameterSpec) params;
+            int tagBits = engineGetMacLength() * 8;
+            if (gcmSpec.getTLen() != tagBits)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        macName + " tag length is fixed at " + tagBits + " bits, got " + gcmSpec.getTLen());
+            }
+            return gcmSpec.getIV();
+        }
+
+        throw new InvalidAlgorithmParameterException(
+                "expected IvParameterSpec or GCMParameterSpec, got " + params.getClass().getName());
     }
 
     /**
@@ -101,10 +165,11 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     protected void engineInit(Key key, AlgorithmParameterSpec params)
             throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-        if (params != null)
-        {
-            throw new InvalidAlgorithmParameterException("params not supported");
-        }
+        // Spec first: java-spi.md requires getEncoded() to come AFTER any
+        // validation that can throw, so a rejected init never leaves an
+        // uncleared copy of the key on the heap.
+        byte[] iv = resolveIv(params);
+
         if (key == null)
         {
             throw new InvalidKeyException("key is null");
@@ -123,7 +188,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
 
         try
         {
-            macServiceNI.engineInit(ref.getReference(), keyBytes);
+            macServiceNI.engineInit(ref.getReference(), keyBytes, iv);
         }
         finally
         {
@@ -217,7 +282,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         try
         {
             long clonedRef = macServiceNI.copyMac(ref.getReference());
-            return new MacServiceSPI(macServiceNI, cacheKey,
+            return new MacServiceSPI(macServiceNI, macName, cacheKey,
                     new MacReference(macServiceNI, clonedRef, cacheKey));
         }
         catch (RuntimeException e)

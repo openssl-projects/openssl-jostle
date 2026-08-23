@@ -22,13 +22,24 @@
 
 
 static int32_t init_mac_ctx(mac_ctx *mctx) {
-    OSSL_PARAM params[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
+    // Three slots: GMAC is the only arm that sets two params (cipher + iv).
+    OSSL_PARAM params[3] = { OSSL_PARAM_END, OSSL_PARAM_END, OSSL_PARAM_END };
 
     if (mctx == NULL || mctx->ctx == NULL) {
         return JO_UNEXPECTED_STATE;
     }
 
     mctx->initialized = 0;
+
+    // GMAC is the only MAC here that takes a nonce, and the other arms would
+    // simply not read mctx->iv. Rejecting rather than ignoring is the fail-loud
+    // answer: a caller who supplied an IV believes it was mixed in, and a
+    // silently-dropped one produces a tag that is wrong-but-self-consistent.
+    // Unreachable from the SPI (which refuses the spec for every other MAC), so
+    // this guards the NI surface - see the MacLimitTest probe.
+    if (mctx->iv != NULL && 0 != strncmp(mctx->mac_name, "GMAC", sizeof("GMAC"))) {
+        return JO_MODE_TAKES_NO_IV;
+    }
 
     if (OPS_ALTERNATE_1 0 == strncmp(mctx->mac_name, "CMAC", sizeof("CMAC"))) {
         // CMAC
@@ -67,6 +78,46 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
         if (mctx->key_len != 32) {
             return JO_UNKNOWN_KEY_LEN;
         }
+    } else if (OPS_ALTERNATE_4 0 == strncmp(mctx->mac_name, "GMAC", sizeof("GMAC"))) {
+        // GMAC (NIST SP 800-38D): GCM with no plaintext, so every input byte is
+        // absorbed as AAD. Needs a cipher AND a nonce; the AES variant follows
+        // the key length exactly as CMAC's does, so "aes-gcm" is the same kind
+        // of placeholder "aes-cbc" is there.
+        //
+        // The IV is a CALLER input, so a missing one is a typed rejection, not
+        // an assert - and it is checked here rather than at the bridge because
+        // only this arm knows that GMAC is the MAC that needs one (every other
+        // arm is initialised with iv == NULL).
+        //
+        // The IV LENGTH is deliberately not checked. GMAC inherits GCM's
+        // variable-length nonce: 1, 8, 11, 12, 13, 16 and 32 bytes are all
+        // accepted by mainline and by both FIPS modules, and only 0 is refused
+        // - by the provider itself, with "invalid iv length". Per the
+        // classify-don't-pre-check rule, OpenSSL owns that legality.
+        if (mctx->function_name == NULL ||
+            0 != strncmp(mctx->function_name, "aes-gcm", sizeof("aes-gcm"))) {
+            return JO_UNEXPECTED_STATE; // we control this
+        }
+
+        if (mctx->iv == NULL) {
+            return JO_IV_IS_NULL;
+        }
+
+        switch (mctx->key_len) {
+            case 16:
+                params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_CIPHER, "aes-128-gcm", 0);
+                break;
+            case 24:
+                params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_CIPHER, "aes-192-gcm", 0);
+                break;
+            case 32:
+                params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_CIPHER, "aes-256-gcm", 0);
+                break;
+            default:
+                return JO_UNKNOWN_KEY_LEN;
+        }
+
+        params[1] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_IV, mctx->iv, mctx->iv_len);
     } else {
         return JO_UNEXPECTED_STATE;
     }
@@ -201,6 +252,18 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
         }
         mctx->key_len = src->key_len;
     }
+
+    // GMAC's nonce travels with the key for the same reason: without it the
+    // clone's mac_reset would re-init a GMAC ctx with no IV and fail. Not
+    // secret, but freed on the same paths as the key.
+    if (src->iv != NULL) {
+        mctx->iv = OPENSSL_malloc(src->iv_len == 0 ? 1 : src->iv_len);
+        jo_assert(mctx->iv != NULL);
+        if (src->iv_len > 0) {
+            memcpy(mctx->iv, src->iv, src->iv_len);
+        }
+        mctx->iv_len = src->iv_len;
+    }
     mctx->initialized = src->initialized;
 
     *err = JO_SUCCESS;
@@ -215,13 +278,17 @@ exit:
 }
 
 
-int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len) {
+int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
+                 const uint8_t *iv, size_t iv_len) {
     uint8_t *new_key;
+    uint8_t *new_iv = NULL;
     int32_t ret;
 
 
     jo_assert(mctx != NULL);
     jo_assert(key != NULL);
+    // iv is legitimately NULL for every MAC but GMAC, so it is NOT asserted -
+    // init_mac_ctx's GMAC arm returns JO_IV_IS_NULL when it needs one.
 
     // non-NULL even for empty key: EVP_MAC_init treats NULL as "reuse previous"
     new_key = OPENSSL_malloc(key_len == 0 ? 1 : key_len);
@@ -231,18 +298,37 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len) {
         memcpy(new_key, key, key_len);
     }
 
+    if (iv != NULL) {
+        new_iv = OPENSSL_malloc(iv_len == 0 ? 1 : iv_len);
+        jo_assert(new_iv != NULL);
+        if (iv_len > 0) {
+            memcpy(new_iv, iv, iv_len);
+        }
+    }
+
     if (mctx->key != NULL) {
         OPENSSL_clear_free(mctx->key, mctx->key_len);
+    }
+    if (mctx->iv != NULL) {
+        OPENSSL_free(mctx->iv);
     }
 
     mctx->key = new_key;
     mctx->key_len = key_len;
+    mctx->iv = new_iv;
+    mctx->iv_len = iv != NULL ? iv_len : 0;
 
     ret = init_mac_ctx(mctx);
     if (ret < 0) {
+        // Drop BOTH on failure: a half-configured ctx whose key was cleared but
+        // whose IV survived would let a later mac_reset see JO_NOT_INITIALIZED
+        // (key == NULL) while still holding the caller's nonce.
         OPENSSL_clear_free(mctx->key, mctx->key_len);
         mctx->key = NULL;
         mctx->key_len = 0;
+        OPENSSL_free(mctx->iv);
+        mctx->iv = NULL;
+        mctx->iv_len = 0;
         return ret;
     }
 
@@ -362,10 +448,16 @@ int32_t mac_len_for(mac_ctx *mctx) {
         goto exit;
     }
 
-    // Poly1305: fixed 128-bit output. EVP_MAC_CTX_get_mac_size answers 16 on the
-    // (unkeyed) ctx allocated in allocate_mac — query it rather than transcribe
-    // the constant (OpenSSL is the single source of truth for fixed lengths).
-    if (0 == strncmp(mctx->mac_name, "POLY1305", sizeof("POLY1305"))) {
+    // Poly1305 and GMAC: both answer EVP_MAC_CTX_get_mac_size on the (unkeyed)
+    // ctx allocated in allocate_mac, so ask it rather than transcribe the
+    // constant (OpenSSL is the single source of truth for fixed lengths).
+    //
+    // For GMAC this is the ONLY correct source: the tag length is the GCM block
+    // size and there is no "size" in EVP_MAC_CTX_settable_params, so it can be
+    // neither shortened nor configured - measured across mainline 3.6.2, FIPS
+    // 3.1.2 and FIPS 3.5.7 (fips-c-review/probes/gmac_probe.c Q3/Q5).
+    if (0 == strncmp(mctx->mac_name, "POLY1305", sizeof("POLY1305")) ||
+        0 == strncmp(mctx->mac_name, "GMAC", sizeof("GMAC"))) {
         size_t size = EVP_MAC_CTX_get_mac_size(mctx->ctx);
         if (OPS_OPENSSL_ERROR_7 size == 0) {
             ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(1014);
@@ -419,6 +511,10 @@ void mac_free(mac_ctx *mctx) {
     }
     if (mctx->key != NULL) {
         OPENSSL_clear_free(mctx->key, mctx->key_len);
+    }
+    if (mctx->iv != NULL) {
+        // Not secret material, so a plain free - unlike the key.
+        OPENSSL_free(mctx->iv);
     }
     OPENSSL_free(mctx);
 }

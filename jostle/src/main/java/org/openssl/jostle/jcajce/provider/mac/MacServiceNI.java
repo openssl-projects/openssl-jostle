@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.mac;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 
 public interface MacServiceNI extends DefaultServiceNI
@@ -21,7 +22,15 @@ public interface MacServiceNI extends DefaultServiceNI
 
     long ni_copyMac(long ref, int[] err);
 
-    int ni_init(long ref, byte[] keyBytes);
+    /**
+     * @param iv GMAC's nonce, or {@code null} for every other MAC. Carried on
+     *           the init call rather than a separate entry point because the
+     *           IV is an init-time input exactly like the key, and one door
+     *           means "GMAC requires an IV" is a single check in the native
+     *           GMAC arm rather than a rejection that a second entry point
+     *           could bypass.
+     */
+    int ni_init(long ref, byte[] keyBytes, byte[] iv);
 
     int ni_updateByte(long ref, byte b);
 
@@ -59,10 +68,10 @@ public interface MacServiceNI extends DefaultServiceNI
         return v;
     }
 
-    default void engineInit(long ref, byte[] keyBytes)
-            throws InvalidKeyException
+    default void engineInit(long ref, byte[] keyBytes, byte[] iv)
+            throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-        handleInitErrors(ni_init(ref, keyBytes));
+        handleInitErrors(ni_init(ref, keyBytes, iv));
     }
 
     default void engineUpdate(long ref, byte b)
@@ -104,7 +113,7 @@ public interface MacServiceNI extends DefaultServiceNI
 
 
     default long handleInitErrors(int code)
-            throws InvalidKeyException
+            throws InvalidKeyException, InvalidAlgorithmParameterException
     {
         if (code >= 0)
         {
@@ -120,6 +129,17 @@ public interface MacServiceNI extends DefaultServiceNI
                 throw new InvalidKeyException("unable to access key bytes");
             case JO_UNKNOWN_KEY_LEN:
                 throw new InvalidKeyException("invalid key length for mac type");
+            // GMAC only: the native GMAC arm is the sole place that knows this
+            // MAC needs a nonce. Same message and type as BlockCipherNI's, so
+            // an IV-less AEAD init reads identically wherever it is raised.
+            case JO_IV_IS_NULL:
+                throw new InvalidAlgorithmParameterException("iv is null");
+            case JO_FAILED_ACCESS_IV:
+                throw new IllegalStateException("native layer was unable to access iv");
+            // NI surface only: MacServiceSPI refuses the spec for every MAC but
+            // GMAC, so a caller reaches this by driving ni_init directly.
+            case JO_MODE_TAKES_NO_IV:
+                throw new InvalidAlgorithmParameterException("mac takes no iv");
 
             default:
 

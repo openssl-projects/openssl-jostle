@@ -70,7 +70,9 @@ public class MacServiceFFI implements MacServiceNI
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS, // *ctx
                         ValueLayout.ADDRESS, // *key
-                        ValueLayout.JAVA_LONG // key len
+                        ValueLayout.JAVA_LONG, // key len
+                        ValueLayout.ADDRESS, // *iv (GMAC only; NULL otherwise)
+                        ValueLayout.JAVA_LONG // iv len
                 ), Linker.Option.critical(true));
 
         MH_updateByte = LINKER.downcallHandle(
@@ -170,12 +172,16 @@ public class MacServiceFFI implements MacServiceNI
     }
 
     @Override
-    public int ni_init(long ref, byte[] keyBytes)
+    public int ni_init(long ref, byte[] keyBytes, byte[] ivBytes)
     {
         try
         {
             MemorySegment key = keyBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(keyBytes);
-            return (int) MH_init.invokeExact(MemorySegment.ofAddress(ref), key, key.byteSize());
+            // MemorySegment.NULL has byteSize 0, so a null IV reaches the bridge
+            // as the NULL/0 pair it checks for.
+            MemorySegment iv = ivBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(ivBytes);
+            return (int) MH_init.invokeExact(MemorySegment.ofAddress(ref), key, key.byteSize(),
+                    iv, iv.byteSize());
         }
         catch (Throwable t)
         {

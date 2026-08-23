@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Mac;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
@@ -25,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.ProviderException;
 import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
@@ -182,6 +184,12 @@ public class FIPSServedSurfaceSmokeTest
         System.arraycopy(msgA, 0, msgB, 0, msgA.length);
         msgB[0] ^= 0x01;
 
+        // GMAC is the one registered MAC that cannot run without a nonce, so
+        // init(key) alone would fail it for the right reason but with the wrong
+        // verdict. The SAME IV is used for both halves of the differentiator,
+        // so the tags can only differ because the MESSAGE differs.
+        byte[] gmacIv = randomBytes(12);
+
         for (Provider.Service s : sorted(provider))
         {
             if (!"Mac".equals(s.getType()))
@@ -191,17 +199,20 @@ public class FIPSServedSurfaceSmokeTest
             String alg = s.getAlgorithm();
             try
             {
-                // CMAC needs an AES-sized key; HMAC needs at least the module's
-                // floor. 32 bytes satisfies both.
+                // CMAC and GMAC need an AES-sized key; HMAC needs at least the
+                // module's floor. 32 bytes satisfies all three.
                 SecretKeySpec key = new SecretKeySpec(randomBytes(32),
-                        alg.contains("CMAC") ? "AES" : alg);
+                        alg.contains("CMAC") || alg.contains("GMAC") ? "AES" : alg);
+
+                AlgorithmParameterSpec spec =
+                        alg.contains("GMAC") ? new IvParameterSpec(gmacIv) : null;
 
                 Mac mac = Mac.getInstance(alg, FIPS);
-                mac.init(key);
+                mac.init(key, spec);
                 byte[] ta = mac.doFinal(msgA);
 
                 Mac mac2 = Mac.getInstance(alg, FIPS);
-                mac2.init(key);
+                mac2.init(key, spec);
                 byte[] tb = mac2.doFinal(msgB);
 
                 if (ta.length == 0)

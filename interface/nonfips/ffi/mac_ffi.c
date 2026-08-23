@@ -45,7 +45,15 @@ mac_ctx *JoMAC_copy(mac_ctx *ctx, int32_t *err) {
     return mac_copy(ctx, err);
 }
 
-int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
+/*
+ * iv/iv_len carry GMAC's nonce. A NULL iv is LEGITIMATE - every MAC but GMAC
+ * is initialised without one - so it is not rejected here; init_mac_ctx's GMAC
+ * arm returns JO_IV_IS_NULL when the MAC actually needs it. What IS rejected
+ * is an inconsistent pair, which no Java caller can produce (a null array
+ * marshals to NULL/0) but which would otherwise hand OpenSSL a length with no
+ * buffer.
+ */
+int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len, uint8_t *iv, size_t iv_len) {
 
     if (ctx == NULL) {
         return JO_MAC_CTX_IS_NULL;
@@ -54,7 +62,12 @@ int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len) {
     if (key == NULL) {
         return JO_KEY_IS_NULL;
     }
-    return mac_init(ctx, key, key_len);
+
+    if (iv == NULL && iv_len != 0) {
+        return JO_IV_IS_NULL;
+    }
+
+    return mac_init(ctx, key, key_len, iv, iv_len);
 }
 
 int32_t JoMAC_updateByte(mac_ctx *ctx, uint8_t b) {
