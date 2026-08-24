@@ -79,6 +79,7 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.2.16.840.1.101.3.4.1.8",
             "Cipher.AES",
             "Cipher.AES/CCM/NOPADDING",
+            "Cipher.AES/XTS/NOPADDING",
             "Cipher.AES128",
             "Cipher.AES192",
             "Cipher.AES256",

@@ -42,6 +42,15 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Test agreement between BC Java and Jostle.
  * Official vector tests elsewhere
+ * <p>
+ * <b>AES/XTS is deliberately absent from this class, not overlooked.</b>
+ * BouncyCastle ships no AES-XTS — its only XTS class is
+ * {@code KXTSBlockCipher}, the DSTU 7624 Kalyna variant — and neither does
+ * SunJCE, so there is no independent JCE provider to agree with. Per the
+ * interop-reference order in testing.md, XTS agreement is instead against a
+ * from-spec IEEE 1619 reference plus the published Vector 4, and lives in
+ * {@code AESXTSTest} (with the JSLFIPS half in
+ * {@code fips/FIPSAESXTSTest}).
  */
 public class AESAgreementTest
 {

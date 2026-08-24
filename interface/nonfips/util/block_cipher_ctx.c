@@ -76,6 +76,79 @@ static inline size_t ocb_update_out(block_cipher_ctx *ctx, size_t fed) {
 }
 
 
+/*
+ * Drop whatever the XTS accumulation buffer holds, cleansing it first. Called
+ * on every init (the JCA reset path reuses the ctx across data units) and on
+ * the final path once the unit has been consumed, so a plaintext data unit
+ * never outlives the operation that produced it. The allocation itself is
+ * kept — the next data unit is usually the same size, and reusing it avoids a
+ * malloc per sector.
+ */
+static void xts_discard(block_cipher_ctx *ctx) {
+    if (ctx->xts_buffer != NULL && ctx->xts_buffered > 0) {
+        OPENSSL_cleanse(ctx->xts_buffer, ctx->xts_buffered);
+    }
+    ctx->xts_buffered = 0;
+}
+
+
+/*
+ * Append a chunk to the XTS accumulation buffer, growing it if needed.
+ *
+ * Growth is malloc + copy + OPENSSL_clear_free of the old block rather than
+ * OPENSSL_realloc: realloc would abandon the previous plaintext copy
+ * uncleansed, while every other release of this buffer clear-frees. Capacity
+ * doubles so a caller feeding a sector in small chunks does not pay a copy per
+ * chunk.
+ *
+ * The total is bounded at INT32_MAX because the byte count returns to Java as
+ * an int32_t. OpenSSL's own SP 800-38E data-unit cap (2^20 blocks) is left to
+ * OpenSSL — pre-checking it here would duplicate a limit the provider already
+ * enforces and names in its own error.
+ */
+static int32_t xts_append(block_cipher_ctx *ctx, uint8_t *input, size_t in_len) {
+    if (in_len == 0) {
+        return JO_SUCCESS;
+    }
+
+    if (in_len > (size_t) INT32_MAX - ctx->xts_buffered) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+
+    size_t needed = ctx->xts_buffered + in_len;
+
+    if (needed > ctx->xts_capacity) {
+        size_t capacity = ctx->xts_capacity == 0 ? 512 : ctx->xts_capacity;
+        while (capacity < needed) {
+            // Cannot overflow: `needed` is already bounded by INT32_MAX, so
+            // the loop stops well before size_t wraps.
+            capacity *= 2;
+        }
+
+        uint8_t *grown = OPENSSL_malloc(capacity);
+        if (OPS_OPENSSL_ERROR_10 grown == NULL) {
+            // Allocation failure. JO_OPENSSL_ERROR is what the util layer
+            // returns for a failed OPENSSL_malloc elsewhere (ec.c is the
+            // precedent); the buffer and its byte count are left untouched so
+            // the ctx stays consistent and a later call can retry.
+            return JO_OPENSSL_ERROR;
+        }
+
+        if (ctx->xts_buffer != NULL) {
+            memcpy(grown, ctx->xts_buffer, ctx->xts_buffered);
+            OPENSSL_clear_free(ctx->xts_buffer, ctx->xts_capacity);
+        }
+
+        ctx->xts_buffer = grown;
+        ctx->xts_capacity = capacity;
+    }
+
+    memcpy(ctx->xts_buffer + ctx->xts_buffered, input, in_len);
+    ctx->xts_buffered = needed;
+    return JO_SUCCESS;
+}
+
+
 static inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 
     if (iv_len > block_len) {
@@ -964,6 +1037,9 @@ int32_t block_cipher_ctx_init(
 
 
     ctx->processed = 0;
+    // The JCA reset path reuses one ctx across data units, so a partially
+    // accumulated XTS unit must not survive into the next operation.
+    xts_discard(ctx);
     ctx->initialized = 1;
 
 exit:
@@ -1094,7 +1170,13 @@ int32_t block_cipher_ctx_update(
         } else if (out_len < ocb_update_out(ctx, evp_fed)) {
             return JO_OUTPUT_TOO_SMALL;
         }
-    } else if (ctx->streaming == 0 && ctx->mode_id != XTS && ctx->tag_len == 0) {
+    } else if (ctx->mode_id == XTS) {
+        // XTS writes nothing on update — the data unit is accumulated and
+        // emitted whole at final — so it needs no output capacity here. The
+        // ordering matters: this must precede the generic
+        // `out_len < in_len` arm below, which would otherwise demand a
+        // window the caller has correctly sized to zero.
+    } else if (ctx->streaming == 0 && ctx->tag_len == 0) {
         if (!ctx->initialized) {
             // cipher_block_size is unset (0) before init — the block-aware
             // check below would divide by zero. Keep the legacy in_len check
@@ -1145,15 +1227,24 @@ int32_t block_cipher_ctx_update(
         return JO_NOT_INITIALIZED;
     }
 
+    // XTS accumulates instead of feeding EVP: the tweak sequence restarts at
+    // the head of every EVP update call, so the whole data unit has to reach
+    // OpenSSL in one piece. Emits nothing here — the size functions report 0
+    // for an XTS update and the full unit at final. The data-unit minimum is
+    // therefore checked at final, once the total is known, not per chunk.
+    if (ctx->mode_id == XTS) {
+        int32_t append_rc = xts_append(ctx, input, in_len);
+        if (append_rc < 0) {
+            return append_rc;
+        }
+        return 0;
+    }
+
     if (ctx->streaming == 0 && ctx->padding == NO_PADDING) {
         if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
             // RFC 3394 (KW) requires input that is a multiple of 8 bytes and at
             // least 16; RFC 5649 (KWP) accepts any length >= 1. OpenSSL enforces
             // these per-algorithm, so don't impose the 16-byte block alignment.
-        } else if (ctx->mode_id == XTS) {
-            if (in_len < ctx->cipher_block_size) {
-                return JO_NOT_BLOCK_ALIGNED;
-            }
         } else if (in_len % ctx->cipher_block_size != 0) {
             return JO_NOT_BLOCK_ALIGNED;
         }
@@ -1291,6 +1382,17 @@ int32_t block_cipher_ctx_update(
 int32_t final_size(block_cipher_ctx *ctx, size_t len) {
     if (len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
+    }
+
+    // XTS emits everything at final: whatever previous updates accumulated,
+    // plus the bytes this doFinal call is about to append. Ciphertext
+    // stealing means output length equals input length exactly.
+    if (ctx->mode_id == XTS) {
+        size_t out = ctx->xts_buffered + len;
+        if (out > INT32_MAX) {
+            return JO_OUTPUT_SIZE_INT_OVERFLOW;
+        }
+        return (int32_t) out;
     }
 
     if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
@@ -1463,6 +1565,66 @@ int32_t block_cipher_ctx_final(
 
     ERR_clear_error();
 
+    // XTS runs here, not in update: the accumulated data unit goes to EVP in
+    // one call so the tweak sequence is applied across the whole unit exactly
+    // once. Chunking is therefore invisible to the output — any split of the
+    // same unit yields the same ciphertext, which is what makes the streaming
+    // JCA contract safe for a one-shot primitive.
+    if (ctx->mode_id == XTS) {
+        // IEEE 1619 has no defined output below one AES block, and the check
+        // belongs here rather than per-chunk: only now is the total known, so
+        // a caller feeding 8 bytes then 8 more is correctly accepted while a
+        // single 8-byte unit is not. Covers the zero-length case too, which
+        // never reaches update at all (the SPI skips the call when there is
+        // nothing to feed).
+        if (ctx->xts_buffered < ctx->cipher_block_size) {
+            // Discard before returning: a rejected data unit must not leave
+            // bytes behind for the NEXT doFinal to silently absorb, which
+            // would turn a refused 7-byte unit plus a later 9-byte one into an
+            // accepted 16-byte unit the caller never asked for.
+            xts_discard(ctx);
+            written = JO_NOT_BLOCK_ALIGNED;
+            goto failed;
+        }
+
+        if (ctx->xts_buffered > out_len) {
+            // Same reasoning, but note this one is recoverable by the caller
+            // re-calling with a large enough buffer — so it must NOT discard.
+            // JCE's ShortBufferException contract is explicitly "retry with a
+            // bigger buffer", and dropping the unit would make the retry
+            // produce a different (shorter) result.
+            written = JO_OUTPUT_TOO_SMALL;
+            goto failed;
+        }
+
+        int evp_written = 0;
+        int ok;
+        if (ctx->op_mode == ENCRYPT_MODE) {
+            ok = EVP_EncryptUpdate(ctx->evp, output, &evp_written, ctx->xts_buffer,
+                                   (int) ctx->xts_buffered);
+        } else if (ctx->op_mode == DECRYPT_MODE) {
+            ok = EVP_DecryptUpdate(ctx->evp, output, &evp_written, ctx->xts_buffer,
+                                   (int) ctx->xts_buffered);
+        } else {
+            written = JO_INVALID_OP_MODE;
+            goto failed;
+        }
+
+        // Cleanse the plaintext unit as soon as OpenSSL has consumed it,
+        // whether or not the call succeeded.
+        xts_discard(ctx);
+
+        if (OPS_OPENSSL_ERROR_8 1 != ok) {
+            ctx->poisoned = 1;
+            written = JO_OPENSSL_ERROR;
+            goto failed;
+        }
+
+        ctx->processed += (size_t) evp_written;
+        written = evp_written;
+        goto reset;
+    }
+
     if (ctx->op_mode == ENCRYPT_MODE) {
         int32_t min_out_len = internal_final_size(ctx);
         if (min_out_len < 0) {
@@ -1543,6 +1705,9 @@ int32_t block_cipher_ctx_final(
     }
 
 
+reset:
+    ;   // A label must precede a statement, not a declaration, before C23.
+
     // Reset for next round, return any errors, reset failure will poison
     // the block cipher making it unusable and should not be able to happen.
     int32_t reset_rc = block_cipher_ctx_init(ctx, ctx->op_mode, ctx->last_key, ctx->key_len, ctx->last_iv, ctx->iv_len,
@@ -1621,11 +1786,18 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
         return (int32_t) ocb;
     }
 
+    // XTS accumulates the whole data unit and emits it all at final, so an
+    // update writes nothing and needs no output capacity. Reporting `len`
+    // here (as it did while update fed EVP directly) would make the
+    // auto-allocating Cipher.update path hand back a zero-filled array of the
+    // input's length instead of an empty one.
+    if (ctx->mode_id == XTS) {
+        return 0;
+    }
+
     size_t result;
 
-    // XTS with ciphertext stealing produces output of the same length as
-    // input (regardless of block alignment), so size like a streaming mode.
-    if (ctx->streaming || ctx->mode_id == XTS) {
+    if (ctx->streaming) {
         result = len;
     } else {
         // Block-cipher modes (padded or unpadded): the upper bound on
@@ -1688,6 +1860,9 @@ void block_cipher_ctx_destroy(block_cipher_ctx *ctx) {
     if (ctx->evp != NULL) {
         EVP_CIPHER_CTX_free(ctx->evp);
     }
+
+    // Plaintext data-unit bytes — clear-free, never plain free.
+    OPENSSL_clear_free(ctx->xts_buffer, ctx->xts_capacity);
 
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }

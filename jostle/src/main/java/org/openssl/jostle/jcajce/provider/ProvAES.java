@@ -110,5 +110,18 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding",
                 PREFIX + "AESCCM", generalAesAttributes, (arg) -> new AESCCMCipherSpi());
 
+        // XTS-AES (IEEE 1619 / SP 800-38E). Registered under the explicit
+        // transformation so it appears in getServices() rather than only
+        // resolving through the bare "AES" primary's engineSetMode. The mode
+        // is pre-locked in the constructor because a form-1 lookup on the
+        // full transformation does NOT call engineSetMode.
+        //
+        // No AES128/AES192/AES256 variants: the XTS key is key1||key2, so its
+        // length alone picks the cipher (32 bytes -> AES-128-XTS, 64 ->
+        // AES-256-XTS) and AES-192-XTS does not exist. There is no BC name to
+        // follow here — BouncyCastle ships no AES-XTS at all.
+        provider.addAlgorithmImplementation("Cipher", "AES/XTS/NoPadding",
+                PREFIX + "AESXTS", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.XTS));
+
     }
 }

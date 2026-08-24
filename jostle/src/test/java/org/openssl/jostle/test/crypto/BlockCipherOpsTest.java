@@ -1169,4 +1169,91 @@ public class BlockCipherOpsTest
         }
     }
 
+
+    @Test
+    public void testXts_appendAllocationFailure() throws Exception
+    {
+        // The XTS accumulation buffer grows by malloc + copy; an allocation
+        // failure there is unreachable in any real configuration, so OPS is
+        // the only way to exercise it. The first update sizes the buffer, so
+        // the flag is set before a SECOND, larger update forces the growth.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 11, 0); // AES128, XTS, NO_PADDING
+            byte[] key = new byte[32];
+            for (int i = 0; i < 16; i++)
+            {
+                key[i] = 0x11;
+            }
+            for (int i = 16; i < 32; i++)
+            {
+                key[i] = 0x22;
+            }
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
+
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:129
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
+
+            try
+            {
+                blockCipherNI.update(ref, new byte[1024], 0, new byte[1024], 0, 1024);
+                Assertions.fail("expected the XTS buffer allocation failure to surface");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testXts_finalEvpFailure() throws Exception
+    {
+        // The single EVP_{Encrypt,Decrypt}Update that consumes the accumulated
+        // XTS data unit at final. Real OpenSSL only fails it for inputs the
+        // layers above already reject, so OPS is the only route.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 11, 0); // AES128, XTS, NO_PADDING
+            byte[] key = new byte[32];
+            for (int i = 0; i < 16; i++)
+            {
+                key[i] = 0x11;
+            }
+            for (int i = 16; i < 32; i++)
+            {
+                key[i] = 0x22;
+            }
+            Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
+            Assertions.assertEquals(0, blockCipherNI.update(ref, new byte[32], 0, new byte[32], 0, 32));
+
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1607
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+
+            try
+            {
+                blockCipherNI.doFinal(ref, new byte[32], 0);
+                Assertions.fail("expected the XTS final EVP failure to surface");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
 }

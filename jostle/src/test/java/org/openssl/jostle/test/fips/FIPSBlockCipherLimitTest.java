@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
 
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import java.security.InvalidKeyException;
 import java.util.Arrays;
 
@@ -46,7 +47,9 @@ public class FIPSBlockCipherLimitTest
     private static final int AES256 = OSSLCipher.AES256.ordinal();
     private static final int ECB = OSSLMode.ECB.ordinal();
     private static final int CBC = OSSLMode.CBC.ordinal();
+    private static final int XTS = OSSLMode.XTS.ordinal();
     private static final int PKCS_PADDING = 1;
+    private static final int NO_PADDING = 0;
 
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
@@ -432,6 +435,148 @@ public class FIPSBlockCipherLimitTest
         void run(long ref) throws Exception;
     }
 
+    // ---------------------------------------------------------------------
+    // XTS one-shot contract.
+    //
+    // The two guards live in the FIPS tree's own copy of block_cipher_ctx.c,
+    // so the base BlockCipherLimitTest cannot vouch for them here — these pin
+    // that they survived into the FIPS interface library.
+    // ---------------------------------------------------------------------
+
+    /**
+     * XTS accumulates in util and hands EVP the whole data unit at final,
+     * because EVP restarts the tweak sequence at the head of every update
+     * call. Pinned against the FIPS library specifically — its util copy is a
+     * separate source file, so the base test cannot vouch for it.
+     */
+    @Test
+    public void xts_chunkedUpdatesAgreeWithOneShot() throws Exception
+    {
+        byte[] pt = new byte[64];
+        for (int i = 0; i < pt.length; i++)
+        {
+            pt[i] = (byte) (i * 7 + 3);
+        }
+
+        byte[] oneShot = xtsEncryptChunked(pt, new int[]{64});
+
+        for (int[] split : new int[][]{{32, 32}, {16, 16, 32}, {1, 63}, {63, 1}, {15, 17, 32}})
+        {
+            Assertions.assertArrayEquals(oneShot, xtsEncryptChunked(pt, split),
+                    "split " + Arrays.toString(split) + " diverged from the one-shot result");
+        }
+    }
+
+    /** Two sub-block chunks make a legal one-block data unit. */
+    @Test
+    public void xts_subBlockChunksAccumulate() throws Exception
+    {
+        long ref = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0, ni.init(ref, Cipher.ENCRYPT_MODE, xtsKey(), new byte[16], 0));
+            byte[] out = new byte[16];
+            Assertions.assertEquals(0, ni.update(ref, out, 0, new byte[16], 0, 8));
+            Assertions.assertEquals(0, ni.update(ref, out, 0, new byte[16], 8, 8));
+            Assertions.assertEquals(16, ni.doFinal(ref, out, 0));
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    private byte[] xtsEncryptChunked(byte[] pt, int[] split) throws Exception
+    {
+        long ref = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0, ni.init(ref, Cipher.ENCRYPT_MODE, xtsKey(), new byte[16], 0));
+            byte[] out = new byte[pt.length];
+            int off = 0;
+            for (int chunk : split)
+            {
+                Assertions.assertEquals(0, ni.update(ref, out, 0, pt, off, chunk),
+                        "an XTS update must emit no bytes while accumulating");
+                off += chunk;
+            }
+            Assertions.assertEquals(pt.length, ni.doFinal(ref, out, 0));
+            return out;
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    /**
+     * A zero-length data unit reaches the native layer only through doFinal —
+     * the SPI skips the update call when there is nothing to feed — so it
+     * needs its own guard, and gets the same answer as the 1..15-byte case.
+     */
+    @Test
+    public void xts_emptyDataUnitRejectedTyped() throws Exception
+    {
+        long ref = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0, ni.init(ref, Cipher.ENCRYPT_MODE, xtsKey(), new byte[16], 0));
+
+            IllegalBlockSizeException e = Assertions.assertThrows(IllegalBlockSizeException.class,
+                    () -> ni.doFinal(ref, new byte[16], 0));
+            Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    /**
+     * 15 bytes TOTAL refused, 16 accepted — the boundary sits at exactly one
+     * block, and it is checked at final where the total is known rather than
+     * per chunk (which would wrongly refuse 8 + 8).
+     */
+    @Test
+    public void xts_subBlockDataUnitRejectedTyped() throws Exception
+    {
+        long ref = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0, ni.init(ref, Cipher.ENCRYPT_MODE, xtsKey(), new byte[16], 0));
+            Assertions.assertEquals(0, ni.update(ref, new byte[16], 0, new byte[15], 0, 15));
+
+            IllegalBlockSizeException e = Assertions.assertThrows(IllegalBlockSizeException.class,
+                    () -> ni.doFinal(ref, new byte[16], 0));
+            Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+
+        long okRef = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0, ni.init(okRef, Cipher.ENCRYPT_MODE, xtsKey(), new byte[16], 0));
+            Assertions.assertEquals(0, ni.update(okRef, new byte[16], 0, new byte[16], 0, 16));
+            Assertions.assertEquals(16, ni.doFinal(okRef, new byte[16], 0));
+        }
+        finally
+        {
+            ni.dispose(okRef);
+        }
+    }
+
+    /** XTS refuses key1 == key2, so the two halves must differ. */
+    private static byte[] xtsKey()
+    {
+        byte[] key = new byte[32];
+        Arrays.fill(key, 0, 16, (byte) 0x11);
+        Arrays.fill(key, 16, 32, (byte) 0x22);
+        return key;
+    }
+
     private void withInitedCbc(RefBody body)
     {
         long ref = ni.makeInstance(AES128, CBC, PKCS_PADDING);
@@ -453,4 +598,130 @@ public class FIPSBlockCipherLimitTest
             ni.dispose(ref);
         }
     }
+
+    /**
+     * Offset-write contract for XTS at the NI surface, four-step per
+     * testing.md: random fill, snapshot the prefix, byte-compare it after the
+     * call, then validate the written region functionally and prove a
+     * one-byte-early window does NOT round-trip.
+     */
+    @Test
+    public void testXts_writesAtOffsetWithoutClobberingPrefix() throws Exception
+    {
+        byte[] key = xtsKey();
+        byte[] tweak = new byte[16];
+        byte[] pt = new byte[64];
+        XTS_RANDOM.nextBytes(tweak);
+        XTS_RANDOM.nextBytes(pt);
+
+        byte[] reference = xtsEncrypt(key, tweak, pt, new byte[64], 0);
+
+        final int prefix = 7;
+        byte[] big = new byte[prefix + 64 + 9];
+        XTS_RANDOM.nextBytes(big);
+        byte[] savedPrefix = java.util.Arrays.copyOf(big, prefix);
+        byte[] savedTail = java.util.Arrays.copyOfRange(big, prefix + 64, big.length);
+
+        int written = xtsEncryptInto(key, tweak, pt, big, prefix);
+        Assertions.assertEquals(64, written);
+
+        Assertions.assertArrayEquals(savedPrefix, java.util.Arrays.copyOf(big, prefix),
+                "prefix region was clobbered");
+        Assertions.assertArrayEquals(savedTail,
+                java.util.Arrays.copyOfRange(big, prefix + written, big.length),
+                "bytes past the written region were clobbered");
+        Assertions.assertArrayEquals(reference,
+                java.util.Arrays.copyOfRange(big, prefix, prefix + written),
+                "the region written at the offset is not the expected ciphertext");
+
+        byte[] shifted = java.util.Arrays.copyOfRange(big, prefix - 1, prefix - 1 + written);
+        Assertions.assertFalse(java.util.Arrays.equals(pt, xtsDecrypt(key, tweak, shifted)),
+                "a window one byte early round-trips — the write landed before the offset");
+    }
+
+    /**
+     * XTS reads its whole data unit before emitting output, but it is driven
+     * through the streaming update/doFinal pair, so the supported aliased
+     * layout is in == out at the SAME offset. Different-offset overlap is not
+     * tested — see the note on the CBC in-place tests.
+     */
+    @Test
+    public void testXts_inPlaceSameOffset() throws Exception
+    {
+        byte[] key = xtsKey();
+        byte[] tweak = new byte[16];
+        byte[] pt = new byte[64];
+        XTS_RANDOM.nextBytes(tweak);
+        XTS_RANDOM.nextBytes(pt);
+
+        byte[] reference = xtsEncrypt(key, tweak, pt, new byte[64], 0);
+
+        final int off = 5;
+        byte[] buf = new byte[off + 64 + 11];
+        XTS_RANDOM.nextBytes(buf);
+        System.arraycopy(pt, 0, buf, off, pt.length);
+        byte[] snapshot = buf.clone();
+
+        int written = xtsEncryptInto(key, tweak, buf, off, pt.length, buf, off);
+        Assertions.assertEquals(64, written);
+
+        Assertions.assertArrayEquals(reference, java.util.Arrays.copyOfRange(buf, off, off + written),
+                "in-place output differs from the separate-buffer reference");
+        Assertions.assertArrayEquals(java.util.Arrays.copyOf(snapshot, off),
+                java.util.Arrays.copyOf(buf, off), "bytes before the offset were clobbered");
+        Assertions.assertArrayEquals(
+                java.util.Arrays.copyOfRange(snapshot, off + written, snapshot.length),
+                java.util.Arrays.copyOfRange(buf, off + written, buf.length),
+                "bytes after the written region were clobbered");
+    }
+
+    // --- XTS NI helpers ---
+
+    private static final java.security.SecureRandom XTS_RANDOM = new java.security.SecureRandom();
+
+    private byte[] xtsEncrypt(byte[] key, byte[] tweak, byte[] pt, byte[] out, int outOff) throws Exception
+    {
+        int n = xtsEncryptInto(key, tweak, pt, out, outOff);
+        return java.util.Arrays.copyOfRange(out, outOff, outOff + n);
+    }
+
+    private int xtsEncryptInto(byte[] key, byte[] tweak, byte[] pt, byte[] out, int outOff) throws Exception
+    {
+        return xtsEncryptInto(key, tweak, pt, 0, pt.length, out, outOff);
+    }
+
+    private int xtsEncryptInto(byte[] key, byte[] tweak, byte[] in, int inOff, int inLen,
+                               byte[] out, int outOff) throws Exception
+    {
+        long ref = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.ENCRYPT_MODE, key, tweak, 0);
+            int n = ni.update(ref, out, outOff, in, inOff, inLen);
+            n += ni.doFinal(ref, out, outOff + n);
+            return n;
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    private byte[] xtsDecrypt(byte[] key, byte[] tweak, byte[] ct) throws Exception
+    {
+        long ref = ni.makeInstance(AES128, XTS, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.DECRYPT_MODE, key, tweak, 0);
+            byte[] out = new byte[ct.length];
+            int n = ni.update(ref, out, 0, ct, 0, ct.length);
+            n += ni.doFinal(ref, out, n);
+            return java.util.Arrays.copyOf(out, n);
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
 }

@@ -109,6 +109,14 @@ class ProvFIPSAES
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding", PREFIX + "AESCCM", generalAesAttributes,
                 (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI));
 
+        // XTS-AES (IEEE 1619 / SP 800-38E). Ungated: probed servable, with
+        // identical behaviour, on both supported FIPS modules (3.1.2 and
+        // 3.5.7) at their default and -pedantic fipsinstall configurations.
+        // See the base ProvAES registration for why there are no per-key-size
+        // variants.
+        provider.addAlgorithmImplementation("Cipher", "AES/XTS/NoPadding", PREFIX + "AESXTS", generalAesAttributes,
+                (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.XTS));
+
         //
         // AlgorithmParameters are pure-Java ASN.1 encodings - no NI binding.
         //

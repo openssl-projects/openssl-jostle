@@ -592,6 +592,15 @@ class BlockCipherSpi extends CipherSpi
                         input,
                         inputOffset, inputLen);
             }
+            catch (RuntimeException ex)
+            {
+                // Already an unchecked, typed exception (IllegalStateException
+                // for an XTS second update, OpenSSLException for a native
+                // failure). Re-wrapping it in a bare RuntimeException would
+                // erase the type a caller can catch on, and engineUpdate
+                // declares no checked exception to convert it to.
+                throw ex;
+            }
             catch (Exception ex)
             {
                 throw new RuntimeException(ex.getMessage(), ex);
