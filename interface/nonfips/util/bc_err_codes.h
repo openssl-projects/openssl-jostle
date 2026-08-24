@@ -388,6 +388,67 @@
 
 
 /*
+ * The keying input to KBKDF (Ki), SSKDF (the shared secret Z) or SSHKDF (K)
+ * is null. Named apart from JO_KDF_HKDF_IKM_NULL because the caller-facing
+ * name of the input differs per KDF and each limit test pins its own message.
+ */
+#define JO_KDF_SECRET_NULL -155
+#define JO_KDF_SECRET_FAILED_ACCESS -156
+
+/*
+ * The JNI critical-region load of the optional context/info array failed
+ * (KBKDF Context, SSKDF FixedInfo). The FFI bridge cannot produce it, but both
+ * bridges must return identical codes for identical inputs, so it is defined
+ * once here rather than per bridge. KBKDF's Label reuses JO_KDF_SALT_FAILED_ACCESS
+ * because Label IS the OSSL_KDF_PARAM_SALT parameter.
+ */
+#define JO_KDF_INFO_FAILED_ACCESS -157
+
+/*
+ * KBKDF's mode ("COUNTER"/"FEEDBACK") or MAC ("HMAC"/"CMAC") name is null or
+ * empty. Only emptiness is checked here - whether a non-empty name is one
+ * OpenSSL knows is OpenSSL's question, per the classify-don't-pre-check rule,
+ * and the two supported modules were measured to accept the same set.
+ */
+#define JO_KDF_UNKNOWN_MODE -158
+#define JO_KDF_UNKNOWN_MAC -159
+
+/*
+ * SSHKDF's type letter is null or empty. RFC 4253 defines exactly A..F, and
+ * all four measured environments refuse anything else with "value error", so a
+ * bad-but-non-empty letter is left to OpenSSL and surfaces as JO_OPENSSL_ERROR.
+ */
+#define JO_KDF_SSHKDF_TYPE_INVALID -160
+
+/*
+ * SSHKDF's exchange hash H and session id are both mandatory inputs (RFC 4253
+ * section 7.2) - unlike a salt or an info string there is no defined
+ * "absent" form, so a null is the caller's error, not a default request.
+ */
+#define JO_KDF_SSHKDF_XCGHASH_NULL -161
+#define JO_KDF_SSHKDF_XCGHASH_FAILED_ACCESS -162
+#define JO_KDF_SSHKDF_SESSION_ID_NULL -163
+#define JO_KDF_SSHKDF_SESSION_ID_FAILED_ACCESS -164
+
+/*
+ * A zero-length output was requested. Distinct from JO_OUTPUT_LEN_IS_NEGATIVE
+ * because zero is not negative and the message must say what was wrong. This
+ * is not a redundant guard: SSHKDF was measured to ACCEPT a zero-length
+ * request on all four supported environments and emit a zero-length key, so
+ * the refusal has to be ours. KBKDF and SSKDF refuse it themselves; the check
+ * is applied uniformly so a caller need not know which is which.
+ */
+#define JO_OUTPUT_LEN_IS_ZERO -165
+
+/*
+ * The JNI critical-region load of KBKDF's feedback IV array failed. Named
+ * apart from the Label's JO_KDF_SALT_FAILED_ACCESS so a limit test can tell
+ * which of the two optional arrays the bridge could not reach.
+ */
+#define JO_KDF_SEED_FAILED_ACCESS -166
+
+
+/*
  * Parenthesised so the comparison binds correctly under negation or
  * when x is a compound expression.
  */

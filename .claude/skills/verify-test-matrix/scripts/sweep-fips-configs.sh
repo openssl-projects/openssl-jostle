@@ -119,8 +119,19 @@ while IFS='|' read -r NAME MODULE CNF; do
   # mean something, since the switches decide whether the gates fire at all.
   ONE=$(echo "$TARGETS" | head -1)
   echo "  cnf: $ONE"
-  grep -E '^(dsa-sign-disabled|rsa-pkcs15-pad-disabled|hmac-key-check|kmac-key-check|no-short-mac|signature-digest-check)' \
-       "$ONE" 2>/dev/null | sed 's/^/    /' || echo "    (none of the tracked switches present)"
+  # Captured first, NOT piped straight into sed: a pipeline's exit status is
+  # the LAST command's, so `grep ... | sed ... || echo "(none)"` never fires
+  # the fallback - sed succeeds even when grep matched nothing. The symptom is
+  # a config whose switch block prints nothing at all, which reads as "the
+  # check did not run" rather than "this cnf carries none of them". Seen for
+  # real on the 3.1.2 config, 2026-08-24.
+  SWITCHES=$(grep -E '^(dsa-sign-disabled|rsa-pkcs15-pad-disabled|hmac-key-check|kmac-key-check|no-short-mac|signature-digest-check|kbkdf-key-check|sskdf-key-check|sskdf-digest-check|sshkdf-key-check|sshkdf-digest-check)' \
+       "$ONE" 2>/dev/null)
+  if [ -n "$SWITCHES" ]; then
+    echo "$SWITCHES" | sed 's/^/    /'
+  else
+    echo "    (none of the tracked switches present)"
+  fi
 
   if [ -n "${JOSTLE_SWEEP_DRYRUN:-}" ]; then
     # Plumbing check: prove discovery, the cnf swap and the restore work

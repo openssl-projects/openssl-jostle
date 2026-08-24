@@ -231,6 +231,45 @@ public enum ErrorCode
     // failed. Mirrors JO_FAILED_ACCESS_IV.
     JO_FAILED_ACCESS_CUSTOM(-154),
 
+    // The keying input to KBKDF (Ki), SSKDF (the shared secret Z) or SSHKDF (K).
+    // Named apart from JO_KDF_HKDF_IKM_NULL because the caller-facing name of
+    // the input differs per KDF and each limit test pins its own message.
+    JO_KDF_SECRET_NULL(-155),
+    JO_KDF_SECRET_FAILED_ACCESS(-156),
+
+    // JNI-only: the load of the optional context/info array failed (KBKDF
+    // Context, SSKDF FixedInfo). KBKDF's Label reuses JO_KDF_SALT_FAILED_ACCESS
+    // because Label IS the OSSL_KDF_PARAM_SALT parameter.
+    JO_KDF_INFO_FAILED_ACCESS(-157),
+
+    // KBKDF's mode or MAC name is null or empty. Only emptiness is checked in
+    // C — whether a non-empty name is one OpenSSL knows is OpenSSL's question.
+    JO_KDF_UNKNOWN_MODE(-158),
+    JO_KDF_UNKNOWN_MAC(-159),
+
+    // SSHKDF's type letter is null or empty. A bad-but-non-empty letter is left
+    // to OpenSSL, which refuses it with "value error" on every supported build.
+    JO_KDF_SSHKDF_TYPE_INVALID(-160),
+
+    // RFC 4253 7.2 makes the exchange hash and session id mandatory: unlike a
+    // salt or an info string there is no defined "absent" form, so a null is
+    // the caller's error rather than a request for a default.
+    JO_KDF_SSHKDF_XCGHASH_NULL(-161),
+    JO_KDF_SSHKDF_XCGHASH_FAILED_ACCESS(-162),
+    JO_KDF_SSHKDF_SESSION_ID_NULL(-163),
+    JO_KDF_SSHKDF_SESSION_ID_FAILED_ACCESS(-164),
+
+    // A zero-length output was requested. Not redundant with
+    // JO_OUTPUT_LEN_IS_NEGATIVE and not something OpenSSL always catches:
+    // SSHKDF accepts a zero-length request on every supported build and emits
+    // a zero-length key, so the refusal has to be ours.
+    JO_OUTPUT_LEN_IS_ZERO(-165),
+
+    // JNI-only: the load of KBKDF's feedback IV array failed. Named apart from
+    // the Label's JO_KDF_SALT_FAILED_ACCESS so a limit test can tell which of
+    // the two optional arrays the bridge could not reach.
+    JO_KDF_SEED_FAILED_ACCESS(-166),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

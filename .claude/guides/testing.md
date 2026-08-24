@@ -5,12 +5,12 @@ done. Auto-imported by CLAUDE.md.
 
 ### Test-discipline checklist — run before declaring a test file done
 
-Whenever you write or modify a roundtrip-style unit test (sign/verify, encrypt/decrypt, MAC, digest, encap/decap, KDF), audit the test against the following three rules **before declaring the work complete**. The full rationale for each rule lives in the named sections below; this checklist is the enforcement summary:
+Whenever you write or modify a roundtrip-style unit test (sign/verify, encrypt/decrypt, MAC, digest, encap/decap, KDF), audit the test against the following four rules **before declaring the work complete**. The full rationale for each rule lives in the named sections below; this checklist is the enforcement summary:
 
 1. **Random inputs.** Every key, IV / nonce, salt, AAD, plaintext, message, and password used in a non-KAT roundtrip MUST be derived from a `SecureRandom` (via `nextBytes`, a `KeyGenerator`, or a `KeyPairGenerator`) — not a hardcoded `byte[]` literal, hex string, or `"...".getBytes()`. KAT tests that pin a published vector are exempt. See **"Vary the chunking, and randomise the inputs"** and **"Run agreement tests against BouncyCastle, with random inputs"** for the full rules.
 2. **Negative path.** Every roundtrip primitive covered in the file MUST have at least one accompanying test that proves the operation actually transforms its input: tampered ciphertext → decrypt diverges, tampered message → verify returns false, wrong key → roundtrip fails, distinct inputs → distinct digests / MACs / derived keys. A KAT alone is insufficient — pair it with at least one differentiator. See **"Tests must exercise the negative path"** for the per-primitive expectations.
-
-3. **Assert the property, not the mechanism.** The assertion MUST fail when the behaviour a caller depends on is absent — not merely when the code path is absent. `clone()` returned, `getEncoded()` returned a Jostle key, a warning was logged, `store()` succeeded: each is a mechanism, each passed while the property was false. See **"Assert the property a caller depends on, not the mechanism"** for the five worked failures and the falsification procedure.
+3. **Both agreement classes.** A family with a `FIPS<FAMILY>AgreementTest` MUST also have a `<FAMILY>AgreementTest` (JSL vs BC), and vice versa; each MUST carry a falsified completeness guard over its own provider's `getServices()`. See **"Every family needs BOTH agreement classes"** — the two cover different native libraries and different lib ctxs, so neither substitutes for the other.
+4. **Assert the property, not the mechanism.** The assertion MUST fail when the behaviour a caller depends on is absent — not merely when the code path is absent. `clone()` returned, `getEncoded()` returned a Jostle key, a warning was logged, `store()` succeeded: each is a mechanism, each passed while the property was false. See **"Assert the property a caller depends on, not the mechanism"** for the five worked failures and the falsification procedure.
 
 **Automation.** Run the `audit-test-coverage` skill (in `.claude/skills/audit-test-coverage/`) before declaring a test file done; it scans the test tree for both classes of gap and reports per-file findings. The skill is heuristic but fast, and surfaces the same kinds of issues the historical audits caught (hardcoded `"hello world".getBytes()` in sign/verify roundtrips, BC-agreement KDF tests without a `KDF(salt1) != KDF(salt2)` differentiator, etc.).
 
@@ -90,6 +90,31 @@ Independently of the encrypt/decrypt agreement, **every key type Jostle exposes 
 - **Asymmetric encode/decode acceptance** — Jostle accepts BC's encoding but BC rejects Jostle's (or vice versa). Only a both-directions test surfaces this.
 
 For asymmetric keypairs, run the round-trip on **both** the public and private halves. For algorithms with multiple key-spec formats (e.g. RSA's `X509EncodedKeySpec` / `RSAPublicKeySpec` / `RSAPrivateCrtKeySpec`), test every format Jostle's `KeyFactory` advertises via the `SupportedKeyFormats` attribute. Use the same random-input rules as the agreement tests above — generate fresh keys per trial, never a fixture key whose encoding might happen to be valid by coincidence.
+
+### Every family needs BOTH agreement classes: `<FAMILY>AgreementTest` (JSL vs BC) and `FIPS<FAMILY>AgreementTest` (JSLFIPS vs JSL vs BC)
+
+**Symptom: `FIPS<FAMILY>AgreementTest` exists and `<FAMILY>AgreementTest` does not, so the base provider's cross-implementation coverage is whatever the per-algorithm classes happened to include — and nothing notices when a newly registered algorithm has none.** Observed for KDF: `FIPSKDFAgreementTest` had existed for months while there was no `KDFAgreementTest`; base BC comparison lived scattered across `HkdfTest`, `PBKdf2Test`, `ScryptTest`, `Argon2Test`, so a name registered in `ProvHKDF`/`ProvKBKDF`/… and added to none of them was exercised by nothing. The FIPS guard cannot cover it: that one reads **JSLFIPS's** registered set, so a JSL-only registration is invisible to it.
+
+The two classes are not redundant. They cover different code and different failure modes:
+
+| | `<FAMILY>AgreementTest` | `FIPS<FAMILY>AgreementTest` |
+|---|---|---|
+| Providers compared | JSL vs BC | JSLFIPS vs JSL **and** JSLFIPS vs BC |
+| Native library driven | `libinterface_{jni,ffi}` | `libinterface_fips_{jni,ffi}` |
+| `OSSL_LIB_CTX` | the base one | the FIPS one, `fips=yes` default properties |
+| Runs when | always | only with `TEST_FIPS_LIB` set (`FIPSTestUtil.assumeFipsProvider()`) |
+| Registered set it guards | `JostleProvider.getServices()` | `JostleFIPSProvider.getServices()` |
+
+So a base-only algorithm (scrypt, Argon2, ChaCha20, the memory-hard KDFs) is covered by the first and *cannot* be covered by the second, and a JSLFIPS registration bug is invisible to the first. **Neither substitutes for the other.** In particular, do not treat "the base sweep went green" as evidence the FIPS side is covered — that exact inference is what let KMAC ship with one-shot-only FIPS agreement (see DI-3 in `reviews/fips-missing-algorithms-plan.md`).
+
+**Rules.**
+
+1. **Both classes exist per family**, named `<FAMILY>AgreementTest` under `test/<area>/` and `FIPS<FAMILY>AgreementTest` under `test/fips/`. Adding the FIPS half without the base half is the defect this section names; so is the reverse.
+2. **Each carries a completeness guard** over its own provider's `getServices()` for the JCA type it covers — `everyRegistered<Type>IsCovered()`. It must assert BOTH directions: every registered name appears in a covered group, AND no covered name is unregistered (so a rename leaves a dead entry rather than silently testing nothing). `MacAgreementTest.everyRegisteredMacIsCovered`, `KDFAgreementTest.everyRegisteredSecretKeyFactoryIsCovered` and `FIPSKDFAgreementTest.everyRegisteredSecretKeyFactoryIsCovered` are the references.
+3. **Falsify the guard before it counts** — drop one entry from the covered set, confirm that test alone fails while its siblings stay green, revert. A guard that has never been seen to fail is not known to be a guard.
+4. **Prefer discovery to a hand-written list** where the family's tests share one driver shape (`MacAgreementTest` discovers from `getServices()`). Where they do not — KDFs take a different `KeySpec` per algorithm — hand-written groups are legitimate, and the guard is what makes them safe.
+5. **A missing BC JCE name is not a reason to skip agreement testing.** Fall back to BC's lightweight API (`KDFCounterBytesGenerator`, `ConcatenationKDFGenerator`, `HKDFBytesGenerator`, `HMac`), and where BC implements nothing at all, write the specification's own recurrence against a JDK primitive — `SSHKDFTest.rfc4253Reference` is the worked example. Name the exception in a constant the guard can account for (`MacAgreementTest.NO_BC_JCE_NAME`) rather than letting it read as an unexplained gap.
+6. **A gated family is legitimately absent on one module**, so the FIPS guard must compare against what is actually registered, never a fixed list.
 
 ### Boundary-test key, IV, and nonce lengths
 

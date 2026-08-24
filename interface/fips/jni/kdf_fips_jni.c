@@ -13,7 +13,10 @@
 
 /* *INDENT-OFF* */
 #define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf                      Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_hkdf
+#define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkdf                     Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_kbkdf
 #define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkdf2                    Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_pbkdf2
+#define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sshkdf                    Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_sshkdf
+#define Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sskdf                     Java_org_openssl_jostle_jcajce_provider_fips_KdfFIPSJNI_sskdf
 /* *INDENT-ON* */
 
 #include "kdf_jni.c"

@@ -25,5 +25,18 @@ class KdfFIPSJNI implements KdfNI
 
     @Override
     public native int hkdf(byte[] ikm, byte[] salt, byte[] info, String digest, byte[] out, int outOffset, int outLen);
+
+    @Override
+    public native int kbkdf(String mode, String mac, String digest, String cipher,
+                            byte[] key, byte[] label, byte[] context, byte[] seed,
+                            int r, int useL, int useSeparator,
+                            byte[] out, int outOffset, int outLen);
+
+    @Override
+    public native int sskdf(String digest, byte[] secret, byte[] info, byte[] out, int outOffset, int outLen);
+
+    @Override
+    public native int sshkdf(String digest, byte[] key, byte[] xcghash, byte[] sessionId, String type,
+                             byte[] out, int outOffset, int outLen);
 }
 

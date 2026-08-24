@@ -36,6 +36,12 @@ public class KdfNIFFI implements KdfNI
 
     private final MethodHandle hkdfFuncHandle;
 
+    private final MethodHandle kbkdfFuncHandle;
+
+    private final MethodHandle sskdfFuncHandle;
+
+    private final MethodHandle sshkdfFuncHandle;
+
     public KdfNIFFI()
     {
         this(SymbolLookup.loaderLookup());
@@ -99,8 +105,72 @@ public class KdfNIFFI implements KdfNI
                 ));
 
 
+        MemorySegment kbkdf = lookup.find(symPrefix + "JoKDF_KBKDF").orElseThrow();
+        kbkdfFuncHandle = linker.downcallHandle(kbkdf,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // mode name as bytes
+                        ValueLayout.JAVA_LONG, // length of mode name
+                        ValueLayout.ADDRESS, // mac name as bytes
+                        ValueLayout.JAVA_LONG, // length of mac name
+                        ValueLayout.ADDRESS, // digest name as bytes
+                        ValueLayout.JAVA_LONG, // length of digest name
+                        ValueLayout.ADDRESS, // cipher name as bytes
+                        ValueLayout.JAVA_LONG, // length of cipher name
+                        ValueLayout.ADDRESS, // key
+                        ValueLayout.JAVA_LONG, // key_len
+                        ValueLayout.ADDRESS, // label
+                        ValueLayout.JAVA_LONG, // label_len
+                        ValueLayout.ADDRESS, // context
+                        ValueLayout.JAVA_LONG, // context_len
+                        ValueLayout.ADDRESS, // seed (feedback IV)
+                        ValueLayout.JAVA_LONG, // seed_len
+                        ValueLayout.JAVA_INT, // r
+                        ValueLayout.JAVA_INT, // use_l
+                        ValueLayout.JAVA_INT, // use_separator
+                        ValueLayout.ADDRESS, // output
+                        ValueLayout.JAVA_LONG, // output_size -- total length of output array
+                        ValueLayout.JAVA_INT, // output offset
+                        ValueLayout.JAVA_INT // output length wanted
+                ));
 
 
+        MemorySegment sskdf = lookup.find(symPrefix + "JoKDF_SSKDF").orElseThrow();
+        sskdfFuncHandle = linker.downcallHandle(sskdf,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // digest name as bytes
+                        ValueLayout.JAVA_LONG, // length of digest name
+                        ValueLayout.ADDRESS, // secret
+                        ValueLayout.JAVA_LONG, // secret_len
+                        ValueLayout.ADDRESS, // info
+                        ValueLayout.JAVA_LONG, // info_len
+                        ValueLayout.ADDRESS, // output
+                        ValueLayout.JAVA_LONG, // output_size -- total length of output array
+                        ValueLayout.JAVA_INT, // output offset
+                        ValueLayout.JAVA_INT // output length wanted
+                ));
+
+
+        MemorySegment sshkdf = lookup.find(symPrefix + "JoKDF_SSHKDF").orElseThrow();
+        sshkdfFuncHandle = linker.downcallHandle(sshkdf,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // digest name as bytes
+                        ValueLayout.JAVA_LONG, // length of digest name
+                        ValueLayout.ADDRESS, // key
+                        ValueLayout.JAVA_LONG, // key_len
+                        ValueLayout.ADDRESS, // xcghash
+                        ValueLayout.JAVA_LONG, // xcghash_len
+                        ValueLayout.ADDRESS, // session_id
+                        ValueLayout.JAVA_LONG, // session_id_len
+                        ValueLayout.ADDRESS, // type name as bytes
+                        ValueLayout.JAVA_LONG, // length of type name
+                        ValueLayout.ADDRESS, // output
+                        ValueLayout.JAVA_LONG, // output_size -- total length of output array
+                        ValueLayout.JAVA_INT, // output offset
+                        ValueLayout.JAVA_INT // output length wanted
+                ));
     }
 
     /**
@@ -209,6 +279,137 @@ public class KdfNIFFI implements KdfNI
         {
             L.log(Level.WARNING,
                     "FFI JoKDF_HKDF", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    /**
+     * Marshal a name into the arena, or {@code MemorySegment.NULL} when absent
+     * so the bridge's null checks fire. Paired with {@link #nameLen}, which
+     * must be applied to the SAME segment.
+     */
+    private static MemorySegment nameSeg(Arena a, String name)
+    {
+        return (name == null) ? MemorySegment.NULL : a.allocateFrom(name);
+    }
+
+    /**
+     * Byte length of a name segment excluding its NUL terminus, matching what
+     * the JNI bridge gets from {@code GetStringUTFLength}.
+     */
+    private static long nameLen(String name, MemorySegment seg)
+    {
+        return (name == null) ? 0L : seg.byteSize() - 1;
+    }
+
+    @Override
+    public int kbkdf(String mode, String mac, String digest, String cipher,
+                     byte[] key, byte[] label, byte[] context, byte[] seed,
+                     int r, int useL, int useSeparator,
+                     byte[] out, int outOffset, int outLen)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment modeName = nameSeg(a, mode);
+            MemorySegment macName = nameSeg(a, mac);
+            MemorySegment digestName = nameSeg(a, digest);
+            MemorySegment cipherName = nameSeg(a, cipher);
+            MemorySegment keySeg = copyIn(a, key);
+            MemorySegment labelSeg = copyIn(a, label);
+            MemorySegment contextSeg = copyIn(a, context);
+            MemorySegment seedSeg = copyIn(a, seed);
+            MemorySegment output = outSeg(a, out);
+
+            int ret = (int) kbkdfFuncHandle.invokeExact(
+                    modeName, nameLen(mode, modeName),
+                    macName, nameLen(mac, macName),
+                    digestName, nameLen(digest, digestName),
+                    cipherName, nameLen(cipher, cipherName),
+                    keySeg, len(key),
+                    labelSeg, len(label),
+                    contextSeg, len(context),
+                    seedSeg, len(seed),
+                    r, useL, useSeparator,
+                    output,
+                    len(out),
+                    outOffset,
+                    outLen
+            );
+
+            copyOutBack(ret, output, out, outOffset, outLen);
+            return ret;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING,
+                    "FFI JoKDF_KBKDF", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int sskdf(String digest, byte[] secret, byte[] info, byte[] out, int outOffset, int outLen)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment digestName = nameSeg(a, digest);
+            MemorySegment secretSeg = copyIn(a, secret);
+            MemorySegment infoSeg = copyIn(a, info);
+            MemorySegment output = outSeg(a, out);
+
+            int ret = (int) sskdfFuncHandle.invokeExact(
+                    digestName, nameLen(digest, digestName),
+                    secretSeg, len(secret),
+                    infoSeg, len(info),
+                    output,
+                    len(out),
+                    outOffset,
+                    outLen
+            );
+
+            copyOutBack(ret, output, out, outOffset, outLen);
+            return ret;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING,
+                    "FFI JoKDF_SSKDF", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int sshkdf(String digest, byte[] key, byte[] xcghash, byte[] sessionId, String type,
+                      byte[] out, int outOffset, int outLen)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment digestName = nameSeg(a, digest);
+            MemorySegment keySeg = copyIn(a, key);
+            MemorySegment xcghashSeg = copyIn(a, xcghash);
+            MemorySegment sessionSeg = copyIn(a, sessionId);
+            MemorySegment typeName = nameSeg(a, type);
+            MemorySegment output = outSeg(a, out);
+
+            int ret = (int) sshkdfFuncHandle.invokeExact(
+                    digestName, nameLen(digest, digestName),
+                    keySeg, len(key),
+                    xcghashSeg, len(xcghash),
+                    sessionSeg, len(sessionId),
+                    typeName, nameLen(type, typeName),
+                    output,
+                    len(out),
+                    outOffset,
+                    outLen
+            );
+
+            copyOutBack(ret, output, out, outOffset, outLen);
+            return ret;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING,
+                    "FFI JoKDF_SSHKDF", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

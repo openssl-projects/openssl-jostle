@@ -14,8 +14,19 @@ import org.bouncycastle.crypto.Digest;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.digests.SHA384Digest;
 import org.bouncycastle.crypto.digests.SHA512Digest;
+import org.bouncycastle.crypto.BlockCipher;
+import org.bouncycastle.crypto.Mac;
+import org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.digests.SHA224Digest;
+import org.bouncycastle.crypto.engines.AESEngine;
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
+import org.bouncycastle.crypto.generators.KDFCounterBytesGenerator;
+import org.bouncycastle.crypto.macs.CMac;
+import org.bouncycastle.crypto.macs.HMac;
 import org.bouncycastle.crypto.params.HKDFParameters;
+import org.bouncycastle.crypto.params.KDFCounterParameters;
+import org.bouncycastle.crypto.params.KDFParameters;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -23,14 +34,20 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
+import org.openssl.jostle.jcajce.spec.KBKDFParameterSpec;
 import org.openssl.jostle.jcajce.spec.PBKDF2KeySpec;
+import org.openssl.jostle.jcajce.spec.SSHKDFParameterSpec;
+import org.openssl.jostle.jcajce.spec.SSKDFParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement for the FIPS provider's KDF surface (PBKDF2 and
@@ -102,6 +119,32 @@ public class FIPSKDFAgreementTest
 
     /** HKDF variants registered by JSLFIPS and JSL. */
     private static final String[] HKDF_ALGS = {"HKDF-SHA256", "HKDF-SHA384", "HKDF-SHA512"};
+
+    /** SP 800-108 KBKDF, HMAC PRF. Compared JSLFIPS vs JSL vs BC. */
+    private static final String[] KBKDF_HMAC_ALGS = {
+            "KBKDF-HMAC-SHA1", "KBKDF-HMAC-SHA224", "KBKDF-HMAC-SHA256",
+            "KBKDF-HMAC-SHA384", "KBKDF-HMAC-SHA512"
+    };
+
+    /** SP 800-108 KBKDF, CMAC PRF. Compared JSLFIPS vs JSL vs BC. */
+    private static final String[] KBKDF_CMAC_ALGS = {
+            "KBKDF-CMAC-AES128", "KBKDF-CMAC-AES192", "KBKDF-CMAC-AES256"
+    };
+
+    /** SP 800-56C one-step KDF. Compared JSLFIPS vs JSL vs BC. */
+    private static final String[] SSKDF_ALGS = {
+            "SSKDF-SHA1", "SSKDF-SHA224", "SSKDF-SHA256", "SSKDF-SHA384", "SSKDF-SHA512"
+    };
+
+    /**
+     * RFC 4253 SSH KDF. BouncyCastle has no SSH KDF, so the third reference is
+     * {@code kdf/SSHKDFTest}'s RFC recurrence rather than a BC generator; here
+     * the comparison is JSLFIPS vs JSL, which is the point — JSLFIPS drives a
+     * different interface library against a different lib ctx.
+     */
+    private static final String[] SSHKDF_ALGS = {
+            "SSHKDF-SHA1", "SSHKDF-SHA224", "SSHKDF-SHA256", "SSHKDF-SHA384", "SSHKDF-SHA512"
+    };
 
     // FIPS PBKDF2 lower bounds (SP 800-132), enforced by the module.
     private static final int MIN_SALT_BYTES = 16;
@@ -205,6 +248,57 @@ public class FIPSKDFAgreementTest
             return new SHA512Digest();
         }
         throw new IllegalArgumentException("no BC digest for " + alg);
+    }
+
+    /**
+     * Every {@code SecretKeyFactory} JSLFIPS registers must appear in one of
+     * this class's coverage groups, and every name in those groups must still
+     * be registered. The DI-3 guard for the KDF family, modelled on
+     * {@code FIPSMacAgreementTest.everyRegisteredMacIsCovered}.
+     * <p>
+     * It exists because the FIPS agreement classes hand-write their algorithm
+     * lists while the base ones discover from {@code getServices()} — so a new
+     * FIPS registration is covered by nothing and nothing notices. That is
+     * exactly how KMAC shipped with FIPS agreement coverage missing.
+     */
+    @Test
+    public void everyRegisteredSecretKeyFactoryIsCovered()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        Set<String> covered = new TreeSet<String>();
+        covered.addAll(java.util.Arrays.asList(PBKDF2_THREE_WAY));
+        covered.addAll(java.util.Arrays.asList(PBKDF2_TWO_WAY));
+        covered.addAll(java.util.Arrays.asList(HKDF_ALGS));
+        covered.addAll(java.util.Arrays.asList(KBKDF_HMAC_ALGS));
+        covered.addAll(java.util.Arrays.asList(KBKDF_CMAC_ALGS));
+        covered.addAll(java.util.Arrays.asList(SSKDF_ALGS));
+        covered.addAll(java.util.Arrays.asList(SSHKDF_ALGS));
+
+        Set<String> registered = new TreeSet<String>();
+        for (Provider.Service service : provider.getServices())
+        {
+            if ("SecretKeyFactory".equals(service.getType()))
+            {
+                registered.add(service.getAlgorithm());
+            }
+        }
+        Assertions.assertFalse(registered.isEmpty(),
+                "JSLFIPS registered no SecretKeyFactory services");
+
+        Set<String> uncovered = new TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers SecretKeyFactory services with no agreement coverage in this "
+                        + "class: " + uncovered + "\nAdd them to a coverage group — registration "
+                        + "without agreement testing is exactly how KMAC shipped one-shot-only.");
+
+        // And the reverse, so a rename leaves a dead entry rather than
+        // silently testing nothing.
+        Set<String> stale = new TreeSet<String>(covered);
+        stale.removeAll(registered);
+        Assertions.assertTrue(stale.isEmpty(),
+                "this class names SecretKeyFactory services JSLFIPS does not register: " + stale);
     }
 
     /**
@@ -330,6 +424,281 @@ public class FIPSKDFAgreementTest
                 byte[] fipsAlt = hkdfJce(FIPS, alg, ikm2, salt, info, diffLen);
                 Assertions.assertFalse(Arrays.areEqual(ref, fipsAlt),
                         tag + ": changed IKM produced identical key");
+            }
+        }
+    }
+
+
+    // ------------------------------------------------ SP 800-x KDFs (WI-4)
+
+    /**
+     * A BouncyCastle {@link Digest} for any of the SP 800-x KDF names, which
+     * carry the digest as a bare suffix ({@code -SHA256}) rather than the
+     * {@code HKDF-SHA256} shape {@link #bcDigestFor} matches.
+     */
+    private static Digest bcDigestBySuffix(String alg)
+    {
+        if (alg.endsWith("SHA1"))
+        {
+            return new SHA1Digest();
+        }
+        if (alg.endsWith("SHA224"))
+        {
+            return new SHA224Digest();
+        }
+        if (alg.endsWith("SHA256"))
+        {
+            return new SHA256Digest();
+        }
+        if (alg.endsWith("SHA384"))
+        {
+            return new SHA384Digest();
+        }
+        if (alg.endsWith("SHA512"))
+        {
+            return new SHA512Digest();
+        }
+        throw new IllegalArgumentException("no BC digest for " + alg);
+    }
+
+    private static int aesKeyBytesFor(String alg)
+    {
+        if (alg.endsWith("AES128"))
+        {
+            return 16;
+        }
+        if (alg.endsWith("AES192"))
+        {
+            return 24;
+        }
+        if (alg.endsWith("AES256"))
+        {
+            return 32;
+        }
+        throw new IllegalArgumentException("no AES size for " + alg);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static BlockCipher aesEngine()
+    {
+        return new AESEngine();
+    }
+
+    private static byte[] derive(String provider, String alg, java.security.spec.KeySpec spec)
+            throws Exception
+    {
+        return SecretKeyFactory.getInstance(alg, provider).generateSecret(spec).getEncoded();
+    }
+
+    /**
+     * SP 800-108 KBKDF, counter mode, over every registered PRF: JSLFIPS vs JSL
+     * vs BouncyCastle's low-level {@code KDFCounterBytesGenerator}.
+     * <p>
+     * {@code useL} and {@code useSeparator} are off so the fixed input goes in
+     * raw, which is the only form BC emits — see
+     * {@code kdf/KBKDFTest.useLAndSeparatorChangeTheOutput}. Key sizes start at
+     * the module's 112-bit floor, which {@code kbkdf-key-check} enforces on the
+     * -pedantic configuration and not otherwise.
+     */
+    @Test
+    public void kbkdfAgreesThreeWay() throws Exception
+    {
+        SecureRandom sr = seededRandom("kbkdfAgreesThreeWay");
+        int[] rValues = {8, 16, 24, 32};
+
+        for (String alg : KBKDF_HMAC_ALGS)
+        {
+            for (int trial = 0; trial < 6; trial++)
+            {
+                byte[] ki = randomBytes(FIPSTestUtil.HMAC_MIN_KEY_BYTES + sr.nextInt(51), sr);
+                byte[] fixed = randomBytes(1 + sr.nextInt(64), sr);
+                int r = rValues[sr.nextInt(rValues.length)];
+                int len = 1 + sr.nextInt(96);
+                String tag = alg + " trial=" + trial;
+
+                KBKDFParameterSpec spec = new KBKDFParameterSpec(ki, null, fixed, null,
+                        KBKDFParameterSpec.Mode.COUNTER, r, false, false, len);
+
+                byte[] fips = derive(FIPS, alg, spec);
+                byte[] jsl = derive(JSL, alg, spec);
+
+                KDFCounterBytesGenerator gen =
+                        new KDFCounterBytesGenerator(new HMac(bcDigestBySuffix(alg)));
+                gen.init(new KDFCounterParameters(ki, fixed, r));
+                byte[] bc = new byte[len];
+                gen.generateBytes(bc, 0, len);
+
+                Assertions.assertArrayEquals(jsl, fips, tag + ": JSLFIPS vs JSL");
+                Assertions.assertArrayEquals(bc, fips, tag + ": JSLFIPS vs BC");
+
+                // Differentiator, at >= 16 bytes so a 1-byte derivation cannot
+                // collide by chance (the HKDF flake this class already hit).
+                int diffLen = Math.max(len, 16);
+                byte[] ref = derive(FIPS, alg, new KBKDFParameterSpec(ki, null, fixed, null,
+                        KBKDFParameterSpec.Mode.COUNTER, r, false, false, diffLen));
+                byte[] fixed2 = Arrays.clone(fixed);
+                fixed2[0] ^= 0x01;
+                byte[] alt = derive(FIPS, alg, new KBKDFParameterSpec(ki, null, fixed2, null,
+                        KBKDFParameterSpec.Mode.COUNTER, r, false, false, diffLen));
+                Assertions.assertFalse(Arrays.areEqual(ref, alt),
+                        tag + ": changed fixed input produced identical key");
+            }
+        }
+
+        for (String alg : KBKDF_CMAC_ALGS)
+        {
+            for (int trial = 0; trial < 6; trial++)
+            {
+                byte[] ki = randomBytes(aesKeyBytesFor(alg), sr);
+                byte[] fixed = randomBytes(1 + sr.nextInt(64), sr);
+                int r = rValues[sr.nextInt(rValues.length)];
+                int len = 1 + sr.nextInt(96);
+                String tag = alg + " trial=" + trial;
+
+                KBKDFParameterSpec spec = new KBKDFParameterSpec(ki, null, fixed, null,
+                        KBKDFParameterSpec.Mode.COUNTER, r, false, false, len);
+
+                byte[] fips = derive(FIPS, alg, spec);
+                byte[] jsl = derive(JSL, alg, spec);
+
+                KDFCounterBytesGenerator gen = new KDFCounterBytesGenerator(new CMac(aesEngine()));
+                gen.init(new KDFCounterParameters(ki, fixed, r));
+                byte[] bc = new byte[len];
+                gen.generateBytes(bc, 0, len);
+
+                Assertions.assertArrayEquals(jsl, fips, tag + ": JSLFIPS vs JSL");
+                Assertions.assertArrayEquals(bc, fips, tag + ": JSLFIPS vs BC");
+            }
+        }
+    }
+
+    /**
+     * SP 800-108 KBKDF, feedback mode, JSLFIPS vs JSL vs BC. Separate from the
+     * counter test because the IV makes it a different code path — and because
+     * the IV length is constrained to the PRF output size, which is the shape
+     * a caller most easily gets wrong.
+     */
+    @Test
+    public void kbkdfFeedbackAgreesThreeWay() throws Exception
+    {
+        SecureRandom sr = seededRandom("kbkdfFeedbackAgreesThreeWay");
+
+        for (String alg : KBKDF_HMAC_ALGS)
+        {
+            Digest digest = bcDigestBySuffix(alg);
+            for (int trial = 0; trial < 6; trial++)
+            {
+                byte[] ki = randomBytes(FIPSTestUtil.HMAC_MIN_KEY_BYTES + sr.nextInt(51), sr);
+                // OpenSSL requires the feedback IV to be exactly the PRF output
+                // size; see kdf/KBKDFTest.feedbackIvMustMatchThePrfOutputSize.
+                byte[] iv = randomBytes(digest.getDigestSize(), sr);
+                byte[] fixed = randomBytes(1 + sr.nextInt(64), sr);
+                int len = 1 + sr.nextInt(96);
+                String tag = alg + " feedback trial=" + trial;
+
+                KBKDFParameterSpec spec = new KBKDFParameterSpec(ki, null, fixed, iv,
+                        KBKDFParameterSpec.Mode.FEEDBACK, 32, false, false, len);
+
+                byte[] fips = derive(FIPS, alg, spec);
+                byte[] jsl = derive(JSL, alg, spec);
+
+                org.bouncycastle.crypto.generators.KDFFeedbackBytesGenerator gen =
+                        new org.bouncycastle.crypto.generators.KDFFeedbackBytesGenerator(
+                                new HMac(bcDigestBySuffix(alg)));
+                gen.init(org.bouncycastle.crypto.params.KDFFeedbackParameters
+                        .createWithCounter(ki, iv, fixed, 32));
+                byte[] bc = new byte[len];
+                gen.generateBytes(bc, 0, len);
+
+                Assertions.assertArrayEquals(jsl, fips, tag + ": JSLFIPS vs JSL");
+                Assertions.assertArrayEquals(bc, fips, tag + ": JSLFIPS vs BC");
+            }
+        }
+    }
+
+    /**
+     * SP 800-56C one-step KDF: JSLFIPS vs JSL vs BouncyCastle's low-level
+     * {@code ConcatenationKDFGenerator} — the same {@code H(counter || Z ||
+     * FixedInfo)} construction.
+     */
+    @Test
+    public void sskdfAgreesThreeWay() throws Exception
+    {
+        SecureRandom sr = seededRandom("sskdfAgreesThreeWay");
+
+        for (String alg : SSKDF_ALGS)
+        {
+            for (int trial = 0; trial < 6; trial++)
+            {
+                byte[] secret = randomBytes(FIPSTestUtil.HMAC_MIN_KEY_BYTES + sr.nextInt(51), sr);
+                byte[] info = randomBytes(1 + sr.nextInt(48), sr);
+                int len = 1 + sr.nextInt(96);
+                String tag = alg + " trial=" + trial;
+
+                SSKDFParameterSpec spec = new SSKDFParameterSpec(secret, info, len);
+
+                byte[] fips = derive(FIPS, alg, spec);
+                byte[] jsl = derive(JSL, alg, spec);
+
+                ConcatenationKDFGenerator gen =
+                        new ConcatenationKDFGenerator(bcDigestBySuffix(alg));
+                gen.init(new KDFParameters(secret, info));
+                byte[] bc = new byte[len];
+                gen.generateBytes(bc, 0, len);
+
+                Assertions.assertArrayEquals(jsl, fips, tag + ": JSLFIPS vs JSL");
+                Assertions.assertArrayEquals(bc, fips, tag + ": JSLFIPS vs BC");
+
+                int diffLen = Math.max(len, 16);
+                byte[] ref = derive(FIPS, alg, new SSKDFParameterSpec(secret, info, diffLen));
+                byte[] info2 = Arrays.clone(info);
+                info2[0] ^= 0x01;
+                byte[] alt = derive(FIPS, alg, new SSKDFParameterSpec(secret, info2, diffLen));
+                Assertions.assertFalse(Arrays.areEqual(ref, alt),
+                        tag + ": changed FixedInfo produced identical key");
+            }
+        }
+    }
+
+    /**
+     * RFC 4253 SSH KDF: JSLFIPS vs JSL over every registered digest and all six
+     * key types. BouncyCastle has no SSH KDF, so the independent third
+     * reference lives in {@code kdf/SSHKDFTest} (the RFC recurrence over a JDK
+     * MessageDigest); what this test adds is that JSLFIPS — a different
+     * interface library against a different lib ctx — agrees with it.
+     */
+    @Test
+    public void sshkdfAgreesWithJsl() throws Exception
+    {
+        SecureRandom sr = seededRandom("sshkdfAgreesWithJsl");
+
+        for (String alg : SSHKDF_ALGS)
+        {
+            for (SSHKDFParameterSpec.KeyType type : SSHKDFParameterSpec.KeyType.values())
+            {
+                byte[] k = randomBytes(FIPSTestUtil.HMAC_MIN_KEY_BYTES + sr.nextInt(96), sr);
+                byte[] h = randomBytes(20 + sr.nextInt(44), sr);
+                byte[] sessionId = randomBytes(20 + sr.nextInt(44), sr);
+                int len = 1 + sr.nextInt(96);
+                String tag = alg + " type=" + type.getCode();
+
+                SSHKDFParameterSpec spec = new SSHKDFParameterSpec(k, h, sessionId, type, len);
+
+                Assertions.assertArrayEquals(derive(JSL, alg, spec), derive(FIPS, alg, spec),
+                        tag + ": JSLFIPS vs JSL");
+            }
+
+            // Differentiator: the six types from one exchange must all differ.
+            byte[] k = randomBytes(32, sr);
+            byte[] h = randomBytes(32, sr);
+            byte[] sessionId = randomBytes(32, sr);
+            Set<String> seen = new TreeSet<String>();
+            for (SSHKDFParameterSpec.KeyType type : SSHKDFParameterSpec.KeyType.values())
+            {
+                byte[] out = derive(FIPS, alg,
+                        new SSHKDFParameterSpec(k, h, sessionId, type, 32));
+                Assertions.assertTrue(seen.add(org.bouncycastle.util.encoders.Hex.toHexString(out)),
+                        alg + ": two key types produced the same key");
             }
         }
     }

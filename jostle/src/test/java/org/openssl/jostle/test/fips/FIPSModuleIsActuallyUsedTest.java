@@ -266,6 +266,62 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * The KDFs behind the {@code SecretKeyFactory} surface are implemented by
+     * the FIPS module.
+     * <p>
+     * {@link #opTypeFor} deliberately returns -1 for {@code SecretKeyFactory},
+     * because the JCE registration name ({@code KBKDF-HMAC-SHA256}) is not the
+     * name OpenSSL fetches ({@code KBKDF}) — so the sweep above skips the whole
+     * family. That leaves the KDFs in exactly the blind spot the class exists
+     * to close: mainline implements KBKDF, SSKDF and SSHKDF identically to both
+     * supported modules (measured, {@code fips-c-review/probes/kdf_probe.c} —
+     * every KAT and every random-input agreement matches on all four builds),
+     * so no agreement, KAT or negative test can tell module from mainline.
+     * Asking which provider implements them is the only check that can.
+     */
+    @Test
+    public void secretKeyFactoryKdfsAreImplementedByTheFipsModule()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        // A registered JCE name -> the EVP_KDF name behind it.
+        String[][] kdfs = {
+                {"PBKDF2", "PBKDF2"},
+                {"HKDF-SHA256", "HKDF"},
+                {"KBKDF-HMAC-SHA256", "KBKDF"},
+                {"KBKDF-CMAC-AES128", "KBKDF"},
+                {"SSKDF-SHA256", "SSKDF"},
+                {"SSHKDF-SHA256", "SSHKDF"},
+        };
+
+        for (String[] kdf : kdfs)
+        {
+            boolean registered = provider.getService("SecretKeyFactory", kdf[0]) != null;
+            String impl = FIPSNISelector.OpenSSLFIPSNI
+                    .implementingProvider(OpenSSLFIPSNI.OP_KDF, kdf[1]);
+
+            if (!registered)
+            {
+                Assertions.assertNull(impl,
+                        "SecretKeyFactory." + kdf[0] + " is unregistered but the FIPS lib ctx "
+                                + "resolves " + kdf[1] + " to \"" + impl
+                                + "\" — a working algorithm was dropped from callers");
+                continue;
+            }
+            Assertions.assertEquals(FIPS_PROVIDER, impl,
+                    "SecretKeyFactory." + kdf[0] + " is served by JSLFIPS but " + kdf[1]
+                            + " is implemented by \"" + impl + "\"");
+        }
+
+        // Control in the same test: a KDF no FIPS module carries must come back
+        // null, so a probe stuck on "fips" cannot pass this.
+        Assertions.assertNull(
+                FIPSNISelector.OpenSSLFIPSNI.implementingProvider(OpenSSLFIPSNI.OP_KDF, "SCRYPT"),
+                "SCRYPT resolved in the FIPS lib ctx — the KDF probe is not reading a "
+                        + "fips=yes context, so its \"fips\" answers prove nothing");
+    }
+
+    /**
      * The probe reports a real answer, not a constant.
      * <p>
      * Without this the two tests above would pass against a stub that always

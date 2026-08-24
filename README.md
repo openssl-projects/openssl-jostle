@@ -653,7 +653,8 @@ MessageDigest (SHA-1/SHA-2/SHA-3/SHAKE), Cipher AES (modes via the module, key w
 Mac (HMAC over the approved digests, AES-CMAC, AES-GMAC, KMAC128/KMAC256), SecureRandom (SP 800-90A DRBGs over the FIPS 140-3 approved
 digest set), KeyGenerator AES (keyed from the module's DRBG), RSA (key generation ≥ 2048, KeyFactory,
 PKCS#1 v1.5 and PSS signatures, OAEP encryption), EC (ECDSA, ECDH — the module gates curve
-approval), DSA, DH, and SecretKeyFactory PBKDF2/HKDF.
+approval), DSA, DH, and SecretKeyFactory PBKDF2/HKDF/KBKDF (SP 800-108, counter and feedback, HMAC
+and CMAC PRFs)/SSKDF (SP 800-56C one-step)/SSHKDF (RFC 4253).
 
 Deliberately absent because the module does not serve them (or does not serve them as approved): MD5, SM3,
 RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, DESede, Poly1305 and scrypt. Also absent per the module's

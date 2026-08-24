@@ -23,7 +23,10 @@
 
 /* *INDENT-OFF* */
 #define JoKDF_HKDF   JoFIPS_JoKDF_HKDF
+#define JoKDF_KBKDF  JoFIPS_JoKDF_KBKDF
 #define JoKDF_PBKDF2 JoFIPS_JoKDF_PBKDF2
+#define JoKDF_SSHKDF JoFIPS_JoKDF_SSHKDF
+#define JoKDF_SSKDF  JoFIPS_JoKDF_SSKDF
 /* *INDENT-ON* */
 
 #include "kdf_ffi.c"

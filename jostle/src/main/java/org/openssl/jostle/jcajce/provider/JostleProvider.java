@@ -143,6 +143,9 @@ public class JostleProvider
         new ProvScryptKDF().configure(this);
         new ProvArgon2KDF().configure(this);
         new ProvHKDF().configure(this);
+        new ProvKBKDF().configure(this);
+        new ProvSSKDF().configure(this);
+        new ProvSSHKDF().configure(this);
         new ProvMD().configure(this);
         new ProvRand().configure(this);
         new ProvED().configure(this);

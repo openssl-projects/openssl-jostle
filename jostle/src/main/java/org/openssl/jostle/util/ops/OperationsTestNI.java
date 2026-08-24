@@ -126,6 +126,9 @@ public interface OperationsTestNI
         OPS_ALTERNATE_4,
         OPS_FAILED_ACCESS_6,
         OPS_ALTERNATE_5,
+        OPS_FAILED_ACCESS_7,
+        OPS_FAILED_ACCESS_8,
+        OPS_FAILED_ACCESS_9,
     }
 
 }
