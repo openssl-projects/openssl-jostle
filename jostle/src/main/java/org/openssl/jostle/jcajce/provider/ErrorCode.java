@@ -219,6 +219,18 @@ public enum ErrorCode
     // code because the caller's options differ — verification keeps working.
     JO_DSA_SIGN_UNAVAILABLE(-151),
 
+    // KMAC's customisation string, or an output length, supplied to a MAC that
+    // has neither. Rejected rather than ignored: a silently dropped S or length
+    // yields a tag that is wrong-but-self-consistent against a peer that
+    // applied it. Reachable only from the NI surface — MacServiceSPI refuses a
+    // KMACParameterSpec for every MAC but KMAC.
+    JO_MAC_TAKES_NO_CUSTOM(-152),
+    JO_MAC_TAKES_NO_OUTPUT_LEN(-153),
+
+    // JNI-only: the critical-region load of the customisation-string array
+    // failed. Mirrors JO_FAILED_ACCESS_IV.
+    JO_FAILED_ACCESS_CUSTOM(-154),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

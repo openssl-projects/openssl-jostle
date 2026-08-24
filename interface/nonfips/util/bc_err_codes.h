@@ -360,6 +360,32 @@
  */
 #define JO_DSA_SIGN_UNAVAILABLE -151
 
+/*
+ * KMAC's customisation string S was supplied to a MAC that has no such
+ * parameter (HMAC, CMAC, Poly1305, GMAC). Same fail-loud reasoning as
+ * JO_MODE_TAKES_NO_IV: the other arms would simply not read it, and a
+ * silently-dropped S produces a tag that is wrong-but-self-consistent
+ * against a peer that did apply it. Unreachable from the SPI, which refuses
+ * a KMACParameterSpec for every other MAC - this guards the NI surface.
+ */
+#define JO_MAC_TAKES_NO_CUSTOM -152
+
+/*
+ * An output length was requested from a MAC whose length is fixed (HMAC,
+ * CMAC, Poly1305, GMAC). Distinct from JO_MAC_TAKES_NO_CUSTOM because the
+ * caller's mistake and its remedy differ, and because the limit tests pin
+ * each message separately. KMAC is the only variable-length MAC registered.
+ */
+#define JO_MAC_TAKES_NO_OUTPUT_LEN -153
+
+/*
+ * The JNI critical-region load of the customisation-string array failed.
+ * Mirrors JO_FAILED_ACCESS_IV; the FFI bridge cannot produce it, but both
+ * bridges must return identical codes for identical inputs, so it is
+ * defined once here rather than per bridge.
+ */
+#define JO_FAILED_ACCESS_CUSTOM -154
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

@@ -168,6 +168,8 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.X448",
             "Mac.AESCMAC",
             "Mac.AESGMAC",
+            "Mac.KMAC128",
+            "Mac.KMAC256",
             "Mac.HMACSHA1",
             "Mac.HMACSHA224",
             "Mac.HMACSHA256",

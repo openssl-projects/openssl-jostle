@@ -174,7 +174,7 @@ public class FIPSMacOpsTest
         {
             // Exercises interface/fips/jni/mac_jni.c:98
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             Assertions.fail();
         }
         catch (Exception e)
@@ -197,7 +197,7 @@ public class FIPSMacOpsTest
         {
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_ALTERNATE_1);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_ALTERNATE_2);
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             Assertions.fail();
         }
         catch (Exception e)
@@ -220,7 +220,7 @@ public class FIPSMacOpsTest
         {
             // Exercises interface/fips/util/mac.c:76
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            int code = macServiceNI.ni_init(ref, new byte[16], null);
+            int code = macServiceNI.ni_init(ref, new byte[16], null, null, 0);
             Assertions.assertEquals(-1003, code);
         }
         finally
@@ -238,7 +238,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             // Exercises interface/fips/jni/mac_jni.c:166
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             macServiceNI.engineUpdate(ref, new byte[10], 1, 9);
@@ -262,7 +262,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             // Exercises interface/fips/util/mac.c:191
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = macServiceNI.ni_updateBytes(ref, new byte[10], 1, 9);
@@ -283,7 +283,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             // Exercises interface/fips/jni/mac_jni.c:219
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             macServiceNI.doFinal(ref, new byte[32], 0);
@@ -307,7 +307,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             // Exercises interface/fips/util/mac.c:230
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = macServiceNI.ni_doFinal(ref, new byte[32], 0);
@@ -331,7 +331,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             // Exercises interface/fips/util/mac.c:210
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             macServiceNI.doFinal(ref, new byte[32], 0);
@@ -355,7 +355,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             // Exercises interface/fips/util/mac.c:234
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             macServiceNI.getMacLength(ref);
@@ -379,7 +379,7 @@ public class FIPSMacOpsTest
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macServiceNI.engineInit(ref, new byte[16], null);
+            macServiceNI.engineInit(ref, new byte[16], null, null, 0);
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             macServiceNI.doFinal(ref, new byte[32], 0);
             Assertions.fail();
@@ -484,12 +484,103 @@ public class FIPSMacOpsTest
             // POLY1305 branches not matching the name, init falls through to
             // the final else -> JO_UNEXPECTED_STATE.
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_ALTERNATE_4);
-            macServiceNI.engineInit(ref, new byte[16], new byte[12]);
+            macServiceNI.engineInit(ref, new byte[16], new byte[12], null, 0);
             Assertions.fail();
         }
         catch (Exception e)
         {
             Assertions.assertEquals("unexpected state", e.getMessage());
+        }
+        finally
+        {
+            macServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void kmac_init_branchSkipped_unexpectedState() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = macServiceNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            // Exercises interface/fips/util/mac.c:148
+            // OPS_ALTERNATE_5 skips the KMAC init branch; with CMAC/HMAC/
+            // POLY1305/GMAC not matching the name, init falls through to the
+            // final else -> JO_UNEXPECTED_STATE.
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_ALTERNATE_5);
+            macServiceNI.engineInit(ref, new byte[32], null, null, 0);
+            Assertions.fail();
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals("unexpected state", e.getMessage());
+        }
+        finally
+        {
+            macServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void kmac_init_customAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+
+        long ref = macServiceNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            // Exercises interface/fips/jni/mac_jni.c:166
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_6);
+            macServiceNI.engineInit(ref, new byte[32], null, new byte[]{1, 2, 3}, 0);
+            Assertions.fail();
+        }
+        catch (IllegalStateException e)
+        {
+            Assertions.assertEquals("native layer was unable to access customisation string",
+                    e.getMessage());
+        }
+        finally
+        {
+            macServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void kmac_macLengthMeta_ctxNewFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = macServiceNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            // Exercises interface/fips/util/mac.c:587
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
+            Assertions.assertEquals(-1019, macServiceNI.ni_macLengthMeta(ref));
+        }
+        finally
+        {
+            macServiceNI.dispose(ref);
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void kmac_macLengthMeta_zeroSize() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+
+        long ref = macServiceNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            // Exercises interface/fips/util/mac.c:592
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+            Assertions.assertEquals(-1020, macServiceNI.ni_macLengthMeta(ref));
         }
         finally
         {

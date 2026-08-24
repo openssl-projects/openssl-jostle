@@ -110,14 +110,23 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
 
 
 /*
- * ivBytes carries GMAC's nonce and is LEGITIMATELY null for every other MAC,
- * so a null array is passed through as NULL/0 rather than rejected here -
- * init_mac_ctx's GMAC arm returns JO_IV_IS_NULL when the MAC needs one. Both
+ * ivBytes carries GMAC's nonce; customBytes carries KMAC's customisation
+ * string S and outLen its requested output length.
+ *
+ * ivBytes and customBytes are both LEGITIMATELY null - every MAC but GMAC is
+ * initialised without an iv, and S is optional even for KMAC - so a null array
+ * is passed through as NULL/0 rather than rejected here. init_mac_ctx returns
+ * JO_IV_IS_NULL / JO_MAC_TAKES_NO_CUSTOM from the arm that knows which
+ * parameters its MAC actually takes.
+ *
+ * outLen is a jint so a negative value is REJECTABLE before the (size_t) cast;
+ * 0 means "unspecified" (see mac.h on why that sentinel is safe). All three
  * ctxs are init'd before any goto so the shared cleanup label can release them
  * unconditionally (the ccm pattern).
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1init
-(JNIEnv *env, jobject self, jlong ref, jbyteArray keyBytes, jbyteArray ivBytes) {
+(JNIEnv *env, jobject self, jlong ref, jbyteArray keyBytes, jbyteArray ivBytes,
+ jbyteArray customBytes, jint outLen) {
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
@@ -127,13 +136,20 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
 
     critical_bytearray_ctx key;
     critical_bytearray_ctx iv;
+    critical_bytearray_ctx custom;
     int32_t ret;
 
     init_critical_ctx(&key, env, keyBytes);
     init_critical_ctx(&iv, env, ivBytes);
+    init_critical_ctx(&custom, env, customBytes);
 
     if (key.array == NULL) {
         ret = JO_KEY_IS_NULL;
+        goto exit;
+    }
+
+    if (outLen < 0) {
+        ret = JO_OUTPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
 
@@ -147,10 +163,18 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
         goto exit;
     }
 
+    if (custom.array != NULL && (OPS_FAILED_ACCESS_6 !load_critical_ctx(&custom))) {
+        ret = JO_FAILED_ACCESS_CUSTOM;
+        goto exit;
+    }
+
     ret = mac_init(mac_ctx, key.critical, key.size,
-                   iv.array == NULL ? NULL : iv.critical, iv.size);
+                   iv.array == NULL ? NULL : iv.critical, iv.size,
+                   custom.array == NULL ? NULL : custom.critical, custom.size,
+                   (size_t) outLen);
 
 exit:
+    release_critical_ctx(&custom);
     release_critical_ctx(&iv);
     release_critical_ctx(&key);
     return ret;

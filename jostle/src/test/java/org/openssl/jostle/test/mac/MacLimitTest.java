@@ -70,7 +70,7 @@ public class MacLimitTest
             long ref = macNI.allocateMac("POLY1305", "POLY1305");
             try
             {
-                macNI.engineInit(ref, new byte[kl], null);
+                macNI.engineInit(ref, new byte[kl], null, null, 0);
                 Assertions.fail("expected rejection for key len " + kl);
             }
             catch (InvalidKeyException e)
@@ -86,7 +86,7 @@ public class MacLimitTest
         long ref = macNI.allocateMac("POLY1305", "POLY1305");
         try
         {
-            macNI.engineInit(ref, new byte[32], null);
+            macNI.engineInit(ref, new byte[32], null, null, 0);
         }
         finally
         {
@@ -102,7 +102,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, null, null);
+            macNI.engineInit(ref, null, null, null, 0);
             Assertions.fail();
         }
         catch (InvalidKeyException e)
@@ -123,7 +123,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, null, 0, 0);
             Assertions.fail();
         }
@@ -144,7 +144,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, new byte[1], -1, 1);
             Assertions.fail();
         }
@@ -165,7 +165,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, new byte[1], 0, -1);
             Assertions.fail();
         }
@@ -187,7 +187,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, new byte[1], 1, 1);
             Assertions.fail();
         }
@@ -209,7 +209,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, new byte[1], 0, 2);
             Assertions.fail();
         }
@@ -230,7 +230,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            //macNI.engineInit(ref, new byte[16], null);
+            //macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, new byte[32], 0, 32);
             Assertions.fail();
         }
@@ -251,7 +251,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            //macNI.engineInit(ref, new byte[16], null);
+            //macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.engineUpdate(ref, (byte) 1);
             Assertions.fail();
         }
@@ -273,7 +273,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.doFinal(ref, null, 0);
             Assertions.fail();
         }
@@ -294,7 +294,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.doFinal(ref, new byte[32], -1);
             Assertions.fail();
         }
@@ -315,7 +315,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.doFinal(ref, new byte[32], 1);
             Assertions.fail();
         }
@@ -337,7 +337,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            //macNI.engineInit(ref, new byte[16], null);
+            //macNI.engineInit(ref, new byte[16], null, null, 0);
             macNI.doFinal(ref, new byte[32], 1);
             Assertions.fail();
         }
@@ -484,7 +484,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             Assertions.fail();
         }
         catch (IllegalStateException e)
@@ -505,7 +505,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[17], null);
+            macNI.engineInit(ref, new byte[17], null, null, 0);
             Assertions.fail();
         }
         catch (InvalidKeyException e)
@@ -528,9 +528,9 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
-            macNI.engineInit(ref, new byte[32], null);
-            macNI.engineInit(ref, new byte[64], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
+            macNI.engineInit(ref, new byte[32], null, null, 0);
+            macNI.engineInit(ref, new byte[64], null, null, 0);
         }
         finally
         {
@@ -548,7 +548,7 @@ public class MacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[0], null);
+            macNI.engineInit(ref, new byte[0], null, null, 0);
         }
         finally
         {
@@ -570,7 +570,7 @@ public class MacLimitTest
     public void init_nullCtx_rejectedTyped()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineInit(0L, new byte[16], null));
+                () -> macNI.engineInit(0L, new byte[16], null, null, 0));
         Assertions.assertEquals("mac context is null", e.getMessage());
     }
 
@@ -629,7 +629,7 @@ public class MacLimitTest
         long ref = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
                     () -> macNI.engineUpdate(ref, new byte[1], Integer.MIN_VALUE, 1));
             Assertions.assertEquals("input offset is negative", e.getMessage());
@@ -646,7 +646,7 @@ public class MacLimitTest
         long ref = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
                     () -> macNI.engineUpdate(ref, new byte[1], 0, Integer.MIN_VALUE));
             Assertions.assertEquals("input len is negative", e.getMessage());
@@ -663,7 +663,7 @@ public class MacLimitTest
         long ref = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
                     () -> macNI.doFinal(ref, new byte[32], Integer.MIN_VALUE));
             Assertions.assertEquals("output offset is negative", e.getMessage());
@@ -694,7 +694,7 @@ public class MacLimitTest
         long refA = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(refA, key, null);
+            macNI.engineInit(refA, key, null, null, 0);
             macNI.engineUpdate(refA, input, 0, input.length);
             Assertions.assertEquals(32, macNI.doFinal(refA, reference, 0));
         }
@@ -711,7 +711,7 @@ public class MacLimitTest
         long refB = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(refB, key, null);
+            macNI.engineInit(refB, key, null, null, 0);
             macNI.engineUpdate(refB, input, 0, input.length);
             Assertions.assertEquals(32, macNI.doFinal(refB, big, prefix));
         }
@@ -770,7 +770,7 @@ public class MacLimitTest
         {
             InvalidAlgorithmParameterException e =
                     Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                            () -> macNI.engineInit(ref, new byte[16], null));
+                            () -> macNI.engineInit(ref, new byte[16], null, null, 0));
             Assertions.assertEquals("iv is null", e.getMessage());
         }
         finally
@@ -789,7 +789,7 @@ public class MacLimitTest
         try
         {
             OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
-                    () -> macNI.engineInit(ref, new byte[16], new byte[0]));
+                    () -> macNI.engineInit(ref, new byte[16], new byte[0], null, 0));
             Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
         }
         finally
@@ -809,7 +809,7 @@ public class MacLimitTest
             {
                 byte[] iv = new byte[ivLen];
                 RANDOM.nextBytes(iv);
-                macNI.engineInit(ref, new byte[16], iv);
+                macNI.engineInit(ref, new byte[16], iv, null, 0);
                 macNI.engineUpdate(ref, new byte[64], 0, 64);
                 Assertions.assertEquals(16, macNI.doFinal(ref, new byte[16], 0), "ivLen=" + ivLen);
             }
@@ -835,7 +835,7 @@ public class MacLimitTest
             {
                 InvalidAlgorithmParameterException e =
                         Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                                () -> macNI.engineInit(ref, new byte[32], new byte[12]),
+                                () -> macNI.engineInit(ref, new byte[32], new byte[12], null, 0),
                                 m[0] + " accepted an IV");
                 Assertions.assertEquals("mac takes no iv", e.getMessage());
             }
@@ -856,7 +856,7 @@ public class MacLimitTest
             try
             {
                 InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                        () -> macNI.engineInit(ref, new byte[keyLen], new byte[12]),
+                        () -> macNI.engineInit(ref, new byte[keyLen], new byte[12], null, 0),
                         "keyLen=" + keyLen);
                 Assertions.assertEquals("invalid key length for mac type", e.getMessage());
             }
@@ -871,7 +871,7 @@ public class MacLimitTest
     public void gmac_nullMacCtx_initRejectedTyped()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineInit(0L, new byte[16], new byte[12]));
+                () -> macNI.engineInit(0L, new byte[16], new byte[12], null, 0));
         Assertions.assertEquals("mac context is null", e.getMessage());
     }
 
@@ -920,13 +920,324 @@ public class MacLimitTest
         assertAliasedMacCorrect("HMAC", "SHA-256", 32, null, msgLen, tagOff);
     }
 
+    // ---------------------------------------------------------------------
+    // KMAC (SP 800-185) at the NI surface. KMAC is the only variable-length
+    // MAC registered, so it is the only one whose init carries a customisation
+    // string and an output length - and the only one where a wrong answer can
+    // be a plausible tag of the wrong shape rather than an obvious failure.
+    //
+    // The key and output-length FLOORS are deliberately not pinned as absolute
+    // numbers beyond mainline's: both move with the module's fipsinstall config
+    // (4 -> 14 bytes of key under kmac-key-check, 1 -> 4 bytes of output under
+    // no-short-mac), so the config-dependent boundary is a FIPS contract test.
+    // Measured across four environments: fips-c-review/probes/kmac_probe.c.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void kmac_customOnNonKmacMac_rejectedTyped() throws Exception
+    {
+        // Reachable only from the NI: MacServiceSPI refuses a KMACParameterSpec
+        // for every MAC but KMAC. Rejected rather than ignored, because a
+        // silently dropped S yields a tag that is wrong-but-self-consistent.
+        for (String[] mac : new String[][]{{"HMAC", "SHA-256"}, {"CMAC", "aes-cbc"},
+                {"GMAC", "aes-gcm"}, {"POLY1305", "POLY1305"}})
+        {
+            long ref = macNI.allocateMac(mac[0], mac[1]);
+            try
+            {
+                macNI.engineInit(ref, new byte[32], mac[0].equals("GMAC") ? gmacIv() : null,
+                        new byte[]{1, 2, 3}, 0);
+                Assertions.fail(mac[0] + " accepted a customisation string");
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertEquals("mac takes no customisation string", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_outputLengthOnNonKmacMac_rejectedTyped() throws Exception
+    {
+        for (String[] mac : new String[][]{{"HMAC", "SHA-256"}, {"CMAC", "aes-cbc"},
+                {"GMAC", "aes-gcm"}, {"POLY1305", "POLY1305"}})
+        {
+            long ref = macNI.allocateMac(mac[0], mac[1]);
+            try
+            {
+                macNI.engineInit(ref, new byte[32], mac[0].equals("GMAC") ? gmacIv() : null,
+                        null, 16);
+                Assertions.fail(mac[0] + " accepted an output length");
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertEquals("mac takes no output length", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_negativeOutputLength_rejectedTyped() throws Exception
+    {
+        // A negative int would become a huge size_t past the cast and drive an
+        // enormous allocation inside the provider, so it is rejected at the
+        // bridge before any cast. MIN_VALUE is included because it survives
+        // negation and Math.abs.
+        for (int bad : new int[]{-1, Integer.MIN_VALUE})
+        {
+            long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+            try
+            {
+                macNI.engineInit(ref, new byte[32], null, null, bad);
+                Assertions.fail("accepted outLen=" + bad);
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertEquals("output length is negative", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_macLengthMeta_beforeInit_returnsAlgorithmDefault()
+    {
+        // The keyless metadata query behind engineGetMacLength on a fresh SPI.
+        for (String[] kmac : new String[][]{{"KMAC-128", "32"}, {"KMAC-256", "64"}})
+        {
+            long ref = macNI.allocateMac(kmac[0], kmac[0]);
+            try
+            {
+                Assertions.assertEquals(Integer.parseInt(kmac[1]), macNI.macLengthMeta(ref),
+                        kmac[0] + " default output length");
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_macLengthMetaStaysTheAlgorithmDefaultAfterASizedInit() throws Exception
+    {
+        // Property guard on mac_len_for's use of a FRESH EVP_MAC_CTX for KMAC.
+        //
+        // EVP_MAC_CTX_get_mac_size FOLLOWS a caller-requested size once the ctx
+        // has been inited, so asking THIS ctx would return 48 here. The Java
+        // side memoizes macLengthMeta per ALGORITHM NAME, so that answer would
+        // poison the shared cache with one instance's chosen length and every
+        // later KMAC128 would report 48 as its default.
+        //
+        // Falsifiable: point mac_len_for's KMAC arm at mctx->ctx instead of a
+        // fresh one and this fails while the sibling default-length test above
+        // stays green.
+        long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            Assertions.assertEquals(32, macNI.macLengthMeta(ref), "before init");
+            macNI.engineInit(ref, new byte[32], null, null, 48);
+            Assertions.assertEquals(48, macNI.getMacLength(ref),
+                    "getMacLength must report THIS instance's requested length");
+            Assertions.assertEquals(32, macNI.macLengthMeta(ref),
+                    "macLengthMeta must stay the ALGORITHM default, not this instance's request");
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void kmac_zeroOutputLengthMeansDefaultNotAZeroLengthMac() throws Exception
+    {
+        // 0 is the "caller did not ask" sentinel and must never reach OpenSSL as
+        // a real request: most builds accept size=0 and then emit a zero-length
+        // MAC, which compares equal to every other zero-length tag. Passing 0
+        // here must give the algorithm's default instead.
+        long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(ref, new byte[32], null, null, 0);
+            Assertions.assertEquals(32, macNI.getMacLength(ref));
+            byte[] out = new byte[32];
+            macNI.engineUpdate(ref, new byte[]{1, 2, 3}, 0, 3);
+            Assertions.assertEquals(32, macNI.doFinal(ref, out, 0),
+                    "outLen=0 must produce the default-length tag, never a zero-length one");
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void kmac_customisationStringLengthBoundary() throws Exception
+    {
+        // OpenSSL owns this bound (512 bytes on every measured build) and
+        // reports "invalid custom length"; we do not pre-check it, per the
+        // classify-don't-pre-check rule. boundary and boundary+1.
+        long ok = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(ok, new byte[32], null, new byte[512], 0);
+        }
+        finally
+        {
+            macNI.dispose(ok);
+        }
+
+        long bad = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(bad, new byte[32], null, new byte[513], 0);
+            Assertions.fail("513-byte customisation string was accepted");
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(bad);
+        }
+    }
+
+    @Test
+    public void kmac_keyLengthBoundary_mainlineFloor() throws Exception
+    {
+        // Mainline libcrypto - which is what the BASE provider always links
+        // against - accepts keys from 4 bytes and up to 512, and refuses 3 and
+        // 513 with "invalid key length". Both mainline 3.5.7 and 3.6.2 agree.
+        // The FIPS module's -pedantic floor of 14 is a different contract and
+        // is pinned in the FIPS tests, not here.
+        for (int good : new int[]{4, 14, 512})
+        {
+            long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+            try
+            {
+                macNI.engineInit(ref, new byte[good], null, null, 0);
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+
+        for (int bad : new int[]{0, 3, 513})
+        {
+            long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+            try
+            {
+                macNI.engineInit(ref, new byte[bad], null, null, 0);
+                Assertions.fail("key length " + bad + " was accepted");
+            }
+            catch (OpenSSLException e)
+            {
+                Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_doFinal_writesAtOffsetWithoutClobberingPrefix() throws Exception
+    {
+        byte[] key = new byte[32];
+        byte[] input = new byte[64 + RANDOM.nextInt(256)];
+        byte[] custom = new byte[]{'a', 'l', 'p', 'h', 'a'};
+        RANDOM.nextBytes(key);
+        RANDOM.nextBytes(input);
+        int outLen = 40;
+
+        byte[] reference = new byte[outLen];
+        long refA = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(refA, key, null, custom, outLen);
+            macNI.engineUpdate(refA, input, 0, input.length);
+            Assertions.assertEquals(outLen, macNI.doFinal(refA, reference, 0));
+        }
+        finally
+        {
+            macNI.dispose(refA);
+        }
+
+        int prefix = 7;
+        byte[] big = new byte[prefix + outLen];
+        RANDOM.nextBytes(big);
+        byte[] savedPrefix = Arrays.copyOf(big, prefix);
+
+        long refB = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(refB, key, null, custom, outLen);
+            macNI.engineUpdate(refB, input, 0, input.length);
+            Assertions.assertEquals(outLen, macNI.doFinal(refB, big, prefix));
+        }
+        finally
+        {
+            macNI.dispose(refB);
+        }
+
+        Assertions.assertArrayEquals(savedPrefix, Arrays.copyOf(big, prefix),
+                "prefix region was clobbered");
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(big, prefix, prefix + outLen),
+                "output region is not the expected MAC");
+        Assertions.assertFalse(
+                Arrays.equals(reference, Arrays.copyOfRange(big, prefix - 1, prefix - 1 + outLen)),
+                "MAC appears one byte before the requested offset");
+    }
+
+    @Test
+    public void kmac_doFinal_aliased_tagAfterMessage() throws Exception
+    {
+        assertAliasedMacCorrect("KMAC-128", "KMAC-128", 40, null, new byte[]{9, 8, 7}, 40, 40, 40);
+    }
+
+    @Test
+    public void kmac_doFinal_aliased_tagOverwritesMessageStart() throws Exception
+    {
+        assertAliasedMacCorrect("KMAC-128", "KMAC-128", 40, null, new byte[]{9, 8, 7}, 40, 40, 0);
+    }
+
+    @Test
+    public void kmac_doFinal_aliased_tagMidMessage() throws Exception
+    {
+        assertAliasedMacCorrect("KMAC-256", "KMAC-256", 40, null, null, 40, 64, 16);
+    }
+
+
     // Parameterised by MAC so GMAC - whose init additionally carries an IV -
     // gets the same whole-destination scrutiny as HMAC, rather than a
     // near-duplicate helper that could drift from it.
     private void assertAliasedMacCorrect(String macName, String function, int macLen,
                                          byte[] iv, int msgLen, int tagOff) throws Exception
     {
-        byte[] key = new byte[macName.equals("HMAC") ? 32 : 16];
+        assertAliasedMacCorrect(macName, function, macLen, iv, null, 0, msgLen, tagOff);
+    }
+
+    // Parameterised further for KMAC, which carries a customisation string and
+    // a requested output length through the same init door as GMAC's IV.
+    private void assertAliasedMacCorrect(String macName, String function, int macLen,
+                                         byte[] iv, byte[] custom, int outLen,
+                                         int msgLen, int tagOff) throws Exception
+    {
+        byte[] key = new byte[macName.startsWith("KMAC") ? 32 : macName.equals("HMAC") ? 32 : 16];
         byte[] msg = new byte[msgLen];
         RANDOM.nextBytes(key);
         RANDOM.nextBytes(msg);
@@ -935,7 +1246,7 @@ public class MacLimitTest
         long refA = macNI.allocateMac(macName, function);
         try
         {
-            macNI.engineInit(refA, key, iv);
+            macNI.engineInit(refA, key, iv, custom, outLen);
             macNI.engineUpdate(refA, msg, 0, msg.length);
             Assertions.assertEquals(macLen, macNI.doFinal(refA, reference, 0));
         }
@@ -954,7 +1265,7 @@ public class MacLimitTest
         long ref = macNI.allocateMac(macName, function);
         try
         {
-            macNI.engineInit(ref, key, iv);
+            macNI.engineInit(ref, key, iv, custom, outLen);
             macNI.engineUpdate(ref, buf, 0, msgLen);
             written = macNI.doFinal(ref, buf, tagOff);
         }

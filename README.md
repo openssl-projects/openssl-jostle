@@ -650,7 +650,7 @@ is a no-op, a different configuration throws `IllegalStateException`.
 ### What JSLFIPS serves
 
 MessageDigest (SHA-1/SHA-2/SHA-3/SHAKE), Cipher AES (modes via the module, key wrap RFC 3394/5649, CCM),
-Mac (HMAC over the approved digests, AES-CMAC, AES-GMAC), SecureRandom (SP 800-90A DRBGs over the FIPS 140-3 approved
+Mac (HMAC over the approved digests, AES-CMAC, AES-GMAC, KMAC128/KMAC256), SecureRandom (SP 800-90A DRBGs over the FIPS 140-3 approved
 digest set), KeyGenerator AES (keyed from the module's DRBG), RSA (key generation ≥ 2048, KeyFactory,
 PKCS#1 v1.5 and PSS signatures, OAEP encryption), EC (ECDSA, ECDH — the module gates curve
 approval), DSA, DH, and SecretKeyFactory PBKDF2/HKDF.

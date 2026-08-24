@@ -19,7 +19,7 @@ public class MacServiceJNI implements MacServiceNI
     public native long ni_copyMac(long ref, int[] err);
 
     @Override
-    public native int ni_init(long ref, byte[] keyBytes, byte[] iv);
+    public native int ni_init(long ref, byte[] keyBytes, byte[] iv, byte[] custom, int outLen);
 
     @Override
     public native int ni_updateByte(long ref, byte b);

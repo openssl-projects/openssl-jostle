@@ -234,7 +234,16 @@ public class FIPSModuleIsActuallyUsedTest
         Provider provider = FIPSTestUtil.assumeFipsProvider();
 
         // JCE registration name -> the name OpenSSL fetches it under.
-        String[][] macs = {{"AESCMAC", "CMAC"}, {"AESGMAC", "GMAC"}};
+        // KMAC is here for the same reason, and needs it more: mainline
+        // implements it identically to both modules (byte-identical tags AND
+        // matching SP 800-185 vectors on all four measured builds), so no
+        // agreement, KAT, negative or chunking test can tell module from
+        // mainline. OpenSSL happens to accept the JCE spelling as an alias, so
+        // the sweep above may cover it - naming it here means a future name
+        // mapping that broke that alias still fails rather than silently
+        // dropping KMAC into the skipped-because-null bucket.
+        String[][] macs = {{"AESCMAC", "CMAC"}, {"AESGMAC", "GMAC"},
+                {"KMAC128", "KMAC-128"}, {"KMAC256", "KMAC-256"}};
 
         for (String[] mac : macs)
         {

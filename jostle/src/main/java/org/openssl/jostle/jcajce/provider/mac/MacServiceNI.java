@@ -23,14 +23,23 @@ public interface MacServiceNI extends DefaultServiceNI
     long ni_copyMac(long ref, int[] err);
 
     /**
-     * @param iv GMAC's nonce, or {@code null} for every other MAC. Carried on
-     *           the init call rather than a separate entry point because the
-     *           IV is an init-time input exactly like the key, and one door
-     *           means "GMAC requires an IV" is a single check in the native
-     *           GMAC arm rather than a rejection that a second entry point
-     *           could bypass.
+     * @param iv     GMAC's nonce, or {@code null} for every other MAC. Carried
+     *               on the init call rather than a separate entry point because
+     *               the IV is an init-time input exactly like the key, and one
+     *               door means "GMAC requires an IV" is a single check in the
+     *               native GMAC arm rather than a rejection that a second entry
+     *               point could bypass.
+     * @param custom KMAC's customisation string {@code S}, or {@code null} for
+     *               every other MAC — and legitimately {@code null} for KMAC
+     *               too, where it is optional. Same one-door reasoning as the
+     *               IV.
+     * @param outLen KMAC's requested output length in bytes, or {@code 0} for
+     *               "unspecified", which leaves the algorithm's own default in
+     *               force. Never pass a caller's literal zero through as a
+     *               length request: OpenSSL accepts {@code size=0} on most
+     *               builds and then produces a zero-length MAC.
      */
-    int ni_init(long ref, byte[] keyBytes, byte[] iv);
+    int ni_init(long ref, byte[] keyBytes, byte[] iv, byte[] custom, int outLen);
 
     int ni_updateByte(long ref, byte b);
 
@@ -68,10 +77,10 @@ public interface MacServiceNI extends DefaultServiceNI
         return v;
     }
 
-    default void engineInit(long ref, byte[] keyBytes, byte[] iv)
+    default void engineInit(long ref, byte[] keyBytes, byte[] iv, byte[] custom, int outLen)
             throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-        handleInitErrors(ni_init(ref, keyBytes, iv));
+        handleInitErrors(ni_init(ref, keyBytes, iv, custom, outLen));
     }
 
     default void engineUpdate(long ref, byte b)
@@ -140,6 +149,17 @@ public interface MacServiceNI extends DefaultServiceNI
             // GMAC, so a caller reaches this by driving ni_init directly.
             case JO_MODE_TAKES_NO_IV:
                 throw new InvalidAlgorithmParameterException("mac takes no iv");
+            // KMAC only, and NI surface only for the same reason: the SPI
+            // refuses a KMACParameterSpec for every other MAC, so these are
+            // reached by driving ni_init directly.
+            case JO_MAC_TAKES_NO_CUSTOM:
+                throw new InvalidAlgorithmParameterException("mac takes no customisation string");
+            case JO_MAC_TAKES_NO_OUTPUT_LEN:
+                throw new InvalidAlgorithmParameterException("mac takes no output length");
+            case JO_FAILED_ACCESS_CUSTOM:
+                throw new IllegalStateException("native layer was unable to access customisation string");
+            case JO_OUTPUT_LEN_IS_NEGATIVE:
+                throw new InvalidAlgorithmParameterException("output length is negative");
 
             default:
 

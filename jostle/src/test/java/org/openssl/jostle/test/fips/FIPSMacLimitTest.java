@@ -114,7 +114,7 @@ public class FIPSMacLimitTest
         try
         {
             InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                    () -> macNI.engineInit(ref, null, null));
+                    () -> macNI.engineInit(ref, null, null, null, 0));
             Assertions.assertEquals("key is null", e.getMessage());
         }
         finally
@@ -148,7 +148,7 @@ public class FIPSMacLimitTest
             boolean accepted;
             try
             {
-                macNI.engineInit(ref, new byte[0], null);
+                macNI.engineInit(ref, new byte[0], null, null, 0);
                 accepted = true;
             }
             catch (OpenSSLException e)
@@ -162,7 +162,7 @@ public class FIPSMacLimitTest
             {
                 // Negative-then-positive: the refused init must not have
                 // poisoned the ctx.
-                macNI.engineInit(ref, new byte[32], null);
+                macNI.engineInit(ref, new byte[32], null, null, 0);
             }
 
             byte[] tag = new byte[32];
@@ -184,9 +184,9 @@ public class FIPSMacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
-            macNI.engineInit(ref, new byte[32], null);
-            macNI.engineInit(ref, new byte[64], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
+            macNI.engineInit(ref, new byte[32], null, null, 0);
+            macNI.engineInit(ref, new byte[64], null, null, 0);
         }
         finally
         {
@@ -205,7 +205,7 @@ public class FIPSMacLimitTest
         try
         {
             InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                    () -> macNI.engineInit(ref, new byte[17], null));
+                    () -> macNI.engineInit(ref, new byte[17], null, null, 0));
             Assertions.assertEquals("invalid key length for mac type", e.getMessage());
         }
         finally
@@ -224,7 +224,7 @@ public class FIPSMacLimitTest
         try
         {
             IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
-                    () -> macNI.engineInit(ref, new byte[16], null));
+                    () -> macNI.engineInit(ref, new byte[16], null, null, 0));
             Assertions.assertEquals("unexpected state", e.getMessage());
         }
         finally
@@ -371,7 +371,7 @@ public class FIPSMacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
                     () -> macNI.doFinal(ref, new byte[32], 1));
             Assertions.assertEquals("output offset + mac len is out of range", e.getMessage());
@@ -418,7 +418,7 @@ public class FIPSMacLimitTest
         long refA = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(refA, key, null);
+            macNI.engineInit(refA, key, null, null, 0);
             macNI.engineUpdate(refA, input, 0, input.length);
             Assertions.assertEquals(32, macNI.doFinal(refA, reference, 0));
         }
@@ -435,7 +435,7 @@ public class FIPSMacLimitTest
         long refB = macNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            macNI.engineInit(refB, key, null);
+            macNI.engineInit(refB, key, null, null, 0);
             macNI.engineUpdate(refB, input, 0, input.length);
             Assertions.assertEquals(32, macNI.doFinal(refB, big, prefix));
         }
@@ -507,7 +507,16 @@ public class FIPSMacLimitTest
     private void assertAliasedMacCorrect(String macName, String function, int macLen,
                                          byte[] iv, int msgLen, int tagOff) throws Exception
     {
-        byte[] key = new byte[macName.equals("HMAC") ? 32 : 16];
+        assertAliasedMacCorrect(macName, function, macLen, iv, null, 0, msgLen, tagOff);
+    }
+
+    // Parameterised further for KMAC, which carries a customisation string and
+    // a requested output length through the same init door as GMAC's IV.
+    private void assertAliasedMacCorrect(String macName, String function, int macLen,
+                                         byte[] iv, byte[] custom, int outLen,
+                                         int msgLen, int tagOff) throws Exception
+    {
+        byte[] key = new byte[macName.startsWith("KMAC") || macName.equals("HMAC") ? 32 : 16];
         byte[] msg = new byte[msgLen];
         RANDOM.nextBytes(key);
         RANDOM.nextBytes(msg);
@@ -517,7 +526,7 @@ public class FIPSMacLimitTest
         long refA = macNI.allocateMac(macName, function);
         try
         {
-            macNI.engineInit(refA, key, iv);
+            macNI.engineInit(refA, key, iv, custom, outLen);
             macNI.engineUpdate(refA, msg, 0, msg.length);
             Assertions.assertEquals(macLen, macNI.doFinal(refA, reference, 0));
         }
@@ -536,7 +545,7 @@ public class FIPSMacLimitTest
         long ref = macNI.allocateMac(macName, function);
         try
         {
-            macNI.engineInit(ref, key, iv);
+            macNI.engineInit(ref, key, iv, custom, outLen);
             macNI.engineUpdate(ref, buf, 0, msgLen);
             written = macNI.doFinal(ref, buf, tagOff);
         }
@@ -668,7 +677,7 @@ public class FIPSMacLimitTest
     public void init_nullCtx_rejectedTyped()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineInit(0L, new byte[16], null));
+                () -> macNI.engineInit(0L, new byte[16], null, null, 0));
         Assertions.assertEquals("mac context is null", e.getMessage());
     }
 
@@ -734,7 +743,7 @@ public class FIPSMacLimitTest
         {
             InvalidAlgorithmParameterException e =
                     Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                            () -> macNI.engineInit(ref, new byte[16], null));
+                            () -> macNI.engineInit(ref, new byte[16], null, null, 0));
             Assertions.assertEquals("iv is null", e.getMessage());
         }
         finally
@@ -755,7 +764,7 @@ public class FIPSMacLimitTest
         try
         {
             OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
-                    () -> macNI.engineInit(ref, new byte[16], new byte[0]));
+                    () -> macNI.engineInit(ref, new byte[16], new byte[0], null, 0));
             Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
         }
         finally
@@ -777,7 +786,7 @@ public class FIPSMacLimitTest
             {
                 byte[] iv = new byte[ivLen];
                 RANDOM.nextBytes(iv);
-                macNI.engineInit(ref, new byte[16], iv);
+                macNI.engineInit(ref, new byte[16], iv, null, 0);
                 macNI.engineUpdate(ref, new byte[64], 0, 64);
                 Assertions.assertEquals(16, macNI.doFinal(ref, new byte[16], 0),
                         "ivLen=" + ivLen);
@@ -803,7 +812,7 @@ public class FIPSMacLimitTest
             {
                 InvalidAlgorithmParameterException e =
                         Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                                () -> macNI.engineInit(ref, new byte[16], new byte[12]),
+                                () -> macNI.engineInit(ref, new byte[16], new byte[12], null, 0),
                                 m[0] + " accepted an IV");
                 Assertions.assertEquals("mac takes no iv", e.getMessage());
             }
@@ -826,7 +835,7 @@ public class FIPSMacLimitTest
             try
             {
                 InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                        () -> macNI.engineInit(ref, new byte[keyLen], new byte[12]),
+                        () -> macNI.engineInit(ref, new byte[keyLen], new byte[12], null, 0),
                         "keyLen=" + keyLen);
                 Assertions.assertEquals("invalid key length for mac type", e.getMessage());
             }
@@ -841,7 +850,7 @@ public class FIPSMacLimitTest
     public void gmac_nullMacCtx_initRejectedTyped()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineInit(0L, new byte[16], new byte[12]));
+                () -> macNI.engineInit(0L, new byte[16], new byte[12], null, 0));
         Assertions.assertEquals("mac context is null", e.getMessage());
     }
 
@@ -881,7 +890,197 @@ public class FIPSMacLimitTest
         assertAliasedMacCorrect("GMAC", "aes-gcm", 16, gmacIv(), 64, 16);
     }
 
+    // ---------------------------------------------------------------------
+    // KMAC (SP 800-185) at the FIPS NI surface. The bridge checks are the same
+    // code as the base tree's (a rename re-include), so these pin that they
+    // survived into the FIPS interface library with identical codes.
+    //
+    // Config-DEPENDENT bounds - the kmac-key-check key floor and the
+    // no-short-mac output floor - are deliberately absent here: they differ
+    // between the two supported modules, so they belong in FIPSKMACTest's
+    // probe-both-branches contract tests, not in an absolute assertion.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void kmac_customOnNonKmacMac_rejectedTyped() throws Exception
+    {
+        for (String[] mac : new String[][]{{"HMAC", "SHA-256"}, {"CMAC", "aes-cbc"},
+                {"GMAC", "aes-gcm"}})
+        {
+            long ref = macNI.allocateMac(mac[0], mac[1]);
+            try
+            {
+                macNI.engineInit(ref, new byte[32], mac[0].equals("GMAC") ? gmacIv() : null,
+                        new byte[]{1, 2, 3}, 0);
+                Assertions.fail(mac[0] + " accepted a customisation string");
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertEquals("mac takes no customisation string", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_outputLengthOnNonKmacMac_rejectedTyped() throws Exception
+    {
+        for (String[] mac : new String[][]{{"HMAC", "SHA-256"}, {"CMAC", "aes-cbc"},
+                {"GMAC", "aes-gcm"}})
+        {
+            long ref = macNI.allocateMac(mac[0], mac[1]);
+            try
+            {
+                macNI.engineInit(ref, new byte[32], mac[0].equals("GMAC") ? gmacIv() : null,
+                        null, 16);
+                Assertions.fail(mac[0] + " accepted an output length");
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertEquals("mac takes no output length", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_negativeOutputLength_rejectedTyped() throws Exception
+    {
+        for (int bad : new int[]{-1, Integer.MIN_VALUE})
+        {
+            long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+            try
+            {
+                macNI.engineInit(ref, new byte[32], null, null, bad);
+                Assertions.fail("accepted outLen=" + bad);
+            }
+            catch (InvalidAlgorithmParameterException e)
+            {
+                Assertions.assertEquals("output length is negative", e.getMessage());
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_macLengthMeta_beforeInit_returnsAlgorithmDefault()
+    {
+        for (String[] kmac : new String[][]{{"KMAC-128", "32"}, {"KMAC-256", "64"}})
+        {
+            long ref = macNI.allocateMac(kmac[0], kmac[0]);
+            try
+            {
+                Assertions.assertEquals(Integer.parseInt(kmac[1]), macNI.macLengthMeta(ref),
+                        kmac[0] + " default output length");
+            }
+            finally
+            {
+                macNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void kmac_macLengthMetaStaysTheAlgorithmDefaultAfterASizedInit() throws Exception
+    {
+        // See the base MacLimitTest twin for why this must use a FRESH ctx:
+        // the Java side memoizes macLengthMeta per algorithm name, so returning
+        // this instance's requested length would poison that cache.
+        long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            Assertions.assertEquals(32, macNI.macLengthMeta(ref), "before init");
+            macNI.engineInit(ref, new byte[32], null, null, 48);
+            Assertions.assertEquals(48, macNI.getMacLength(ref),
+                    "getMacLength must report THIS instance's requested length");
+            Assertions.assertEquals(32, macNI.macLengthMeta(ref),
+                    "macLengthMeta must stay the ALGORITHM default");
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void kmac_zeroOutputLengthMeansDefaultNotAZeroLengthMac() throws Exception
+    {
+        long ref = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(ref, new byte[32], null, null, 0);
+            Assertions.assertEquals(32, macNI.getMacLength(ref));
+            byte[] out = new byte[32];
+            macNI.engineUpdate(ref, new byte[]{1, 2, 3}, 0, 3);
+            Assertions.assertEquals(32, macNI.doFinal(ref, out, 0),
+                    "outLen=0 must produce the default-length tag, never a zero-length one");
+        }
+        finally
+        {
+            macNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void kmac_customisationStringLengthBoundary() throws Exception
+    {
+        // 512 is OpenSSL's bound on every measured build, module and mainline
+        // alike, and is NOT one of the fipsinstall-configurable floors.
+        long ok = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(ok, new byte[32], null, new byte[512], 0);
+        }
+        finally
+        {
+            macNI.dispose(ok);
+        }
+
+        long bad = macNI.allocateMac("KMAC-128", "KMAC-128");
+        try
+        {
+            macNI.engineInit(bad, new byte[32], null, new byte[513], 0);
+            Assertions.fail("513-byte customisation string was accepted");
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
+        finally
+        {
+            macNI.dispose(bad);
+        }
+    }
+
+    @Test
+    public void kmac_doFinal_aliased_tagAfterMessage() throws Exception
+    {
+        assertAliasedMacCorrect("KMAC-128", "KMAC-128", 40, null, new byte[]{9, 8, 7}, 40, 40, 40);
+    }
+
+    @Test
+    public void kmac_doFinal_aliased_tagOverwritesMessageStart() throws Exception
+    {
+        assertAliasedMacCorrect("KMAC-128", "KMAC-128", 40, null, new byte[]{9, 8, 7}, 40, 40, 0);
+    }
+
+    @Test
+    public void kmac_doFinal_aliased_tagMidMessage() throws Exception
+    {
+        assertAliasedMacCorrect("KMAC-256", "KMAC-256", 40, null, null, 40, 64, 16);
+    }
+
     private static byte[] gmacIv()
+
     {
         byte[] iv = new byte[12];
         RANDOM.nextBytes(iv);
@@ -901,7 +1100,7 @@ public class FIPSMacLimitTest
         Assertions.assertTrue(ref > 0);
         try
         {
-            macNI.engineInit(ref, new byte[16], null);
+            macNI.engineInit(ref, new byte[16], null, null, 0);
             body.run(ref);
         }
         catch (Exception e)

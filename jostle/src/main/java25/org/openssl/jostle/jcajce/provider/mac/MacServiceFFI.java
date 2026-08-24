@@ -72,7 +72,10 @@ public class MacServiceFFI implements MacServiceNI
                         ValueLayout.ADDRESS, // *key
                         ValueLayout.JAVA_LONG, // key len
                         ValueLayout.ADDRESS, // *iv (GMAC only; NULL otherwise)
-                        ValueLayout.JAVA_LONG // iv len
+                        ValueLayout.JAVA_LONG, // iv len
+                        ValueLayout.ADDRESS, // *custom (KMAC only; NULL otherwise)
+                        ValueLayout.JAVA_LONG, // custom len
+                        ValueLayout.JAVA_INT // requested out len, 0 = unspecified
                 ), Linker.Option.critical(true));
 
         MH_updateByte = LINKER.downcallHandle(
@@ -172,16 +175,18 @@ public class MacServiceFFI implements MacServiceNI
     }
 
     @Override
-    public int ni_init(long ref, byte[] keyBytes, byte[] ivBytes)
+    public int ni_init(long ref, byte[] keyBytes, byte[] ivBytes, byte[] customBytes, int outLen)
     {
         try
         {
             MemorySegment key = keyBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(keyBytes);
-            // MemorySegment.NULL has byteSize 0, so a null IV reaches the bridge
-            // as the NULL/0 pair it checks for.
+            // MemorySegment.NULL has byteSize 0, so a null IV or customisation
+            // string reaches the bridge as the NULL/0 pair it checks for.
             MemorySegment iv = ivBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(ivBytes);
+            MemorySegment custom = customBytes == null
+                    ? MemorySegment.NULL : MemorySegment.ofArray(customBytes);
             return (int) MH_init.invokeExact(MemorySegment.ofAddress(ref), key, key.byteSize(),
-                    iv, iv.byteSize());
+                    iv, iv.byteSize(), custom, custom.byteSize(), outLen);
         }
         catch (Throwable t)
         {

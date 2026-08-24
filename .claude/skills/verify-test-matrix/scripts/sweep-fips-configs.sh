@@ -119,7 +119,7 @@ while IFS='|' read -r NAME MODULE CNF; do
   # mean something, since the switches decide whether the gates fire at all.
   ONE=$(echo "$TARGETS" | head -1)
   echo "  cnf: $ONE"
-  grep -E '^(dsa-sign-disabled|rsa-pkcs15-pad-disabled|hmac-key-check|signature-digest-check)' \
+  grep -E '^(dsa-sign-disabled|rsa-pkcs15-pad-disabled|hmac-key-check|kmac-key-check|no-short-mac|signature-digest-check)' \
        "$ONE" 2>/dev/null | sed 's/^/    /' || echo "    (none of the tracked switches present)"
 
   if [ -n "${JOSTLE_SWEEP_DRYRUN:-}" ]; then

@@ -76,6 +76,43 @@ class ProvMac
         provider.addAlgorithmImplementation("Mac", "POLY1305", PREFIX + "MacServiceSPI$POLY1305",
                 generalAttributes, (arg) -> new MacServiceSPI("POLY1305", "POLY1305"));
 
+        addKmac(provider, "128");
+        addKmac(provider, "256");
+    }
+
+    /**
+     * KMAC128 / KMAC256 (NIST SP 800-185). The only variable-length MACs here:
+     * the output length and the customisation string {@code S} come from a
+     * {@link org.openssl.jostle.jcajce.spec.KMACParameterSpec} at init, and
+     * without one the algorithm's own defaults apply (32 and 64 bytes).
+     * <p>
+     * The function name is a placeholder, as it is for Poly1305 — the fetched
+     * EVP_MAC name ("KMAC-128" / "KMAC-256") already selects the underlying
+     * cSHAKE, so there is no digest or cipher to name.
+     * <p>
+     * Service names and OID aliases match BouncyCastle's registration so a
+     * caller resolves the same spellings through either provider. All four NIST
+     * OIDs BC registers are carried: {@code id-KmacWithSHAKE128/256}
+     * (2.16.840.1.101.3.4.2.19/.20, the RFC 8702 CMS spelling) and
+     * {@code id-KMAC128/256} (.21/.22). Unlike the GMAC OIDs deliberately left
+     * out above, these name the algorithm and not a key size, so an OID-named
+     * service can honour exactly what its name claims.
+     */
+    private void addKmac(JostleProvider provider, String size)
+    {
+        String mainName = "KMAC" + size;
+        String osslName = "KMAC-" + size;
+        provider.addAlgorithmImplementation("Mac", mainName, PREFIX + "MacServiceSPI$" + mainName,
+                generalAttributes, (arg) -> new MacServiceSPI(osslName, osslName));
+        provider.addAlias("Mac", mainName, osslName);
+        if ("128".equals(size))
+        {
+            provider.addAlias("Mac", mainName, "2.16.840.1.101.3.4.2.19", "2.16.840.1.101.3.4.2.21");
+        }
+        else
+        {
+            provider.addAlias("Mac", mainName, "2.16.840.1.101.3.4.2.20", "2.16.840.1.101.3.4.2.22");
+        }
     }
 
     private void addMac(JostleProvider provider, String type, String name, String function)

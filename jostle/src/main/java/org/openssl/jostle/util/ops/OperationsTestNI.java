@@ -124,6 +124,8 @@ public interface OperationsTestNI
         // their is_ops_set(N) slot in interface/nonfips/util/ops.h.
         OPS_FAILED_ACCESS_5,
         OPS_ALTERNATE_4,
+        OPS_FAILED_ACCESS_6,
+        OPS_ALTERNATE_5,
     }
 
 }

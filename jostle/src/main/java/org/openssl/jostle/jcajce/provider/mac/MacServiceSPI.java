@@ -14,6 +14,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.spec.KMACParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.MacSpi;
@@ -41,9 +42,28 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     // registration accepts is a JCE-surface fact, not a value OpenSSL reports.
     private static final String GMAC = "GMAC";
 
+    // The two variable-length MACs, named for the same reason GMAC is: which
+    // parameter specs a registration accepts is a JCE-surface fact, not
+    // something OpenSSL reports. These are the OpenSSL EVP_MAC names, not the
+    // JCE service names (KMAC128 / KMAC256).
+    private static final String KMAC_128 = "KMAC-128";
+    private static final String KMAC_256 = "KMAC-256";
+
+    private static boolean isKmac(String name)
+    {
+        return KMAC_128.equals(name) || KMAC_256.equals(name);
+    }
+
     private final MacReference ref;
     private final String cacheKey;
     private final String macName;
+
+    // KMAC's per-init parameters. Instance state rather than cached per
+    // algorithm, because unlike every other MAC here KMAC's output length is
+    // chosen by the caller at init. Both are reset to their defaults by every
+    // engineInit, so a re-init without a spec restores SP 800-185's defaults.
+    private byte[] custom;
+    private int requestedLen;
 
     public MacServiceSPI(String macName, String function)
     {
@@ -54,12 +74,19 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     // Clone path: adopt an already-copied native handle. cacheKey is carried
     // verbatim so the clone shares the memoized MAC length of its source.
     //
-    private MacServiceSPI(MacServiceNI macServiceNI, String macName, String cacheKey, MacReference ref)
+    private MacServiceSPI(MacServiceNI macServiceNI, String macName, String cacheKey, MacReference ref,
+                          byte[] custom, int requestedLen)
     {
         this.macServiceNI = macServiceNI;
         this.macName = macName;
         this.cacheKey = cacheKey;
         this.ref = ref;
+        // The native copy carries S and the output length too, so the clone
+        // must agree with it - a clone that reported the default length while
+        // its native ctx produced the requested one would size engineDoFinal's
+        // buffer wrongly.
+        this.custom = Arrays.clone(custom);
+        this.requestedLen = requestedLen;
     }
 
     public MacServiceSPI(MacServiceNI macServiceNI, String macName, String function)
@@ -73,7 +100,8 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     }
 
     /**
-     * The IV for this init, or null when this MAC takes none.
+     * Validate this init's parameter spec, record the per-init KMAC state, and
+     * return the IV — or null when this MAC takes none.
      *
      * <p>GMAC inherits GCM's variable-length nonce — 1, 8, 11, 12, 13, 16 and 32
      * bytes are all accepted by mainline and by both FIPS modules, and only 0 is
@@ -86,10 +114,47 @@ public class MacServiceSPI extends MacSpi implements Cloneable
      * refusing is the fail-loud answer, where accepting would hand the caller a
      * 16-byte tag it did not ask for. The comparison value is queried from
      * OpenSSL, never transcribed.
+     *
+     * <p>KMAC takes no IV; its spec instead carries the customisation string
+     * {@code S} and the output length {@code L}, both optional. Omitting the
+     * spec gives SP 800-185's defaults — an empty {@code S} and the
+     * algorithm's own length — which is also what BouncyCastle's KMAC does
+     * with a null spec, so the two agree by default as well as by parameter.
      */
-    private byte[] resolveIv(AlgorithmParameterSpec params)
+    private byte[] resolveParams(AlgorithmParameterSpec params)
             throws InvalidAlgorithmParameterException
     {
+        if (isKmac(macName))
+        {
+            byte[] s = null;
+            int bits = 0;
+
+            if (params != null)
+            {
+                if (!(params instanceof KMACParameterSpec))
+                {
+                    throw new InvalidAlgorithmParameterException(
+                            "expected KMACParameterSpec, got " + params.getClass().getName());
+                }
+                KMACParameterSpec kmacSpec = (KMACParameterSpec) params;
+                // Already validated by the spec's constructor: positive and a
+                // multiple of 8. That matters here because a zero would reach
+                // native as the "unspecified" sentinel rather than as a
+                // request, silently giving the default length instead.
+                s = kmacSpec.getCustomizationString();
+                bits = kmacSpec.getMacSizeInBits();
+            }
+
+            // Assigned only once nothing above can throw, so a rejected spec
+            // leaves the previous init's parameters untouched.
+            custom = s;
+            requestedLen = bits / 8;
+            return null;
+        }
+
+        custom = null;
+        requestedLen = 0;
+
         if (!GMAC.equals(macName))
         {
             if (params != null)
@@ -146,12 +211,26 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         return len;
     }
 
+    /**
+     * The output length this instance will actually produce: the caller's
+     * requested KMAC length when one was given, otherwise the algorithm's own
+     * default as reported by OpenSSL.
+     *
+     * <p>Kept distinct from {@link #macLength()} because that cache is keyed by
+     * algorithm, while a KMAC output length belongs to the instance — two
+     * KMAC128 instances can legitimately disagree.
+     */
+    private int outputLength()
+    {
+        return requestedLen != 0 ? requestedLen : macLength();
+    }
+
     @Override
     protected int engineGetMacLength()
     {
         synchronized (this)
         {
-            return macLength();
+            return outputLength();
         }
     }
 
@@ -162,7 +241,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         // Spec first: java-spi.md requires getEncoded() to come AFTER any
         // validation that can throw, so a rejected init never leaves an
         // uncleared copy of the key on the heap.
-        byte[] iv = resolveIv(params);
+        byte[] iv = resolveParams(params);
 
         if (key == null)
         {
@@ -184,7 +263,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         {
             try
             {
-                macServiceNI.engineInit(ref.getReference(), keyBytes, iv);
+                macServiceNI.engineInit(ref.getReference(), keyBytes, iv, custom, requestedLen);
             }
             finally
             {
@@ -221,7 +300,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     {
         synchronized (this)
         {
-            byte[] out = new byte[macLength()];
+            byte[] out = new byte[outputLength()];
             int written;
             // reset must run even if doFinal throws: a failed EVP_MAC_final
             // leaves the ctx finalized, and skipping the re-init would let the
@@ -270,7 +349,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
             {
                 long clonedRef = macServiceNI.copyMac(ref.getReference());
                 return new MacServiceSPI(macServiceNI, macName, cacheKey,
-                        new MacReference(macServiceNI, clonedRef, cacheKey));
+                        new MacReference(macServiceNI, clonedRef, cacheKey), custom, requestedLen);
             }
             catch (RuntimeException e)
             {

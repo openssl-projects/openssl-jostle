@@ -66,8 +66,10 @@
 // flags are appended, never inserted next to their family.
 #define OPS_FAILED_ACCESS_5 is_ops_set(34) ||
 #define OPS_ALTERNATE_4 !is_ops_set(35) &&
+#define OPS_FAILED_ACCESS_6 is_ops_set(36) ||
+#define OPS_ALTERNATE_5 !is_ops_set(37) &&
 
-#define OPS_MAX_TEST 36
+#define OPS_MAX_TEST 38
 
 // Per-flag offset macros. Pairs with OPS_OPENSSL_ERROR_N (same suffix).
 // Expansion includes the leading "+" so non-OPS builds drop entirely.
@@ -152,6 +154,7 @@ int get_ops_test(const uint32_t index);
 #define OPS_ALTERNATE_2
 #define OPS_ALTERNATE_3
 #define OPS_ALTERNATE_4
+#define OPS_ALTERNATE_5
 
 #define OPS_OPENSSL_ERROR_7
 #define OPS_OPENSSL_ERROR_8
@@ -160,6 +163,7 @@ int get_ops_test(const uint32_t index);
 #define OPS_OPENSSL_ERROR_11
 #define OPS_OPENSSL_ERROR_12
 #define OPS_FAILED_ACCESS_5
+#define OPS_FAILED_ACCESS_6
 
 // Non-OPS: macros vanish entirely. Call sites read the same in both builds.
 #define OPS_OFFSET_OPENSSL_ERROR_1(x)

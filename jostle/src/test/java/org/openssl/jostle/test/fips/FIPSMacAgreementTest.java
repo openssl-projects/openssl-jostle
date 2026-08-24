@@ -22,8 +22,11 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement for the FIPS provider's MAC surface.
@@ -71,6 +74,11 @@ public class FIPSMacAgreementTest
     private static final String[] HMAC_SHA3 = {
             "HMACSHA3-224", "HMACSHA3-256", "HMACSHA3-384", "HMACSHA3-512"
     };
+
+    // The cipher-backed MACs, and the variable-length ones. Named rather than
+    // inline so everyRegisteredMacIsCovered can account for them.
+    private static final String[] CIPHER_BACKED = {"AESCMAC", "AESGMAC"};
+    private static final String[] KMAC = {"KMAC128", "KMAC256"};
 
     // Message lengths straddling the 16 (CMAC) / 64 (SHA-256) / 128 (SHA-512)
     // byte block boundaries; the trailing entry is replaced per trial with a
@@ -236,6 +244,59 @@ public class FIPSMacAgreementTest
         }
     }
 
+    /**
+     * Completeness guard: every Mac JSLFIPS registers must be covered by one of
+     * the agreement tests in this class.
+     * <p>
+     * The base twin {@code MacAgreementTest} cannot forget a MAC, because it
+     * DISCOVERS its algorithm list from {@code provider.getServices()}. This
+     * class uses hand-written arrays instead, so it can — and it did: KMAC was
+     * registered in both providers and swept into the base agreement
+     * automatically while the FIPS side silently had no streaming agreement
+     * coverage at all. That is the exact failure this guard exists to make
+     * impossible, and it is the FIPS analogue of
+     * {@code MacAgreementTest.everyRegisteredMacIsCovered}.
+     * <p>
+     * Deliberately a coverage check rather than a re-write to discovery: the
+     * per-family tests differ in key type and reference, so the arrays earn
+     * their place — what was missing was anything that noticed a gap in them.
+     */
+    @Test
+    public void everyRegisteredMacIsCovered()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        Set<String> covered = new TreeSet<String>();
+        covered.addAll(java.util.Arrays.asList(HMAC_SHA1_SHA2));
+        covered.addAll(java.util.Arrays.asList(HMAC_SHA3));
+        covered.addAll(java.util.Arrays.asList(CIPHER_BACKED));
+        covered.addAll(java.util.Arrays.asList(KMAC));
+
+        Set<String> registered = new TreeSet<String>();
+        for (Provider.Service service : provider.getServices())
+        {
+            if ("Mac".equals(service.getType()))
+            {
+                registered.add(service.getAlgorithm());
+            }
+        }
+        Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no Mac services");
+
+        Set<String> uncovered = new TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers Mac services with no agreement coverage in this class: "
+                        + uncovered + "\nAdd them to a runFamily group — registration without "
+                        + "agreement testing is exactly how KMAC shipped one-shot-only.");
+
+        // And the reverse, so a rename leaves a dead entry rather than silently
+        // testing nothing.
+        Set<String> stale = new TreeSet<String>(covered);
+        stale.removeAll(registered);
+        Assertions.assertTrue(stale.isEmpty(),
+                "this class names Mac services JSLFIPS does not register: " + stale);
+    }
+
     @Test
     public void hmacSha1AndSha2Agree() throws Exception
     {
@@ -271,6 +332,27 @@ public class FIPSMacAgreementTest
      * ({@code fips-c-review/probes/gmac_probe.c} Q1) — so there is no
      * capability branch here, unlike XDH or Ed.
      */
+    /**
+     * KMAC128 / KMAC256 at their DEFAULT parameters, which is what
+     * {@code init(key)} with no spec selects: an empty customisation string and
+     * the algorithm's own output length.
+     * <p>
+     * FIPSKMACTest already compares JSLFIPS against BC over the parameterised
+     * surface, but only one-shot. This adds the streaming half — byte-wise and
+     * random-split against both JSL and BC — because the FIPS side runs a
+     * different interface library against a different lib ctx, so its buffering
+     * is not covered by the base provider's chunking tests.
+     * <p>
+     * No spec is passed on purpose: {@code crossMac} drives every MAC through
+     * one {@code init(key)} path, and KMAC's defaults are exactly what a caller
+     * who supplies no spec must get.
+     */
+    @Test
+    public void kmacAgrees() throws Exception
+    {
+        runFamily(KMAC, seededRandom("kmacAgrees"));
+    }
+
     @Test
     public void aesGmacAgrees() throws Exception
     {
