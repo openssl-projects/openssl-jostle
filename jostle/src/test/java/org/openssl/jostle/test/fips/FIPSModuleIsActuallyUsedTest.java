@@ -266,6 +266,25 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * RSA-KEM specifically. The sweep resolves {@code Cipher.RSA-KTS-KEM-KWS}
+     * to nothing - OpenSSL has no cipher of that name; the mechanism is an
+     * {@code EVP_PKEY} KEM operation on an RSA key - so the family is invisible
+     * to it. Mainline implements RSASVE identically to both modules, so this
+     * probe is the only thing that can tell them apart.
+     */
+    @Test
+    public void rsaKemIsImplementedByTheFipsModule()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        Assertions.assertNotNull(provider.getService("Cipher", "RSA-KTS-KEM-KWS"),
+                "RSA-KEM is ungated and must always be registered");
+        Assertions.assertEquals(FIPS_PROVIDER,
+                FIPSNISelector.OpenSSLFIPSNI.implementingProvider(OpenSSLFIPSNI.OP_KEYMGMT, "RSA"),
+                "the RSA keymgmt behind RSA-KEM must be the module's");
+    }
+
+    /**
      * AES CBC-CTS specifically, named rather than swept.
      * <p>
      * Same blind spot as Triple-DES: the sweep probes each service under its

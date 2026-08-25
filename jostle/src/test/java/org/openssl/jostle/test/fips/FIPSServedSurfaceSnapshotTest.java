@@ -91,6 +91,7 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.DESEDE",   // Triple-DES, capability-gated (see TDES_GATED)
             "Cipher.ML-KEM",   // PQC, capability-gated (see PQC_GATED)
             "Cipher.RSA",
+            "Cipher.RSA-KTS-KEM-KWS",
             "KeyAgreement.DH",
             "KeyAgreement.DHWITHRFC2631KDF",
             "KeyAgreement.ECDH",

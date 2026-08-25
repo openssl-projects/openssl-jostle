@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.rsa.RSAKEMCipherSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyPairGenerator;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherSpi;
@@ -121,6 +122,22 @@ class ProvFIPSRSA
                 PREFIX + "RSAOAEPCipherSpi", cipherAttr,
                 (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory()));
         provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
+
+        // RSA-KEM key transport (ISO 18033-2 / RFC 9690). Ungated: RSASVE
+        // encapsulate/decapsulate works on both supported modules at 2048 and
+        // 3072 (probe: fips-c-review/probes/rsakem_probe.c). Unlike PKCS#1 v1.5
+        // encryption above there is no padding oracle to avoid - RSA-KEM has no
+        // padding at all, which is the point of the scheme, and SP 800-56Br2
+        // KTS-OAEP's sibling KTS-KEM is what CMS RFC 9690 specifies.
+        //
+        // Same names and OID aliases as the base provider, for the same reason:
+        // BouncyCastle interop.
+        Map<String, String> ktsAttr = new HashMap<>(attr);
+        provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
+                PREFIX + "RSAKEMCipherSpi", ktsAttr,
+                (arg) -> new RSAKEMCipherSpi(keyFactory(), FIPSNISelector.SpecNI));
+        provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
+                "1.0.18033.2.2.4", "1.2.840.113549.1.9.16.3.14");
     }
 
     private static RSAKeyFactorySpi keyFactory()

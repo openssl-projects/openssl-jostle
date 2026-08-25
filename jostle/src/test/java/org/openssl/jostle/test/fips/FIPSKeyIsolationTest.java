@@ -309,6 +309,17 @@ public class FIPSKeyIsolationTest
                     javax.crypto.Cipher.getInstance("ML-KEM", p)
                             .init(javax.crypto.Cipher.UNWRAP_MODE, k, kts);
             assertPrivateIsolatedBothDirections(jslMlKem.getPrivate(), fipsMlKem.getPrivate(), mlkemOp);
+
+            // RSA-KEM KTS (WI-8) borrows the RSA key's spec the same way, so it
+            // needs the same check - and reuses the same KTSParameterSpec, since
+            // it too validates the spec before looking at the key. Ungated: the
+            // RSA KEM is served by both modules.
+            KeyPair jslRsaKem = genKp("RSA", jsl, 2048);
+            KeyPair fipsRsaKem = genKp("RSA", fips, 2048);
+            PrivKeyOp rsaKemOp = (p, k) ->
+                    javax.crypto.Cipher.getInstance("RSA-KTS-KEM-KWS", p)
+                            .init(javax.crypto.Cipher.UNWRAP_MODE, k, kts);
+            assertPrivateIsolatedBothDirections(jslRsaKem.getPrivate(), fipsRsaKem.getPrivate(), rsaKemOp);
         }
 
         // ---- EdDSA ----

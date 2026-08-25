@@ -20,6 +20,11 @@ class ProvRSA
 {
     private static final String PREFIX = ProvRSA.class.getPackage().getName() + ".rsa.";
 
+    /** ISO 18033-2 {@code id-kem-rsa}, the OID CMS names in KEMRecipientInfo.kem. */
+    static final String ID_KEM_RSA = "1.0.18033.2.2.4";
+    /** PKCS-arc {@code id-rsa-KEM}, used when an RSA-KEM SPKI names the cipher (RFC 9690 s3.3). */
+    static final String ID_RSA_KEM = "1.2.840.113549.1.9.16.3.14";
+
     public void configure(final JostleProvider provider)
     {
         final Map<String, String> attr = new HashMap<>();
@@ -130,6 +135,25 @@ class ProvRSA
                 PREFIX + "RSAPKCS1CipherSpi", pkcs1Attr,
                 (arg) -> new RSAPKCS1CipherSpi());
         provider.addAlias("Cipher", "RSA/ECB/PKCS1Padding", "RSA/None/PKCS1Padding");
+
+        // RSA-KEM key transport (ISO 18033-2 / RFC 9690) for the CMS
+        // KEMRecipientInfo path. The name and both OID aliases are BouncyCastle's,
+        // deliberately: interop with BC's JceKEMRecipientInfoGenerator /
+        // JceKEMEnvelopedRecipient is the entire reason this exists, and a call
+        // site that resolves the cipher by either OID must reach the same SPI.
+        //
+        //   id-kem-rsa  1.0.18033.2.2.4                  ISO 18033-2, named in
+        //                                                KEMRecipientInfo.kem
+        //   id-rsa-KEM  1.2.840.113549.1.9.16.3.14       PKCS arc, used when an
+        //                                                RSA-KEM SubjectPublicKeyInfo
+        //                                                names the cipher directly
+        //                                                (RFC 9690 s3.3)
+        Map<String, String> ktsAttr = new HashMap<>(attr);
+        provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
+                PREFIX + "RSAKEMCipherSpi", ktsAttr,
+                (arg) -> new RSAKEMCipherSpi());
+        provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
+                ID_KEM_RSA, ID_RSA_KEM);
     }
 
     /**
