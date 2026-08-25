@@ -30,6 +30,10 @@ package org.openssl.jostle.jcajce.provider;
  *       behind the FIPS "sign-check" indicator — OpenSSL's 3.5+ FIPS module
  *       refuses generation while still importing keys and verifying
  *       signatures ({@code JO_DSA_KEYGEN_UNAVAILABLE}).</li>
+ *   <li>Triple-DES encryption when the provider refuses that direction while
+ *       still decrypting — OpenSSL's FIPS module configured with
+ *       {@code tdes-encrypt-disabled}, which follows SP 800-131A's withdrawal
+ *       of TDES encryption ({@code JO_TDES_ENCRYPT_UNAVAILABLE}).</li>
  * </ul>
  *
  * <p>Subclasses {@link OpenSSLException} so callers that handle the

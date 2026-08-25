@@ -367,7 +367,7 @@ The Jostle (`JSL`) provider registers **318** services across **14** JCA service
 
 # Jostle FIPS Provider (JSLFIPS) — Registered Services
 
-The Jostle FIPS (`JSLFIPS`) provider registers **183** services against a 3.1.2 module (**256** against a 3.5.x one) across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so Triple-DES, ChaCha20 and OCB (for instance) are simply not fetchable.
+The Jostle FIPS (`JSLFIPS`) provider registers **183** services against a 3.1.2 module (**259** against a 3.5.x one) across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though the 3.5.x module does serve it.
 
 **The surface is module-dependent, and the list below is the 3.5.x one.**
 JSLFIPS ships one build that serves two FIPS modules — the CMVP-validated 3.1.2
@@ -393,6 +393,12 @@ startup the provider asks the loaded module and registers accordingly:
   absent below even though the rest of the family is present. A registration
   would resolve and then fail at every `init`, since the SPI drives the
   `Ed25519ctx` instance unconditionally for that name.
+- **Triple-DES** (`Cipher.DESede` with its `TripleDES` alias and the
+  `1.2.840.113549.3.7` OID, plus `KeyGenerator.DESede`) is the third family
+  that flips with the module: 3.1.2 refuses every `DES-EDE3` fetch, 3.5.x
+  serves them, so the three services below appear only against a 3.5.x module.
+  Gated on the cipher fetch, which answers registration completely — but NOT
+  usability, for which see the encryption note below.
 
 One difference is narrower than a whole registration and is left to surface at
 the point of use: **`Mac.AESGMAC` is served by both modules and produces
@@ -434,6 +440,20 @@ call site rather than the registration:
   `KDFCounterBytesGenerator`, and the NIST CAVP vectors — needs both turned
   off. The difference is invisible in a round trip, so it is always an explicit
   choice rather than an inferred one.
+
+**Triple-DES DECRYPTS on every configuration; whether it ENCRYPTS is
+`fipsinstall` configuration.** The `tdes-encrypt-disabled` switch is off at
+defaults and on under `-pedantic`, so the same 3.5.x module answers both ways,
+and no fetch can see the difference. SP 800-131A withdrew Triple-DES
+encryption while keeping decryption available for legacy data, and the
+registration follows that shape: the family stays registered, and a refused
+`Cipher.init(ENCRYPT_MODE, ...)` raises `InvalidKeyException` reading
+"Triple-DES encryption is not supported by the loaded provider; Triple-DES
+decryption remains available". The module's own refusal is silent — it raises
+nothing on its error queue — so Jostle classifies it by re-driving both
+directions and reporting the capability only when encrypt refuses while
+decrypt accepts. Only the 3-key (24-byte) form exists: the module implements
+no `DES-EDE`, and a 16-byte key is refused at `init`.
 
 **`Cipher.AES/XTS/NoPadding` is served unconditionally by both modules**, with
 identical behaviour under both the default and `-pedantic` configurations. Its
@@ -491,30 +511,32 @@ filtering.
 
 1. `X.509`
 
-## Cipher (22)
+## Cipher (24)
 
-1. `2.16.840.1.101.3.4.1.2`
-2. `2.16.840.1.101.3.4.1.22`
-3. `2.16.840.1.101.3.4.1.25`
-4. `2.16.840.1.101.3.4.1.26`
-5. `2.16.840.1.101.3.4.1.28`
-6. `2.16.840.1.101.3.4.1.42`
-7. `2.16.840.1.101.3.4.1.45`
-8. `2.16.840.1.101.3.4.1.46`
-9. `2.16.840.1.101.3.4.1.48`
-10. `2.16.840.1.101.3.4.1.5`
-11. `2.16.840.1.101.3.4.1.6`
-12. `2.16.840.1.101.3.4.1.8`
-13. `AES`
-14. `AES/CCM/NOPADDING`
-15. `AES/XTS/NOPADDING`
-16. `AES128`
-17. `AES192`
-18. `AES256`
-19. `AESWRAP`
-20. `AESWRAPPAD`
-21. `ML-KEM`
-22. `RSA`
+1. `1.2.840.113549.3.7`
+2. `2.16.840.1.101.3.4.1.2`
+3. `2.16.840.1.101.3.4.1.22`
+4. `2.16.840.1.101.3.4.1.25`
+5. `2.16.840.1.101.3.4.1.26`
+6. `2.16.840.1.101.3.4.1.28`
+7. `2.16.840.1.101.3.4.1.42`
+8. `2.16.840.1.101.3.4.1.45`
+9. `2.16.840.1.101.3.4.1.46`
+10. `2.16.840.1.101.3.4.1.48`
+11. `2.16.840.1.101.3.4.1.5`
+12. `2.16.840.1.101.3.4.1.6`
+13. `2.16.840.1.101.3.4.1.8`
+14. `AES`
+15. `AES/CCM/NOPADDING`
+16. `AES/XTS/NOPADDING`
+17. `AES128`
+18. `AES192`
+19. `AES256`
+20. `AESWRAP`
+21. `AESWRAPPAD`
+22. `DESEDE`
+23. `ML-KEM`
+24. `RSA`
 
 ## KeyAgreement (8)
 
@@ -558,16 +580,17 @@ filtering.
 27. `SLH-DSA-SHAKE-256S`
 28. `SLHDSA`
 
-## KeyGenerator (8)
+## KeyGenerator (9)
 
 1. `AES`
 2. `AES128`
 3. `AES192`
 4. `AES256`
-5. `ML-KEM-1024`
-6. `ML-KEM-512`
-7. `ML-KEM-768`
-8. `MLKEM`
+5. `DESEDE`
+6. `ML-KEM-1024`
+7. `ML-KEM-512`
+8. `ML-KEM-768`
+9. `MLKEM`
 
 ## KeyPairGenerator (28)
 

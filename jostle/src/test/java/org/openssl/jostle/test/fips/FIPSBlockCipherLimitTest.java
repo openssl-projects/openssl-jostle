@@ -51,6 +51,11 @@ public class FIPSBlockCipherLimitTest
     private static final int PKCS_PADDING = 1;
     private static final int NO_PADDING = 0;
 
+    /** DES-EDE3 ordinals / block size, for the Triple-DES-specific tests. */
+    private static final int DES_EDE3 = OSSLCipher.DES_EDE3.ordinal();
+    private static final int CTR = OSSLMode.CTR.ordinal();
+    private static final int DES_BLOCK = 8;
+
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     @BeforeAll
@@ -723,5 +728,176 @@ public class FIPSBlockCipherLimitTest
             ni.dispose(ref);
         }
     }
+
+
+    // ---------------------------------------------------------------------
+    // DES-EDE3, the only registered cipher with an 8-byte block and a single
+    // valid key length. Its arm of block_cipher_ctx_init carries three checks
+    // of its own (24-byte key, 8-byte IV, ECB/CBC only) that no AES test can
+    // reach. Every one of these drives DECRYPT: the checks are direction-
+    // agnostic, and a module configured tdes-encrypt-disabled would otherwise
+    // refuse the init before the check under test ran (testing.md, "gate the
+    // narrowest thing").
+    // ---------------------------------------------------------------------
+
+    /** Skip unless the loaded module implements Triple-DES at all. */
+    private static void assumeTripleDes()
+    {
+        Assumptions.assumeTrue(FIPSTestUtil.moduleServesTripleDes(),
+                "the loaded module does not implement Triple-DES");
+    }
+
+    @Test
+    public void desEde3_keyLengthBoundaries()
+    {
+        assumeTripleDes();
+        for (int len : new int[]{0, 1, 8, 15, 16, 17, 23, 25, 32})
+        {
+            long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+            try
+            {
+                Exception e = Assertions.assertThrows(Exception.class,
+                        () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[len], new byte[DES_BLOCK], 0));
+                Assertions.assertTrue(e instanceof InvalidKeyException, "type for len " + len);
+                Assertions.assertEquals("invalid key length", e.getMessage());
+            }
+            finally
+            {
+                ni.dispose(ref);
+            }
+        }
+
+        // Positive control: 24 bytes is accepted, so the check sits at exactly
+        // the right place rather than rejecting everything.
+        long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0,
+                    ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0));
+        }
+        catch (Exception e)
+        {
+            Assertions.fail("24-byte key must be accepted: " + e);
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void desEde3_ivLengthBoundaries()
+    {
+        assumeTripleDes();
+        // A zero-length array reaches the bridge indistinguishably from null
+        // (load_bytearray_ctx reports size 0 either way), so it is the
+        // null-IV code, not the length code — pinned separately rather than
+        // folded into the loop, which is where the difference was found.
+        for (byte[] iv : new byte[][]{null, new byte[0]})
+        {
+            long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+            try
+            {
+                Exception e = Assertions.assertThrows(Exception.class,
+                        () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], iv, 0));
+                Assertions.assertTrue(e instanceof java.security.InvalidAlgorithmParameterException);
+                Assertions.assertEquals("iv is null", e.getMessage());
+            }
+            finally
+            {
+                ni.dispose(ref);
+            }
+        }
+
+        for (int len : new int[]{1, 7, 9, 16})
+        {
+            long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+            try
+            {
+                Exception e = Assertions.assertThrows(Exception.class,
+                        () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[len], 0));
+                Assertions.assertTrue(e instanceof java.security.InvalidAlgorithmParameterException,
+                        "type for len " + len);
+                Assertions.assertEquals("invalid iv length", e.getMessage());
+            }
+            finally
+            {
+                ni.dispose(ref);
+            }
+        }
+
+        // Positive control: 8 bytes is accepted.
+        long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+        try
+        {
+            Assertions.assertEquals(0,
+                    ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0));
+        }
+        catch (Exception e)
+        {
+            Assertions.fail("8-byte IV must be accepted: " + e);
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void desEde3_unsupportedModeRejectedTyped()
+    {
+        assumeTripleDes();
+        // CTR is a legitimate OSSLMode and a legitimate DES-EDE3 mode in
+        // OpenSSL's LEGACY provider, so it reaches the DES_EDE3 arm's
+        // default: label rather than being screened out earlier.
+        long ref = ni.makeInstance(DES_EDE3, CTR, NO_PADDING);
+        try
+        {
+            Exception e = Assertions.assertThrows(Exception.class,
+                    () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0));
+            Assertions.assertTrue(e instanceof java.security.InvalidAlgorithmParameterException);
+            Assertions.assertEquals("mode not supported for cipher", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void desEde3_notBlockAlignedUsesEightNotSixteen() throws Exception
+    {
+        assumeTripleDes();
+        // The 8-byte block is the point: 8 bytes must be ACCEPTED (it would be
+        // refused for any 16-byte-block cipher) and 9 refused.
+        long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0);
+            Assertions.assertEquals(DES_BLOCK,
+                    ni.update(ref, new byte[32], 0, new byte[DES_BLOCK], 0, DES_BLOCK),
+                    "one 8-byte block must be accepted");
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+
+        ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0);
+            long r = ref;
+            Exception e = Assertions.assertThrows(Exception.class,
+                    () -> ni.update(r, new byte[32], 0, new byte[9], 0, 9));
+            Assertions.assertTrue(e instanceof IllegalBlockSizeException);
+            Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
 
 }

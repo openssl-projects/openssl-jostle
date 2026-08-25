@@ -243,7 +243,13 @@ public class FIPSAESTest
     public void ciphersNotServedByModuleRejected()
         throws Exception
     {
-        for (String name : new String[]{"ChaCha20", "CAMELLIA", "ARIA", "SM4", "DESede"})
+        // DESede is deliberately NOT in this list. It is a capability-GATED
+        // family, not an absent one: refused by the 3.1.2 module and served by
+        // 3.5.x, so a fixed "must not resolve" assertion is wrong against one
+        // of the two supported modules. Its contract is asserted against what
+        // the module actually implements by
+        // FIPSDESedeAgreementTest.tripleDesServedIffModuleImplementsIt.
+        for (String name : new String[]{"ChaCha20", "CAMELLIA", "ARIA", "SM4"})
         {
             Assertions.assertThrows(NoSuchAlgorithmException.class,
                     () -> Cipher.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),

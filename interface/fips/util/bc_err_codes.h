@@ -446,6 +446,31 @@
  */
 #define JO_KDF_SEED_FAILED_ACCESS -166
 
+/*
+ * Triple-DES ENCRYPTION refused by the provider, while decryption with the
+ * same cipher and key still works. OpenSSL's FIPS module gates it behind the
+ * fipsinstall switch "tdes-encrypt-disabled" - TDES encryption is no longer
+ * approved under SP 800-131A while decryption stays available for legacy data,
+ * so the module drops one direction and keeps the other.
+ *
+ * Distinct code because the caller's options differ - a TDES decryptor keeps
+ * working, so this is not "Triple-DES is unavailable" - and because the failure
+ * is otherwise silent: the switch makes EVP_EncryptInit_ex return 0 WITHOUT
+ * raising, so the error queue is EMPTY and a generic JO_OPENSSL_ERROR would
+ * surface as "OpenSSL Error: null" (probe-measured, all four environments:
+ * fips-c-review/probes/tdes_gate_probe.c).
+ *
+ * Diagnosis-on-failure, and self-guarding: on a failed encrypt init the SAME
+ * cipher/key/iv is re-driven on two fresh contexts, one per direction, and the
+ * code is returned only when encrypt refuses AND decrypt accepts. That IS the
+ * decrypt-only property, asked directly rather than inferred from a config
+ * switch name or a module version - and because the re-probe carries no OPS
+ * macro, an operations-test-injected init failure re-probes as "encrypt works"
+ * and stays a generic JO_OPENSSL_ERROR. Never fires on a provider that
+ * encrypts, so the identical source serves both trees.
+ */
+#define JO_TDES_ENCRYPT_UNAVAILABLE -167
+
 
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so

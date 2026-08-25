@@ -270,6 +270,12 @@ public enum ErrorCode
     // the two optional arrays the bridge could not reach.
     JO_KDF_SEED_FAILED_ACCESS(-166),
 
+    // The loaded provider refuses Triple-DES ENCRYPTION while still decrypting
+    // (OpenSSL's FIPS module with "tdes-encrypt-disabled"). Reported at all
+    // because the refusal raises nothing, so the generic path would say
+    // "OpenSSL Error: null".
+    JO_TDES_ENCRYPT_UNAVAILABLE(-167),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

@@ -36,13 +36,33 @@ public class DESedeKeyGenerator extends KeyGeneratorSpi
      */
     private static final int KEY_BYTES = 24;
 
+    private final SecureRandom providerRandom;
+
     private SecureRandom random;
 
     public DESedeKeyGenerator()
     {
         // CLAUDE.md: SecureRandom construction blocks on entropy seeding;
         // the registrar returns a cached instance.
-        random = CryptoServicesRegistrar.getSecureRandom();
+        this.providerRandom = null;
+        this.random = CryptoServicesRegistrar.getSecureRandom();
+    }
+
+    /**
+     * Default-SecureRandom-injecting constructor for the FIPS provider, the
+     * exact shape {@link AESKeyGenerator} uses: key bytes default to the
+     * supplied source (the FIPS module's DRBG via the JSLFIPS SecureRandom
+     * service), and a later {@code init(...)} supplying a SecureRandom NOT
+     * backed by that provider is overridden back to it — so
+     * {@code KeyGenerator.init(int)}'s JCE-injected JVM default cannot
+     * silently pull key bytes from outside the FIPS boundary. A same-provider
+     * SecureRandom is honoured, and the check can be disabled via
+     * {@code CryptoServicesRegistrar.ENFORCE_PROVIDER_RANDOM}.
+     */
+    public DESedeKeyGenerator(SecureRandom random)
+    {
+        this.providerRandom = random;
+        this.random = random;
     }
 
     @Override
@@ -52,7 +72,7 @@ public class DESedeKeyGenerator extends KeyGeneratorSpi
         {
             throw new IllegalArgumentException("random is null");
         }
-        this.random = random;
+        this.random = CryptoServicesRegistrar.resolveProviderRandom(random, providerRandom);
     }
 
     @Override
@@ -78,7 +98,7 @@ public class DESedeKeyGenerator extends KeyGeneratorSpi
             throw new IllegalArgumentException("random is null");
         }
 
-        this.random = random;
+        this.random = CryptoServicesRegistrar.resolveProviderRandom(random, providerRandom);
     }
 
     @Override

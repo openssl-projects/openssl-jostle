@@ -29,8 +29,14 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement coverage for DESede (3-key Triple DES) —
@@ -1081,4 +1087,120 @@ public class DESedeAgreementTest
         }
         return c.doFinal(ct);
     }
+
+    /**
+     * Every DESede service and alias JSL registers is driven by a test in this
+     * file, and every name this file claims to drive is registered.
+     * <p>
+     * Both directions matter. Forward catches a transformation added to
+     * {@code ProvDESede} with no test — the gap this guard exists for.
+     * Backward catches a rename that leaves {@link #COVERED} naming something
+     * unregistered, which would silently test nothing while still passing a
+     * forward-only check.
+     */
+    @Test
+    public void everyRegisteredDESedeServiceIsCovered()
+    {
+        Provider provider = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        Assertions.assertNotNull(provider, "JSL provider must be registered");
+
+        SortedSet<String> registered = registeredDESedeSurface(provider);
+        SortedSet<String> covered = new TreeSet<String>(java.util.Arrays.asList(COVERED));
+
+        Assertions.assertFalse(registered.isEmpty(),
+                "no DESede services discovered — the guard would pass vacuously; "
+                        + "check DESEDE_PREFIX still matches the registrar");
+
+        SortedSet<String> uncovered = new TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSL registers DESede services this file does not exercise: " + uncovered);
+
+        SortedSet<String> dead = new TreeSet<String>(covered);
+        dead.removeAll(registered);
+        Assertions.assertTrue(dead.isEmpty(),
+                "COVERED names nothing registers (a rename left a dead entry): " + dead);
+    }
+
+    /**
+     * The DESede names this file actually drives. Hand-written rather than
+     * discovered, because the tests take a different transformation string per
+     * mode/padding and cannot be generated from the service list — which is
+     * exactly why the guard above is what makes the list safe.
+     */
+    private static final String[] COVERED = {
+            "Cipher.DESEDE",                    // every DESede/<mode>/<padding> agreement test
+            "Cipher.1.2.840.113549.3.7",        // testOidAlias_resolvesToDESede_CBC
+            "Cipher.TRIPLEDES",                 // testTripleDESAlias_resolvesToDESede
+            "KeyGenerator.DESEDE",              // testKeyGenerator_generates24ByteKeys et al
+            "KeyGenerator.TRIPLEDES",           // testKeyGenerator_aliasTripleDES
+    };
+
+    // -----------------------------------------------------------------
+    // Completeness guard (testing.md, "Every family needs BOTH agreement
+    // classes", rule 2). Without it a transformation registered later is
+    // exercised by nothing, and the omission is invisible: every existing
+    // test still passes.
+    // -----------------------------------------------------------------
+
+    /**
+     * The class name prefix both DESede registrars pass to
+     * {@code addAlgorithmImplementation}. Discovering the surface by SPI class
+     * rather than by algorithm NAME is what makes the guard bite: a future
+     * registration picks up this prefix automatically, whereas a name-matching
+     * filter would have to be taught the new name — the very thing being
+     * guarded against.
+     */
+    private static final String DESEDE_PREFIX = "org.openssl.jostle.jcajce.provider.ProvDESede";
+
+    /**
+     * Every {@code <Type>.<NAME>} the provider registers from a DESede
+     * registrar, primaries AND alias spellings.
+     * <p>
+     * Aliases have to be read out of the provider's own property map:
+     * {@code addAlias} writes {@code Alg.Alias.<Type>.<ALIAS> -> <PRIMARY>},
+     * and they are not Services, so {@code getServices()} alone would miss
+     * them — and a broken alias is a real caller-visible defect
+     * ({@code Cipher.getInstance("TripleDES")} is what a lot of code writes).
+     */
+    private static SortedSet<String> registeredDESedeSurface(Provider provider)
+    {
+        SortedSet<String> out = new TreeSet<String>();
+        Map<String, String> primaries = new HashMap<String, String>();
+
+        for (Provider.Service s : provider.getServices())
+        {
+            String cn = s.getClassName();
+            if (cn != null && cn.startsWith(DESEDE_PREFIX))
+            {
+                String alg = s.getAlgorithm().toUpperCase(Locale.ROOT);
+                out.add(s.getType() + "." + alg);
+                primaries.put(s.getType() + "." + alg, alg);
+            }
+        }
+
+        for (Map.Entry<Object, Object> e : provider.entrySet())
+        {
+            String key = String.valueOf(e.getKey());
+            if (!key.startsWith("Alg.Alias."))
+            {
+                continue;
+            }
+            String rest = key.substring("Alg.Alias.".length());
+            int dot = rest.indexOf('.');
+            if (dot < 0)
+            {
+                continue;
+            }
+            String type = rest.substring(0, dot);
+            String alias = rest.substring(dot + 1).toUpperCase(Locale.ROOT);
+            String target = String.valueOf(e.getValue()).toUpperCase(Locale.ROOT);
+            if (primaries.containsKey(type + "." + target))
+            {
+                out.add(type + "." + alias);
+            }
+        }
+        return out;
+    }
+
 }

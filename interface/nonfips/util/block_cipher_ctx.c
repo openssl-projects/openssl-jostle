@@ -149,6 +149,58 @@ static int32_t xts_append(block_cipher_ctx *ctx, uint8_t *input, size_t in_len) 
 }
 
 
+/*
+ * Diagnosis-on-failure for a refused Triple-DES ENCRYPT init.
+ *
+ * OpenSSL's FIPS module, configured with "tdes-encrypt-disabled", refuses TDES
+ * encryption at EVP_EncryptInit_ex and returns 0 WITHOUT raising - the error
+ * queue is left empty, so a generic JO_OPENSSL_ERROR reaches Java as
+ * "OpenSSL Error: null". That is the DSA-signing shape, not the PKCS#1 one
+ * (whose refusal self-names "invalid padding mode"), so it earns a typed code.
+ *
+ * The property being named is "this provider decrypts Triple-DES but will not
+ * encrypt it", and it is asked directly: the SAME cipher, key and IV are
+ * re-driven on two fresh contexts, one per direction. Both halves are required.
+ * Probing only decrypt would misreport any other encrypt-side failure as the
+ * capability gate, and would also mis-classify an operations-test-injected
+ * failure - the OPS macro lives at the call site, not here, so an injected
+ * failure re-probes as "encrypt works" and correctly stays generic.
+ *
+ * Fresh contexts because the caller's ctx->evp may be left in an undefined
+ * state by the failed init. ERR_set_mark / ERR_pop_to_mark so the probe's own
+ * noise cannot disturb the primary error report.
+ */
+static int32_t classify_tdes_encrypt_init_failure(EVP_CIPHER *evp_cipher, uint8_t *key, uint8_t *iv) {
+    EVP_CIPHER_CTX *enc_probe = NULL;
+    EVP_CIPHER_CTX *dec_probe = NULL;
+    int enc_ok = 0;
+    int dec_ok = 0;
+
+    ERR_set_mark();
+
+    enc_probe = EVP_CIPHER_CTX_new();
+    dec_probe = EVP_CIPHER_CTX_new();
+    if (enc_probe == NULL || dec_probe == NULL) {
+        EVP_CIPHER_CTX_free(enc_probe);
+        EVP_CIPHER_CTX_free(dec_probe);
+        ERR_pop_to_mark();
+        return JO_OPENSSL_ERROR;
+    }
+
+    enc_ok = EVP_EncryptInit_ex(enc_probe, evp_cipher, NULL, key, iv);
+    dec_ok = EVP_DecryptInit_ex(dec_probe, evp_cipher, NULL, key, iv);
+
+    EVP_CIPHER_CTX_free(enc_probe);
+    EVP_CIPHER_CTX_free(dec_probe);
+    ERR_pop_to_mark();
+
+    if (enc_ok != 1 && dec_ok == 1) {
+        return JO_TDES_ENCRYPT_UNAVAILABLE;
+    }
+    return JO_OPENSSL_ERROR;
+}
+
+
 static inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 
     if (iv_len > block_len) {
@@ -974,6 +1026,13 @@ int32_t block_cipher_ctx_init(
             } else {
                 if (OPS_FAILED_INIT_1 1 != EVP_EncryptInit_ex(ctx->evp, evp_cipher, NULL, key, iv_for_openssl)) {
                     ret_code = JO_OPENSSL_ERROR;
+                    if (ctx->cipher_id == DES_EDE3) {
+                        // A FIPS module with tdes-encrypt-disabled refuses this
+                        // call and raises nothing, so classify: the caller
+                        // should learn the direction is gated rather than read
+                        // "OpenSSL Error: null".
+                        ret_code = classify_tdes_encrypt_init_failure(evp_cipher, key, iv_for_openssl);
+                    }
                     goto exit;
                 }
             }

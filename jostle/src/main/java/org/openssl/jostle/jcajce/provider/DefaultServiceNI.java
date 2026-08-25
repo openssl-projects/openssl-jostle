@@ -270,6 +270,18 @@ public interface DefaultServiceNI
                 // engineInitSign.
                 throw new ProviderCapabilityException(
                         "DSA signature generation is not supported by the loaded provider; signature verification remains available");
+            case JO_TDES_ENCRYPT_UNAVAILABLE:
+                // Decrypt-only Triple-DES: the provider decrypts with this
+                // cipher but refuses to encrypt (OpenSSL's FIPS module
+                // configured with "tdes-encrypt-disabled" — SP 800-131A drops
+                // TDES encryption and keeps decryption for legacy data). Named
+                // separately from a plain absence because decryption still
+                // works, and reported at all because the module's refusal is
+                // silent — it raises nothing, so the generic path would say
+                // "OpenSSL Error: null". BlockCipherSpi translates at
+                // engineInit.
+                throw new ProviderCapabilityException(
+                        "Triple-DES encryption is not supported by the loaded provider; Triple-DES decryption remains available");
             case JO_DER_TRAILING_DATA:
                 // Strict DER: a well-formed value decoded but trailing bytes
                 // remained. KeyFactory decode paths translate the parent

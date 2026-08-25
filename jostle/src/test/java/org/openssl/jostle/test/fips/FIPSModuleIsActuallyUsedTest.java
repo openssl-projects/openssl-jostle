@@ -266,6 +266,49 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * Triple-DES specifically, named rather than swept.
+     * <p>
+     * The sweep probes each service under its JCE name, and {@code DESede} is
+     * not the EVP one — OpenSSL knows {@code DES-EDE3-CBC} / {@code DES-EDE3-ECB},
+     * with the mode part of the fetched name. {@code implementingProvider}
+     * therefore answers null for {@code DESede} and the sweep skips it,
+     * silently and with no evidence either way. That matters here because
+     * mainline libcrypto implements Triple-DES identically to the 3.5.x module,
+     * so no agreement, chunking or negative test can tell them apart.
+     * <p>
+     * Both branches are asserted, and note the registration check and the probe
+     * deliberately use DIFFERENT names: {@code Cipher.DESede} is what JSLFIPS
+     * registers, {@code DES-EDE3-CBC} is what OpenSSL resolves.
+     */
+    @Test
+    public void tripleDesIsImplementedByTheFipsModuleWhenServed()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        boolean registered = provider.getService("Cipher", "DESede") != null;
+
+        for (String evpName : new String[]{"DES-EDE3-CBC", "DES-EDE3-ECB"})
+        {
+            String impl = FIPSNISelector.OpenSSLFIPSNI
+                    .implementingProvider(OpenSSLFIPSNI.OP_CIPHER, evpName);
+
+            if (!registered)
+            {
+                Assertions.assertNull(impl,
+                        "Cipher.DESede is unregistered but the FIPS lib ctx resolves "
+                                + evpName + " to \"" + impl
+                                + "\" — a working algorithm was dropped from callers");
+                continue;
+            }
+            Assertions.assertEquals(FIPS_PROVIDER, impl,
+                    "Cipher.DESede is served by JSLFIPS but " + evpName
+                            + " is implemented by \"" + impl
+                            + "\" — mainline implements Triple-DES identically, so this is "
+                            + "the only check that can catch it");
+        }
+    }
+
+    /**
      * The KDFs behind the {@code SecretKeyFactory} surface are implemented by
      * the FIPS module.
      * <p>

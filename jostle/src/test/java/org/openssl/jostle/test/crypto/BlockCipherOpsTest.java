@@ -1237,7 +1237,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
             Assertions.assertEquals(0, blockCipherNI.update(ref, new byte[32], 0, new byte[32], 0, 32));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1607
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1676
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
@@ -1255,5 +1255,53 @@ public class BlockCipherOpsTest
             blockCipherNI.dispose(ref);
         }
     }
+
+
+    @Test
+    public void testDesEde3_injectedEncryptInitFailureIsNotMisclassified() throws Exception
+    {
+        // classify_tdes_encrypt_init_failure sits on the DES_EDE3 arm of the
+        // non-AEAD encrypt init. It must classify only a REAL refusal: an
+        // OPS-injected failure short-circuits before EVP is called, so the
+        // module can still encrypt, and the code must stay JO_OPENSSL_ERROR.
+        //
+        // The classifier is self-guarding rather than OPS-guarded — it carries
+        // no OPS macro, so its own re-probe of the encrypt direction succeeds
+        // and it declines to classify. This test is what pins that: a
+        // classifier written to probe only the DECRYPT direction would return
+        // JO_TDES_ENCRYPT_UNAVAILABLE here and fail.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.DES_EDE3.ordinal(),
+                    1, 0); // DES_EDE3, CBC, NO_PADDING
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1027
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
+
+            try
+            {
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(24), sequentialIv(8), 0);
+                Assertions.fail("expected DESede encrypt init failure");
+            }
+            catch (OpenSSLException ex)
+            {
+                // The generic wrapper, NOT the capability one. A misclassified
+                // failure would arrive as ProviderCapabilityException with
+                // "Triple-DES encryption is not supported ...".
+                Assertions.assertEquals(OpenSSLException.class, ex.getClass(),
+                        "an injected failure must not be classified as a capability refusal");
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
 
 }

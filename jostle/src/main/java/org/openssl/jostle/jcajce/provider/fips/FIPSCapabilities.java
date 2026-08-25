@@ -50,7 +50,11 @@ package org.openssl.jostle.jcajce.provider.fips;
  *       Ed25519 / Ed448 — the inverse of X25519/X448, absent on 3.1.2 and
  *       present on 3.5.7 — which additionally need
  *       {@link #canFetchSignature} because that family is not
- *       all-or-nothing.</li>
+ *       all-or-nothing. And Triple-DES, whose cipher fetch is refused on 3.1.2
+ *       and served on 3.5.7 - see {@link #canFetchCipher}, and note that only
+ *       the REGISTRATION half is decided here: whether the module will
+ *       ENCRYPT with it is a fipsinstall switch no fetch can see, classified
+ *       in C like DSA signing.</li>
  *   <li><b>"Will this operation actually work?"</b> — answerable only by doing
  *       it, so it is <b>not</b> here. DSA key generation and PKCS#1 v1.5
  *       encrypt both fetch and init happily on either module; only the real
@@ -128,6 +132,35 @@ final class FIPSCapabilities
     static boolean canFetchSignature(String name)
     {
         return FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_SIGNATURE, name) != 0;
+    }
+
+    /**
+     * Whether the loaded module resolves {@code name} as a symmetric cipher.
+     * Same "any answer other than a definite no registers" rule as
+     * {@link #canFetchKeyMgmt}.
+     *
+     * <p>Needed for Triple-DES, the third straight family flip: DES-EDE3 is
+     * {@code fips=no} on 3.1.2 and {@code fips=yes} on 3.5.x. Measured across
+     * all three supported configurations by
+     * {@code fips-c-review/probes/tdes_gate_probe.c}:
+     *
+     * <pre>
+     *   3.1.2               : DES-EDE3-CBC / -ECB / DES-EDE3 all REFUSED
+     *   3.5.7 default       : all three fetch, provider=fips, both directions run
+     *   3.5.7 -pedantic     : all three fetch — but ENCRYPTION is refused
+     * </pre>
+     *
+     * <p>The fetch is therefore the complete answer to <i>registration</i>, and
+     * deliberately not to <i>usability</i>: the {@code tdes-encrypt-disabled}
+     * fipsinstall switch refuses the encrypt direction at operation time, which
+     * no fetch can see. That half is classified where it fails, in C, and
+     * surfaces as {@code ProviderCapabilityException} via
+     * {@code JO_TDES_ENCRYPT_UNAVAILABLE} — decryption keeps working on every
+     * configuration, so the family stays registered.
+     */
+    static boolean canFetchCipher(String name)
+    {
+        return FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_CIPHER, name) != 0;
     }
 
     /**

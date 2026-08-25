@@ -65,6 +65,7 @@ public class FIPSServedSurfaceSnapshotTest
             "AlgorithmParameters.EC",
             "AlgorithmParameters.GCM",
             "CertificateFactory.X.509",
+            "Cipher.1.2.840.113549.3.7",   // Triple-DES, capability-gated (see TDES_GATED)
             "Cipher.2.16.840.1.101.3.4.1.2",
             "Cipher.2.16.840.1.101.3.4.1.22",
             "Cipher.2.16.840.1.101.3.4.1.25",
@@ -85,6 +86,7 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.AES256",
             "Cipher.AESWRAP",
             "Cipher.AESWRAPPAD",
+            "Cipher.DESEDE",   // Triple-DES, capability-gated (see TDES_GATED)
             "Cipher.ML-KEM",   // PQC, capability-gated (see PQC_GATED)
             "Cipher.RSA",
             "KeyAgreement.DH",
@@ -133,6 +135,7 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyGenerator.AES128",
             "KeyGenerator.AES192",
             "KeyGenerator.AES256",
+            "KeyGenerator.DESEDE",   // Triple-DES, capability-gated (see TDES_GATED)
             "KeyGenerator.ML-KEM-1024",   // PQC, capability-gated (see PQC_GATED)
             "KeyGenerator.ML-KEM-512",   // PQC, capability-gated (see PQC_GATED)
             "KeyGenerator.ML-KEM-768",   // PQC, capability-gated (see PQC_GATED)
@@ -495,7 +498,8 @@ public class FIPSServedSurfaceSnapshotTest
      * <p>
      * The single sanctioned exception is a capability-gated group
      * ({@link #XDH_GATED}, {@link #PQC_GATED}, {@link #ED_GATED},
-     * {@link #ED_CTX_GATED}), which may be absent only when the loaded module
+     * {@link #ED_CTX_GATED}, {@link #TDES_GATED}), which may be absent only
+     * when the loaded module
      * genuinely cannot serve it. That is verified against the module here, not
      * assumed: see {@link #assertGatedAbsenceIsJustified}.
      */
@@ -528,6 +532,7 @@ public class FIPSServedSurfaceSnapshotTest
         unexplained.removeAll(Arrays.asList(PQC_GATED));
         unexplained.removeAll(Arrays.asList(ED_GATED));
         unexplained.removeAll(Arrays.asList(ED_CTX_GATED));
+        unexplained.removeAll(Arrays.asList(TDES_GATED));
         Assertions.assertTrue(unexplained.isEmpty(),
                 "JSLFIPS dropped services that are not capability-gated."
                         + "\n  REMOVED (in golden, gone now, no recorded gate): " + unexplained
@@ -543,7 +548,34 @@ public class FIPSServedSurfaceSnapshotTest
         // Per-NAME, and probed as a SIGNATURE: the family's keymgmt resolves on
         // 3.5.7 while this one instance does not.
         assertGatedAbsenceIsJustified("Ed25519ctx", ED_CTX_GATED, OpenSSLFIPSNI.OP_SIGNATURE, "ED25519CTX", removed);
+        // Probed as a CIPHER: the family has no keymgmt of its own.
+        assertGatedAbsenceIsJustified("Triple-DES", TDES_GATED, OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC", removed);
     }
+
+    /**
+     * Triple-DES, the third capability-gated group, and the same straight flip
+     * as {@link #ED_GATED}: {@code fips=no} on 3.1.2 (every DES-EDE3 name
+     * unfetchable under the lib ctx's {@code fips=yes} default properties),
+     * {@code fips=yes} on 3.5.x. ProvFIPSDESede registers on the cipher fetch.
+     * <p>
+     * The two alias names ({@code TripleDES} for both Cipher and KeyGenerator)
+     * are deliberately absent — {@code addAlias} does not create a Service, so
+     * they never appear in {@code getServices()}. {@code FIPSDESedeAgreementTest}
+     * is what pins the aliases resolving.
+     * <p>
+     * Absence here means the module does not implement Triple-DES at all. It
+     * does NOT track the {@code tdes-encrypt-disabled} fipsinstall switch: that
+     * refuses only the ENCRYPT direction, at operation time, and decryption
+     * keeps working — so the services stay registered on a -pedantic 3.5.x and
+     * this group must not be gated on it. Measured by
+     * {@code fips-c-review/probes/tdes_gate_probe.c}.
+     */
+    private static final String[] TDES_GATED = {
+            "Cipher.1.2.840.113549.3.7",
+            "Cipher.DESEDE",
+            "KeyGenerator.DESEDE",
+    };
+
 
     /** The {@link #PQC_GATED} entries belonging to one family. */
     private static String[] pqcSubset(String... markers)

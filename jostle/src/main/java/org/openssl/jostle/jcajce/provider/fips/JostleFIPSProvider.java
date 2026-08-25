@@ -263,8 +263,8 @@ public final class JostleFIPSProvider
         // approval, and it is decided by asking this module rather than by a
         // compiled-in list (JSLFIPS serves one build against both the
         // validated 3.1.2 and a future 3.5.x, which disagree in both
-        // directions). ProvFIPSXDH, ProvFIPSED and the three PQC registrars
-        // are those registrars today; see FIPSCapabilities for the scoping
+        // directions). ProvFIPSXDH, ProvFIPSED, ProvFIPSDESede and the three
+        // PQC registrars are those registrars today; see FIPSCapabilities for the scoping
         // rule that keeps the list short, and note this runs AFTER
         // FIPSOpenSSL.initialise above, so the lib ctx the probes query
         // already exists.
@@ -282,6 +282,11 @@ public final class JostleFIPSProvider
         // 3.1.2 — and gated per NAME, because 3.5.x serves the family but not
         // the ED25519CTX instance. See ProvFIPSED.
         new ProvFIPSED().configure(this);
+        // Triple-DES. The third straight family flip: refused outright by
+        // 3.1.2, served by 3.5.x. Registered on the cipher fetch; whether the
+        // module will ENCRYPT with it is a fipsinstall switch no fetch can
+        // see, classified in C. See ProvFIPSDESede.
+        new ProvFIPSDESede().configure(this);
         // PQC. Registered only when the loaded module serves the family:
         // 3.5.x does, 3.1.2 does not. See FIPSCapabilities.
         new ProvFIPSMLDSA().configure(this);

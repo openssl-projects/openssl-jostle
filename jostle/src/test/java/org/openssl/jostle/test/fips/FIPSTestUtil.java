@@ -23,6 +23,9 @@ import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.rand.RandSource;
 
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.math.BigInteger;
 import java.security.InvalidKeyException;
@@ -383,6 +386,77 @@ final class FIPSTestUtil
             }
         }
         return fipsPkcs1Encrypts;
+    }
+
+    /**
+     * Does the loaded module implement Triple-DES at all?
+     * <p>
+     * Asks the module directly, through the same
+     * {@code capability_can_fetch(JO_CAP_OP_CIPHER, ...)} that
+     * {@code ProvFIPSDESede} gates on, so a test using it asserts the
+     * registration AGREES with the module rather than pinning either module's
+     * answer. Refused on 3.1.2, served on 3.5.x, under both fipsinstall
+     * configurations (probe: {@code fips-c-review/probes/tdes_gate_probe.c}).
+     */
+    static boolean moduleServesTripleDes()
+    {
+        return FIPSNISelector.OpenSSLFIPSNI.canFetch(
+                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC") != 0;
+    }
+
+    /**
+     * The message a decrypt-only FIPS module's Triple-DES encrypt
+     * {@code Cipher.init} must carry. Pinned once so every TDES test asserts
+     * the same text — see {@code DefaultServiceNI.baseErrorHandler}'s
+     * {@code JO_TDES_ENCRYPT_UNAVAILABLE} arm and {@code BlockCipherSpi}'s
+     * {@code catch (OpenSSLException)}, which translates it to
+     * {@link java.security.InvalidKeyException}.
+     */
+    static final String TDES_ENCRYPT_REFUSED_MESSAGE =
+            "Triple-DES encryption is not supported by the loaded provider;"
+                    + " Triple-DES decryption remains available";
+
+    /** Memoized {@link #fipsTripleDesCanEncrypt()}; null until first asked. */
+    private static Boolean fipsTdesEncrypts;
+
+    /**
+     * Does the loaded module ENCRYPT with Triple-DES, or only decrypt?
+     * <p>
+     * Asked by attempting the init, because nothing cheaper can answer it: the
+     * cipher fetches, the {@code Cipher} resolves, and only the encrypt init is
+     * refused. This is a fipsinstall CONFIG difference rather than a module
+     * version one — {@code tdes-encrypt-disabled} is off at defaults and on
+     * under {@code -pedantic}, so 3.5.7 answers both ways depending on the cnf
+     * (probe: {@code fips-c-review/probes/tdes_gate_probe.c}).
+     * <p>
+     * The refusal is pinned here, not merely detected: it must arrive as
+     * {@link java.security.InvalidKeyException} — the JCE-canonical init
+     * failure and the provider-fallback trigger — carrying
+     * {@link #TDES_ENCRYPT_REFUSED_MESSAGE}. The module raises nothing on its
+     * own error queue for this, so without the typed classification a caller
+     * would see "OpenSSL Error: null". Without that assertion the probe would
+     * degrade into "skip whenever anything goes wrong", and a genuine
+     * regression would read as an absent capability.
+     */
+    static synchronized boolean fipsTripleDesCanEncrypt() throws Exception
+    {
+        if (fipsTdesEncrypts == null)
+        {
+            SecretKey key = new SecretKeySpec(new byte[24], "DESede");
+            try
+            {
+                Cipher.getInstance("DESede/CBC/PKCS5Padding",
+                        JostleFIPSProvider.PROVIDER_NAME).init(Cipher.ENCRYPT_MODE, key);
+                fipsTdesEncrypts = Boolean.TRUE;
+            }
+            catch (InvalidKeyException e)
+            {
+                Assertions.assertEquals(TDES_ENCRYPT_REFUSED_MESSAGE, e.getMessage(),
+                        "a decrypt-only module must refuse encrypt init with the capability message");
+                fipsTdesEncrypts = Boolean.FALSE;
+            }
+        }
+        return fipsTdesEncrypts;
     }
 
     /**

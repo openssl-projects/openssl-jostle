@@ -55,6 +55,24 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
         super(cipher, mode, DESEDE);
     }
 
+    //
+    // NI-binding constructors for the FIPS provider: identical behaviour,
+    // bound to the FIPS interface library's BlockCipherNI. Without these the
+    // SPI would reach NISelector's statics and so be welded to the base
+    // interface library and its OSSL_LIB_CTX — see the "An SPI that reaches
+    // NISelector statics cannot ever serve JSLFIPS" rule in java-spi.md.
+    //
+    public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi)
+    {
+        super(blockCipherNi, null, null, DESEDE);
+        osslMode = OSSLMode.ECB;
+    }
+
+    public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode)
+    {
+        super(blockCipherNi, cipher, mode, DESEDE);
+    }
+
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException
     {
         // 3-key TDES expects a 24-byte key. We intentionally do NOT
