@@ -204,6 +204,15 @@ public interface BlockCipherNI extends DefaultServiceNI
                 throw new InvalidAlgorithmParameterException("invalid iv length");
             case JO_INVALID_MODE: // CBC, ECB, etc
                 throw new InvalidAlgorithmParameterException("mode not supported for cipher");
+            case JO_MODE_TAKES_NO_PADDING:
+                // CTS with a padding scheme. Same shape as JO_MODE_TAKES_NO_IV:
+                // the combination is a contradiction, so it is refused rather
+                // than silently ignored. NoSuchPaddingException is the
+                // JCE-canonical answer, but engineSetPadding is where a JCE
+                // caller meets it — this arm guards the NI surface, whose
+                // callers get the IllegalArgumentException the other
+                // combination-refusals here use.
+                throw new IllegalArgumentException("mode takes no padding");
             case JO_INVALID_OP_MODE: // Encrypt, Decrypt, Wrap, Unwrap etc
                 throw new IllegalStateException("invalid operation mode");
             case JO_INVALID_TAG_LEN:

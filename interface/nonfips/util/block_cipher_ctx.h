@@ -8,6 +8,7 @@
 #ifndef BLOCK_CIPHER_SPI_H
 #define BLOCK_CIPHER_SPI_H
 
+#include <openssl/buffer.h>
 #include <openssl/evp.h>
 #include <openssl/types.h>
 #include <stdint.h>
@@ -46,25 +47,24 @@ typedef struct block_cipher_ctx {
      */
     size_t buffered;
     /*
-     * XTS accumulation buffer, and the bytes / capacity it holds.
-     *
-     * OpenSSL's EVP XTS is one-shot per data unit: it restarts the tweak
-     * sequence at the head of every update call, so feeding a unit in chunks
-     * produces ciphertext no conforming implementation can read — and our own
-     * chunked decrypt repeats the mistake, so it round-trips and looks
-     * correct. JCA nonetheless permits a caller to deliver a data unit in
-     * pieces, so XTS updates accumulate here and the whole unit goes to EVP in
-     * a single call at final. This is the sanctioned "one-shot EVP primitive
+     * Message accumulator for the modes whose EVP primitive is one-shot —
+     * XTS and CBC-CTS; see mode_accumulates() in block_cipher_ctx.c for what
+     * each of them does when fed in pieces, and why JCA's streaming contract
+     * obliges us to buffer. This is the sanctioned "one-shot EVP primitive
      * under a streaming JCA contract" pattern (native-code.md); CCM buffers
      * for the same reason in its own ctx.
      *
-     * Grown by malloc + copy + OPENSSL_clear_free of the old block, never by
-     * OPENSSL_realloc — a realloc would abandon the previous plaintext copy
-     * uncleansed while every other release of this buffer clear-frees.
+     * BUF_MEM rather than a hand-rolled buffer, because its grow path is
+     * exactly the discipline this buffer needs and gets it from libcrypto:
+     * BUF_MEM_grow_clean reallocates via OPENSSL_clear_realloc, which copies
+     * to the new block and CLEANSES the old one — a bare OPENSSL_realloc would
+     * abandon the previous plaintext copy in freed heap. BUF_MEM_free
+     * clear-frees the whole capacity.
+     *
+     * Allocated lazily on first append: most modes never accumulate, and a
+     * BUF_MEM per cipher ctx would be dead weight for them. NULL means empty.
      */
-    uint8_t *xts_buffer;
-    size_t xts_buffered;
-    size_t xts_capacity;
+    BUF_MEM *accum;
     uint8_t poisoned;
     uint8_t initialized;
 } block_cipher_ctx;

@@ -182,6 +182,20 @@ class BlockCipherSpi extends CipherSpi
         {
             if (padding.equals("PKCS7PADDING") || padding.equals("PKCS5PADDING"))
             {
+                if (osslMode == OSSLMode.CTS)
+                {
+                    // Ciphertext stealing IS the answer to a partial final
+                    // block, so a padding scheme on top is a contradiction:
+                    // padded plaintext is always a block multiple, the
+                    // stealing becomes a no-op, and the result is ordinary CBC
+                    // that no CTS peer can read. JCE calls engineSetMode
+                    // before engineSetPadding on the form-4 path, so the mode
+                    // is known here. The native layer refuses the combination
+                    // too (JO_MODE_TAKES_NO_PADDING) for callers who reach the
+                    // NI directly.
+                    throw new NoSuchPaddingException(
+                            "CTS mode takes no padding; ciphertext stealing replaces it");
+                }
                 this.padding = 1;
             }
             else

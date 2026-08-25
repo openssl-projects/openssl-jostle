@@ -10,7 +10,9 @@
 #include "bc_err_codes.h"
 #include <limits.h>
 #include <string.h>
+#include <openssl/core_names.h>
 #include <openssl/err.h>
+#include <openssl/params.h>
 
 #include "ctr_u128_t.h"
 #include "ops.h"
@@ -57,6 +59,34 @@ static inline int is_aead_mode(uint32_t mode_id) {
  * whole blocks out of (buffered residue + fed), so `fed` — not the raw
  * in_len — is what drives how much OCB writes.
  */
+/**
+ * Modes whose EVP primitive is ONE-SHOT per message, so util accumulates the
+ * whole message and hands OpenSSL a single call at the terminal operation
+ * (the sanctioned exception in native-code.md's "One-shot EVP primitives
+ * under a streaming JCA contract").
+ *
+ * Two modes, refusing chunked input for different reasons and with different
+ * symptoms, both measured rather than assumed:
+ *
+ *   XTS  EVP re-derives the tweak from the head of every update call, so
+ *        chunked delivery SILENTLY produced ciphertext matching a conforming
+ *        implementation for the first chunk only.
+ *   CTS  EVP accepts exactly one update, and only at >= one block; a second
+ *        update is REFUSED, mutely (empty error queue). Ciphertext stealing
+ *        needs the end of the message before any block can be emitted.
+ *        Measured: fips-c-review/probes/cts_probe.c, Q5.
+ *
+ * Everything downstream keys off this rather than naming a mode, so the four
+ * obligations stay in one place: update emits nothing and needs no output
+ * capacity, final_size reports buffered + len, the length minimum is checked
+ * against the accumulated total, and the buffer is cleansed on init and after
+ * the terminal call.
+ */
+static inline int mode_accumulates(uint32_t mode_id) {
+    return mode_id == XTS || mode_id == CTS;
+}
+
+
 static inline size_t evp_fed_bytes(block_cipher_ctx *ctx, size_t in_len) {
     if (ctx->op_mode == DECRYPT_MODE && is_aead_mode(ctx->mode_id) && ctx->tag_len > 0) {
         size_t have = (size_t) ctx->tag_index + in_len;
@@ -84,11 +114,33 @@ static inline size_t ocb_update_out(block_cipher_ctx *ctx, size_t fed) {
  * kept — the next data unit is usually the same size, and reusing it avoids a
  * malloc per sector.
  */
-static void xts_discard(block_cipher_ctx *ctx) {
-    if (ctx->xts_buffer != NULL && ctx->xts_buffered > 0) {
-        OPENSSL_cleanse(ctx->xts_buffer, ctx->xts_buffered);
+/** Bytes currently accumulated. NULL-safe: no buffer means nothing buffered. */
+static inline size_t accum_len(const block_cipher_ctx *ctx) {
+    return ctx->accum == NULL ? 0 : ctx->accum->length;
+}
+
+
+/**
+ * Drop whatever is accumulated, cleansing it first.
+ *
+ * The explicit OPENSSL_cleanse is deliberate and is NOT redundant with
+ * BUF_MEM_grow_clean's shrink path: that path zeroes with a plain memset,
+ * which is the one thing native-code.md forbids for secret material. The risk
+ * is remote here (the buffer outlives the call, so the store is not obviously
+ * dead, and libcrypto is a separate compilation unit) — but "remote" is not a
+ * reason to delegate the decision. Cleanse ourselves, then shrink.
+ *
+ * Capacity is retained: the JCA reset path reuses one ctx across messages, and
+ * re-growing for every message would be pointless churn.
+ */
+static void accum_discard(block_cipher_ctx *ctx) {
+    if (ctx->accum == NULL) {
+        return;
     }
-    ctx->xts_buffered = 0;
+    if (ctx->accum->length > 0) {
+        OPENSSL_cleanse(ctx->accum->data, ctx->accum->length);
+    }
+    BUF_MEM_grow_clean(ctx->accum, 0);
 }
 
 
@@ -106,45 +158,52 @@ static void xts_discard(block_cipher_ctx *ctx) {
  * OpenSSL — pre-checking it here would duplicate a limit the provider already
  * enforces and names in its own error.
  */
-static int32_t xts_append(block_cipher_ctx *ctx, uint8_t *input, size_t in_len) {
+static int32_t accum_append(block_cipher_ctx *ctx, uint8_t *input, size_t in_len) {
     if (in_len == 0) {
         return JO_SUCCESS;
     }
 
-    if (in_len > (size_t) INT32_MAX - ctx->xts_buffered) {
+    // Our own bound, checked before BUF_MEM sees the length, so the typed code
+    // is deterministic. BUF_MEM refuses at its own LIMIT_BEFORE_EXPANSION
+    // (0x5ffffffc) and RAISES while doing so; without this check a message
+    // between that limit and INT32_MAX would surface as JO_OPENSSL_ERROR
+    // instead of the length-specific code.
+    if (in_len > (size_t) INT32_MAX - accum_len(ctx)) {
         return JO_INPUT_TOO_LONG_INT32;
     }
 
-    size_t needed = ctx->xts_buffered + in_len;
-
-    if (needed > ctx->xts_capacity) {
-        size_t capacity = ctx->xts_capacity == 0 ? 512 : ctx->xts_capacity;
-        while (capacity < needed) {
-            // Cannot overflow: `needed` is already bounded by INT32_MAX, so
-            // the loop stops well before size_t wraps.
-            capacity *= 2;
-        }
-
-        uint8_t *grown = OPENSSL_malloc(capacity);
-        if (OPS_OPENSSL_ERROR_10 grown == NULL) {
+    if (ctx->accum == NULL) {
+        ctx->accum = BUF_MEM_new();
+        if (OPS_OPENSSL_ERROR_10 ctx->accum == NULL) {
             // Allocation failure. JO_OPENSSL_ERROR is what the util layer
-            // returns for a failed OPENSSL_malloc elsewhere (ec.c is the
-            // precedent); the buffer and its byte count are left untouched so
-            // the ctx stays consistent and a later call can retry.
+            // returns for a failed allocation elsewhere (ec.c is the
+            // precedent); nothing has been consumed, so a later call can retry.
             return JO_OPENSSL_ERROR;
         }
-
-        if (ctx->xts_buffer != NULL) {
-            memcpy(grown, ctx->xts_buffer, ctx->xts_buffered);
-            OPENSSL_clear_free(ctx->xts_buffer, ctx->xts_capacity);
-        }
-
-        ctx->xts_buffer = grown;
-        ctx->xts_capacity = capacity;
     }
 
-    memcpy(ctx->xts_buffer + ctx->xts_buffered, input, in_len);
-    ctx->xts_buffered = needed;
+    size_t offset = ctx->accum->length;
+    size_t needed = offset + in_len;
+
+    /*
+     * Extend to `needed`. The accumulated bytes are PRESERVED, not just made
+     * room for: when capacity has to grow, BUF_MEM_grow_clean reallocates via
+     * OPENSSL_clear_realloc, which mallocs the new block, memcpy's the old
+     * contents across, and then CLEANSES and frees the old block - so no
+     * previous copy of the plaintext is left in freed heap. When capacity is
+     * already sufficient it does not reallocate at all. Either way only the
+     * newly exposed region [old length, needed) is zeroed, and the memcpy
+     * below immediately overwrites exactly that region.
+     *
+     * On allocation failure it returns 0 with data/max/length all unchanged
+     * (OPENSSL_clear_realloc does not free the old block when the new malloc
+     * fails), so the accumulator is left intact and a later call can retry.
+     */
+    if (OPS_OPENSSL_ERROR_11 BUF_MEM_grow_clean(ctx->accum, needed) != needed) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    memcpy(ctx->accum->data + offset, input, in_len);
     return JO_SUCCESS;
 }
 
@@ -222,6 +281,19 @@ block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, 
 
     if (padding != NO_PADDING && padding != PADDED) {
         *err = JO_FAIL;
+        return NULL;
+    }
+
+    /*
+     * Ciphertext stealing IS the answer to a partial final block, so a padding
+     * scheme on top is a contradiction, not a redundancy: padded plaintext is
+     * always a block multiple, the stealing becomes a no-op, and the result is
+     * ordinary CBC that no CTS peer can read. Refuse here so the NI surface is
+     * closed too - the SPI refuses it at engineSetPadding, but that path is
+     * only reached through JCE form-4 lookup.
+     */
+    if (mode_Id == CTS && padding == PADDED) {
+        *err = JO_MODE_TAKES_NO_PADDING;
         return NULL;
     }
 
@@ -360,6 +432,12 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_AES)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CBC",NULL);
                     break;
+                case CTS:
+                    // CBC with ciphertext stealing. The cts_mode variant is
+                    // pinned to CS3 after init - see the block comment there.
+                    REQUIRE_IV_LEN(BLOCK_SIZE_AES)
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CBC-CTS",NULL);
+                    break;
                 case CFB1:
                     REQUIRE_IV_LEN(BLOCK_SIZE_AES)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-CFB1",NULL);
@@ -429,6 +507,12 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_AES)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CBC",NULL);
                     break;
+                case CTS:
+                    // CBC with ciphertext stealing. The cts_mode variant is
+                    // pinned to CS3 after init - see the block comment there.
+                    REQUIRE_IV_LEN(BLOCK_SIZE_AES)
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CBC-CTS",NULL);
+                    break;
                 case CFB1:
                     REQUIRE_IV_LEN(BLOCK_SIZE_AES)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-CFB1",NULL);
@@ -492,6 +576,12 @@ int32_t block_cipher_ctx_init(
                 case CBC:
                     REQUIRE_IV_LEN(BLOCK_SIZE_AES)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CBC",NULL);
+                    break;
+                case CTS:
+                    // CBC with ciphertext stealing. The cts_mode variant is
+                    // pinned to CS3 after init - see the block comment there.
+                    REQUIRE_IV_LEN(BLOCK_SIZE_AES)
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-CBC-CTS",NULL);
                     break;
                 case CFB1:
                     REQUIRE_IV_LEN(BLOCK_SIZE_AES)
@@ -1094,11 +1184,60 @@ int32_t block_cipher_ctx_init(
             break;
     }
 
+    /*
+     * Pin the CTS variant explicitly. SECURITY/INTEROP-CRITICAL — do not
+     * change the value, and do not remove the set in favour of the default.
+     *
+     * OpenSSL's default cts_mode is CS1 on every environment measured
+     * (mainline 3.5.7, FIPS 3.1.2, FIPS 3.5.7 default and -pedantic:
+     * fips-c-review/probes/cts_probe.c). BouncyCastle's AES/CTS/NoPadding —
+     * and its AES/CBC/CS3Padding, which agrees with it byte for byte — is
+     * CS3. So unlike the usual application of the hard-code rule, this pin is
+     * not defensive against a future default changing: inheriting today's
+     * default would make every message with a partial final block
+     * non-interoperable with BouncyCastle, Kerberos (RFC 3962) and anything
+     * else speaking CS3, from the first line of ciphertext.
+     *
+     * The three variants relate as follows, which is why the parity test has
+     * to cover BOTH shapes: on a PARTIAL final block CS2 and CS3 agree and
+     * CS1 differs; on a FULL final block CS1 and CS2 agree and CS3 differs
+     * (it swaps the last two blocks). A test that only ever feeds partial
+     * final blocks cannot tell CS3 from CS2.
+     *
+     * Capability-probe before setting, per the fail-loud rule:
+     * EVP_CIPHER_CTX_set_params SILENTLY IGNORES an unknown parameter and
+     * still returns 1, so against a provider that did not implement cts_mode
+     * the pin would be a no-op and the guard would never fire. Every
+     * supported environment lists it as settable, so this branch does not
+     * fire today — it exists so that a provider which cannot honour the
+     * request is refused rather than served CS1 ciphertext under a CS3 name.
+     */
+    if (ctx->mode_id == CTS) {
+        const OSSL_PARAM *settable = EVP_CIPHER_CTX_settable_params(ctx->evp);
+        OSSL_PARAM cts_params[2];
+
+        if (OPS_FAILED_SET_2 settable == NULL
+                || OSSL_PARAM_locate_const(settable, OSSL_CIPHER_PARAM_CTS_MODE) == NULL) {
+            ret_code = JO_CTS_MODE_UNAVAILABLE;
+            goto exit;
+        }
+
+        cts_params[0] = OSSL_PARAM_construct_utf8_string(
+            OSSL_CIPHER_PARAM_CTS_MODE, (char *) OSSL_CIPHER_CTS_MODE_CS3, 0);
+        cts_params[1] = OSSL_PARAM_construct_end();
+
+        if (OPS_FAILED_SET_1 1 != EVP_CIPHER_CTX_set_params(ctx->evp, cts_params)) {
+            ret_code = JO_OPENSSL_ERROR;
+            goto exit;
+        }
+    }
+
 
     ctx->processed = 0;
-    // The JCA reset path reuses one ctx across data units, so a partially
-    // accumulated XTS unit must not survive into the next operation.
-    xts_discard(ctx);
+    // The JCA reset path reuses one ctx across messages, so a partially
+    // accumulated XTS data unit or CTS message must not survive into the
+    // next operation.
+    accum_discard(ctx);
     ctx->initialized = 1;
 
 exit:
@@ -1229,10 +1368,10 @@ int32_t block_cipher_ctx_update(
         } else if (out_len < ocb_update_out(ctx, evp_fed)) {
             return JO_OUTPUT_TOO_SMALL;
         }
-    } else if (ctx->mode_id == XTS) {
-        // XTS writes nothing on update — the data unit is accumulated and
-        // emitted whole at final — so it needs no output capacity here. The
-        // ordering matters: this must precede the generic
+    } else if (mode_accumulates(ctx->mode_id)) {
+        // Accumulating modes write nothing on update — the message is
+        // buffered and emitted whole at final — so they need no output
+        // capacity here. The ordering matters: this must precede the generic
         // `out_len < in_len` arm below, which would otherwise demand a
         // window the caller has correctly sized to zero.
     } else if (ctx->streaming == 0 && ctx->tag_len == 0) {
@@ -1286,13 +1425,12 @@ int32_t block_cipher_ctx_update(
         return JO_NOT_INITIALIZED;
     }
 
-    // XTS accumulates instead of feeding EVP: the tweak sequence restarts at
-    // the head of every EVP update call, so the whole data unit has to reach
-    // OpenSSL in one piece. Emits nothing here — the size functions report 0
-    // for an XTS update and the full unit at final. The data-unit minimum is
-    // therefore checked at final, once the total is known, not per chunk.
-    if (ctx->mode_id == XTS) {
-        int32_t append_rc = xts_append(ctx, input, in_len);
+    // Accumulate instead of feeding EVP — see mode_accumulates. Emits
+    // nothing here: the size functions report 0 for such an update and the
+    // whole message at final. The length minimum is therefore checked at
+    // final, once the total is known, not per chunk.
+    if (mode_accumulates(ctx->mode_id)) {
+        int32_t append_rc = accum_append(ctx, input, in_len);
         if (append_rc < 0) {
             return append_rc;
         }
@@ -1443,11 +1581,11 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
-    // XTS emits everything at final: whatever previous updates accumulated,
-    // plus the bytes this doFinal call is about to append. Ciphertext
-    // stealing means output length equals input length exactly.
-    if (ctx->mode_id == XTS) {
-        size_t out = ctx->xts_buffered + len;
+    // Accumulating modes emit everything at final: whatever previous updates
+    // buffered, plus the bytes this doFinal call is about to append. Both XTS
+    // and CTS steal ciphertext, so output length equals input length exactly.
+    if (mode_accumulates(ctx->mode_id)) {
+        size_t out = accum_len(ctx) + len;
         if (out > INT32_MAX) {
             return JO_OUTPUT_SIZE_INT_OVERFLOW;
         }
@@ -1624,29 +1762,31 @@ int32_t block_cipher_ctx_final(
 
     ERR_clear_error();
 
-    // XTS runs here, not in update: the accumulated data unit goes to EVP in
-    // one call so the tweak sequence is applied across the whole unit exactly
-    // once. Chunking is therefore invisible to the output — any split of the
-    // same unit yields the same ciphertext, which is what makes the streaming
+    // Accumulating modes run here, not in update: the buffered message goes
+    // to EVP in ONE call, which is the only form its primitive accepts.
+    // Chunking is therefore invisible to the output — any split of the same
+    // message yields the same ciphertext, which is what makes the streaming
     // JCA contract safe for a one-shot primitive.
-    if (ctx->mode_id == XTS) {
-        // IEEE 1619 has no defined output below one AES block, and the check
-        // belongs here rather than per-chunk: only now is the total known, so
-        // a caller feeding 8 bytes then 8 more is correctly accepted while a
-        // single 8-byte unit is not. Covers the zero-length case too, which
-        // never reaches update at all (the SPI skips the call when there is
-        // nothing to feed).
-        if (ctx->xts_buffered < ctx->cipher_block_size) {
+    if (mode_accumulates(ctx->mode_id)) {
+        // Neither mode defines output below one AES block — IEEE 1619 for
+        // XTS, ciphertext stealing needing something to steal from for CTS
+        // (OpenSSL refuses a sub-block CTS update outright). The check belongs
+        // here rather than per-chunk: only now is the total known, so a caller
+        // feeding 8 bytes then 8 more is correctly accepted while a single
+        // 8-byte message is not. Covers the zero-length case too, which never
+        // reaches update at all (the SPI skips the call when there is nothing
+        // to feed).
+        if (accum_len(ctx) < ctx->cipher_block_size) {
             // Discard before returning: a rejected data unit must not leave
             // bytes behind for the NEXT doFinal to silently absorb, which
             // would turn a refused 7-byte unit plus a later 9-byte one into an
             // accepted 16-byte unit the caller never asked for.
-            xts_discard(ctx);
+            accum_discard(ctx);
             written = JO_NOT_BLOCK_ALIGNED;
             goto failed;
         }
 
-        if (ctx->xts_buffered > out_len) {
+        if (accum_len(ctx) > out_len) {
             // Same reasoning, but note this one is recoverable by the caller
             // re-calling with a large enough buffer — so it must NOT discard.
             // JCE's ShortBufferException contract is explicitly "retry with a
@@ -1659,11 +1799,11 @@ int32_t block_cipher_ctx_final(
         int evp_written = 0;
         int ok;
         if (ctx->op_mode == ENCRYPT_MODE) {
-            ok = EVP_EncryptUpdate(ctx->evp, output, &evp_written, ctx->xts_buffer,
-                                   (int) ctx->xts_buffered);
+            ok = EVP_EncryptUpdate(ctx->evp, output, &evp_written,
+                                   (uint8_t *) ctx->accum->data, (int) accum_len(ctx));
         } else if (ctx->op_mode == DECRYPT_MODE) {
-            ok = EVP_DecryptUpdate(ctx->evp, output, &evp_written, ctx->xts_buffer,
-                                   (int) ctx->xts_buffered);
+            ok = EVP_DecryptUpdate(ctx->evp, output, &evp_written,
+                                   (uint8_t *) ctx->accum->data, (int) accum_len(ctx));
         } else {
             written = JO_INVALID_OP_MODE;
             goto failed;
@@ -1671,7 +1811,7 @@ int32_t block_cipher_ctx_final(
 
         // Cleanse the plaintext unit as soon as OpenSSL has consumed it,
         // whether or not the call succeeded.
-        xts_discard(ctx);
+        accum_discard(ctx);
 
         if (OPS_OPENSSL_ERROR_8 1 != ok) {
             ctx->poisoned = 1;
@@ -1845,12 +1985,11 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
         return (int32_t) ocb;
     }
 
-    // XTS accumulates the whole data unit and emits it all at final, so an
-    // update writes nothing and needs no output capacity. Reporting `len`
-    // here (as it did while update fed EVP directly) would make the
-    // auto-allocating Cipher.update path hand back a zero-filled array of the
-    // input's length instead of an empty one.
-    if (ctx->mode_id == XTS) {
+    // Accumulating modes buffer the whole message and emit it all at final,
+    // so an update writes nothing and needs no output capacity. Reporting
+    // `len` here would make the auto-allocating Cipher.update path hand back a
+    // zero-filled array of the input's length instead of an empty one.
+    if (mode_accumulates(ctx->mode_id)) {
         return 0;
     }
 
@@ -1921,7 +2060,8 @@ void block_cipher_ctx_destroy(block_cipher_ctx *ctx) {
     }
 
     // Plaintext data-unit bytes — clear-free, never plain free.
-    OPENSSL_clear_free(ctx->xts_buffer, ctx->xts_capacity);
+    // Clear-frees the whole capacity, not just the used prefix.
+    BUF_MEM_free(ctx->accum);
 
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }

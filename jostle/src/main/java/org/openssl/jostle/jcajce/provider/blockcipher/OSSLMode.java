@@ -23,5 +23,10 @@ public enum OSSLMode
     // its Poly1305 authenticator (cipher CHACHA20_POLY1305) — it streams
     // through the generic AEAD path. Append-only — must match the #define
     // STREAM 14 / POLY1305 15 in interface/nonfips/util/cipher_mode_pad.h.
-    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD, STREAM, POLY1305;
+    // CTS (ordinal 16) is CBC with ciphertext stealing, mapping to OpenSSL's
+    // AES-<n>-CBC-CTS with cts_mode pinned to CS3 — the variant BouncyCastle's
+    // AES/CTS/NoPadding implements (measured, not inherited: OpenSSL's own
+    // default is CS1). Append-only — must match the #define CTS 16 in
+    // interface/nonfips/util/cipher_mode_pad.h.
+    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD, STREAM, POLY1305, CTS;
 }

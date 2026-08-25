@@ -472,6 +472,30 @@
  */
 #define JO_TDES_ENCRYPT_UNAVAILABLE -167
 
+/*
+ * The provider cannot honour an explicit CTS variant: cts_mode is absent from
+ * the cipher ctx's settable parameters, so the CS3 pin would be silently
+ * ignored (EVP_CIPHER_CTX_set_params returns 1 for an unknown parameter) and
+ * the operation would produce OpenSSL's CS1 default under a CS3 name.
+ *
+ * Fail loud rather than emit ciphertext no CS3 peer can read. Every supported
+ * environment lists cts_mode as settable (probe:
+ * fips-c-review/probes/cts_probe.c), so this never fires today; it exists
+ * because the alternative to a probe is a silent no-op, which is exactly the
+ * failure the hard-code-security-critical-parameters rule warns about.
+ */
+#define JO_CTS_MODE_UNAVAILABLE -168
+
+/*
+ * CTS was requested with padding. Ciphertext stealing IS the answer to a
+ * partial final block, so a padding scheme on top is a contradiction rather
+ * than a redundancy: the padded plaintext is always a block multiple, which
+ * makes the stealing a no-op and produces output a CTS peer cannot read.
+ * Refused at the NI surface as well as at engineSetPadding, so a caller
+ * driving the NI directly cannot reach it either.
+ */
+#define JO_MODE_TAKES_NO_PADDING -169
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

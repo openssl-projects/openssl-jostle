@@ -276,6 +276,14 @@ public enum ErrorCode
     // "OpenSSL Error: null".
     JO_TDES_ENCRYPT_UNAVAILABLE(-167),
 
+    // The provider does not expose cts_mode as settable, so the CS3 pin would
+    // be a silent no-op and the operation would emit CS1 under a CS3 name.
+    JO_CTS_MODE_UNAVAILABLE(-168),
+
+    // CTS requested with a padding scheme — a contradiction, since ciphertext
+    // stealing is itself the answer to a partial final block.
+    JO_MODE_TAKES_NO_PADDING(-169),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

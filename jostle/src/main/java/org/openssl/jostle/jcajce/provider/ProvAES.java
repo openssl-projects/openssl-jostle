@@ -123,5 +123,22 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", "AES/XTS/NoPadding",
                 PREFIX + "AESXTS", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.XTS));
 
+        // AES CBC-CTS (CBC with ciphertext stealing). Registered under both
+        // spellings BouncyCastle uses, so a caller does not have to know which
+        // library it is talking to: "AES/CTS/NoPadding" is BC's name, and
+        // "AES/CBC/CS3Padding" is BC's explicit-variant name for the SAME
+        // bytes (measured byte-identical at nine lengths -
+        // fips-c-review/probes/CtsProbe2.java).
+        //
+        // The variant is CS3, pinned in C rather than inherited: OpenSSL
+        // defaults to CS1, which does NOT interoperate with either BC name.
+        // Mode pre-locked in the constructor because a form-1 lookup on the
+        // full transformation does not call engineSetMode. No per-key-size
+        // variants, matching the other AES mode registrations.
+        provider.addAlgorithmImplementation("Cipher", "AES/CTS/NoPadding",
+                PREFIX + "AESCTS", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.CTS));
+        provider.addAlgorithmImplementation("Cipher", "AES/CBC/CS3Padding",
+                PREFIX + "AESCBCCS3", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.CTS));
+
     }
 }

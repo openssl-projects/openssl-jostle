@@ -117,6 +117,16 @@ class ProvFIPSAES
         provider.addAlgorithmImplementation("Cipher", "AES/XTS/NoPadding", PREFIX + "AESXTS", generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.XTS));
 
+        // AES CBC-CTS. Ungated: all three key widths fetch under fips=yes on
+        // both supported modules at both fipsinstall configurations, and
+        // cts_mode is settable everywhere (probe:
+        // fips-c-review/probes/cts_probe.c). Registered under both BC
+        // spellings, as in ProvAES; the CS3 variant is pinned in C.
+        provider.addAlgorithmImplementation("Cipher", "AES/CTS/NoPadding", PREFIX + "AESCTS", generalAesAttributes,
+                (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.CTS));
+        provider.addAlgorithmImplementation("Cipher", "AES/CBC/CS3Padding", PREFIX + "AESCBCCS3", generalAesAttributes,
+                (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.CTS));
+
         //
         // AlgorithmParameters are pure-Java ASN.1 encodings - no NI binding.
         //

@@ -56,6 +56,9 @@ public class FIPSBlockCipherLimitTest
     private static final int CTR = OSSLMode.CTR.ordinal();
     private static final int DES_BLOCK = 8;
 
+    /** CBC-CTS mode ordinal. */
+    private static final int CTS = OSSLMode.CTS.ordinal();
+
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     @BeforeAll
@@ -892,6 +895,113 @@ public class FIPSBlockCipherLimitTest
                     () -> ni.update(r, new byte[32], 0, new byte[9], 0, 9));
             Assertions.assertTrue(e instanceof IllegalBlockSizeException);
             Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+
+
+    // ---------------------------------------------------------------------
+    // AES CBC-CTS at the FIPS NI surface. Ungated — all three widths fetch on
+    // both supported modules at both fipsinstall configurations — so these run
+    // unconditionally rather than behind a capability assumption.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void cts_paddingRejectedAtCreate()
+    {
+        int[] err = new int[1];
+        long ref = ni.ni_makeInstance(AES128, CTS, PKCS_PADDING, err);
+        Assertions.assertEquals(0, ref, "no ctx may be produced");
+        Assertions.assertEquals(
+                org.openssl.jostle.jcajce.provider.ErrorCode.JO_MODE_TAKES_NO_PADDING.getCode(),
+                err[0], "CTS + padding must be JO_MODE_TAKES_NO_PADDING");
+    }
+
+    @Test
+    public void cts_belowOneBlockRejectedTyped()
+    {
+        for (int len : new int[]{0, 1, 8, 15})
+        {
+            long ref = ni.makeInstance(AES128, CTS, NO_PADDING);
+            try
+            {
+                ni.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+                byte[] out = new byte[64];
+                Assertions.assertEquals(0, ni.update(ref, out, 0, new byte[len], 0, len),
+                        "an accumulating update emits nothing");
+                Exception e = Assertions.assertThrows(Exception.class, () -> ni.doFinal(ref, out, 0));
+                Assertions.assertTrue(e instanceof IllegalBlockSizeException, "type for len " + len);
+                Assertions.assertEquals("data not block size aligned", e.getMessage());
+            }
+            catch (Exception e)
+            {
+                Assertions.fail("unexpected failure for len " + len + ": " + e);
+            }
+            finally
+            {
+                ni.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void cts_subBlockChunksAccumulate() throws Exception
+    {
+        long ref = ni.makeInstance(AES128, CTS, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            byte[] out = new byte[64];
+            Assertions.assertEquals(0, ni.update(ref, out, 0, new byte[8], 0, 8));
+            Assertions.assertEquals(0, ni.update(ref, out, 0, new byte[8], 0, 8));
+            Assertions.assertEquals(16, ni.doFinal(ref, out, 0),
+                    "8 + 8 must be one valid 16-byte message");
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void cts_chunkedMatchesOneShot() throws Exception
+    {
+        byte[] key = new byte[16];
+        byte[] iv = new byte[16];
+        byte[] msg = new byte[37];
+        RANDOM.nextBytes(key);
+        RANDOM.nextBytes(iv);
+        RANDOM.nextBytes(msg);
+
+        byte[] oneShot = ctsEncrypt(key, iv, msg, new int[]{msg.length});
+        for (int[] splits : new int[][]{{1}, {16, 16, 5}, {15, 15, 7}, {20, 17}, {36, 1}})
+        {
+            Assertions.assertArrayEquals(oneShot, ctsEncrypt(key, iv, msg, splits),
+                    "chunking must be invisible to CTS output");
+        }
+    }
+
+    private byte[] ctsEncrypt(byte[] key, byte[] iv, byte[] msg, int[] splits) throws Exception
+    {
+        long ref = ni.makeInstance(AES128, CTS, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0);
+            byte[] out = new byte[msg.length + 32];
+            int off = 0;
+            int i = 0;
+            while (off < msg.length)
+            {
+                int take = Math.min(splits[i++ % splits.length], msg.length - off);
+                ni.update(ref, out, 0, msg, off, take);
+                off += take;
+            }
+            int n = ni.doFinal(ref, out, 0);
+            return java.util.Arrays.copyOf(out, n);
         }
         finally
         {

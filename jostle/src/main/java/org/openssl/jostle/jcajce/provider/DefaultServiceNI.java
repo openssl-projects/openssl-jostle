@@ -282,6 +282,18 @@ public interface DefaultServiceNI
                 // engineInit.
                 throw new ProviderCapabilityException(
                         "Triple-DES encryption is not supported by the loaded provider; Triple-DES decryption remains available");
+            case JO_CTS_MODE_UNAVAILABLE:
+                // Fail-loud capability contract: CBC-CTS is refused rather
+                // than run with whatever cts_mode the provider defaults to.
+                // EVP_CIPHER_CTX_set_params silently ignores an unknown
+                // parameter and still returns 1, so without the settable-list
+                // probe behind this code the CS3 pin would be a no-op and the
+                // operation would emit OpenSSL's CS1 default under a CS3 name
+                // — ciphertext no BouncyCastle or Kerberos peer can read.
+                // BlockCipherSpi translates to InvalidKeyException at
+                // engineInit.
+                throw new ProviderCapabilityException(
+                        "CBC-CTS requires an explicit cts_mode, which the loaded provider does not support");
             case JO_DER_TRAILING_DATA:
                 // Strict DER: a well-formed value decoded but trailing bytes
                 // remained. KeyFactory decode paths translate the parent

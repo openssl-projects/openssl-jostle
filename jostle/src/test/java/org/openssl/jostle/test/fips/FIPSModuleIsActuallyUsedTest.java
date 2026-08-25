@@ -266,6 +266,38 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * AES CBC-CTS specifically, named rather than swept.
+     * <p>
+     * Same blind spot as Triple-DES: the sweep probes each service under its
+     * JCE name, and {@code AES/CTS/NoPadding} is not the EVP one — OpenSSL
+     * knows {@code AES-128-CBC-CTS} and friends, with the key width part of
+     * the fetched name. {@code implementingProvider} answers null for the JCE
+     * spelling and the sweep skips it silently. Mainline implements CBC-CTS
+     * identically to both modules, so no agreement or chunking test can tell
+     * them apart.
+     * <p>
+     * Unlike Triple-DES this family is NOT capability-gated — all three widths
+     * fetch on every supported module and configuration — so the unregistered
+     * branch is a failure rather than a legitimate absence.
+     */
+    @Test
+    public void aesCbcCtsIsImplementedByTheFipsModule()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        Assertions.assertNotNull(provider.getService("Cipher", "AES/CTS/NoPadding"),
+                "AES/CTS/NoPadding is ungated and must always be registered");
+
+        for (String evpName : new String[]{"AES-128-CBC-CTS", "AES-192-CBC-CTS", "AES-256-CBC-CTS"})
+        {
+            Assertions.assertEquals(FIPS_PROVIDER,
+                    FIPSNISelector.OpenSSLFIPSNI.implementingProvider(OpenSSLFIPSNI.OP_CIPHER, evpName),
+                    evpName + " must be implemented by the FIPS module — mainline implements "
+                            + "CBC-CTS identically, so this is the only check that can catch it");
+        }
+    }
+
+    /**
      * Triple-DES specifically, named rather than swept.
      * <p>
      * The sweep probes each service under its JCE name, and {@code DESede} is

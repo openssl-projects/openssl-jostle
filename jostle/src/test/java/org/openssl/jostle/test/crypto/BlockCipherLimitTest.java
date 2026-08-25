@@ -43,6 +43,10 @@ public class BlockCipherLimitTest
     private static final int NO_PAD = 0;
     private static final int DES_BLOCK = 8;
 
+    /** AES / CTS ordinals, for the ciphertext-stealing tests. */
+    private static final int AES128_ORD = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal();
+    private static final int CTS_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal();
+
     @BeforeAll
     public static void beforeAll()
     {
@@ -2481,6 +2485,136 @@ public class BlockCipherLimitTest
         {
             Assertions.assertTrue(e instanceof IllegalBlockSizeException);
             Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+
+
+    // ---------------------------------------------------------------------
+    // AES CBC-CTS. The accumulating path at the NI surface: the one-block
+    // floor applies to the ACCUMULATED total, chunking must be invisible to
+    // the output, and padding is refused outright at create time.
+    // ---------------------------------------------------------------------
+
+    @Test
+    public void BlockCipher_cts_paddingRejectedAtCreate() throws Exception
+    {
+        // Ciphertext stealing IS the answer to a partial final block, so a
+        // padding scheme on top is a contradiction. The SPI refuses it at
+        // engineSetPadding; this pins the NI surface, which that path does not
+        // guard.
+        try
+        {
+            blockCipherNI.makeInstance(AES128_ORD, CTS_MODE, 1); // PADDED
+            Assertions.fail("expected CTS + padding to be refused");
+        }
+        catch (IllegalStateException e)
+        {
+            // makeInstance wraps a create failure; the typed code is what the
+            // NI's own handleError would surface for a direct ni_ call.
+            Assertions.assertTrue(e.getMessage().startsWith("Unable to create:"), e.getMessage());
+        }
+
+        // The typed code itself, straight off the ni_ entry point.
+        int[] err = new int[1];
+        long ref = blockCipherNI.ni_makeInstance(AES128_ORD, CTS_MODE, 1, err);
+        Assertions.assertEquals(0, ref, "no ctx may be produced");
+        Assertions.assertEquals(
+                org.openssl.jostle.jcajce.provider.ErrorCode.JO_MODE_TAKES_NO_PADDING.getCode(),
+                err[0], "CTS + padding must be JO_MODE_TAKES_NO_PADDING");
+    }
+
+    @Test
+    public void BlockCipher_cts_belowOneBlockRejectedTyped() throws Exception
+    {
+        for (int len : new int[]{0, 1, 8, 15})
+        {
+            long ref = 0;
+            try
+            {
+                ref = blockCipherNI.makeInstance(AES128_ORD, CTS_MODE, NO_PAD);
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+                byte[] out = new byte[64];
+                int n = blockCipherNI.update(ref, out, 0, new byte[len], 0, len);
+                Assertions.assertEquals(0, n, "an accumulating update emits nothing");
+                blockCipherNI.doFinal(ref, out, 0);
+                Assertions.fail("expected a " + len + "-byte CTS message to be refused");
+            }
+            catch (IllegalBlockSizeException e)
+            {
+                Assertions.assertEquals("data not block size aligned", e.getMessage());
+            }
+            finally
+            {
+                blockCipherNI.dispose(ref);
+            }
+        }
+    }
+
+    @Test
+    public void BlockCipher_cts_subBlockChunksAccumulate() throws Exception
+    {
+        // 8 + 8 is a legal 16-byte message even though a single 8-byte message
+        // is not — the floor is checked against the accumulated total.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(AES128_ORD, CTS_MODE, NO_PAD);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
+            byte[] out = new byte[64];
+            Assertions.assertEquals(0, blockCipherNI.update(ref, out, 0, new byte[8], 0, 8));
+            Assertions.assertEquals(0, blockCipherNI.update(ref, out, 0, new byte[8], 0, 8));
+            Assertions.assertEquals(16, blockCipherNI.doFinal(ref, out, 0),
+                    "8 + 8 must be one valid 16-byte message");
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void BlockCipher_cts_chunkedMatchesOneShot() throws Exception
+    {
+        byte[] key = new byte[16];
+        byte[] iv = new byte[16];
+        byte[] msg = new byte[37];
+        for (int i = 0; i < msg.length; i++)
+        {
+            msg[i] = (byte) (i * 7 + 3);
+        }
+
+        byte[] oneShot = ctsEncrypt(key, iv, msg, new int[]{msg.length});
+        for (int[] splits : new int[][]{{1}, {16, 16, 5}, {15, 15, 7}, {20, 17}, {36, 1}})
+        {
+            byte[] chunked = ctsEncrypt(key, iv, msg, splits);
+            Assertions.assertArrayEquals(oneShot, chunked,
+                    "chunking must be invisible to CTS output");
+        }
+    }
+
+    /** Encrypt msg through the CTS NI, fed in the given chunk sizes. */
+    private byte[] ctsEncrypt(byte[] key, byte[] iv, byte[] msg, int[] splits) throws Exception
+    {
+        long ref = blockCipherNI.makeInstance(AES128_ORD, CTS_MODE, NO_PAD);
+        try
+        {
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0);
+            byte[] out = new byte[msg.length + 32];
+            int off = 0;
+            int i = 0;
+            while (off < msg.length)
+            {
+                int take = Math.min(splits[i++ % splits.length], msg.length - off);
+                blockCipherNI.update(ref, out, 0, msg, off, take);
+                off += take;
+            }
+            int n = blockCipherNI.doFinal(ref, out, 0);
+            return java.util.Arrays.copyOf(out, n);
         }
         finally
         {

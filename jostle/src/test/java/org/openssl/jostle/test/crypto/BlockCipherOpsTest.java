@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.util.ops.OperationsTestNI;
@@ -1194,7 +1195,7 @@ public class BlockCipherOpsTest
             }
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:129
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:177
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
             try
@@ -1237,7 +1238,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
             Assertions.assertEquals(0, blockCipherNI.update(ref, new byte[32], 0, new byte[32], 0, 32));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1676
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1805
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
@@ -1278,7 +1279,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(
                     org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.DES_EDE3.ordinal(),
                     1, 0); // DES_EDE3, CBC, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1027
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1106
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -1293,6 +1294,124 @@ public class BlockCipherOpsTest
                 // "Triple-DES encryption is not supported ...".
                 Assertions.assertEquals(OpenSSLException.class, ex.getClass(),
                         "an injected failure must not be classified as a capability refusal");
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+
+
+    @Test
+    public void testCts_ctsModeNotSettable_refusedTyped() throws Exception
+    {
+        // The capability probe: EVP_CIPHER_CTX_set_params SILENTLY IGNORES an
+        // unknown parameter and still returns 1, so without the settable-list
+        // check the CS3 pin would be a no-op against a provider that does not
+        // implement cts_mode — and the operation would emit OpenSSL's CS1
+        // default under a CS3 name. Every supported environment lists it as
+        // settable, so injection is the only way to reach this branch.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1208
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
+
+            try
+            {
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0);
+                Assertions.fail("expected the cts_mode capability refusal");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals(ProviderCapabilityException.class, ex.getClass(),
+                        "an absent cts_mode must be a capability refusal, not a generic error");
+                Assertions.assertEquals(
+                        "CBC-CTS requires an explicit cts_mode, which the loaded provider does not support",
+                        ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void testCts_ctsModeSetFailure() throws Exception
+    {
+        // The set itself failing (as opposed to the parameter being absent).
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1218
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+
+            try
+            {
+                blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0);
+                Assertions.fail("expected the cts_mode set failure");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertEquals(OpenSSLException.class, ex.getClass(),
+                        "a failed set is a generic OpenSSL error, not the capability refusal");
+                Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+
+
+    @Test
+    public void testAccumulator_growFailure() throws Exception
+    {
+        // The accumulator's grow path. BUF_MEM_grow_clean reallocates via
+        // OPENSSL_clear_realloc so the previous plaintext copy is cleansed;
+        // this drives the failure return, which no real configuration reaches.
+        // Uses CTS, but the buffer is shared with XTS — mode_accumulates picks
+        // it, so either mode exercises the same code.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
+                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+            Assertions.assertEquals(0,
+                    blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
+
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:191
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
+
+            try
+            {
+                blockCipherNI.update(ref, new byte[64], 0, new byte[32], 0, 32);
+                Assertions.fail("expected the accumulator grow failure");
+            }
+            catch (OpenSSLException ex)
+            {
                 Assertions.assertEquals("OpenSSL Error: null", ex.getMessage());
             }
         }

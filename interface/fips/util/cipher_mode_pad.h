@@ -17,9 +17,9 @@
     RC2_64(BLOCK, CBC),
     BlowFish(BLOCK, ECB, CBC, CFB64, OFB),
     CAST5(BLOCK, ECB, CBC, CFB64, OFB),
-    AES128(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
-    AES192(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
-    AES256(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
+    AES128(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
+    AES192(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
+    AES256(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
     ARIA128(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, CTR, OFB, GCM, CCM),
     ARIA192(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, CTR, OFB, GCM, CCM),
     ARIA256(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, CTR, OFB, GCM, CCM),
@@ -79,6 +79,11 @@
 // (cipher CHACHA20_POLY1305). is_aead_mode() includes it, so it streams
 // through the generic AEAD path. Append-only — must match OSSLMode ordinal 15.
 #define POLY1305 15
+// CBC with ciphertext stealing (NIST SP 800-38A Appendix G / the CS3 variant
+// BouncyCastle's AES/CTS implements). Its EVP primitive is one-shot per
+// message, so block_cipher_ctx accumulates - see mode_accumulates().
+// Append-only - must match OSSLMode ordinal 16.
+#define CTS 16
 
 #define PADDED 1
 #define NO_PADDING 0
