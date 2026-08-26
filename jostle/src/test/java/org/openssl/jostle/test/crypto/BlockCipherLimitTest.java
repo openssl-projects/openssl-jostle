@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
+import java.security.SecureRandom;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.ShortBufferException;
 import java.security.InvalidAlgorithmParameterException;
@@ -2623,4 +2624,127 @@ public class BlockCipherLimitTest
     }
 
 
+
+    /**
+     * CVE-2026-63072, the native half. A caller reaching the NI directly must
+     * be refused an undersized key-unwrap output buffer, because OpenSSL will
+     * not refuse it: on the integrity-failure path the unwrap primitive writes
+     * and cleanses up to the INPUT length, and {@code EVP_DecryptUpdate} has
+     * no capacity argument to stop it. Measured on 3.5.7, 3.5.8 and 3.6.2
+     * alike ({@code fips-c-review/probes/wrap_unwrap_overflow_probe.c}) — the
+     * primitive was never fixed, only OpenSSL's own CMS caller was.
+     *
+     * <p>The SPI has its own size check, so this is the second line: it pins
+     * the guard in {@code block_cipher_ctx_update}, which is all that protects
+     * a caller who bypasses the SPI. Before the fix that guard did not exist —
+     * the code carried a comment asserting "OpenSSL fails closed on a short
+     * buffer", which this test disproves.
+     */
+    @Test
+    public void BlockCipher_wrapUnwrap_undersizedOutput_rejected() throws Exception
+    {
+        final int WRAP_PAD_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP_PAD.ordinal();
+        final int AES256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+
+        byte[] key = new byte[32];
+        byte[] cek = new byte[32];
+        new SecureRandom().nextBytes(key);
+        new SecureRandom().nextBytes(cek);
+
+        // Wrap first, so there is a well-formed blob to damage.
+        byte[] wrapped;
+        long wref = 0;
+        try
+        {
+            wref = blockCipherNI.makeInstance(AES256, WRAP_PAD_MODE, 0);
+            blockCipherNI.init(wref, Cipher.ENCRYPT_MODE, key, null, 0);
+            wrapped = new byte[blockCipherNI.getFinalSize(wref, cek.length)];
+            int n = blockCipherNI.update(wref, wrapped, 0, cek, 0, cek.length);
+            wrapped = java.util.Arrays.copyOf(wrapped, n);
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(wref);
+        }
+
+        byte[] damaged = wrapped.clone();
+        damaged[0] ^= (byte) 0x01;
+
+        // (len - 8) is what the pre-fix sizing advertised, and what OpenSSL
+        // overruns by 8 on the failure path.
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(AES256, WRAP_PAD_MODE, 0);
+            blockCipherNI.init(ref, Cipher.DECRYPT_MODE, key, null, 0);
+            blockCipherNI.update(ref, new byte[damaged.length - 8], 0, damaged, 0, damaged.length);
+            Assertions.fail("a (len - 8) unwrap buffer was accepted at the NI surface — "
+                    + "OpenSSL writes up to len bytes on the integrity-failure path, so this "
+                    + "build overflows by 8 bytes (CVE-2026-63072)");
+        }
+        catch (ShortBufferException e)
+        {
+            Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(ref);
+        }
+    }
+
+    /**
+     * Pins the pre-init precedence the wrap capacity guard claims.
+     *
+     * <p>The guard added for CVE-2026-63072 has its own {@code !initialized}
+     * arm, whose comment asserts that an undersized buffer yields
+     * {@code JO_OUTPUT_TOO_SMALL} ahead of the {@code JO_NOT_INITIALIZED}
+     * further down — matching what the OCB and streaming branches do. That is
+     * a claim about behaviour, and an unpinned claim in this file is how the
+     * "OpenSSL fails closed on a short buffer" comment survived long enough to
+     * become CVE-2026-63072 here. So: both branches, asserted.
+     */
+    @Test
+    public void BlockCipher_wrapUpdateBeforeInit_sizeCheckedFirst() throws Exception
+    {
+        final int wrapPad = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP_PAD.ordinal();
+        final int aes256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+
+        // Undersized, before init: the size is rejected first.
+        long a = 0;
+        try
+        {
+            a = blockCipherNI.makeInstance(aes256, wrapPad, 0);
+            blockCipherNI.update(a, new byte[8], 0, new byte[40], 0, 40);
+            Assertions.fail("expected the undersized buffer to be rejected before init");
+        }
+        catch (ShortBufferException e)
+        {
+            Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(a);
+        }
+
+        // Adequately sized, still before init: now the init state is what fails.
+        long b = 0;
+        try
+        {
+            b = blockCipherNI.makeInstance(aes256, wrapPad, 0);
+            blockCipherNI.update(b, new byte[64], 0, new byte[40], 0, 40);
+            Assertions.fail("expected a not-initialized rejection");
+        }
+        catch (ShortBufferException e)
+        {
+            Assertions.fail("an adequate buffer was called too small: " + e.getMessage());
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals("not initialized", e.getMessage());
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(b);
+        }
+    }
 }

@@ -20,6 +20,7 @@ import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
+import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -441,5 +442,193 @@ public class AESKeyWrapTest
         // proving the alias mapping does not collapse them onto one mode.
         Assertions.assertFalse(Arrays.areEqual(kwExpected, kwpExpected),
                 "KW and KWP must not produce identical output");
+    }
+
+    /**
+     * CVE-2026-63072 regression. On its integrity-failure path the AES
+     * key-unwrap primitive writes and cleanses up to the INPUT length, not the
+     * plaintext length its own size query reports — measured for WRAP_PAD on
+     * mainline 3.6.2 and FIPS 3.5.8
+     * ({@code fips-c-review/probes/wrap_unwrap_overflow_probe.c}).
+     *
+     * <p>Jostle sized the unwrap buffer at {@code len - 8} and the JNI bridge
+     * hands OpenSSL a critical pointer straight into that Java array, so a
+     * damaged KWP blob wrote 8 bytes past the end of a {@code byte[]}. The C
+     * comment asserting "OpenSSL fails closed on a short buffer" was simply
+     * wrong.
+     *
+     * <p>Asserting the buffer contract directly, because the overflow itself
+     * is silent: a JVM-heap overwrite corrupts whatever happens to be adjacent
+     * and usually does not throw. So this pins the property the fix
+     * established — {@code getOutputSize} for a wrap-mode decrypt must cover
+     * the whole input — and then drives the failure path at every byte
+     * position to show nothing rejects a correctly-sized buffer.
+     */
+    @Test
+    public void unwrapBufferCoversTheIntegrityFailureWrite() throws Exception
+    {
+        SecureRandom sr = seededRandom("unwrapBufferCoversTheIntegrityFailureWrite");
+        byte[] kekBytes = new byte[32];
+        sr.nextBytes(kekBytes);
+        Key kek = new SecretKeySpec(kekBytes, "AES");
+
+        for (String name : new String[]{"AESWrapPad", "AESWrap", "AESWrapInv"})
+        {
+            byte[] cekBytes = new byte[32];
+            sr.nextBytes(cekBytes);
+
+            Cipher wrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            wrap.init(Cipher.WRAP_MODE, kek);
+            byte[] wrapped = wrap.wrap(new SecretKeySpec(cekBytes, "AES"));
+
+            // DECRYPT_MODE, not UNWRAP_MODE. Cipher.doFinal refuses any opmode
+            // other than encrypt/decrypt, throwing IllegalStateException from
+            // checkCipherState BEFORE the SPI is reached — so an UNWRAP_MODE
+            // instance here makes the whole loop below dead code. It was, until
+            // review caught it: the catch-all swallowed the IllegalStateException
+            // and the loop drove nothing on any build.
+            Cipher unwrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            unwrap.init(Cipher.DECRYPT_MODE, kek);
+
+            // The contract the fix established. At len - 8 the primitive
+            // overruns by 8 on a failed unwrap.
+            Assertions.assertTrue(unwrap.getOutputSize(wrapped.length) >= wrapped.length,
+                    name + ": unwrap output size " + unwrap.getOutputSize(wrapped.length)
+                            + " does not cover the " + wrapped.length
+                            + " bytes a failed unwrap may write");
+
+            // Drive the failure path at every byte, into a caller-supplied
+            // buffer of exactly the advertised size. A short-buffer rejection
+            // here would mean the advertised size is still wrong.
+            int integrityFailures = 0;
+            for (int i = 0; i < wrapped.length; i++)
+            {
+                byte[] damaged = Arrays.clone(wrapped);
+                damaged[i] ^= (byte) 0x01;
+                byte[] out = new byte[unwrap.getOutputSize(damaged.length)];
+                try
+                {
+                    unwrap.doFinal(damaged, 0, damaged.length, out, 0);
+                }
+                catch (ShortBufferException e)
+                {
+                    Assertions.fail(name + " byte " + i
+                            + ": the advertised output size was rejected as too small");
+                }
+                catch (IllegalStateException e)
+                {
+                    // Never swallow this one: it means the cipher was in an
+                    // opmode doFinal refuses, so the loop never reached the
+                    // primitive. That is how this loop went dead the first time.
+                    Assertions.fail(name + " byte " + i + ": doFinal never reached the SPI ("
+                            + e.getMessage() + ") — the loop is not exercising anything");
+                }
+                catch (Exception expected)
+                {
+                    integrityFailures++;
+                }
+            }
+
+            // The loop must have actually driven the failure path. Without
+            // this, any future change that stops the damage reaching the
+            // primitive turns the loop back into dead code silently.
+            Assertions.assertEquals(wrapped.length, integrityFailures,
+                    name + ": expected every damaged byte to fail the integrity check");
+
+            // A fresh instance still unwraps the pristine blob.
+            Cipher good = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            good.init(Cipher.UNWRAP_MODE, kek);
+            Assertions.assertTrue(Arrays.areEqual(cekBytes,
+                    good.unwrap(wrapped, "AES", Cipher.SECRET_KEY).getEncoded()), name);
+        }
+    }
+
+    /**
+     * CVE-2026-63072, the load-bearing half: a caller who sizes an unwrap
+     * buffer the OLD way must be REFUSED, not silently overflowed.
+     *
+     * <p>Why this and not a version check. OpenSSL fixed its own CMS caller in
+     * 3.5.8; it did <b>not</b> change the primitive, which still writes and
+     * cleanses up to the input length on the integrity-failure path — measured
+     * on mainline 3.6.2 and FIPS 3.5.8 alike
+     * ({@code fips-c-review/probes/wrap_unwrap_overflow_probe.c}). So every
+     * libcrypto a user might build Jostle against behaves this way, and the
+     * only thing standing between them and an 8-byte write past a Java
+     * {@code byte[]} is Jostle's own capacity guard.
+     *
+     * <p>So hand {@code doFinal} exactly {@code len - 8} bytes of output —
+     * what {@code getOutputSize} used to advertise, and what any caller
+     * carrying a pre-fix assumption still passes — and require
+     * {@link ShortBufferException}. On a pre-fix build this does NOT throw:
+     * the SPI's own size check uses {@code getFinalSize}, which returned
+     * {@code len - 8}, so the buffer looked adequate, OpenSSL wrote past the
+     * end and the call reported success. <b>A silent pass here is the
+     * vulnerability.</b>
+     *
+     * <p>What this pins is the ADVERTISED SIZE, since that is what the SPI's
+     * check is driven by. The native capacity guard in
+     * {@code block_cipher_ctx_update} is the second line, for callers that
+     * bypass the SPI, and {@code BlockCipherLimitTest} pins that one.
+     *
+     * <p>WRAP_PAD is the variant measured to overrun, but the guard covers all
+     * three and so does this test — a future OpenSSL that extended the
+     * behaviour to plain KW would otherwise reintroduce the bug unnoticed.
+     */
+    @Test
+    public void undersizedUnwrapBufferIsRefusedNotOverflowed() throws Exception
+    {
+        SecureRandom sr = seededRandom("undersizedUnwrapBufferIsRefusedNotOverflowed");
+        byte[] kekBytes = new byte[32];
+        sr.nextBytes(kekBytes);
+        Key kek = new SecretKeySpec(kekBytes, "AES");
+
+        for (String name : new String[]{"AESWrapPad", "AESWrap", "AESWrapInv"})
+        {
+            byte[] cekBytes = new byte[32];
+            sr.nextBytes(cekBytes);
+
+            Cipher wrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            wrap.init(Cipher.WRAP_MODE, kek);
+            byte[] wrapped = wrap.wrap(new SecretKeySpec(cekBytes, "AES"));
+
+            byte[] damaged = Arrays.clone(wrapped);
+            damaged[0] ^= (byte) 0x01;
+
+            // Exactly the pre-fix size. Both a well-formed blob and a damaged
+            // one: the overrun is on the failure path, but a caller must not
+            // be able to reach it either way.
+            for (byte[] blob : new byte[][]{wrapped, damaged})
+            {
+                // DECRYPT_MODE, not UNWRAP_MODE: Cipher.unwrap allocates its
+                // own buffer, so the only way a caller reaches the primitive
+                // with a buffer of their own choosing is the doFinal overload,
+                // and that requires an encrypt/decrypt mode.
+                Cipher unwrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+                unwrap.init(Cipher.DECRYPT_MODE, kek);
+                byte[] tooSmall = new byte[blob.length - 8];
+
+                boolean refused = false;
+                try
+                {
+                    unwrap.doFinal(blob, 0, blob.length, tooSmall, 0);
+                }
+                catch (ShortBufferException e)
+                {
+                    refused = true;
+                }
+                catch (Exception other)
+                {
+                    // An integrity failure is fine only if the SIZE was
+                    // rejected first; it was not, so the guard is missing.
+                    Assertions.fail(name + ": an undersized buffer reached the primitive and"
+                            + " failed for another reason (" + other.getClass().getSimpleName()
+                            + ") — the size was not rejected first");
+                }
+                Assertions.assertTrue(refused,
+                        name + ": a (len - 8) output buffer was ACCEPTED. OpenSSL writes up to"
+                                + " len bytes on the integrity-failure path, so this build writes"
+                                + " 8 bytes past the end of a Java array — CVE-2026-63072.");
+            }
+        }
     }
 }

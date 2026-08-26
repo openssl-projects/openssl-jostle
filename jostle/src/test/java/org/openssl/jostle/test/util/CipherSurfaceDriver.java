@@ -35,16 +35,39 @@ import java.util.SortedSet;
  * OID registrations were reachable only through {@code getInstance} plus an
  * assert-non-null — the "registration is not usability" trap.
  *
- * <p>Two properties make it a guard rather than a smoke test: the surface is
- * discovered so a later registration is driven automatically, and an
- * unrecognised name THROWS rather than being skipped. Each round trip also
- * asserts output differs from input, so an identity transform cannot pass.
+ * <p>What makes it a guard rather than a smoke test: the surface is discovered
+ * from the provider, so a later registration is driven automatically and
+ * nothing is silently skipped. Each round trip also asserts output differs
+ * from input, so an identity transform cannot pass.
+ *
+ * <p><b>Scope, stated honestly.</b> An unrecognised name here does NOT throw —
+ * it takes the plain encrypt/decrypt path, which is the right default for a
+ * block-cipher family. Only the operation SHAPE is inferred from the name, so
+ * a name whose shape is not inferable (a wrap OID, say) must be added to the
+ * dispatch or it will be driven the wrong way. The {@code ServiceDriver}
+ * implementations in the asymmetric families do throw on an unknown name,
+ * because there no sensible default exists.
  */
 public final class CipherSurfaceDriver
 {
     private CipherSurfaceDriver()
     {
     }
+
+    /**
+     * The NIST AES key-wrap OIDs, which carry no "WRAP" or "KW" in the name.
+     * Without them these six drive through the generic encrypt/decrypt path
+     * and their wrap()/unwrap() entry points go unexercised — which is exactly
+     * what happened when this driver was generalised out of AESAgreementTest
+     * and the OID arms were dropped in the move.
+     *
+     * id-aes{128,192,256}-wrap and -wrap-pad.
+     */
+    private static final java.util.Set<String> NIST_AES_WRAP_OIDS =
+            new java.util.HashSet<String>(java.util.Arrays.asList(
+                    "2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.8",
+                    "2.16.840.1.101.3.4.1.25", "2.16.840.1.101.3.4.1.28",
+                    "2.16.840.1.101.3.4.1.45", "2.16.840.1.101.3.4.1.48"));
 
     /** How many key bytes a given registered name needs. */
     public interface KeyLength
@@ -89,6 +112,72 @@ public final class CipherSurfaceDriver
                 keyAlg + ": registered Cipher names that could not be driven ("
                         + failures.size() + " of " + registered.size() + "):\n  "
                         + String.join("\n  ", failures));
+
+        assertWrapRoutingAgreesWithTheRegistrar(provider, prefix, keyAlg, registered);
+    }
+
+    /**
+     * Cross-check: the names {@link #isWrapName} routes through wrap/unwrap
+     * must be exactly the names the REGISTRAR declared as wrap.
+     *
+     * <p>Without this, mis-routing is silent. The six NIST AES wrap OIDs carry
+     * no "WRAP" or "KW" in the algorithm name, so when this driver was
+     * generalised out of {@code AESAgreementTest} and its OID arms were lost,
+     * they quietly fell through to the generic encrypt/decrypt path and their
+     * {@code wrap()} / {@code unwrap()} entry points went unexercised — with
+     * every test still green.
+     *
+     * <p>The second opinion is the SPI class name: {@code ProvAES} registers
+     * those OIDs as {@code …AES128WRAP}, {@code …AES128WRAPPAD} and so on. That
+     * is a separate declaration written by hand at the registration site, so
+     * comparing the two is not the provider checked against itself. A future
+     * wrap registration that this dispatch has not been taught now fails here
+     * by name instead of being driven the wrong way.
+     */
+    private static void assertWrapRoutingAgreesWithTheRegistrar(Provider provider, String prefix,
+                                                                String keyAlg, SortedSet<String> registered)
+    {
+        java.util.Map<String, String> classNames =
+                ProviderSurfaceGuard.registeredClassNames(provider, prefix, new String[]{"Cipher"});
+
+        SortedSet<String> byName = new java.util.TreeSet<String>();
+        SortedSet<String> byClass = new java.util.TreeSet<String>();
+
+        for (String entry : registered)
+        {
+            String alg = entry.substring("Cipher.".length());
+            if (isWrapName(alg))
+            {
+                byName.add(alg);
+            }
+            String cn = classNames.get(entry);
+            if (cn != null && cn.toUpperCase(Locale.ROOT).contains("WRAP"))
+            {
+                byClass.add(alg);
+            }
+        }
+
+        Assertions.assertEquals(byClass, byName,
+                keyAlg + ": wrap routing disagrees with the registrar. Names the registrar"
+                        + " declared as wrap (by SPI class name) but this driver does not route"
+                        + " through wrap/unwrap, or vice versa. A name in the first set only is"
+                        + " being driven as a plain cipher and its wrap entry points are"
+                        + " unexercised.");
+    }
+
+    /**
+     * Is this a key-wrap registration? Inferred from the ALGORITHM name, and
+     * cross-checked in {@link #driveWholeSurface} against the CLASS name the
+     * registrar wrote — see the note there.
+     */
+    public static boolean isWrapName(String name)
+    {
+        String n = name.toUpperCase(Locale.ROOT);
+        if (n.startsWith("OID."))
+        {
+            n = n.substring("OID.".length());
+        }
+        return n.contains("WRAP") || n.contains("KW") || NIST_AES_WRAP_OIDS.contains(n);
     }
 
     /**
@@ -105,7 +194,7 @@ public final class CipherSurfaceDriver
         }
         int kl = keyLen.bytesFor(n);
 
-        if (n.contains("WRAP") || n.contains("KW"))
+        if (isWrapName(name))
         {
             driveWrap(provider, name, keyAlg, kl, sr);
         }

@@ -604,7 +604,11 @@ public class FIPSRSAAgreementTest
             byte[] wrapped = w.wrap(cek);
             Cipher u = Cipher.getInstance(alg, FIPS);
             u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
-            Assertions.assertNotNull(u.unwrap(wrapped, "AES", Cipher.SECRET_KEY), alg);
+            // Equality, not non-null: unwrap THROWS on failure and never
+            // returns null, so assertNotNull here asserted nothing and would
+            // have passed on a module recovering the wrong CEK.
+            Assertions.assertArrayEquals(cekBytes,
+                    u.unwrap(wrapped, "AES", Cipher.SECRET_KEY).getEncoded(), alg);
             return;
         }
 
@@ -613,8 +617,12 @@ public class FIPSRSAAgreementTest
         Cipher enc = Cipher.getInstance(alg, FIPS);
         enc.init(Cipher.ENCRYPT_MODE, kp.getPublic(), sr);
         byte[] ct = enc.doFinal(msg);
+        Assertions.assertFalse(java.util.Arrays.equals(msg, ct),
+                alg + ": ciphertext equals plaintext — no transform");
         Cipher dec = Cipher.getInstance(alg, FIPS);
         dec.init(Cipher.DECRYPT_MODE, kp.getPrivate());
-        Assertions.assertNotNull(dec.doFinal(ct), alg);
+        // Round trip, not non-null: doFinal throws on failure, so the old
+        // assertNotNull passed even if the module decrypted to the wrong bytes.
+        Assertions.assertArrayEquals(msg, dec.doFinal(ct), alg + ": round trip");
     }
 }

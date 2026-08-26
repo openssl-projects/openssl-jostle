@@ -1010,4 +1010,59 @@ public class FIPSBlockCipherLimitTest
     }
 
 
+
+    /**
+     * CVE-2026-63072 in the FIPS library. The two native trees are twins, so
+     * the same missing capacity guard was present in both — and the FIPS one
+     * has its own {@code libinterface_fips_*} build, which the base test does
+     * not exercise.
+     *
+     * <p>On the integrity-failure path the AES key-unwrap primitive writes and
+     * cleanses up to the INPUT length, and {@code EVP_DecryptUpdate} has no
+     * capacity argument, so a {@code (len - 8)} buffer is overrun by 8 bytes.
+     * Measured on 3.5.7, 3.5.8 and 3.6.2 alike
+     * ({@code fips-c-review/probes/wrap_unwrap_overflow_probe.c}).
+     */
+    @Test
+    public void wrapUnwrap_undersizedOutput_rejected() throws Exception
+    {
+        final int aes256 = OSSLCipher.AES256.ordinal();
+        final int wrapPad = OSSLMode.WRAP_PAD.ordinal();
+
+        byte[] key = new byte[32];
+        byte[] cek = new byte[32];
+        new java.security.SecureRandom().nextBytes(key);
+        new java.security.SecureRandom().nextBytes(cek);
+
+        byte[] wrapped;
+        long wref = ni.makeInstance(aes256, wrapPad, 0);
+        try
+        {
+            ni.init(wref, Cipher.ENCRYPT_MODE, key, null, 0);
+            byte[] buf = new byte[ni.getFinalSize(wref, cek.length)];
+            wrapped = Arrays.copyOf(buf, ni.update(wref, buf, 0, cek, 0, cek.length));
+        }
+        finally
+        {
+            ni.dispose(wref);
+        }
+
+        byte[] damaged = wrapped.clone();
+        damaged[0] ^= (byte) 0x01;
+
+        long ref = ni.makeInstance(aes256, wrapPad, 0);
+        try
+        {
+            ni.init(ref, Cipher.DECRYPT_MODE, key, null, 0);
+            javax.crypto.ShortBufferException e = Assertions.assertThrows(
+                    javax.crypto.ShortBufferException.class,
+                    () -> ni.update(ref, new byte[damaged.length - 8], 0, damaged, 0, damaged.length),
+                    "a (len - 8) unwrap buffer was accepted — this build overflows by 8 bytes");
+            Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
 }

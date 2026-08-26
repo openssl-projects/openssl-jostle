@@ -87,6 +87,9 @@ static inline int mode_accumulates(uint32_t mode_id) {
 }
 
 
+/* Defined below; needed by the wrap capacity guard in block_cipher_ctx_update. */
+int32_t final_size(block_cipher_ctx *ctx, size_t len);
+
 /*
  * The AES key-wrap modes: RFC 3394 (WRAP), RFC 5649 (WRAP_PAD), and RFC 3394
  * on the inverse cipher function (WRAP_INV, SP 800-38F 5.1).
@@ -1420,9 +1423,33 @@ int32_t block_cipher_ctx_update(
     const size_t evp_fed = evp_fed_bytes(ctx, in_len);
 
     if (is_wrap_mode(ctx->mode_id)) {
-        // Key-wrap output differs from the input by the 8-byte integrity block
-        // in either direction. The output buffer is sized by get_update_size /
-        // final_size, and OpenSSL fails closed on a short buffer.
+        // Key wrap emits everything from this single update, so the buffer has
+        // to hold the whole result now.
+        //
+        // This check is load-bearing, not belt-and-braces. It previously read
+        // "OpenSSL fails closed on a short buffer" and did nothing - which is
+        // false: on the integrity-failure path the unwrap primitive writes up
+        // to in_len bytes regardless of what the size query reported, and
+        // EVP_DecryptUpdate has no capacity argument to stop it. See
+        // CVE-2026-63072 and the note in final_size().
+        if (!ctx->initialized) {
+            // Same legacy pre-init precedence the OCB and streaming branches
+            // keep - JO_OUTPUT_TOO_SMALL ahead of the JO_NOT_INITIALIZED
+            // below. Explicit rather than incidental: final_size() reads
+            // ctx->op_mode, which is unset here, so letting it decide would
+            // make the answer depend on a zero-initialised field.
+            if (out_len < in_len) {
+                return JO_OUTPUT_TOO_SMALL;
+            }
+        } else {
+            const int32_t need = final_size(ctx, in_len);
+            if (need < 0) {
+                return need;
+            }
+            if (out_len < (size_t) need) {
+                return JO_OUTPUT_TOO_SMALL;
+            }
+        }
     } else if (ctx->mode_id == OCB) {
         // OCB is an AEAD mode but NOT a pure stream: it buffers up to
         // (block-1) bytes internally and can flush a previously-buffered
@@ -1683,10 +1710,22 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
             size_t padded = (ctx->mode_id == WRAP_PAD) ? (((len + 7u) / 8u) * 8u) : len;
             out = padded + 8u;
         } else {
-            // Decrypt upper bound: strip the 8-byte integrity block. KWP may
-            // remove a further 0-7 padding bytes; the Java SPI trims the buffer
-            // to the actual decrypted length.
-            out = (len >= 8u) ? (len - 8u) : 0u;
+            // The whole input length, NOT (len - 8).
+            //
+            // On its integrity-failure path the AES key-unwrap primitive
+            // writes and cleanses up to `len` bytes of the output buffer -
+            // measured for WRAP_PAD on mainline 3.6.2 and FIPS 3.5.8
+            // (fips-c-review/probes/wrap_unwrap_overflow_probe.c), and the
+            // same behaviour behind CVE-2026-63072, whose OpenSSL fix sizes
+            // its own buffer the same way. EVP_DecryptUpdate takes no output
+            // capacity, so a (len - 8) buffer is simply overrun by 8 bytes -
+            // and since the JNI bridge hands OpenSSL a critical pointer
+            // straight into the caller's byte[], that is a write past the end
+            // of a Java array.
+            //
+            // Over-reporting is safe: getOutputSize is an upper bound by
+            // contract, and the SPI trims to the written length.
+            out = len;
         }
         if (out > INT32_MAX) {
             return JO_OUTPUT_SIZE_INT_OVERFLOW;

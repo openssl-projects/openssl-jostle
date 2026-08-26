@@ -40,6 +40,53 @@ public final class ProviderSurfaceGuard
     {
     }
 
+    /**
+     * {@code "<Type>.<ALGORITHM>"} to the registered SPI class name, with an
+     * alias mapped to its target primary's class name.
+     *
+     * <p>Exists so a test can cross-check something it inferred from the
+     * ALGORITHM name against what the registrar independently wrote as the
+     * CLASS name — two declarations, not the provider compared against itself.
+     */
+    public static java.util.Map<String, String> registeredClassNames(Provider provider, String prefix,
+                                                                     String[] types)
+    {
+        java.util.Map<String, String> out = new java.util.HashMap<String, String>();
+        Set<String> wanted = new HashSet<String>(Arrays.asList(types));
+
+        for (Provider.Service s : provider.getServices())
+        {
+            String cn = s.getClassName();
+            if (cn != null && cn.startsWith(prefix) && wanted.contains(s.getType()))
+            {
+                out.put(s.getType() + "." + s.getAlgorithm().toUpperCase(Locale.ROOT), cn);
+            }
+        }
+
+        for (Map.Entry<Object, Object> e : provider.entrySet())
+        {
+            String key = String.valueOf(e.getKey());
+            if (!key.startsWith("Alg.Alias."))
+            {
+                continue;
+            }
+            String rest = key.substring("Alg.Alias.".length());
+            int dot = rest.indexOf('.');
+            if (dot < 0)
+            {
+                continue;
+            }
+            String type = rest.substring(0, dot);
+            String alias = rest.substring(dot + 1).toUpperCase(Locale.ROOT);
+            String target = type + "." + String.valueOf(e.getValue()).toUpperCase(Locale.ROOT);
+            if (wanted.contains(type) && out.containsKey(target))
+            {
+                out.put(type + "." + alias, out.get(target));
+            }
+        }
+        return out;
+    }
+
     /** Drives one discovered service. Must THROW for a name it does not know. */
     public interface ServiceDriver
     {
