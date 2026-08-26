@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.util.asn1.oids.NSRIObjectIdentifiers;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
@@ -1772,4 +1774,25 @@ public class ARIAAgreementTest
         }
     }
 
+
+    // ---------------------------------------------------------------
+    // Cipher completeness guard (MT-4)
+    // ---------------------------------------------------------------
+
+
+
+    /**
+     * Every {@code Cipher} name ProvAria registers is DRIVEN — a real
+     * encrypt/decrypt round trip on the name as registered, not a
+     * {@code getInstance} that asserts non-null. See
+     * {@link CipherSurfaceDriver}.
+     */
+    @Test
+    public void everyRegisteredAriaCipherIsDriven() throws Exception
+    {
+        CipherSurfaceDriver.driveWholeSurface(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.ARIA_PREFIX, "ARIA", CipherFamilies.ARIA,
+                seededRandom("everyRegisteredAriaCipherIsDriven"));
+    }
 }

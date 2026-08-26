@@ -14,6 +14,8 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.test.util.CipherSurfaceDriver;
+import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
@@ -486,12 +488,14 @@ public class FIPSAESTest
     /**
      * Positive complement to ciphersNotServedByModuleRejected: every registered AES
      * OID transformation (id-aes{128,192,256}-{CBC,GCM,wrap,wrap_pad}) and
-     * the bare AES128/AES192/AES256 primaries must resolve through JSLFIPS.
-     * A registration drift that dropped an approved OID would surface here as
-     * a NoSuchAlgorithmException from getInstance.
+     * the bare AES128/AES192/AES256 primaries must resolve through JSLFIPS
+     * AND perform a real operation. A registration drift that dropped an
+     * approved OID surfaces here as a NoSuchAlgorithmException; one that
+     * registered a name the module cannot serve surfaces at init instead,
+     * which the resolve-only form this test used to be could not see.
      */
     @Test
-    public void approvedOidSurfaceResolves()
+    public void approvedOidSurfaceResolvesAndOperates()
         throws Exception
     {
         String[] oids =
@@ -513,10 +517,16 @@ public class FIPSAESTest
                         "AES256"
                 };
 
+        SecureRandom sr = new SecureRandom();
         for (String name : oids)
         {
             Assertions.assertNotNull(Cipher.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),
                     name + " must resolve through JSLFIPS");
+
+            // Resolving is not using: every name above used to stop at the
+            // assert-non-null, so each now performs a real operation too.
+            CipherSurfaceDriver.drive(JostleFIPSProvider.PROVIDER_NAME, name, "AES",
+                    CipherFamilies.AES, sr);
         }
     }
 

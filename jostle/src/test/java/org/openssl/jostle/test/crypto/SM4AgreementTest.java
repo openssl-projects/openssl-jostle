@@ -13,6 +13,8 @@ package org.openssl.jostle.test.crypto;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
@@ -1480,4 +1482,25 @@ public class SM4AgreementTest
         }
     }
 
+
+    // ---------------------------------------------------------------
+    // Cipher completeness guard (MT-4)
+    // ---------------------------------------------------------------
+
+
+
+    /**
+     * Every {@code Cipher} name ProvSM4 registers is DRIVEN — a real
+     * encrypt/decrypt round trip on the name as registered, not a
+     * {@code getInstance} that asserts non-null. See
+     * {@link CipherSurfaceDriver}.
+     */
+    @Test
+    public void everyRegisteredSM4CipherIsDriven() throws Exception
+    {
+        CipherSurfaceDriver.driveWholeSurface(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.SM4_PREFIX, "SM4", CipherFamilies.SM4,
+                seededRandom("everyRegisteredSM4CipherIsDriven"));
+    }
 }

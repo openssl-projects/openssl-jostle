@@ -15,6 +15,9 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.DESedeSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
@@ -1099,42 +1102,13 @@ public class DESedeAgreementTest
      * forward-only check.
      */
     @Test
-    public void everyRegisteredDESedeServiceIsCovered()
+    public void everyRegisteredDESedeServiceIsDriven()
     {
-        Provider provider = Security.getProvider(JostleProvider.PROVIDER_NAME);
-        Assertions.assertNotNull(provider, "JSL provider must be registered");
-
-        SortedSet<String> registered = registeredDESedeSurface(provider);
-        SortedSet<String> covered = new TreeSet<String>(java.util.Arrays.asList(COVERED));
-
-        Assertions.assertFalse(registered.isEmpty(),
-                "no DESede services discovered — the guard would pass vacuously; "
-                        + "check DESEDE_PREFIX still matches the registrar");
-
-        SortedSet<String> uncovered = new TreeSet<String>(registered);
-        uncovered.removeAll(covered);
-        Assertions.assertTrue(uncovered.isEmpty(),
-                "JSL registers DESede services this file does not exercise: " + uncovered);
-
-        SortedSet<String> dead = new TreeSet<String>(covered);
-        dead.removeAll(registered);
-        Assertions.assertTrue(dead.isEmpty(),
-                "COVERED names nothing registers (a rename left a dead entry): " + dead);
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                Security.getProvider(JostleProvider.PROVIDER_NAME), DESEDE_PREFIX,
+                "DESede (JSL)", TYPES, DESedeSurfaceDriver.forProvider(JostleProvider.PROVIDER_NAME));
     }
 
-    /**
-     * The DESede names this file actually drives. Hand-written rather than
-     * discovered, because the tests take a different transformation string per
-     * mode/padding and cannot be generated from the service list — which is
-     * exactly why the guard above is what makes the list safe.
-     */
-    private static final String[] COVERED = {
-            "Cipher.DESEDE",                    // every DESede/<mode>/<padding> agreement test
-            "Cipher.1.2.840.113549.3.7",        // testOidAlias_resolvesToDESede_CBC
-            "Cipher.TRIPLEDES",                 // testTripleDESAlias_resolvesToDESede
-            "KeyGenerator.DESEDE",              // testKeyGenerator_generates24ByteKeys et al
-            "KeyGenerator.TRIPLEDES",           // testKeyGenerator_aliasTripleDES
-    };
 
     // -----------------------------------------------------------------
     // Completeness guard (testing.md, "Every family needs BOTH agreement
@@ -1151,7 +1125,9 @@ public class DESedeAgreementTest
      * filter would have to be taught the new name — the very thing being
      * guarded against.
      */
-    private static final String DESEDE_PREFIX = "org.openssl.jostle.jcajce.provider.ProvDESede";
+    private static final String DESEDE_PREFIX = CipherFamilies.DESEDE_PREFIX;
+
+    private static final String[] TYPES = {"Cipher", "KeyGenerator"};
 
     /**
      * Every {@code <Type>.<NAME>} the provider registers from a DESede
@@ -1163,44 +1139,5 @@ public class DESedeAgreementTest
      * them — and a broken alias is a real caller-visible defect
      * ({@code Cipher.getInstance("TripleDES")} is what a lot of code writes).
      */
-    private static SortedSet<String> registeredDESedeSurface(Provider provider)
-    {
-        SortedSet<String> out = new TreeSet<String>();
-        Map<String, String> primaries = new HashMap<String, String>();
-
-        for (Provider.Service s : provider.getServices())
-        {
-            String cn = s.getClassName();
-            if (cn != null && cn.startsWith(DESEDE_PREFIX))
-            {
-                String alg = s.getAlgorithm().toUpperCase(Locale.ROOT);
-                out.add(s.getType() + "." + alg);
-                primaries.put(s.getType() + "." + alg, alg);
-            }
-        }
-
-        for (Map.Entry<Object, Object> e : provider.entrySet())
-        {
-            String key = String.valueOf(e.getKey());
-            if (!key.startsWith("Alg.Alias."))
-            {
-                continue;
-            }
-            String rest = key.substring("Alg.Alias.".length());
-            int dot = rest.indexOf('.');
-            if (dot < 0)
-            {
-                continue;
-            }
-            String type = rest.substring(0, dot);
-            String alias = rest.substring(dot + 1).toUpperCase(Locale.ROOT);
-            String target = String.valueOf(e.getValue()).toUpperCase(Locale.ROOT);
-            if (primaries.containsKey(type + "." + target))
-            {
-                out.add(type + "." + alias);
-            }
-        }
-        return out;
-    }
 
 }

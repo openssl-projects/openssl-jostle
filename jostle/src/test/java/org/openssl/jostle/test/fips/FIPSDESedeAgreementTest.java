@@ -15,6 +15,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.DESedeSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
@@ -816,49 +819,27 @@ public class FIPSDESedeAgreementTest
      * through the other test.
      */
     @Test
-    public void everyRegisteredDESedeServiceIsCovered()
+    public void everyRegisteredDESedeServiceIsDriven()
     {
         Provider provider = FIPSTestUtil.assumeFipsProvider();
-        SortedSet<String> registered = registeredDESedeSurface(provider);
 
         if (!FIPSTestUtil.moduleServesTripleDes())
         {
+            // Absence is acceptable only because the module really cannot
+            // serve the family — asked of the module, not assumed. Skipping
+            // instead would let a bug that dropped a working algorithm pass.
+            SortedSet<String> registered =
+                    ProviderSurfaceGuard.registeredSurface(provider, DESEDE_PREFIX, TYPES);
             Assertions.assertTrue(registered.isEmpty(),
                     "the module does not implement Triple-DES, yet JSLFIPS registers: " + registered);
             return;
         }
 
-        SortedSet<String> covered = new TreeSet<String>(java.util.Arrays.asList(COVERED));
-
-        Assertions.assertFalse(registered.isEmpty(),
-                "the module serves Triple-DES but no DESede service was discovered — "
-                        + "the guard would pass vacuously; check DESEDE_PREFIX still matches "
-                        + "ProvFIPSDESede");
-
-        SortedSet<String> uncovered = new TreeSet<String>(registered);
-        uncovered.removeAll(covered);
-        Assertions.assertTrue(uncovered.isEmpty(),
-                "JSLFIPS registers DESede services this file does not exercise: " + uncovered);
-
-        SortedSet<String> dead = new TreeSet<String>(covered);
-        dead.removeAll(registered);
-        Assertions.assertTrue(dead.isEmpty(),
-                "COVERED names nothing registers (a rename left a dead entry): " + dead);
+        ProviderSurfaceGuard.assertEveryServiceDriven(provider, DESEDE_PREFIX, "DESede (JSLFIPS)",
+                TYPES, DESedeSurfaceDriver.forProvider(
+                        org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider.PROVIDER_NAME));
     }
 
-    /**
-     * The DESede names this file actually drives. Hand-written rather than
-     * discovered, because the tests take a different transformation string per
-     * mode/padding — which is exactly why the guard above is what makes the
-     * list safe.
-     */
-    private static final String[] COVERED = {
-            "Cipher.DESEDE",                    // the agreement, chunking, reset and boundary tests
-            "Cipher.1.2.840.113549.3.7",        // oidPrimaryIsCbcLocked
-            "Cipher.TRIPLEDES",                 // tripleDesServedIffModuleImplementsIt
-            "KeyGenerator.DESEDE",              // fipsKey(), keyGeneratorProduces24ByteKeysUnderBothNames
-            "KeyGenerator.TRIPLEDES",           // keyGeneratorProduces24ByteKeysUnderBothNames
-    };
 
     // -----------------------------------------------------------------
     // Completeness guard (testing.md, "Every family needs BOTH agreement
@@ -875,7 +856,9 @@ public class FIPSDESedeAgreementTest
      * filter would have to be taught the new name — the very thing being
      * guarded against.
      */
-    private static final String DESEDE_PREFIX = "org.openssl.jostle.jcajce.provider.ProvDESede";
+    private static final String DESEDE_PREFIX = CipherFamilies.DESEDE_PREFIX;
+
+    private static final String[] TYPES = {"Cipher", "KeyGenerator"};
 
     /**
      * Every {@code <Type>.<NAME>} the provider registers from a DESede
@@ -887,44 +870,5 @@ public class FIPSDESedeAgreementTest
      * them — and a broken alias is a real caller-visible defect
      * ({@code Cipher.getInstance("TripleDES")} is what a lot of code writes).
      */
-    private static SortedSet<String> registeredDESedeSurface(Provider provider)
-    {
-        SortedSet<String> out = new TreeSet<String>();
-        Map<String, String> primaries = new HashMap<String, String>();
-
-        for (Provider.Service s : provider.getServices())
-        {
-            String cn = s.getClassName();
-            if (cn != null && cn.startsWith(DESEDE_PREFIX))
-            {
-                String alg = s.getAlgorithm().toUpperCase(Locale.ROOT);
-                out.add(s.getType() + "." + alg);
-                primaries.put(s.getType() + "." + alg, alg);
-            }
-        }
-
-        for (Map.Entry<Object, Object> e : provider.entrySet())
-        {
-            String key = String.valueOf(e.getKey());
-            if (!key.startsWith("Alg.Alias."))
-            {
-                continue;
-            }
-            String rest = key.substring("Alg.Alias.".length());
-            int dot = rest.indexOf('.');
-            if (dot < 0)
-            {
-                continue;
-            }
-            String type = rest.substring(0, dot);
-            String alias = rest.substring(dot + 1).toUpperCase(Locale.ROOT);
-            String target = String.valueOf(e.getValue()).toUpperCase(Locale.ROOT);
-            if (primaries.containsKey(type + "." + target))
-            {
-                out.add(type + "." + alias);
-            }
-        }
-        return out;
-    }
 
 }

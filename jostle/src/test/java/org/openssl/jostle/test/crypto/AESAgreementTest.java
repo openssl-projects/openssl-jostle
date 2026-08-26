@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -36,6 +38,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -3928,4 +3932,25 @@ public class AESAgreementTest
         }
     }
 
+
+    // ---------------------------------------------------------------
+    // Cipher completeness guard (MT-4)
+    // ---------------------------------------------------------------
+
+
+
+    /**
+     * Every {@code Cipher} name ProvAES registers is DRIVEN — a real round
+     * trip on the name as registered. Before this, twelve AES OID
+     * registrations were reachable only through {@code getInstance(oid)} plus
+     * an assert-non-null. See {@link CipherSurfaceDriver}.
+     */
+    @Test
+    public void everyRegisteredAesCipherIsDriven() throws Exception
+    {
+        CipherSurfaceDriver.driveWholeSurface(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.AES_PREFIX, "AES", CipherFamilies.AES,
+                seededRandom("everyRegisteredAesCipherIsDriven"));
+    }
 }

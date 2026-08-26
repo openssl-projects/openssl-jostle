@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -377,5 +379,26 @@ public class ChaCha20AgreementTest
             bcDec.init(Cipher.DECRYPT_MODE, key, iv);
             Assertions.assertArrayEquals(msg, bcDec.doFinal(jslCt), "JSL-enc/BC-dec");
         }
+    }
+
+    // ---------------------------------------------------------------
+    // Cipher completeness guard (MT-4)
+    // ---------------------------------------------------------------
+
+
+
+    /**
+     * Every {@code Cipher} name ProvChaCha20 registers is DRIVEN — a real
+     * encrypt/decrypt round trip on the name as registered, not a
+     * {@code getInstance} that asserts non-null. See
+     * {@link CipherSurfaceDriver}.
+     */
+    @Test
+    public void everyRegisteredChaCha20CipherIsDriven() throws Exception
+    {
+        CipherSurfaceDriver.driveWholeSurface(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.CHACHA20_PREFIX, "ChaCha20", CipherFamilies.CHACHA20,
+                seededRandom("everyRegisteredChaCha20CipherIsDriven"));
     }
 }

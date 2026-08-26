@@ -22,6 +22,11 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
     public CAMELLIABlockCipherSpi()
     {
         super(null, "CAMELLIA");
+        // Form-1 lookup of the bare name never calls engineSetMode, so
+        // without a default osslMode is null and engineInit NPEs. Assigned,
+        // not passed to super: that would also mandate the mode and break the
+        // form-4 path.
+        osslMode = OSSLMode.ECB;
     }
 
     public CAMELLIABlockCipherSpi(OSSLCipher cipher)

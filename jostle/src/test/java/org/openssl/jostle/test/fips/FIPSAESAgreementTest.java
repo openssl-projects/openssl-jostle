@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Cipher;
@@ -273,15 +275,10 @@ public class FIPSAESAgreementTest
     }
 
     /**
-     * The third wrap mode, RFC 3394 on the INVERSE cipher function
-     * (SP 800-38F 5.1), registered as Cipher.AESWrapInv.
-     *
-     * <p>Sits beside its two siblings so this class covers the whole wrap
-     * surface — the deeper matrix (all widths, all lengths, boundaries,
-     * tampering) is in FIPSAESKeyWrapInvTest. One asymmetry: BC registers no
-     * JCE transformation for this direction, so the BC leg drives the
-     * lightweight AESWrapEngine(true) instead of a provider name. It is still
-     * an independent implementation, which is what the rule asks for.
+     * The third wrap mode (SP 800-38F 5.1), beside its two siblings so this
+     * class covers the whole wrap surface; the deeper matrix is in
+     * FIPSAESKeyWrapInvTest. BC registers no JCE name for this direction, so
+     * the BC leg drives the lightweight AESWrapEngine(true).
      */
     @Test
     public void keyWrapInvAgrees() throws Exception
@@ -472,5 +469,24 @@ public class FIPSAESAgreementTest
         cipher.init(Cipher.UNWRAP_MODE, kek);
         Key recovered = cipher.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
         return recovered.getEncoded();
+    }
+
+    // ---------------------------------------------------------------
+    // Cipher completeness guard (MT-4)
+    // ---------------------------------------------------------------
+
+    /**
+     * Every {@code Cipher} name ProvFIPSAES registers is DRIVEN through
+     * JSLFIPS. Not redundant with the base guard: separate registrars with
+     * differing surfaces, and this one drives the FIPS library, where a
+     * registration the module cannot serve fails at {@code init}.
+     */
+    @Test
+    public void everyRegisteredAesCipherIsDriven() throws Exception
+    {
+        CipherSurfaceDriver.driveWholeSurface(
+                FIPSTestUtil.assumeFipsProvider(),
+                CipherFamilies.AES_PREFIX, "AES", CipherFamilies.AES,
+                seededRandom("everyRegisteredAesCipherIsDriven"));
     }
 }

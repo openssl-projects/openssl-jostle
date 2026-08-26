@@ -14,6 +14,8 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
+import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
@@ -27,6 +29,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
@@ -454,5 +457,164 @@ public class FIPSRSAAgreementTest
                 "JSLFIPS-decoded public half verifies JSLFIPS-decoded private half's signature");
         Assertions.assertTrue(rsaVerify(BC, "SHA256withRSA", bcKp.getPublic(), null, msg, sig2),
                 "original BC public half verifies the JSLFIPS-decoded private half's signature");
+    }
+
+    // ---------------------------------------------------------------
+    // Cipher completeness guard (MT-4)
+    // ---------------------------------------------------------------
+
+    private static final String[] GUARDED_TYPES = {"Cipher", "KeyFactory", "KeyPairGenerator", "Signature"};
+
+    /**
+     * Every RSA service JSLFIPS registers is DRIVEN, discovered rather than
+     * listed. Not redundant with the base guard: the surfaces differ — JSLFIPS
+     * deliberately registers no PKCS#1 v1.5 Cipher — and this drives the FIPS
+     * library, where a registration the module cannot serve fails at
+     * {@code init} rather than at {@code getInstance}.
+     */
+    @Test
+    public void everyRegisteredRsaServiceIsDriven() throws Exception
+    {
+        final Provider provider = FIPSTestUtil.assumeFipsProvider();
+        final SecureRandom sr = new SecureRandom();
+        final KeyPair kp = KeyPairGenerator.getInstance("RSA", FIPS).generateKeyPair();
+
+        ProviderSurfaceGuard.assertEveryServiceDriven(provider, CipherFamilies.RSA_PREFIX,
+                "RSA (JSLFIPS)", GUARDED_TYPES,
+                new ProviderSurfaceGuard.ServiceDriver()
+                {
+                    public void drive(String type, String alg) throws Exception
+                    {
+                        if ("Signature".equals(type))
+                        {
+                            driveFipsSignature(alg, kp, sr);
+                        }
+                        else if ("Cipher".equals(type))
+                        {
+                            driveFipsCipher(alg, kp, sr);
+                        }
+                        else if ("KeyFactory".equals(type))
+                        {
+                            Assertions.assertNotNull(KeyFactory.getInstance(alg, FIPS)
+                                    .generatePublic(new java.security.spec.X509EncodedKeySpec(
+                                            kp.getPublic().getEncoded())), alg);
+                        }
+                        else if ("KeyPairGenerator".equals(type))
+                        {
+                            Assertions.assertNotNull(
+                                    KeyPairGenerator.getInstance(alg, FIPS).generateKeyPair(), alg);
+                        }
+                        else
+                        {
+                            throw new IllegalStateException("no drive defined for " + type + "." + alg
+                                    + " — teach this driver rather than letting it go unexercised");
+                        }
+                    }
+                });
+    }
+
+    /**
+     * Sign and verify under one registered name, allowing for the two
+     * refusals the module legitimately makes.
+     *
+     * <p>Neither is skipped: each is asserted to refuse with its own pinned
+     * message, so a refusal for any OTHER reason still fails the guard.
+     *
+     * <ol>
+     * <li><b>SHA-1 signing</b> is the {@code signature-digest-check}
+     *     fipsinstall switch — on under {@code -pedantic}, off at defaults —
+     *     so both signing and refusing are correct answers and the contract is
+     *     "one or the other", per the assert-the-contract rule in testing.md.
+     *     The two module versions also word the refusal differently, so the
+     *     match is on the property rather than on either one's text.</li>
+     * <li><b>NoneWithRSA</b> is registered DELIBERATELY unusable: the module
+     *     has no NONE digest, so init fails and the non-approved raw path is
+     *     unreachable. {@code FIPSRSANoneWithRSASignatureTest} pins it.</li>
+     * </ol>
+     */
+    private static void driveFipsSignature(String alg, KeyPair kp, SecureRandom sr) throws Exception
+    {
+        byte[] msg = new byte[32];
+        sr.nextBytes(msg);
+        String n = alg.toUpperCase(java.util.Locale.ROOT);
+        boolean sha1 = n.contains("SHA1") || n.equals("1.2.840.113549.1.1.5");
+        boolean none = n.equals("NONEWITHRSA");
+
+        try
+        {
+            Signature sign = Signature.getInstance(alg, FIPS);
+            sign.initSign(kp.getPrivate());
+            sign.update(msg);
+            byte[] sig = sign.sign();
+
+            Signature v = Signature.getInstance(alg, FIPS);
+            v.initVerify(kp.getPublic());
+            v.update(msg);
+            Assertions.assertTrue(v.verify(sig), alg + ": did not verify its own signature");
+
+            Assertions.assertFalse(none,
+                    "NoneWithRSA signed — it is registered to be refused by the module, "
+                            + "so a working one means the non-approved raw path is now reachable");
+        }
+        catch (java.security.InvalidKeyException e)
+        {
+            String m = String.valueOf(e.getMessage());
+            if (sha1)
+            {
+                // The two modules word the same gate differently — 3.1.2 says
+                // "rsa_setup_md:digest not allowed", 3.5.x says
+                // "ossl_fips_ind_digest_sign_check:invalid digest" — so match
+                // the property, not one version's text. Pinning either alone
+                // passes on that module and fails on the other.
+                Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
+                        alg + ": refused, but not by the signature-digest-check gate: " + m);
+                return;
+            }
+            if (none)
+            {
+                Assertions.assertTrue(m.contains("NONE"),
+                        alg + ": refused, but not for the absent NONE digest: " + m);
+                return;
+            }
+            throw e;
+        }
+    }
+
+    private static void driveFipsCipher(String alg, KeyPair kp, SecureRandom sr) throws Exception
+    {
+        String n = alg.toUpperCase(java.util.Locale.ROOT);
+        boolean kts = n.contains("KTS") || n.equals("1.0.18033.2.2.4")
+                || n.equals("1.2.840.113549.1.9.16.3.14");
+
+        if (kts)
+        {
+            byte[] cekBytes = new byte[32];
+            sr.nextBytes(cekBytes);
+            javax.crypto.spec.SecretKeySpec cek =
+                    new javax.crypto.spec.SecretKeySpec(cekBytes, "AES");
+            org.bouncycastle.jcajce.spec.KTSParameterSpec spec =
+                    new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
+                            .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                                    org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
+                                    new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)))
+                            .build();
+            Cipher w = Cipher.getInstance(alg, FIPS);
+            w.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+            byte[] wrapped = w.wrap(cek);
+            Cipher u = Cipher.getInstance(alg, FIPS);
+            u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+            Assertions.assertNotNull(u.unwrap(wrapped, "AES", Cipher.SECRET_KEY), alg);
+            return;
+        }
+
+        byte[] msg = new byte[32];
+        sr.nextBytes(msg);
+        Cipher enc = Cipher.getInstance(alg, FIPS);
+        enc.init(Cipher.ENCRYPT_MODE, kp.getPublic(), sr);
+        byte[] ct = enc.doFinal(msg);
+        Cipher dec = Cipher.getInstance(alg, FIPS);
+        dec.init(Cipher.DECRYPT_MODE, kp.getPrivate());
+        Assertions.assertNotNull(dec.doFinal(ct), alg);
     }
 }
