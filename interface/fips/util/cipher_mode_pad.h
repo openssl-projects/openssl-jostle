@@ -17,9 +17,9 @@
     RC2_64(BLOCK, CBC),
     BlowFish(BLOCK, ECB, CBC, CFB64, OFB),
     CAST5(BLOCK, ECB, CBC, CFB64, OFB),
-    AES128(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
-    AES192(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
-    AES256(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, OCB),
+    AES128(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, WRAP_INV, OCB),
+    AES192(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, WRAP_INV, OCB),
+    AES256(BLOCK, ECB, CBC, CTS, CFB1, CFB8, CFB128, OFB, CTR, CCM, GCM, XTS, WRAP, WRAP_PAD, WRAP_INV, OCB),
     ARIA128(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, CTR, OFB, GCM, CCM),
     ARIA192(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, CTR, OFB, GCM, CCM),
     ARIA256(BLOCK, ECB, CBC, CFB1, CFB8, CFB128, CTR, OFB, GCM, CCM),
@@ -84,6 +84,12 @@
 // message, so block_cipher_ctx accumulates - see mode_accumulates().
 // Append-only - must match OSSLMode ordinal 16.
 #define CTS 16
+// AES key wrap (RFC 3394) on the INVERSE cipher function, per SP 800-38F 5.1:
+// the designated cipher function is AES decryption, so CIPH-1 is AES
+// encryption. Identical to WRAP in every other respect, hence is_wrap_mode().
+// OpenSSL spells it AES-<n>-WRAP-INV.
+// Append-only - must match OSSLMode ordinal 17.
+#define WRAP_INV 17
 
 #define PADDED 1
 #define NO_PADDING 0

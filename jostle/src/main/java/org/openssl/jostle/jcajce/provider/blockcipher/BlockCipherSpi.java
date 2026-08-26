@@ -121,7 +121,10 @@ class BlockCipherSpi extends CipherSpi
     {
         // JCE spellings of modes this enum names differently: "CFB" is the
         // unqualified feedback width; KW / KWP are the SP 800-38F names for
-        // WRAP / WRAP_PAD.
+        // WRAP / WRAP_PAD. The inverse-cipher wrap has no established JCE
+        // spelling — neither the JDK nor BC registers one — so both plausible
+        // ones resolve: "KWINV" continues the KW / KWP family, "WRAP-INV" is
+        // OpenSSL's own name. See ProvAES for the primary.
         final String resolved;
         if ("CFB".equalsIgnoreCase(mode))
         {
@@ -134,6 +137,10 @@ class BlockCipherSpi extends CipherSpi
         else if ("KWP".equalsIgnoreCase(mode))
         {
             resolved = "WRAP_PAD";
+        }
+        else if ("KWINV".equalsIgnoreCase(mode) || "WRAP-INV".equalsIgnoreCase(mode))
+        {
+            resolved = "WRAP_INV";
         }
         else
         {
@@ -458,7 +465,7 @@ class BlockCipherSpi extends CipherSpi
 
     /**
      * The IV/nonce length, in bytes, this mode needs when the caller supplies
-     * no parameters. ECB and the key-wrap modes take none; GCM/OCB,
+     * no parameters. ECB and the three key-wrap modes take none; GCM/OCB,
      * ChaCha20-Poly1305 (POLY1305), and raw ChaCha20 (STREAM) use a 12-byte
      * nonce; remaining block modes use the cipher's block size. Returns 0 when
      * no IV is required.
@@ -470,6 +477,7 @@ class BlockCipherSpi extends CipherSpi
         case ECB:
         case WRAP:
         case WRAP_PAD:
+        case WRAP_INV:
             return 0;
         case GCM:
         case OCB:
@@ -868,6 +876,15 @@ class BlockCipherSpi extends CipherSpi
         }
         catch (IllegalBlockSizeException | BadPaddingException e)
         {
+            throw new InvalidKeyException("unable to unwrap key: " + e.getMessage(), e);
+        }
+        catch (OpenSSLException e)
+        {
+            // The key-wrap integrity failure arrives as OpenSSLException, a
+            // RuntimeException, which would otherwise escape untranslated —
+            // breaking both the documented catch and provider fallback. Cover
+            // every native failure, not just the integrity one: ALL unwrap
+            // failures must look alike, or the distinction is an oracle.
             throw new InvalidKeyException("unable to unwrap key: " + e.getMessage(), e);
         }
 

@@ -317,6 +317,36 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * AES key wrap on the inverse cipher function, named rather than swept.
+     * <p>
+     * The same blind spot again: the width is part of the EVP name
+     * ({@code AES-128-WRAP-INV} and friends), so {@code implementingProvider}
+     * answers null for the JCE spelling and the sweep skips it silently.
+     * Mainline implements the INV set identically to both modules, so nothing
+     * an agreement test can see distinguishes them.
+     * <p>
+     * Ungated, like CBC-CTS — all three widths fetch on both modules under
+     * either config ({@code fips-c-review/probes/wrapinv_probe.c}) — so an
+     * unregistered service is a defect, not a module property.
+     */
+    @Test
+    public void aesWrapInvIsImplementedByTheFipsModule()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        Assertions.assertNotNull(provider.getService("Cipher", "AESWrapInv"),
+                "AESWrapInv is ungated and must always be registered");
+
+        for (String evpName : new String[]{"AES-128-WRAP-INV", "AES-192-WRAP-INV", "AES-256-WRAP-INV"})
+        {
+            Assertions.assertEquals(FIPS_PROVIDER,
+                    FIPSNISelector.OpenSSLFIPSNI.implementingProvider(OpenSSLFIPSNI.OP_CIPHER, evpName),
+                    evpName + " must be implemented by the FIPS module — mainline implements "
+                            + "the INV wrap set identically, so this is the only check that can catch it");
+        }
+    }
+
+    /**
      * Triple-DES specifically, named rather than swept.
      * <p>
      * The sweep probes each service under its JCE name, and {@code DESede} is

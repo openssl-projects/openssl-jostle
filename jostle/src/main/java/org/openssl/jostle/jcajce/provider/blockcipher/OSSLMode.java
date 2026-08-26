@@ -28,5 +28,10 @@ public enum OSSLMode
     // AES/CTS/NoPadding implements (measured, not inherited: OpenSSL's own
     // default is CS1). Append-only — must match the #define CTS 16 in
     // interface/nonfips/util/cipher_mode_pad.h.
-    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD, STREAM, POLY1305, CTS;
+    // WRAP_INV (ordinal 17) is RFC 3394 key wrap on the INVERSE cipher
+    // function (SP 800-38F 5.1) — OpenSSL's AES-<n>-WRAP-INV, measured
+    // byte-identical to BouncyCastle's AESWrapEngine(true). Append-only —
+    // must match the #define WRAP_INV 17 in
+    // interface/nonfips/util/cipher_mode_pad.h.
+    ECB, CBC, CFB1, CFB8, CFB64, CFB128, CTR, CCM, GCM, OFB, OCB, XTS, WRAP, WRAP_PAD, STREAM, POLY1305, CTS, WRAP_INV;
 }

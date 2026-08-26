@@ -40,6 +40,22 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_PAD));
         provider.addAlias("Cipher", "AESWrapPad", "AESKWP");
 
+        // AES key wrap on the INVERSE cipher function (SP 800-38F 5.1), which
+        // OpenSSL calls AES-<n>-WRAP-INV.
+        //
+        // "AESWrapInv" is JOSTLE-CHOSEN — no convention exists. The JDK
+        // registers nothing for this direction; BC ships only the lightweight
+        // AESWrapEngine(true); NIST assigns no OID. So: symmetry with
+        // AESWrap / AESWrapPad, alias AESKWINV, and BlockCipherSpi also takes
+        // the mode spellings KWINV and WRAP-INV. Interop is by construction,
+        // not by name — BC's engine and OpenSSL's cipher were measured
+        // byte-identical both ways.
+        //
+        // No per-width OID primaries: there are no OIDs, so the width comes
+        // from the key length as it does for the bare AESWrap name.
+        provider.addAlgorithmImplementation("Cipher", "AESWrapInv", PREFIX + "AESWRAPINVNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_INV));
+        provider.addAlias("Cipher", "AESWrapInv", "AESKWINV");
+
         // NIST AES OIDs are registered so that consumers which resolve algorithms by OID
         // (notably CMS, which looks up the content-encryption and key-wrap KeyGenerator
         // and Cipher by their algorithm OID) find the JSL implementations. ECB/CBC/GCM

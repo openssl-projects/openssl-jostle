@@ -88,6 +88,7 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.AES256",
             "Cipher.AESWRAP",
             "Cipher.AESWRAPPAD",
+            "Cipher.AESWRAPINV",
             "Cipher.DESEDE",   // Triple-DES, capability-gated (see TDES_GATED)
             "Cipher.ML-KEM",   // PQC, capability-gated (see PQC_GATED)
             "Cipher.RSA",

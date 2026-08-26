@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.bouncycastle.crypto.engines.AESWrapEngine;
+import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -267,6 +269,55 @@ public class FIPSAESAgreementTest
                     "JSLFIPS wrap -> BC unwrap");
             Assertions.assertArrayEquals(target.getEncoded(), unwrap(wrapOid, JSL, kek, wrappedFips),
                     "JSLFIPS wrap -> JSL unwrap");
+        }
+    }
+
+    /**
+     * The third wrap mode, RFC 3394 on the INVERSE cipher function
+     * (SP 800-38F 5.1), registered as Cipher.AESWrapInv.
+     *
+     * <p>Sits beside its two siblings so this class covers the whole wrap
+     * surface — the deeper matrix (all widths, all lengths, boundaries,
+     * tampering) is in FIPSAESKeyWrapInvTest. One asymmetry: BC registers no
+     * JCE transformation for this direction, so the BC leg drives the
+     * lightweight AESWrapEngine(true) instead of a provider name. It is still
+     * an independent implementation, which is what the rule asks for.
+     */
+    @Test
+    public void keyWrapInvAgrees() throws Exception
+    {
+        SecureRandom sr = seededRandom("keyWrapInvAgrees");
+
+        for (int trial = 0; trial < 10; trial++)
+        {
+            SecretKey kek = randomKey(32, sr);
+            SecretKey target = randomKey(16 + 8 * sr.nextInt(3), sr); // 16/24/32
+            byte[] targetBytes = target.getEncoded();
+
+            byte[] wrappedFips = wrap("AESWrapInv", FIPS, kek, target);
+
+            AESWrapEngine bcWrap = new AESWrapEngine(true);
+            bcWrap.init(true, new KeyParameter(kek.getEncoded()));
+            byte[] wrappedBc = bcWrap.wrap(targetBytes, 0, targetBytes.length);
+
+            Assertions.assertArrayEquals(wrappedBc, wrappedFips, "wrapped bytes JSLFIPS vs BC");
+
+            AESWrapEngine bcUnwrap = new AESWrapEngine(true);
+            bcUnwrap.init(false, new KeyParameter(kek.getEncoded()));
+            Assertions.assertArrayEquals(targetBytes, bcUnwrap.unwrap(wrappedFips, 0, wrappedFips.length),
+                    "JSLFIPS wrap -> BC unwrap");
+
+            Assertions.assertArrayEquals(targetBytes, unwrap("AESWrapInv", FIPS, kek, wrappedBc),
+                    "BC wrap -> JSLFIPS unwrap");
+            Assertions.assertArrayEquals(targetBytes, unwrap("AESWrapInv", JSL, kek, wrappedFips),
+                    "JSLFIPS wrap -> JSL unwrap");
+
+            // The mode really is the inverse one: plain AESWrap over the same
+            // inputs must produce different bytes. Without this the test would
+            // pass against a registration that silently resolved to AESWrap.
+            Assertions.assertFalse(
+                    java.util.Arrays.equals(wrap("AESWrap", FIPS, kek, target), wrappedFips),
+                    "AESWrapInv produced the same bytes as plain AESWrap");
         }
     }
 

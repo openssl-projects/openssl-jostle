@@ -21,6 +21,7 @@ import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -221,16 +222,84 @@ public class AESKeyWrapTest
 
         Cipher unwrap = Cipher.getInstance(AES256_WRAP, JostleProvider.PROVIDER_NAME);
         unwrap.init(Cipher.UNWRAP_MODE, kek);
-        boolean rejected = false;
-        try
+        // InvalidKeyException specifically, not "something was thrown". The
+        // native layer raises OpenSSLException, a RuntimeException, and that
+        // escaped engineUnwrap untranslated for a long time — breaking both
+        // the documented catch and provider fallback. A catch (Exception)
+        // body cannot see the difference.
+        InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
+                () -> unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY),
+                "tampered wrapped key must fail the integrity check");
+        Assertions.assertTrue(ex.getMessage().startsWith("unable to unwrap key: "),
+                "unexpected message: " + ex.getMessage());
+    }
+
+    /**
+     * One Cipher instance, several operations. Both halves were broken for the
+     * whole key-wrap family until WI-9, and neither is visible to a test that
+     * builds a fresh Cipher per operation:
+     *
+     * <ol>
+     * <li>The end-of-operation reset re-inited from the cached IV buffer, a
+     *     struct member and so never null even for a mode taking no IV. The
+     *     wrap providers read that as an explicit ICV, replacing RFC 3394's
+     *     A6A6A6A6A6A6A6A6 with zeros — so the FIRST wrap was right and every
+     *     later one silently wrong, yet stable and self-round-tripping. Only
+     *     comparison with BC over the SECOND operation shows it.</li>
+     * <li>A failed unwrap poisoned the context permanently, surviving
+     *     {@code Cipher.init()}.</li>
+     * </ol>
+     */
+    @Test
+    public void oneInstanceStaysCorrectAcrossOperationsAndAfterFailure() throws Exception
+    {
+        SecureRandom sr = seededRandom("oneInstanceStaysCorrectAcrossOperationsAndAfterFailure");
+
+        for (String name : new String[]{"AESWrap", "AESWrapPad"})
         {
-            unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
+            byte[] kekBytes = new byte[32];
+            sr.nextBytes(kekBytes);
+            Key kek = new SecretKeySpec(kekBytes, "AES");
+
+            Cipher wrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            wrap.init(Cipher.WRAP_MODE, kek);
+
+            // Four payloads through ONE instance, each checked against BC —
+            // self-consistency would pass with a zeroed ICV, since both
+            // operations would use it.
+            byte[] wrappedFirst = null;
+            for (int i = 0; i < 4; i++)
+            {
+                byte[] cekBytes = new byte[16 + 8 * i];
+                sr.nextBytes(cekBytes);
+                Key cek = new SecretKeySpec(cekBytes, "AES");
+
+                byte[] mine = wrap.wrap(cek);
+                if (i == 0)
+                {
+                    wrappedFirst = mine;
+                }
+
+                Cipher bc = Cipher.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
+                bc.init(Cipher.WRAP_MODE, kek);
+                Assertions.assertTrue(Arrays.areEqual(bc.wrap(cek), mine),
+                        name + " operation " + i + ": diverged from BouncyCastle on a reused instance");
+            }
+
+            // Negative then positive on one unwrap instance.
+            Cipher unwrap = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME);
+            unwrap.init(Cipher.UNWRAP_MODE, kek);
+
+            byte[] damaged = Arrays.clone(wrappedFirst);
+            damaged[0] ^= (byte) 0x01;
+            final byte[] bad = damaged;
+            Assertions.assertThrows(InvalidKeyException.class,
+                    () -> unwrap.unwrap(bad, "AES", Cipher.SECRET_KEY),
+                    name + ": damaged blob must be rejected");
+
+            Assertions.assertNotNull(unwrap.unwrap(wrappedFirst, "AES", Cipher.SECRET_KEY),
+                    name + ": the failed unwrap left the instance unusable");
         }
-        catch (Exception e)
-        {
-            rejected = true;
-        }
-        Assertions.assertTrue(rejected, "tampered wrapped key must fail the integrity check");
     }
 
     /**

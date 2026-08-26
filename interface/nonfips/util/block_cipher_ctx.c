@@ -87,6 +87,21 @@ static inline int mode_accumulates(uint32_t mode_id) {
 }
 
 
+/*
+ * The AES key-wrap modes: RFC 3394 (WRAP), RFC 5649 (WRAP_PAD), and RFC 3394
+ * on the inverse cipher function (WRAP_INV, SP 800-38F 5.1).
+ *
+ * All three share what the five call sites below care about: no IV (a fixed
+ * default ICV), one-shot emission from the single EVP update, an 8-byte
+ * integrity block, and length rules OpenSSL enforces itself. Only the
+ * plaintext padding differs, and that is WRAP_PAD alone, named where it
+ * matters (final_size).
+ */
+static inline int is_wrap_mode(uint32_t mode_id) {
+    return mode_id == WRAP || mode_id == WRAP_PAD || mode_id == WRAP_INV;
+}
+
+
 static inline size_t evp_fed_bytes(block_cipher_ctx *ctx, size_t in_len) {
     if (ctx->op_mode == DECRYPT_MODE && is_aead_mode(ctx->mode_id) && ctx->tag_len > 0) {
         size_t have = (size_t) ctx->tag_index + in_len;
@@ -373,9 +388,11 @@ int32_t block_cipher_ctx_init(
         case ECB:
         case WRAP:
         case WRAP_PAD:
-            // ECB takes no IV. AES key-wrap (RFC 3394) and key-wrap-with-padding
-            // (RFC 5649) use a fixed default integrity check value, so no IV is
-            // accepted here either.
+        case WRAP_INV:
+            // ECB takes no IV. AES key-wrap (RFC 3394), key-wrap-with-padding
+            // (RFC 5649) and the inverse-cipher wrap (SP 800-38F 5.1) all use a
+            // fixed default integrity check value, so no IV is accepted here
+            // either.
             if (iv_len != 0) {
                 return JO_MODE_TAKES_NO_IV;
             }
@@ -472,6 +489,9 @@ int32_t block_cipher_ctx_init(
                 case WRAP_PAD:
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP-PAD",NULL);
                     break;
+                case WRAP_INV:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-128-WRAP-INV",NULL);
+                    break;
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
                 case OCB:
@@ -541,6 +561,9 @@ int32_t block_cipher_ctx_init(
                     break;
                 case WRAP_PAD:
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP-PAD",NULL);
+                    break;
+                case WRAP_INV:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-192-WRAP-INV",NULL);
                     break;
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
@@ -616,6 +639,9 @@ int32_t block_cipher_ctx_init(
                     break;
                 case WRAP_PAD:
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP-PAD",NULL);
+                    break;
+                case WRAP_INV:
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), "AES-256-WRAP-INV",NULL);
                     break;
 
                 // case CCM: Authenticated (requires upfront-length streaming model)
@@ -1073,12 +1099,20 @@ int32_t block_cipher_ctx_init(
         memcpy(chacha_iv + 4, iv, 12);
         iv_for_openssl = chacha_iv;
     } else {
-        iv_for_openssl = iv;
+        // A zero-length IV is NO IV. block_cipher_ctx_final's reset re-inits
+        // from ctx->last_iv, an array member and so never NULL, and the wrap
+        // providers read a non-NULL IV as an explicit ICV - overwriting RFC
+        // 3394's A6A6A6A6A6A6A6A6 with zeros. The first wrap on an instance
+        // was then correct and every later one silently wrong, yet stable and
+        // self-round-tripping: only a reuse test against an independent
+        // implementation sees it (AESKeyWrapTest
+        // .oneInstanceStaysCorrectAcrossOperationsAndAfterFailure).
+        iv_for_openssl = (iv_len == 0) ? NULL : iv;
     }
 
     // OpenSSL refuses to initialise a key-wrap cipher unless the context
     // explicitly opts in via EVP_CIPHER_CTX_FLAG_WRAP_ALLOW.
-    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+    if (is_wrap_mode(ctx->mode_id)) {
         EVP_CIPHER_CTX_set_flags(ctx->evp, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
     }
 
@@ -1307,6 +1341,47 @@ int32_t block_cipher_ctx_updateAAD(
 }
 
 
+/*
+ * A one-shot key-wrap operation failed inside EVP. Recover rather than poison,
+ * and leave the error queue alone.
+ *
+ * Poisoning suits a mid-stream EVP failure, where the cipher state is
+ * undefined. A wrap is one update, and its real failure is the ordinary
+ * integrity check - wrong KEK, damaged blob. Poisoning killed the Cipher for
+ * good: block_cipher_ctx_init returns JO_CTX_POISONED before doing anything,
+ * so even Cipher.init() could not revive it.
+ *
+ * Re-init in place, NOT via block_cipher_ctx_init: that opens with
+ * ERR_clear_error() and would discard the failure the caller is about to be
+ * told about, reporting it as "OpenSSL Error: null" - which elsewhere means an
+ * OPS-injected failure. The mark/pop keeps the original error and drops only
+ * the re-init's own noise; on re-init failure clear_last_mark keeps both.
+ *
+ * The wrap providers hold no per-update state, so the key re-schedule plus
+ * processed = 0 is the whole reset; WRAP_ALLOW is a ctx flag and survives.
+ */
+static int32_t wrap_recover_after_failure(block_cipher_ctx *ctx) {
+    int ok;
+
+    ERR_set_mark();
+    if (ctx->op_mode == ENCRYPT_MODE) {
+        ok = EVP_EncryptInit_ex(ctx->evp, NULL, NULL, ctx->last_key, NULL);
+    } else {
+        ok = EVP_DecryptInit_ex(ctx->evp, NULL, NULL, ctx->last_key, NULL);
+    }
+
+    if (1 != ok) {
+        ERR_clear_last_mark();
+        ctx->poisoned = 1;
+        return JO_OPENSSL_ERROR;
+    }
+
+    ERR_pop_to_mark();
+    ctx->processed = 0;
+    return JO_OPENSSL_ERROR;
+}
+
+
 int32_t block_cipher_ctx_update(
     block_cipher_ctx *ctx,
     uint8_t *input,
@@ -1344,7 +1419,7 @@ int32_t block_cipher_ctx_update(
     // it also drives the OCB buffered-residue bookkeeping after the EVP call.
     const size_t evp_fed = evp_fed_bytes(ctx, in_len);
 
-    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+    if (is_wrap_mode(ctx->mode_id)) {
         // Key-wrap output differs from the input by the 8-byte integrity block
         // in either direction. The output buffer is sized by get_update_size /
         // final_size, and OpenSSL fails closed on a short buffer.
@@ -1438,7 +1513,7 @@ int32_t block_cipher_ctx_update(
     }
 
     if (ctx->streaming == 0 && ctx->padding == NO_PADDING) {
-        if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+        if (is_wrap_mode(ctx->mode_id)) {
             // RFC 3394 (KW) requires input that is a multiple of 8 bytes and at
             // least 16; RFC 5649 (KWP) accepts any length >= 1. OpenSSL enforces
             // these per-algorithm, so don't impose the 16-byte block alignment.
@@ -1484,6 +1559,9 @@ int32_t block_cipher_ctx_update(
 
     if (ctx->op_mode == ENCRYPT_MODE) {
         if (OPS_OPENSSL_ERROR_3 1 != EVP_EncryptUpdate(ctx->evp, output, &written, input, (int) in_len)) {
+            if (is_wrap_mode(ctx->mode_id)) {
+                return wrap_recover_after_failure(ctx);
+            }
             ctx->poisoned = 1;
             return JO_OPENSSL_ERROR;
         }
@@ -1555,6 +1633,9 @@ int32_t block_cipher_ctx_update(
             }
         } else {
             if (OPS_OPENSSL_ERROR_3 1 != EVP_DecryptUpdate(ctx->evp, output, &written, input, (int) in_len)) {
+                if (is_wrap_mode(ctx->mode_id)) {
+                    return wrap_recover_after_failure(ctx);
+                }
                 ctx->poisoned = 1;
                 return JO_OPENSSL_ERROR;
             }
@@ -1592,7 +1673,7 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         return (int32_t) out;
     }
 
-    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+    if (is_wrap_mode(ctx->mode_id)) {
         // Key wrap is one-shot: the whole result is produced from the single
         // EVP update, so size the buffer for the complete operation here.
         size_t out;
@@ -1968,7 +2049,7 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
 
     // Key wrap is one-shot — the entire wrapped/unwrapped result is written by
     // the single update call, so size it exactly as the final operation.
-    if (ctx->mode_id == WRAP || ctx->mode_id == WRAP_PAD) {
+    if (is_wrap_mode(ctx->mode_id)) {
         return final_size(ctx, len);
     }
 

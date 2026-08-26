@@ -61,6 +61,27 @@ class ProvFIPSAES
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP_PAD));
         provider.addAlias("Cipher", "AESWrapPad", "AESKWP");
 
+        // AES key wrap on the INVERSE cipher function (SP 800-38F 5.1).
+        // Ungated: measured fetchable at all three widths under fips=yes on
+        // BOTH modules, default and -pedantic alike
+        // (fips-c-review/probes/wrapinv_probe.c). See ProvAES for why the
+        // name is Jostle-chosen, and for the aliases.
+        //
+        // Approval is NOT asserted, and here the policy does not settle it.
+        // Checked against CMVP cert #4985 on 2026-08-26: SP 800-38F 5.1
+        // permits the AES decryption function as the designated cipher
+        // function, so the variant is within the standard; the certificate's
+        // row reads "AES-KW  A3548  Direction - Decrypt, Encrypt / Key
+        // Length - 128, 192, 256 / SP 800-38F" and records NOTHING about the
+        // cipher function (the CAVP kwCipher property is absent); and neither
+        // Table 8 nor Table 13 excludes the inverse form. Genuinely
+        // ambiguous, deliberately left so - an operator needing the answer
+        // should take it to the module owner. Registration is unchanged
+        // either way: JSLFIPS serves what the module serves.
+        provider.addAlgorithmImplementation("Cipher", "AESWrapInv", PREFIX + "AESWRAPINVNAME", generalAesAttributes,
+                (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP_INV));
+        provider.addAlias("Cipher", "AESWrapInv", "AESKWINV");
+
         provider.addAlgorithmImplementation("Cipher", "AES128", PREFIX + "AES128", generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.ECB));
         provider.addAlias("Cipher", "AES128", NISTObjectIdentifiers.id_aes128_ECB);
