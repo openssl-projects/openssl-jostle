@@ -124,7 +124,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = ((EdDSAPublicKeySpec) keySpec).getPublicData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
 
                     edServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
@@ -200,7 +200,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
                     edServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);

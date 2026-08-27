@@ -30,6 +30,22 @@ public class PKEYKeySpec
     protected final OSSLKeyType type;
 
 
+    /**
+     * @deprecated Use {@link #PKEYKeySpec(SpecNI, long)} and name the SpecNI
+     * explicitly. This overload records {@link NISelector#SpecNI} — the BASE
+     * interface library — REGARDLESS of which library allocated the handle,
+     * so it is correct only in base-only code.
+     *
+     * <p>The cautionary tale is MT-15: {@code EdKeyFactorySpi} called the
+     * sibling overload as
+     * {@code new PKEYKeySpec(specNI.allocate(), type)}, allocating through the
+     * FIPS library and recording the base one. Disposal routes through the
+     * RECORDED NI, so those keys were freed across libraries — see
+     * {@link Disposer}, which states the invariant.
+     *
+     * <p>Still functional; deprecated to steer callers, not to break them.
+     */
+    @Deprecated
     public PKEYKeySpec(long ref)
     {
         this(NISelector.SpecNI, ref);
@@ -56,6 +72,22 @@ public class PKEYKeySpec
         this.ref = new PKEYReference(specNI, ref, type.name());
     }
 
+    /**
+     * @deprecated Use {@link #PKEYKeySpec(SpecNI, long, OSSLKeyType)} and name the SpecNI
+     * explicitly. This overload records {@link NISelector#SpecNI} — the BASE
+     * interface library — REGARDLESS of which library allocated the handle,
+     * so it is correct only in base-only code.
+     *
+     * <p>The cautionary tale is MT-15: {@code EdKeyFactorySpi} called the
+     * sibling overload as
+     * {@code new PKEYKeySpec(specNI.allocate(), type)}, allocating through the
+     * FIPS library and recording the base one. Disposal routes through the
+     * RECORDED NI, so those keys were freed across libraries — see
+     * {@link Disposer}, which states the invariant.
+     *
+     * <p>Still functional; deprecated to steer callers, not to break them.
+     */
+    @Deprecated
     public PKEYKeySpec(long ref, OSSLKeyType type)
     {
         this(NISelector.SpecNI, ref, type);
