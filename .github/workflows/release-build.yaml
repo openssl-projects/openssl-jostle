@@ -44,13 +44,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.6.3-manylinux_2_28-${{ runner.arch }}"
+          key: "openssl-3.5.8-manylinux_2_28-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.6.3"
+          ref: "openssl-3.5.8"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
@@ -103,13 +103,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.6.3-macos${{ env.MACOSX_DEPLOYMENT_TARGET }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-macos${{ env.MACOSX_DEPLOYMENT_TARGET }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.6.3"
+          ref: "openssl-3.5.8"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
@@ -160,13 +160,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.6.3-hybridcrt-${{ runner.arch }}"
+          key: "openssl-3.5.8-hybridcrt-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.6.3"
+          ref: "openssl-3.5.8"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"

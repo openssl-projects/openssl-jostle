@@ -60,13 +60,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.5.7-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.5.7"
+          ref: "openssl-3.5.8"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
@@ -180,11 +180,11 @@ jobs:
         with:
           path: "fips-out"
           # v2 is a LAYOUT version, bumped whenever this step's staged output
-          # changes shape - adding the 3.5.7-default directory was such a
+          # changes shape - adding the 3.5.8-default directory was such a
           # change. Without it the step is skipped on a hit and the old tree is
           # restored, so a config that was never staged silently goes missing
           # and every FIPS class dies with a bare ProviderException.
-          key: "openssl-fips-v2-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-fips-v2-3.5.8+3.1.2-${{ runner.os }}-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "bash"
@@ -197,7 +197,7 @@ jobs:
           # Resource temporarily unavailable"). Building two modules per job
           # made that reliably fatal instead of merely latent.
           jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
-          for ver in 3.5.7 3.1.2; do
+          for ver in 3.5.8 3.1.2; do
             src="${{ github.workspace }}/openssl-fips-$ver"
             rm -rf "$src"
             git clone --depth 1 --branch "openssl-$ver" \
@@ -353,11 +353,11 @@ jobs:
         # build-posix for why a green run against one proves nothing about
         # another. The Windows FIPS job covers both modules too.
         #
-        # "3.5.7" is the -pedantic config; "3.1.2" is that module's default.
+        # "3.5.8" is the -pedantic config; "3.1.2" is that module's default.
         module:
-          - "3.5.7"
+          - "3.5.8"
           - "3.1.2"
-        # "3.5.7-default" is the same 3.5.x module at fipsinstall defaults,
+        # "3.5.8-default" is the same 3.5.x module at fipsinstall defaults,
         # where dsa-sign-disabled / rsa-pkcs15-pad-disabled / hmac-key-check /
         # signature-digest-check are all 0. That is a legitimate deployment and
         # it is the shape that broke the first CI run, so it is covered - but
@@ -367,10 +367,10 @@ jobs:
         include:
           - runner: "ubuntu-latest"
             config: { name: "fips-jni", tasks: "fipsTest25JNI" }
-            module: "3.5.7-default"
+            module: "3.5.8-default"
           - runner: "ubuntu-latest"
             config: { name: "fips-ffi", tasks: "fipsTest25FFI" }
-            module: "3.5.7-default"
+            module: "3.5.8-default"
     runs-on: ${{ matrix.runner }}
     steps:
       - name: "Checkout jostle"
@@ -494,9 +494,9 @@ jobs:
         shell: "bash"
         run: |
           echo "BC_JDK25=${JAVA_HOME_25_X64:-$JAVA_HOME_25_ARM64}" >> "$GITHUB_ENV"
-          # 3.5.7 is the -pedantic config: the strictest of the three, so the
+          # 3.5.8 is the -pedantic config: the strictest of the three, so the
           # capability gates actually fire rather than sitting dormant.
-          lib="${{ github.workspace }}/fips-module/3.5.7/fips.so"
+          lib="${{ github.workspace }}/fips-module/3.5.8/fips.so"
           if [ ! -f "$lib" ]; then
             echo "FIPS module not staged at $lib" >&2
             ls -R "${{ github.workspace }}/fips-module" >&2 || true
@@ -559,13 +559,13 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.5.7-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-${{ runner.os }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
         with:
           repository: "openssl/openssl"
-          ref: "openssl-3.5.7"
+          ref: "openssl-3.5.8"
           persist-credentials: false
           path: "openssl"
       - name: "Build openssl"
@@ -655,11 +655,11 @@ jobs:
         with:
           path: "fips-out"
           # v2 is a LAYOUT version, bumped whenever this step's staged output
-          # changes shape - adding the 3.5.7-default directory was such a
+          # changes shape - adding the 3.5.8-default directory was such a
           # change. Without it the step is skipped on a hit and the old tree is
           # restored, so a config that was never staged silently goes missing
           # and every FIPS class dies with a bare ProviderException.
-          key: "openssl-fips-v2-3.5.7+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-fips-v2-3.5.8+3.1.2-${{ runner.os }}-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "cmd"
@@ -671,7 +671,7 @@ jobs:
           rem test\build_wincrypt_test.c using a bare #warning MSVC rejects with
           rem C1188.
           rem
-          rem Source dirs are fips-357 / fips-312, NOT openssl-fips-3.5.7:
+          rem Source dirs are fips-358 / fips-312, NOT openssl-fips-3.5.8:
           rem OpenSSL's build tree is deep and the runner workspace already eats
           rem ~30 chars, so MAX_PATH is a live constraint here. These are shorter
           rem than the single-module build's "openssl-fips" was, so covering two
@@ -682,10 +682,10 @@ jobs:
           rem pairing a short dir with a dotted version needs nested for /f
           rem token splitting - neither testable without pushing to CI. Two
           rem plain copies have no such failure mode.
-          rmdir /s /q "${{ github.workspace }}\fips-357" 2>nul
-          git clone --depth 1 --branch openssl-3.5.7 https://github.com/openssl/openssl.git "${{ github.workspace }}\fips-357" || exit /b 1
-          pushd "${{ github.workspace }}\fips-357" || exit /b 1
-          perl Configure VC-WIN64A enable-fips no-tests --prefix=${{ github.workspace }}\fips-357\dist || exit /b 1
+          rmdir /s /q "${{ github.workspace }}\fips-358" 2>nul
+          git clone --depth 1 --branch openssl-3.5.8 https://github.com/openssl/openssl.git "${{ github.workspace }}\fips-358" || exit /b 1
+          pushd "${{ github.workspace }}\fips-358" || exit /b 1
+          perl Configure VC-WIN64A enable-fips no-tests --prefix=${{ github.workspace }}\fips-358\dist || exit /b 1
           nmake || exit /b 1
           nmake install_sw install_fips || exit /b 1
           popd
@@ -704,7 +704,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           # Keyed short-dir -> version; see the build step for why the source
           # trees are not named after the version.
-          foreach ($pair in @(@("357", "3.5.7"), @("312", "3.1.2"))) {
+          foreach ($pair in @(@("358", "3.5.8"), @("312", "3.1.2"))) {
             $dir, $ver = $pair
             $prefix = "${{ github.workspace }}\fips-$dir\dist"
             $mod = Get-ChildItem -Path $prefix -Recurse -Filter "fips.dll" | Select-Object -First 1
@@ -827,7 +827,7 @@ jobs:
         # they implement, so a green run against one proves nothing about the
         # other - see the module-build step in build-posix.
         module:
-          - "3.5.7"
+          - "3.5.8"
           - "3.1.2"
     runs-on: "windows-2025"
     steps:
