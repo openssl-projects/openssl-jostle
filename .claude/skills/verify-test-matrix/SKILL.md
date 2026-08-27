@@ -114,20 +114,20 @@ cnf. To pin the three configurations JSLFIPS must serve, be explicit — the
 ```bash
 P=/Users/meganwoods/openssl/openssls
 export JOSTLE_FIPS_CONFIGS="3.1.2-default|$P/osx_3_1_2/lib/ossl-modules/fips.dylib|
-3.5.7-pedantic|$P/osx_3_5_7/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_7_pedantic.cnf
-3.5.7-default|$P/osx_3_5_7/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_7_default.cnf"
+3.5.8-pedantic|$P/osx_3_5_8/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_8_pedantic.cnf
+3.5.8-default|$P/osx_3_5_8/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_8_default.cnf"
 bash .claude/skills/verify-test-matrix/scripts/sweep-fips-configs.sh
 ```
 
-Generate the two 3.5.7 cnf variants once, with the matching `openssl` binary —
+Generate the two 3.5.8 cnf variants once, with the matching `openssl` binary —
 `-pedantic` is what turns the gates on:
 
 ```bash
-cd $P/osx_3_5_7
+cd $P/osx_3_5_8
 ./bin/openssl fipsinstall -module lib/ossl-modules/fips.dylib -provider_name fips \
-    -out /tmp/cnf_3_5_7_default.cnf
+    -out /tmp/cnf_3_5_8_default.cnf
 ./bin/openssl fipsinstall -module lib/ossl-modules/fips.dylib -provider_name fips \
-    -pedantic -out /tmp/cnf_3_5_7_pedantic.cnf
+    -pedantic -out /tmp/cnf_3_5_8_pedantic.cnf
 ```
 
 Three properties worth knowing:

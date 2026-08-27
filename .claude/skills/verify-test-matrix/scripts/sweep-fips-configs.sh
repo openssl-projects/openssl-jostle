@@ -59,8 +59,8 @@ fi
 #
 # ONE backup per target, taken the FIRST time that target is swapped, so the
 # restore always writes the install's ORIGINAL content back. Two configs
-# routinely target the same install - 3.5.7-default and 3.5.7-pedantic both
-# swap openssls/osx_3_5_7/.../fipsmodule.cnf - and a per-swap backup would
+# routinely target the same install - 3.5.8-default and 3.5.8-pedantic both
+# swap openssls/osx_3_5_8/.../fipsmodule.cnf - and a per-swap backup would
 # capture the PREVIOUS config's cnf on the second pass and restore that,
 # leaving the install silently holding the wrong strictness. That is worse
 # than untidy: the pedantic-only gates (no-short-mac, dsa-sign-disabled,

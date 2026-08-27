@@ -77,6 +77,11 @@ public class FIPSTestGateParityTest
     private static final Set<String> EXEMPT = new HashSet<String>(Arrays.asList(
             "FIPSProviderRandomPropertyIntegrationTest.java",
             "FIPSOpsAnnotationParityTest.java",
+            // Source-level lints, like this class itself: they read the test
+            // tree as text, need no module, and must run on the ordinary
+            // non-FIPS CI legs too. Gating them would silently drop the very
+            // guards that keep the FIPS suite honest on exactly those legs.
+            "FIPSTestNamingParityTest.java",
             "FIPSTestGateParityTest.java"));
 
     private static final Pattern BEFORE_HOOK = Pattern.compile("@Before(?:All|Each)\\b");
