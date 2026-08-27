@@ -477,6 +477,31 @@ When toggling `TEST_FIPS_LIB` (or any env-gated test set), force execution with 
 
 The general rule behind both: **before trusting a green from a guard you just tried to break, confirm the guard actually RAN.** A skipped task, an assumption-skip, and a passing assertion are indistinguishable in a summary line. This is the task-level twin of the source-level rule that you must grep the file to confirm a sabotage landed.
 
+**Same rule, two more costly forms — both hit within an hour of each other.**
+
+1. **A stopped wrapper is not a stopped build.** The Gradle daemon does not die
+   with its client, so SIGTERMing a gate script leaves the daemon executing.
+   Starting the next gate then races it: the daemon rewrote the jar mid-test
+   (jar mtime equal to the failure timestamp to the second) giving
+   `NoClassDefFoundError: JostleProvider$JoService` in one task, and the dying
+   script's cleanup left a plain library under the next run's OPS check. Both
+   look exactly like real defects, and cost two full gates. Worse, the fix
+   itself lies: `./gradlew --stop` silently no-ops when `JAVA_HOME` is unset.
+   So the requirement is `daemon count == 0` **observed**, never "I ran the
+   stop command".
+2. **A suppressed error plus a stale ref reads as a fresh answer.**
+   `git fetch -q origin 2>/dev/null` against a remote this session cannot
+   authenticate to fails silently; the subsequent `git rev-list --count
+   origin/branch...HEAD` then reports a perfectly plausible number computed
+   from a ref last updated hours earlier. Nothing anywhere says "stale". Never
+   `2>/dev/null` a command whose success you are about to depend on, and when
+   reporting a remote position, report its provenance (`git reflog show
+   origin/<branch>`) rather than the number alone.
+
+The unifying form: **verify the state you care about, not the command you ran
+to reach it.** Every instance above passes the "did the command return?" test
+and fails the "is the world as I assume?" test.
+
 ### Prefer real-trigger limit tests over OPS injection when a real configuration reaches the branch
 
 When an error branch is genuinely reachable in a supported configuration — the validated FIPS module really lacks the implicit-rejection parameter, really rejects q-less DH keys at derive-init, really substitutes named groups in paramgen — pin it with a limit test against that real configuration (`FIPSRSAPKCS1CipherLimitTest` / `FIPSDHLimitTest` assert the raw code AND the typed exception with exact message, no fault injection). A real-trigger test is strictly stronger than an OPS test: it proves both that the branch behaves correctly and that the real environment actually takes it. Keep the OPS variant too where the branch is instrumented — it covers the tree whose real configuration never reaches the branch (the base provider supports implicit rejection, so only injection exercises the probe there) — but where a branch is reachable in only one tree, the real-trigger test in that tree is the load-bearing one and a synthetic OPS twin in the other is optional. OPS remains the only option for branches no supported configuration reaches (allocation failures, mid-sequence OpenSSL errors).
