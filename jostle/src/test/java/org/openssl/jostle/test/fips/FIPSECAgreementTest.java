@@ -41,14 +41,14 @@ import java.util.Map;
  * exercised against BOTH the non-FIPS Jostle provider (JSL) AND BouncyCastle
  * (BC), in the same JVM, and in <b>both directions</b> for each reference.
  * <p>
- * <b>Key-isolation caveat.</b> JSLFIPS and JSL PRIVATE keys are bound to the
- * interface library that created them - each provider's operational SPIs
- * reject the other Jostle provider's private key object with
- * {@link java.security.InvalidKeyException}. PUBLIC keys carry no secret and
- * cross freely. To make all three providers operate on <i>identical</i> key
- * material we therefore generate a keypair once, take its X.509 (public) and
- * PKCS#8 (private) encodings, and decode BOTH halves through EACH provider's
- * own {@code KeyFactory} - the sanctioned route for sharing a private key.
+ * <b>Key-isolation caveat.</b> A Jostle key belongs to the provider INSTANCE
+ * that created it, and since MT-14 each provider's operational SPIs reject the
+ * other Jostle provider's key object - PUBLIC as well as PRIVATE - with
+ * {@link java.security.InvalidKeyException}. To make all three providers
+ * operate on <i>identical</i> key material we therefore generate a keypair
+ * once, take its X.509 (public) and PKCS#8 (private) encodings, and decode
+ * BOTH halves through EACH provider's own {@code KeyFactory} - the sanctioned
+ * route, and the only one.
  * <p>
  * ECDSA is randomised, so signatures are not byte-comparable; instead every
  * signature produced by one provider is cross-verified through the other two,

@@ -214,23 +214,23 @@ public class MLKEMKTSCipherSpi
         }
 
         PKEYKeySpec spec = ((OSSLKey) key).getSpec();
-        // Provider isolation, private side only: a key is bound to the
-        // interface library - and OSSL_LIB_CTX - that created it, so a JSL
-        // private key must not be unwrapped through the JSLFIPS NI or vice
-        // versa. PUBLIC keys (WRAP_MODE) deliberately cross freely; see
-        // java-spi.md "JSL <-> JSLFIPS key sharing".
-        // Additive: library check live now, instance check inert until Phase 2.
+        // Provider isolation, UNWRAP (private) side. Two independent checks,
+        // and the library one is not redundant: instance-equal implies
+        // library-equal for anything a provider made, but two hand-wired SPIs
+        // are both unbound, and only the library check catches a private key
+        // crossing between them. See testing.md "JSL <-> JSLFIPS key sharing".
         if (opmode == Cipher.UNWRAP_MODE
                 && (spec.getSpecNI() != specNI || !spec.usableBy(keyFactory.ownProviderInstance())))
         {
             throw new InvalidKeyException(
-                    "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                    "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
         }
-        // MT-14, WRAP (public) side: instance-only, no library half. Public
-        // keys deliberately cross LIBRARIES; what they must not do is cross
-        // provider INSTANCES, because the EVP_PKEY stays with its creating
-        // provider and the operation would be served there. Inert until
-        // Phase 2 binds.
+        // MT-14, WRAP (public) side: instance-only, no library half. The
+        // EVP_PKEY stays with its creating provider and the operation is
+        // served THERE, so accepting a foreign public key object would
+        // encapsulate outside this provider while reporting success. The
+        // library half is left off deliberately - it would refuse the unbound
+        // direct-SPI case that public keys have no reason to be denied.
         if (opmode == Cipher.WRAP_MODE && !spec.usableBy(keyFactory.ownProviderInstance()))
         {
             throw new InvalidKeyException(

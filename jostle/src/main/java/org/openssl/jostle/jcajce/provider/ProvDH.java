@@ -59,13 +59,14 @@ class ProvDH
         // case-insensitive so both spellings resolve either way.
         provider.addAlgorithmImplementation("KeyPairGenerator", "DH",
                 PREFIX + "DHKeyPairGenerator", attr,
-                (arg) -> new DHKeyPairGenerator());
+                (arg) -> new DHKeyPairGenerator(
+                        NISelector.DHServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DH",
                 PREFIX + "DHKeyFactorySpi", attr,
-                (arg) -> new DHKeyFactorySpi());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
@@ -85,7 +86,7 @@ class ProvDH
 
         provider.addAlgorithmImplementation("KeyAgreement", "DH",
                 PREFIX + "DHKeyAgreementSpi", attr,
-                (arg) -> new DHKeyAgreementSpi());
+                (arg) -> new DHKeyAgreementSpi(NISelector.DHServiceNI, keyFactory(provider)));
         provider.addAlias("KeyAgreement", "DH",
                 "DiffieHellman", PKCS3_DH_OID);
 
@@ -94,8 +95,19 @@ class ProvDH
         // KeyAgreeRecipientInfo for finite-field DH works.
         provider.addAlgorithmImplementation("KeyAgreement", "DHWITHRFC2631KDF",
                 PREFIX + "DHWithKDFKeyAgreementSpi", attr,
-                (arg) -> new DHWithKDFKeyAgreementSpi("SHA-1"));
+                (arg) -> new DHWithKDFKeyAgreementSpi(NISelector.DHServiceNI,
+                        keyFactory(provider), "SHA-1", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "DHWITHRFC2631KDF",
                 ID_ALG_ESDH, ID_ALG_SSDH);
+    }
+
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static DHKeyFactorySpi keyFactory(JostleProvider provider)
+    {
+        return new DHKeyFactorySpi(
+                NISelector.DHServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider);
     }
 }

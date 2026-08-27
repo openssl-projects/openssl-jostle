@@ -146,13 +146,14 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                 // through this provider's KeyFactory" is real advice here,
                 // where for the hybrids it would be a dead end. Do not unify
                 // the two messages: the difference is the remedy that exists.
-                // Additive: library check (MT-8) live now, instance check
-                // inert until Phase 2.
+                // Both halves. The library check (MT-8) has teeth only in the
+                // unbound direct-SPI realm; instance-equal implies
+                // library-equal for anything a provider made.
                 if (kem.getSpec().getSpecNI() != specNI
                         || !kem.getSpec().usableBy(providerInstance))
                 {
                     throw new InvalidAlgorithmParameterException(
-                            "private key was created by a different Jostle provider; encode it "
+                            "private key was created by a different Jostle provider instance; encode it "
                                     + "with getEncoded() and decode it through this provider's "
                                     + "KeyFactory");
                 }
@@ -186,9 +187,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                     extract = false;
                     MLKEMPublicKey kem = (MLKEMPublicKey) key;
                     // MT-14, encap (public) side: instance-only, no library
-                    // half — the public side had no pre-existing check, so a
-                    // live library one would be a new Phase-1 restriction.
-                    // Inert until Phase 2 binds.
+                    // half. encapsulate() drives the SPEC's NI — the library
+                    // that CREATED the key — so a foreign public key object
+                    // encapsulated outside this provider while reporting
+                    // success. Refuse the object; re-decode to cross.
                     if (!kem.getSpec().usableBy(providerInstance))
                     {
                         throw new InvalidAlgorithmParameterException(

@@ -382,19 +382,11 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
             org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
                     ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
-            //
-            // translateKey had NO pre-existing check (that was the twelfth
-            // acceptance shape). Adding the library half would therefore not
-            // be "additive": it would be a NEW Phase-1 restriction, refusing
-            // cross-library public keys at this one surface while initVerify,
-            // encrypt and the import helpers still accept them until Phase 2.
-            // Phase 1's contract is "checks in place, behaviour unchanged", and
-            // a window where translateKey refuses what initVerify accepts is a
-            // bug report waiting to happen for no benefit — the object route
-            // leaks everywhere else regardless until the flip.
-            //
-            // Inert now (all specs unbound => usableBy true), live the moment
-            // Phase 2 binds, at which point it subsumes a library check anyway.
+            // translateKey never had one, and for anything a provider made the
+            // instance check subsumes it: same instance implies same library.
+            // The only case it would add is two hand-wired, unbound SPIs on
+            // different libraries, and translateKey's answer there is to
+            // re-decode rather than refuse.
             if (!s.usableBy(providerInstance))
             {
                 throw new InvalidKeyException(

@@ -148,8 +148,13 @@ public class ProviderPinningLoudFailureTest
     @Test
     public void ktsWrap_absentProvider_failsRatherThanFallingThrough() throws Exception
     {
-        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768",
-                JostleProvider.PROVIDER_NAME).generateKeyPair();
+        // Generated through the SPI directly, NOT through the registered
+        // provider. Probe below is likewise a directly-constructed SPI, so
+        // both sides live in the unbound realm; a key from the registered
+        // provider would be refused by MT-14 instance binding before the wrap
+        // path this test exists to drive was ever reached.
+        KeyPair kp = new org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator(
+                "ML-KEM-768").generateKeyPair();
 
         KTSParameterSpec kts = new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(

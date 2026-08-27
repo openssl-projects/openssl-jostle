@@ -49,13 +49,14 @@ import java.util.Map;
  * provider (JSL) AND BouncyCastle (BC), in BOTH directions (JSLFIPS produces,
  * the reference consumes, and vice versa).
  * <p>
- * <b>Key isolation.</b> JSLFIPS and JSL PRIVATE keys are bound to the
- * interface library that created them; an operational SPI rejects a private
- * key minted by the other Jostle provider with {@code InvalidKeyException}
- * (see {@code FIPSKeyIsolationTest}). Public keys cross freely. To run the
+ * <b>Key isolation.</b> A Jostle key belongs to the provider INSTANCE that
+ * created it; since MT-14 an operational SPI rejects the other Jostle
+ * provider's key object — public as well as private — with
+ * {@code InvalidKeyException} (see {@code FIPSKeyIsolationTest}). To run the
  * SAME key material through all three providers, this test generates one
  * 2048-bit keypair in the module, encodes both halves (X.509 / PKCS#8), and
- * decodes them into EACH provider's {@code KeyFactory} — the sanctioned route.
+ * decodes them into EACH provider's {@code KeyFactory} — the sanctioned route,
+ * and the only one.
  * <p>
  * <b>Determinism vs randomisation.</b>
  * <ul>

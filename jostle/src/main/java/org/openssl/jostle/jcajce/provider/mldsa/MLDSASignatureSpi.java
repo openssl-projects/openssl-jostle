@@ -191,10 +191,9 @@ public class MLDSASignatureSpi extends SignatureSpi
         if (publicKey instanceof MLDSAPublicKey)
         {
             MLDSAPublicKey joKey = (MLDSAPublicKey) publicKey;
-            // MT-14, instance-only (no library half): the public side had no
-            // pre-existing check here, so a live library check would be a new
-            // Phase-1 restriction rather than an additive one. Inert until
-            // Phase 2 binds, at which point it subsumes a library check.
+            // MT-14, instance-only: no library half. The instance check
+            // subsumes it for anything a provider made, and public keys have
+            // no reason to be refused between two unbound, hand-wired SPIs.
             if (!joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
                 throw new InvalidKeyException(
@@ -220,20 +219,19 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         if (privateKey instanceof MLDSAPrivateKey)
         {
-            // Provider isolation: a key is bound to the interface library - and
-            // OSSL_LIB_CTX - that created it, so a JSL private key must not be
-            // driven through the JSLFIPS NI or vice versa. Same check and same
-            // message as ECKeyImport / RSAKeyImport. PUBLIC keys deliberately
-            // cross freely; see java-spi.md "JSL <-> JSLFIPS key sharing".
-            // Additive: library check live now, instance check inert until
-            // Phase 2 — substituting would drop the interim (learned on RSA).
+            // Provider isolation, private side. Same check and same message as
+            // ECKeyImport / RSAKeyImport. Both halves: the library one is the
+            // only one with teeth when two hand-wired SPIs are both unbound.
+            // The public side has its own check above; since MT-14 neither
+            // half of a keypair crosses as an OBJECT. See testing.md
+            // "JSL <-> JSLFIPS key sharing".
             if (privateKey instanceof JOMLDSAPrivateKey
                     && (((JOMLDSAPrivateKey) privateKey).getSpec().getSpecNI() != keyFactory.ownSpecNI()
                             || !((JOMLDSAPrivateKey) privateKey).getSpec()
                                     .usableBy(keyFactory.ownProviderInstance())))
             {
                 throw new InvalidKeyException(
-                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return (MLDSAPrivateKey) privateKey;
         }

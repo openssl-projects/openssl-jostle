@@ -65,7 +65,7 @@ public final class ECKeyImport
         {
             // MT-14: instance-checked. Measurement showed a foreign public key
             // keeps its creating provider, so accepting one meant executing in
-            // the other module (xprovider_key_probe.c). Inert until Phase 2.
+            // the other module (xprovider_key_probe.c).
             JOECPublicKey joPub = (JOECPublicKey) key;
             if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
@@ -121,9 +121,9 @@ public final class ECKeyImport
         if (key instanceof JOECPrivateKey)
         {
             JOECPrivateKey joKey = (JOECPrivateKey) key;
-            // Additive: library check live now, instance check inert until
-            // Phase 2. Replacing rather than adding would drop protection for
-            // the whole interim (learned on RSA).
+            // Both halves. Instance-equal implies library-equal for anything a
+            // provider made, so the library check earns its place only in the
+            // unbound direct-SPI realm — where it is the only one with teeth.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
@@ -131,7 +131,7 @@ public final class ECKeyImport
                 // that created them; JSL and JSLFIPS keys must not cross
                 // implicitly.
                 throw new InvalidKeyException(
-                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return joKey;
         }

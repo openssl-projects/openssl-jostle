@@ -120,6 +120,12 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
      * fast at the JCE boundary with a typed exception instead of an
      * OpenSSLException from inside the module.
      */
+    public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                               java.security.Provider providerInstance)
+    {
+        this(rsaServiceNI, specNI, asn1NI, MIN_KEY_SIZE_BITS, providerInstance);
+    }
+
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, int minKeySizeBits)
     {
         this(rsaServiceNI, specNI, asn1NI, minKeySizeBits, null);

@@ -50,11 +50,16 @@ import java.util.logging.Logger;
 class ProvFIPSMLDSA
 {
 
-    /** A KeyFactory bound to the FIPS interface library, for the Signature SPIs. */
-    private static MLDSAKeyFactorySpiImpl fipsMLDSAKeyFactory()
+    /**
+     * A KeyFactory bound to the FIPS interface library AND to {@code provider}.
+     * Every key it produces, and every key it accepts, belongs to that
+     * provider INSTANCE (MT-14).
+     */
+    private static MLDSAKeyFactorySpiImpl fipsMLDSAKeyFactory(JostleFIPSProvider provider,
+                                                              OSSLKeyType keyType)
     {
         return new MLDSAKeyFactorySpiImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI,
-                FIPSNISelector.Asn1NI);
+                FIPSNISelector.Asn1NI, keyType, provider);
     }
 
     private static final String PREFIX = "org.openssl.jostle.jcajce.provider.mldsa.";
@@ -88,23 +93,23 @@ class ProvFIPSMLDSA
 
         final Map<String, String> mldsaKeyGenAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("KeyPairGenerator", "MLDSA", PREFIX + "MLDSAKeyPairGenerator", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, "ML-DSA"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "MLDSA", PREFIX + "MLDSAKeyPairGenerator", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, "ML-DSA", provider));
         provider.addAlias("KeyPairGenerator", "MLDSA", "ML-DSA");
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-44", PREFIX + "MLDSAKeyPairGenerator$MLDSA44", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_44));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-65", PREFIX + "MLDSAKeyPairGenerator$MLDSA65", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_65));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", PREFIX + "MLDSAKeyPairGenerator$MLDSA87", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_87));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-44", PREFIX + "MLDSAKeyPairGenerator$MLDSA44", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_44, provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-65", PREFIX + "MLDSAKeyPairGenerator$MLDSA65", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_65, provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", PREFIX + "MLDSAKeyPairGenerator$MLDSA87", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_87, provider));
 
 
         final Map<String, String> mldsaSigAttr = new HashMap<>();
 
-        provider.addAlgorithmImplementation("Signature", "MLDSA", PREFIX + "MLDSASignatureSpi$MLDSA", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(), OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "MLDSA", PREFIX + "MLDSASignatureSpi$MLDSA", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE), OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.INTERNAL));
         provider.addAlias("Signature", "MLDSA", "ML-DSA");
 
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-44", PREFIX + "MLDSASignatureSpi$MLDSA44", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(), OSSLKeyType.ML_DSA_44, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(), OSSLKeyType.ML_DSA_65, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(), OSSLKeyType.ML_DSA_87, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(), OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(), OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-44", PREFIX + "MLDSASignatureSpi$MLDSA44", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE), OSSLKeyType.ML_DSA_44, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE), OSSLKeyType.ML_DSA_65, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE), OSSLKeyType.ML_DSA_87, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE), OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(FIPSNISelector.MLDSAServiceNI, fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE), OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
 
         // SPKI / signature-algorithm OID aliases (NIST CSOR id-ml-dsa-44/65/87).
         // Required so X.509 certs whose SubjectPublicKeyInfo / signature carries
@@ -116,11 +121,11 @@ class ProvFIPSMLDSA
 
 
         final Map<String, String> mldsaKfAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("KeyFactory", "MLDSA", PREFIX + "MLDSAKeyFactorySpi", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
+        provider.addAlgorithmImplementation("KeyFactory", "MLDSA", PREFIX + "MLDSAKeyFactorySpi", mldsaKfAttr, (arg) -> fipsMLDSAKeyFactory(provider, OSSLKeyType.NONE));
         provider.addAlias("KeyFactory", "MLDSA", "ML-DSA");
-        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.ML_DSA_44));
-        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.ML_DSA_65));
-        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.ML_DSA_87));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> fipsMLDSAKeyFactory(provider, OSSLKeyType.ML_DSA_44));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> fipsMLDSAKeyFactory(provider, OSSLKeyType.ML_DSA_65));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> fipsMLDSAKeyFactory(provider, OSSLKeyType.ML_DSA_87));
 
         // SPKI OID aliases (NIST CSOR id-ml-dsa-44/65/87) so a certificate's
         // public key can be re-derived through the JSL KeyFactory keyed on the

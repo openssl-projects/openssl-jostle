@@ -35,13 +35,14 @@ class ProvRSA
         // KeyPairGenerator.
         provider.addAlgorithmImplementation("KeyPairGenerator", "RSA",
                 PREFIX + "RSAKeyPairGenerator", attr,
-                (arg) -> new RSAKeyPairGenerator());
+                (arg) -> new RSAKeyPairGenerator(
+                        NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
 
         // KeyFactory.
         provider.addAlgorithmImplementation("KeyFactory", "RSA",
                 PREFIX + "RSAKeyFactorySpi", attr,
-                (arg) -> new RSAKeyFactorySpi());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
         // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
         // 1.2.840.113549.1.1.10, not rsaEncryption, and the JCA name for it is
@@ -81,12 +82,13 @@ class ProvRSA
         // (BouncyCastle's JcaTlsRSASigner.getRawSigner()).
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
                 PREFIX + "RSASignatureSpi$None", attr,
-                (arg) -> new RSASignatureSpi.None());
+                (arg) -> new RSASignatureSpi.None(NISelector.RSAServiceNI,
+                        keyFactory(provider)));
 
         // RSASSA-PSS — parameters carried via PSSParameterSpec.
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 PREFIX + "RSAPSSSignatureSpi", attr,
-                (arg) -> new RSAPSSSignatureSpi());
+                (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI, keyFactory(provider)));
         provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
 
         // Per-digest RSASSA-PSS convenience names. BouncyCastle's PKIX/CMS layer
@@ -123,7 +125,7 @@ class ProvRSA
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 PREFIX + "RSAOAEPCipherSpi", cipherAttr,
-                (arg) -> new RSAOAEPCipherSpi());
+                (arg) -> new RSAOAEPCipherSpi(NISelector.RSAOAEPCipherNI, keyFactory(provider)));
         provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
 
         // RSA-PKCS#1 v1.5 cipher. Registered as a separate primary
@@ -133,7 +135,7 @@ class ProvRSA
         Map<String, String> pkcs1Attr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA/ECB/PKCS1Padding",
                 PREFIX + "RSAPKCS1CipherSpi", pkcs1Attr,
-                (arg) -> new RSAPKCS1CipherSpi());
+                (arg) -> new RSAPKCS1CipherSpi(NISelector.RSAPKCS1CipherNI, keyFactory(provider)));
         provider.addAlias("Cipher", "RSA/ECB/PKCS1Padding", "RSA/None/PKCS1Padding");
 
         // RSA-KEM key transport (ISO 18033-2 / RFC 9690) for the CMS
@@ -151,7 +153,8 @@ class ProvRSA
         Map<String, String> ktsAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
                 PREFIX + "RSAKEMCipherSpi", ktsAttr,
-                (arg) -> new RSAKEMCipherSpi());
+                (arg) -> new RSAKEMCipherSpi(keyFactory(provider), NISelector.SpecNI,
+                        JostleProvider.PROVIDER_NAME));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
                 ID_KEM_RSA, ID_RSA_KEM);
     }
@@ -173,7 +176,8 @@ class ProvRSA
         String implName = PREFIX + "RSAPSSSignatureSpi$" + digestJcaName.replace("-", "_");
         provider.addAlgorithmImplementation("Signature", mgf1Name,
                 implName, attr,
-                (arg) -> new RSAPSSSignatureSpi(opensslDigest));
+                (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI,
+                        keyFactory(provider), opensslDigest));
         provider.addAlias("Signature", mgf1Name, digestJcaName + "WITHRSASSA-PSS");
     }
 
@@ -190,18 +194,18 @@ class ProvRSA
         // creatorMap keys stay unique.
         provider.addAlgorithmImplementation("Signature", name,
                 spiClass.getName(), attr,
-                (arg) ->
-                {
-                    try
-                    {
-                        return (java.security.SignatureSpi) spiClass.getDeclaredConstructor().newInstance();
-                    }
-                    catch (ReflectiveOperationException e)
-                    {
-                        throw new IllegalStateException(
-                                "unable to instantiate " + spiClass.getName(), e);
-                    }
-                });
+                (arg) -> new RSASignatureSpi(NISelector.RSAServiceNI,
+                        keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
+    }
+
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static RSAKeyFactorySpi keyFactory(JostleProvider provider)
+    {
+        return new RSAKeyFactorySpi(
+                NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider);
     }
 }

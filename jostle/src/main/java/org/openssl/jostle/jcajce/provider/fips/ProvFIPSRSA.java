@@ -61,12 +61,12 @@ class ProvFIPSRSA
                 PREFIX + "RSAKeyPairGenerator", attr,
                 (arg) -> new RSAKeyPairGenerator(
                         FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
-                        FIPS_RSA_MIN_KEY_SIZE_BITS));
+                        FIPS_RSA_MIN_KEY_SIZE_BITS, provider));
         provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
 
         provider.addAlgorithmImplementation("KeyFactory", "RSA",
                 PREFIX + "RSAKeyFactorySpi", attr,
-                (arg) -> keyFactory());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
         // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
         // 1.2.840.113549.1.1.10, not rsaEncryption, and the JCA name for it is
@@ -95,11 +95,11 @@ class ProvFIPSRSA
         // (see FIPSRSANoneWithRSASignatureTest for the pinned behaviour).
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
                 PREFIX + "RSASignatureSpi", attr,
-                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), "NONE"));
+                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider), "NONE"));
 
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 PREFIX + "RSAPSSSignatureSpi", attr,
-                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory()));
+                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider)));
         provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
 
         registerPssSignature(provider, attr, "SHA1", "SHA-1");
@@ -120,7 +120,7 @@ class ProvFIPSRSA
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 PREFIX + "RSAOAEPCipherSpi", cipherAttr,
-                (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory()));
+                (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory(provider)));
         provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
 
         // RSA-KEM key transport (ISO 18033-2 / RFC 9690). Ungated: RSASVE
@@ -135,15 +135,20 @@ class ProvFIPSRSA
         Map<String, String> ktsAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
                 PREFIX + "RSAKEMCipherSpi", ktsAttr,
-                (arg) -> new RSAKEMCipherSpi(keyFactory(), FIPSNISelector.SpecNI, JostleFIPSProvider.PROVIDER_NAME));
+                (arg) -> new RSAKEMCipherSpi(keyFactory(provider), FIPSNISelector.SpecNI,
+                        JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
                 "1.0.18033.2.2.4", "1.2.840.113549.1.9.16.3.14");
     }
 
-    private static RSAKeyFactorySpi keyFactory()
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static RSAKeyFactorySpi keyFactory(JostleFIPSProvider provider)
     {
         return new RSAKeyFactorySpi(
-                FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI);
+                FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider);
     }
 
     private static void registerPkcs1Signature(JostleFIPSProvider provider,
@@ -155,7 +160,7 @@ class ProvFIPSRSA
     {
         provider.addAlgorithmImplementation("Signature", name,
                 PREFIX + classNameSuffix, attr,
-                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), digestName));
+                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
     }
 
@@ -168,7 +173,8 @@ class ProvFIPSRSA
         String implName = PREFIX + "RSAPSSSignatureSpi$" + digestJcaName.replace("-", "_");
         provider.addAlgorithmImplementation("Signature", mgf1Name,
                 implName, attr,
-                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(), opensslDigest));
+                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider),
+                        opensslDigest));
         // BouncyCastle's PKIX/CMS layer derives <digest>WITHRSASSA-PSS as the
         // fallback Signature name from an id-RSASSA-PSS AlgorithmIdentifier;
         // register the alias so RSASSA-PSS verification resolves under JSLFIPS

@@ -110,7 +110,10 @@ public class FIPSPQCTest
         v.update(msg);
         Assertions.assertTrue(v.verify(sig), "JSLFIPS must verify its own ML-DSA signature");
 
-        // Same key material through JSL - public keys cross freely.
+        // Same key material through JSL, via the only crossing there is:
+        // re-decode the X.509 encoding through JSL's own KeyFactory. The key
+        // OBJECT is refused (MT-14) — and would have had JSL's verifier
+        // executing in the module.
         Signature jsl = Signature.getInstance("ML-DSA-65", JSL);
         jsl.initVerify(KeyFactory.getInstance("ML-DSA-65", JSL)
                 .generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded())));

@@ -42,12 +42,13 @@ class ProvFIPSDSA
         provider.addAlgorithmImplementation("KeyPairGenerator", "DSA",
                 PREFIX + "DSAKeyPairGenerator", attr,
                 (arg) -> new DSAKeyPairGenerator(
-                        FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
+                        FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
+                        provider));
         provider.addAlias("KeyPairGenerator", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DSA",
                 PREFIX + "DSAKeyFactorySpi", attr,
-                (arg) -> keyFactory());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("AlgorithmParameters", "DSA",
@@ -73,13 +74,17 @@ class ProvFIPSDSA
 
         provider.addAlgorithmImplementation("Signature", "NoneWithDSA",
                 PREFIX + "DSASignatureSpi$None", attr,
-                (arg) -> new DSASignatureSpi(FIPSNISelector.DSAServiceNI, keyFactory(), "NONE"));
+                (arg) -> new DSASignatureSpi(FIPSNISelector.DSAServiceNI, keyFactory(provider), "NONE"));
     }
 
-    private static DSAKeyFactorySpi keyFactory()
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static DSAKeyFactorySpi keyFactory(JostleFIPSProvider provider)
     {
         return new DSAKeyFactorySpi(
-                FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI);
+                FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider);
     }
 
     private static void registerDsaSignature(JostleFIPSProvider provider,
@@ -90,7 +95,7 @@ class ProvFIPSDSA
     {
         provider.addAlgorithmImplementation("Signature", name,
                 PREFIX + "DSASignatureSpi$" + name.replace("-", "_"), attr,
-                (arg) -> new DSASignatureSpi(FIPSNISelector.DSAServiceNI, keyFactory(), digestName));
+                (arg) -> new DSASignatureSpi(FIPSNISelector.DSAServiceNI, keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
     }
 }

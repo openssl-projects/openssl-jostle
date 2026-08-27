@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAKeyFactorySpiImpl;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAKeyPairGeneratorImpl;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
@@ -51,23 +52,23 @@ class ProvMLDSA
 
         final Map<String, String> mldsaKeyGenAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("KeyPairGenerator", "MLDSA", PREFIX + "MLDSAKeyPairGenerator", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl("ML-DSA"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "MLDSA", PREFIX + "MLDSAKeyPairGenerator", mldsaKeyGenAttr, (arg) -> keyPairGenerator(provider, "ML-DSA"));
         provider.addAlias("KeyPairGenerator", "MLDSA", "ML-DSA");
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-44", PREFIX + "MLDSAKeyPairGenerator$MLDSA44", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl.MLDSA44());
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-65", PREFIX + "MLDSAKeyPairGenerator$MLDSA65", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl.MLDSA65());
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", PREFIX + "MLDSAKeyPairGenerator$MLDSA87", mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl.MLDSA87());
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-44", PREFIX + "MLDSAKeyPairGenerator$MLDSA44", mldsaKeyGenAttr, (arg) -> keyPairGenerator(provider, MLDSAParameterSpec.ml_dsa_44));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-65", PREFIX + "MLDSAKeyPairGenerator$MLDSA65", mldsaKeyGenAttr, (arg) -> keyPairGenerator(provider, MLDSAParameterSpec.ml_dsa_65));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", PREFIX + "MLDSAKeyPairGenerator$MLDSA87", mldsaKeyGenAttr, (arg) -> keyPairGenerator(provider, MLDSAParameterSpec.ml_dsa_87));
 
 
         final Map<String, String> mldsaSigAttr = new HashMap<>();
 
-        provider.addAlgorithmImplementation("Signature", "MLDSA", PREFIX + "MLDSASignatureSpi$MLDSA", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "MLDSA", PREFIX + "MLDSASignatureSpi$MLDSA", mldsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.INTERNAL));
         provider.addAlias("Signature", "MLDSA", "ML-DSA");
 
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-44", PREFIX + "MLDSASignatureSpi$MLDSA44", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_44, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_65, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.ML_DSA_87, MLDSASignatureSpi.MuHandling.INTERNAL));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
-        provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> new MLDSASignatureSpi(OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-44", PREFIX + "MLDSASignatureSpi$MLDSA44", mldsaSigAttr, (arg) -> signature(provider, OSSLKeyType.ML_DSA_44, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-65", PREFIX + "MLDSASignatureSpi$MLDSA65", mldsaSigAttr, (arg) -> signature(provider, OSSLKeyType.ML_DSA_65, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-87", PREFIX + "MLDSASignatureSpi$MLDSA87", mldsaSigAttr, (arg) -> signature(provider, OSSLKeyType.ML_DSA_87, MLDSASignatureSpi.MuHandling.INTERNAL));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-EXTERNAL-MU", PREFIX + "MLDSASignatureSpi$MLDSAExternalMu", mldsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.EXTERNAL_MU));
+        provider.addAlgorithmImplementation("Signature", "ML-DSA-CALCULATE-MU", PREFIX + "MLDSASignatureSpi$MLDSACalculateMu", mldsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE, MLDSASignatureSpi.MuHandling.CALCULATE_MU));
 
         // SPKI / signature-algorithm OID aliases (NIST CSOR id-ml-dsa-44/65/87).
         // Required so X.509 certs whose SubjectPublicKeyInfo / signature carries
@@ -79,11 +80,11 @@ class ProvMLDSA
 
 
         final Map<String, String> mldsaKfAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("KeyFactory", "MLDSA", PREFIX + "MLDSAKeyFactorySpi", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl());
+        provider.addAlgorithmImplementation("KeyFactory", "MLDSA", PREFIX + "MLDSAKeyFactorySpi", mldsaKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.NONE));
         provider.addAlias("KeyFactory", "MLDSA", "ML-DSA");
-        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_44));
-        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_65));
-        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> new MLDSAKeyFactorySpiImpl(OSSLKeyType.ML_DSA_87));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-44", PREFIX + "MLDSAKeyFactorySpi$MLDSA44", mldsaKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.ML_DSA_44));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-65", PREFIX + "MLDSAKeyFactorySpi$MLDSA65", mldsaKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.ML_DSA_65));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-DSA-87", PREFIX + "MLDSAKeyFactorySpi$MLDSA87", mldsaKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.ML_DSA_87));
 
         // SPKI OID aliases (NIST CSOR id-ml-dsa-44/65/87) so a certificate's
         // public key can be re-derived through the JSL KeyFactory keyed on the
@@ -95,5 +96,26 @@ class ProvMLDSA
 
     }
 
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static MLDSAKeyFactorySpiImpl keyFactory(JostleProvider provider, OSSLKeyType keyType)
+    {
+        return new MLDSAKeyFactorySpiImpl(NISelector.MLDSAServiceNI, NISelector.SpecNI,
+                NISelector.Asn1NI, keyType, provider);
+    }
 
+    private static MLDSASignatureSpi signature(JostleProvider provider, OSSLKeyType forcedType,
+                                               MLDSASignatureSpi.MuHandling forcedMu)
+    {
+        return new MLDSASignatureSpi(NISelector.MLDSAServiceNI,
+                keyFactory(provider, forcedType), forcedType, forcedMu);
+    }
+
+    private static MLDSAKeyPairGeneratorImpl keyPairGenerator(JostleProvider provider, Object algorithm)
+    {
+        return new MLDSAKeyPairGeneratorImpl(NISelector.MLDSAServiceNI, NISelector.SpecNI,
+                algorithm, provider);
+    }
 }

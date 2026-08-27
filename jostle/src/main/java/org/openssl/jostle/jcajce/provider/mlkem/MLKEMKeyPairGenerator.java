@@ -99,8 +99,9 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
 
     /**
      * The provider INSTANCE this SPI belongs to, or null when constructed
-     * outside any provider. Every key this SPI produces is BOUND to it. Inert
-     * until Phase 2 passes an instance at registration. See MT-14 and
+     * outside any provider. Every key this SPI produces is BOUND to it, and is
+     * then usable only through that instance. Null is the direct-SPI realm,
+     * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
     private final java.security.Provider providerInstance;

@@ -1436,9 +1436,14 @@ public class FIPSECTest
         bad.update(tampered);
         Assertions.assertFalse(bad.verify(rawSig), "tampered digest must not verify");
 
-        // Cross-provider: a JSLFIPS raw signature verifies on JSL.
+        // Cross-provider: a JSLFIPS raw signature verifies on JSL. Since
+        // MT-14 the public key OBJECT does not cross — it is re-decoded
+        // through JSL's own KeyFactory, which is what actually moves the key
+        // into JSL's library rather than leaving JSL's verifier executing in
+        // the module.
         Signature jslVerify = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
-        jslVerify.initVerify(kp.getPublic());
+        jslVerify.initVerify(FIPSTestUtil.crossPublic(kp.getPublic(), "EC",
+                JostleProvider.PROVIDER_NAME));
         jslVerify.update(hash);
         Assertions.assertTrue(jslVerify.verify(rawSig), "JSL did not verify a JSLFIPS raw signature");
     }

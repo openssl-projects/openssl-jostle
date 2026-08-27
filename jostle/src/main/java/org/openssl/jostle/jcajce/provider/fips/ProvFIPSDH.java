@@ -44,13 +44,14 @@ class ProvFIPSDH
         provider.addAlgorithmImplementation("KeyPairGenerator", "DH",
                 PREFIX + "DHKeyPairGenerator", attr,
                 (arg) -> new DHKeyPairGenerator(
-                        FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
+                        FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
+                        provider));
         provider.addAlias("KeyPairGenerator", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DH",
                 PREFIX + "DHKeyFactorySpi", attr,
-                (arg) -> keyFactory());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
@@ -68,20 +69,25 @@ class ProvFIPSDH
 
         provider.addAlgorithmImplementation("KeyAgreement", "DH",
                 PREFIX + "DHKeyAgreementSpi", attr,
-                (arg) -> new DHKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory()));
+                (arg) -> new DHKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory(provider)));
         provider.addAlias("KeyAgreement", "DH",
                 "DiffieHellman", PKCS3_DH_OID);
 
         provider.addAlgorithmImplementation("KeyAgreement", "DHWITHRFC2631KDF",
                 PREFIX + "DHWithKDFKeyAgreementSpi", attr,
-                (arg) -> new DHWithKDFKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory(), "SHA-1", JostleFIPSProvider.PROVIDER_NAME));
+                (arg) -> new DHWithKDFKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory(provider),
+                        "SHA-1", JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "DHWITHRFC2631KDF",
                 ID_ALG_ESDH, ID_ALG_SSDH);
     }
 
-    private static DHKeyFactorySpi keyFactory()
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static DHKeyFactorySpi keyFactory(JostleFIPSProvider provider)
     {
         return new DHKeyFactorySpi(
-                FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI);
+                FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider);
     }
 }

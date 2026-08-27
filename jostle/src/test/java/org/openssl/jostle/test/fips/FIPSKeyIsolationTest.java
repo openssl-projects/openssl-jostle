@@ -33,15 +33,22 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 
 /**
- * Cross-provider key policy: PUBLIC keys carry no secret material and may be
- * used freely with either provider's operational services; PRIVATE keys are
- * bound to the interface library (and OSSL_LIB_CTX) that created them and
- * are rejected by the other provider's SPIs with a typed
- * InvalidKeyException. Sharing a private key between JSL and JSLFIPS is done
- * explicitly: encode it (getEncoded()) and decode it through the target
- * provider's KeyFactory - which this test proves works. SecretKeys (raw
- * bytes, no native residency) are unaffected. Gated on TEST_FIPS_LIB;
- * skipped when unset.
+ * Cross-provider key policy, since MT-14: a key OBJECT belongs to the provider
+ * INSTANCE that created it, and neither half of a keypair crosses. Both are
+ * rejected by the other provider's SPIs with a typed InvalidKeyException.
+ * Sharing is explicit: encode the key ({@code getEncoded()}) and decode it
+ * through the target provider's KeyFactory - which this test proves works, for
+ * the public half as well as the private one. SecretKeys (raw bytes, no native
+ * residency) are unaffected. Gated on TEST_FIPS_LIB; skipped when unset.
+ *
+ * <p><b>The public half used to cross, and this file used to assert that.</b>
+ * The premise was that public material carries no secret, which is true and
+ * beside the point: measurement
+ * ({@code fips-c-review/probes/xprovider_key_probe.c}) showed an operation on
+ * a key is served by the provider that CREATED it, whatever lib ctx drove the
+ * call. So a JSLFIPS verify handed a JSL public key object ran in mainline
+ * while reporting success - indistinguishable from the module doing it, since
+ * both compute the same answer. Re-decoding is what actually moves the key.
  */
 public class FIPSKeyIsolationTest
 {
@@ -67,10 +74,19 @@ public class FIPSKeyIsolationTest
         }
     }
 
+    /**
+     * The canonical isolation refusal.
+     *
+     * <p>The pin includes "instance" deliberately. {@code "different Jostle
+     * provider"} alone is a PREFIX of the Phase-1 library-based wording as
+     * well as this one, so it cannot tell the two apart — it would have passed
+     * unchanged through the flip while the class Javadoc promised the newer
+     * message. Match the substring the contract actually names.
+     */
     private static void assertRejected(Executable action)
     {
         InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class, action::run);
-        Assertions.assertTrue(e.getMessage().contains("different Jostle provider"),
+        Assertions.assertTrue(e.getMessage().contains("different Jostle provider instance"),
                 "expected the isolation message, got: " + e.getMessage());
     }
 
@@ -86,7 +102,7 @@ public class FIPSKeyIsolationTest
     }
 
     @Test
-    public void rsaPrivateKeysIsolatedPublicKeysShared()
+    public void rsaKeysAreIsolatedInBothHalves()
         throws Exception
     {
         KeyPairGenerator jslKpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
@@ -107,34 +123,44 @@ public class FIPSKeyIsolationTest
         Cipher fipsDec = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         assertRejected(() -> fipsDec.init(Cipher.DECRYPT_MODE, jslKp.getPrivate()));
 
-        // PUBLIC keys cross freely: sign with JSLFIPS, verify through JSL
-        // using the JSLFIPS key object directly - and vice versa.
+        // PUBLIC keys are isolated too, in both directions.
+        Signature jslVerifier = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        assertRejected(() -> jslVerifier.initVerify(fipsKp.getPublic()));
+        Signature fipsVerifier = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
+        assertRejected(() -> fipsVerifier.initVerify(jslKp.getPublic()));
+        Cipher fipsEncRefused = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
+        assertRejected(() -> fipsEncRefused.init(Cipher.ENCRYPT_MODE, jslKp.getPublic()));
+
+        // ...and the sanctioned crossing works for the public half: sign with
+        // JSLFIPS, re-decode the public key through JSL, verify there.
         fipsSigner.initSign(fipsKp.getPrivate());
         fipsSigner.update(message);
         byte[] fipsSig = fipsSigner.sign();
-        Signature jslVerifier = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
-        jslVerifier.initVerify(fipsKp.getPublic());
+        jslVerifier.initVerify(FIPSTestUtil.crossPublic(fipsKp.getPublic(), "RSA",
+                JostleProvider.PROVIDER_NAME));
         jslVerifier.update(message);
-        Assertions.assertTrue(jslVerifier.verify(fipsSig), "JSLFIPS public key must verify through JSL");
+        Assertions.assertTrue(jslVerifier.verify(fipsSig), "re-decoded JSLFIPS public key must verify through JSL");
 
         jslSigner.initSign(jslKp.getPrivate());
         jslSigner.update(message);
         byte[] jslSig = jslSigner.sign();
-        Signature fipsVerifier = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
-        fipsVerifier.initVerify(jslKp.getPublic());
+        fipsVerifier.initVerify(FIPSTestUtil.crossPublic(jslKp.getPublic(), "RSA",
+                JostleFIPSProvider.PROVIDER_NAME));
         fipsVerifier.update(message);
-        Assertions.assertTrue(fipsVerifier.verify(jslSig), "JSL public key must verify through JSLFIPS");
+        Assertions.assertTrue(fipsVerifier.verify(jslSig), "re-decoded JSL public key must verify through JSLFIPS");
 
-        // Public-key encrypt through the other provider round-trips.
+        // Public-key encrypt through the other provider round-trips, once the
+        // public half has been re-decoded there.
         byte[] small = new byte[32];
         RANDOM.nextBytes(small);
         Cipher fipsEnc = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
-        fipsEnc.init(Cipher.ENCRYPT_MODE, jslKp.getPublic());
+        fipsEnc.init(Cipher.ENCRYPT_MODE, FIPSTestUtil.crossPublic(jslKp.getPublic(), "RSA",
+                JostleFIPSProvider.PROVIDER_NAME));
         byte[] ct = fipsEnc.doFinal(small);
         Cipher jslDec = Cipher.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         jslDec.init(Cipher.DECRYPT_MODE, jslKp.getPrivate());
         Assertions.assertArrayEquals(small, jslDec.doFinal(ct),
-                "JSLFIPS encrypt with JSL public key must round-trip");
+                "JSLFIPS encrypt with a re-decoded JSL public key must round-trip");
 
         // The sanctioned route for PRIVATE keys: encode and decode through
         // the target provider's KeyFactory, then use.
@@ -143,7 +169,8 @@ public class FIPSKeyIsolationTest
         fipsSigner.initSign(crossed);
         fipsSigner.update(message);
         byte[] sig = fipsSigner.sign();
-        fipsVerifier.initVerify(jslKp.getPublic());
+        fipsVerifier.initVerify(FIPSTestUtil.crossPublic(jslKp.getPublic(), "RSA",
+                JostleFIPSProvider.PROVIDER_NAME));
         fipsVerifier.update(message);
         Assertions.assertTrue(fipsVerifier.verify(sig), "re-encoded private key must work");
     }
@@ -159,7 +186,8 @@ public class FIPSKeyIsolationTest
         KeyAgreement jslEcdh = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         assertRejected(() -> jslEcdh.init(fipsEcKp.getPrivate()));
 
-        // ... but the public half verifies through the other provider.
+        // ... and so is the public half, which is refused as an object and
+        // crosses only by re-decoding.
         byte[] message = new byte[128];
         RANDOM.nextBytes(message);
         Signature fipsEcdsa = Signature.getInstance("SHA256withECDSA", JostleFIPSProvider.PROVIDER_NAME);
@@ -167,9 +195,12 @@ public class FIPSKeyIsolationTest
         fipsEcdsa.update(message);
         byte[] sig = fipsEcdsa.sign();
         Signature jslEcdsa = Signature.getInstance("SHA256withECDSA", JostleProvider.PROVIDER_NAME);
-        jslEcdsa.initVerify(fipsEcKp.getPublic());
+        assertRejected(() -> jslEcdsa.initVerify(fipsEcKp.getPublic()));
+        jslEcdsa.initVerify(FIPSTestUtil.crossPublic(fipsEcKp.getPublic(), "EC",
+                JostleProvider.PROVIDER_NAME));
         jslEcdsa.update(message);
-        Assertions.assertTrue(jslEcdsa.verify(sig), "JSLFIPS EC public key must verify through JSL");
+        Assertions.assertTrue(jslEcdsa.verify(sig),
+                "re-decoded JSLFIPS EC public key must verify through JSL");
 
         // DH: private isolated.
         KeyPairGenerator jslDh = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
@@ -206,12 +237,13 @@ public class FIPSKeyIsolationTest
 
     /**
      * Completeness lock over the RSA pattern in
-     * {@link #rsaPrivateKeysIsolatedPublicKeysShared()}: for every asymmetric
-     * family Jostle exposes (RSA, EC/ECDSA, EC/ECDH, DSA, DH) a PRIVATE key
-     * created by one provider is rejected by the other provider's SPI in BOTH
-     * directions with the identical {@link InvalidKeyException} "different
-     * Jostle provider" message; the PUBLIC key crosses freely; and the
-     * sanctioned re-encode-through-KeyFactory route round-trips per family.
+     * {@link #rsaKeysAreIsolatedInBothHalves()}: for every asymmetric family
+     * Jostle exposes (RSA, EC/ECDSA, EC/ECDH, DSA, DH, the PQC families, EdDSA
+     * and the TLS hybrids) a key created by one provider is rejected by the
+     * other provider's SPI in BOTH directions with the identical
+     * {@link InvalidKeyException} "different Jostle provider instance"
+     * message - PRIVATE and PUBLIC halves alike - and the sanctioned
+     * re-encode-through-KeyFactory route round-trips per family.
      */
     @Test
     public void keyIsolationCompleteAcrossAllAsymmetricFamiliesBothDirections()
@@ -225,8 +257,8 @@ public class FIPSKeyIsolationTest
         KeyPair fipsRsa = genKp("RSA", fips, 2048);
         PrivKeyOp rsaOp = (p, k) -> Signature.getInstance("SHA256withRSA", p).initSign(k);
         assertPrivateIsolatedBothDirections(jslRsa.getPrivate(), fipsRsa.getPrivate(), rsaOp);
-        assertSignVerifyAcross("SHA256withRSA", fips, jsl, fipsRsa);
-        assertSignVerifyAcross("SHA256withRSA", jsl, fips, jslRsa);
+        assertSignVerifyAcross("SHA256withRSA", "RSA", fips, jsl, fipsRsa);
+        assertSignVerifyAcross("SHA256withRSA", "RSA", jsl, fips, jslRsa);
         assertSigReencodeRoute("SHA256withRSA", "RSA", fips, jsl, jslRsa);
         assertSigReencodeRoute("SHA256withRSA", "RSA", jsl, fips, fipsRsa);
 
@@ -238,8 +270,8 @@ public class FIPSKeyIsolationTest
         PrivKeyOp ecdhOp = (p, k) -> KeyAgreement.getInstance("ECDH", p).init(k);
         assertPrivateIsolatedBothDirections(jslEc.getPrivate(), fipsEc.getPrivate(), ecdsaOp);
         assertPrivateIsolatedBothDirections(jslEc.getPrivate(), fipsEc.getPrivate(), ecdhOp);
-        assertSignVerifyAcross("SHA256withECDSA", fips, jsl, fipsEc);
-        assertSignVerifyAcross("SHA256withECDSA", jsl, fips, jslEc);
+        assertSignVerifyAcross("SHA256withECDSA", "EC", fips, jsl, fipsEc);
+        assertSignVerifyAcross("SHA256withECDSA", "EC", jsl, fips, jslEc);
         assertSigReencodeRoute("SHA256withECDSA", "EC", fips, jsl, jslEc);
         assertSigReencodeRoute("SHA256withECDSA", "EC", jsl, fips, fipsEc);
         assertKaReencodeAndPublicCross("ECDH", "EC", jslEc, jslEc2);
@@ -255,7 +287,7 @@ public class FIPSKeyIsolationTest
         KeyPair fipsDsa = FIPSTestUtil.dsaKeyPair(fips);
         PrivKeyOp dsaOp = (p, k) -> Signature.getInstance("SHA256withDSA", p).initSign(k);
         assertPrivateIsolatedBothDirections(jslDsa.getPrivate(), fipsDsa.getPrivate(), dsaOp);
-        assertSignVerifyAcross("SHA256withDSA", jsl, fips, jslDsa);
+        assertSignVerifyAcross("SHA256withDSA", "DSA", jsl, fips, jslDsa);
         assertSigReencodeRoute("SHA256withDSA", "DSA", jsl, fips, fipsDsa);
         if (FIPSTestUtil.fipsDsaCanSign())
         {
@@ -264,7 +296,7 @@ public class FIPSKeyIsolationTest
             // the direction it can be exercised, and
             // FIPSDSAAgreementTest.dsaSigningRefusedTypedOrWorks pins the
             // refusal itself.
-            assertSignVerifyAcross("SHA256withDSA", fips, jsl, fipsDsa);
+            assertSignVerifyAcross("SHA256withDSA", "DSA", fips, jsl, fipsDsa);
             assertSigReencodeRoute("SHA256withDSA", "DSA", fips, jsl, jslDsa);
         }
 
@@ -279,8 +311,8 @@ public class FIPSKeyIsolationTest
             KeyPair fipsMlDsa = genPqcKp("ML-DSA-65", fips);
             PrivKeyOp mldsaOp = (p, k) -> Signature.getInstance("ML-DSA-65", p).initSign(k);
             assertPrivateIsolatedBothDirections(jslMlDsa.getPrivate(), fipsMlDsa.getPrivate(), mldsaOp);
-            assertSignVerifyAcross("ML-DSA-65", fips, jsl, fipsMlDsa);
-            assertSignVerifyAcross("ML-DSA-65", jsl, fips, jslMlDsa);
+            assertSignVerifyAcross("ML-DSA-65", "ML-DSA-65", fips, jsl, fipsMlDsa);
+            assertSignVerifyAcross("ML-DSA-65", "ML-DSA-65", jsl, fips, jslMlDsa);
             assertSigReencodeRoute("ML-DSA-65", "ML-DSA-65", fips, jsl, jslMlDsa);
             assertSigReencodeRoute("ML-DSA-65", "ML-DSA-65", jsl, fips, fipsMlDsa);
 
@@ -288,8 +320,8 @@ public class FIPSKeyIsolationTest
             KeyPair fipsSlhDsa = genPqcKp("SLH-DSA-SHA2-128S", fips);
             PrivKeyOp slhdsaOp = (p, k) -> Signature.getInstance("SLH-DSA-SHA2-128S", p).initSign(k);
             assertPrivateIsolatedBothDirections(jslSlhDsa.getPrivate(), fipsSlhDsa.getPrivate(), slhdsaOp);
-            assertSignVerifyAcross("SLH-DSA-SHA2-128S", fips, jsl, fipsSlhDsa);
-            assertSignVerifyAcross("SLH-DSA-SHA2-128S", jsl, fips, jslSlhDsa);
+            assertSignVerifyAcross("SLH-DSA-SHA2-128S", "SLH-DSA-SHA2-128S", fips, jsl, fipsSlhDsa);
+            assertSignVerifyAcross("SLH-DSA-SHA2-128S", "SLH-DSA-SHA2-128S", jsl, fips, jslSlhDsa);
 
             // ML-KEM has no Signature surface; its private key is reached
             // through the KTS Cipher's unwrap side instead.
@@ -316,27 +348,30 @@ public class FIPSKeyIsolationTest
             // decapsulated through JSLFIPS ran in the wrong library while
             // reporting success. Canonical message here, unlike the hybrids:
             // ML-KEM keys encode, so the advice is actionable.
-            String mlkemMsg = "private key was created by a different Jostle provider; "
+            String mlkemMsg = "private key was created by a different Jostle provider instance; "
                     + "encode it with getEncoded() and decode it through this provider's "
                     + "KeyFactory";
             assertKeyGenPrivateRejected("ML-KEM-768", fips, jslMlKem.getPrivate(), 256, mlkemMsg);
             assertKeyGenPrivateRejected("ML-KEM-768", jsl, fipsMlKem.getPrivate(), 256, mlkemMsg);
 
-            // ...and the PUBLIC object route must STILL be accepted, both
-            // directions. Pinned explicitly because the private-side check
-            // above sits in the same engineInit and it would be easy to widen
-            // it by accident.
-            //
-            // NOTE what this currently pins: measurement
-            // (fips-c-review/probes/xprovider_key_probe.c) shows a foreign
-            // public key keeps its ORIGINATING provider, so an encapsulation
-            // through this route executes in the key's own library, not the
-            // receiving one. That is today's contract, not necessarily the
-            // right one - MT-14 is the open decision. If MT-14 lands as
-            // "re-home foreign public keys", this assertion must be
-            // deliberately revisited rather than silently broken.
-            assertKeyGenPublicAccepted("ML-KEM-768", fips, jslMlKem.getPublic(), 256);
-            assertKeyGenPublicAccepted("ML-KEM-768", jsl, fipsMlKem.getPublic(), 256);
+            // ...and the PUBLIC object route is refused too, both directions.
+            // MT-14 resolved the open decision recorded here previously: a
+            // foreign public key keeps its ORIGINATING provider (measured,
+            // fips-c-review/probes/xprovider_key_probe.c), so accepting the
+            // object meant encapsulating in the key's library rather than the
+            // receiving one. Refuse the object; re-decode to cross.
+            String mlkemPubMsg = "public key was created by a different Jostle provider instance; "
+                    + "encode it with getEncoded() and decode it through this provider's "
+                    + "KeyFactory";
+            assertKeyGenPublicRejected("ML-KEM-768", fips, jslMlKem.getPublic(), 256, mlkemPubMsg);
+            assertKeyGenPublicRejected("ML-KEM-768", jsl, fipsMlKem.getPublic(), 256, mlkemPubMsg);
+
+            // The crossing that replaces it: re-decode and the encapsulation
+            // succeeds, in the receiving provider.
+            assertKeyGenPublicAccepted("ML-KEM-768", fips,
+                    FIPSTestUtil.crossPublic(jslMlKem.getPublic(), "ML-KEM-768", fips), 256);
+            assertKeyGenPublicAccepted("ML-KEM-768", jsl,
+                    FIPSTestUtil.crossPublic(fipsMlKem.getPublic(), "ML-KEM-768", jsl), 256);
 
             // RSA-KEM KTS (WI-8) borrows the RSA key's spec the same way, so it
             // needs the same check - and reuses the same KTSParameterSpec, since
@@ -363,8 +398,8 @@ public class FIPSKeyIsolationTest
                 KeyPair fipsEd = genPqcKp(edAlg, fips);
                 PrivKeyOp edOp = (p, k) -> Signature.getInstance(edAlg, p).initSign(k);
                 assertPrivateIsolatedBothDirections(jslEd.getPrivate(), fipsEd.getPrivate(), edOp);
-                assertSignVerifyAcross(edAlg, fips, jsl, fipsEd);
-                assertSignVerifyAcross(edAlg, jsl, fips, jslEd);
+                assertSignVerifyAcross(edAlg, edAlg, fips, jsl, fipsEd);
+                assertSignVerifyAcross(edAlg, edAlg, jsl, fips, jslEd);
                 assertSigReencodeRoute(edAlg, edAlg, fips, jsl, jslEd);
                 assertSigReencodeRoute(edAlg, edAlg, jsl, fips, fipsEd);
             }
@@ -386,9 +421,6 @@ public class FIPSKeyIsolationTest
         //    through the other provider's KeyFactory. Hybrid keys have no
         //    encoding at all, so that advice would be a dead end; the message
         //    names the only remedy that exists.
-        // There is no public-key crossing check here because the whole of
-        // FIPSMLXKEMAgreementTest.jslAndFipsInteroperateBothDirections depends
-        // on it working.
         for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec hybrid
                 : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
         {
@@ -396,14 +428,30 @@ public class FIPSKeyIsolationTest
             {
                 continue;
             }
-            PrivateKey jslHybrid = genPqcKp(hybrid.getName(), jsl).getPrivate();
-            PrivateKey fipsHybrid = genPqcKp(hybrid.getName(), fips).getPrivate();
-            String hybridMsg = "private key was created by a different Jostle provider; "
+            KeyPair jslHybridKp = genPqcKp(hybrid.getName(), jsl);
+            KeyPair fipsHybridKp = genPqcKp(hybrid.getName(), fips);
+            PrivateKey jslHybrid = jslHybridKp.getPrivate();
+            PrivateKey fipsHybrid = fipsHybridKp.getPrivate();
+            java.security.PublicKey jslHybridPub = jslHybridKp.getPublic();
+            java.security.PublicKey fipsHybridPub = fipsHybridKp.getPublic();
+            String hybridMsg = "private key was created by a different Jostle provider instance; "
                     + "hybrid KEM keys have no encoding, so generate the keypair through "
                     + "this provider instead";
             int bits = hybrid.getSharedSecretBytes() * 8;
             assertKeyGenPrivateRejected(hybrid.getName(), fips, jslHybrid, bits, hybridMsg);
             assertKeyGenPrivateRejected(hybrid.getName(), jsl, fipsHybrid, bits, hybridMsg);
+
+            // Since MT-14 the PUBLIC half is refused too. For this family that
+            // closes the crossing entirely — there is no encoding to re-decode
+            // — which is why the message names generating the pair through
+            // this provider as the only remedy, and why
+            // FIPSMLXKEMAgreementTest interoperates through the RAW SHARE
+            // rather than through key objects.
+            String hybridPubMsg = "public key was created by a different Jostle provider "
+                    + "instance; hybrid KEM keys have no encoding, so generate the keypair "
+                    + "through this provider instead";
+            assertKeyGenPublicRejected(hybrid.getName(), fips, jslHybridPub, bits, hybridPubMsg);
+            assertKeyGenPublicRejected(hybrid.getName(), jsl, fipsHybridPub, bits, hybridPubMsg);
         }
 
         // ---- DH ----
@@ -437,23 +485,57 @@ public class FIPSKeyIsolationTest
      * drifting into accepting either message for either family.
      */
     /**
-     * A foreign PUBLIC key object must be accepted on the KeyGenerator's
-     * encapsulate arm — public material carries no secret and crosses freely.
-     * See MT-14 for where the resulting operation actually executes.
+     * A foreign PUBLIC key object must be REFUSED on the KeyGenerator's
+     * encapsulate arm.
+     *
+     * <p>It was accepted until MT-14, on the reasoning that public material
+     * carries no secret. What that missed is where the work then happened:
+     * {@code encapsulate()} drives the SPEC's NI — the library that created
+     * the key — so a JSLFIPS KeyGenerator handed a JSL public key produced its
+     * encapsulation outside the module, and no functional test could tell,
+     * because mainline computes the same bytes.
+     *
+     * <p>Message is a parameter for the same reason as
+     * {@link #assertKeyGenPrivateRejected}: ML-KEM keys encode and hybrids do
+     * not, so the remedy each names differs.
+     */
+    private static void assertKeyGenPublicRejected(String algorithm, String user,
+                                                   java.security.PublicKey foreign,
+                                                   int keySizeInBits,
+                                                   String expectedMessage)
+        throws Exception
+    {
+        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
+        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                java.security.InvalidAlgorithmParameterException.class,
+                () -> kg.init(org.openssl.jostle.jcajce.spec.KEMGenerateSpec.builder()
+                        .withPublicKey(foreign)
+                        .withAlgorithmName("AES")
+                        .withKeySizeInBits(keySizeInBits)
+                        .build()),
+                algorithm + ": " + user + " must refuse a foreign PUBLIC key object");
+        Assertions.assertEquals(expectedMessage, e.getMessage(), algorithm);
+    }
+
+    /**
+     * A public key that HAS been re-decoded through {@code user}'s own
+     * KeyFactory must be accepted on the encapsulate arm. The positive control
+     * for {@link #assertKeyGenPublicRejected}: without it, an SPI that refused
+     * every public key would pass the refusal assertions.
      */
     private static void assertKeyGenPublicAccepted(String algorithm, String user,
-                                                   java.security.PublicKey foreign,
+                                                   java.security.PublicKey own,
                                                    int keySizeInBits)
         throws Exception
     {
         javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
         kg.init(org.openssl.jostle.jcajce.spec.KEMGenerateSpec.builder()
-                .withPublicKey(foreign)
+                .withPublicKey(own)
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(keySizeInBits)
                 .build());
         Assertions.assertNotNull(kg.generateKey(),
-                algorithm + ": " + user + " must accept a foreign PUBLIC key object");
+                algorithm + ": " + user + " must accept a public key re-decoded through itself");
     }
 
     private static void assertKeyGenPrivateRejected(String algorithm, String user,
@@ -508,8 +590,17 @@ public class FIPSKeyIsolationTest
         assertRejected(() -> op.run(JostleProvider.PROVIDER_NAME, fipsPriv));
     }
 
-    /** Sign in one provider, verify in the other using the signer's own (freely-crossing) public key. */
-    private void assertSignVerifyAcross(String sigAlg, String signProvider, String verifyProvider, KeyPair keyPair)
+    /**
+     * Sign in one provider, verify in the other. Both halves of the crossing
+     * are asserted: the public key OBJECT is refused by {@code verifyProvider},
+     * and the re-decoded key verifies.
+     *
+     * <p>The refusal is the load-bearing half. Before MT-14 the object was
+     * accepted and the verification ran in the SIGNER's library, so this
+     * method passed while proving nothing about {@code verifyProvider}.
+     */
+    private void assertSignVerifyAcross(String sigAlg, String kfAlg, String signProvider,
+                                        String verifyProvider, KeyPair keyPair)
         throws Exception
     {
         byte[] msg = new byte[64];
@@ -518,10 +609,14 @@ public class FIPSKeyIsolationTest
         signer.initSign(keyPair.getPrivate());
         signer.update(msg);
         byte[] sig = signer.sign();
+
         Signature verifier = Signature.getInstance(sigAlg, verifyProvider);
-        verifier.initVerify(keyPair.getPublic());
+        assertRejected(() -> verifier.initVerify(keyPair.getPublic()));
+
+        verifier.initVerify(FIPSTestUtil.crossPublic(keyPair.getPublic(), kfAlg, verifyProvider));
         verifier.update(msg);
-        Assertions.assertTrue(verifier.verify(sig), sigAlg + " public key must verify across providers");
+        Assertions.assertTrue(verifier.verify(sig),
+                sigAlg + " re-decoded public key must verify across providers");
     }
 
     /**
@@ -541,16 +636,20 @@ public class FIPSKeyIsolationTest
         signer.update(msg);
         byte[] sig = signer.sign();
         Signature verifier = Signature.getInstance(sigAlg, verifyProvider);
-        verifier.initVerify(owner.getPublic());
+        verifier.initVerify(FIPSTestUtil.crossPublic(owner.getPublic(), kfAlg, verifyProvider));
         verifier.update(msg);
         Assertions.assertTrue(verifier.verify(sig), sigAlg + " re-encoded private key must sign and verify");
     }
 
     /**
      * KeyAgreement families (ECDH, DH): compute a native reference secret
-     * entirely in JSL, then re-encode {@code jslA}'s private key into the FIPS
-     * provider (sanctioned route) and run the agreement there with
-     * {@code jslB}'s freely-crossing public key. The two secrets must match.
+     * entirely in JSL, then re-encode BOTH of {@code jslA}'s private key and
+     * {@code jslB}'s public key into the FIPS provider (the sanctioned route
+     * for each) and run the agreement there. The two secrets must match.
+     *
+     * <p>The peer's public key OBJECT is asserted refused first — before MT-14
+     * it was accepted at {@code doPhase}, and the agreement then ran against a
+     * peer key resident in the other library.
      */
     private void assertKaReencodeAndPublicCross(String kaAlg, String kfAlg, KeyPair jslA, KeyPair jslB)
         throws Exception
@@ -564,10 +663,13 @@ public class FIPSKeyIsolationTest
         PrivateKey crossed = fipsKf.generatePrivate(new PKCS8EncodedKeySpec(jslA.getPrivate().getEncoded()));
         KeyAgreement fipsKa = KeyAgreement.getInstance(kaAlg, JostleFIPSProvider.PROVIDER_NAME);
         fipsKa.init(crossed);
-        fipsKa.doPhase(jslB.getPublic(), true);
+        assertRejected(() -> fipsKa.doPhase(jslB.getPublic(), true));
+        fipsKa.doPhase(FIPSTestUtil.crossPublic(jslB.getPublic(), kfAlg,
+                JostleFIPSProvider.PROVIDER_NAME), true);
         byte[] crossedSecret = fipsKa.generateSecret();
 
         Assertions.assertArrayEquals(refSecret, crossedSecret,
-                kaAlg + " re-encoded private key and shared public key must agree across providers");
+                kaAlg + " re-encoded private key and re-encoded peer public key must agree "
+                        + "across providers");
     }
 }

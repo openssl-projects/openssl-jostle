@@ -123,17 +123,17 @@ class ProvFIPSMLXKEM
             provider.addAlgorithmImplementation("KeyPairGenerator", name,
                     PREFIX + "MLXKEMKeyPairGenerator$" + name, attr,
                     (arg) -> new MLXKEMKeyPairGenerator(
-                            FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec));
+                            FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyGenerator", name,
                     PREFIX + "MLXKEMKeyGenerator$" + name, attr,
                     (arg) -> new MLXKEMKeyGenerator(
-                            FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec));
+                            FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyFactory", name,
                     PREFIX + "MLXKEMKeyFactorySpi$" + name, attr,
                     (arg) -> new MLXKEMKeyFactorySpi(
-                            FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec));
+                            FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec, provider));
         }
     }
 }

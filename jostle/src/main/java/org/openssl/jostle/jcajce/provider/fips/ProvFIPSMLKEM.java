@@ -82,28 +82,28 @@ class ProvFIPSMLKEM
 
         final Map<String, String> MLKEMKeyGenAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("KeyPairGenerator", "MLKEM", PREFIX + "MLKEMKeyPairGenerator", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "MLKEM", PREFIX + "MLKEMKeyPairGenerator", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM", provider));
         provider.addAlias("KeyPairGenerator", "MLKEM", "ML-KEM");
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-512", PREFIX + "MLKEMKeyPairGenerator$MLKEM512", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-512"));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-768", PREFIX + "MLKEMKeyPairGenerator$MLKEM768", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-768"));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-1024", PREFIX + "MLKEMKeyPairGenerator$MLKEM1024", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-1024"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-512", PREFIX + "MLKEMKeyPairGenerator$MLKEM512", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-512", provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-768", PREFIX + "MLKEMKeyPairGenerator$MLKEM768", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-768", provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-1024", PREFIX + "MLKEMKeyPairGenerator$MLKEM1024", MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-1024", provider));
 
 
         final Map<String, String> mlkemCipherAttr = new HashMap<>();
 
-        provider.addAlgorithmImplementation("KeyGenerator", "MLKEM", PREFIX + "Base", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI));
+        provider.addAlgorithmImplementation("KeyGenerator", "MLKEM", PREFIX + "Base", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, provider));
         provider.addAlias("KeyGenerator", "MLKEM", "ML-KEM");
 
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-512", PREFIX + "MLKEM512", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_512));
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-768", PREFIX + "MLKEM768", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_768));
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-1024", PREFIX + "MLKEM1024", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_1024));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-512", PREFIX + "MLKEM512", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_512, provider));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-768", PREFIX + "MLKEM768", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_768, provider));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-1024", PREFIX + "MLKEM1024", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_1024, provider));
 
         final Map<String, String> MLKEMKfAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("KeyFactory", "MLKEM", PREFIX + "MLKEMKeyFactorySpi", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
+        provider.addAlgorithmImplementation("KeyFactory", "MLKEM", PREFIX + "MLKEMKeyFactorySpi", MLKEMKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.NONE));
         provider.addAlias("KeyFactory", "MLKEM", "ML-KEM");
-        provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-512", PREFIX + "MLKEMKeyFactorySpi$MLKEM512", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.ML_KEM_512));
-        provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-768", PREFIX + "MLKEMKeyFactorySpi$MLKEM768", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.ML_KEM_768));
-        provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-1024", PREFIX + "MLKEMKeyFactorySpi$MLKEM1024", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.ML_KEM_1024));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-512", PREFIX + "MLKEMKeyFactorySpi$MLKEM512", MLKEMKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.ML_KEM_512));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-768", PREFIX + "MLKEMKeyFactorySpi$MLKEM768", MLKEMKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.ML_KEM_768));
+        provider.addAlgorithmImplementation("KeyFactory", "ML-KEM-1024", PREFIX + "MLKEMKeyFactorySpi$MLKEM1024", MLKEMKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.ML_KEM_1024));
 
         // SPKI OID aliases (NIST CSOR id-alg-ml-kem-*, RFC 9814; note the .4.4
         // "kems" arc, not the .4.3 "sigAlgs" arc) so a certificate's public key
@@ -118,7 +118,7 @@ class ProvFIPSMLKEM
         // so it is registered under the SPKI/KEM OIDs (the .4.4 "kems" arc). The single
         // SPI handles all three parameter sets (the key carries its variant).
         final Map<String, String> mlkemCtsAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI), FIPSNISelector.SpecNI, JostleFIPSProvider.PROVIDER_NAME));
+        provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(keyFactory(provider, OSSLKeyType.NONE), FIPSNISelector.SpecNI, JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("Cipher", "ML-KEM", "MLKEM");
         provider.addAlias("Cipher", "ML-KEM",
             NISTObjectIdentifiers.id_alg_ml_kem_512,
@@ -127,5 +127,13 @@ class ProvFIPSMLKEM
 
     }
 
-
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static MLKEMKeyFactorySpi keyFactory(JostleFIPSProvider provider, OSSLKeyType keyType)
+    {
+        return new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI,
+                FIPSNISelector.Asn1NI, keyType, provider);
+    }
 }

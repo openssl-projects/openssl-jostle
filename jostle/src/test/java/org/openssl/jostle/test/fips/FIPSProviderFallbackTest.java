@@ -179,7 +179,10 @@ public class FIPSProviderFallbackTest
         Signature fipsSigner = Signature.getInstance("SHA256withRSA", JostleFIPSProvider.PROVIDER_NAME);
         InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
                 () -> fipsSigner.initSign(jslKp.getPrivate()));
-        Assertions.assertTrue(e.getMessage().contains("different Jostle provider"),
+        // "instance", not the bare "different Jostle provider" — the shorter
+        // string is a prefix of the older library-based wording too, so it
+        // cannot discriminate the contract this test names.
+        Assertions.assertTrue(e.getMessage().contains("different Jostle provider instance"),
                 "expected the isolation message, got: " + e.getMessage());
     }
 }

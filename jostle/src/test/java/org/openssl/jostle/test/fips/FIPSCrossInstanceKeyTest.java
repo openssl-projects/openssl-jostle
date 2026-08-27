@@ -30,11 +30,12 @@ import java.util.List;
 /**
  * MT-14: where does an operation on a foreign key OBJECT actually execute?
  *
- * <p><b>This test is expected to FAIL until MT-14's instance binding lands.
- * That is deliberate — it is the pin that makes the fix falsifiable.</b> A
- * behavioural test cannot detect this defect: a signature verified in the base
- * provider is byte-identical to one verified in the module, which is why it
- * survived every agreement and round-trip test in the suite.
+ * <p>Written to FAIL before MT-14's instance binding landed — it was the pin
+ * that made the fix falsifiable — and it now passes because the crossing is
+ * REFUSED. A behavioural test cannot detect the original defect: a signature
+ * verified in the base provider is byte-identical to one verified in the
+ * module, which is why it survived every agreement and round-trip test in the
+ * suite.
  *
  * <p>What it measures, via the key-level accessor added for this item
  * ({@code SpecNI.getKeyProvider}): the OSSL_PROVIDER that owns a key's
@@ -43,14 +44,13 @@ import java.util.List;
  * operation on a key is served by THAT provider regardless of which lib ctx
  * drove it, so the key's provider is the operation's provider.
  *
- * <p>Today a foreign public key object is accepted as-is and keeps its
- * originating provider, so a JSLFIPS operation handed a JSL key executes in
- * "default". After instance binding there is no legal cross-instance object
- * route at all, and these assertions are satisfied because the crossing is
- * refused rather than because it is re-homed — the test then documents the
- * refusal instead. Either way the invariant asserted here is the one that
- * matters: <b>a key used through a provider must be served by that provider's
- * module.</b>
+ * <p>Before instance binding, a foreign public key object was accepted as-is
+ * and kept its originating provider, so a JSLFIPS operation handed a JSL key
+ * executed in "default". There is now no legal cross-instance object route at
+ * all, so these assertions are satisfied because the crossing is refused
+ * rather than because the key is re-homed. Either way the invariant asserted
+ * here is the one that matters: <b>a key used through a provider must be
+ * served by that provider's module.</b>
  */
 public class FIPSCrossInstanceKeyTest
 {
@@ -130,7 +130,17 @@ public class FIPSCrossInstanceKeyTest
 
     private static List<String> boundCache;
 
-    /** The shared families whose JSL-generated public key carries an instance. */
+    /**
+     * The shared families bound on BOTH providers.
+     *
+     * <p>Both, not just JSL: an earlier version probed the JSL side only, and
+     * a family left unbound on the FIPS side alone was invisible to it. That
+     * happened — {@code ProvFIPSXDH} kept calling the four-argument
+     * {@code XECKeyPairGenerator} through the flip — and it surfaced instead
+     * as a FIPS key refused by FIPS's own KeyAgreement, several files away
+     * from the cause. Requiring both sides puts the report where the defect
+     * is.
+     */
     private static List<String> boundFamilies() throws Exception
     {
         if (boundCache != null)
@@ -140,13 +150,50 @@ public class FIPSCrossInstanceKeyTest
         List<String> bound = new ArrayList<String>();
         for (String alg : sharedFamilies())
         {
-            if (((OSSLKey) keyPair(jsl, alg).getPublic()).getSpec().getProviderInstance() != null)
+            if (instanceOf(keyPair(jsl, alg).getPublic()) != null
+                    && instanceOf(keyPair(fips, alg).getPublic()) != null)
             {
                 bound.add(alg);
             }
         }
         boundCache = bound;
         return bound;
+    }
+
+    private static Provider instanceOf(java.security.Key key)
+    {
+        return ((OSSLKey) key).getSpec().getProviderInstance();
+    }
+
+    /**
+     * Every shared family binds its keys to the registered provider INSTANCE,
+     * on BOTH providers.
+     *
+     * <p>Separate from the sweep below, which self-arms and would simply skip
+     * if nothing were bound. This one cannot skip: it names the exact
+     * (family, provider) pairs that failed to bind, which is the report you
+     * want when a registration is missed.
+     */
+    @Test
+    public void everySharedFamilyBindsOnBothProviders() throws Exception
+    {
+        List<String> unbound = new ArrayList<String>();
+        for (String alg : sharedFamilies())
+        {
+            if (instanceOf(keyPair(jsl, alg).getPublic()) != jsl)
+            {
+                unbound.add(alg + " (JSL)");
+            }
+            if (instanceOf(keyPair(fips, alg).getPublic()) != fips)
+            {
+                unbound.add(alg + " (JSLFIPS)");
+            }
+        }
+        Assertions.assertTrue(unbound.isEmpty(),
+                "a registration does not pass its provider instance, so the keys it makes are "
+                        + "unbound (or bound to something else). Audit every "
+                        + "new <Producer>(...) in the Prov class for an argument naming the "
+                        + "provider. Affected: " + unbound);
     }
 
     private static void requireArmed() throws Exception

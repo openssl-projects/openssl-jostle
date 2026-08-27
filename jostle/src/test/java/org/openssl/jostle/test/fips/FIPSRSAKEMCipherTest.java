@@ -72,10 +72,11 @@ public class FIPSRSAKEMCipherTest
      * different native libraries against different lib ctxs, so this is not
      * implied by either one agreeing with BouncyCastle separately.
      *
-     * <p>Note which keys are used where: RSA PRIVATE keys do not cross the
-     * provider boundary, so each direction unwraps with the provider that
-     * generated the pair. Public keys cross freely, which is what lets JSLFIPS
-     * wrap to a JSL-generated public key at all.
+     * <p>Note which keys are used where. Since MT-14 NEITHER half of a keypair
+     * crosses as an OBJECT, so each direction unwraps with the provider that
+     * generated the pair, and the wrapping side re-decodes the peer's public
+     * half through its own KeyFactory first. That is not a workaround: it is
+     * what a CMS sender does anyway, since what it holds is an SPKI.
      */
     @Test
     public void interoperatesWithTheBaseProviderBothDirections() throws Exception
@@ -87,29 +88,40 @@ public class FIPSRSAKEMCipherTest
         kg.init(256, sr);
         SecretKey cek = kg.generateKey();
 
-        // JSLFIPS wraps to a JSL public key; JSL unwraps with its own private key.
+        // JSLFIPS wraps to a JSL public key; JSL unwraps with its own private
+        // key. Since MT-14 the public key OBJECT does not cross providers: the
+        // wrapping side re-decodes it through its OWN KeyFactory first, which
+        // is what a real CMS sender does anyway (it has an SPKI, not a key
+        // object) and is what puts the encapsulation in the module's library
+        // rather than mainline's.
         KeyPairGenerator jslKpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         jslKpg.initialize(2048);
         KeyPair jslKp = jslKpg.generateKeyPair();
 
-        byte[] a = wrap(JostleFIPSProvider.PROVIDER_NAME, jslKp, spec, cek);
+        byte[] a = wrap(JostleFIPSProvider.PROVIDER_NAME,
+                FIPSTestUtil.crossPublic(jslKp.getPublic(), "RSA", JostleFIPSProvider.PROVIDER_NAME),
+                spec, cek);
         Assertions.assertArrayEquals(cek.getEncoded(),
-                unwrap(JostleProvider.PROVIDER_NAME, jslKp, spec, a).getEncoded(),
+                unwrap(JostleProvider.PROVIDER_NAME, jslKp.getPrivate(), spec, a).getEncoded(),
                 "JSLFIPS wrap -> JSL unwrap");
 
         // ...and the reverse, against a JSLFIPS-generated pair.
         KeyPair fipsKp = keyPair();
-        byte[] b = wrap(JostleProvider.PROVIDER_NAME, fipsKp, spec, cek);
+        byte[] b = wrap(JostleProvider.PROVIDER_NAME,
+                FIPSTestUtil.crossPublic(fipsKp.getPublic(), "RSA", JostleProvider.PROVIDER_NAME),
+                spec, cek);
         Assertions.assertArrayEquals(cek.getEncoded(),
-                unwrap(JostleFIPSProvider.PROVIDER_NAME, fipsKp, spec, b).getEncoded(),
+                unwrap(JostleFIPSProvider.PROVIDER_NAME, fipsKp.getPrivate(), spec, b).getEncoded(),
                 "JSL wrap -> JSLFIPS unwrap");
     }
 
     /**
-     * Private-key isolation: a JSL private key must not be unwrapped through
-     * the JSLFIPS NI. Public keys deliberately cross (the test above relies on
-     * it), so only the private direction is refused - see java-spi.md
-     * "JSL &lt;-&gt; JSLFIPS key sharing".
+     * Key isolation on BOTH halves: neither a JSL private key nor a JSL public
+     * key may be used through the JSLFIPS cipher. The public half was accepted
+     * until MT-14 Phase 2, on the premise that public material carries no
+     * secret - true, but beside the point, because the operation was then
+     * served by the key's own provider and so ran outside the module. See
+     * testing.md "JSL &lt;-&gt; JSLFIPS key sharing".
      */
     @Test
     public void jslPrivateKeyRefusedForUnwrap() throws Exception
@@ -123,12 +135,24 @@ public class FIPSRSAKEMCipherTest
                 () -> u.init(Cipher.UNWRAP_MODE, jslKp.getPrivate(),
                         kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256)));
         Assertions.assertEquals(
-                "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory",
+                "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory",
                 e.getMessage());
 
-        // ...while its PUBLIC half wraps fine through JSLFIPS.
+        // ...and its PUBLIC half is refused too, with the matching message.
         Cipher w = Cipher.getInstance(XFORM, JostleFIPSProvider.PROVIDER_NAME);
-        Assertions.assertDoesNotThrow(() -> w.init(Cipher.WRAP_MODE, jslKp.getPublic(),
+        InvalidKeyException pub = Assertions.assertThrows(InvalidKeyException.class,
+                () -> w.init(Cipher.WRAP_MODE, jslKp.getPublic(),
+                        kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256)));
+        Assertions.assertEquals(
+                "public key was created by a different Jostle provider instance; encode it "
+                        + "with getEncoded() and decode it through this provider's KeyFactory",
+                pub.getMessage());
+
+        // The sanctioned crossing works: re-decode the public half through
+        // JSLFIPS's own KeyFactory and the wrap succeeds.
+        Cipher ok = Cipher.getInstance(XFORM, JostleFIPSProvider.PROVIDER_NAME);
+        Assertions.assertDoesNotThrow(() -> ok.init(Cipher.WRAP_MODE,
+                FIPSTestUtil.crossPublic(jslKp.getPublic(), "RSA", JostleFIPSProvider.PROVIDER_NAME),
                 kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256)));
     }
 

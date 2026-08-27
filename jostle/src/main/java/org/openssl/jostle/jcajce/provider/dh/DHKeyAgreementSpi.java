@@ -92,8 +92,9 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         if (key instanceof JODHPrivateKey)
         {
             JODHPrivateKey joKey = (JODHPrivateKey) key;
-            // Additive: library check live now, instance check inert until
-            // Phase 2 (learned on RSA — substituting drops the interim).
+            // Both halves. Instance-equal implies library-equal for anything a
+            // provider made, so the library check earns its place only in the
+            // unbound direct-SPI realm — where it is the only one with teeth.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
@@ -101,7 +102,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                 // that created them; JSL and JSLFIPS keys must not cross
                 // implicitly.
                 throw new InvalidKeyException(
-                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return joKey;
         }
@@ -121,11 +122,11 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
     {
         if (key instanceof JODHPublicKey)
         {
-            // MT-14: instance-checked. The old comment claimed OpenSSL
+            // MT-14: instance-checked. An older comment here claimed OpenSSL
             // imported the public components into this lib ctx; measurement
             // disproved it (xprovider_key_probe.c) — the key keeps its
-            // creating provider and the operation is served there. Inert
-            // until Phase 2.
+            // creating provider and the operation is served THERE, so
+            // accepting the object executed outside this provider.
             JODHPublicKey joPub = (JODHPublicKey) key;
             if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {

@@ -74,37 +74,41 @@ class ProvFIPSXDH
         provider.addAlgorithmImplementation("KeyPairGenerator", "X25519",
                 PREFIX + "XECKeyPairGenerator$X25519", attr,
                 (arg) -> new XECKeyPairGenerator(FIPSNISelector.XECServiceNI, FIPSNISelector.SpecNI,
-                        FIPSNISelector.Asn1NI, OSSLKeyType.X25519));
+                        FIPSNISelector.Asn1NI, OSSLKeyType.X25519, provider));
         provider.addAlias("KeyPairGenerator", "X25519", X25519_OID);
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "X448",
                 PREFIX + "XECKeyPairGenerator$X448", attr,
                 (arg) -> new XECKeyPairGenerator(FIPSNISelector.XECServiceNI, FIPSNISelector.SpecNI,
-                        FIPSNISelector.Asn1NI, OSSLKeyType.X448));
+                        FIPSNISelector.Asn1NI, OSSLKeyType.X448, provider));
         provider.addAlias("KeyPairGenerator", "X448", X448_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "X25519",
-                PREFIX + "XECKeyFactorySpi$X25519", attr, (arg) -> keyFactory());
+                PREFIX + "XECKeyFactorySpi$X25519", attr, (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "X25519", X25519_OID);
         provider.addAlgorithmImplementation("KeyFactory", "X448",
-                PREFIX + "XECKeyFactorySpi$X448", attr, (arg) -> keyFactory());
+                PREFIX + "XECKeyFactorySpi$X448", attr, (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "X448", X448_OID);
         provider.addAlgorithmImplementation("KeyFactory", "XDH",
-                PREFIX + "XECKeyFactorySpi$XDH", attr, (arg) -> keyFactory());
+                PREFIX + "XECKeyFactorySpi$XDH", attr, (arg) -> keyFactory(provider));
 
         provider.addAlgorithmImplementation("KeyAgreement", "X25519",
                 PREFIX + "XDHKeyAgreementSpi$X25519", attr,
-                (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory()));
+                (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider)));
         provider.addAlgorithmImplementation("KeyAgreement", "X448",
                 PREFIX + "XDHKeyAgreementSpi$X448", attr,
-                (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory()));
+                (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider)));
         provider.addAlgorithmImplementation("KeyAgreement", "XDH",
                 PREFIX + "XDHKeyAgreementSpi$XDH", attr,
-                (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory()));
+                (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider)));
     }
 
-    private static XECKeyFactorySpi keyFactory()
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static XECKeyFactorySpi keyFactory(JostleFIPSProvider provider)
     {
-        return new XECKeyFactorySpi(FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI);
+        return new XECKeyFactorySpi(FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider);
     }
 }

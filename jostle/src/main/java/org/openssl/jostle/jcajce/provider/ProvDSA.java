@@ -43,12 +43,13 @@ class ProvDSA
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "DSA",
                 PREFIX + "DSAKeyPairGenerator", attr,
-                (arg) -> new DSAKeyPairGenerator());
+                (arg) -> new DSAKeyPairGenerator(
+                        NISelector.DSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DSA",
                 PREFIX + "DSAKeyFactorySpi", attr,
-                (arg) -> new DSAKeyFactorySpi());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DSA", ID_DSA_OID);
 
         // AlgorithmParameters DSA — Dss-Parms SEQUENCE { p, q, g } codec
@@ -70,31 +71,31 @@ class ProvDSA
         // from NIST CSOR. The digest is fixed at SPI construction —
         // no AlgorithmParameter negotiation is needed.
         registerDsaSignature(provider, attr,
-                "SHA1withDSA", DSASignatureSpi.SHA1.class,
+                "SHA1withDSA", "SHA-1", DSASignatureSpi.SHA1.class,
                 ID_DSA_WITH_SHA1_OID);
         registerDsaSignature(provider, attr,
-                "SHA224withDSA", DSASignatureSpi.SHA224.class,
+                "SHA224withDSA", "SHA-224", DSASignatureSpi.SHA224.class,
                 NISTObjectIdentifiers.dsa_with_sha224.getId());
         registerDsaSignature(provider, attr,
-                "SHA256withDSA", DSASignatureSpi.SHA256.class,
+                "SHA256withDSA", "SHA-256", DSASignatureSpi.SHA256.class,
                 NISTObjectIdentifiers.dsa_with_sha256.getId());
         registerDsaSignature(provider, attr,
-                "SHA384withDSA", DSASignatureSpi.SHA384.class,
+                "SHA384withDSA", "SHA-384", DSASignatureSpi.SHA384.class,
                 NISTObjectIdentifiers.dsa_with_sha384.getId());
         registerDsaSignature(provider, attr,
-                "SHA512withDSA", DSASignatureSpi.SHA512.class,
+                "SHA512withDSA", "SHA-512", DSASignatureSpi.SHA512.class,
                 NISTObjectIdentifiers.dsa_with_sha512.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-224withDSA", DSASignatureSpi.SHA3_224.class,
+                "SHA3-224withDSA", "SHA3-224", DSASignatureSpi.SHA3_224.class,
                 NISTObjectIdentifiers.id_dsa_with_sha3_224.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-256withDSA", DSASignatureSpi.SHA3_256.class,
+                "SHA3-256withDSA", "SHA3-256", DSASignatureSpi.SHA3_256.class,
                 NISTObjectIdentifiers.id_dsa_with_sha3_256.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-384withDSA", DSASignatureSpi.SHA3_384.class,
+                "SHA3-384withDSA", "SHA3-384", DSASignatureSpi.SHA3_384.class,
                 NISTObjectIdentifiers.id_dsa_with_sha3_384.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-512withDSA", DSASignatureSpi.SHA3_512.class,
+                "SHA3-512withDSA", "SHA3-512", DSASignatureSpi.SHA3_512.class,
                 NISTObjectIdentifiers.id_dsa_with_sha3_512.getId());
 
         // Raw DSA ("NoneWithDSA"): the caller supplies an already-computed
@@ -103,30 +104,32 @@ class ProvDSA
         // JcaTlsDSASigner raw-signature path).
         provider.addAlgorithmImplementation("Signature", "NoneWithDSA",
                 PREFIX + "DSASignatureSpi$None", attr,
-                (arg) -> new DSASignatureSpi.None());
+                (arg) -> new DSASignatureSpi(NISelector.DSAServiceNI,
+                        keyFactory(provider), "NONE"));
     }
 
 
     private static void registerDsaSignature(JostleProvider provider,
                                              Map<String, String> attr,
                                              String name,
+                                             String digestName,
                                              Class<?> spiClass,
                                              String oid)
     {
         provider.addAlgorithmImplementation("Signature", name,
                 PREFIX + spiClass.getSimpleName(), attr,
-                (arg) ->
-                {
-                    try
-                    {
-                        return (java.security.SignatureSpi) spiClass.getDeclaredConstructor().newInstance();
-                    }
-                    catch (ReflectiveOperationException e)
-                    {
-                        throw new IllegalStateException(
-                                "unable to instantiate " + spiClass.getName(), e);
-                    }
-                });
+                (arg) -> new DSASignatureSpi(NISelector.DSAServiceNI,
+                        keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
+    }
+
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static DSAKeyFactorySpi keyFactory(JostleProvider provider)
+    {
+        return new DSAKeyFactorySpi(
+                NISelector.DSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider);
     }
 }

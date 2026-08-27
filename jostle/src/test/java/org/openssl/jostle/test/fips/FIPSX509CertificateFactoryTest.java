@@ -666,9 +666,24 @@ public class FIPSX509CertificateFactoryTest
         X509Certificate cert = parseFips(der);
         assertBoundKeyVerifies(cert, "SHA256withECDSA");
 
-        // Mechanism 2: the original JSL public key OBJECT is accepted by the
-        // pinned verify (public keys are shared across the providers).
-        cert.verify(jslKp.getPublic());
+        // Mechanism 2: the original JSL public key OBJECT is REFUSED by the
+        // pinned verify. The certificate was parsed by JSLFIPS, so its verify
+        // is pinned to JSLFIPS, and since MT-14 a key belonging to another
+        // provider instance cannot be used there. Before MT-14 this call
+        // succeeded — and did the verification in mainline, because the
+        // operation follows the KEY's provider, not the Signature's.
+        java.security.InvalidKeyException refused = Assertions.assertThrows(
+                java.security.InvalidKeyException.class,
+                () -> cert.verify(jslKp.getPublic()));
+        Assertions.assertEquals(
+                "public key was created by a different Jostle provider instance; encode it "
+                        + "with getEncoded() and decode it through this provider's KeyFactory",
+                refused.getMessage());
+
+        // ...and the sanctioned crossing works: re-decode through JSLFIPS's
+        // own KeyFactory. Which is exactly what mechanism 1 already did from
+        // the certificate's own encoding — hence the two agree.
+        cert.verify(FIPSTestUtil.crossPublic(jslKp.getPublic(), "EC", FIPS));
     }
 
     // -----------------------------------------------------------------

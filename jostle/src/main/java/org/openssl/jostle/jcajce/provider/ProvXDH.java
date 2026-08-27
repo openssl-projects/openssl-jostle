@@ -45,31 +45,45 @@ class ProvXDH
         // fixes the key type (no NamedParameterSpec needed).
         provider.addAlgorithmImplementation("KeyPairGenerator", "X25519",
                 PREFIX + "XECKeyPairGenerator$X25519", attr,
-                (arg) -> new XECKeyPairGenerator(OSSLKeyType.X25519));
+                (arg) -> new XECKeyPairGenerator(NISelector.XECServiceNI,
+                        NISelector.SpecNI, NISelector.Asn1NI, OSSLKeyType.X25519, provider));
         provider.addAlias("KeyPairGenerator", "X25519", X25519_OID);
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "X448",
                 PREFIX + "XECKeyPairGenerator$X448", attr,
-                (arg) -> new XECKeyPairGenerator(OSSLKeyType.X448));
+                (arg) -> new XECKeyPairGenerator(NISelector.XECServiceNI,
+                        NISelector.SpecNI, NISelector.Asn1NI, OSSLKeyType.X448, provider));
         provider.addAlias("KeyPairGenerator", "X448", X448_OID);
 
         // KeyFactory — one SPI handles both variants (the decoded key carries
         // its type). Registered per name, under the "XDH" family, and by OID.
         provider.addAlgorithmImplementation("KeyFactory", "X25519",
-                PREFIX + "XECKeyFactorySpi$X25519", attr, (arg) -> new XECKeyFactorySpi());
+                PREFIX + "XECKeyFactorySpi$X25519", attr, (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "X25519", X25519_OID);
         provider.addAlgorithmImplementation("KeyFactory", "X448",
-                PREFIX + "XECKeyFactorySpi$X448", attr, (arg) -> new XECKeyFactorySpi());
+                PREFIX + "XECKeyFactorySpi$X448", attr, (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "X448", X448_OID);
         provider.addAlgorithmImplementation("KeyFactory", "XDH",
-                PREFIX + "XECKeyFactorySpi$XDH", attr, (arg) -> new XECKeyFactorySpi());
+                PREFIX + "XECKeyFactorySpi$XDH", attr, (arg) -> keyFactory(provider));
 
         // KeyAgreement — one SPI handles both variants (the key carries its type).
         provider.addAlgorithmImplementation("KeyAgreement", "X25519",
-                PREFIX + "XDHKeyAgreementSpi$X25519", attr, (arg) -> new XDHKeyAgreementSpi());
+                PREFIX + "XDHKeyAgreementSpi$X25519", attr,
+                (arg) -> new XDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider)));
         provider.addAlgorithmImplementation("KeyAgreement", "X448",
-                PREFIX + "XDHKeyAgreementSpi$X448", attr, (arg) -> new XDHKeyAgreementSpi());
+                PREFIX + "XDHKeyAgreementSpi$X448", attr,
+                (arg) -> new XDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider)));
         provider.addAlgorithmImplementation("KeyAgreement", "XDH",
-                PREFIX + "XDHKeyAgreementSpi$XDH", attr, (arg) -> new XDHKeyAgreementSpi());
+                PREFIX + "XDHKeyAgreementSpi$XDH", attr,
+                (arg) -> new XDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider)));
+    }
+
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static XECKeyFactorySpi keyFactory(JostleProvider provider)
+    {
+        return new XECKeyFactorySpi(NISelector.SpecNI, NISelector.Asn1NI, provider);
     }
 }

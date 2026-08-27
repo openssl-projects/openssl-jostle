@@ -23,13 +23,20 @@ import java.security.Provider;
 import java.security.Security;
 
 /**
- * MT-14's binding mechanism, under test BEFORE it is activated.
+ * MT-14's binding mechanism: the four cells of {@code PKEYKeySpec.usableBy},
+ * pinned directly rather than through the surfaces that delegate to it.
  *
- * <p>{@code FIPSCrossInstanceKeyTest} self-arms and therefore skips through
- * Phase 1, which would otherwise leave {@code PKEYKeySpec.usableBy} — the
- * decision every acceptance point delegates to — with no coverage at all until
- * the flip. This file is green in both phases and pins the four cells
- * directly, so the mechanism is verified before anything depends on it.
+ * <p>Written during Phase 1 so the decision every acceptance point relies on
+ * had coverage before anything depended on it, and kept afterwards because it
+ * is the only place the cells are stated as a contract. It is green in both
+ * phases; what changed at the flip is only how each side is BUILT.
+ *
+ * <p><b>Where an unbound spec comes from after the flip.</b> Every registered
+ * service now binds, so {@code KeyPairGenerator.getInstance(alg, "JSL")} no
+ * longer yields one — {@link #unboundSpec()} constructs the SPI directly
+ * instead, which is exactly the realm the unbound cells exist to protect. A
+ * key from a registered provider is the BOUND side, and this file builds both
+ * deliberately rather than letting either fall out of a default.
  *
  * <p>The four cells are a DEFINED contract, not a consequence of a null
  * comparison. In particular {@code unbound x unbound} accepts on purpose:
@@ -51,7 +58,31 @@ public class KeySpecBindingTest
         jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
     }
 
-    private static PKEYKeySpec freshSpec() throws Exception
+    /**
+     * A spec from a KeyPairGenerator constructed OUTSIDE any provider, so it
+     * carries no provider instance.
+     *
+     * <p>Deliberately not {@code KeyPairGenerator.getInstance(alg, "JSL")}:
+     * since Phase 2 every registered service binds its keys, so that route
+     * yields a BOUND spec and the three cells below would silently test the
+     * wrong thing. Direct SPI construction is the supported way to work
+     * outside a provider, and is the realm the unbound cells protect.
+     */
+    private static PKEYKeySpec unboundSpec() throws Exception
+    {
+        KeyPair kp = new org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator(
+                "ML-KEM-768").generateKeyPair();
+        return ((OSSLKey) kp.getPublic()).getSpec();
+    }
+
+    /**
+     * A spec from the REGISTERED provider, which since Phase 2 binds every key
+     * it produces. Distinct from {@link #boundSpec(Provider)} below, which
+     * builds one by hand: this proves the registration path really does bind,
+     * so the bound half of each cell is not an artefact of the test's own
+     * construction.
+     */
+    private static PKEYKeySpec registeredSpec() throws Exception
     {
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768",
                 JostleProvider.PROVIDER_NAME).generateKeyPair();
@@ -66,13 +97,32 @@ public class KeySpecBindingTest
     @Test
     public void unboundSpecIsUsableByAnUnboundCaller() throws Exception
     {
-        PKEYKeySpec spec = freshSpec();
+        PKEYKeySpec spec = unboundSpec();
         Assertions.assertNull(spec.getProviderInstance(),
-                "Phase 1: registrations do not bind yet, so this spec must be unbound. "
-                        + "If this fails, Phase 2 has landed and this test needs revisiting.");
+                "a KeyPairGenerator constructed outside any provider must produce unbound "
+                        + "keys — if this fails, direct-SPI use has acquired an identity from "
+                        + "somewhere and the unbound realm no longer exists");
         Assertions.assertTrue(spec.usableBy(null),
                 "an unbound spec must be usable by an unbound caller — otherwise every "
                         + "direct-SPI consumer breaks");
+    }
+
+    /**
+     * The flip itself: a key from a REGISTERED service carries that service's
+     * provider instance. Nothing else in this file would notice if
+     * registrations stopped binding — every other cell builds its bound spec
+     * by hand — so this is the assertion that ties the mechanism to the
+     * behaviour.
+     */
+    @Test
+    public void aRegisteredProvidersKeysAreBoundToIt() throws Exception
+    {
+        PKEYKeySpec spec = registeredSpec();
+        Assertions.assertSame(jsl, spec.getProviderInstance(),
+                "a key generated through the registered provider must be bound to that "
+                        + "provider INSTANCE");
+        Assertions.assertTrue(spec.usableBy(jsl));
+        Assertions.assertFalse(spec.usableBy(null));
     }
 
     /**
@@ -83,7 +133,7 @@ public class KeySpecBindingTest
     @Test
     public void bindingMismatchRefusesInBothDirections() throws Exception
     {
-        PKEYKeySpec unbound = freshSpec();
+        PKEYKeySpec unbound = unboundSpec();
         Assertions.assertFalse(unbound.usableBy(jsl),
                 "an unbound spec must NOT be adopted by a provider instance");
 

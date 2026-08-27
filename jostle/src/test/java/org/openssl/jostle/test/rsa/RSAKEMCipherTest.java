@@ -579,16 +579,34 @@ public class RSAKEMCipherTest
     protected byte[] wrap(String provider, KeyPair kp, KTSParameterSpec spec, SecretKey cek)
         throws Exception
     {
+        return wrap(provider, kp.getPublic(), spec, cek);
+    }
+
+    /**
+     * Key-level overload. Needed by the FIPS subclass, where the two providers
+     * do not share key objects and the public half has to be re-decoded before
+     * use — so the wrapping key is not the one in the caller's KeyPair.
+     */
+    protected byte[] wrap(String provider, java.security.PublicKey pub, KTSParameterSpec spec, SecretKey cek)
+        throws Exception
+    {
         Cipher c = Cipher.getInstance(XFORM, provider);
-        c.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        c.init(Cipher.WRAP_MODE, pub, spec);
         return c.wrap(cek);
     }
 
     protected Key unwrap(String provider, KeyPair kp, KTSParameterSpec spec, byte[] wrapped)
         throws Exception
     {
+        return unwrap(provider, kp.getPrivate(), spec, wrapped);
+    }
+
+    /** Key-level overload; see {@link #wrap(String, java.security.PublicKey, KTSParameterSpec, SecretKey)}. */
+    protected Key unwrap(String provider, java.security.PrivateKey priv, KTSParameterSpec spec, byte[] wrapped)
+        throws Exception
+    {
         Cipher c = Cipher.getInstance(XFORM, provider);
-        c.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        c.init(Cipher.UNWRAP_MODE, priv, spec);
         return c.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
     }
 }

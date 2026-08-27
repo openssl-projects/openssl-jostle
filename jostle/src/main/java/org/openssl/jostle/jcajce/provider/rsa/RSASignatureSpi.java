@@ -157,6 +157,17 @@ public class RSASignatureSpi extends RSASignatureSpiBase
             super("NONE");
         }
 
+        //
+        // NI-binding constructor, as on the parent. Needed because this
+        // subclass is not merely a digest name: it overrides the native init
+        // to use PADDING_PKCS1_NONE, so a provider registration cannot
+        // substitute the parent with digest "NONE" and get the same engine.
+        //
+        public None(RSAServiceNI rsaServiceNI, RSAKeyFactorySpi keyFactory)
+        {
+            super(rsaServiceNI, keyFactory, "NONE");
+        }
+
         @Override
         protected void nativeInitSign(long ref, long keyRef, RandSource rnd)
         {

@@ -64,15 +64,18 @@ class ProvMLXKEM
 
             provider.addAlgorithmImplementation("KeyPairGenerator", name,
                     PREFIX + "MLXKEMKeyPairGenerator$" + name, attr,
-                    (arg) -> new MLXKEMKeyPairGenerator(spec));
+                    (arg) -> new MLXKEMKeyPairGenerator(
+                            NISelector.MLXKEMServiceNI, NISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyGenerator", name,
                     PREFIX + "MLXKEMKeyGenerator$" + name, attr,
-                    (arg) -> new MLXKEMKeyGenerator(spec));
+                    (arg) -> new MLXKEMKeyGenerator(
+                            NISelector.MLXKEMServiceNI, NISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyFactory", name,
                     PREFIX + "MLXKEMKeyFactorySpi$" + name, attr,
-                    (arg) -> new MLXKEMKeyFactorySpi(spec));
+                    (arg) -> new MLXKEMKeyFactorySpi(
+                            NISelector.MLXKEMServiceNI, NISelector.SpecNI, spec, provider));
         }
     }
 }

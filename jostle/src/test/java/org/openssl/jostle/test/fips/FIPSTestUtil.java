@@ -488,4 +488,40 @@ final class FIPSTestUtil
     {
         return fipsModuleFile().getParent();
     }
+
+    /**
+     * The sanctioned crossing for a PUBLIC key: encode it and decode it
+     * through {@code targetProvider}'s KeyFactory.
+     *
+     * <p>Until MT-14 Phase 2 a public key OBJECT crossed directly and this
+     * helper did not exist. The object route is now refused, and it was never
+     * what it appeared to be: measurement
+     * ({@code fips-c-review/probes/xprovider_key_probe.c}) showed the
+     * operation was served by the key's OWN provider, so a JSLFIPS call handed
+     * a JSL public key executed in mainline while reporting success.
+     * Re-decoding is what actually moves the key into the receiving library.
+     *
+     * <p>Applies to every family whose keys have an X.509 encoding. The TLS
+     * hybrid KEMs have none, so they have no crossing at all — see
+     * {@code FIPSMLXKEMAgreementTest}, which carries the raw-share route
+     * instead.
+     */
+    static java.security.PublicKey crossPublic(java.security.PublicKey key, String kfAlg,
+                                               String targetProvider)
+        throws Exception
+    {
+        return KeyFactory.getInstance(kfAlg, targetProvider)
+                .generatePublic(new X509EncodedKeySpec(key.getEncoded()));
+    }
+
+    /**
+     * The sanctioned crossing for a PRIVATE key — the same shape, and the one
+     * the isolation message has always named.
+     */
+    static PrivateKey crossPrivate(PrivateKey key, String kfAlg, String targetProvider)
+        throws Exception
+    {
+        return KeyFactory.getInstance(kfAlg, targetProvider)
+                .generatePrivate(new PKCS8EncodedKeySpec(key.getEncoded()));
+    }
 }

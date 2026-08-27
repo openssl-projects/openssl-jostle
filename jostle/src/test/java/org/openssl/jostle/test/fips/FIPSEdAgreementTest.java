@@ -55,13 +55,12 @@ import java.security.spec.X509EncodedKeySpec;
  * strictly stronger property — an implementation that produced a valid but
  * different signature would pass a cross-verify and fail here.
  *
- * <p><b>Key isolation.</b> JSLFIPS and JSL private keys are bound to the
- * interface library that created them; an operational SPI rejects a private key
- * minted by the other Jostle provider ({@code FIPSKeyIsolationTest} owns that
- * contract). Public keys cross freely. To run the SAME key material through all
- * three providers, this test generates one keypair in the module, encodes both
- * halves (X.509 / PKCS#8), and decodes them through each provider's own
- * KeyFactory — the sanctioned crossing.
+ * <p><b>Key isolation.</b> A Jostle key belongs to the provider INSTANCE that
+ * created it, and since MT-14 neither half crosses as an object
+ * ({@code FIPSKeyIsolationTest} owns that contract). To run the SAME key
+ * material through all three providers, this test generates one keypair in the
+ * module, encodes both halves (X.509 / PKCS#8), and decodes them through each
+ * provider's own KeyFactory — the sanctioned crossing, and the only one.
  *
  * <p><b>The prehash variants have no BC JCE name</b> ({@code Signature.Ed25519ph}
  * is absent; only {@code Ed25519} / {@code Ed448} / {@code EdDSA} are

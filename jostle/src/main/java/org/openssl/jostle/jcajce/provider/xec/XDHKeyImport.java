@@ -41,7 +41,7 @@ public final class XDHKeyImport
         {
             // MT-14: instance-checked. A foreign public key keeps its creating
             // provider (xprovider_key_probe.c), so accepting one meant
-            // executing in the other module. Inert until Phase 2.
+            // executing in the other module.
             JOXECPublicKey joPub = (JOXECPublicKey) key;
             if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
@@ -81,8 +81,9 @@ public final class XDHKeyImport
         if (key instanceof JOXECPrivateKey)
         {
             JOXECPrivateKey joKey = (JOXECPrivateKey) key;
-            // Additive: library check live now, instance check inert until
-            // Phase 2. Replacing would drop protection for the interim.
+            // Both halves. Instance-equal implies library-equal for anything a
+            // provider made, so the library check earns its place only in the
+            // unbound direct-SPI realm — where it is the only one with teeth.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
@@ -90,7 +91,7 @@ public final class XDHKeyImport
                 // that created them; JSL and JSLFIPS keys must not cross
                 // implicitly.
                 throw new InvalidKeyException(
-                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return joKey;
         }

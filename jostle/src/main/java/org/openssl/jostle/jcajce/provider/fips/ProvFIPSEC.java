@@ -41,12 +41,13 @@ class ProvFIPSEC
         provider.addAlgorithmImplementation("KeyPairGenerator", "EC",
                 PREFIX + "ECKeyPairGenerator", attr,
                 (arg) -> new ECKeyPairGenerator(
-                        FIPSNISelector.ECServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
+                        FIPSNISelector.ECServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
+                        provider));
         provider.addAlias("KeyPairGenerator", "EC", "1.2.840.10045.2.1");
 
         provider.addAlgorithmImplementation("KeyFactory", "EC",
                 PREFIX + "ECKeyFactorySpi", attr,
-                (arg) -> keyFactory());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "EC", "1.2.840.10045.2.1");
 
         provider.addAlgorithmImplementation("AlgorithmParameters", "EC",
@@ -75,11 +76,11 @@ class ProvFIPSEC
         // as non-approved (Table 8, §4.4 Table 13). The module performs both.
         provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
                 PREFIX + "ECDSASignatureSpi$None", attr,
-                (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(), "NONE"));
+                (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(provider), "NONE"));
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDH",
                 PREFIX + "ECDHKeyAgreementSpi", attr,
-                (arg) -> new ECDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory()));
+                (arg) -> new ECDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider)));
         // id-ecDH (SECG SEC1) — so CMS/PKIX KeyAgreeRecipientInfo can resolve
         // the EC agreement by OID, mirroring the non-FIPS ProvEC surface.
         provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
@@ -95,10 +96,14 @@ class ProvFIPSEC
         registerKdfAgreement(provider, attr, "ECDHWITHSHA512KDF", "SHA-512", "1.3.132.1.11.3");
     }
 
-    private static ECKeyFactorySpi keyFactory()
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static ECKeyFactorySpi keyFactory(JostleFIPSProvider provider)
     {
         return new ECKeyFactorySpi(
-                FIPSNISelector.ECServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI);
+                FIPSNISelector.ECServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider);
     }
 
     private static void registerEcdsaSignature(JostleFIPSProvider provider,
@@ -109,7 +114,7 @@ class ProvFIPSEC
     {
         provider.addAlgorithmImplementation("Signature", name,
                 PREFIX + "ECDSASignatureSpi$" + name.replace("-", "_"), attr,
-                (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(), digestName));
+                (arg) -> new ECDSASignatureSpi(FIPSNISelector.ECServiceNI, keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
     }
 
@@ -121,7 +126,8 @@ class ProvFIPSEC
     {
         provider.addAlgorithmImplementation("KeyAgreement", name,
                 PREFIX + "ECWithKDFKeyAgreementSpi$" + name.replace("-", "_"), attr,
-                (arg) -> new ECWithKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(), digestName, JostleFIPSProvider.PROVIDER_NAME));
+                (arg) -> new ECWithKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider), digestName,
+                        JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", name, oid);
     }
 }

@@ -282,12 +282,13 @@ public class FIPSMLXKEMAgreementTest
     /**
      * Provider isolation, in the shape that actually holds for this family.
      *
-     * <p>Public keys cross freely — the test above depends on it — but a
-     * PRIVATE key from the other provider is bound to the other interface
-     * library's {@code OSSL_LIB_CTX} and must be refused. The refusal message
-     * differs from every other family's on purpose: the usual remedy
-     * ("encode it with getEncoded()") does not exist here, because these keys
-     * have no encoding, so the message names the only remedy that does.
+     * <p>Since MT-14 neither half crosses as an OBJECT; the test above does
+     * not depend on it, because it already interoperates over the raw share
+     * (re-imported through the encapsulator's own KeyFactory), which is the
+     * only crossing this family has. The refusal message differs from every
+     * other family's on purpose: the usual remedy ("encode it with
+     * getEncoded()") does not exist here, because these keys have no
+     * encoding, so the message names the only remedy that does.
      */
     @Test
     public void privateKeysAreIsolatedBothDirections() throws Exception
@@ -316,7 +317,7 @@ public class FIPSMLXKEMAgreementTest
                         .build()),
                 spec.getName() + ": " + user + " must refuse a " + owner + " private key");
         Assertions.assertEquals(
-                "private key was created by a different Jostle provider; hybrid KEM keys have no encoding, "
+                "private key was created by a different Jostle provider instance; hybrid KEM keys have no encoding, "
                         + "so generate the keypair through this provider instead",
                 e.getMessage(), spec.getName());
     }

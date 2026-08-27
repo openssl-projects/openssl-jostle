@@ -124,11 +124,10 @@ public final class RSAKeyImport
         if (key instanceof JORSAPrivateKey)
         {
             JORSAPrivateKey joKey = (JORSAPrivateKey) key;
-            // BOTH checks, deliberately. The library-level one is today's
-            // live isolation; the instance one is MT-14's, and is inert until
-            // registration starts binding providers. Replacing rather than
-            // adding would silently drop protection for the whole interim —
-            // which it did, and FIPSKeyIsolationTest caught it.
+            // BOTH checks, deliberately. Instance-equal implies library-equal
+            // for anything a provider made, so the library one earns its place
+            // only in the unbound direct-SPI realm — where two hand-wired SPIs
+            // both report null and it is the sole check with teeth.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
@@ -136,7 +135,7 @@ public final class RSAKeyImport
                 // that created them; JSL and JSLFIPS keys must not cross
                 // implicitly.
                 throw new InvalidKeyException(
-                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return joKey;
         }

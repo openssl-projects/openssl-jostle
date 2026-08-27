@@ -140,12 +140,13 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         // other family there is no encode-and-re-decode escape hatch here,
         // because hybrid keys have no encoding at all; the only remedy is to
         // generate the keypair through the provider that will use it.
-        // Additive: library check (WI-10) live now, instance check inert
-        // until Phase 2.
+        // Both halves. The library check (WI-10) is the only one with teeth in
+        // the unbound direct-SPI realm; instance-equal implies library-equal
+        // for anything a provider made.
         if (spec.getSpecNI() != specNI || !spec.usableBy(providerInstance))
         {
             throw new InvalidAlgorithmParameterException(
-                    "private key was created by a different Jostle provider; hybrid KEM keys have no encoding, "
+                    "private key was created by a different Jostle provider instance; hybrid KEM keys have no encoding, "
                             + "so generate the keypair through this provider instead");
         }
 
@@ -170,29 +171,25 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
             throw new InvalidAlgorithmParameterException("Only MLXKEMPublicKey is supported");
         }
 
-        // Public keys deliberately cross between JSL and JSLFIPS - the public
-        // material carries no secret. See java-spi.md "JSL <-> JSLFIPS key
-        // sharing".
+        // Provider isolation, public side. Be precise about WHERE the work
+        // happens, because it is not where the provider name suggests:
+        // encapsulate() drives spec.getSpecNI(), the library that CREATED the
+        // key, not this SPI's specNI. So a JSLFIPS KeyGenerator handed a JSL
+        // public key OBJECT encapsulated through the base library - correct
+        // bytes, wrong module, invisible to every functional test.
         //
-        // But be precise about WHERE the work then happens, because it is not
-        // where the provider name suggests: encapsulate() drives
-        // spec.getSpecNI(), the library that CREATED the key, not this SPI's
-        // specNI. So a JSLFIPS KeyGenerator handed a JSL public key OBJECT
-        // encapsulates through the base library. The sanctioned crossing -
-        // export the raw share and re-import it through this provider's
-        // KeyFactory, which is what a real TLS peer does and what the tests
-        // use - does run in the receiving lib ctx.
+        // MT-14 closes that route: this check refuses a public key belonging
+        // to a different provider INSTANCE. Instance-only, no library half -
+        // the instance check subsumes it for anything a provider made, and
+        // there is no reason to refuse a public key between two unbound,
+        // hand-wired SPIs.
         //
-        // MT-14 closes the object route: the check below refuses a public key
-        // belonging to a different provider INSTANCE, which is what the
-        // paragraph above describes as the leak. Instance-only, no library
-        // half - public keys legitimately cross libraries, and the public side
-        // had no pre-existing check, so a live library one would be a new
-        // Phase-1 restriction. Inert until Phase 2 binds.
-        //
-        // The message is the hybrid-specific one: with no encoding for these
-        // keys, "encode it and decode it through this provider's KeyFactory"
-        // would be advice a caller cannot follow.
+        // The sanctioned crossing for this family is NOT re-encoding: hybrid
+        // keys have no encoding. It is exporting the raw share and re-importing
+        // it through this provider's KeyFactory - what a real TLS peer does,
+        // and what FIPSMLXKEMAgreementTest uses. Hence the hybrid-specific
+        // message below: "encode it with getEncoded()" would be advice a
+        // caller cannot follow.
         PKEYKeySpec pubSpec = ((OSSLKey) key).getSpec();
         if (!pubSpec.usableBy(providerInstance))
         {

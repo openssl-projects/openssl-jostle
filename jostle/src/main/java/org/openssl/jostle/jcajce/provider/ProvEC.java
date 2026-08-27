@@ -42,12 +42,13 @@ class ProvEC
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "EC",
                 PREFIX + "ECKeyPairGenerator", attr,
-                (arg) -> new ECKeyPairGenerator());
+                (arg) -> new ECKeyPairGenerator(
+                        NISelector.ECServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "EC", EC_PUBLIC_KEY_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "EC",
                 PREFIX + "ECKeyFactorySpi", attr,
-                (arg) -> new ECKeyFactorySpi());
+                (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "EC", EC_PUBLIC_KEY_OID);
 
         // AlgorithmParameters EC — delegates curve-parameter resolution to
@@ -64,31 +65,31 @@ class ProvEC
         // is fixed at SPI construction time — no AlgorithmParameter
         // negotiation is needed.
         registerEcdsaSignature(provider, attr,
-                "SHA1withECDSA", ECDSASignatureSpi.SHA1.class,
+                "SHA1withECDSA", "SHA-1", ECDSASignatureSpi.SHA1.class,
                 "1.2.840.10045.4.1");
         registerEcdsaSignature(provider, attr,
-                "SHA224withECDSA", ECDSASignatureSpi.SHA224.class,
+                "SHA224withECDSA", "SHA-224", ECDSASignatureSpi.SHA224.class,
                 "1.2.840.10045.4.3.1");
         registerEcdsaSignature(provider, attr,
-                "SHA256withECDSA", ECDSASignatureSpi.SHA256.class,
+                "SHA256withECDSA", "SHA-256", ECDSASignatureSpi.SHA256.class,
                 "1.2.840.10045.4.3.2");
         registerEcdsaSignature(provider, attr,
-                "SHA384withECDSA", ECDSASignatureSpi.SHA384.class,
+                "SHA384withECDSA", "SHA-384", ECDSASignatureSpi.SHA384.class,
                 "1.2.840.10045.4.3.3");
         registerEcdsaSignature(provider, attr,
-                "SHA512withECDSA", ECDSASignatureSpi.SHA512.class,
+                "SHA512withECDSA", "SHA-512", ECDSASignatureSpi.SHA512.class,
                 "1.2.840.10045.4.3.4");
         registerEcdsaSignature(provider, attr,
-                "SHA3-224withECDSA", ECDSASignatureSpi.SHA3_224.class,
+                "SHA3-224withECDSA", "SHA3-224", ECDSASignatureSpi.SHA3_224.class,
                 NISTObjectIdentifiers.id_ecdsa_with_sha3_224.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA3-256withECDSA", ECDSASignatureSpi.SHA3_256.class,
+                "SHA3-256withECDSA", "SHA3-256", ECDSASignatureSpi.SHA3_256.class,
                 NISTObjectIdentifiers.id_ecdsa_with_sha3_256.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA3-384withECDSA", ECDSASignatureSpi.SHA3_384.class,
+                "SHA3-384withECDSA", "SHA3-384", ECDSASignatureSpi.SHA3_384.class,
                 NISTObjectIdentifiers.id_ecdsa_with_sha3_384.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA3-512withECDSA", ECDSASignatureSpi.SHA3_512.class,
+                "SHA3-512withECDSA", "SHA3-512", ECDSASignatureSpi.SHA3_512.class,
                 NISTObjectIdentifiers.id_ecdsa_with_sha3_512.getId());
 
         // Raw ECDSA ("NoneWithECDSA"): the caller supplies an already-computed
@@ -97,7 +98,8 @@ class ProvEC
         // JcaTlsECDSA13Signer.generateRawSignature).
         provider.addAlgorithmImplementation("Signature", "NoneWithECDSA",
                 PREFIX + "ECDSASignatureSpi$None", attr,
-                (arg) -> new ECDSASignatureSpi.None());
+                (arg) -> new ECDSASignatureSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), "NONE"));
 
         // ECDH KeyAgreement. The OID 1.3.132.1.12 is id-ecDH from SECG
         // (RFC 5480 §2.1.2 / SEC 1 §C.4); RFC 5480 also permits the
@@ -105,7 +107,7 @@ class ProvEC
         // so we alias both for caller convenience.
         provider.addAlgorithmImplementation("KeyAgreement", "ECDH",
                 PREFIX + "ECDHKeyAgreementSpi", attr,
-                (arg) -> new ECDHKeyAgreementSpi());
+                (arg) -> new ECDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider)));
         provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
 
         // CMS EC key agreement with the X9.63 KDF (dhSinglePass-stdDH-sha*kdf-
@@ -118,23 +120,33 @@ class ProvEC
         // suffix (instantiation is via the lambda, not reflection on the name).
         final String ecKdfSpi = PREFIX + "ECWithKDFKeyAgreementSpi";
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA1KDF",
-                ecKdfSpi + "$SHA1", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-1"));
+                ecKdfSpi + "$SHA1", attr,
+                (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), "SHA-1", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA1KDF", "1.3.133.16.840.63.0.2");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA224KDF",
-                ecKdfSpi + "$SHA224", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-224"));
+                ecKdfSpi + "$SHA224", attr,
+                (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), "SHA-224", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA224KDF", "1.3.132.1.11.0");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA256KDF",
-                ecKdfSpi + "$SHA256", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-256"));
+                ecKdfSpi + "$SHA256", attr,
+                (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), "SHA-256", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA256KDF", "1.3.132.1.11.1");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA384KDF",
-                ecKdfSpi + "$SHA384", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-384"));
+                ecKdfSpi + "$SHA384", attr,
+                (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), "SHA-384", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA384KDF", "1.3.132.1.11.2");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA512KDF",
-                ecKdfSpi + "$SHA512", attr, (arg) -> new ECWithKDFKeyAgreementSpi("SHA-512"));
+                ecKdfSpi + "$SHA512", attr,
+                (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), "SHA-512", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", "1.3.132.1.11.3");
     }
 
@@ -142,23 +154,24 @@ class ProvEC
     private static void registerEcdsaSignature(JostleProvider provider,
                                                Map<String, String> attr,
                                                String name,
+                                               String digestName,
                                                Class<?> spiClass,
                                                String oid)
     {
         provider.addAlgorithmImplementation("Signature", name,
                 spiClass.getName(), attr,
-                (arg) ->
-                {
-                    try
-                    {
-                        return (java.security.SignatureSpi) spiClass.getDeclaredConstructor().newInstance();
-                    }
-                    catch (ReflectiveOperationException e)
-                    {
-                        throw new IllegalStateException(
-                                "unable to instantiate " + spiClass.getName(), e);
-                    }
-                });
+                (arg) -> new ECDSASignatureSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
+    }
+
+    /**
+     * A KeyFactory bound to {@code provider}. Every key it produces, and every
+     * key it accepts, belongs to that provider INSTANCE (MT-14).
+     */
+    private static ECKeyFactorySpi keyFactory(JostleProvider provider)
+    {
+        return new ECKeyFactorySpi(
+                NISelector.ECServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider);
     }
 }

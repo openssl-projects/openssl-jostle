@@ -288,19 +288,11 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
                     ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
-            //
-            // translateKey had NO pre-existing check (that was the twelfth
-            // acceptance shape). Adding the library half would therefore not
-            // be "additive": it would be a NEW Phase-1 restriction, refusing
-            // cross-library public keys at this one surface while initVerify,
-            // encrypt and the import helpers still accept them until Phase 2.
-            // Phase 1's contract is "checks in place, behaviour unchanged", and
-            // a window where translateKey refuses what initVerify accepts is a
-            // bug report waiting to happen for no benefit — the object route
-            // leaks everywhere else regardless until the flip.
-            //
-            // Inert now (all specs unbound => usableBy true), live the moment
-            // Phase 2 binds, at which point it subsumes a library check anyway.
+            // translateKey never had one, and for anything a provider made the
+            // instance check subsumes it: same instance implies same library.
+            // The only case it would add is two hand-wired, unbound SPIs on
+            // different libraries, and translateKey's answer there is to
+            // re-decode rather than refuse.
             if (!s.usableBy(providerInstance))
             {
                 throw new java.security.InvalidKeyException(
@@ -339,11 +331,11 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         if (key instanceof JOEdPublicKey)
         {
-            // MT-14: instance-checked. The old comment claimed OpenSSL
+            // MT-14: instance-checked. An older comment here claimed OpenSSL
             // imported the public components into this lib ctx; measurement
             // disproved it (xprovider_key_probe.c) — the key keeps its
-            // creating provider and the operation is served there. Inert
-            // until Phase 2.
+            // creating provider and the operation is served THERE, so
+            // accepting the object executed outside this provider.
             JOEdPublicKey joPub = (JOEdPublicKey) key;
             if (!joPub.getSpec().usableBy(providerInstance))
             {
@@ -401,7 +393,8 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (key instanceof JOEdPrivateKey)
         {
             JOEdPrivateKey joKey = (JOEdPrivateKey) key;
-            // Additive: library check live now, instance check inert until Phase 2.
+            // Both halves; the library one has teeth only in the unbound
+            // direct-SPI realm.
             if (joKey.getSpec().getSpecNI() != specNI
                     || !joKey.getSpec().usableBy(providerInstance))
             {
@@ -410,7 +403,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 // implicitly. The sanctioned crossing is the one the message
                 // names, and it is what a caller has to do anyway.
                 throw new InvalidKeyException(
-                        "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+                        "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
             }
             return joKey;
         }
