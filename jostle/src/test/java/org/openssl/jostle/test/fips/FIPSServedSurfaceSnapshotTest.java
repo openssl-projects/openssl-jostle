@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 
 import java.security.Provider;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -87,8 +88,8 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.AES192",
             "Cipher.AES256",
             "Cipher.AESWRAP",
-            "Cipher.AESWRAPPAD",
             "Cipher.AESWRAPINV",
+            "Cipher.AESWRAPPAD",
             "Cipher.DESEDE",   // Triple-DES, capability-gated (see TDES_GATED)
             "Cipher.ML-KEM",   // PQC, capability-gated (see PQC_GATED)
             "Cipher.RSA",
@@ -119,6 +120,8 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyFactory.MLDSA",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.MLKEM",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.RSA",
+            "KeyFactory.SECP256R1MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
+            "KeyFactory.SECP384R1MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyFactory.SLH-DSA-SHA2-128F",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.SLH-DSA-SHA2-128S",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.SLH-DSA-SHA2-192F",   // PQC, capability-gated (see PQC_GATED)
@@ -133,7 +136,9 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyFactory.SLH-DSA-SHAKE-256S",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.SLHDSA",   // PQC, capability-gated (see PQC_GATED)
             "KeyFactory.X25519",
+            "KeyFactory.X25519MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyFactory.X448",
+            "KeyFactory.X448MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyFactory.XDH",
             "KeyGenerator.AES",
             "KeyGenerator.AES128",
@@ -144,6 +149,10 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyGenerator.ML-KEM-512",   // PQC, capability-gated (see PQC_GATED)
             "KeyGenerator.ML-KEM-768",   // PQC, capability-gated (see PQC_GATED)
             "KeyGenerator.MLKEM",   // PQC, capability-gated (see PQC_GATED)
+            "KeyGenerator.SECP256R1MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
+            "KeyGenerator.SECP384R1MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
+            "KeyGenerator.X25519MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
+            "KeyGenerator.X448MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyPairGenerator.DH",
             "KeyPairGenerator.DSA",
             "KeyPairGenerator.EC",
@@ -159,6 +168,8 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.MLDSA",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.MLKEM",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.RSA",
+            "KeyPairGenerator.SECP256R1MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
+            "KeyPairGenerator.SECP384R1MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyPairGenerator.SLH-DSA-SHA2-128F",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.SLH-DSA-SHA2-128S",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.SLH-DSA-SHA2-192F",   // PQC, capability-gated (see PQC_GATED)
@@ -173,11 +184,11 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.SLH-DSA-SHAKE-256S",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.SLHDSA",   // PQC, capability-gated (see PQC_GATED)
             "KeyPairGenerator.X25519",
+            "KeyPairGenerator.X25519MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyPairGenerator.X448",
+            "KeyPairGenerator.X448MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "Mac.AESCMAC",
             "Mac.AESGMAC",
-            "Mac.KMAC128",
-            "Mac.KMAC256",
             "Mac.HMACSHA1",
             "Mac.HMACSHA224",
             "Mac.HMACSHA256",
@@ -189,6 +200,8 @@ public class FIPSServedSurfaceSnapshotTest
             "Mac.HMACSHA512",
             "Mac.HMACSHA512/224",
             "Mac.HMACSHA512/256",
+            "Mac.KMAC128",
+            "Mac.KMAC256",
             "MessageDigest.SHA1",
             "MessageDigest.SHA2-224",
             "MessageDigest.SHA2-256",
@@ -537,6 +550,7 @@ public class FIPSServedSurfaceSnapshotTest
         unexplained.removeAll(Arrays.asList(ED_GATED));
         unexplained.removeAll(Arrays.asList(ED_CTX_GATED));
         unexplained.removeAll(Arrays.asList(TDES_GATED));
+        unexplained.removeAll(Arrays.asList(HYBRID_GATED));
         Assertions.assertTrue(unexplained.isEmpty(),
                 "JSLFIPS dropped services that are not capability-gated."
                         + "\n  REMOVED (in golden, gone now, no recorded gate): " + unexplained
@@ -554,6 +568,17 @@ public class FIPSServedSurfaceSnapshotTest
         assertGatedAbsenceIsJustified("Ed25519ctx", ED_CTX_GATED, OpenSSLFIPSNI.OP_SIGNATURE, "ED25519CTX", removed);
         // Probed as a CIPHER: the family has no keymgmt of its own.
         assertGatedAbsenceIsJustified("Triple-DES", TDES_GATED, OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC", removed);
+        // Per VARIANT, not per family: 3.5.8 serves three of the four hybrid
+        // groups, so one probe for the set would be wrong in one direction or
+        // the other. The name is spelled as OpenSSL spells it, which is what
+        // the registrar gates on.
+        for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec hybrid
+                : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+        {
+            String upper = hybrid.getName().toUpperCase(java.util.Locale.ROOT);
+            assertGatedAbsenceIsJustified(hybrid.getName(), hybridGated(upper),
+                    OpenSSLFIPSNI.OP_KEYMGMT, hybrid.getName(), removed);
+        }
     }
 
     /**
@@ -580,6 +605,142 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyGenerator.DESEDE",
     };
 
+
+    /**
+     * The four TLS hybrid KEM groups, and the only gate in this file that is
+     * PER VARIANT rather than per family. The groups do not arrive and depart
+     * together - measured through the FIPS lib ctx
+     * ({@code fips-c-review/probes/hybrid_kem_probe.c}):
+     *
+     * <pre>
+     *                        3.1.2    3.5.8
+     *   X25519MLKEM768       no       yes
+     *   X448MLKEM1024        no       NO
+     *   SecP256r1MLKEM768    no       yes
+     *   SecP384r1MLKEM1024   no       yes
+     * </pre>
+     *
+     * <p>So a single family-level group keyed on any one name would be wrong
+     * on 3.5.8: it would either accept the absence of all four when only one
+     * is missing, or demand all four on a module that serves three.
+     * {@code ProvFIPSMLXKEM} gates each variant on its own keymgmt fetch, and
+     * each variant is checked here against that same probe.
+     *
+     * <p>The all-or-nothing rule still applies WITHIN a variant - its three
+     * services are registered as a unit.
+     *
+     * <p>The probe check is NOT sufficient on its own - see
+     * {@link #hybridMembershipMatchesThePinnedTable}, which pins the expected
+     * set per module version because a probe that asks the same question the
+     * registrar asked cannot notice the wrong module being loaded.
+     */
+    private static String[] hybridGated(String variant)
+    {
+        return new String[]{
+                "KeyFactory." + variant,
+                "KeyGenerator." + variant,
+                "KeyPairGenerator." + variant,
+        };
+    }
+
+    /** Every hybrid entry, for the "is this absence explained" subtraction. */
+    private static final String[] HYBRID_GATED = {
+            "KeyFactory.SECP256R1MLKEM768",
+            "KeyFactory.SECP384R1MLKEM1024",
+            "KeyFactory.X25519MLKEM768",
+            "KeyFactory.X448MLKEM1024",
+            "KeyGenerator.SECP256R1MLKEM768",
+            "KeyGenerator.SECP384R1MLKEM1024",
+            "KeyGenerator.X25519MLKEM768",
+            "KeyGenerator.X448MLKEM1024",
+            "KeyPairGenerator.SECP256R1MLKEM768",
+            "KeyPairGenerator.SECP384R1MLKEM1024",
+            "KeyPairGenerator.X25519MLKEM768",
+            "KeyPairGenerator.X448MLKEM1024",
+    };
+
+
+    /**
+     * Expected hybrid membership PER MODULE VERSION, hand-written.
+     *
+     * <p>This exists because {@link #assertGatedAbsenceIsJustified} is not
+     * enough on its own, and the gap is not hypothetical. That helper asks the
+     * module the same question the registrar asked, so it catches
+     * registrar-vs-module drift and nothing else: if the wrong module — or the
+     * wrong <i>libcrypto</i> — is loaded, every absence is "justified" and the
+     * suite is green. That failure mode occurred in this repo on 2026-08-27,
+     * when a stale install path had dyld silently resolving to 3.6.2 while
+     * every script claimed 3.5.7.
+     *
+     * <p>So: the probe answers "does the registrar agree with the module?",
+     * and this table answers "is this the module we think we are testing?".
+     * Both are needed; neither substitutes for the other.
+     *
+     * <p><b>An unrecognised module version FAILS.</b> That is deliberate, and
+     * it is what makes the supported set enforceable rather than aspirational:
+     * JSLFIPS supports 3.1.2 (the CMVP-validated module, cert #4985) and 3.5.8
+     * (the LTS). Running against any other module — including 3.5.7, which was
+     * a supported target until 2026-08-27 — stops here with an instruction to
+     * decide and update the table, rather than quietly reporting a surface
+     * nobody has reviewed.
+     *
+     * <p>Note this is a TEST pinning an expectation, not production code
+     * branching on a version. {@code FIPSCapabilities.describeModule}'s "never
+     * branch on this" rule still stands for the provider itself: the registrar
+     * asks the module what it can do, and this table asks whether the answer
+     * is the one we signed off.
+     */
+    private static final Map<String, SortedSet<String>> HYBRIDS_BY_MODULE_VERSION = hybridsByModuleVersion();
+
+    private static Map<String, SortedSet<String>> hybridsByModuleVersion()
+    {
+        Map<String, SortedSet<String>> m = new java.util.LinkedHashMap<>();
+        m.put("OpenSSL FIPS Provider 3.1.2", new TreeSet<>());
+        m.put("OpenSSL FIPS Provider 3.5.8", new TreeSet<>(Arrays.asList(
+                "SECP256R1MLKEM768", "SECP384R1MLKEM1024", "X25519MLKEM768")));
+        return java.util.Collections.unmodifiableMap(m);
+    }
+
+    /**
+     * The hybrid groups JSLFIPS serves are EXACTLY the ones pinned for this
+     * module version — no more, no fewer.
+     *
+     * <p>Asserts membership over all three service types rather than just
+     * KeyPairGenerator: a variant registered with two of its three services is
+     * a real defect, and one that {@code assertGatedAbsenceIsJustified}'s
+     * all-or-nothing check only catches when the variant is absent from the
+     * golden set entirely.
+     */
+    @Test
+    public void hybridMembershipMatchesThePinnedTable()
+    {
+        JostleFIPSProvider provider = FIPSTestUtil.assumeFipsProvider();
+        String version = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+
+        SortedSet<String> expected = HYBRIDS_BY_MODULE_VERSION.get(version);
+        Assertions.assertNotNull(expected,
+                "unrecognised FIPS module \"" + version + "\".\n"
+                        + "JSLFIPS supports 3.1.2 (CMVP cert #4985) and 3.5.8 (LTS). Decide whether "
+                        + "this module is supported and add its expected hybrid set to "
+                        + "HYBRIDS_BY_MODULE_VERSION, or test against a supported module.\n"
+                        + "Known: " + HYBRIDS_BY_MODULE_VERSION.keySet());
+
+        for (String type : new String[]{"KeyPairGenerator", "KeyGenerator", "KeyFactory"})
+        {
+            SortedSet<String> actual = new TreeSet<>();
+            for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec spec
+                    : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+            {
+                String upper = spec.getName().toUpperCase(java.util.Locale.ROOT);
+                if (provider.getService(type, upper) != null)
+                {
+                    actual.add(upper);
+                }
+            }
+            Assertions.assertEquals(expected, actual,
+                    type + ": hybrid groups served by " + version + " differ from the pinned set");
+        }
+    }
 
     /** The {@link #PQC_GATED} entries belonging to one family. */
     private static String[] pqcSubset(String... markers)

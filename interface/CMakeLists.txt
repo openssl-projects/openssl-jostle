@@ -145,6 +145,8 @@ set(FIPS_UTIL_SOURCES
         fips/util/mldsa.c
         fips/util/mlkem.h
         fips/util/mlkem.c
+        fips/util/mlxkem.h
+        fips/util/mlxkem.c
         fips/util/slhdsa.h
         fips/util/slhdsa.c
 )
@@ -170,6 +172,7 @@ set(FIPS_JNI_GLUE_SOURCES
         fips/jni/kdf_fips_jni.c
         fips/jni/mldsa_fips_jni.c
         fips/jni/mlkem_fips_jni.c
+        fips/jni/mlxkem_fips_jni.c
         fips/jni/slhdsa_fips_jni.c
         fips/jni/rand_upcall_jni.h
         fips/jni/rand_upcall_jni.c
@@ -219,6 +222,7 @@ set(FIPS_FFI_GLUE_SOURCES
         fips/ffi/ed_ni_fips_ffi.c
         fips/ffi/mldsa_ni_fips_ffi.c
         fips/ffi/mlkem_ni_fips_ffi.c
+        fips/ffi/mlxkem_ni_fips_ffi.c
         fips/ffi/slh_dsa_ni_fips_ffi.c
 )
 
@@ -255,6 +259,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/jni/mldsa_ni_jni.c
             nonfips/jni/slhdsa_ni_jni.c
             nonfips/jni/mlkem_ni_jni.c
+            nonfips/jni/mlxkem_ni_jni.c
             nonfips/jni/asn1_ni_jni.c
             nonfips/jni/ks_jni.c
             nonfips/util/jo_assert.h
@@ -264,6 +269,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/slhdsa.c
             nonfips/util/mlkem.h
             nonfips/util/mlkem.c
+            nonfips/util/mlxkem.h
+            nonfips/util/mlxkem.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -365,6 +372,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/ffi/spec_ni_ffi.c
             nonfips/ffi/mldsa_ni_ffi.c
             nonfips/ffi/mlkem_ni_ffi.c
+            nonfips/ffi/mlxkem_ni_ffi.c
             nonfips/ffi/slh_dsa_ni_ffi.c
             nonfips/ffi/asn1_ni_ffi.c
             nonfips/ffi/ks_ffi.c
@@ -375,6 +383,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/slhdsa.c
             nonfips/util/mlkem.h
             nonfips/util/mlkem.c
+            nonfips/util/mlxkem.h
+            nonfips/util/mlxkem.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -526,6 +536,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/jni/mldsa_ni_jni.c
             nonfips/jni/slhdsa_ni_jni.c
             nonfips/jni/mlkem_ni_jni.c
+            nonfips/jni/mlxkem_ni_jni.c
             nonfips/jni/asn1_ni_jni.c
             nonfips/jni/ks_jni.c
             nonfips/util/block_cipher_ctx.h
@@ -541,6 +552,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/slhdsa.c
             nonfips/util/mlkem.h
             nonfips/util/mlkem.c
+            nonfips/util/mlxkem.h
+            nonfips/util/mlxkem.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/ctr_u128_t.h
@@ -631,6 +644,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/ffi/mldsa_ni_ffi.c
             nonfips/ffi/slh_dsa_ni_ffi.c
             nonfips/ffi/mlkem_ni_ffi.c
+            nonfips/ffi/mlxkem_ni_ffi.c
             nonfips/ffi/asn1_ni_ffi.c
             nonfips/ffi/ks_ffi.c
             nonfips/util/jo_assert.h
@@ -640,6 +654,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/slhdsa.c
             nonfips/util/mlkem.h
             nonfips/util/mlkem.c
+            nonfips/util/mlxkem.h
+            nonfips/util/mlxkem.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -775,6 +791,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/jni/mldsa_ni_jni.c
             nonfips/jni/slhdsa_ni_jni.c
             nonfips/jni/mlkem_ni_jni.c
+            nonfips/jni/mlxkem_ni_jni.c
             nonfips/jni/asn1_ni_jni.c
             nonfips/jni/ks_jni.c
             nonfips/util/jo_assert.h
@@ -784,6 +801,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/slhdsa.c
             nonfips/util/mlkem.h
             nonfips/util/mlkem.c
+            nonfips/util/mlxkem.h
+            nonfips/util/mlxkem.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -872,6 +891,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/ffi/spec_ni_ffi.c
             nonfips/ffi/mldsa_ni_ffi.c
             nonfips/ffi/mlkem_ni_ffi.c
+            nonfips/ffi/mlxkem_ni_ffi.c
             nonfips/ffi/slh_dsa_ni_ffi.c
             nonfips/ffi/asn1_ni_ffi.c
             nonfips/ffi/md_ffi.c
@@ -885,6 +905,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/slhdsa.c
             nonfips/util/mlkem.h
             nonfips/util/mlkem.c
+            nonfips/util/mlxkem.h
+            nonfips/util/mlxkem.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h

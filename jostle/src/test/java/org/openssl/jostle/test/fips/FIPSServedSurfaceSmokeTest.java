@@ -13,6 +13,7 @@ package org.openssl.jostle.test.fips;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Mac;
@@ -324,6 +325,26 @@ public class FIPSServedSurfaceSmokeTest
                 if (kp == null || kp.getPublic() == null || kp.getPrivate() == null)
                 {
                     broken.add(alg + " -> generateKeyPair returned an incomplete KeyPair");
+                }
+                else if (kp.getPublic() instanceof MLXKEMPublicKey)
+                {
+                    // The TLS hybrid groups are the one family with NO ASN.1
+                    // encoding - nothing registers a codec for them. Their
+                    // usability check is therefore the raw share, and the
+                    // no-encoding claim is VERIFIED rather than waived: both
+                    // halves must answer null to both getEncoded and
+                    // getFormat, so a family that merely FAILED to encode
+                    // still lands in `broken` below.
+                    if (kp.getPublic().getEncoded() != null || kp.getPublic().getFormat() != null
+                            || kp.getPrivate().getEncoded() != null || kp.getPrivate().getFormat() != null)
+                    {
+                        broken.add(alg + " -> claims to be unencodable but answered an encoding or format");
+                    }
+                    else if (((MLXKEMPublicKey) kp.getPublic()).getPublicData() == null
+                            || ((MLXKEMPublicKey) kp.getPublic()).getPublicData().length == 0)
+                    {
+                        broken.add(alg + " -> generated a public key with no raw share");
+                    }
                 }
                 else if (kp.getPublic().getEncoded() == null
                         || kp.getPublic().getEncoded().length == 0)

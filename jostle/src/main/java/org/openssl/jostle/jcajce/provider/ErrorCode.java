@@ -284,6 +284,11 @@ public enum ErrorCode
     // stealing is itself the answer to a partial final block.
     JO_MODE_TAKES_NO_PADDING(-169),
 
+    // A hybrid ML-KEM key's private half cannot be exported. The SecP variants
+    // answer the PRIV_KEY size query and then refuse the fetch, raising
+    // nothing, so the generic error would read "OpenSSL Error: null".
+    JO_HYBRID_PRIVATE_EXPORT_UNSUPPORTED(-170),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

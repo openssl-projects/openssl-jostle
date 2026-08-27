@@ -153,6 +153,45 @@ public class FIPSModuleIsActuallyUsedTest
     }
 
     /**
+     * The four TLS hybrid KEM groups, named rather than swept — same reasoning
+     * as {@link #pqcIsImplementedByTheFipsModuleWhenServed}, and the same
+     * blindness: mainline implements them identically, so no absence test and
+     * no behavioural difference can tell module from mainline.
+     * <p>
+     * Both branches are asserted PER VARIANT, which matters more here than
+     * anywhere else in this file: 3.5.8 serves three of the four, so a
+     * family-level check would either miss the one that is absent or demand
+     * the three that are present. The unregistered branch is what catches a
+     * gate that dropped a group the module still serves.
+     */
+    @Test
+    public void hybridKemsAreImplementedByTheFipsModuleWhenServed()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec spec
+                : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+        {
+            String alg = spec.getName();
+            boolean registered = provider.getService("KeyPairGenerator", alg) != null;
+            String impl = FIPSNISelector.OpenSSLFIPSNI
+                    .implementingProvider(OpenSSLFIPSNI.OP_KEYMGMT, alg);
+
+            if (!registered)
+            {
+                Assertions.assertNull(impl,
+                        alg + " is unregistered but the FIPS lib ctx resolves it to \""
+                                + impl + "\" — a working algorithm was dropped from callers");
+                continue;
+            }
+            Assertions.assertEquals(FIPS_PROVIDER, impl,
+                    alg + " is served by JSLFIPS but implemented by \"" + impl
+                            + "\" — mainline implements the hybrids identically, so this is the "
+                            + "only check that can catch it");
+        }
+    }
+
+    /**
      * EdDSA specifically, named rather than swept — same reasoning as
      * {@link #pqcIsImplementedByTheFipsModuleWhenServed}.
      * <p>

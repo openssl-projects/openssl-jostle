@@ -342,6 +342,38 @@ public class FIPSKeyIsolationTest
             }
         }
 
+        // ---- TLS hybrid KEMs ----
+        // Gated per VARIANT, not per family: 3.5.8 serves three of the four
+        // (see ProvFIPSMLXKEM). The base provider serves all four, so the
+        // JSL side of each crossing is always available.
+        //
+        // The refusal differs from every other family here in BOTH type and
+        // text, and neither is an oversight:
+        //  - TYPE: these keys reach a KeyGenerator, whose engineInit may only
+        //    throw InvalidAlgorithmParameterException. Every other family
+        //    above refuses through a Signature / Cipher / KeyAgreement init,
+        //    which can throw InvalidKeyException. So assertRejected does not
+        //    apply and this arm asserts its own type.
+        //  - TEXT: the canonical message tells the caller to re-encode the key
+        //    through the other provider's KeyFactory. Hybrid keys have no
+        //    encoding at all, so that advice would be a dead end; the message
+        //    names the only remedy that exists.
+        // There is no public-key crossing check here because the whole of
+        // FIPSMLXKEMAgreementTest.jslAndFipsInteroperateBothDirections depends
+        // on it working.
+        for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec hybrid
+                : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+        {
+            if (Security.getProvider(fips).getService("KeyPairGenerator", hybrid.getName()) == null)
+            {
+                continue;
+            }
+            PrivateKey jslHybrid = genPqcKp(hybrid.getName(), jsl).getPrivate();
+            PrivateKey fipsHybrid = genPqcKp(hybrid.getName(), fips).getPrivate();
+            assertHybridPrivateRejected(hybrid, fips, jslHybrid);
+            assertHybridPrivateRejected(hybrid, jsl, fipsHybrid);
+        }
+
         // ---- DH ----
         KeyPair jslDh = genKp("DH", jsl, 2048);
         KeyPair jslDh2 = genKp("DH", jsl, 2048);
@@ -349,6 +381,32 @@ public class FIPSKeyIsolationTest
         PrivKeyOp dhOp = (p, k) -> KeyAgreement.getInstance("DH", p).init(k);
         assertPrivateIsolatedBothDirections(jslDh.getPrivate(), fipsDh.getPrivate(), dhOp);
         assertKaReencodeAndPublicCross("DH", "DH", jslDh, jslDh2);
+    }
+
+    /**
+     * The hybrid family's isolation refusal - see the comment at its arm of
+     * the sweep for why the type and the message both differ from
+     * {@link #assertRejected}.
+     */
+    private static void assertHybridPrivateRejected(
+            org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec spec,
+            String user, PrivateKey foreign)
+        throws Exception
+    {
+        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(spec.getName(), user);
+        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                java.security.InvalidAlgorithmParameterException.class,
+                () -> kg.init(org.openssl.jostle.jcajce.spec.KEMExtractSpec.builder()
+                        .withPrivate(foreign)
+                        .withAlgorithmName("AES")
+                        .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
+                        .withEncapsulatedKey(new byte[1])
+                        .build()),
+                spec.getName() + ": " + user + " must refuse a foreign private key");
+        Assertions.assertEquals(
+                "private key was created by a different Jostle provider; hybrid KEM keys have no encoding, "
+                        + "so generate the keypair through this provider instead",
+                e.getMessage(), spec.getName());
     }
 
     private static KeyPair genKp(String alg, String provider, int bits)

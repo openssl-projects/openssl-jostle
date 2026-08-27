@@ -496,6 +496,24 @@
  */
 #define JO_MODE_TAKES_NO_PADDING -169
 
+/*
+ * A hybrid ML-KEM key's private half cannot be exported.
+ *
+ * The SecP256r1MLKEM768 and SecP384r1MLKEM1024 variants answer the
+ * OSSL_PKEY_PARAM_PRIV_KEY SIZE query with a length and then refuse the actual
+ * fetch, raising nothing - so the generic JO_OPENSSL_ERROR would surface as
+ * "OpenSSL Error: null" and tell a caller nothing. The X25519 and X448 variants
+ * export fine, so this is genuinely per-variant rather than a family property.
+ * Measured on mainline 3.6.2 and FIPS 3.5.7 / 3.5.8:
+ * fips-c-review/probes/hybrid_kem_probe.c, Q5.
+ *
+ * The consumer is the key class's raw private getter, which turns this into a
+ * typed UnsupportedOperationException naming the variant - there is no
+ * encoding for these keys either (no SPKI, no PKCS#8), so a caller that cannot
+ * export the private half has no other route and needs to be told plainly.
+ */
+#define JO_HYBRID_PRIVATE_EXPORT_UNSUPPORTED -170
+
 
 /*
  * Parenthesised so the comparison binds correctly under negation or

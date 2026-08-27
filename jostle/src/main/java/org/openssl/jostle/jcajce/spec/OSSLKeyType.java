@@ -60,7 +60,16 @@ public enum OSSLKeyType
     // Finite-field Diffie-Hellman. "DH" is the PKCS#3 EVP_PKEY type
     // name, "DHX" the X9.42 variant — both map to the same Jostle key
     // type. OIDs: PKCS#3 dhKeyAgreement and X9.42 dhpublicnumber.
-    DH(30, "DH", "DHX", "1.2.840.113549.1.3.1", "1.2.840.10046.2.1");
+    DH(30, "DH", "DHX", "1.2.840.113549.1.3.1", "1.2.840.10046.2.1"),
+    // The TLS hybrid KEMs (draft-ietf-tls-ecdhe-mlkem). The first alias is the
+    // OpenSSL EVP_PKEY type name, which is also the IANA TLS group name — these
+    // are not names we get to normalise, and there are no OIDs: OpenSSL's
+    // hybrid algorithms are the only ones in its KEM set with no OID alias,
+    // because there is no ASN.1 encoding for a hybrid key at all.
+    X25519MLKEM768(31, "X25519MLKEM768"),
+    X448MLKEM1024(32, "X448MLKEM1024"),
+    SecP256r1MLKEM768(33, "SecP256r1MLKEM768"),
+    SecP384r1MLKEM1024(34, "SecP384r1MLKEM1024");
 
     private final String[] aliases;
     int ksType;

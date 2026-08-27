@@ -291,6 +291,7 @@ public final class JostleFIPSProvider
         // 3.5.x does, 3.1.2 does not. See FIPSCapabilities.
         new ProvFIPSMLDSA().configure(this);
         new ProvFIPSMLKEM().configure(this);
+        new ProvFIPSMLXKEM().configure(this);
         new ProvFIPSSLHDSA().configure(this);
         // No PKCS#12 KeyStore registrar. This is a module capability limit, not
         // an approval judgement: the traditional PKCS#12 integrity MAC derives

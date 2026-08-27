@@ -40,6 +40,8 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceJNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceJNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceJNI;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceJNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.*;
@@ -69,6 +71,7 @@ public class NISelector
     public static final Asn1Ni Asn1NI;
     public static final SLHDSAServiceNI SLHDSAServiceNI;
     public static final MLKEMServiceNI MLKEMServiceNI;
+    public static final MLXKEMServiceNI MLXKEMServiceNI;
     public static final KdfNI KdfNI;
 
     // Base-provider only: scrypt / Argon2 are not served by the FIPS module,
@@ -99,6 +102,7 @@ public class NISelector
         OperationsTestNI = new OperationsTestJNI();
         SLHDSAServiceNI = new SLHDSAServiceJNI();
         MLKEMServiceNI = new MLKEMServiceJNI();
+        MLXKEMServiceNI = new MLXKEMServiceJNI();
         KdfNI = new KdfNIJNI();
         MemoryHardKdfNI = new MemoryHardKdfNIJNI();
         MDServiceNI = new MDServiceJNI();

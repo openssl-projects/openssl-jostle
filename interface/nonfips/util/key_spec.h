@@ -53,6 +53,21 @@
 
 #define KS_DH 30
 
+/*
+ * The TLS hybrid KEMs (draft-ietf-tls-ecdhe-mlkem): an ML-KEM component and an
+ * ECDH component whose shared secrets are CONCATENATED, not combined by a KDF.
+ * OpenSSL spells the names exactly as IANA does, and they are what these map to.
+ *
+ * The concatenation order differs per variant and is NOT symmetric - the
+ * X25519/X448 pair puts ML-KEM material first, the SecP pair puts ECDH first
+ * (providers/implementations/keymgmt/mlx_kmgmt.c, hybrid_vtable's ml_kem_slot).
+ * Nothing here depends on that, but a test composing a reference does.
+ */
+#define KS_X25519_MLKEM768 31
+#define KS_X448_MLKEM1024 32
+#define KS_SECP256R1_MLKEM768 33
+#define KS_SECP384R1_MLKEM1024 34
+
 
 typedef struct key_spec {
     EVP_PKEY *key;

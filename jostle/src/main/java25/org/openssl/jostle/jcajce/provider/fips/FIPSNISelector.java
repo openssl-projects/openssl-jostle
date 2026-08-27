@@ -24,6 +24,7 @@ import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
@@ -65,6 +66,7 @@ public class FIPSNISelector
     // constructed; ProvFIPS{MLDSA,MLKEM,SLHDSA} decide whether to register.
     public static final MLDSAServiceNI MLDSAServiceNI;
     public static final MLKEMServiceNI MLKEMServiceNI;
+    public static final MLXKEMServiceNI MLXKEMServiceNI;
     public static final SLHDSAServiceNI SLHDSAServiceNI;
     public static final KdfNI KdfNI;
     public static final OperationsTestNI OperationsTestNI;
@@ -92,6 +94,7 @@ public class FIPSNISelector
             EDServiceNI = new EDServiceFIPSFFI();
             MLDSAServiceNI = new MLDSAServiceFIPSFFI();
             MLKEMServiceNI = new MLKEMServiceFIPSFFI();
+            MLXKEMServiceNI = new MLXKEMServiceFIPSFFI();
             SLHDSAServiceNI = new SLHDSAServiceFIPSFFI();
             KdfNI = new KdfFIPSFFI();
             OperationsTestNI = new OperationsTestFIPSFFI();
@@ -116,6 +119,7 @@ public class FIPSNISelector
             EDServiceNI = new EDServiceFIPSJNI();
             MLDSAServiceNI = new MLDSAServiceFIPSJNI();
             MLKEMServiceNI = new MLKEMServiceFIPSJNI();
+            MLXKEMServiceNI = new MLXKEMServiceFIPSJNI();
             SLHDSAServiceNI = new SLHDSAServiceFIPSJNI();
             KdfNI = new KdfFIPSJNI();
             OperationsTestNI = new OperationsTestFIPSJNI();

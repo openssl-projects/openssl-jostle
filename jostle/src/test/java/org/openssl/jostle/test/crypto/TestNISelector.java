@@ -29,6 +29,7 @@ import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
@@ -69,6 +70,11 @@ public class TestNISelector extends NISelector
     public static MLKEMServiceNI getMLKEMNI()
     {
         return MLKEMServiceNI;
+    }
+
+    public static MLXKEMServiceNI getMLXKEMNI()
+    {
+        return MLXKEMServiceNI;
     }
 
     public static SLHDSAServiceNI getSLHDSANI()
