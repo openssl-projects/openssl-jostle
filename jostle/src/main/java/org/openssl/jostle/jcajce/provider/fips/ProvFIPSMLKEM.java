@@ -91,12 +91,12 @@ class ProvFIPSMLKEM
 
         final Map<String, String> mlkemCipherAttr = new HashMap<>();
 
-        provider.addAlgorithmImplementation("KeyGenerator", "MLKEM", PREFIX + "Base", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator());
+        provider.addAlgorithmImplementation("KeyGenerator", "MLKEM", PREFIX + "Base", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI));
         provider.addAlias("KeyGenerator", "MLKEM", "ML-KEM");
 
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-512", PREFIX + "MLKEM512", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(MLKEMParameterSpec.ml_kem_512));
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-768", PREFIX + "MLKEM768", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(MLKEMParameterSpec.ml_kem_768));
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-1024", PREFIX + "MLKEM1024", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(MLKEMParameterSpec.ml_kem_1024));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-512", PREFIX + "MLKEM512", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_512));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-768", PREFIX + "MLKEM768", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_768));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-1024", PREFIX + "MLKEM1024", mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_1024));
 
         final Map<String, String> MLKEMKfAttr = new HashMap<>();
         provider.addAlgorithmImplementation("KeyFactory", "MLKEM", PREFIX + "MLKEMKeyFactorySpi", MLKEMKfAttr, (arg) -> new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI));
@@ -118,7 +118,7 @@ class ProvFIPSMLKEM
         // so it is registered under the SPKI/KEM OIDs (the .4.4 "kems" arc). The single
         // SPI handles all three parameter sets (the key carries its variant).
         final Map<String, String> mlkemCtsAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI), FIPSNISelector.SpecNI));
+        provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(new MLKEMKeyFactorySpi(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI), FIPSNISelector.SpecNI, JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("Cipher", "ML-KEM", "MLKEM");
         provider.addAlias("Cipher", "ML-KEM",
             NISTObjectIdentifiers.id_alg_ml_kem_512,

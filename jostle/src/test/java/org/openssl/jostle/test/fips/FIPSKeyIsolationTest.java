@@ -310,6 +310,34 @@ public class FIPSKeyIsolationTest
                             .init(javax.crypto.Cipher.UNWRAP_MODE, k, kts);
             assertPrivateIsolatedBothDirections(jslMlKem.getPrivate(), fipsMlKem.getPrivate(), mlkemOp);
 
+            // MT-8: the KTS Cipher above was the family's ONLY isolated
+            // surface. The KEM KeyGenerator path (KEMExtractSpec ->
+            // SpecNI.decap) never passes through it, so a JSL private key
+            // decapsulated through JSLFIPS ran in the wrong library while
+            // reporting success. Canonical message here, unlike the hybrids:
+            // ML-KEM keys encode, so the advice is actionable.
+            String mlkemMsg = "private key was created by a different Jostle provider; "
+                    + "encode it with getEncoded() and decode it through this provider's "
+                    + "KeyFactory";
+            assertKeyGenPrivateRejected("ML-KEM-768", fips, jslMlKem.getPrivate(), 256, mlkemMsg);
+            assertKeyGenPrivateRejected("ML-KEM-768", jsl, fipsMlKem.getPrivate(), 256, mlkemMsg);
+
+            // ...and the PUBLIC object route must STILL be accepted, both
+            // directions. Pinned explicitly because the private-side check
+            // above sits in the same engineInit and it would be easy to widen
+            // it by accident.
+            //
+            // NOTE what this currently pins: measurement
+            // (fips-c-review/probes/xprovider_key_probe.c) shows a foreign
+            // public key keeps its ORIGINATING provider, so an encapsulation
+            // through this route executes in the key's own library, not the
+            // receiving one. That is today's contract, not necessarily the
+            // right one - MT-14 is the open decision. If MT-14 lands as
+            // "re-home foreign public keys", this assertion must be
+            // deliberately revisited rather than silently broken.
+            assertKeyGenPublicAccepted("ML-KEM-768", fips, jslMlKem.getPublic(), 256);
+            assertKeyGenPublicAccepted("ML-KEM-768", jsl, fipsMlKem.getPublic(), 256);
+
             // RSA-KEM KTS (WI-8) borrows the RSA key's spec the same way, so it
             // needs the same check - and reuses the same KTSParameterSpec, since
             // it too validates the spec before looking at the key. Ungated: the
@@ -370,8 +398,12 @@ public class FIPSKeyIsolationTest
             }
             PrivateKey jslHybrid = genPqcKp(hybrid.getName(), jsl).getPrivate();
             PrivateKey fipsHybrid = genPqcKp(hybrid.getName(), fips).getPrivate();
-            assertHybridPrivateRejected(hybrid, fips, jslHybrid);
-            assertHybridPrivateRejected(hybrid, jsl, fipsHybrid);
+            String hybridMsg = "private key was created by a different Jostle provider; "
+                    + "hybrid KEM keys have no encoding, so generate the keypair through "
+                    + "this provider instead";
+            int bits = hybrid.getSharedSecretBytes() * 8;
+            assertKeyGenPrivateRejected(hybrid.getName(), fips, jslHybrid, bits, hybridMsg);
+            assertKeyGenPrivateRejected(hybrid.getName(), jsl, fipsHybrid, bits, hybridMsg);
         }
 
         // ---- DH ----
@@ -388,25 +420,58 @@ public class FIPSKeyIsolationTest
      * the sweep for why the type and the message both differ from
      * {@link #assertRejected}.
      */
-    private static void assertHybridPrivateRejected(
-            org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec spec,
-            String user, PrivateKey foreign)
+    /**
+     * A KeyGenerator-surface isolation refusal.
+     *
+     * <p>Separate from {@link #assertRejected} because
+     * {@code KeyGeneratorSpi.engineInit} may only throw
+     * {@link java.security.InvalidAlgorithmParameterException} — every other
+     * family here refuses through a Signature / Cipher / KeyAgreement init,
+     * which can throw {@link java.security.InvalidKeyException}.
+     *
+     * <p>The expected message is a PARAMETER, supplied at each call site,
+     * because the two families deliberately differ: ML-KEM keys encode as
+     * PKCS#8 so the canonical "encode it and decode it through this provider's
+     * KeyFactory" is real advice, while hybrid keys have no encoding at all
+     * and need the only remedy that exists. Passing it in stops this helper
+     * drifting into accepting either message for either family.
+     */
+    /**
+     * A foreign PUBLIC key object must be accepted on the KeyGenerator's
+     * encapsulate arm — public material carries no secret and crosses freely.
+     * See MT-14 for where the resulting operation actually executes.
+     */
+    private static void assertKeyGenPublicAccepted(String algorithm, String user,
+                                                   java.security.PublicKey foreign,
+                                                   int keySizeInBits)
         throws Exception
     {
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(spec.getName(), user);
+        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
+        kg.init(org.openssl.jostle.jcajce.spec.KEMGenerateSpec.builder()
+                .withPublicKey(foreign)
+                .withAlgorithmName("AES")
+                .withKeySizeInBits(keySizeInBits)
+                .build());
+        Assertions.assertNotNull(kg.generateKey(),
+                algorithm + ": " + user + " must accept a foreign PUBLIC key object");
+    }
+
+    private static void assertKeyGenPrivateRejected(String algorithm, String user,
+                                                    PrivateKey foreign, int keySizeInBits,
+                                                    String expectedMessage)
+        throws Exception
+    {
+        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
         java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 java.security.InvalidAlgorithmParameterException.class,
                 () -> kg.init(org.openssl.jostle.jcajce.spec.KEMExtractSpec.builder()
                         .withPrivate(foreign)
                         .withAlgorithmName("AES")
-                        .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
+                        .withKeySizeInBits(keySizeInBits)
                         .withEncapsulatedKey(new byte[1])
                         .build()),
-                spec.getName() + ": " + user + " must refuse a foreign private key");
-        Assertions.assertEquals(
-                "private key was created by a different Jostle provider; hybrid KEM keys have no encoding, "
-                        + "so generate the keypair through this provider instead",
-                e.getMessage(), spec.getName());
+                algorithm + ": " + user + " must refuse a foreign private key");
+        Assertions.assertEquals(expectedMessage, e.getMessage(), algorithm);
     }
 
     private static KeyPair genKp(String alg, String provider, int bits)

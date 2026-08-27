@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -49,14 +50,39 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     private static final NativeLengthCache<OSSLKeyType> encapsulationLengths = new NativeLengthCache<OSSLKeyType>();
 
 
+    /**
+     * The SpecNI this KeyGenerator belongs to — the interface library, and
+     * hence the {@code OSSL_LIB_CTX}, whose keys it will accept for
+     * decapsulation.
+     *
+     * <p>Taken by constructor, deliberately NOT derived from
+     * {@code DefaultServiceNI.providerName()}: only 6 of the 22 FIPS NI
+     * classes override that, and {@code SpecFIPSJNI} is not among them, so it
+     * answers "JSL" under JSLFIPS and would make this check silently
+     * vacuous. See MT-12.
+     */
+    private final SpecNI specNI;
+
     public MLKEMKeyGenerator(MLKEMParameterSpec spec)
     {
+        this(NISelector.SpecNI, spec);
+    }
+
+    public MLKEMKeyGenerator(SpecNI specNI, MLKEMParameterSpec spec)
+    {
+        this.specNI = specNI;
         this.forcedKeyType = spec.getKeyType();
         randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(forcedKeyType));
     }
 
     public MLKEMKeyGenerator()
     {
+        this(NISelector.SpecNI);
+    }
+
+    public MLKEMKeyGenerator(SpecNI specNI)
+    {
+        this.specNI = specNI;
         this.forcedKeyType = OSSLKeyType.NONE;
         // No forced type — default to 128-bit baseline. engineInit
         // will trigger a strength upgrade for the peer key's variant
@@ -86,6 +112,31 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             {
                 extract = true;
                 MLKEMPrivateKey kem = (MLKEMPrivateKey) key;
+
+                // Provider isolation, private side only. The handle is bound
+                // to the interface library - and OSSL_LIB_CTX - that created
+                // it, so a JSL private key must not be decapsulated through
+                // the JSLFIPS NI or vice versa.
+                //
+                // ML-KEM's isolation previously lived only on
+                // MLKEMKTSCipherSpi, and this KEM path (KEMExtractSpec ->
+                // SpecNI.decap) never passes through it — so the family had
+                // the check on one surface and not the other. See MT-8.
+                //
+                // InvalidAlgorithmParameterException, not InvalidKeyException:
+                // KeyGeneratorSpi.engineInit declares nothing else. The
+                // MESSAGE is the canonical one, unlike MLXKEMKeyGenerator's —
+                // ML-KEM keys encode as PKCS#8, so "encode it and decode it
+                // through this provider's KeyFactory" is real advice here,
+                // where for the hybrids it would be a dead end. Do not unify
+                // the two messages: the difference is the remedy that exists.
+                if (kem.getSpec().getSpecNI() != specNI)
+                {
+                    throw new InvalidAlgorithmParameterException(
+                            "private key was created by a different Jostle provider; encode it "
+                                    + "with getEncoded() and decode it through this provider's "
+                                    + "KeyFactory");
+                }
                 if (forcedKeyType != OSSLKeyType.NONE && kem.getSpec().getType() != forcedKeyType)
                 {
                     throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());
