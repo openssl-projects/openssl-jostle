@@ -51,6 +51,13 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         this(NISelector.EDServiceNI, NISelector.SpecNI, NISelector.Asn1NI, fixedType);
     }
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public EdKeyFactorySpi()
     {
         this(NISelector.EDServiceNI, NISelector.SpecNI, NISelector.Asn1NI, OSSLKeyType.NONE);
@@ -58,6 +65,12 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
     public EdKeyFactorySpi(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType fixedType)
     {
+        this(edServiceNI, specNI, asn1NI, fixedType, null);
+    }
+
+    public EdKeyFactorySpi(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType fixedType, java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         assert fixedType != null;
         this.edServiceNI = edServiceNI;
         this.specNI = specNI;
@@ -84,7 +97,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             PKEYKeySpec pkeySpec;
             try
             {
-                pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
             }
             catch (RuntimeException e)
             {
@@ -124,7 +137,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = ((EdDSAPublicKeySpec) keySpec).getPublicData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType, providerInstance);
 
                     edServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
@@ -155,7 +168,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -200,7 +213,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
 
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType, providerInstance);
                     edServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
@@ -272,6 +285,29 @@ public class EdKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JOEdPublicKey || key instanceof JOEdPrivateKey)
         {
+            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
+                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            // INSTANCE check only, deliberately — no library half here.
+            //
+            // translateKey had NO pre-existing check (that was the twelfth
+            // acceptance shape). Adding the library half would therefore not
+            // be "additive": it would be a NEW Phase-1 restriction, refusing
+            // cross-library public keys at this one surface while initVerify,
+            // encrypt and the import helpers still accept them until Phase 2.
+            // Phase 1's contract is "checks in place, behaviour unchanged", and
+            // a window where translateKey refuses what initVerify accepts is a
+            // bug report waiting to happen for no benefit — the object route
+            // leaks everywhere else regardless until the flip.
+            //
+            // Inert now (all specs unbound => usableBy true), live the moment
+            // Phase 2 binds, at which point it subsumes a library check anyway.
+            if (!s.usableBy(providerInstance))
+            {
+                throw new java.security.InvalidKeyException(
+                        "key was created by a different Jostle provider instance; encode it "
+                                + "with getEncoded() and decode it through this provider's "
+                                + "KeyFactory");
+            }
             return key;
         }
         if (key instanceof PublicKey)
@@ -303,10 +339,20 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         if (key instanceof JOEdPublicKey)
         {
-            // Public keys carry no secret material and may cross between the
-            // Jostle providers freely (OpenSSL imports the public components
-            // into this library's lib ctx); only PRIVATE keys are isolated.
-            return (JOEdPublicKey) key;
+            // MT-14: instance-checked. The old comment claimed OpenSSL
+            // imported the public components into this lib ctx; measurement
+            // disproved it (xprovider_key_probe.c) — the key keeps its
+            // creating provider and the operation is served there. Inert
+            // until Phase 2.
+            JOEdPublicKey joPub = (JOEdPublicKey) key;
+            if (!joPub.getSpec().usableBy(providerInstance))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; "
+                                + "encode it with getEncoded() and decode it through this "
+                                + "provider's KeyFactory");
+            }
+            return joPub;
         }
         byte[] encoded = key.getEncoded();
         if (encoded == null)
@@ -317,7 +363,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         try
         {
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
             switch (pkeySpec.getType())
             {
                 case ED25519:
@@ -355,7 +401,9 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         if (key instanceof JOEdPrivateKey)
         {
             JOEdPrivateKey joKey = (JOEdPrivateKey) key;
-            if (joKey.getSpec().getSpecNI() != specNI)
+            // Additive: library check live now, instance check inert until Phase 2.
+            if (joKey.getSpec().getSpecNI() != specNI
+                    || !joKey.getSpec().usableBy(providerInstance))
             {
                 // Keys are bound to the interface library (and OSSL_LIB_CTX)
                 // that created them; JSL and JSLFIPS keys must not cross
@@ -375,7 +423,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
         try
         {
-            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+            PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
             switch (pkeySpec.getType())
             {
                 case ED25519:

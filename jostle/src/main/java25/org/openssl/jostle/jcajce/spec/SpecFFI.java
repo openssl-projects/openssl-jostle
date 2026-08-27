@@ -38,6 +38,7 @@ public class SpecFFI implements SpecNI
     private final MethodHandle decapFuncHandle;
 
     private final MethodHandle getNameFuncHandle;
+    private final MethodHandle getKeyProviderFuncHandle;
 
     // Lookup-independent constants for the RandSource entropy upcall stub.
     private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
@@ -106,6 +107,14 @@ public class SpecFFI implements SpecNI
 
         MemorySegment getNameFunc = lookup.find(symPrefix + "JoSpec_GetName").orElseThrow();
         getNameFuncHandle = linker.downcallHandle(getNameFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS, // return
+                        ValueLayout.ADDRESS, // spec
+                        ValueLayout.ADDRESS // len
+                ));
+
+        MemorySegment getKeyProviderFunc = lookup.find(symPrefix + "JoSpec_GetKeyProvider").orElseThrow();
+        getKeyProviderFuncHandle = linker.downcallHandle(getKeyProviderFunc,
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // return
                         ValueLayout.ADDRESS, // spec
@@ -195,6 +204,44 @@ public class SpecFFI implements SpecNI
             L.log(
                     Level.WARNING,
                     "FFI JoSpec_GetName",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public String ni_getKeyProvider(long keyRef)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            var ref = MemorySegment.ofAddress(keyRef);
+            var len = a.allocate(ValueLayout.JAVA_LONG);
+            MemorySegment memorySegment = (MemorySegment) getKeyProviderFuncHandle.invokeExact(ref, len);
+
+            long size = len.get(ValueLayout.OfLong.JAVA_LONG, 0);
+            if (size < 0)
+            {
+                throw new IllegalArgumentException("returned key provider len is negative");
+            }
+            // Mirror the JNI bridge: NULL with *len=0 for a null spec, a keyless
+            // spec, or a key with no provider (legacy). Null means "cannot be
+            // determined", not an error.
+            if (size == 0 || memorySegment.address() == 0)
+            {
+                return null;
+            }
+            memorySegment = memorySegment.reinterpret(size + 1); // + null termination
+            return memorySegment.getString(0);
+        }
+        catch (IllegalArgumentException ilex)
+        {
+            throw ilex;
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFI JoSpec_GetKeyProvider",
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }

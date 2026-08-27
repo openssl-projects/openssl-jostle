@@ -108,9 +108,24 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
         this(NISelector.DSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
     }
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it. Inert
+     * until Phase 2 passes an instance at registration. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public DSAKeyPairGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
+        this(dsaServiceNI, specNI, asn1NI, null);
+    }
+
+    public DSAKeyPairGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    {
         super("DSA");
+        this.providerInstance = providerInstance;
         this.dsaServiceNI = dsaServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
@@ -264,7 +279,7 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA, providerInstance);
         return new KeyPair(new JODSAPublicKey(dsaServiceNI, asn1NI, spec), new JODSAPrivateKey(dsaServiceNI, asn1NI, spec));
     }
 
@@ -278,6 +293,10 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
                 DSAComponents.unsignedMagnitude(p),
                 DSAComponents.unsignedMagnitude(q),
                 DSAComponents.unsignedMagnitude(g));
+        // Deliberately UNBOUND: this is a PARAMETERS spec, not a key. MT-14
+        // binds keys, because a key carries an EVP_PKEY that only its creating
+        // provider can operate on. Domain parameters never surface to a caller
+        // as a java.security.Key, so there is nothing to isolate.
         return new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
     }
 
@@ -296,6 +315,10 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
         }
         long paramsRef = dsaServiceNI.generateParameters(
                 keySize, qBitsFor(keySize), random);
+        // Deliberately UNBOUND: this is a PARAMETERS spec, not a key. MT-14
+        // binds keys, because a key carries an EVP_PKEY that only its creating
+        // provider can operate on. Domain parameters never surface to a caller
+        // as a java.security.Key, so there is nothing to isolate.
         PKEYKeySpec fresh = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
         PKEYKeySpec winner = PARAM_CACHE.putIfAbsent(cacheKey, fresh);
         return winner != null ? winner : fresh;

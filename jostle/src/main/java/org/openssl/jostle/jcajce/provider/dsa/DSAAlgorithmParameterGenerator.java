@@ -118,6 +118,9 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
             // engineGenerateParameters declares no checked type.
             throw new ProviderException(e.getMessage(), e);
         }
+        // Deliberately UNBOUND: a PARAMETERS spec, not a key. See the note in
+        // the matching KeyPairGenerator — MT-14 binds keys, and domain
+        // parameters never surface to a caller as a java.security.Key.
         PKEYKeySpec paramsSpec = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DSA);
         DSAParameterSpec spec = DSAComponents.getParams(dsaServiceNI, paramsSpec);
         try

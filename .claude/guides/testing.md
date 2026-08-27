@@ -55,6 +55,82 @@ Note the last row. Divergence is NOT continuation: two EMPTY clones fed differen
 
 Revert the sabotage, rebuild, and re-verify green before declaring done. For native changes that means re-running `interface/build.sh` — the Gradle build does not recompile C.
 
+### Landing a check that is inert until a later flip: ADDITIVE is relative to what EXISTS
+
+When a change lands in two phases — checks first, activation later — the
+interim checks are inert by design, and there is one rule and one trap.
+
+**The rule: an inert check must be ADDITIVE, never a SUBSTITUTION.** Replacing
+a live check with one that cannot fire until a later flip silently drops
+protection for the whole interim. Worked example (MT-14): swapping RSA's live
+`getSpecNI() != ownSpecNI()` for the new instance check removed RSA's
+private-key isolation entirely, because with binding not yet activated every
+spec is unbound and the new check passes. `FIPSKeyIsolationTest` caught it in
+seconds; nothing else would have.
+
+**The trap: "additive" is relative to what ALREADY EXISTS at that site, and
+that differs site to site.** Where a check existed, adding beside it changes
+nothing today. **Where NO check existed, adding a live one is a new
+restriction wearing additive clothing.** Same edit, opposite effect.
+
+Worked example, same work item: `engineTranslateKey` had no isolation check at
+all — that absence was the defect being fixed. Applying the "additive" pattern
+there added a LIVE library-level refusal, so for the interim `translateKey`
+would have refused cross-library public keys that `initVerify` and `encrypt`
+still accepted. Uniform across all ten families, so the error was consistent
+rather than scattered, which is exactly why it read as deliberate.
+
+The fix was to make those sites instance-only — inert now, live at the flip —
+and comment each one saying why it has no library half, so nobody restores it
+for symmetry with the sites that legitimately have both.
+
+Two things to check before landing an inert check at a site:
+
+1. Did a check exist here before? If not, anything live you add is a behaviour
+   change, whatever the pattern says.
+2. If it IS a behaviour change, is it worth an inconsistency window? Closing
+   one of N surfaces early usually closes nothing — the defect survives through
+   the other N-1 — while costing a real caller-visible difference AND the
+   diagnostic cleanliness of the flip. If something breaks after activation you
+   want to know the activation caused it.
+
+### Falsify a source-level guard's MATCHER in both directions
+
+The repo now carries four source-level lints — `NativeReferenceParityTest`,
+`FIPSLibraryLookupParityTest`, `FIPSTestGateParityTest`, `FIPSTestNamingParityTest`,
+`ProviderPinningParityTest`, `SpecNiExplicitParityTest` — and every one of them
+needed its matcher tightened before it was trustworthy. The failures were
+always the same shape: the matcher was verified against code it should FLAG and
+never against code it should IGNORE.
+
+**The rule: a guard's matcher must be falsified in BOTH directions before it
+counts — against known-BAD code (it fires) and against known-GOOD code (it
+stays silent).** A guard that over-fires is worse than none: it gets exempted
+into uselessness, or worse, the exemption list quietly grows to cover the real
+defect.
+
+Three recurring traps, each of which has actually happened here:
+
+1. **Comments.** Javadoc explaining a boundary reads exactly like code crossing
+   it. `FIPSLibraryLookupParityTest` flagged every correctly-written class
+   because their Javadoc explains why NOT to use `loaderLookup`;
+   `FIPSTestNamingParityTest` flagged `KDFAgreementTest` and
+   `DHAlgorithmParametersRecursionTest`, which have ZERO FIPS references in
+   code and only describe the split in prose. Strip comments first.
+2. **String literals.** An exception message such as
+   `"use KeyFactory.getInstance(\"DSA\")"` is source text that looks like a
+   call. `ProviderPinningParityTest` flagged `DSAKeyPairGenerator` and
+   `SLHDSAKeyPairGenerator` for exactly that. Strip literals too.
+3. **Unbalanced captures.** A first-argument capture like `[^,)]+` stops at the
+   `(` of a nested call, so `spec.getSpecNI()` arrives as `spec.getSpecNI(` and
+   fails a suffix match. `SpecNiExplicitParityTest` flagged four CORRECT sites
+   on its first run. Normalise the capture before comparing.
+
+Practically: after writing the guard, run it on the unmodified tree and require
+GREEN, then sabotage one site and require RED naming that site. Both halves.
+The green half is the one that gets skipped, and it is the one that catches all
+three traps above.
+
 ### Vary the chunking, and randomise the inputs
 
 Streaming algorithms (block ciphers, AEAD, digests, MACs, signatures) all have a buffering layer that absorbs partial blocks. A test that only calls `processBytes(wholeMessage, 0, len)` won't exercise the partial-block path; a test that only feeds bytes one at a time won't exercise the bulk path. Implementations have shipped where one path was right and the other returned garbage — and the native paths in this codebase deliberately buffer differently from the pure-Java paths (see "Behavioural difference vs. upstream BC" above), so the same input chunked differently is exactly the case where Java and native diverge.
@@ -396,6 +472,10 @@ reads as one legible diff instead of a fix-one-rerun-repeat loop.
 Gradle's up-to-date check hashes task inputs (classpaths, class files), not arbitrary environment variables. A test task that last ran WITHOUT `TEST_FIPS_LIB` is considered UP-TO-DATE when re-invoked WITH it: the cached result — in which every FIPS class assumption-skipped in full — is replayed as `BUILD SUCCESSFUL` in milliseconds, and the FIPS tests never execute. The tells: a full suite "passing" in under a second, and result files where a FIPS class reports `tests == skipped > 0`.
 
 When toggling `TEST_FIPS_LIB` (or any env-gated test set), force execution with `--rerun` and verify by aggregating `build/test-results/<task>/TEST-*.xml` — assert no gated class has all its tests skipped. Never accept a fast green matrix as proof the FIPS surface ran.
+
+**The same trap, one layer down: `interface/` is not a test-task input either.** A test that READS the C tree — `FIPSJniSymbolRenameParityTest` scans `interface/fips/jni/*.c` for the `#define` renames — is not re-run when only C changes, because Gradle hashes classpaths and class files and nothing under `interface/` is either. Measured: deleting the `getKeyProvider` rename and re-invoking the task produced `BUILD SUCCESSFUL in 270ms` with the test never executing, which reads exactly like the guard passing. Any falsification of a source lint whose inputs live outside `src/` needs `--rerun`, and so does any re-check after editing a rename list by hand. The full two-pass gate is unaffected — it rebuilds native and reruns — so this bites during interactive work, which is precisely when a false green is acted upon.
+
+The general rule behind both: **before trusting a green from a guard you just tried to break, confirm the guard actually RAN.** A skipped task, an assumption-skip, and a passing assertion are indistinguishable in a summary line. This is the task-level twin of the source-level rule that you must grep the file to confirm a sabotage landed.
 
 ### Prefer real-trigger limit tests over OPS injection when a real configuration reaches the branch
 

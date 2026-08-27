@@ -128,9 +128,24 @@ public class ECKeyPairGenerator extends KeyPairGenerator
         this(NISelector.ECServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
     }
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it. Inert
+     * until Phase 2 passes an instance at registration. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public ECKeyPairGenerator(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
+        this(ecServiceNI, specNI, asn1NI, null);
+    }
+
+    public ECKeyPairGenerator(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    {
         super("EC");
+        this.providerInstance = providerInstance;
         this.ecServiceNI = ecServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
@@ -225,7 +240,7 @@ public class ECKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC, providerInstance);
         return new KeyPair(new JOECPublicKey(ecServiceNI, asn1NI, spec), new JOECPrivateKey(ecServiceNI, asn1NI, spec));
     }
 }

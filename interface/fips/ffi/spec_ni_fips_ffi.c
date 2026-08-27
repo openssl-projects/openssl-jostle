@@ -24,6 +24,7 @@
 /* *INDENT-OFF* */
 #define JoSpec_Decap           JoFIPS_JoSpec_Decap
 #define JoSpec_Encap           JoFIPS_JoSpec_Encap
+#define JoSpec_GetKeyProvider  JoFIPS_JoSpec_GetKeyProvider
 #define JoSpec_GetName         JoFIPS_JoSpec_GetName
 #define JoSpec_allocateKeySpec JoFIPS_JoSpec_allocateKeySpec
 #define JoSpec_disposeKeySpec  JoFIPS_JoSpec_disposeKeySpec

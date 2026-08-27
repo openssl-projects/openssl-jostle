@@ -153,7 +153,11 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
                                     spec.getSpecNI(),
                                     mldsaServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
                                             DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom())
-                                    ), type), preferSeedOnly
+                                    ), type,
+                                    // Re-derivation from the seed produces a NEW EVP_PKEY in the
+                                    // same library; it must inherit this key's binding or the
+                                    // re-derived key would be refused by its own provider.
+                                    spec.getProviderInstance()), preferSeedOnly
                     );
                 }
                 finally

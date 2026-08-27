@@ -14,6 +14,8 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 
+import java.security.Provider;
+
 
 /**
  * A Key Spec that wraps an OpenSSL PKEY, anything using a PKEY must keep a reference to this or it's inheritors
@@ -28,6 +30,33 @@ public class PKEYKeySpec
     protected final SpecNI specNI;
     protected final PKEYReference ref;
     protected final OSSLKeyType type;
+
+    /**
+     * The provider INSTANCE that created this key, or null when the spec was
+     * built outside any provider ("unbound").
+     *
+     * <p>Instance, not name and not library. Two facts force it, both
+     * measured rather than assumed:
+     *
+     * <ol>
+     * <li>OpenSSL binds a key to its creating provider for life — an
+     *     operation on the key is served THERE regardless of which lib ctx
+     *     drove it ({@code fips-c-review/probes/xprovider_key_probe.c}).</li>
+     * <li>The JCA cannot name an instance stably —
+     *     {@code removeProvider} + {@code addProvider} swaps which instance a
+     *     name resolves to, so a key can outlive the name that identified its
+     *     maker.</li>
+     * </ol>
+     *
+     * <p>So the identity has to be the reference itself: comparable by
+     * {@code ==}, impossible to forge or alias, and already what JCA's
+     * {@code getInstance(String, Provider)} overloads take.
+     *
+     * <p>Held strongly, which pins the Provider against GC. Acceptable —
+     * Provider objects are effectively application-lifetime — but it is a real
+     * lifetime coupling and is stated here rather than discovered later.
+     */
+    private final Provider providerInstance;
 
 
     /**
@@ -53,6 +82,12 @@ public class PKEYKeySpec
 
     public PKEYKeySpec(SpecNI specNI, long ref)
     {
+        this(specNI, ref, (Provider) null);
+    }
+
+    public PKEYKeySpec(SpecNI specNI, long ref, Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         if (ref == 0)
         {
             throw new IllegalArgumentException("'ref' cannot be zero");
@@ -95,6 +130,12 @@ public class PKEYKeySpec
 
     public PKEYKeySpec(SpecNI specNI, long ref, OSSLKeyType type)
     {
+        this(specNI, ref, type, null);
+    }
+
+    public PKEYKeySpec(SpecNI specNI, long ref, OSSLKeyType type, Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         if (ref == 0)
         {
             throw new IllegalArgumentException("'ref' cannot be zero");
@@ -108,6 +149,44 @@ public class PKEYKeySpec
         this.ref = new PKEYReference(specNI, ref, type.name());
     }
 
+
+    /**
+     * The provider instance that created this key, or null when unbound.
+     */
+    public Provider getProviderInstance()
+    {
+        return providerInstance;
+    }
+
+    /**
+     * May a key with this spec be used by {@code user}?
+     *
+     * <p>The four cells, written out because leaving them to emerge from a
+     * null comparison is how the unbound case gets decided by accident:
+     *
+     * <pre>
+     *   bound x bound, same instance        ACCEPT
+     *   bound x bound, different instances  refuse  &lt;- the point of MT-14
+     *   bound x unbound, either direction   refuse  &lt;- fail closed: an
+     *                                                 unbound key is never
+     *                                                 silently adopted, JSL
+     *                                                 included
+     *   unbound x unbound                   ACCEPT  &lt;- documented, tested
+     * </pre>
+     *
+     * <p>The last cell is deliberate and load-bearing. Refusing it would break
+     * every direct-SPI consumer — a KeyPairGenerator constructed outside any
+     * provider would produce keys its own sibling SPIs reject. The unbound
+     * realm has no provider boundary to protect.
+     */
+    public boolean usableBy(Provider user)
+    {
+        if (providerInstance == null && user == null)
+        {
+            return true;
+        }
+        return providerInstance == user;
+    }
 
     protected static class Disposer
             extends NativeDisposer

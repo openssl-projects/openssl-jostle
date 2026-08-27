@@ -58,6 +58,13 @@ public class DHKeyFactorySpi extends KeyFactorySpi
     private final SpecNI specNI;
     private final Asn1Ni asn1NI;
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public DHKeyFactorySpi()
     {
         this(NISelector.DHServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
@@ -65,6 +72,12 @@ public class DHKeyFactorySpi extends KeyFactorySpi
 
     public DHKeyFactorySpi(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
+        this(dhServiceNI, specNI, asn1NI, null);
+    }
+
+    public DHKeyFactorySpi(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.dhServiceNI = dhServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
@@ -74,6 +87,11 @@ public class DHKeyFactorySpi extends KeyFactorySpi
      * The NI backend this factory allocates keys in - used by the import
      * helpers to reject keys created by the other Jostle provider.
      */
+    java.security.Provider ownProviderInstance()
+    {
+        return providerInstance;
+    }
+
     SpecNI ownSpecNI()
     {
         return specNI;
@@ -87,7 +105,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((X509EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireDH(spec);
                 return new JODHPublicKey(dhServiceNI, asn1NI, spec);
             }
@@ -106,7 +124,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] g = magnitude(pubSpec.getG(), "g");
             byte[] y = magnitude(pubSpec.getY(), "y");
             long ref = dhServiceNI.makePublicFromComponents(p, g, y);
-            return new JODHPublicKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH));
+            return new JODHPublicKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use X509EncodedKeySpec or DHPublicKeySpec.");
@@ -122,7 +140,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] encoded = ((PKCS8EncodedKeySpec) keySpec).getEncoded();
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireDH(spec);
                 return new JODHPrivateKey(dhServiceNI, asn1NI, spec);
             }
@@ -146,7 +164,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
                 long ref = dhServiceNI.makePrivateFromComponents(
                         p, g, x,
                         DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-                return new JODHPrivateKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH));
+                return new JODHPrivateKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
             }
             finally
             {
@@ -201,6 +219,29 @@ public class DHKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JODHPublicKey || key instanceof JODHPrivateKey)
         {
+            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
+                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            // INSTANCE check only, deliberately — no library half here.
+            //
+            // translateKey had NO pre-existing check (that was the twelfth
+            // acceptance shape). Adding the library half would therefore not
+            // be "additive": it would be a NEW Phase-1 restriction, refusing
+            // cross-library public keys at this one surface while initVerify,
+            // encrypt and the import helpers still accept them until Phase 2.
+            // Phase 1's contract is "checks in place, behaviour unchanged", and
+            // a window where translateKey refuses what initVerify accepts is a
+            // bug report waiting to happen for no benefit — the object route
+            // leaks everywhere else regardless until the flip.
+            //
+            // Inert now (all specs unbound => usableBy true), live the moment
+            // Phase 2 binds, at which point it subsumes a library check anyway.
+            if (!s.usableBy(providerInstance))
+            {
+                throw new java.security.InvalidKeyException(
+                        "key was created by a different Jostle provider instance; encode it "
+                                + "with getEncoded() and decode it through this provider's "
+                                + "KeyFactory");
+            }
             return key;
         }
         if (key == null)

@@ -219,10 +219,23 @@ public class MLKEMKTSCipherSpi
         // private key must not be unwrapped through the JSLFIPS NI or vice
         // versa. PUBLIC keys (WRAP_MODE) deliberately cross freely; see
         // java-spi.md "JSL <-> JSLFIPS key sharing".
-        if (opmode == Cipher.UNWRAP_MODE && spec.getSpecNI() != specNI)
+        // Additive: library check live now, instance check inert until Phase 2.
+        if (opmode == Cipher.UNWRAP_MODE
+                && (spec.getSpecNI() != specNI || !spec.usableBy(keyFactory.ownProviderInstance())))
         {
             throw new InvalidKeyException(
                     "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");
+        }
+        // MT-14, WRAP (public) side: instance-only, no library half. Public
+        // keys deliberately cross LIBRARIES; what they must not do is cross
+        // provider INSTANCES, because the EVP_PKEY stays with its creating
+        // provider and the operation would be served there. Inert until
+        // Phase 2 binds.
+        if (opmode == Cipher.WRAP_MODE && !spec.usableBy(keyFactory.ownProviderInstance()))
+        {
+            throw new InvalidKeyException(
+                    "public key was created by a different Jostle provider instance; encode it "
+                            + "with getEncoded() and decode it through this provider's KeyFactory");
         }
         switch (spec.getType())
         {

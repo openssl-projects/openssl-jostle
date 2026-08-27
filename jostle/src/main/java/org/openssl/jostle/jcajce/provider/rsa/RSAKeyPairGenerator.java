@@ -86,6 +86,15 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     // generation floor for JSLFIPS.
     private final int minKeySizeBits;
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it, and
+     * every foreign key it is handed is checked against it. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public RSAKeyPairGenerator()
     {
         this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
@@ -113,7 +122,14 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
      */
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, int minKeySizeBits)
     {
+        this(rsaServiceNI, specNI, asn1NI, minKeySizeBits, null);
+    }
+
+    public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                               int minKeySizeBits, java.security.Provider providerInstance)
+    {
         super("RSA");
+        this.providerInstance = providerInstance;
         this.rsaServiceNI = rsaServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
@@ -218,7 +234,7 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
 
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.RSA);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, OSSLKeyType.RSA, providerInstance);
         return new KeyPair(new JORSAPublicKey(rsaServiceNI, asn1NI, spec), new JORSAPrivateKey(rsaServiceNI, asn1NI, spec));
     }
 }

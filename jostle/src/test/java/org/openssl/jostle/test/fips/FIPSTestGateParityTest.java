@@ -82,7 +82,14 @@ public class FIPSTestGateParityTest
             // non-FIPS CI legs too. Gating them would silently drop the very
             // guards that keep the FIPS suite honest on exactly those legs.
             "FIPSTestNamingParityTest.java",
-            "FIPSTestGateParityTest.java"));
+            "FIPSTestGateParityTest.java",
+            // Same category, one layer out: FIPSJniSymbolRenameParityTest reads
+            // interface/fips/jni/*.c and the *FIPSJNI sources as TEXT, checking
+            // that every FIPS native has its #define rename. It needs no module
+            // and no native build, and the defect it guards (a missing rename =
+            // an UnsatisfiedLinkError plus a base/FIPS symbol collision) is
+            // introduced by C edits that the non-FIPS legs also build.
+            "FIPSJniSymbolRenameParityTest.java"));
 
     private static final Pattern BEFORE_HOOK = Pattern.compile("@Before(?:All|Each)\\b");
 

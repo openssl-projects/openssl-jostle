@@ -75,6 +75,22 @@ public class SLHDSASignatureSpi extends SignatureSpi
     public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, OSSLKeyType forcedType,
                               MessageEncoding messageEncoding, Deterministic deterministic)
     {
+        this(slhdsaServiceNI, specNI, forcedType, messageEncoding, deterministic, null);
+    }
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. This SPI holds its own specNI and no KeyFactory,
+     * so unlike the RSA/EC/DH consumers it cannot read the binding off a bound
+     * factory — it carries its own. MT-14.
+     */
+    private final java.security.Provider providerInstance;
+
+    public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, OSSLKeyType forcedType,
+                              MessageEncoding messageEncoding, Deterministic deterministic,
+                              java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.slhdsaServiceNI = slhdsaServiceNI;
         this.specNI = specNI;
         this.forcedType = forcedType;
@@ -108,6 +124,17 @@ public class SLHDSASignatureSpi extends SignatureSpi
             {
                 updateCalled = false;
                 JOSLHDSAPublicKey key = (JOSLHDSAPublicKey) publicKey;
+                // MT-14, instance-only (no library half): the public side had
+                // no pre-existing check, so a live library check would be a new
+                // Phase-1 restriction rather than an additive one. Inert until
+                // Phase 2 binds.
+                if (!key.getSpec().usableBy(providerInstance))
+                {
+                    throw new InvalidKeyException(
+                            "public key was created by a different Jostle provider instance; "
+                                    + "encode it with getEncoded() and decode it through this "
+                                    + "provider's KeyFactory");
+                }
                 lastKey = key;
 
                 if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
@@ -156,7 +183,10 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 // not be driven through the JSLFIPS NI or vice versa. Same
                 // check and message as ECKeyImport / RSAKeyImport. PUBLIC keys
                 // deliberately cross freely; see java-spi.md.
-                if (key.getSpec().getSpecNI() != specNI)
+                // Additive: library check live now, instance check inert
+                // until Phase 2.
+                if (key.getSpec().getSpecNI() != specNI
+                        || !key.getSpec().usableBy(providerInstance))
                 {
                     throw new InvalidKeyException(
                             "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");

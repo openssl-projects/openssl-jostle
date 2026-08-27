@@ -63,10 +63,18 @@ public final class ECKeyImport
     {
         if (key instanceof JOECPublicKey)
         {
-            // Public keys carry no secret material and may cross between the
-            // Jostle providers freely (OpenSSL imports the public components
-            // into this library's lib ctx); only PRIVATE keys are isolated.
-            return (JOECPublicKey) key;
+            // MT-14: instance-checked. Measurement showed a foreign public key
+            // keeps its creating provider, so accepting one meant executing in
+            // the other module (xprovider_key_probe.c). Inert until Phase 2.
+            JOECPublicKey joPub = (JOECPublicKey) key;
+            if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; "
+                                + "encode it with getEncoded() and decode it through this "
+                                + "provider's KeyFactory");
+            }
+            return joPub;
         }
         if (key instanceof PublicKey)
         {
@@ -113,7 +121,11 @@ public final class ECKeyImport
         if (key instanceof JOECPrivateKey)
         {
             JOECPrivateKey joKey = (JOECPrivateKey) key;
-            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            // Additive: library check live now, instance check inert until
+            // Phase 2. Replacing rather than adding would drop protection for
+            // the whole interim (learned on RSA).
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
+                    || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
                 // Keys are bound to the interface library (and OSSL_LIB_CTX)
                 // that created them; JSL and JSLFIPS keys must not cross

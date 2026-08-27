@@ -104,7 +104,7 @@ public class FIPSLibraryLookupParityTest
             "JoEC_generateKeyPair", "JoDSA_generateParameters", "JoDH_kexDerive",
             "JoMLDSA_sign", "JoMLKEM_generateKeyPair", "JoSLHDSA_sign",
             "JoMLXKEM_generateKeyPair",
-            "JoSpec_Encap", "JoASN1_allocate", "JoRand_createContext",
+            "JoSpec_Encap", "JoSpec_GetKeyProvider", "JoASN1_allocate", "JoRand_createContext",
             "JoCCM_init", "JoKDF_HKDF", "JoXEC_generateKeyPair",
             "JoEDDSA_generateKeyPair",
             "JoBlockCipher_init",

@@ -74,10 +74,23 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
     public SLHDSAKeyFactorySpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
                                OSSLKeyType keyType)
     {
+        this(slhdsaServiceNI, specNI, asn1NI, keyType, null);
+    }
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
+    public SLHDSAKeyFactorySpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                               OSSLKeyType keyType, java.security.Provider providerInstance)
+    {
         this.slhdsaServiceNI = slhdsaServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
         this.fixedType = keyType;
+        this.providerInstance = providerInstance;
         assert keyType != null;
     }
 
@@ -90,6 +103,12 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
         return specNI;
     }
 
+    /** The provider instance this factory belongs to; null when unbound. */
+    java.security.Provider ownProviderInstance()
+    {
+        return providerInstance;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {
@@ -99,7 +118,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -144,7 +163,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = pubSpec.getPublicData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType, providerInstance);
                     slhdsaServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
                     return new JOSLHDSAPublicKey(slhdsaServiceNI, pkeySpec);
@@ -173,7 +192,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -224,7 +243,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                 byte[] encoded = spec.getPrivateData();
                 try
                 {
-                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType);
+                    PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType, providerInstance);
                     slhdsaServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
@@ -295,6 +314,29 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof SLHDSAPrivateKey || key instanceof SLHDSAPublicKey)
         {
+            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
+                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            // INSTANCE check only, deliberately — no library half here.
+            //
+            // translateKey had NO pre-existing check (that was the twelfth
+            // acceptance shape). Adding the library half would therefore not
+            // be "additive": it would be a NEW Phase-1 restriction, refusing
+            // cross-library public keys at this one surface while initVerify,
+            // encrypt and the import helpers still accept them until Phase 2.
+            // Phase 1's contract is "checks in place, behaviour unchanged", and
+            // a window where translateKey refuses what initVerify accepts is a
+            // bug report waiting to happen for no benefit — the object route
+            // leaks everywhere else regardless until the flip.
+            //
+            // Inert now (all specs unbound => usableBy true), live the moment
+            // Phase 2 binds, at which point it subsumes a library check anyway.
+            if (!s.usableBy(providerInstance))
+            {
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider instance; encode it "
+                                + "with getEncoded() and decode it through this provider's "
+                                + "KeyFactory");
+            }
             return key;
         }
         throw new InvalidKeyException("Invalid Key: " + key);

@@ -24,6 +24,21 @@ public interface SpecNI extends DefaultServiceNI
 
     String ni_getName(long keyRef);
 
+    /**
+     * The name of the OSSL_PROVIDER that owns this KEY's keymgmt — "fips",
+     * "default", and so on — or null when it cannot be determined (null
+     * handle, keyless spec, legacy key).
+     *
+     * <p>Deliberately NOT the same question as
+     * {@code OpenSSLFIPSNI.implementingProvider}, which asks which provider
+     * implements a NAME in a lib ctx. A key carries its own keymgmt, fixed at
+     * creation, and an operation on it is served THERE regardless of which
+     * lib ctx drove the operation — measured in
+     * {@code fips-c-review/probes/xprovider_key_probe.c}. Only a key-level
+     * accessor can express that, which is why MT-14 needed one.
+     */
+    String ni_getKeyProvider(long keyRef);
+
     int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
@@ -40,6 +55,11 @@ public interface SpecNI extends DefaultServiceNI
         long ref = ni_allocate(err);
         handleErrors(err[0]);
         return ref;
+    }
+
+    default String getKeyProvider(long keyRef)
+    {
+        return ni_getKeyProvider(keyRef);
     }
 
     default String getName(long keyRef)

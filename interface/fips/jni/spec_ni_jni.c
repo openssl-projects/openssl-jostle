@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <openssl/evp.h>
+#include <openssl/provider.h>
 #include <openssl/types.h>
 
 #include "bytearrays.h"
@@ -85,6 +86,43 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getNam
 
     // will return null if the string cannot be constructed
     // String owned by JVM at this point
+    return (*env)->NewStringUTF(env, name);
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_spec_SpecJNI
+ * Method:    getKeyProvider
+ * Signature: (J)Ljava/lang/String;
+ *
+ * The provider that owns this KEY's keymgmt - see the JoSpec_GetKeyProvider
+ * comment in the FFI twin for why a key-level accessor is needed and why
+ * capability_implementing_provider does not answer the same question.
+ *
+ * Returns null for a null handle, a keyless spec, or a key with no provider
+ * (a legacy key), matching ni_getName's contract: the Java side treats null
+ * as "cannot be determined" rather than as an error.
+ */
+JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getKeyProvider
+(JNIEnv *env, jobject jo, jlong ref) {
+    UNUSED(jo);
+
+    const key_spec *ks = (key_spec *) (void *) ref;
+    if (ks == NULL || ks->key == NULL) {
+        return NULL;
+    }
+
+    const OSSL_PROVIDER *prov = EVP_PKEY_get0_provider(ks->key);
+    if (prov == NULL) {
+        return NULL;
+    }
+
+    const char *name = OSSL_PROVIDER_get0_name(prov);
+    if (name == NULL) {
+        return NULL;
+    }
+
+    // String owned by the JVM at this point.
     return (*env)->NewStringUTF(env, name);
 }
 

@@ -55,14 +55,30 @@ public class MLXKEMKeyFactorySpi extends KeyFactorySpi
     public MLXKEMKeyFactorySpi(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
                                MLXKEMParameterSpec parameterSpec)
     {
+        this(mlxkemServiceNI, specNI, parameterSpec, null);
+    }
+
+    /** The provider instance this SPI belongs to; null when unbound. MT-14. */
+    private final java.security.Provider providerInstance;
+
+    public MLXKEMKeyFactorySpi(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
+                               MLXKEMParameterSpec parameterSpec,
+                               java.security.Provider providerInstance)
+    {
         this.mlxkemServiceNI = mlxkemServiceNI;
         this.specNI = specNI;
         this.parameterSpec = parameterSpec;
+        this.providerInstance = providerInstance;
     }
 
     /**
      * The SpecNI this factory's keys are bound to.
      */
+    java.security.Provider ownProviderInstance()
+    {
+        return providerInstance;
+    }
+
     SpecNI ownSpecNI()
     {
         return specNI;
@@ -93,7 +109,7 @@ public class MLXKEMKeyFactorySpi extends KeyFactorySpi
 
         try
         {
-            PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), keyType);
+            PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), keyType, providerInstance);
             mlxkemServiceNI.decode_publicKey(pkeySpec.getReference(), keyType.getKsType(),
                     raw, 0, raw.length);
             return new JOMLXKEMPublicKey(mlxkemServiceNI, pkeySpec);
@@ -143,10 +159,37 @@ public class MLXKEMKeyFactorySpi extends KeyFactorySpi
         }
         if (key instanceof MLXKEMPublicKey || key instanceof MLXKEMPrivateKey)
         {
-            // Already ours. Note this accepts a public key from the OTHER
-            // Jostle provider by design (public material carries no secret and
-            // re-imports into the receiving lib ctx); a foreign PRIVATE key is
-            // rejected below by the key-isolation check in the operation SPIs.
+            // MT-14, additive.
+            //
+            // The comment here previously said a foreign public key
+            // "re-imports into the receiving lib ctx". That was WRONG and was
+            // written by me during WI-10: measurement
+            // (fips-c-review/probes/xprovider_key_probe.c) shows a key keeps
+            // its CREATING provider for life, so accepting one meant the
+            // operation ran in the other library.
+            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
+                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            // INSTANCE check only, deliberately — no library half here.
+            //
+            // translateKey had NO pre-existing check (that was the twelfth
+            // acceptance shape). Adding the library half would therefore not
+            // be "additive": it would be a NEW Phase-1 restriction, refusing
+            // cross-library public keys at this one surface while initVerify,
+            // encrypt and the import helpers still accept them until Phase 2.
+            // Phase 1's contract is "checks in place, behaviour unchanged", and
+            // a window where translateKey refuses what initVerify accepts is a
+            // bug report waiting to happen for no benefit — the object route
+            // leaks everywhere else regardless until the flip.
+            //
+            // Inert now (all specs unbound => usableBy true), live the moment
+            // Phase 2 binds, at which point it subsumes a library check anyway.
+            if (!s.usableBy(providerInstance))
+            {
+                throw new InvalidKeyException(
+                        "key was created by a different Jostle provider instance; hybrid KEM "
+                                + "keys have no encoding, so generate the keypair through this "
+                                + "provider instead");
+            }
             return key;
         }
         // Nothing to re-encode through: a foreign hybrid key has no encoded

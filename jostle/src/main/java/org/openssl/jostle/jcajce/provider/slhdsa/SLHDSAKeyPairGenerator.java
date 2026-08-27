@@ -87,9 +87,24 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
      * NIs came from - NISelector for JSL, FIPSNISelector for JSLFIPS - so it
      * must never reach for the base provider's statics.
      */
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it. Inert
+     * until Phase 2 passes an instance at registration. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Object algorithm)
     {
+        this(slhdsaServiceNI, specNI, algorithm, null);
+    }
+
+    public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Object algorithm, java.security.Provider providerInstance)
+    {
         super(algorithm.toString());
+        this.providerInstance = providerInstance;
         this.slhdsaServiceNI = slhdsaServiceNI;
         this.specNI = specNI;
         forcedType = paramToTypeMap.get(algorithm);
@@ -222,7 +237,7 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         }
         long res = slhdsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
         return new KeyPair(new JOSLHDSAPublicKey(slhdsaServiceNI, spec),
                 new JOSLHDSAPrivateKey(slhdsaServiceNI, spec));
     }

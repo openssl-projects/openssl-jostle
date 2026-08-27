@@ -24,6 +24,9 @@ public class SpecJNI implements SpecNI
     public native String ni_getName(long keyRef);
 
     @Override
+    public native String ni_getKeyProvider(long keyRef);
+
+    @Override
     public native int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
     @Override

@@ -57,9 +57,24 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
         this(NISelector.EDServiceNI, NISelector.SpecNI, NISelector.Asn1NI, algorithm);
     }
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it. Inert
+     * until Phase 2 passes an instance at registration. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public EdDSAKeyPairGenerator(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
+        this(edServiceNI, specNI, asn1NI, algorithm, null);
+    }
+
+    public EdDSAKeyPairGenerator(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm, java.security.Provider providerInstance)
+    {
         super(algorithmName(algorithm));
+        this.providerInstance = providerInstance;
         this.edServiceNI = edServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
@@ -147,7 +162,7 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
 
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, effectiveType);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, effectiveType, providerInstance);
         return new KeyPair(new JOEdPublicKey(edServiceNI, asn1NI, spec), new JOEdPrivateKey(edServiceNI, asn1NI, spec));
     }
 

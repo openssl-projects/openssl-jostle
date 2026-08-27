@@ -1057,4 +1057,56 @@ public class SpecLimitTest
         }
     }
 
+
+    /**
+     * The key-level provider accessor answers null rather than aborting for
+     * every unusable handle — a null handle, and a spec allocated but never
+     * given a key.
+     *
+     * <p>Null means "cannot be determined", matching {@code ni_getName}'s
+     * contract, rather than being an error: a legacy key with no provider is a
+     * legitimate third case the C cannot distinguish from the other two, so a
+     * typed exception would be claiming more than the accessor knows.
+     *
+     * <p>Runs on BOTH bridges via TestNISelector; the JNI and FFI paths return
+     * NULL from different code and must agree. Without this a 0 handle would
+     * reach a util dereference — the abort-instead-of-typed-answer class the
+     * limit tests exist for.
+     */
+    @Test
+    public void getKeyProvider_unusableHandles_answerNull()
+    {
+        Assertions.assertNull(specNI.getKeyProvider(0),
+                "a 0 handle must answer null, not abort");
+
+        long spec = specNI.allocate();
+        try
+        {
+            Assertions.assertNull(specNI.getKeyProvider(spec),
+                    "an allocated but keyless spec must answer null");
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    /**
+     * Positive control. Without it the assertions above would pass against an
+     * accessor that returned null unconditionally — which is exactly the
+     * plausible-but-wrong implementation.
+     */
+    @Test
+    public void getKeyProvider_realKey_namesAProvider() throws Exception
+    {
+        java.security.KeyPair kp = java.security.KeyPairGenerator
+                .getInstance("ML-KEM-768", org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME)
+                .generateKeyPair();
+        org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
+                ((org.openssl.jostle.jcajce.interfaces.OSSLKey) kp.getPublic()).getSpec();
+
+        String prov = s.getSpecNI().getKeyProvider(s.getReference());
+        Assertions.assertNotNull(prov, "a real key must name its provider");
+        Assertions.assertFalse(prov.isEmpty());
+    }
 }

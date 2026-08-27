@@ -81,10 +81,20 @@ public class DSASignatureSpi extends SignatureSpi
     {
         if (publicKey instanceof JODSAPublicKey)
         {
-            // Public keys carry no secret material and may cross between the
-            // Jostle providers freely (OpenSSL imports the public components
-            // into this library's lib ctx); only PRIVATE keys are isolated.
-            return (JODSAPublicKey) publicKey;
+            // MT-14: instance-checked. The old comment claimed OpenSSL
+            // imported the public components into this lib ctx; measurement
+            // disproved it (xprovider_key_probe.c) — the key keeps its
+            // creating provider and the operation is served there. Inert
+            // until Phase 2 activates binding.
+            JODSAPublicKey joPub = (JODSAPublicKey) publicKey;
+            if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; "
+                                + "encode it with getEncoded() and decode it through this "
+                                + "provider's KeyFactory");
+            }
+            return joPub;
         }
         try
         {
@@ -107,7 +117,9 @@ public class DSASignatureSpi extends SignatureSpi
         if (privateKey instanceof JODSAPrivateKey)
         {
             JODSAPrivateKey joKey = (JODSAPrivateKey) privateKey;
-            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            // Additive: library check live now, instance check inert until Phase 2.
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
+                    || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
                 // Keys are bound to the interface library (and OSSL_LIB_CTX)
                 // that created them; JSL and JSLFIPS keys must not cross

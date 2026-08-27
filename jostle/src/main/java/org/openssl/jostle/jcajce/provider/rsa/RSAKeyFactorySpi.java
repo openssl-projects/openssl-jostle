@@ -42,6 +42,15 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     private final SpecNI specNI;
     private final Asn1Ni asn1NI;
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it, and
+     * every foreign key it is handed is checked against it. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public RSAKeyFactorySpi()
     {
         this(NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI);
@@ -49,6 +58,13 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
 
     public RSAKeyFactorySpi(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
+        this(rsaServiceNI, specNI, asn1NI, null);
+    }
+
+    public RSAKeyFactorySpi(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                            java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.rsaServiceNI = rsaServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
@@ -58,6 +74,11 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
      * The NI backend this factory allocates keys in - used by the import
      * helpers to reject keys created by the other Jostle provider.
      */
+    java.security.Provider ownProviderInstance()
+    {
+        return providerInstance;
+    }
+
     SpecNI ownSpecNI()
     {
         return specNI;
@@ -82,7 +103,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                     ? KeyInfoCanonicalizer.subjectPublicKeyInfoAlgId(original) : null;
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireRSA(spec);
                 return new JORSAPublicKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
             }
@@ -100,7 +121,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             RSAPublicKeySpec rsa = (RSAPublicKeySpec) keySpec;
             try
             {
-                PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
+                PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA, providerInstance);
                 rsaServiceNI.decodePublicComponents(
                         spec.getReference(),
                         unsignedMagnitude(rsa.getModulus()),
@@ -139,7 +160,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                     ? KeyInfoCanonicalizer.privateKeyInfoAlgId(pkcs8) : null;
             try
             {
-                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length);
+                PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireRSA(spec);
                 return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
             }
@@ -162,7 +183,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             RSAPrivateCrtKeySpec rsa = (RSAPrivateCrtKeySpec) keySpec;
             try
             {
-                PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA);
+                PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA, providerInstance);
                 rsaServiceNI.decodePrivateComponentsCrt(
                         spec.getReference(),
                         unsignedMagnitude(rsa.getModulus()),
@@ -249,6 +270,37 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JORSAPublicKey || key instanceof JORSAPrivateKey)
         {
+            // MT-14: a Jostle key is returned as-is only if it belongs to THIS
+            // provider instance. Returning a foreign one unchanged is how the
+            // object route leaked — translateKey is a key-ACCEPTING entry
+            // point in its own right, not a wrapper over the import helpers,
+            // so it needs the check independently. Found because the probe
+            // presents keys through this surface rather than reading them.
+            org.openssl.jostle.jcajce.spec.PKEYKeySpec spec =
+                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            // Additive, same reasoning as RSAKeyImport: the library-level
+            // check stays live until instance binding is activated.
+            // INSTANCE check only, deliberately — no library half here.
+            //
+            // translateKey had NO pre-existing check (that was the twelfth
+            // acceptance shape). Adding the library half would therefore not
+            // be "additive": it would be a NEW Phase-1 restriction, refusing
+            // cross-library public keys at this one surface while initVerify,
+            // encrypt and the import helpers still accept them until Phase 2.
+            // Phase 1's contract is "checks in place, behaviour unchanged", and
+            // a window where translateKey refuses what initVerify accepts is a
+            // bug report waiting to happen for no benefit — the object route
+            // leaks everywhere else regardless until the flip.
+            //
+            // Inert now (all specs unbound => usableBy true), live the moment
+            // Phase 2 binds, at which point it subsumes a library check anyway.
+            if (!spec.usableBy(providerInstance))
+            {
+                throw new java.security.InvalidKeyException(
+                        "key was created by a different Jostle provider instance; encode it "
+                                + "with getEncoded() and decode it through this provider's "
+                                + "KeyFactory");
+            }
             return key;
         }
         // Foreign RSA key — re-encode and decode through us so we

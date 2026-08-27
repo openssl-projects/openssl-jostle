@@ -70,6 +70,16 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
     public MLKEMKeyGenerator(SpecNI specNI, MLKEMParameterSpec spec)
     {
+        this(specNI, spec, null);
+    }
+
+    /** The provider instance this SPI belongs to; null when unbound. MT-14. */
+    private final java.security.Provider providerInstance;
+
+    public MLKEMKeyGenerator(SpecNI specNI, MLKEMParameterSpec spec,
+                             java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.specNI = specNI;
         this.forcedKeyType = spec.getKeyType();
         randSource = DefaultRandSource.replaceWith(null, null, strengthForKeyType(forcedKeyType));
@@ -82,6 +92,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
     public MLKEMKeyGenerator(SpecNI specNI)
     {
+        this(specNI, (java.security.Provider) null);
+    }
+
+    public MLKEMKeyGenerator(SpecNI specNI, java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.specNI = specNI;
         this.forcedKeyType = OSSLKeyType.NONE;
         // No forced type — default to 128-bit baseline. engineInit
@@ -130,7 +146,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                 // through this provider's KeyFactory" is real advice here,
                 // where for the hybrids it would be a dead end. Do not unify
                 // the two messages: the difference is the remedy that exists.
-                if (kem.getSpec().getSpecNI() != specNI)
+                // Additive: library check (MT-8) live now, instance check
+                // inert until Phase 2.
+                if (kem.getSpec().getSpecNI() != specNI
+                        || !kem.getSpec().usableBy(providerInstance))
                 {
                     throw new InvalidAlgorithmParameterException(
                             "private key was created by a different Jostle provider; encode it "
@@ -166,6 +185,17 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                 {
                     extract = false;
                     MLKEMPublicKey kem = (MLKEMPublicKey) key;
+                    // MT-14, encap (public) side: instance-only, no library
+                    // half — the public side had no pre-existing check, so a
+                    // live library one would be a new Phase-1 restriction.
+                    // Inert until Phase 2 binds.
+                    if (!kem.getSpec().usableBy(providerInstance))
+                    {
+                        throw new InvalidAlgorithmParameterException(
+                                "public key was created by a different Jostle provider instance; "
+                                        + "encode it with getEncoded() and decode it through this "
+                                        + "provider's KeyFactory");
+                    }
                     if (forcedKeyType != OSSLKeyType.NONE && kem.getSpec().getType() != forcedKeyType)
                     {
                         throw new InvalidAlgorithmParameterException("expected " + MLKEMParameterSpec.getSpecForOSSLType(forcedKeyType).getName() + " but got " + MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName());

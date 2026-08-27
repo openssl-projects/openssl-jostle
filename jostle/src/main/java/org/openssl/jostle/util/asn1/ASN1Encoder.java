@@ -114,8 +114,27 @@ public class ASN1Encoder
      */
     public static PKEYKeySpec fromPrivateKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len)
     {
+        return fromPrivateKeyInfo(asn1NI, specNI, data, start, len, null);
+    }
+
+    /**
+     * As above, additionally BINDING the decoded spec to a provider instance
+     * (MT-14). The encoder itself stays provider-agnostic — it does not
+     * consult the value, only hands it to the spec — so that the decision of
+     * which instance owns a decoded key stays with the KeyFactory that made
+     * the call.
+     *
+     * <p>This path matters more than it looks: "encode it with getEncoded()
+     * and decode it through this provider's KeyFactory" is the remedy every
+     * cross-instance rejection message names. If the decode produced an
+     * UNBOUND spec, following that advice would yield a key the receiving
+     * provider then refuses — the sanctioned crossing would not work.
+     */
+    public static PKEYKeySpec fromPrivateKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len,
+                                                 java.security.Provider providerInstance)
+    {
         long ref = asn1NI.fromPrivateKeyInfo(data, start, len);
-        return new PKEYKeySpec(specNI, ref);
+        return new PKEYKeySpec(specNI, ref, providerInstance);
     }
 
     public static PKEYKeySpec fromSubjectPublicKeyInfo(byte[] data, int start, int len)
@@ -126,8 +145,15 @@ public class ASN1Encoder
     /** Variant bound to specific NI backends (see fromPrivateKeyInfo). */
     public static PKEYKeySpec fromSubjectPublicKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len)
     {
+        return fromSubjectPublicKeyInfo(asn1NI, specNI, data, start, len, null);
+    }
+
+    /** As above, additionally BINDING the decoded spec (see fromPrivateKeyInfo). */
+    public static PKEYKeySpec fromSubjectPublicKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start,
+                                                       int len, java.security.Provider providerInstance)
+    {
         long ref = asn1NI.fromPublicKeyInfo(data, start, len);
-        return new PKEYKeySpec(specNI, ref);
+        return new PKEYKeySpec(specNI, ref, providerInstance);
     }
 
 

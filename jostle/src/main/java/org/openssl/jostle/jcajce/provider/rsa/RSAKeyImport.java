@@ -66,10 +66,22 @@ public final class RSAKeyImport
     {
         if (key instanceof JORSAPublicKey)
         {
-            // Public keys carry no secret material and may cross between the
-            // Jostle providers freely (OpenSSL imports the public components
-            // into this library's lib ctx); only PRIVATE keys are isolated.
-            return (JORSAPublicKey) key;
+            // MT-14: instance binding. The old comment here claimed OpenSSL
+            // imported the public components into THIS library's lib ctx so
+            // the operation executed here. Measurement disproved it
+            // (fips-c-review/probes/xprovider_key_probe.c): a key keeps its
+            // creating provider for life and the operation is served THERE.
+            // So accepting a foreign public key object meant silently
+            // executing in the other module.
+            JORSAPublicKey joPub = (JORSAPublicKey) key;
+            if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; encode "
+                                + "it with getEncoded() and decode it through this provider's "
+                                + "KeyFactory");
+            }
+            return joPub;
         }
         if (key instanceof PublicKey)
         {
@@ -112,7 +124,13 @@ public final class RSAKeyImport
         if (key instanceof JORSAPrivateKey)
         {
             JORSAPrivateKey joKey = (JORSAPrivateKey) key;
-            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            // BOTH checks, deliberately. The library-level one is today's
+            // live isolation; the instance one is MT-14's, and is inert until
+            // registration starts binding providers. Replacing rather than
+            // adding would silently drop protection for the whole interim —
+            // which it did, and FIPSKeyIsolationTest caught it.
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
+                    || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
                 // Keys are bound to the interface library (and OSSL_LIB_CTX)
                 // that created them; JSL and JSLFIPS keys must not cross

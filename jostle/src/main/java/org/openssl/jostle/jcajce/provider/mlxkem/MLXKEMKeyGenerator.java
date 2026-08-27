@@ -76,6 +76,17 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
     public MLXKEMKeyGenerator(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
                               MLXKEMParameterSpec parameterSpec)
     {
+        this(mlxkemServiceNI, specNI, parameterSpec, null);
+    }
+
+    /** The provider instance this SPI belongs to; null when unbound. MT-14. */
+    private final java.security.Provider providerInstance;
+
+    public MLXKEMKeyGenerator(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
+                              MLXKEMParameterSpec parameterSpec,
+                              java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.mlxkemServiceNI = mlxkemServiceNI;
         this.specNI = specNI;
         this.parameterSpec = parameterSpec;
@@ -129,7 +140,9 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         // other family there is no encode-and-re-decode escape hatch here,
         // because hybrid keys have no encoding at all; the only remedy is to
         // generate the keypair through the provider that will use it.
-        if (spec.getSpecNI() != specNI)
+        // Additive: library check (WI-10) live now, instance check inert
+        // until Phase 2.
+        if (spec.getSpecNI() != specNI || !spec.usableBy(providerInstance))
         {
             throw new InvalidAlgorithmParameterException(
                     "private key was created by a different Jostle provider; hybrid KEM keys have no encoding, "
@@ -168,10 +181,27 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         // encapsulates through the base library. The sanctioned crossing -
         // export the raw share and re-import it through this provider's
         // KeyFactory, which is what a real TLS peer does and what the tests
-        // use - does run in the receiving lib ctx. Same shape as
-        // MLKEMKeyGenerator; whether the object route should be refused under
-        // a FIPS provider name is logged as MT-8 rather than changed here.
-        requireGroup(((OSSLKey) key).getSpec().getType());
+        // use - does run in the receiving lib ctx.
+        //
+        // MT-14 closes the object route: the check below refuses a public key
+        // belonging to a different provider INSTANCE, which is what the
+        // paragraph above describes as the leak. Instance-only, no library
+        // half - public keys legitimately cross libraries, and the public side
+        // had no pre-existing check, so a live library one would be a new
+        // Phase-1 restriction. Inert until Phase 2 binds.
+        //
+        // The message is the hybrid-specific one: with no encoding for these
+        // keys, "encode it and decode it through this provider's KeyFactory"
+        // would be advice a caller cannot follow.
+        PKEYKeySpec pubSpec = ((OSSLKey) key).getSpec();
+        if (!pubSpec.usableBy(providerInstance))
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "public key was created by a different Jostle provider instance; hybrid KEM "
+                            + "keys have no encoding, so generate the keypair through this "
+                            + "provider instead");
+        }
+        requireGroup(pubSpec.getType());
 
         int keySizeInBits = params.getKeySizeInBits();
         if (keySizeInBits < MIN_KEY_SIZE_BITS || keySizeInBits > MAX_KEY_SIZE_BITS)

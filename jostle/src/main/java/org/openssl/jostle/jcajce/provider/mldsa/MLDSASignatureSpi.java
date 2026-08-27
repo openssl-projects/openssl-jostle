@@ -190,7 +190,19 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         if (publicKey instanceof MLDSAPublicKey)
         {
-            return (MLDSAPublicKey) publicKey;
+            MLDSAPublicKey joKey = (MLDSAPublicKey) publicKey;
+            // MT-14, instance-only (no library half): the public side had no
+            // pre-existing check here, so a live library check would be a new
+            // Phase-1 restriction rather than an additive one. Inert until
+            // Phase 2 binds, at which point it subsumes a library check.
+            if (!joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; "
+                                + "encode it with getEncoded() and decode it through this "
+                                + "provider's KeyFactory");
+            }
+            return joKey;
         }
         Key translated = keyFactory.engineTranslateKey(publicKey);
         if (translated instanceof MLDSAPublicKey)
@@ -213,8 +225,12 @@ public class MLDSASignatureSpi extends SignatureSpi
             // driven through the JSLFIPS NI or vice versa. Same check and same
             // message as ECKeyImport / RSAKeyImport. PUBLIC keys deliberately
             // cross freely; see java-spi.md "JSL <-> JSLFIPS key sharing".
+            // Additive: library check live now, instance check inert until
+            // Phase 2 — substituting would drop the interim (learned on RSA).
             if (privateKey instanceof JOMLDSAPrivateKey
-                    && ((JOMLDSAPrivateKey) privateKey).getSpec().getSpecNI() != keyFactory.ownSpecNI())
+                    && (((JOMLDSAPrivateKey) privateKey).getSpec().getSpecNI() != keyFactory.ownSpecNI()
+                            || !((JOMLDSAPrivateKey) privateKey).getSpec()
+                                    .usableBy(keyFactory.ownProviderInstance())))
             {
                 throw new InvalidKeyException(
                         "private key was created by a different Jostle provider; encode it with getEncoded() and decode it through this provider's KeyFactory");

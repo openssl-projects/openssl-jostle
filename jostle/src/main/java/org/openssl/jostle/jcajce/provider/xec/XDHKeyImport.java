@@ -39,10 +39,18 @@ public final class XDHKeyImport
     {
         if (key instanceof JOXECPublicKey)
         {
-            // Public keys carry no secret material and may cross between the
-            // Jostle providers freely (OpenSSL imports the public components
-            // into this library's lib ctx); only PRIVATE keys are isolated.
-            return (JOXECPublicKey) key;
+            // MT-14: instance-checked. A foreign public key keeps its creating
+            // provider (xprovider_key_probe.c), so accepting one meant
+            // executing in the other module. Inert until Phase 2.
+            JOXECPublicKey joPub = (JOXECPublicKey) key;
+            if (!joPub.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; "
+                                + "encode it with getEncoded() and decode it through this "
+                                + "provider's KeyFactory");
+            }
+            return joPub;
         }
         if (key instanceof PublicKey)
         {
@@ -73,7 +81,10 @@ public final class XDHKeyImport
         if (key instanceof JOXECPrivateKey)
         {
             JOXECPrivateKey joKey = (JOXECPrivateKey) key;
-            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI())
+            // Additive: library check live now, instance check inert until
+            // Phase 2. Replacing would drop protection for the interim.
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
+                    || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
                 // Keys are bound to the interface library (and OSSL_LIB_CTX)
                 // that created them; JSL and JSLFIPS keys must not cross

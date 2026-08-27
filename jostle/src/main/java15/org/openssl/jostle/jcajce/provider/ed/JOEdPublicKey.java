@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.ed;
 
 import org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
@@ -25,7 +26,7 @@ import java.math.BigInteger;
 import java.security.spec.EdECPoint;
 import java.security.spec.NamedParameterSpec;
 
-public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey, java.security.interfaces.EdECPublicKey
+public class JOEdPublicKey extends AsymmetricKeyImpl implements EdDSAPublicKey, OSSLKey, java.security.interfaces.EdECPublicKey
 {
     // Instance fields, not NISelector statics (NISelector for JSL,
     // FIPSNISelector for JSLFIPS): the key's native handle belongs to the

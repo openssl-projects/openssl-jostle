@@ -66,9 +66,24 @@ public class XECKeyPairGenerator extends KeyPairGenerator
         this(NISelector.XECServiceNI, NISelector.SpecNI, NISelector.Asn1NI, keyType);
     }
 
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it. Inert
+     * until Phase 2 passes an instance at registration. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType)
     {
+        this(xecServiceNI, specNI, asn1NI, keyType, null);
+    }
+
+    public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType, java.security.Provider providerInstance)
+    {
         super(keyType.getAlgorithmName());
+        this.providerInstance = providerInstance;
         this.keyType = keyType;
         this.xecServiceNI = xecServiceNI;
         this.specNI = specNI;
@@ -125,7 +140,7 @@ public class XECKeyPairGenerator extends KeyPairGenerator
         {
             throw new IllegalStateException("unexpected null pointer from native layer");
         }
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, keyType);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, keyType, providerInstance);
         return new KeyPair(new JOXECPublicKey(asn1NI, spec), new JOXECPrivateKey(asn1NI, spec));
     }
 }

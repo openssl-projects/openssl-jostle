@@ -10,6 +10,8 @@
 #include <openssl/evp.h>
 
 #include "types.h"
+#include <openssl/provider.h>
+
 #include "../util/key_spec.h"
 #include "../util/bc_err_codes.h"
 #include "../util/encapdecap.h"
@@ -168,6 +170,42 @@ const char *JoSpec_GetName(key_spec *ks, size_t *len) {
     }
 
     const char *ret = EVP_PKEY_get0_type_name(ks->key);
+    if (ret == NULL) {
+        *len = 0;
+    } else {
+        *len = strlen(ret);
+    }
+    return ret;
+}
+
+/*
+ * The name of the OSSL_PROVIDER that owns this KEY's keymgmt.
+ *
+ * NOT the same question as capability_implementing_provider, which asks which
+ * provider implements a NAME in a lib ctx. A key carries its own keymgmt,
+ * fixed at creation, and an operation on it is served THERE regardless of the
+ * lib ctx the operation was driven through - measured in
+ * fips-c-review/probes/xprovider_key_probe.c. That is the fact MT-14 exists to
+ * pin, and only a key-level accessor can express it.
+ *
+ * Same shape as JoSpec_GetName: borrowed pointer, length out-parameter, NULL
+ * with *len = 0 when there is nothing to report. The provider name is owned by
+ * the provider, which the lib ctx keeps loaded for its own lifetime.
+ */
+const char *JoSpec_GetKeyProvider(key_spec *ks, size_t *len) {
+    jo_assert(len != NULL);
+    if (ks == NULL || ks->key == NULL) {
+        *len = 0;
+        return NULL;
+    }
+
+    const OSSL_PROVIDER *prov = EVP_PKEY_get0_provider(ks->key);
+    if (prov == NULL) {
+        *len = 0;
+        return NULL;
+    }
+
+    const char *ret = OSSL_PROVIDER_get0_name(prov);
     if (ret == NULL) {
         *len = 0;
     } else {

@@ -96,9 +96,24 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
      * NIs came from - NISelector for JSL, FIPSNISelector for JSLFIPS - so it
      * must never reach for the base provider's statics.
      */
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it. Inert
+     * until Phase 2 passes an instance at registration. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
     public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Object algorithm)
     {
+        this(mlkemServiceNI, specNI, algorithm, null);
+    }
+
+    public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Object algorithm, java.security.Provider providerInstance)
+    {
         super(algorithm.toString());
+        this.providerInstance = providerInstance;
         this.mlkemServiceNI = mlkemServiceNI;
         this.specNI = specNI;
         keyType = paramToTypeMap.get(algorithm);
@@ -239,7 +254,7 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
     {
         long res = mlkemServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
-        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType);
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
         return new KeyPair(new JOMLKEMPublicKey(spec), new JOMLKEMPrivateKey(spec));
     }
 
