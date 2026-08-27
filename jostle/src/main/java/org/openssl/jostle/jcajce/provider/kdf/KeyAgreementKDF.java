@@ -13,7 +13,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
 import org.openssl.jostle.util.Arrays;
 
-import java.io.ByteArrayOutputStream;
+import org.openssl.jostle.util.io.ExposedByteArrayOutputStream;
 import java.lang.reflect.Method;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.MessageDigest;
@@ -57,10 +57,50 @@ public final class KeyAgreementKDF
      * requested KEK length (also encoded, in bits, into {@code suppPubInfo});
      * {@code ukm} is the optional {@code partyAInfo} (null when absent).
      */
-    public static byte[] x942(String digest, byte[] zz, String wrapOid, int keyLenBytes, byte[] ukm)
+
+    /**
+     * Resolve the digest from a NAMED provider.
+     *
+     * <p>This KDF derives the KEK from a key-agreement shared secret, so the
+     * hashing is part of the cryptographic operation, not incidental to it.
+     * A bare {@code MessageDigest.getInstance(name)} resolves against the
+     * installed provider list in order - normally SUN - which meant a JSLFIPS
+     * key agreement derived its KEK OUTSIDE the FIPS module, with nothing
+     * failing and no test able to see it (SHA-256 is SHA-256 whoever computes
+     * it). The caller supplies the provider it belongs to.
+     *
+     * <p>Failure is LOUD under both providers, deliberately. With the name
+     * sourced from the SPI's construction, "my own provider does not serve my
+     * digest" is a broken build, not a runtime condition to paper over - and a
+     * silent fall-through to another provider is precisely the shape that hid
+     * the original defect.
+     */
+    private static MessageDigest digest(String providerName, String digest)
             throws NoSuchAlgorithmException
     {
-        MessageDigest md = MessageDigest.getInstance(digest);
+        if (providerName == null)
+        {
+            throw new NoSuchAlgorithmException(
+                    "no provider named for the " + digest + " KDF digest; the calling SPI must "
+                            + "supply the provider it belongs to so the KDF is not computed "
+                            + "outside it");
+        }
+        try
+        {
+            return MessageDigest.getInstance(digest, providerName);
+        }
+        catch (java.security.NoSuchProviderException e)
+        {
+            throw new NoSuchAlgorithmException(
+                    "provider " + providerName + " is not installed, so the " + digest
+                            + " KDF digest cannot be computed by it", e);
+        }
+    }
+
+    public static byte[] x942(String providerName, String digest, byte[] zz, String wrapOid, int keyLenBytes, byte[] ukm)
+            throws NoSuchAlgorithmException
+    {
+        MessageDigest md = digest(providerName, digest);
         int digLen = md.getDigestLength();
         int blocks = (keyLenBytes + digLen - 1) / digLen;
 
@@ -71,6 +111,9 @@ public final class KeyAgreementKDF
             md.update(zz, 0, zz.length);
             byte[] otherInfo = x942OtherInfo(wrapOid, counter, keyLenBytes * 8, ukm);
             md.update(otherInfo, 0, otherInfo.length);
+            // Consumed by update; it embeds the caller-supplied UKM, so scrub
+            // it alongside dig rather than leaving it for GC.
+            Arrays.clear(otherInfo);
             byte[] dig = md.digest();
             System.arraycopy(dig, 0, out, i * digLen, digLen);
             Arrays.clear(dig);
@@ -82,10 +125,10 @@ public final class KeyAgreementKDF
     /**
      * ANSI X9.63 KDF (ISO-18033 KDF2). {@code sharedInfo} may be null.
      */
-    public static byte[] x963(String digest, byte[] zz, int keyLenBytes, byte[] sharedInfo)
+    public static byte[] x963(String providerName, String digest, byte[] zz, int keyLenBytes, byte[] sharedInfo)
             throws NoSuchAlgorithmException
     {
-        MessageDigest md = MessageDigest.getInstance(digest);
+        MessageDigest md = digest(providerName, digest);
         int digLen = md.getDigestLength();
         int blocks = (keyLenBytes + digLen - 1) / digLen;
 
@@ -231,17 +274,43 @@ public final class KeyAgreementKDF
                 derOid(wrapOid),
                 derOctetString(intToBytes(counter))));
 
-        ByteArrayOutputStream body = new ByteArrayOutputStream();
-        writeAll(body, keySpecificInfo);
-        if (ukm != null)
+        // Presized so the stream never grows: growth abandons the previous
+        // buffer uncleansed, which no erase() can reach. The three components
+        // are all known here. The UKM is caller-supplied and the API does not
+        // constrain it to be public, so it is treated as sensitive even though
+        // it is public in CMS ESDH.
+        int size = keySpecificInfo.length + 16
+                + (ukm != null ? ukm.length + 16 : 0);
+        ExposedByteArrayOutputStream body = new ExposedByteArrayOutputStream(size);
+        byte[] contents = null;
+        try
         {
-            // [0] EXPLICIT OCTET STRING
-            writeAll(body, derExplicitTagged(0, derOctetString(ukm)));
-        }
-        // [2] EXPLICIT OCTET STRING (key length in bits, 4 bytes)
-        writeAll(body, derExplicitTagged(2, derOctetString(intToBytes(keyBits))));
+            writeAll(body, keySpecificInfo);
+            if (ukm != null)
+            {
+                // [0] EXPLICIT OCTET STRING
+                byte[] tagged = derExplicitTagged(0, derOctetString(ukm));
+                try
+                {
+                    writeAll(body, tagged);
+                }
+                finally
+                {
+                    Arrays.clear(tagged);
+                }
+            }
+            // [2] EXPLICIT OCTET STRING (key length in bits, 4 bytes)
+            writeAll(body, derExplicitTagged(2, derOctetString(intToBytes(keyBits))));
 
-        return derSequence(body.toByteArray());
+            contents = body.toByteArray();
+            return derSequence(contents);
+        }
+        finally
+        {
+            Arrays.clear(contents);
+            Arrays.clear(keySpecificInfo);
+            body.erase();
+        }
     }
 
     // ----- minimal DER writer -----
@@ -271,7 +340,7 @@ public final class KeyAgreementKDF
     private static byte[] oidContents(String oid)
     {
         String[] parts = oid.split("\\.");
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ExposedByteArrayOutputStream out = new ExposedByteArrayOutputStream();
         // First two arcs combine: 40*arc0 + arc1.
         long first = Long.parseLong(parts[0]) * 40 + Long.parseLong(parts[1]);
         writeBase128(out, first);
@@ -282,7 +351,7 @@ public final class KeyAgreementKDF
         return out.toByteArray();
     }
 
-    private static void writeBase128(ByteArrayOutputStream out, long value)
+    private static void writeBase128(ExposedByteArrayOutputStream out, long value)
     {
         // Big-endian base-128, high bit set on all but the final octet.
         int shift = 63;
@@ -301,14 +370,22 @@ public final class KeyAgreementKDF
 
     private static byte[] tlv(int tag, byte[] contents)
     {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        out.write(tag);
-        writeLength(out, contents.length);
-        writeAll(out, contents);
-        return out.toByteArray();
+        // Presized: tag + at most 5 length octets + contents, so no growth.
+        ExposedByteArrayOutputStream out = new ExposedByteArrayOutputStream(contents.length + 6);
+        try
+        {
+            out.write(tag);
+            writeLength(out, contents.length);
+            writeAll(out, contents);
+            return out.toByteArray();
+        }
+        finally
+        {
+            out.erase();
+        }
     }
 
-    private static void writeLength(ByteArrayOutputStream out, int len)
+    private static void writeLength(ExposedByteArrayOutputStream out, int len)
     {
         if (len < 0x80)
         {
@@ -346,7 +423,7 @@ public final class KeyAgreementKDF
         return out;
     }
 
-    private static void writeAll(ByteArrayOutputStream out, byte[] data)
+    private static void writeAll(ExposedByteArrayOutputStream out, byte[] data)
     {
         out.write(data, 0, data.length);
     }

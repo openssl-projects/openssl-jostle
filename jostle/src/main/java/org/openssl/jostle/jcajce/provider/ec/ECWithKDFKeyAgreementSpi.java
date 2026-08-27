@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kdf.KeyAgreementKDF;
 import org.openssl.jostle.util.Arrays;
 
@@ -45,19 +46,32 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
     private final String digest;
     private byte[] ukm;
 
+
+    /**
+     * The provider this SPI belongs to, sourced from construction rather than
+     * hard-coded: the same class serves JSL and JSLFIPS, so a constant would
+     * name the wrong one for half its instances. Used to resolve the KDF
+     * digest, so the derivation runs inside the provider that owns the
+     * operation. See MT-5.
+     */
+    private final String providerName;
+
     public ECWithKDFKeyAgreementSpi(String digest)
     {
         this.digest = digest;
+        // The convenience constructor is the base provider's.
+        this.providerName = JostleProvider.PROVIDER_NAME;
     }
 
     //
     // NI-binding constructor for the FIPS provider: identical behaviour,
     // bound to the FIPS interface library.
     //
-    public ECWithKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digest)
+    public ECWithKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digest, String providerName)
     {
         super(ecServiceNI, keyFactory);
         this.digest = digest;
+        this.providerName = providerName;
     }
 
     @Override
@@ -130,7 +144,7 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
             // NOT odd-parity-adjust the derived 3DES KEK (DES wrapping ignores
             // the parity bits anyway). An earlier parity adjustment here broke
             // byte-exact agreement with BC and was removed.
-            kek = KeyAgreementKDF.x963(digest, zz, keyLen, ukm);
+            kek = KeyAgreementKDF.x963(providerName, digest, zz, keyLen, ukm);
             return new SecretKeySpec(kek, keyAlg);
         }
         finally

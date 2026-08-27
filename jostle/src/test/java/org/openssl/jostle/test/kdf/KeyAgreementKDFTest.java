@@ -55,6 +55,14 @@ import java.security.spec.X509EncodedKeySpec;
  */
 public class KeyAgreementKDFTest
 {
+    /**
+     * The KDF now takes the provider that owns the operation, so its digest is
+     * not resolved against whatever the JCA provider list happens to offer
+     * (MT-5). These are unit tests of the KDF recurrence itself, so the base
+     * provider is the natural choice - the vectors are provider-independent.
+     */
+    private static final String JSL = org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME;
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private static final String AES256_WRAP = "2.16.840.1.101.3.4.1.45"; // 32 bytes
@@ -143,7 +151,7 @@ public class KeyAgreementKDFTest
             String wrapOid = WRAP_OIDS[RANDOM.nextInt(WRAP_OIDS.length)];
             int keyLen = KeyAgreementKDF.wrapKeyLenBytes(wrapOid);
 
-            byte[] jsl = KeyAgreementKDF.x942("SHA-1", zz, wrapOid, keyLen, ukm);
+            byte[] jsl = KeyAgreementKDF.x942(JSL, "SHA-1", zz, wrapOid, keyLen, ukm);
 
             DHKEKGenerator gen = new DHKEKGenerator(new SHA1Digest());
             gen.init(new DHKDFParameters(new ASN1ObjectIdentifier(wrapOid), keyLen * 8, zz, ukm));
@@ -175,7 +183,7 @@ public class KeyAgreementKDFTest
             String digest = digests[trial % digests.length];
             int keyLen = new int[]{16, 24, 32}[RANDOM.nextInt(3)];
 
-            byte[] jsl = KeyAgreementKDF.x963(digest, zz, keyLen, sharedInfo);
+            byte[] jsl = KeyAgreementKDF.x963(JSL, digest, zz, keyLen, sharedInfo);
 
             KDF2BytesGenerator gen = new KDF2BytesGenerator(bcDigest(digest));
             gen.init(new KDFParameters(zz, sharedInfo));
@@ -198,8 +206,8 @@ public class KeyAgreementKDFTest
         RANDOM.nextBytes(ukm1);
         RANDOM.nextBytes(ukm2);
 
-        byte[] k1 = KeyAgreementKDF.x942("SHA-1", zz, WRAP_OIDS[2], 32, ukm1);
-        byte[] k2 = KeyAgreementKDF.x942("SHA-1", zz, WRAP_OIDS[2], 32, ukm2);
+        byte[] k1 = KeyAgreementKDF.x942(JSL, "SHA-1", zz, WRAP_OIDS[2], 32, ukm1);
+        byte[] k2 = KeyAgreementKDF.x942(JSL, "SHA-1", zz, WRAP_OIDS[2], 32, ukm2);
         Assertions.assertFalse(Arrays.areEqual(k1, k2),
                 "different UKMs must yield different KEKs");
     }
@@ -214,8 +222,8 @@ public class KeyAgreementKDFTest
         RANDOM.nextBytes(si1);
         RANDOM.nextBytes(si2);
 
-        byte[] k1 = KeyAgreementKDF.x963("SHA-256", zz, 32, si1);
-        byte[] k2 = KeyAgreementKDF.x963("SHA-256", zz, 32, si2);
+        byte[] k1 = KeyAgreementKDF.x963(JSL, "SHA-256", zz, 32, si1);
+        byte[] k2 = KeyAgreementKDF.x963(JSL, "SHA-256", zz, 32, si2);
         Assertions.assertFalse(Arrays.areEqual(k1, k2),
                 "different SharedInfo must yield different KEKs");
     }
@@ -447,7 +455,7 @@ public class KeyAgreementKDFTest
         byte[] ukm = new byte[16];
         RANDOM.nextBytes(ukm);
         int keyLen = KeyAgreementKDF.wrapKeyLenBytes(DESEDE_WRAP);
-        byte[] rawKdf = KeyAgreementKDF.x963("SHA-256", zz, keyLen, ukm);
+        byte[] rawKdf = KeyAgreementKDF.x963(JSL, "SHA-256", zz, keyLen, ukm);
 
         KeyAgreement ka = KeyAgreement.getInstance("ECDHWITHSHA256KDF", JostleProvider.PROVIDER_NAME);
         ka.init(alice.getPrivate(), new UserKeyingMaterialSpec(ukm));

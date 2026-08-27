@@ -78,4 +78,31 @@ public class ExposedByteArrayOutputStream
     {
         return this.buf;
     }
+
+    /**
+     * Zero the internal buffer in place.
+     *
+     * <p>Call this in a {@code finally} once the bytes have been consumed,
+     * whenever secret or potentially-sensitive material has passed through the
+     * stream. Neither {@link #reset()} nor {@link #toByteArray()} clears
+     * anything: {@code reset()} only moves the count back to zero, and
+     * {@code toByteArray()} takes a COPY and leaves the original contents in
+     * the internal buffer until garbage collection.
+     *
+     * <p><b>Growth caveat — presize where you can.</b> This zeroes only the
+     * buffer that exists NOW. {@link java.io.ByteArrayOutputStream} grows via
+     * {@code Arrays.copyOf}, which abandons each previous buffer with its
+     * contents intact and unreachable, so a stream that grew has already left
+     * copies behind that no {@code erase()} can reach. Where the final length
+     * is computable, construct with
+     * {@link #ExposedByteArrayOutputStream(int)} at that capacity so no growth
+     * occurs. This is the Java twin of the native rule that a buffer holding
+     * secrets must grow by malloc + copy + {@code OPENSSL_clear_free} rather
+     * than a bare {@code realloc} (see native-code.md).
+     */
+    public void erase()
+    {
+        java.util.Arrays.fill(this.buf, (byte) 0);
+        this.count = 0;
+    }
 }

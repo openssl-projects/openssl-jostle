@@ -180,6 +180,18 @@ Two implementation requirements:
 
 `BlockCipherSpi.engineInit` / `engineWrap` are the reference implementations; `engineUnwrap` applies the same `fill` to the decrypted plaintext it produces.
 
+**Never accumulate sensitive bytes in a plain `ByteArrayOutputStream` — use `ExposedByteArrayOutputStream` and `erase()`**
+
+`java.io.ByteArrayOutputStream` cannot be cleaned, and each of its three escape routes leaves a copy behind. `reset()` only rewinds the count — the bytes stay. `toByteArray()` returns a COPY and leaves the internal buffer populated until GC. And growth via `Arrays.copyOf` abandons every previous buffer with its contents intact and now unreachable, so a stream that grew has already leaked copies that no later cleanup can reach. This is the exact Java twin of the native rule that a buffer holding secrets must grow by malloc + copy + `OPENSSL_clear_free` rather than a bare `realloc` (see "One-shot EVP primitives under a streaming JCA contract" in native-code.md) — same failure, one container up.
+
+The rule: material that is secret, derived from a secret, or whose sensitivity the API does not constrain must not pass through a plain `ByteArrayOutputStream`. Use `org.openssl.jostle.util.io.ExposedByteArrayOutputStream` (BC's `ErasableOutputStream` shape — `getBuffer()` + `erase()`), call `erase()` in a `finally` once the bytes are consumed, and **presize the stream when the final length is computable** so it never grows. Where the length genuinely cannot be known, say so in the Javadoc: `erase()` covers only the final buffer.
+
+**"Whose sensitivity the API does not constrain" is doing real work in that sentence.** The canonical case is `KeyAgreementKDF`'s X9.42 OtherInfo (found in review, 2026-08-27): the wrap OID, counter and key length are public, and the UKM is public in CMS ESDH — so it is tempting to call the whole thing public and move on. But the KDF's signature accepts arbitrary caller-supplied UKM bytes and nothing anywhere constrains them to be public. The question to ask is not "is this material public in the use I have in mind?" but "can a caller put something sensitive here?". If yes, treat it as sensitive; the cost is a presize and a `finally`.
+
+Note what is NOT in scope, so the rule stays cheap to follow: bytes fed straight to `MessageDigest.update` never accumulate and need no stream at all (`MLKEMKTSCipherSpi.kdf3` and `RSAKEMCipherSpi.kdf3` are the reference — they pass `otherInfo` directly and scrub each derived block), and genuinely public accumulations such as concatenated certificate DER need nothing.
+
+**Review hint:** every `new ByteArrayOutputStream` under `jcajce/provider/**` deserves the question "can sensitive bytes reach this?". Grep for it when reviewing a KDF, a key-wrap path, a keystore, or anything that stages material before handing it to native code.
+
 **Provider registration: static-init order and resilient `configure()`**
 
 `JostleProvider.setup()` calls each `Prov<NAME>.configure(this)` in sequence in a static initializer chain. A `configure()` that throws (e.g. an algorithm whose native dependency is missing) takes the whole provider down with `ExceptionInInitializerError` rather than the targeted exception type — and once a class fails its initializer, the JVM never retries it for the lifetime of the process. Defensive measure: each `Prov<NAME>.configure` should fail soft when an individual algorithm can't be registered (log it, continue to the next algorithm) rather than letting one missing native symbol break every algorithm in the provider.

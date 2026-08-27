@@ -108,15 +108,56 @@ public class RSAKEMCipherSpi
     private final RSAKeyFactorySpi keyFactory;
     private final SpecNI specNI;
 
+
+    /**
+     * The provider this SPI belongs to, sourced from construction. The same
+     * class serves JSL and JSLFIPS, so a constant names the wrong one for half
+     * its instances - which is exactly what it did: the KDF digest resolved
+     * against the JCA provider list (normally SUN) and the AES key wrap was
+     * pinned to "JSL", so a JSLFIPS wrap hashed and key-wrapped outside the
+     * module with nothing failing. See MT-5.
+     */
+    private final String providerName;
+
     public RSAKEMCipherSpi()
     {
-        this(new RSAKeyFactorySpi(), NISelector.SpecNI);
+        this(new RSAKeyFactorySpi(), NISelector.SpecNI, JostleProvider.PROVIDER_NAME);
     }
 
-    public RSAKEMCipherSpi(RSAKeyFactorySpi keyFactory, SpecNI specNI)
+    public RSAKEMCipherSpi(RSAKeyFactorySpi keyFactory, SpecNI specNI, String providerName)
     {
         this.keyFactory = keyFactory;
         this.specNI = specNI;
+        this.providerName = providerName;
+    }
+
+    /**
+     * Resolve the KDF digest from THIS SPI's own provider.
+     *
+     * <p>A bare {@code MessageDigest.getInstance(name)} resolves against the
+     * JCA provider list in order - normally SUN - so a JSLFIPS wrap derived
+     * its KEK outside the FIPS module. No behavioural test can see that:
+     * SHA-256 is SHA-256 whoever computes it, which is why the guard for this
+     * is a source-level lint rather than a unit test.
+     *
+     * <p>Failure is LOUD under both providers. With the name sourced from
+     * construction, "my own provider does not serve my digest" is a broken
+     * build, and a silent fall-through to another provider is the shape that
+     * hid the original defect.
+     */
+    private static MessageDigest digestFromOwnProvider(String providerName, String name)
+            throws NoSuchAlgorithmException
+    {
+        try
+        {
+            return MessageDigest.getInstance(name, providerName);
+        }
+        catch (java.security.NoSuchProviderException e)
+        {
+            throw new NoSuchAlgorithmException(
+                    "provider " + providerName + " is not installed, so the " + name
+                            + " KDF digest cannot be computed by it", e);
+        }
     }
 
     private int opmode;
@@ -397,7 +438,7 @@ public class RSAKEMCipherSpi
         }
         try
         {
-            return kdf3(digestName, sharedSecret, otherInfo, kekBytes);
+            return kdf3(providerName, digestName, sharedSecret, otherInfo, kekBytes);
         }
         catch (NoSuchAlgorithmException e)
         {
@@ -412,10 +453,10 @@ public class RSAKEMCipherSpi
      * <p>Byte-for-byte BouncyCastle's {@code ConcatenationKDFGenerator}, which is
      * what makes the two providers' RSA-KEM interoperate.
      */
-    private static byte[] kdf3(String digestName, byte[] z, byte[] otherInfo, int outLen)
+    private static byte[] kdf3(String providerName, String digestName, byte[] z, byte[] otherInfo, int outLen)
         throws NoSuchAlgorithmException
     {
-        MessageDigest md = MessageDigest.getInstance(digestName);
+        MessageDigest md = digestFromOwnProvider(providerName, digestName);
         byte[] out = new byte[outLen];
         byte[] counter = new byte[4];
         int pos = 0;
@@ -455,7 +496,7 @@ public class RSAKEMCipherSpi
         case 32: oid = NISTObjectIdentifiers.id_aes256_wrap.getId(); break;   // id-aes256-wrap
         default: throw new InvalidKeyException("unsupported AES-KW KEK size: " + kek.length);
         }
-        Cipher c = Cipher.getInstance(oid, JostleProvider.PROVIDER_NAME);
+        Cipher c = Cipher.getInstance(oid, providerName);
         c.init(mode, new SecretKeySpec(kek, "AES"));
         return c;
     }

@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.dh;
 
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kdf.KeyAgreementKDF;
 import org.openssl.jostle.util.Arrays;
 
@@ -45,19 +46,32 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     private final String digest;
     private byte[] ukm;
 
+
+    /**
+     * The provider this SPI belongs to, sourced from construction rather than
+     * hard-coded: the same class serves JSL and JSLFIPS, so a constant would
+     * name the wrong one for half its instances. Used to resolve the KDF
+     * digest, so the derivation runs inside the provider that owns the
+     * operation. See MT-5.
+     */
+    private final String providerName;
+
     public DHWithKDFKeyAgreementSpi(String digest)
     {
         this.digest = digest;
+        // The convenience constructor is the base provider's.
+        this.providerName = JostleProvider.PROVIDER_NAME;
     }
 
     //
     // NI-binding constructor for the FIPS provider: identical behaviour,
     // bound to the FIPS interface library.
     //
-    public DHWithKDFKeyAgreementSpi(DHServiceNI dhServiceNI, DHKeyFactorySpi keyFactory, String digest)
+    public DHWithKDFKeyAgreementSpi(DHServiceNI dhServiceNI, DHKeyFactorySpi keyFactory, String digest, String providerName)
     {
         super(dhServiceNI, keyFactory);
         this.digest = digest;
+        this.providerName = providerName;
     }
 
     @Override
@@ -128,7 +142,7 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
             // byte-for-byte (BC's KeyAgreement surface does not odd-parity-adjust
             // the 3DES KEK; DES wrapping ignores the parity bits). An earlier
             // parity adjustment here broke BC agreement and was removed.
-            kek = KeyAgreementKDF.x942(digest, zz, algorithm, keyLen, ukm);
+            kek = KeyAgreementKDF.x942(providerName, digest, zz, algorithm, keyLen, ukm);
             return new SecretKeySpec(kek, keyAlg);
         }
         finally

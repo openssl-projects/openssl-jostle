@@ -135,7 +135,7 @@ class ProvFIPSRSA
         Map<String, String> ktsAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
                 PREFIX + "RSAKEMCipherSpi", ktsAttr,
-                (arg) -> new RSAKEMCipherSpi(keyFactory(), FIPSNISelector.SpecNI));
+                (arg) -> new RSAKEMCipherSpi(keyFactory(), FIPSNISelector.SpecNI, JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
                 "1.0.18033.2.2.4", "1.2.840.113549.1.9.16.3.14");
     }
