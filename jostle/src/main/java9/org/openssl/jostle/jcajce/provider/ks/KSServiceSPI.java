@@ -21,6 +21,7 @@ import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.io.ExposedByteArrayOutputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -666,20 +667,28 @@ public class KSServiceSPI
         throws IOException, NoSuchAlgorithmException, CertificateException
     {
         byte[] input = null;
-        if (stream != null)
-        {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int read;
-            while ((read = stream.read(buffer)) >= 0)
-            {
-                out.write(buffer, 0, read);
-            }
-            input = out.toByteArray();
-        }
-
+        // The PKCS#12 carries encrypted private keys and the integrity MAC.
+        // erase() covers the FINAL buffer only - an arbitrary stream's length
+        // is not knowable, so growth may abandon earlier copies (see the
+        // caveat on erase()).
+        ExposedByteArrayOutputStream out = null;
+        byte[] buffer = new byte[4096];
         try
         {
+            if (stream != null)
+            {
+                // available() is caller-controlled: cap it, or a stream
+                // reporting MAX_VALUE turns the presize into an OOM.
+                int hint = Math.min(Math.max(stream.available(), 0), 64 * 1024);
+                out = hint > 0 ? new ExposedByteArrayOutputStream(hint) : new ExposedByteArrayOutputStream();
+                int read;
+                while ((read = stream.read(buffer)) >= 0)
+                {
+                    out.write(buffer, 0, read);
+                }
+                input = out.toByteArray();
+            }
+
             byte[] encodedPassword = encodePassword(password);
             try
             {
@@ -692,6 +701,12 @@ public class KSServiceSPI
         }
         finally
         {
+            if (out != null)
+            {
+                out.erase();
+            }
+            Arrays.clear(buffer);
+            Arrays.clear(input);
             Reference.reachabilityFence(this);
         }
     }
