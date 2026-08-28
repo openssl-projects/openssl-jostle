@@ -558,6 +558,21 @@ The general rule behind both: **before trusting a green from a guard you just tr
    not add build conveniences inside the rehearsal worktree** — the compile
    did not need the symlink at all.
 
+4. **A commit split has THREE legs, and each is blind to what the others
+   catch.** Compiling every intermediate catches MISSING content; comparing
+   the final tree hash to the reviewed one catches EXTRA or LOST content;
+   reading each commit's diff against its own subject catches MISATTRIBUTED
+   content — the same lines, in the wrong commit. Only the third would have
+   caught Bundle A's near-miss, where a docs-only commit was about to carry
+   another item's guide lessons out of that item's commit. The rehearsal was
+   GREEN on both other legs at the time, because neither can see attribution.
+   Add a fourth check at commit time: compare EVERY intermediate tree against
+   the rehearsal's, not just the tip. The rehearsal stages with
+   `git checkout <tree> -- <paths>` while the real run uses `git add` against
+   an already-final working tree, so a tip-only comparison passes even when
+   two adjacent commits have swapped content — same endpoint, different
+   history.
+
 The unifying form: **verify the state you care about, not the command you ran
 to reach it.** Every instance above passes the "did the command return?" test
 and fails the "is the world as I assume?" test.
