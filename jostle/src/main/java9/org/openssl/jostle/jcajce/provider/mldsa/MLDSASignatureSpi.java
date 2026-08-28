@@ -235,6 +235,7 @@ public class MLDSASignatureSpi extends SignatureSpi
             // The public side has its own check above; since MT-14 neither
             // half of a keypair crosses as an OBJECT. See testing.md
             // "JSL <-> JSLFIPS key sharing".
+            // One message for both halves, deliberately - see PKEYKeySpec.usableBy.
             if (privateKey instanceof JOMLDSAPrivateKey
                     && (((JOMLDSAPrivateKey) privateKey).getSpec().getSpecNI() != keyFactory.ownSpecNI()
                             || !((JOMLDSAPrivateKey) privateKey).getSpec()

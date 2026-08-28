@@ -89,6 +89,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
             // Both halves. Instance-equal implies library-equal for anything a
             // provider made, so the library check earns its place only in the
             // unbound direct-SPI realm — where it is the only one with teeth.
+            // One message for both halves, deliberately - see PKEYKeySpec.usableBy.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {

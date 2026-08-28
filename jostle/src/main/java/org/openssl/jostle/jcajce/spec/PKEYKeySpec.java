@@ -178,6 +178,12 @@ public class PKEYKeySpec
      * every direct-SPI consumer — a KeyPairGenerator constructed outside any
      * provider would produce keys its own sibling SPIs reject. The unbound
      * realm has no provider boundary to protect.
+     *
+     * <p>Callers that pair this with a library check ({@code getSpecNI() !=
+     * ownSpecNI()}) emit ONE message, naming the instance. The matrix is why:
+     * a library-only mismatch needs both sides unbound, so it cannot occur
+     * through a provider, and the remedy — re-encode, decode through this
+     * KeyFactory — is the same either way.
      */
     public boolean usableBy(Provider user)
     {

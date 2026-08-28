@@ -128,6 +128,7 @@ public final class RSAKeyImport
             // for anything a provider made, so the library one earns its place
             // only in the unbound direct-SPI realm — where two hand-wired SPIs
             // both report null and it is the sole check with teeth.
+            // One message for both halves, deliberately - see PKEYKeySpec.usableBy.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {

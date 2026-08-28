@@ -119,6 +119,7 @@ public class DSASignatureSpi extends SignatureSpi
             JODSAPrivateKey joKey = (JODSAPrivateKey) privateKey;
             // Both halves; the library one has teeth only in the unbound
             // direct-SPI realm.
+            // One message for both halves, deliberately - see PKEYKeySpec.usableBy.
             if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
                     || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
             {
