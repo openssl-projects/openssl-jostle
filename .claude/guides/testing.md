@@ -539,6 +539,25 @@ The general rule behind both: **before trusting a green from a guard you just tr
    reporting a remote position, report its provenance (`git reflog show
    origin/<branch>`) rather than the number alone.
 
+3. **A build convenience got committed, and only the TREE HASH said so.**
+   Splitting a reviewed tree into per-item commits carries a discipline:
+   record the pre-split staged tree hash, verify each intermediate compiles in
+   a detached worktree, and require the FINAL commit's tree to be
+   byte-identical to the reviewed one. Bundle A is the first time that last
+   clause fired, and it fired on something nobody would have predicted. The
+   rehearsal worktree has no native libraries (they are gitignored), so a
+   symlink was added pointing at the main tree's copy — and `.gitignore`'s
+   entry is `/jostle/src/main/resources/native/`, a **directory** pattern,
+   which does NOT ignore a **symlink** of the same name. `git add -A`
+   committed the symlink. All six commits compiled, every test had already
+   passed, and the diff of the last commit contained exactly the intended
+   changes; the sole discriminating signal was `final tree 09fc079... !=
+   reviewed tree 1072962...`. A rehearsal that checked "does each commit
+   build" and "does the last one carry my changes" passes this. Two things
+   follow: **compare the tree hash, never a summary of the diff**, and **do
+   not add build conveniences inside the rehearsal worktree** — the compile
+   did not need the symlink at all.
+
 The unifying form: **verify the state you care about, not the command you ran
 to reach it.** Every instance above passes the "did the command return?" test
 and fails the "is the world as I assume?" test.
