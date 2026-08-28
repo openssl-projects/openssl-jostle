@@ -796,6 +796,43 @@ public class EdDSALimitTest
         }
     }
 
+    /**
+     * Both negative at once — the only input that distinguishes the ORDER of
+     * the two checks. {@code JoEDDSA_update}'s order was fixed in 2026-08-23
+     * but never pinned. Runs on JNI and FFI; the assertion is the same on both.
+     */
+    @Test()
+    public void EDServiceNI_update_bothOffsetAndLenNegative_reportsOffsetOnBothBridges() throws Exception
+    {
+        long eddsaRef = 0;
+        long keyRef = 0;
+
+        try
+        {
+            eddsaRef = edServiceNI.allocateSigner();
+            Assertions.assertTrue(eddsaRef > 0);
+            keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            edServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
+
+            final long ref = eddsaRef;
+
+            Assertions.assertEquals("input offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> edServiceNI.update(ref, new byte[8], -1, -1)).getMessage());
+
+            Assertions.assertEquals("input offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> edServiceNI.update(ref, new byte[8],
+                            Integer.MIN_VALUE, Integer.MIN_VALUE)).getMessage());
+        }
+        finally
+        {
+            edServiceNI.disposeSigner(eddsaRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
     @Test()
     public void EDDSAServiceJNI_eddsa_update_inputLenNegative() throws Exception
     {

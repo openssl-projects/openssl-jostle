@@ -2155,6 +2155,37 @@ public class SLHDSALimitTest
     // on the native side. Runs on JNI and FFI via TestNISelector.
     // -------------------------------------------------------------------------
 
+    /**
+     * Both negative at once — the only input that distinguishes the ORDER of
+     * the two checks, and so the only one that catches the bridges disagreeing.
+     * Probed one at a time (as above) each answers correctly under either
+     * order. Runs on JNI and FFI; the assertion is the same on both.
+     */
+    @Test
+    public void SLHDSAServiceNI_update_bothOffsetAndLenNegative_reportsOffsetOnBothBridges() throws Exception
+    {
+        final long signer = slhdsaServiceNI.allocateSigner();
+        final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128s.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            slhdsaServiceNI.initSign(signer, keyRef, new byte[0], 0, 0, 0, TestUtil.RNDSrc);
+
+            Assertions.assertEquals("input offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.update(signer, new byte[8], -1, -1)).getMessage());
+
+            Assertions.assertEquals("input offset is negative", Assertions.assertThrows(
+                    IllegalArgumentException.class,
+                    () -> slhdsaServiceNI.update(signer, new byte[8],
+                            Integer.MIN_VALUE, Integer.MIN_VALUE)).getMessage());
+        }
+        finally
+        {
+            slhdsaServiceNI.disposeSigner(signer);
+            specNI.dispose(keyRef);
+        }
+    }
+
     @Test
     public void SLHDSAServiceNI_update_minValueOffsetAndLen_rejectedTyped() throws Exception
     {

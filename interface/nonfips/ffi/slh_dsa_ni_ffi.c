@@ -294,13 +294,16 @@ int32_t JoSLHDSA_update(slh_dsa_ctx *ctx, const uint8_t *input, const size_t inp
         goto exit;
     }
 
-    if (in_len < 0) {
-        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
+    // Offset BEFORE length, matching slhdsa_ni_jni.c and the asn1/dsa/ec
+    // bridges. Both orders reject; only an identical order gives the two
+    // bridges the same code for the same input, which is the rule.
+    if (in_off < 0) {
+        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
         goto exit;
     }
 
-    if (in_off < 0) {
-        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
+    if (in_len < 0) {
+        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
 
