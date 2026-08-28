@@ -93,22 +93,6 @@ public class ProviderPinningParityTest
             // sanction list in the native tree. Naming JSL is correct here.
             "KSServiceSPI.java"));
 
-    /**
-     * Parked under MT-11. Kept in its own set from the day MT-10 had one, so
-     * that closing MT-10 could not silently close this too — and it did not:
-     * MT-10's entries are gone and {@code BlockCipherSpi},
-     * {@code RSAOAEPCipherSpi} and {@code RSAPKCS1CipherSpi} are back under
-     * full-file coverage, while this one stands.
-     *
-     * <p>{@code HKDFSecretKeyFactory} asks SUN for a digest LENGTH, not for
-     * hashing — no secret touches it, so it is not the MT-5 boundary defect.
-     * It is still the wrong source: OpenSSL owns that fixed value, and
-     * {@code NativeLengthCache} is the shape that reads it (see the
-     * "query OpenSSL, never transcribe" rule in java-spi.md).
-     */
-    private static final Set<String> DEFERRED_TO_MT11 = new HashSet<String>(Arrays.asList(
-            "HKDFSecretKeyFactory.java"));
-
     @Test
     public void everyCryptoGetInstanceNamesItsOwnProvider()
     {
@@ -128,8 +112,7 @@ public class ProviderPinningParityTest
             for (Path source : javaSourcesUnder(root))
             {
                 String name = source.getFileName().toString();
-                if (EXEMPT_FILES.contains(name)
-                        || DEFERRED_TO_MT11.contains(name))
+                if (EXEMPT_FILES.contains(name))
                 {
                     continue;
                 }

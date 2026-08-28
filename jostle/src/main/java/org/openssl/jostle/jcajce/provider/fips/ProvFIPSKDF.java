@@ -58,11 +58,11 @@ class ProvFIPSKDF
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-512", "BaseSHA3_512", "SHA3-512");
 
         provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA256", HKDF_PREFIX + "SHA256", generalKDFAttributes,
-                (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, "SHA-256"));
+                (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI, "SHA-256"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA384", HKDF_PREFIX + "SHA384", generalKDFAttributes,
-                (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, "SHA-384"));
+                (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI, "SHA-384"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA512", HKDF_PREFIX + "SHA512", generalKDFAttributes,
-                (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, "SHA-512"));
+                (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI, "SHA-512"));
 
         // KBKDF, SSKDF and SSHKDF are registered UNGATED: all three were
         // measured fetchable under fips=yes on both supported modules

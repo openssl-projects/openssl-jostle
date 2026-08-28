@@ -11,6 +11,7 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
 import org.openssl.jostle.util.Arrays;
@@ -19,8 +20,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactorySpi;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 
@@ -33,60 +32,70 @@ import java.security.spec.KeySpec;
  */
 public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
 {
-    // Digest output sizes, queried once per digest name and memoized so we don't
-    // build (and immediately discard) a MessageDigest on every factory
-    // construction just to read a fixed length. Query-and-cache, never transcribe
-    // (see java-spi.md "OpenSSL is the single source of truth for fixed values").
+    // Probed from OpenSSL, never asked of another JCA provider (java-spi.md,
+    // "OpenSSL is the single source of truth"). Shared across JSL and JSLFIPS:
+    // FIPS 180-4 / FIPS 202 fix the output sizes, so the two cannot disagree.
     private static final NativeLengthCache<String> DIGEST_LENGTHS = new NativeLengthCache<String>();
 
     private final String digestAlgorithm;
     private final int maxOutputLength;
 
-    // Instance field, not a NISelector static (NISelector for JSL,
+    // Instance fields, not NISelector statics (NISelector for JSL,
     // FIPSNISelector for JSLFIPS).
     private final KdfNI kdfNI;
 
     public HKDFSecretKeyFactory(String digestAlgorithm)
     {
-        this(NISelector.KdfNI, digestAlgorithm);
+        this(NISelector.KdfNI, NISelector.MDServiceNI, digestAlgorithm);
     }
 
-    public HKDFSecretKeyFactory(KdfNI kdfNI, String digestAlgorithm)
+    public HKDFSecretKeyFactory(KdfNI kdfNI, MDServiceNI mdServiceNI, String digestAlgorithm)
     {
         this.kdfNI = kdfNI;
+        // Canonicalise FIRST: the probe goes to OpenSSL, which knows "SHA2-256".
+        this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digestAlgorithm);
         // RFC 5869: HKDF-Expand caps the output at 255 * HashLen. Enforced at
         // the JCE boundary so an over-long (or DoS-scale) request fails fast
         // with a typed exception instead of an allocation + opaque native error.
-        // HashLen is queried from a MessageDigest, not transcribed as a size
-        // table (see java-spi.md "OpenSSL is the single source of truth …").
-        // The caller-supplied JCE name (e.g. "SHA-256") is used before it is
-        // canonicalised for the native call, so it resolves via any provider.
-        this.maxOutputLength = 255 * hashLengthBytes(digestAlgorithm);
-        this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digestAlgorithm);
+        this.maxOutputLength = 255 * hashLengthBytes(mdServiceNI, this.digestAlgorithm);
     }
 
-    private static int hashLengthBytes(String jceDigestName)
+    /**
+     * Output size from the same interface library the KDF runs on. Lazily, at
+     * construction - a static initialiser would precede the global lib ctx.
+     */
+    private static int hashLengthBytes(MDServiceNI mdServiceNI, String opensslDigestName)
     {
-        int len = DIGEST_LENGTHS.get(jceDigestName);
+        int len = DIGEST_LENGTHS.get(opensslDigestName);
         if (len != NativeLengthCache.UNKNOWN)
         {
             return len;
         }
+        long ref = 0;
         try
         {
-            len = MessageDigest.getInstance(jceDigestName).getDigestLength();
+            ref = mdServiceNI.allocateDigest(opensslDigestName, 0);
+            len = mdServiceNI.getDigestOutputLen(ref);
         }
-        catch (NoSuchAlgorithmException e)
+        catch (RuntimeException e)
         {
-            throw new IllegalArgumentException("unsupported HKDF digest: " + jceDigestName, e);
+            // A digest the module cannot fetch surfaces as an unchecked
+            // native error; report it against the name that failed.
+            throw new IllegalArgumentException("unsupported HKDF digest: " + opensslDigestName, e);
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                mdServiceNI.dispose(ref);
+            }
         }
         if (len <= 0)
         {
-            // A provider that reports 0 (unknown length) can't bound the output;
-            // treat as unsupported rather than compute a bad limit.
-            throw new IllegalArgumentException("digest reports no fixed length: " + jceDigestName);
+            // An XOF has no fixed size, so it cannot bound the output.
+            throw new IllegalArgumentException("digest reports no fixed length: " + opensslDigestName);
         }
-        DIGEST_LENGTHS.cache(jceDigestName, len);
+        DIGEST_LENGTHS.cache(opensslDigestName, len);
         return len;
     }
 
