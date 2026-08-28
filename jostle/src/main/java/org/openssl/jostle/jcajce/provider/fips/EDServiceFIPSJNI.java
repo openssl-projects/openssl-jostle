@@ -56,4 +56,11 @@ class EDServiceFIPSJNI implements EDServiceNI
 
     @Override
     public native int ni_getPrivateKey(long ref, byte[] output);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

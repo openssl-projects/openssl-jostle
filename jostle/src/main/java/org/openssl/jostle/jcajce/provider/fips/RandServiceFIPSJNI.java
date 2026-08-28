@@ -40,4 +40,11 @@ class RandServiceFIPSJNI implements RandServiceNI
 
     @Override
     public native int ni_drbgStrength(String mechanism, String variant);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

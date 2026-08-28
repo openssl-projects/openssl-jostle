@@ -56,10 +56,12 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
      * decapsulation.
      *
      * <p>Taken by constructor, deliberately NOT derived from
-     * {@code DefaultServiceNI.providerName()}: only 6 of the 22 FIPS NI
-     * classes override that, and {@code SpecFIPSJNI} is not among them, so it
-     * answers "JSL" under JSLFIPS and would make this check silently
-     * vacuous. See MT-12.
+     * {@code DefaultServiceNI.providerName()}. MT-12 made every FIPS NI class
+     * override that method (and {@code FIPSProviderNameParityTest} keeps it
+     * that way), but a provider NAME is still the wrong identity to check
+     * against: it is re-resolvable, so it cannot distinguish two instances of
+     * the same provider. The constructor-supplied NI names the interface
+     * library directly. See MT-12 and MT-16.
      */
     private final SpecNI specNI;
 

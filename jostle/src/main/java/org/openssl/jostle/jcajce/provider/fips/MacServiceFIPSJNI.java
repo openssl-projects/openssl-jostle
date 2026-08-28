@@ -50,4 +50,11 @@ class MacServiceFIPSJNI implements MacServiceNI
 
     @Override
     public native void ni_dispose(long ref);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

@@ -65,4 +65,11 @@ class DSAServiceFIPSJNI implements DSAServiceNI
 
     @Override
     public native int ni_verify(long ref, byte[] sig, int sigLen, RandSource rndSource);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

@@ -48,11 +48,7 @@ class BlockCipherFIPSJNI implements BlockCipherNI
     @Override
     public native void ni_dispose(long ref);
 
-    /**
-     * This NI is bound to the FIPS interface library, so JCE objects derived
-     * from it must resolve through the FIPS provider. See
-     * {@code DefaultServiceNI.providerName()}.
-     */
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
     @Override
     public String providerName()
     {

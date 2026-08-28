@@ -23,4 +23,11 @@ class DHServiceFIPSFFI extends DHServiceFFI
     {
         super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

@@ -89,7 +89,10 @@ public class FIPSTestGateParityTest
             // and no native build, and the defect it guards (a missing rename =
             // an UnsatisfiedLinkError plus a base/FIPS symbol collision) is
             // introduced by C edits that the non-FIPS legs also build.
-            "FIPSJniSymbolRenameParityTest.java"));
+            "FIPSJniSymbolRenameParityTest.java",
+            // Same category: FIPSProviderNameParityTest reads the *FIPSJNI /
+            // *FIPSFFI sources as text and needs no module.
+            "FIPSProviderNameParityTest.java"));
 
     private static final Pattern BEFORE_HOOK = Pattern.compile("@Before(?:All|Each)\\b");
 

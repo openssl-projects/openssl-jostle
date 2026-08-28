@@ -39,11 +39,7 @@ class CCMCipherFIPSJNI implements CCMCipherNI
     @Override
     public native int ni_getOutputSize(long ref, int opMode, int inputLen);
 
-    /**
-     * This NI is bound to the FIPS interface library, so JCE objects derived
-     * from it must resolve through the FIPS provider. See
-     * {@code DefaultServiceNI.providerName()}.
-     */
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
     @Override
     public String providerName()
     {

@@ -42,4 +42,11 @@ class Asn1FIPSJNI implements Asn1Ni
 
     @Override
     public native long ni_fromPublicKeyInfo(byte[] data, int start, int len);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

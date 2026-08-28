@@ -38,5 +38,12 @@ class KdfFIPSJNI implements KdfNI
     @Override
     public native int sshkdf(String digest, byte[] key, byte[] xcghash, byte[] sessionId, String type,
                              byte[] out, int outOffset, int outLen);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }
 

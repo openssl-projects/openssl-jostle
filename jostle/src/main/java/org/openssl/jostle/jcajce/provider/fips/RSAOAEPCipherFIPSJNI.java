@@ -39,4 +39,11 @@ class RSAOAEPCipherFIPSJNI implements RSAOAEPCipherNI
                                  byte[] input, int inOff, int inLen,
                                  byte[] output, int outOff,
                                  RandSource rndSource);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

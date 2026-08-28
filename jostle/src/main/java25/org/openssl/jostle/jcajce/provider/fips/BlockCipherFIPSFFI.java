@@ -24,11 +24,7 @@ class BlockCipherFIPSFFI extends BlockCipherFFI
         super(FIPSLibraryLookup.get(), FIPSLibraryLookup.SYMBOL_PREFIX);
     }
 
-    /**
-     * This NI is bound to the FIPS interface library, so JCE objects derived
-     * from it must resolve through the FIPS provider. See
-     * {@code DefaultServiceNI.providerName()}.
-     */
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
     @Override
     public String providerName()
     {

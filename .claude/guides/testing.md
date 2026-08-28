@@ -96,9 +96,10 @@ Two things to check before landing an inert check at a site:
 
 ### Falsify a source-level guard's MATCHER in both directions
 
-The repo now carries four source-level lints — `NativeReferenceParityTest`,
+The repo now carries seven source-level lints — `NativeReferenceParityTest`,
 `FIPSLibraryLookupParityTest`, `FIPSTestGateParityTest`, `FIPSTestNamingParityTest`,
-`ProviderPinningParityTest`, `SpecNiExplicitParityTest` — and every one of them
+`ProviderPinningParityTest`, `SpecNiExplicitParityTest`,
+`FIPSProviderNameParityTest` — and every one of them
 needed its matcher tightened before it was trustworthy. The failures were
 always the same shape: the matcher was verified against code it should FLAG and
 never against code it should IGNORE.
@@ -125,6 +126,34 @@ Three recurring traps, each of which has actually happened here:
    `(` of a nested call, so `spec.getSpecNI()` arrives as `spec.getSpecNI(` and
    fails a suffix match. `SpecNiExplicitParityTest` flagged four CORRECT sites
    on its first run. Normalise the capture before comparing.
+4. **A one-link supertype check answers about the wrong type.** A guard that
+   decides "is this a `DefaultServiceNI`?" from the direct supertype gets the
+   right answer for a class that names the NI interface and the wrong one for a
+   class that names an intermediate. `FIPSProviderNameParityTest`'s exclusion
+   check flagged only `OperationsTestFIPSJNI` under sabotage, because
+   `OperationsTestFIPSFFI` names `OperationsTestFFI` first — half the exclusion
+   went unverified, and it read as verified. Walk the chain (bounded), and print
+   the chain in the failure so the reader can see how far it got.
+
+**An exclusion list needs its own vacuity guard, not just a comment.**
+`FIPSProviderNameParityTest` excludes four classes on the grounds that they do
+not inherit `DefaultServiceNI` at all — a true fact today, and the kind of fact
+that quietly stops being true. `theExcludedClassesReallyAreNotServiceNis`
+re-derives it from the interface sources every run, so the entry cannot outlive
+its reason; adding `extends DefaultServiceNI` to `OperationsTestNI` fails it by
+name. Without that, a stale exclusion is indistinguishable from a justified one
+and hides exactly the miss the guard exists to catch.
+
+**Guard the DEFAULT that is only noticed when something reads it.** MT-12's
+shape: `DefaultServiceNI.providerName()` defaults to the BASE provider, so a
+FIPS NI class that omits the override reports `"JSL"` while running entirely in
+the FIPS library — and nothing anywhere fails, because the value is inert until
+a consumer appears. Measured before the fix: exactly the six classes with a
+consumer (`BlockCipher`/`CCMCipher` via `JostleAlgorithmParameters`, the four PQ
+families via `providerManagesEntropy()`) had the override, and the other 28 did
+not. That correlation is the tell — every override had been added reactively, so
+the next family to grow a consumer would have shipped wrong first. A runtime
+test cannot cover the inert ones by definition; only a source lint can.
 
 Practically: after writing the guard, run it on the unmodified tree and require
 GREEN, then sabotage one site and require RED naming that site. Both halves.

@@ -52,4 +52,10 @@ class MDServiceFIPSJNI implements MDServiceNI
     @Override
     native public int ni_reset(long ref);
 
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

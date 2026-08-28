@@ -27,4 +27,11 @@ class XECServiceFIPSJNI implements XECServiceNI
 {
     @Override
     public native long ni_generateKeyPair(String name, int[] err, RandSource rndSource);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }

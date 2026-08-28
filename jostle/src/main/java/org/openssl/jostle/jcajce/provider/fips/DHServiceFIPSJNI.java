@@ -65,4 +65,11 @@ class DHServiceFIPSJNI implements DHServiceNI
 
     @Override
     public native int ni_kexDerive(long ref, byte[] out, int outOff, RandSource rndSource);
+
+    /** FIPS library, so FIPS provider - see {@code DefaultServiceNI.providerName()}. */
+    @Override
+    public String providerName()
+    {
+        return JostleFIPSProvider.PROVIDER_NAME;
+    }
 }
