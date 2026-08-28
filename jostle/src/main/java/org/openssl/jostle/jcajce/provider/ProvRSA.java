@@ -153,8 +153,7 @@ class ProvRSA
         Map<String, String> ktsAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
                 PREFIX + "RSAKEMCipherSpi", ktsAttr,
-                (arg) -> new RSAKEMCipherSpi(keyFactory(provider), NISelector.SpecNI,
-                        JostleProvider.PROVIDER_NAME));
+                (arg) -> new RSAKEMCipherSpi(keyFactory(provider), NISelector.SpecNI));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
                 ID_KEM_RSA, ID_RSA_KEM);
     }

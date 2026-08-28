@@ -11,7 +11,6 @@
 package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
-import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
@@ -38,6 +37,7 @@ import java.security.Key;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
@@ -95,54 +95,85 @@ public class MLKEMKTSCipherSpi
     private final SpecNI specNI;
 
 
-    /**
-     * The provider this SPI belongs to, sourced from construction. The same
-     * class serves JSL and JSLFIPS, so a constant names the wrong one for half
-     * its instances - which is exactly what it did: the KDF digest resolved
-     * against the JCA provider list (normally SUN) and the AES key wrap was
-     * pinned to "JSL", so a JSLFIPS wrap hashed and key-wrapped outside the
-     * module with nothing failing. See MT-5.
-     */
-    private final String providerName;
-
     public MLKEMKTSCipherSpi()
     {
-        this(new MLKEMKeyFactorySpi(), NISelector.SpecNI, JostleProvider.PROVIDER_NAME);
+        this(new MLKEMKeyFactorySpi(), NISelector.SpecNI);
     }
 
-    public MLKEMKTSCipherSpi(MLKEMKeyFactorySpi keyFactory, SpecNI specNI, String providerName)
+    public MLKEMKTSCipherSpi(MLKEMKeyFactorySpi keyFactory, SpecNI specNI)
     {
         this.keyFactory = keyFactory;
         this.specNI = specNI;
-        this.providerName = providerName;
     }
 
     /**
-     * Resolve the KDF digest from THIS SPI's own provider.
+     * The provider INSTANCE this SPI belongs to, and the single identity
+     * channel for everything it resolves out of JCA - the KDF digest and the
+     * AES key wrap.
+     *
+     * <p>MT-5 pinned both by NAME, sourced from construction, which fixed the
+     * original defect: the digest had resolved against the JCA provider list
+     * (normally SUN) and the key wrap was hard-pinned to "JSL", so a JSLFIPS
+     * wrap hashed and key-wrapped outside the module with nothing failing.
+     *
+     * <p>A name is still not identity. {@code removeProvider} +
+     * {@code addProvider} swaps which instance a name resolves to, and
+     * {@code getInstance(alg, Provider)} never required registration at all -
+     * so both leave the inner lookups landing in a DIFFERENT instance from the
+     * one this SPI belongs to. That is not only a boundary concern here: the
+     * inner AES key wrap performs the WHOLE unwrap, {@code wrappedKeyType}
+     * included, so the key it reconstructs is bound to that other instance and
+     * this provider then refuses it (MT-14). MT-16 converts the pin to the
+     * instance.
+     *
+     * <p>Read from the key factory rather than carried as a second field: the
+     * factory is already bound to the provider that built this SPI, and a
+     * separate identity channel could disagree with it.
+     *
+     * @return the provider instance, or {@code null} when this SPI was
+     *         constructed outside any provider.
+     */
+    private Provider ownProvider()
+    {
+        return keyFactory.ownProviderInstance();
+    }
+
+    /**
+     * Resolve the KDF digest from THIS SPI's own provider INSTANCE.
      *
      * <p>A bare {@code MessageDigest.getInstance(name)} resolves against the
      * JCA provider list in order - normally SUN - so a JSLFIPS wrap derived
-     * its KEK outside the FIPS module. No behavioural test can see that:
-     * SHA-256 is SHA-256 whoever computes it, which is why the guard for this
-     * is a source-level lint rather than a unit test.
+     * its KEK outside the FIPS module. Which provider computed it cannot be
+     * seen in the OUTPUT: SHA-256 is SHA-256 whoever computes it, so the
+     * structural lint is the guard for the call site naming a provider at all.
+     * WHICH provider it names is behaviourally testable, but only against an
+     * instance made deliberately incapable - see
+     * {@code KtsProviderInstancePinningTest}.
      *
-     * <p>Failure is LOUD under both providers. With the name sourced from
-     * construction, "my own provider does not serve my digest" is a broken
-     * build, and a silent fall-through to another provider is the shape that
-     * hid the original defect.
+     * <p>Failure is LOUD under both providers, and in both arms: an unbound
+     * SPI has no provider to compute the digest, and a bound one that does not
+     * serve it means a broken build. A silent fall-through to another provider
+     * is the shape that hid the original defect.
      */
-    private static MessageDigest digestFromOwnProvider(String providerName, String name)
+    private static MessageDigest digestFromOwnProvider(Provider ownProvider, String name)
             throws NoSuchAlgorithmException
     {
-        try
-        {
-            return MessageDigest.getInstance(name, providerName);
-        }
-        catch (java.security.NoSuchProviderException e)
+        if (ownProvider == null)
         {
             throw new NoSuchAlgorithmException(
-                    "provider " + providerName + " is not installed, so the " + name
-                            + " KDF digest cannot be computed by it", e);
+                    "this cipher was constructed outside any provider, so the " + name
+                            + " KDF digest cannot be computed by it; obtain the Cipher from a "
+                            + "Jostle provider rather than constructing the SPI directly");
+        }
+        try
+        {
+            return MessageDigest.getInstance(name, ownProvider);
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new NoSuchAlgorithmException(
+                    "provider " + ownProvider.getName() + " does not serve " + name
+                            + ", so the KDF digest cannot be computed by it", e);
         }
     }
 
@@ -343,8 +374,7 @@ public class MLKEMKTSCipherSpi
                 {
                     aesKw = aesKeyWrap(Cipher.WRAP_MODE, kek);
                 }
-                catch (NoSuchAlgorithmException | NoSuchPaddingException
-                    | java.security.NoSuchProviderException | InvalidAlgorithmParameterException e)
+                catch (NoSuchAlgorithmException | NoSuchPaddingException e)
                 {
                     throw new InvalidKeyException("unable to create AES key-wrap cipher: " + e.getMessage(), e);
                 }
@@ -369,6 +399,29 @@ public class MLKEMKTSCipherSpi
         if (opmode != Cipher.UNWRAP_MODE)
         {
             throw new IllegalStateException("cipher not initialised for unwrapping");
+        }
+
+        //
+        // Resolve the inner key-wrap Cipher BEFORE the decapsulation. Ordering
+        // is load-bearing, not tidiness: resolved afterwards, the exception
+        // TYPE would report whether the decapsulation succeeded, because an
+        // instance that cannot serve the key wrap answers
+        // NoSuchAlgorithmException for a well-formed encapsulation and
+        // InvalidKeyException for a malformed one. That is an oracle, and it
+        // is the same rule MT-10 applied to the KeyFactory in the ordinary
+        // unwrap paths.
+        //
+        // Only the init needs the KEK, so it stays below; the OID depends on
+        // the KEK LENGTH, which is fixed at init.
+        //
+        final Cipher aesKw;
+        try
+        {
+            aesKw = resolveAesKeyWrap(kekByteLength());
+        }
+        catch (NoSuchPaddingException e)
+        {
+            throw new InvalidKeyException("unable to create AES key-wrap cipher: " + e.getMessage(), e);
         }
 
         byte[] secret = new byte[SHARED_SECRET_LEN];
@@ -412,11 +465,10 @@ public class MLKEMKTSCipherSpi
             byte[] kek = deriveKek(secret);
             try
             {
-                Cipher aesKw = aesKeyWrap(Cipher.UNWRAP_MODE, kek);
+                aesKw.init(Cipher.UNWRAP_MODE, new SecretKeySpec(kek, "AES"));
                 return aesKw.unwrap(wrapped, wrappedKeyAlgorithm, wrappedKeyType);
             }
-            catch (InvalidAlgorithmParameterException | NoSuchPaddingException
-                | java.security.NoSuchProviderException | OpenSSLException e)
+            catch (OpenSSLException e)
             {
                 // An AES-KW integrity failure (tampered encapsulation or wrapped
                 // key) surfaces from OpenSSL as an unchecked OpenSSLException; the
@@ -452,7 +504,7 @@ public class MLKEMKTSCipherSpi
         }
         try
         {
-            return kdf3(providerName, digestName, sharedSecret, otherInfo, kekBytes);
+            return kdf3(ownProvider(), digestName, sharedSecret, otherInfo, kekBytes);
         }
         catch (NoSuchAlgorithmException e)
         {
@@ -464,10 +516,10 @@ public class MLKEMKTSCipherSpi
      * X9.44 KDF3 (NIST concatenation KDF): {@code K = Hash(counter32 ‖ Z ‖ otherInfo)}
      * concatenated over counter = 1, 2, ... until {@code outLen} bytes are produced.
      */
-    private static byte[] kdf3(String providerName, String digestName, byte[] z, byte[] otherInfo, int outLen)
+    private static byte[] kdf3(Provider ownProvider, String digestName, byte[] z, byte[] otherInfo, int outLen)
         throws NoSuchAlgorithmException
     {
-        MessageDigest md = digestFromOwnProvider(providerName, digestName);
+        MessageDigest md = digestFromOwnProvider(ownProvider, digestName);
         byte[] out = new byte[outLen];
         byte[] counter = new byte[4];
         int pos = 0;
@@ -495,20 +547,61 @@ public class MLKEMKTSCipherSpi
         return out;
     }
 
+    /**
+     * The KEK length in bytes. Fixed at init from the KTSParameterSpec, which
+     * is what lets the key-wrap Cipher be resolved before any ciphertext is
+     * touched.
+     */
+    private int kekByteLength()
+    {
+        return (kekBits + 7) / 8;
+    }
+
     private Cipher aesKeyWrap(int mode, byte[] kek)
-        throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-        java.security.NoSuchProviderException, InvalidAlgorithmParameterException
+        throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException
+    {
+        Cipher c = resolveAesKeyWrap(kek.length);
+        c.init(mode, new SecretKeySpec(kek, "AES"));
+        return c;
+    }
+
+    /**
+     * The key-wrap Cipher for a KEK of {@code kekLen} bytes, resolved from
+     * this SPI's own provider INSTANCE but NOT yet keyed.
+     *
+     * <p>Separate from {@link #aesKeyWrap} so the unwrap path can resolve
+     * before it decapsulates; see the note at that call site.
+     */
+    private Cipher resolveAesKeyWrap(int kekLen)
+        throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException
     {
         String oid;
-        switch (kek.length)
+        switch (kekLen)
         {
         case 16: oid = NISTObjectIdentifiers.id_aes128_wrap.getId(); break;   // id-aes128-wrap
         case 24: oid = NISTObjectIdentifiers.id_aes192_wrap.getId(); break;   // id-aes192-wrap
         case 32: oid = NISTObjectIdentifiers.id_aes256_wrap.getId(); break;   // id-aes256-wrap
-        default: throw new InvalidKeyException("unsupported AES-KW KEK size: " + kek.length);
+        default: throw new InvalidKeyException("unsupported AES-KW KEK size: " + kekLen);
         }
-        Cipher c = Cipher.getInstance(oid, providerName);
-        c.init(mode, new SecretKeySpec(kek, "AES"));
+        Provider ownProvider = ownProvider();
+        if (ownProvider == null)
+        {
+            throw new NoSuchAlgorithmException(
+                    "this cipher was constructed outside any provider, so the AES key wrap "
+                            + oid + " cannot be performed by it; obtain the Cipher from a "
+                            + "Jostle provider rather than constructing the SPI directly");
+        }
+        Cipher c;
+        try
+        {
+            c = Cipher.getInstance(oid, ownProvider);
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new NoSuchAlgorithmException(
+                    "provider " + ownProvider.getName() + " does not serve the AES key wrap "
+                            + oid + ", so the key cannot be wrapped by it", e);
+        }
         return c;
     }
 

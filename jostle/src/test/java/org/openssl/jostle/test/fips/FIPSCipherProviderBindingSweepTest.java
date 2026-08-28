@@ -44,6 +44,6 @@ public class FIPSCipherProviderBindingSweepTest
         // Measured 25 / 24 against the 3.1.2 module, which serves no
         // Triple-DES; a module that does adds to both. Floors sit below the
         // smaller of the two supported modules.
-        CipherProviderBindingSweepTest.sweep(fips, 20, 15);
+        CipherProviderBindingSweepTest.sweep(fips, 20, 24);
     }
 }

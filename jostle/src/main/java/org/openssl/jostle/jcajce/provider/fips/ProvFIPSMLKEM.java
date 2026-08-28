@@ -118,7 +118,7 @@ class ProvFIPSMLKEM
         // so it is registered under the SPKI/KEM OIDs (the .4.4 "kems" arc). The single
         // SPI handles all three parameter sets (the key carries its variant).
         final Map<String, String> mlkemCtsAttr = new HashMap<>();
-        provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(keyFactory(provider, OSSLKeyType.NONE), FIPSNISelector.SpecNI, JostleFIPSProvider.PROVIDER_NAME));
+        provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(keyFactory(provider, OSSLKeyType.NONE), FIPSNISelector.SpecNI));
         provider.addAlias("Cipher", "ML-KEM", "MLKEM");
         provider.addAlias("Cipher", "ML-KEM",
             NISTObjectIdentifiers.id_alg_ml_kem_512,

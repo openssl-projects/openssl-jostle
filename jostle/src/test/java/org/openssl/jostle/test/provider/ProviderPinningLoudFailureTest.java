@@ -144,60 +144,134 @@ public class ProviderPinningLoudFailureTest
     // -----------------------------------------------------------------
 
     /**
-     * Drives the real wrap path with a bogus provider name, so the pin is
-     * pinned where it actually ships rather than only in the KDF helper.
+     * The unbound arm: an SPI constructed outside any provider has no provider
+     * to compute its KDF digest, and must say so rather than fall through to
+     * whatever JCA has installed.
+     *
+     * <p>Before MT-16 this arm did not exist — the no-argument constructor
+     * hard-pinned the name {@code "JSL"}, so a directly-constructed SPI
+     * quietly borrowed whatever instance that name resolved to. Binding is by
+     * reference now, and an SPI with no provider has no identity to borrow.
      */
     @Test
-    public void ktsWrap_absentProvider_failsRatherThanFallingThrough() throws Exception
+    public void ktsWrap_unboundSpi_failsAtTheDigestPinRatherThanFallingThrough() throws Exception
     {
         // Generated through the SPI directly, NOT through the registered
-        // provider. Probe below is likewise a directly-constructed SPI, so
-        // both sides live in the unbound realm; a key from the registered
-        // provider would be refused by MT-14 instance binding before the wrap
-        // path this test exists to drive was ever reached.
+        // provider, so both sides live in the unbound realm; a key from the
+        // registered provider would be refused by MT-14 instance binding
+        // before the wrap path this test exists to drive was ever reached.
         KeyPair kp = new org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator(
                 "ML-KEM-768").generateKeyPair();
 
-        KTSParameterSpec kts = new KTSParameterSpec.Builder("AES", 256)
+        Probe unbound = new Probe();
+        unbound.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+
+        Exception e = Assertions.assertThrows(Exception.class,
+                () -> unbound.wrap(new SecretKeySpec(new byte[32], "AES")),
+                "wrapping with no provider must fail, not fall through to whatever JCA "
+                        + "has installed");
+        String msg = rootMessage(e);
+        // Must fail at the DIGEST pin specifically, not merely somewhere. The
+        // AES key wrap is pinned the same way and fails the same way, so
+        // "it threw and mentioned a provider" would pass with the digest pin
+        // gone — this is the assertion that separates the two.
+        Assertions.assertTrue(msg.contains("SHA-256 KDF digest cannot be computed by it"),
+                "must fail at the KDF DIGEST pin naming the digest; got: " + msg);
+        Assertions.assertTrue(msg.contains("constructed outside any provider"),
+                "must name the cause as having no provider; got: " + msg);
+    }
+
+    /**
+     * The bound-but-incapable arm, driven end to end through the real JCE
+     * surface: a JSL instance with SHA-256 removed must fail the wrap naming
+     * itself, rather than borrow the digest from another installed provider.
+     *
+     * <p>This is the arm a NAME pin could not express. With the pin on a
+     * name, "my provider" meant whatever the name resolved to at call time;
+     * with it on the instance, an instance that cannot serve the digest is a
+     * hard failure even though the installed provider of the same NAME can.
+     */
+    @Test
+    public void ktsWrap_ownInstanceWithoutTheDigest_failsNamingItRatherThanBorrowing() throws Exception
+    {
+        Provider digestless = new StrippedJostleProvider("MessageDigest", "SHA-256");
+        Assertions.assertNotNull(Security.getProvider(JostleProvider.PROVIDER_NAME)
+                        .getService("MessageDigest", "SHA-256"),
+                "the INSTALLED JSL must still serve SHA-256 — otherwise this test proves "
+                        + "nothing about instance identity, only about absence");
+
+        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", digestless).generateKeyPair();
+        Cipher c = Cipher.getInstance("ML-KEM", digestless);
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+
+        Exception e = Assertions.assertThrows(Exception.class,
+                () -> c.wrap(new SecretKeySpec(new byte[32], "AES")));
+        String msg = rootMessage(e);
+        Assertions.assertTrue(msg.contains("does not serve SHA-256"),
+                "must name the digest it cannot serve; got: " + msg);
+        Assertions.assertTrue(msg.contains("KDF digest cannot be computed by it"),
+                "must fail at the KDF DIGEST pin; got: " + msg);
+    }
+
+    /**
+     * The same, one lookup later: the AES key wrap is pinned to the instance
+     * too, and an instance that cannot serve it fails rather than borrowing.
+     * Separate from the digest arm on purpose — with only one of the two
+     * tests, a regression that unpinned the other would go unseen.
+     */
+    @Test
+    public void ktsWrap_ownInstanceWithoutTheKeyWrap_failsNamingItRatherThanBorrowing() throws Exception
+    {
+        // id-aes256-wrap: the KEK is 256-bit, so this is the OID the wrap
+        // resolves. Removing it leaves the digest intact, so a failure here
+        // can only be the key-wrap pin.
+        Provider kwless = new StrippedJostleProvider("Cipher", "2.16.840.1.101.3.4.1.45");
+
+        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", kwless).generateKeyPair();
+        Cipher c = Cipher.getInstance("ML-KEM", kwless);
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+
+        Exception e = Assertions.assertThrows(Exception.class,
+                () -> c.wrap(new SecretKeySpec(new byte[32], "AES")));
+        String msg = rootMessage(e);
+        Assertions.assertTrue(msg.contains("does not serve the AES key wrap"),
+                "must fail at the AES KEY WRAP pin; got: " + msg);
+        Assertions.assertTrue(msg.contains("2.16.840.1.101.3.4.1.45"),
+                "must name the key-wrap OID it cannot serve; got: " + msg);
+    }
+
+    /**
+     * Positive control for all three arms above. Without it they would pass
+     * against a KTS cipher that refused every provider, including a capable
+     * one.
+     */
+    @Test
+    public void ktsWrap_ownInstanceThatServesEverything_wraps() throws Exception
+    {
+        Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
+        Cipher c = Cipher.getInstance("ML-KEM", jsl);
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+        Assertions.assertNotNull(c.wrap(new SecretKeySpec(new byte[32], "AES")));
+    }
+
+    /** A 256-bit KEK derived by KDF3/SHA-256 — what all four arms drive. */
+    private static KTSParameterSpec ktsSpec()
+    {
+        return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(
                         X9ObjectIdentifiers.id_kdf_kdf3,
                         new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)))
                 .build();
-
-        Probe bad = new Probe(ABSENT);
-        bad.init(Cipher.WRAP_MODE, kp.getPublic(), kts, new SecureRandom());
-
-        Exception e = Assertions.assertThrows(Exception.class,
-                () -> bad.wrap(new SecretKeySpec(new byte[32], "AES")),
-                "wrapping with an unusable provider name must fail, not fall through to "
-                        + "whatever JCA has installed");
-        // Must fail at the DIGEST pin specifically, not merely somewhere.
-        //
-        // This assertion was too loose on first writing and the falsification
-        // caught it: with the digest silently falling through to SUN, the wrap
-        // still failed — at the AES key-wrap pin — so "it failed and named the
-        // provider" passed while the digest pin was gone. Requiring the
-        // digest-specific message is what distinguishes the two pins.
-        String msg = rootMessage(e);
-        Assertions.assertTrue(msg.contains(ABSENT), "must name the provider; got: " + msg);
-        Assertions.assertTrue(msg.contains("KDF digest cannot be computed"),
-                "must fail at the KDF DIGEST pin, not merely at some later pin — a silent "
-                        + "digest fall-through would still fail here at the AES key wrap and "
-                        + "look identical without this check; got: " + msg);
-
-        // Control: the same SPI with its own provider name wraps successfully,
-        // so the failure above is the provider name and nothing else.
-        Probe good = new Probe(JostleProvider.PROVIDER_NAME);
-        good.init(Cipher.WRAP_MODE, kp.getPublic(), kts, new SecureRandom());
-        Assertions.assertNotNull(good.wrap(new SecretKeySpec(new byte[32], "AES")));
     }
 
     /** Exposes the protected SPI surface so the real wrap path can be driven. */
-    private static final class Probe extends MLKEMKTSCipherSpi
+    private static final class Probe
+            extends MLKEMKTSCipherSpi
     {
-        Probe(String providerName)
+        Probe()
         {
-            super(new MLKEMKeyFactorySpi(), NISelector.SpecNI, providerName);
+            super(new MLKEMKeyFactorySpi(), NISelector.SpecNI);
         }
 
         void init(int mode, Key key, AlgorithmParameterSpec spec, SecureRandom random)

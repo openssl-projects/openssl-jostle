@@ -90,7 +90,7 @@ class ProvMLKEM
         // SPI handles all three parameter sets (the key carries its variant).
         final Map<String, String> mlkemCtsAttr = new HashMap<>();
         provider.addAlgorithmImplementation("Cipher", "ML-KEM", PREFIX + "MLKEMKTSCipherSpi", mlkemCtsAttr, (arg) -> new MLKEMKTSCipherSpi(keyFactory(provider, OSSLKeyType.NONE),
-                NISelector.SpecNI, JostleProvider.PROVIDER_NAME));
+                NISelector.SpecNI));
         provider.addAlias("Cipher", "ML-KEM", "MLKEM");
         provider.addAlias("Cipher", "ML-KEM",
             NISTObjectIdentifiers.id_alg_ml_kem_512,

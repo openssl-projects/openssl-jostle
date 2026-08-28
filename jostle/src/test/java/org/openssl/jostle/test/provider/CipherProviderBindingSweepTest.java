@@ -70,26 +70,21 @@ public class CipherProviderBindingSweepTest
      * required to carry a provider instance. An entry is a claim with a
      * reason, not a way to quieten the sweep.
      *
-     * <p>Both entries are the KTS ciphers, and their reason is the same: they
-     * do not reconstruct a key themselves. They derive a KEK and delegate the
-     * whole unwrap — {@code wrappedKeyType} included, so the asymmetric arms
-     * do reach it — to an inner AES key-wrap {@code Cipher} obtained as
-     * {@code Cipher.getInstance(oid, providerName)}. MT-5 pinned that lookup
-     * by NAME, so their asymmetric-unwrap surface is name-pinned rather than
-     * instance-pinned.
+     * <p><b>Empty since MT-16, and that is the whole point of it.</b> It held
+     * the two KTS ciphers, {@code RSAKEMCipherSpi} and
+     * {@code MLKEMKTSCipherSpi}: they reconstruct no key themselves but
+     * delegate the whole unwrap — {@code wrappedKeyType} included, so the
+     * asymmetric arms do reach it — to an inner AES key-wrap {@code Cipher},
+     * which MT-5 obtained as {@code Cipher.getInstance(oid, providerName)}.
+     * MT-16 converted that pin, and the KDF digest beside it, to the provider
+     * INSTANCE, so both now satisfy the ordinary bound-KeyFactory shape and
+     * the sweep enforces them like everything else.
      *
-     * <p><b>That is a narrower version of the same gap MT-10 closes, recorded
-     * rather than fixed.</b> Converting MT-5's name pins to instance pins is a
-     * separate decision with its own blast radius (it also moves the KDF
-     * digest lookups), and it is logged as a follow-up in
-     * {@code reviews/STATUS.md}. It is not silently blessed: this comment is
-     * the record, and removing an entry from here is how the follow-up gets
-     * closed.
+     * <p>The set stays, empty, for the next such class — and the branch that
+     * consults it stays FIRST, for the reason recorded at that branch.
      */
     private static final Set<String> NAME_PINNED_BY_MT5 = Collections.unmodifiableSet(
-            new HashSet<String>(Arrays.asList(
-                    "RSAKEMCipherSpi",
-                    "MLKEMKTSCipherSpi")));
+            new HashSet<String>(Arrays.<String>asList()));
 
     private static Provider jsl;
 
@@ -108,7 +103,7 @@ public class CipherProviderBindingSweepTest
     {
         // Measured 48 / 45 today; the floors leave headroom for registration
         // churn while still failing loudly if the sweep stops finding things.
-        sweep(jsl, 40, 40);
+        sweep(jsl, 40, 45);
     }
 
     // -----------------------------------------------------------------
@@ -162,13 +157,14 @@ public class CipherProviderBindingSweepTest
 
             //
             // The explicit classification is consulted FIRST, and that
-            // ordering is load-bearing. Both KTS ciphers happen to hold a
-            // bound RSAKeyFactorySpi, so shape detection reported them as
-            // bound — while the field governing their UNWRAP is the inner
-            // Cipher they resolve by provider NAME. Sniffing a shape that is
-            // not the one in the path is exactly the matcher trap the guides
-            // warn about, and the first version of this sweep fell into it:
-            // it printed namePinned=[] and counted both as fine.
+            // ordering is load-bearing even now the set is empty. Both KTS
+            // ciphers held a bound RSAKeyFactorySpi while their UNWRAP still
+            // ran through a name-resolved inner Cipher, so shape detection
+            // reported them bound on a field that was not in the path — the
+            // matcher trap the guides warn about, which the first version of
+            // this sweep fell into: it printed namePinned=[] and counted both
+            // as fine. MT-16 made that field the real one, but the next
+            // name-pinned class would repeat the trap, so the order stands.
             //
             if (NAME_PINNED_BY_MT5.contains(simpleName))
             {
