@@ -10,6 +10,11 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.openssl.jostle.jcajce.spec.DHDomainParameterSpec;
+
+import javax.crypto.spec.DHParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -52,6 +57,10 @@ import java.security.spec.PKCS8EncodedKeySpec;
  */
 public class FIPSKeyIsolationTest
 {
+    /** X9.42 dhpublicnumber — the OID a q-carrying DH key must keep. */
+    private static final ASN1ObjectIdentifier X9_42_DH =
+            new ASN1ObjectIdentifier("1.2.840.10046.2.1");
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /**
@@ -461,6 +470,39 @@ public class FIPSKeyIsolationTest
         PrivKeyOp dhOp = (p, k) -> KeyAgreement.getInstance("DH", p).init(k);
         assertPrivateIsolatedBothDirections(jslDh.getPrivate(), fipsDh.getPrivate(), dhOp);
         assertKaReencodeAndPublicCross("DH", "DH", jslDh, jslDh2);
+
+        // ---- DH again, in the X9.42 encoding (WI-11) ----
+        // The crossing is by ENCODING, so the encoding FORM is part of what it
+        // has to survive: a re-decode that quietly dropped q would still
+        // produce a working key here, and only the OID assertion catches it.
+        // The module's named-group parameters carry q, so they are the cheap
+        // source of an approved X9.42 group.
+        DHParameterSpec x942 = ((javax.crypto.interfaces.DHPublicKey) fipsDh.getPublic()).getParams();
+        Assertions.assertTrue(x942 instanceof DHDomainParameterSpec,
+                "the module's named-group parameters are expected to carry q");
+        KeyPair jslX942 = genDhKp(jsl, x942);
+        KeyPair jslX9422 = genDhKp(jsl, x942);
+        Assertions.assertEquals(X9_42_DH,
+                SubjectPublicKeyInfo.getInstance(jslX942.getPublic().getEncoded())
+                        .getAlgorithm().getAlgorithm(),
+                "fixture must be in the X9.42 form or this arm tests nothing new");
+        assertPrivateIsolatedBothDirections(jslX942.getPrivate(), fipsDh.getPrivate(), dhOp);
+        assertKaReencodeAndPublicCross("DH", "DH", jslX942, jslX9422);
+        Assertions.assertEquals(X9_42_DH,
+                SubjectPublicKeyInfo.getInstance(
+                        FIPSTestUtil.crossPublic(jslX9422.getPublic(), "DH",
+                                JostleFIPSProvider.PROVIDER_NAME).getEncoded())
+                        .getAlgorithm().getAlgorithm(),
+                "the crossed key must still be X9.42 — q must survive the re-decode");
+    }
+
+    /** A DH keypair on explicit domain parameters. */
+    private static KeyPair genDhKp(String provider, DHParameterSpec spec)
+        throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", provider);
+        g.initialize(spec);
+        return g.generateKeyPair();
     }
 
     /**

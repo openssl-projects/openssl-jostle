@@ -49,6 +49,29 @@ static int32_t check_is_dh(const EVP_PKEY *pkey) {
 }
 
 
+/*
+ * Were these two keys built under DIFFERENT finite-field keymgmts? OpenSSL
+ * routes PKCS#3 to "DH" and X9.42 to "DHX", and refuses agreement across the
+ * two whatever p and g say. Called only after a set_peer failure, so a "no"
+ * simply leaves the generic error in place.
+ *
+ * EVP_PKEY_CTX_get0_pkey returns the private key the derive ctx was created
+ * from - borrowed, not owned, so nothing to free.
+ */
+static int peer_encoding_form_differs(EVP_PKEY_CTX *pctx, const EVP_PKEY *peer) {
+    const EVP_PKEY *mine = EVP_PKEY_CTX_get0_pkey(pctx);
+    if (mine == NULL) {
+        return 0;
+    }
+    const char *mine_name = EVP_PKEY_get0_type_name(mine);
+    const char *peer_name = EVP_PKEY_get0_type_name(peer);
+    if (mine_name == NULL || peer_name == NULL) {
+        return 0;
+    }
+    return strcmp(mine_name, peer_name) != 0;
+}
+
+
 // =============================================================
 // Group introspection
 // =============================================================
@@ -277,10 +300,16 @@ exit:
  *                                   here because OpenSSL's FFC fromdata
  *                                   import does not re-derive it.
  *
- * Mirrors dsa_fromdata; PKCS#3 DH has no q.
+ * Mirrors dsa_fromdata. q selects the ENCODING FORM as well as being a
+ * parameter: q supplied means X9.42, imported under the "DHX" keymgmt so
+ * i2d_PUBKEY emits dhpublicnumber; q absent means PKCS#3 under "DH", which
+ * emits dhKeyAgreement. Measured - a "DH" key that merely CARRIES q still
+ * encodes as PKCS#3, so the type name at this call is the whole mechanism
+ * (fips-c-review/probes/dhx_probe.c).
  */
 static int32_t dh_fromdata(key_spec *spec,
                            const uint8_t *p_be, size_t p_len,
+                           const uint8_t *q_be, size_t q_len,
                            const uint8_t *g_be, size_t g_len,
                            const uint8_t *y_be, size_t y_len,
                            const uint8_t *x_be, size_t x_len) {
@@ -291,6 +320,7 @@ static int32_t dh_fromdata(key_spec *spec,
     OSSL_PARAM_BLD *bld = NULL;
     OSSL_PARAM *params = NULL;
     BIGNUM *p_bn = NULL;
+    BIGNUM *q_bn = NULL;
     BIGNUM *g_bn = NULL;
     BIGNUM *y_bn = NULL;
     BIGNUM *x_bn = NULL;
@@ -300,7 +330,11 @@ static int32_t dh_fromdata(key_spec *spec,
 
     p_bn = BN_bin2bn(p_be, (int) p_len, NULL);
     g_bn = BN_bin2bn(g_be, (int) g_len, NULL);
-    if (OPS_OPENSSL_ERROR_6 p_bn == NULL || g_bn == NULL) {
+    if (q_be != NULL) {
+        q_bn = BN_bin2bn(q_be, (int) q_len, NULL);
+    }
+    if (OPS_OPENSSL_ERROR_6 p_bn == NULL || g_bn == NULL
+        || (q_be != NULL && q_bn == NULL)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(5220);
         goto exit;
     }
@@ -361,7 +395,9 @@ static int32_t dh_fromdata(key_spec *spec,
     }
 
     if (OPS_OPENSSL_ERROR_9 1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_P, p_bn)
-        || 1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_G, g_bn)) {
+        || 1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_G, g_bn)
+        || (q_bn != NULL
+            && 1 != OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_Q, q_bn))) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(5226);
         goto exit;
     }
@@ -387,8 +423,11 @@ static int32_t dh_fromdata(key_spec *spec,
         goto exit;
     }
 
+    // An input we CHOOSE, so it is spelled explicitly here rather than
+    // left to a default: "DHX" is the only keymgmt whose encoder emits the
+    // X9.42 dhpublicnumber form, and it is unencodable without q.
     pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
-                                      "DH", NULL);
+                                      q_bn != NULL ? "DHX" : "DH", NULL);
     if (OPS_OPENSSL_ERROR_1 pctx == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5230);
         goto exit;
@@ -422,6 +461,7 @@ static int32_t dh_fromdata(key_spec *spec,
 
 exit:
     BN_free(p_bn);
+    BN_free(q_bn);
     BN_free(g_bn);
     BN_free(y_bn);
     BN_clear_free(x_bn);
@@ -436,20 +476,25 @@ exit:
 
 int32_t dh_make_params_from_components(key_spec *spec,
                                        const uint8_t *p_be, size_t p_len,
+                                       const uint8_t *q_be, size_t q_len,
                                        const uint8_t *g_be, size_t g_len) {
     // Bridge-validated invariants: pointer null checks and length
     // bounds (zero / > INT32_MAX) are done by both bridges.
     jo_assert(spec != NULL);
     jo_assert(p_be != NULL && p_len > 0 && p_len <= (size_t) INT32_MAX);
     jo_assert(g_be != NULL && g_len > 0 && g_len <= (size_t) INT32_MAX);
+    // q is OPTIONAL: absent means PKCS#3, present means X9.42. Both bridges
+    // enforce "supplied together, and in range" before this runs.
+    jo_assert(q_be == NULL || (q_len > 0 && q_len <= (size_t) INT32_MAX));
 
-    return dh_fromdata(spec, p_be, p_len, g_be, g_len,
+    return dh_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
                        NULL, 0, NULL, 0);
 }
 
 
 int32_t dh_make_private_from_components(key_spec *spec,
                                         const uint8_t *p_be, size_t p_len,
+                                        const uint8_t *q_be, size_t q_len,
                                         const uint8_t *g_be, size_t g_len,
                                         const uint8_t *x_be, size_t x_len,
                                         void *rnd_src) {
@@ -458,6 +503,10 @@ int32_t dh_make_private_from_components(key_spec *spec,
     jo_assert(g_be != NULL && g_len > 0 && g_len <= (size_t) INT32_MAX);
     jo_assert(x_be != NULL && x_len > 0 && x_len <= (size_t) INT32_MAX);
     jo_assert(rnd_src != NULL);
+    // q is OPTIONAL: absent means PKCS#3, present means X9.42. Both bridges
+    // enforce "supplied together, and in range" before this runs.
+    jo_assert(q_be == NULL || (q_len > 0 && q_len <= (size_t) INT32_MAX));
+
 
     // The import path doesn't structurally need entropy today, but the
     // upcall is bound anyway so RAND consumed anywhere inside the
@@ -465,8 +514,8 @@ int32_t dh_make_private_from_components(key_spec *spec,
     // stale thread-local (dsa_make_private_from_components rationale).
     rand_set_java_srand_call(rnd_src);
 
-    int32_t ret_code = dh_fromdata(spec, p_be, p_len, g_be, g_len,
-                                   NULL, 0, x_be, x_len);
+    int32_t ret_code = dh_fromdata(spec, p_be, p_len, q_be, q_len,
+                                   g_be, g_len, NULL, 0, x_be, x_len);
     rand_clear_java_srand_call();
     return ret_code;
 }
@@ -474,14 +523,18 @@ int32_t dh_make_private_from_components(key_spec *spec,
 
 int32_t dh_make_public_from_components(key_spec *spec,
                                        const uint8_t *p_be, size_t p_len,
+                                       const uint8_t *q_be, size_t q_len,
                                        const uint8_t *g_be, size_t g_len,
                                        const uint8_t *y_be, size_t y_len) {
     jo_assert(spec != NULL);
     jo_assert(p_be != NULL && p_len > 0 && p_len <= (size_t) INT32_MAX);
     jo_assert(g_be != NULL && g_len > 0 && g_len <= (size_t) INT32_MAX);
     jo_assert(y_be != NULL && y_len > 0 && y_len <= (size_t) INT32_MAX);
+    // q is OPTIONAL: absent means PKCS#3, present means X9.42. Both bridges
+    // enforce "supplied together, and in range" before this runs.
+    jo_assert(q_be == NULL || (q_len > 0 && q_len <= (size_t) INT32_MAX));
 
-    return dh_fromdata(spec, p_be, p_len, g_be, g_len,
+    return dh_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
                        y_be, y_len, NULL, 0);
 }
 
@@ -792,7 +845,19 @@ int32_t dh_kex_set_peer(dh_kex_ctx *ctx, const key_spec *peer_pub,
     if (OPS_OPENSSL_ERROR_1 1 != EVP_PKEY_derive_set_peer(
             ctx->pctx, peer_pub->key)) {
         rand_clear_java_srand_call();
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5270);
+
+        // Diagnosis-on-failure, not a pre-check: set_peer ALSO refuses a peer
+        // whose keymgmt differs from the private key's - "DH" (PKCS#3) against
+        // "DHX" (X9.42) - even when p and g are identical, and reports only
+        // "operation not supported for this keytype". Ask the two keys so the
+        // message can name the condition and the remedy. Never re-classify an
+        // injected failure (dsa.c rationale).
+        int32_t generic = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5270);
+        if (!JO_ERROR_WAS_INJECTED(generic)
+            && peer_encoding_form_differs(ctx->pctx, peer_pub->key)) {
+            return JO_DH_PEER_ENCODING_MISMATCH;
+        }
+        return generic;
     }
 
     ctx->peer_set = 1;

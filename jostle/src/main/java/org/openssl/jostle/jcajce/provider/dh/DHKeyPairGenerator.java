@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.dh;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+import org.openssl.jostle.jcajce.spec.DHDomainParameterSpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -48,7 +49,11 @@ import java.security.spec.AlgorithmParameterSpec;
  *   <li>{@link #initialize(AlgorithmParameterSpec)} with
  *       {@link DHParameterSpec} — explicit (p, g), e.g. parameters
  *       negotiated by a protocol or produced by
- *       {@code AlgorithmParameterGenerator}.</li>
+ *       {@code AlgorithmParameterGenerator}. Supply a
+ *       {@link DHDomainParameterSpec} instead to include the subgroup
+ *       order q: the pair then encodes as X9.42 {@code dhpublicnumber}
+ *       rather than PKCS#3, and a FIPS module will agree with it (those
+ *       modules refuse {@code derive} on a q-less key).</li>
  * </ul>
  */
 public class DHKeyPairGenerator extends KeyPairGenerator
@@ -178,6 +183,17 @@ public class DHKeyPairGenerator extends KeyPairGenerator
             throw new InvalidAlgorithmParameterException(
                     "DHParameterSpec p and g must both be positive");
         }
+        if (dhSpec instanceof DHDomainParameterSpec)
+        {
+            BigInteger q = ((DHDomainParameterSpec) dhSpec).getQ();
+            // The spec's own constructor rejects a null q, so only the sign
+            // is left to check here.
+            if (q.signum() <= 0)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "DHDomainParameterSpec q must be positive");
+            }
+        }
         int pBits = dhSpec.getP().bitLength();
         if (pBits < MIN_P_BITS || pBits > MAX_P_BITS)
         {
@@ -217,17 +233,17 @@ public class DHKeyPairGenerator extends KeyPairGenerator
             }
             catch (ProviderCapabilityException e)
             {
-                // A FIPS provider needs q, and this SPI has no way to supply
-                // it: Jostle's DH component import carries (p, g) only — there
-                // is no q anywhere in the DH native surface — so no spec, BC's
-                // q-carrying DHDomainParameterSpec included, can satisfy the
-                // generic "needs q" message. Say what the caller CAN do
-                // instead. Not detectable at initialize(): mainline generates
-                // from the same (p, g) happily. ProviderException because
+                // Reached only for PKCS#3 parameters: a FIPS provider needs
+                // q, and a plain DHParameterSpec has none. The remedy is now
+                // a real one — supply a DHDomainParameterSpec — so name it.
+                // Not detectable at initialize(): mainline generates from the
+                // same (p, g) happily. ProviderException because
                 // generateKeyPair declares no checked type.
                 throw new ProviderException(
-                        "explicit DH parameters are not supported by the loaded provider; "
-                                + "initialise by key size to use an approved named group", e);
+                        "explicit DH parameters without the subgroup order q are not "
+                                + "supported by the loaded provider; supply a "
+                                + "DHDomainParameterSpec, or initialise by key size to "
+                                + "use an approved named group", e);
             }
         }
         else
@@ -242,13 +258,24 @@ public class DHKeyPairGenerator extends KeyPairGenerator
         return new KeyPair(new JODHPublicKey(dhServiceNI, asn1NI, spec), new JODHPrivateKey(dhServiceNI, asn1NI, spec));
     }
 
-    /** Import explicit (p, g) as a parameters-only key spec. */
+    /**
+     * Import explicit domain parameters as a parameters-only key spec.
+     *
+     * <p>q is passed when the caller supplied a {@link DHDomainParameterSpec}
+     * and omitted otherwise; that choice, not the presence of q on the
+     * resulting key, is what selects the X9.42 encoding — see
+     * {@code dh_make_params_from_components}.
+     */
     PKEYKeySpec makeParamsSpec(DHParameterSpec dhSpec)
     {
         BigInteger p = dhSpec.getP();
         BigInteger g = dhSpec.getG();
+        byte[] q = dhSpec instanceof DHDomainParameterSpec
+                ? DHComponents.unsignedMagnitude(((DHDomainParameterSpec) dhSpec).getQ())
+                : null;
         long paramsRef = dhServiceNI.makeParamsFromComponents(
                 DHComponents.unsignedMagnitude(p),
+                q,
                 DHComponents.unsignedMagnitude(g));
         // Deliberately UNBOUND: this is a PARAMETERS spec, not a key. MT-14
         // binds keys, because a key carries an EVP_PKEY that only its creating

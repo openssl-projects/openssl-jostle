@@ -14,6 +14,8 @@ package org.openssl.jostle.jcajce.provider.dh;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.Arrays;
 
+import org.openssl.jostle.jcajce.spec.DHDomainParameterSpec;
+
 import javax.crypto.spec.DHParameterSpec;
 import java.lang.ref.Reference;
 import java.math.BigInteger;
@@ -66,17 +68,47 @@ final class DHComponents
     }
 
     /**
-     * Materialise the domain parameters (p, g) of the underlying
-     * EVP_PKEY as a {@link DHParameterSpec}. PKCS#3 DH has no q; the
-     * private-value length {@code l} is left at 0 (unspecified), the
-     * JCE convention when no constraint was requested.
+     * Materialise the domain parameters of the underlying EVP_PKEY.
+     *
+     * <p>Returns a {@link DHDomainParameterSpec} when the key carries the
+     * subgroup order q (X9.42) and a plain {@link DHParameterSpec} when it
+     * does not (PKCS#3) — so a caller can recover q from a key that has one
+     * instead of it being dropped on the floor. The private-value length
+     * {@code l} is left at 0 (unspecified), the JCE convention when no
+     * constraint was requested.
      */
     static DHParameterSpec getParams(DHServiceNI dhServiceNI, PKEYKeySpec spec)
     {
-        return new DHParameterSpec(
-                getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_P),
-                getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_G));
+        BigInteger p = getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_P);
+        BigInteger g = getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_G);
+        if (!hasQ(dhServiceNI, spec))
+        {
+            return new DHParameterSpec(p, g);
+        }
+        return new DHDomainParameterSpec(
+                p, getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_Q), g);
     }
+
+    /**
+     * Does this key carry q? Asked through the RAW component call rather than
+     * the throwing wrapper: a PKCS#3 key legitimately has no q, and the
+     * two-call length probe reports that as a negative code. The OpenSSL error
+     * entry a failed probe leaves behind is cleared by the next component
+     * call, which clears the queue on entry.
+     */
+    static boolean hasQ(DHServiceNI dhServiceNI, PKEYKeySpec spec)
+    {
+        try
+        {
+            return dhServiceNI.ni_getComponent(
+                    spec.getReference(), DHServiceNI.COMP_Q, null) > 0;
+        }
+        finally
+        {
+            Reference.reachabilityFence(spec);
+        }
+    }
+
 
     /**
      * Convert a non-negative {@link BigInteger} to its big-endian

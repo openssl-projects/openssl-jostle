@@ -23,6 +23,7 @@ import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.DHDomainParameterSpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
@@ -211,7 +212,7 @@ public class FIPSDHLimitTest
         };
         for (byte[][] c : combos)
         {
-            assertNPE("input is null", () -> dh.makeParamsFromComponents(c[0], c[1]));
+            assertNPE("input is null", () -> dh.makeParamsFromComponents(c[0], null, c[1]));
         }
     }
 
@@ -226,7 +227,7 @@ public class FIPSDHLimitTest
         };
         for (byte[][] c : combos)
         {
-            assertIAE("input len is negative", () -> dh.makeParamsFromComponents(c[0], c[1]));
+            assertIAE("input len is negative", () -> dh.makeParamsFromComponents(c[0], null, c[1]));
         }
     }
 
@@ -242,7 +243,7 @@ public class FIPSDHLimitTest
         for (byte[][] c : combos)
         {
             assertNPE("input is null",
-                    () -> dh.makePrivateFromComponents(c[0], c[1], c[2], RND));
+                    () -> dh.makePrivateFromComponents(c[0], null, c[1], c[2], RND));
         }
     }
 
@@ -259,7 +260,7 @@ public class FIPSDHLimitTest
         for (byte[][] c : combos)
         {
             assertIAE("input len is negative",
-                    () -> dh.makePrivateFromComponents(c[0], c[1], c[2], RND));
+                    () -> dh.makePrivateFromComponents(c[0], null, c[1], c[2], RND));
         }
     }
 
@@ -268,21 +269,21 @@ public class FIPSDHLimitTest
     {
         byte[] ok = {0x07};
         assertIAE("supplied random source was null",
-                () -> dh.makePrivateFromComponents(ok, ok, ok, null));
+                () -> dh.makePrivateFromComponents(ok, null, ok, ok, null));
     }
 
     @Test
     public void makePublicFromComponents_nullComponent()
     {
         byte[] ok = {0x07};
-        assertNPE("input is null", () -> dh.makePublicFromComponents(ok, ok, null));
+        assertNPE("input is null", () -> dh.makePublicFromComponents(ok, null, ok, null));
     }
 
     @Test
     public void makePublicFromComponents_emptyComponent()
     {
         byte[] ok = {0x07};
-        assertIAE("input len is negative", () -> dh.makePublicFromComponents(ok, ok, new byte[0]));
+        assertIAE("input len is negative", () -> dh.makePublicFromComponents(ok, null, ok, new byte[0]));
     }
 
     // -----------------------------------------------------------------
@@ -364,7 +365,7 @@ public class FIPSDHLimitTest
             dh.getComponent(keyRef, DHServiceNI.COMP_G, g);
             dh.getComponent(keyRef, DHServiceNI.COMP_PUBLIC_VALUE, y);
 
-            pubRef = dh.makePublicFromComponents(p, g, y);
+            pubRef = dh.makePublicFromComponents(p, null, g, y);
             final long ref = pubRef;
             OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
                     () -> dh.getComponent(ref, DHServiceNI.COMP_PRIVATE_VALUE, new byte[256]));
@@ -446,7 +447,7 @@ public class FIPSDHLimitTest
         // Force the top bit so x is never zero (and always well below p).
         x[0] |= (byte) 0x80;
 
-        long privRef = dh.makePrivateFromComponents(p, g, x, RND);
+        long privRef = dh.makePrivateFromComponents(p, null, g, x, RND);
         try
         {
             withKex(ref ->
@@ -481,7 +482,7 @@ public class FIPSDHLimitTest
         byte[] p = Hex.decode(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX);
         byte[] g = {0x02};
 
-        long paramsRef = dh.makeParamsFromComponents(p, g);
+        long paramsRef = dh.makeParamsFromComponents(p, null, g);
         try
         {
             int[] err = new int[1];
@@ -508,13 +509,13 @@ public class FIPSDHLimitTest
      * checked exception, so the capability failure arrives as
      * {@link java.security.ProviderException}.
      *
-     * <p>The message must be actionable, not merely accurate. Jostle's DH
-     * component import carries (p, g) only — there is no q anywhere in the DH
-     * native surface — so the generic "needs q" text names something no caller
-     * can supply, BC's q-carrying DHDomainParameterSpec included. It therefore
-     * points at the route that does work. Asserting the absence of "subgroup
-     * order q" is the load-bearing half: it fails if the unactionable message
-     * ever comes back.
+     * <p>The message must be actionable, not merely accurate — and since
+     * WI-11 the actionable answer changed. The DH component import now carries
+     * q, so "supply a DHDomainParameterSpec" is a route the caller really has;
+     * before it was not, and the message deliberately named key-size
+     * initialisation instead. Both routes it names are exercised below, which
+     * is the load-bearing half: a message that pointed at something that did
+     * not work would still match a text assertion.
      */
     @Test
     public void keyPairGenerator_qlessParams_throwsProviderException() throws Exception
@@ -525,16 +526,30 @@ public class FIPSDHLimitTest
 
         ProviderException e = Assertions.assertThrows(ProviderException.class, kpg::generateKeyPair);
         Assertions.assertEquals(
-                "explicit DH parameters are not supported by the loaded provider; "
+                "explicit DH parameters without the subgroup order q are not supported "
+                        + "by the loaded provider; supply a DHDomainParameterSpec, or "
                         + "initialise by key size to use an approved named group",
                 e.getMessage());
-        Assertions.assertFalse(e.getMessage().contains("subgroup order q"),
-                "must not ask the caller for a q this SPI cannot accept");
 
-        // The route the message names must actually work.
+        // Both routes the message names must actually work.
         KeyPairGenerator bySize = KeyPairGenerator.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
         bySize.initialize(2048);
         Assertions.assertNotNull(bySize.generateKeyPair());
+
+        // ...and so must the other. The module's named-group parameters carry
+        // q, so a key generated by size reports a DHDomainParameterSpec; feed
+        // that straight back in as EXPLICIT parameters. Deliberately not the
+        // safe prime above with q = (p - 1) / 2: that is a PKCS#3-shaped group,
+        // and the module refuses it inside generate_key for its own reasons —
+        // supplying q removes the capability refusal, it does not make an
+        // unapproved group approved.
+        DHParameterSpec fromNamedGroup =
+                ((javax.crypto.interfaces.DHPublicKey) bySize.generateKeyPair().getPublic()).getParams();
+        Assertions.assertTrue(fromNamedGroup instanceof DHDomainParameterSpec,
+                "the module's named-group parameters are expected to carry q");
+        KeyPairGenerator withQ = KeyPairGenerator.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);
+        withQ.initialize(fromNamedGroup);
+        Assertions.assertNotNull(withQ.generateKeyPair());
     }
 
     @Test
@@ -730,5 +745,72 @@ public class FIPSDHLimitTest
     {
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, action);
         Assertions.assertEquals(message, e.getMessage());
+    }
+
+    // -----------------------------------------------------------------
+    // q — optional, and its own bridge check (WI-11)
+    // -----------------------------------------------------------------
+
+    /**
+     * An EMPTY q is rejected on all three entry points. Empty is not the same
+     * as absent: a null q means PKCS#3, a zero-length one is a caller error
+     * that must not reach the util layer's assert.
+     */
+    @Test
+    public void DHServiceNI_makeFromComponents_emptyQ_rejected()
+    {
+        byte[] ok = new byte[]{0x07};
+        byte[] empty = new byte[0];
+        try
+        {
+            dh.makeParamsFromComponents(ok, empty, ok);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("input len is negative", expected.getMessage());
+        }
+        try
+        {
+            dh.makePrivateFromComponents(ok, empty, ok, ok, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("input len is negative", expected.getMessage());
+        }
+        try
+        {
+            dh.makePublicFromComponents(ok, empty, ok, ok);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("input len is negative", expected.getMessage());
+        }
+    }
+
+    /**
+     * Positive control for the rejection above: a NULL q is ACCEPTED and
+     * builds PKCS#3 parameters, so the empty-q test pins the length check
+     * rather than a blanket refusal of the parameter.
+     */
+    @Test
+    public void DHServiceNI_makeParamsFromComponents_nullQ_accepted()
+    {
+        byte[] ok = new byte[]{0x07};
+        long ref = 0;
+        try
+        {
+            ref = dh.makeParamsFromComponents(ok, null, ok);
+            Assertions.assertNotEquals(0L, ref, "null q must build PKCS#3 parameters");
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                FIPSNISelector.SpecNI.dispose(ref);
+            }
+        }
     }
 }

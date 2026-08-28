@@ -29,17 +29,17 @@ public class DHServiceJNI implements DHServiceNI
     public native long ni_generateParameters(int pBits, int[] err, RandSource rndSource);
 
     @Override
-    public native long ni_makeParamsFromComponents(byte[] p, byte[] g, int[] err);
+    public native long ni_makeParamsFromComponents(byte[] p, byte[] q, byte[] g, int[] err);
 
     @Override
     public native long ni_generateKeyPair(long paramsRef, int[] err, RandSource rndSource);
 
     @Override
-    public native long ni_makePrivateFromComponents(byte[] p, byte[] g, byte[] x,
+    public native long ni_makePrivateFromComponents(byte[] p, byte[] q, byte[] g, byte[] x,
                                                     int[] err, RandSource rndSource);
 
     @Override
-    public native long ni_makePublicFromComponents(byte[] p, byte[] g, byte[] y,
+    public native long ni_makePublicFromComponents(byte[] p, byte[] q, byte[] g, byte[] y,
                                                    int[] err);
 
     @Override

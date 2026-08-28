@@ -22,6 +22,15 @@ import org.openssl.jostle.rand.RandSource;
  */
 public interface DHServiceNI extends DefaultServiceNI
 {
+    /**
+     * Shared by the NI error arm and {@code DHKeyAgreementSpi} so the text a
+     * caller sees is written once.
+     */
+    String PEER_ENCODING_MISMATCH_MESSAGE =
+            "peer key was decoded from a different DH encoding form "
+                    + "(PKCS#3 dhKeyAgreement vs X9.42 dhpublicnumber); "
+                    + "re-encode the peer through this provider's KeyFactory";
+
     // Component selectors. MUST match DH_COMP_* in dh.h.
     int COMP_P = 0;
     int COMP_Q = 1;
@@ -50,7 +59,7 @@ public interface DHServiceNI extends DefaultServiceNI
      * Construct a parameters-only DH key spec from explicit (p, g)
      * big-endian unsigned magnitudes.
      */
-    long ni_makeParamsFromComponents(byte[] p, byte[] g, int[] err);
+    long ni_makeParamsFromComponents(byte[] p, byte[] q, byte[] g, int[] err);
 
     /**
      * Generate a DH keypair from an established domain-parameter spec.
@@ -61,13 +70,13 @@ public interface DHServiceNI extends DefaultServiceNI
      * Construct a DH private key from explicit (p, g, x). The public
      * value y = g^x mod p is computed on the native side.
      */
-    long ni_makePrivateFromComponents(byte[] p, byte[] g, byte[] x,
+    long ni_makePrivateFromComponents(byte[] p, byte[] q, byte[] g, byte[] x,
                                       int[] err, RandSource rndSource);
 
     /**
      * Construct a DH public key from explicit (p, g, y).
      */
-    long ni_makePublicFromComponents(byte[] p, byte[] g, byte[] y,
+    long ni_makePublicFromComponents(byte[] p, byte[] q, byte[] g, byte[] y,
                                      int[] err);
 
     int ni_getComponent(long specRef, int component, byte[] out);
@@ -124,10 +133,10 @@ public interface DHServiceNI extends DefaultServiceNI
         return r;
     }
 
-    default long makeParamsFromComponents(byte[] p, byte[] g)
+    default long makeParamsFromComponents(byte[] p, byte[] q, byte[] g)
     {
         int[] err = new int[1];
-        long r = ni_makeParamsFromComponents(p, g, err);
+        long r = ni_makeParamsFromComponents(p, q, g, err);
         handleErrors(err[0]);
         return r;
     }
@@ -140,19 +149,19 @@ public interface DHServiceNI extends DefaultServiceNI
         return r;
     }
 
-    default long makePrivateFromComponents(byte[] p, byte[] g, byte[] x,
+    default long makePrivateFromComponents(byte[] p, byte[] q, byte[] g, byte[] x,
                                            RandSource rndSource)
     {
         int[] err = new int[1];
-        long r = ni_makePrivateFromComponents(p, g, x, err, rndSource);
+        long r = ni_makePrivateFromComponents(p, q, g, x, err, rndSource);
         handleErrors(err[0]);
         return r;
     }
 
-    default long makePublicFromComponents(byte[] p, byte[] g, byte[] y)
+    default long makePublicFromComponents(byte[] p, byte[] q, byte[] g, byte[] y)
     {
         int[] err = new int[1];
-        long r = ni_makePublicFromComponents(p, g, y, err);
+        long r = ni_makePublicFromComponents(p, q, g, y, err);
         handleErrors(err[0]);
         return r;
     }
@@ -206,6 +215,12 @@ public interface DHServiceNI extends DefaultServiceNI
         {
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type for DH");
+            case JO_DH_PEER_ENCODING_MISMATCH:
+                // Both keys are DH; they came from DIFFERENT encoding forms,
+                // which OpenSSL routes to different keymgmts and refuses to
+                // pair. DHKeyAgreementSpi turns this into the caller-facing
+                // InvalidKeyException naming the remedy.
+                throw new IllegalArgumentException(PEER_ENCODING_MISMATCH_MESSAGE);
             case JO_DH_BITS_OUT_OF_RANGE:
                 throw new IllegalArgumentException("DH parameter bit size out of range");
             default:

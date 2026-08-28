@@ -123,7 +123,10 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] p = magnitude(pubSpec.getP(), "p");
             byte[] g = magnitude(pubSpec.getG(), "g");
             byte[] y = magnitude(pubSpec.getY(), "y");
-            long ref = dhServiceNI.makePublicFromComponents(p, g, y);
+            // DHPublicKeySpec carries no q, so this is the PKCS#3 form — the
+            // same answer BouncyCastle gives for the same spec. A q-carrying
+            // key comes from a DER decode or from DHDomainParameterSpec.
+            long ref = dhServiceNI.makePublicFromComponents(p, null, g, y);
             return new JODHPublicKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
@@ -161,8 +164,9 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] x = magnitude(privSpec.getX(), "x");
             try
             {
+                // PKCS#3: DHPrivateKeySpec carries no q either.
                 long ref = dhServiceNI.makePrivateFromComponents(
-                        p, g, x,
+                        p, null, g, x,
                         DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
                 return new JODHPrivateKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
             }

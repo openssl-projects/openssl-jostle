@@ -103,12 +103,16 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        // JoDH_makeParamsFromComponents(p, p_size, g, g_size, err_out) -> key_spec*
+        // JoDH_makeParamsFromComponents(p, p_size, q, q_size, g, g_size,
+        //                                err_out) -> key_spec*
+        // q is optional: a null array marshals to MemorySegment.NULL / 0.
         makeParamsFromComponentsH = bind(lookup, symPrefix + "JoDH_makeParamsFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
                         ValueLayout.JAVA_LONG,  // p_size
+                        ValueLayout.ADDRESS,    // q bytes (may be NULL)
+                        ValueLayout.JAVA_LONG,  // q_size
                         ValueLayout.ADDRESS,    // g bytes
                         ValueLayout.JAVA_LONG,  // g_size
                         ValueLayout.ADDRESS));  // err out
@@ -122,14 +126,16 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        // JoDH_makePrivateFromComponents(p, p_size, g, g_size, x, x_size,
-        //                                err_out, rnd_src) -> key_spec*
+        // JoDH_makePrivateFromComponents(p, p_size, q, q_size, g, g_size,
+        //                                x, x_size, err_out, rnd_src) -> key_spec*
         // NON-critical: the entropy upcall must be allowed during import.
         makePrivateFromComponentsH = bind(lookup, symPrefix + "JoDH_makePrivateFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
                         ValueLayout.JAVA_LONG,  // p_size
+                        ValueLayout.ADDRESS,    // q bytes (may be NULL)
+                        ValueLayout.JAVA_LONG,  // q_size
                         ValueLayout.ADDRESS,    // g bytes
                         ValueLayout.JAVA_LONG,  // g_size
                         ValueLayout.ADDRESS,    // x bytes
@@ -137,13 +143,15 @@ public class DHServiceFFI implements DHServiceNI
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        // JoDH_makePublicFromComponents(p, p_size, g, g_size, y, y_size,
-        //                               err_out) -> key_spec*
+        // JoDH_makePublicFromComponents(p, p_size, q, q_size, g, g_size,
+        //                               y, y_size, err_out) -> key_spec*
         makePublicFromComponentsH = bind(lookup, symPrefix + "JoDH_makePublicFromComponents",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // p bytes
                         ValueLayout.JAVA_LONG,  // p_size
+                        ValueLayout.ADDRESS,    // q bytes (may be NULL)
+                        ValueLayout.JAVA_LONG,  // q_size
                         ValueLayout.ADDRESS,    // g bytes
                         ValueLayout.JAVA_LONG,  // g_size
                         ValueLayout.ADDRESS,    // y bytes
@@ -318,13 +326,14 @@ public class DHServiceFFI implements DHServiceNI
     }
 
     @Override
-    public long ni_makeParamsFromComponents(byte[] p, byte[] g, int[] err)
+    public long ni_makeParamsFromComponents(byte[] p, byte[] q, byte[] g, int[] err)
     {
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment ref = (MemorySegment) makeParamsFromComponentsH.invokeExact(
                     nativeBytes(a, p), sizeOf(p),
+                    nativeBytes(a, q), sizeOf(q),
                     nativeBytes(a, g), sizeOf(g),
                     errSeg);
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
@@ -356,7 +365,7 @@ public class DHServiceFFI implements DHServiceNI
     }
 
     @Override
-    public long ni_makePrivateFromComponents(byte[] p, byte[] g, byte[] x,
+    public long ni_makePrivateFromComponents(byte[] p, byte[] q, byte[] g, byte[] x,
                                              int[] err, RandSource rndSource)
     {
         try (Arena a = Arena.ofConfined())
@@ -364,6 +373,7 @@ public class DHServiceFFI implements DHServiceNI
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
                     nativeBytes(a, p), sizeOf(p),
+                    nativeBytes(a, q), sizeOf(q),
                     nativeBytes(a, g), sizeOf(g),
                     nativeBytes(a, x), sizeOf(x),
                     errSeg, entropyStub(a, rndSource));
@@ -378,7 +388,7 @@ public class DHServiceFFI implements DHServiceNI
     }
 
     @Override
-    public long ni_makePublicFromComponents(byte[] p, byte[] g, byte[] y,
+    public long ni_makePublicFromComponents(byte[] p, byte[] q, byte[] g, byte[] y,
                                             int[] err)
     {
         try (Arena a = Arena.ofConfined())
@@ -386,6 +396,7 @@ public class DHServiceFFI implements DHServiceNI
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment ref = (MemorySegment) makePublicFromComponentsH.invokeExact(
                     nativeBytes(a, p), sizeOf(p),
+                    nativeBytes(a, q), sizeOf(q),
                     nativeBytes(a, g), sizeOf(g),
                     nativeBytes(a, y), sizeOf(y),
                     errSeg);

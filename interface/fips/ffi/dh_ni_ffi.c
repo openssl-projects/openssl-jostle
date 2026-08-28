@@ -108,6 +108,7 @@ key_spec *JoDH_generateParameters(int32_t p_bits,
 
 
 key_spec *JoDH_makeParamsFromComponents(uint8_t *p, size_t p_size,
+                                        uint8_t *q, size_t q_size,
                                         uint8_t *g, size_t g_size,
                                         int32_t *ret_val) {
     jo_assert(ret_val != NULL);
@@ -124,9 +125,17 @@ key_spec *JoDH_makeParamsFromComponents(uint8_t *p, size_t p_size,
         *ret_val = check;
         return NULL;
     }
+    // q is OPTIONAL - absent means PKCS#3, present means X9.42. A supplied
+    // q is range-checked like any other component; a null one is passed
+    // through as NULL/0.
+    if (q != NULL && JO_SUCCESS != (check = check_component_len(q_size))) {
+        *ret_val = check;
+        return NULL;
+    }
 
     key_spec *spec = create_spec();
-    *ret_val = dh_make_params_from_components(spec, p, p_size, g, g_size);
+    *ret_val = dh_make_params_from_components(spec, p, p_size, q, q_size,
+                                              g, g_size);
 
     if (*ret_val != JO_SUCCESS) {
         free_key_spec(spec);
@@ -171,6 +180,7 @@ key_spec *JoDH_generateKeyPair(key_spec *params,
 // =============================================================
 
 key_spec *JoDH_makePrivateFromComponents(uint8_t *p, size_t p_size,
+                                         uint8_t *q, size_t q_size,
                                          uint8_t *g, size_t g_size,
                                          uint8_t *x, size_t x_size,
                                          int32_t *ret_val,
@@ -194,9 +204,16 @@ key_spec *JoDH_makePrivateFromComponents(uint8_t *p, size_t p_size,
         *ret_val = check;
         return NULL;
     }
+    // q is OPTIONAL - absent means PKCS#3, present means X9.42. A supplied
+    // q is range-checked like any other component; a null one is passed
+    // through as NULL/0.
+    if (q != NULL && JO_SUCCESS != (check = check_component_len(q_size))) {
+        *ret_val = check;
+        return NULL;
+    }
 
     key_spec *spec = create_spec();
-    *ret_val = dh_make_private_from_components(spec, p, p_size,
+    *ret_val = dh_make_private_from_components(spec, p, p_size, q, q_size,
                                                g, g_size, x, x_size,
                                                rnd_src);
 
@@ -209,6 +226,7 @@ key_spec *JoDH_makePrivateFromComponents(uint8_t *p, size_t p_size,
 
 
 key_spec *JoDH_makePublicFromComponents(uint8_t *p, size_t p_size,
+                                        uint8_t *q, size_t q_size,
                                         uint8_t *g, size_t g_size,
                                         uint8_t *y, size_t y_size,
                                         int32_t *ret_val) {
@@ -227,9 +245,16 @@ key_spec *JoDH_makePublicFromComponents(uint8_t *p, size_t p_size,
         *ret_val = check;
         return NULL;
     }
+    // q is OPTIONAL - absent means PKCS#3, present means X9.42. A supplied
+    // q is range-checked like any other component; a null one is passed
+    // through as NULL/0.
+    if (q != NULL && JO_SUCCESS != (check = check_component_len(q_size))) {
+        *ret_val = check;
+        return NULL;
+    }
 
     key_spec *spec = create_spec();
-    *ret_val = dh_make_public_from_components(spec, p, p_size,
+    *ret_val = dh_make_public_from_components(spec, p, p_size, q, q_size,
                                               g, g_size, y, y_size);
 
     if (*ret_val != JO_SUCCESS) {

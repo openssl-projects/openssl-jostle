@@ -196,7 +196,7 @@ public class DHLimitTest
         {
             try
             {
-                dh.makeParamsFromComponents(combo[0], combo[1]);
+                dh.makeParamsFromComponents(combo[0], null, combo[1]);
                 Assertions.fail("expected NullPointerException");
             }
             catch (NullPointerException expected)
@@ -219,7 +219,7 @@ public class DHLimitTest
         {
             try
             {
-                dh.makeParamsFromComponents(combo[0], combo[1]);
+                dh.makeParamsFromComponents(combo[0], null, combo[1]);
                 Assertions.fail("expected IllegalArgumentException");
             }
             catch (IllegalArgumentException expected)
@@ -242,7 +242,7 @@ public class DHLimitTest
         {
             try
             {
-                dh.makePrivateFromComponents(combo[0], combo[1], combo[2], TestUtil.RNDSrc);
+                dh.makePrivateFromComponents(combo[0], null, combo[1], combo[2], TestUtil.RNDSrc);
                 Assertions.fail("expected NullPointerException");
             }
             catch (NullPointerException expected)
@@ -266,7 +266,7 @@ public class DHLimitTest
         {
             try
             {
-                dh.makePrivateFromComponents(combo[0], combo[1], combo[2], TestUtil.RNDSrc);
+                dh.makePrivateFromComponents(combo[0], null, combo[1], combo[2], TestUtil.RNDSrc);
                 Assertions.fail("expected IllegalArgumentException");
             }
             catch (IllegalArgumentException expected)
@@ -282,7 +282,7 @@ public class DHLimitTest
         byte[] ok = new byte[]{0x07};
         try
         {
-            dh.makePrivateFromComponents(ok, ok, ok, null);
+            dh.makePrivateFromComponents(ok, null, ok, ok, null);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -297,7 +297,7 @@ public class DHLimitTest
         byte[] ok = new byte[]{0x07};
         try
         {
-            dh.makePublicFromComponents(ok, ok, null);
+            dh.makePublicFromComponents(ok, null, ok, null);
             Assertions.fail("expected NullPointerException");
         }
         catch (NullPointerException expected)
@@ -312,7 +312,7 @@ public class DHLimitTest
         byte[] ok = new byte[]{0x07};
         try
         {
-            dh.makePublicFromComponents(ok, ok, new byte[0]);
+            dh.makePublicFromComponents(ok, null, ok, new byte[0]);
             Assertions.fail("expected IllegalArgumentException");
         }
         catch (IllegalArgumentException expected)
@@ -443,7 +443,7 @@ public class DHLimitTest
             dh.getComponent(keyRef, DHServiceNI.COMP_G, g);
             dh.getComponent(keyRef, DHServiceNI.COMP_PUBLIC_VALUE, y);
 
-            pubRef = dh.makePublicFromComponents(p, g, y);
+            pubRef = dh.makePublicFromComponents(p, null, g, y);
             dh.getComponent(pubRef, DHServiceNI.COMP_PRIVATE_VALUE, new byte[256]);
             Assertions.fail("expected OpenSSLException");
         }
@@ -830,6 +830,73 @@ public class DHLimitTest
             if (refB != 0)
             {
                 dh.disposeKex(refB);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // q — optional, and its own bridge check (WI-11)
+    // -----------------------------------------------------------------
+
+    /**
+     * An EMPTY q is rejected on all three entry points. Empty is not the same
+     * as absent: a null q means PKCS#3, a zero-length one is a caller error
+     * that must not reach the util layer's assert.
+     */
+    @Test
+    public void DHServiceNI_makeFromComponents_emptyQ_rejected()
+    {
+        byte[] ok = new byte[]{0x07};
+        byte[] empty = new byte[0];
+        try
+        {
+            dh.makeParamsFromComponents(ok, empty, ok);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("input len is negative", expected.getMessage());
+        }
+        try
+        {
+            dh.makePrivateFromComponents(ok, empty, ok, ok, TestUtil.RNDSrc);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("input len is negative", expected.getMessage());
+        }
+        try
+        {
+            dh.makePublicFromComponents(ok, empty, ok, ok);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("input len is negative", expected.getMessage());
+        }
+    }
+
+    /**
+     * Positive control for the rejection above: a NULL q is ACCEPTED and
+     * builds PKCS#3 parameters, so the empty-q test pins the length check
+     * rather than a blanket refusal of the parameter.
+     */
+    @Test
+    public void DHServiceNI_makeParamsFromComponents_nullQ_accepted()
+    {
+        byte[] ok = new byte[]{0x07};
+        long ref = 0;
+        try
+        {
+            ref = dh.makeParamsFromComponents(ok, null, ok);
+            Assertions.assertNotEquals(0L, ref, "null q must build PKCS#3 parameters");
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                TestNISelector.getSpecNI().dispose(ref);
             }
         }
     }

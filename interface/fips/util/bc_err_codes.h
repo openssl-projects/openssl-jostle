@@ -515,6 +515,30 @@
 
 
 /*
+ * A DH key agreement whose two keys were decoded from DIFFERENT encoding
+ * forms - one PKCS#3 (dhKeyAgreement, no q) and one X9.42 (dhpublicnumber,
+ * q present).
+ *
+ * OpenSSL routes the two forms to different keymgmts, "DH" and "DHX", and
+ * EVP_PKEY_derive_set_peer refuses a peer whose keymgmt differs from the
+ * private key's EVEN WHEN p AND g ARE IDENTICAL. Measured 2026-08-28 on
+ * mainline 3.5.8 and on the FIPS 3.1.2 / 3.5.8-pedantic / 3.5.8-default
+ * modules alike - identical in all four: fips-c-review/probes/dhx_probe.c.
+ *
+ * The raw error is "operation not supported for this keytype", which names
+ * neither the condition nor the remedy, and the SPI's previous generic text
+ * blamed a group mismatch when the groups are in fact identical. So this code
+ * exists to carry a message that says what happened and what to do about it:
+ * re-encode the peer through this provider's KeyFactory.
+ *
+ * BouncyCastle agrees on p, g and x alone and pairs the two forms happily, so
+ * a caller migrating from BC meets this; the divergence is documented on
+ * DHKeyAgreementSpi.
+ */
+#define JO_DH_PEER_ENCODING_MISMATCH -171
+
+
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config
@@ -536,6 +560,20 @@
 #define JO_FIPS_FETCH_PROBE_FAILED -405
 #define JO_FIPS_CONFIG_PATH_INVALID -406
 
+
+
+/*
+ * A failure whose code carries an OPS offset was INJECTED by the
+ * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros
+ * expand to nothing in a release build, so only an unadorned JO_OPENSSL_ERROR
+ * can be a real one. Classifiers must not reinterpret a synthetic failure as a
+ * provider capability: doing so would swallow the offset that identifies which
+ * call site the test drove, and would report a capability the provider may
+ * well have.
+ *
+ * Defined here rather than in one .c because dsa.c and dh.c both classify.
+ */
+#define JO_ERROR_WAS_INJECTED(code) ((code) != JO_OPENSSL_ERROR)
 
 
 /*

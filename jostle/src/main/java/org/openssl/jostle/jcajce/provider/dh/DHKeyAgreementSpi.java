@@ -48,6 +48,25 @@ import java.security.spec.AlgorithmParameterSpec;
  * <p>Foreign DH keys (e.g. SunJCE keys, or keys parsed from
  * certificates) are accepted via {@link DHKeyFactorySpi#engineTranslateKey}
  * so callers don't have to pre-convert; mirrors the DSA Signature SPI.
+ *
+ * <h2>Both keys must be in the SAME encoding form — a divergence from
+ * BouncyCastle</h2>
+ *
+ * OpenSSL routes PKCS#3 ({@code dhKeyAgreement}) to the {@code DH} keymgmt and
+ * X9.42 ({@code dhpublicnumber}) to {@code DHX}, and
+ * {@code EVP_PKEY_derive_set_peer} refuses a peer whose keymgmt differs from
+ * the private key's <b>even when p and g are identical</b>. Measured on
+ * mainline 3.5.8 and on the FIPS 3.1.2 / 3.5.8 modules alike
+ * ({@code fips-c-review/probes/dhx_probe.c}).
+ *
+ * <p>BouncyCastle agrees on p, g and x alone, so it pairs the two forms
+ * happily. A caller migrating from BC that holds one key of each form will
+ * therefore see an {@link InvalidKeyException} here. The remedy is the
+ * ordinary one: re-encode the peer with {@code getEncoded()} and decode it
+ * through this provider's {@code KeyFactory}, which yields a key in whichever
+ * form its encoding carries. Jostle does not silently re-type the peer —
+ * adding or dropping q changes what public-key validation the module can
+ * perform, and a loud refusal is the safer answer.
  */
 public class DHKeyAgreementSpi extends KeyAgreementSpi
 {
@@ -231,11 +250,21 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
             }
             catch (RuntimeException e)
             {
-                // OpenSSL rejects mismatched groups at set_peer time.
-                // Translate so JCE callers get the expected typed
-                // exception rather than a provider-specific runtime.
+                // OpenSSL rejects a peer at set_peer time for two different
+                // reasons, and they need different messages: genuinely
+                // different domain parameters, or the same parameters in a
+                // different ENCODING FORM. The C side classifies the second
+                // (JO_DH_PEER_ENCODING_MISMATCH) because the raw OpenSSL text
+                // is "operation not supported for this keytype", which names
+                // neither cause nor cure. Translate either way, so JCE callers
+                // get the typed exception rather than a provider runtime.
+                if (DHServiceNI.PEER_ENCODING_MISMATCH_MESSAGE.equals(e.getMessage()))
+                {
+                    throw new InvalidKeyException(
+                            "DH doPhase: " + DHServiceNI.PEER_ENCODING_MISMATCH_MESSAGE, e);
+                }
                 throw new InvalidKeyException(
-                        "DH doPhase: peer key rejected (group mismatch?)", e);
+                        "DH doPhase: peer key rejected (different domain parameters)", e);
             }
             peerSet = true;
             return null;

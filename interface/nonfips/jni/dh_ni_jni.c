@@ -142,21 +142,25 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_dh_DHServiceJNI
  * Method:    ni_makeParamsFromComponents
- * Signature: ([B[B[I)J
+ * Signature: ([B[B[B[I)J
  *
- * Constructs a parameters-only DH key_spec from explicit (p, g)
- * big-endian unsigned magnitudes. PKCS#3 DH has no q.
+ * Constructs a parameters-only DH key_spec from explicit (p, q, g)
+ * big-endian unsigned magnitudes. q is optional and selects the encoding
+ * form - see dh.h.
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_ni_1makeParamsFromComponents
-(JNIEnv *env, jobject jo, jbyteArray _p, jbyteArray _g, jintArray err_out) {
+(JNIEnv *env, jobject jo, jbyteArray _p, jbyteArray _q, jbyteArray _g,
+ jintArray err_out) {
     UNUSED(jo);
     jo_assert(err_out != NULL);
 
     jint ret_val = JO_FAIL;
     key_spec *spec = NULL;
     java_bytearray_ctx p_ctx;
+    java_bytearray_ctx q_ctx;
     java_bytearray_ctx g_ctx;
     init_bytearray_ctx(&p_ctx);
+    init_bytearray_ctx(&q_ctx);
     init_bytearray_ctx(&g_ctx);
 
     if (_p == NULL || _g == NULL) {
@@ -178,10 +182,24 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
         ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
+    // q is OPTIONAL - absent means PKCS#3, present means X9.42. A supplied
+    // array must still be loadable and non-empty; a null one is passed
+    // through as NULL/0.
+    if (_q != NULL) {
+        if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&q_ctx, env, _q)) {
+            ret_val = JO_FAILED_ACCESS_INPUT;
+            goto exit;
+        }
+        if (q_ctx.size == 0) {
+            ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+            goto exit;
+        }
+    }
 
     spec = create_spec();
     ret_val = dh_make_params_from_components(spec,
                                              p_ctx.bytearray, p_ctx.size,
+                                             q_ctx.bytearray, q_ctx.size,
                                              g_ctx.bytearray, g_ctx.size);
 
     if (ret_val != JO_SUCCESS) {
@@ -191,6 +209,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
 
 exit:
     release_bytearray_ctx(&g_ctx);
+    release_bytearray_ctx(&q_ctx);
     release_bytearray_ctx(&p_ctx);
     (*env)->SetIntArrayRegion(env, err_out, 0, 1, &ret_val);
     return (jlong) spec;
@@ -237,24 +256,27 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_dh_DHServiceJNI
  * Method:    ni_makePrivateFromComponents
- * Signature: ([B[B[B[ILorg/openssl/jostle/rand/RandSource;)J
+ * Signature: ([B[B[B[B[ILorg/openssl/jostle/rand/RandSource;)J
  *
  * Constructs a Jostle key_spec for a DH private key from explicit
- * (p, g, x) big-endian unsigned magnitudes. The public value
- * y = g^x mod p is computed on the C side.
+ * (p, q, g, x) big-endian unsigned magnitudes. q is optional and selects
+ * the encoding form - see dh.h. The public value y = g^x mod p is
+ * computed on the C side.
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_ni_1makePrivateFromComponents
-(JNIEnv *env, jobject jo, jbyteArray _p, jbyteArray _g, jbyteArray _x,
- jintArray err_out, jobject rnd_src) {
+(JNIEnv *env, jobject jo, jbyteArray _p, jbyteArray _q, jbyteArray _g,
+ jbyteArray _x, jintArray err_out, jobject rnd_src) {
     UNUSED(jo);
     jo_assert(err_out != NULL);
 
     jint ret_val = JO_FAIL;
     key_spec *spec = NULL;
     java_bytearray_ctx p_ctx;
+    java_bytearray_ctx q_ctx;
     java_bytearray_ctx g_ctx;
     java_bytearray_ctx x_ctx;
     init_bytearray_ctx(&p_ctx);
+    init_bytearray_ctx(&q_ctx);
     init_bytearray_ctx(&g_ctx);
     init_bytearray_ctx(&x_ctx);
 
@@ -283,10 +305,24 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
         ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
+    // q is OPTIONAL - absent means PKCS#3, present means X9.42. A supplied
+    // array must still be loadable and non-empty; a null one is passed
+    // through as NULL/0.
+    if (_q != NULL) {
+        if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&q_ctx, env, _q)) {
+            ret_val = JO_FAILED_ACCESS_INPUT;
+            goto exit;
+        }
+        if (q_ctx.size == 0) {
+            ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+            goto exit;
+        }
+    }
 
     spec = create_spec();
     ret_val = dh_make_private_from_components(spec,
                                               p_ctx.bytearray, p_ctx.size,
+                                              q_ctx.bytearray, q_ctx.size,
                                               g_ctx.bytearray, g_ctx.size,
                                               x_ctx.bytearray, x_ctx.size,
                                               rnd_src);
@@ -299,6 +335,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
 exit:
     release_bytearray_ctx(&x_ctx);
     release_bytearray_ctx(&g_ctx);
+    release_bytearray_ctx(&q_ctx);
     release_bytearray_ctx(&p_ctx);
     (*env)->SetIntArrayRegion(env, err_out, 0, 1, &ret_val);
     return (jlong) spec;
@@ -308,20 +345,24 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_dh_DHServiceJNI
  * Method:    ni_makePublicFromComponents
- * Signature: ([B[B[B[I)J
+ * Signature: ([B[B[B[B[I)J
+ *
+ * q is optional and selects the encoding form - see dh.h.
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_ni_1makePublicFromComponents
-(JNIEnv *env, jobject jo, jbyteArray _p, jbyteArray _g, jbyteArray _y,
- jintArray err_out) {
+(JNIEnv *env, jobject jo, jbyteArray _p, jbyteArray _q, jbyteArray _g,
+ jbyteArray _y, jintArray err_out) {
     UNUSED(jo);
     jo_assert(err_out != NULL);
 
     jint ret_val = JO_FAIL;
     key_spec *spec = NULL;
     java_bytearray_ctx p_ctx;
+    java_bytearray_ctx q_ctx;
     java_bytearray_ctx g_ctx;
     java_bytearray_ctx y_ctx;
     init_bytearray_ctx(&p_ctx);
+    init_bytearray_ctx(&q_ctx);
     init_bytearray_ctx(&g_ctx);
     init_bytearray_ctx(&y_ctx);
 
@@ -346,10 +387,24 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
         ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
+    // q is OPTIONAL - absent means PKCS#3, present means X9.42. A supplied
+    // array must still be loadable and non-empty; a null one is passed
+    // through as NULL/0.
+    if (_q != NULL) {
+        if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&q_ctx, env, _q)) {
+            ret_val = JO_FAILED_ACCESS_INPUT;
+            goto exit;
+        }
+        if (q_ctx.size == 0) {
+            ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+            goto exit;
+        }
+    }
 
     spec = create_spec();
     ret_val = dh_make_public_from_components(spec,
                                              p_ctx.bytearray, p_ctx.size,
+                                             q_ctx.bytearray, q_ctx.size,
                                              g_ctx.bytearray, g_ctx.size,
                                              y_ctx.bytearray, y_ctx.size);
 
@@ -361,6 +416,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
 exit:
     release_bytearray_ctx(&y_ctx);
     release_bytearray_ctx(&g_ctx);
+    release_bytearray_ctx(&q_ctx);
     release_bytearray_ctx(&p_ctx);
     (*env)->SetIntArrayRegion(env, err_out, 0, 1, &ret_val);
     return (jlong) spec;

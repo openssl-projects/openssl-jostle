@@ -289,6 +289,11 @@ public enum ErrorCode
     // nothing, so the generic error would read "OpenSSL Error: null".
     JO_HYBRID_PRIVATE_EXPORT_UNSUPPORTED(-170),
 
+    // A DH agreement whose two keys came from different encoding forms:
+    // PKCS#3 routes to the "DH" keymgmt, X9.42 to "DHX", and OpenSSL refuses
+    // to pair them even when p and g are identical.
+    JO_DH_PEER_ENCODING_MISMATCH(-171),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

@@ -49,17 +49,6 @@ static int32_t check_is_dsa(const EVP_PKEY *pkey) {
 
 
 /*
- * A failure whose code carries an OPS offset was INJECTED by the
- * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros
- * expand to nothing in a release build, so only an unadorned JO_OPENSSL_ERROR
- * can be a real one. The classifiers below must not reinterpret a synthetic
- * failure as a provider capability: doing so would swallow the offset that
- * identifies which call site the test drove, and would report a capability
- * the provider may well have.
- */
-#define JO_ERROR_WAS_INJECTED(code) ((code) != JO_OPENSSL_ERROR)
-
-/*
  * Classify a FAILED DSA generation call. Returns JO_DSA_KEYGEN_UNAVAILABLE
  * when the provider serving this ctx gates DSA keygen behind its FIPS
  * "sign-check" indicator, JO_OPENSSL_ERROR otherwise.

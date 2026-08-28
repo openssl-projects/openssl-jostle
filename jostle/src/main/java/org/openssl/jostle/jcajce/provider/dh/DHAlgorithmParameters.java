@@ -34,6 +34,16 @@ import java.security.spec.InvalidParameterSpecException;
  * {@code getInstance("DH")} could resolve back to this class and
  * recurse. {@link #resolveDelegate()} walks the installed providers
  * and skips Jostle for exactly that reason.
+ *
+ * <p><b>PKCS#3 only.</b> The delegate encodes {@code DHParameter}, which has
+ * no place for the subgroup order q, so a
+ * {@link org.openssl.jostle.jcajce.spec.DHDomainParameterSpec} passed to
+ * {@code engineInit} loses q and {@code engineGetParameterSpec} returns a
+ * plain {@code DHParameterSpec}. KEYS carry q correctly in both directions —
+ * that is where the X9.42 form is decided. Emitting X9.42
+ * {@code DomainParameters} here would need its own ASN.1 codec rather than a
+ * delegate, and no caller has needed it: pass the domain parameters as a spec
+ * or carry them on a key.
  */
 public class DHAlgorithmParameters
     extends AlgorithmParametersSpi

@@ -86,11 +86,17 @@ int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
                                void *rnd_src);
 
 /*
- * Build a parameters-only DH EVP_PKEY from explicit (p, g) big-endian
- * unsigned magnitudes via EVP_PKEY_fromdata. PKCS#3 DH has no q.
+ * Build a parameters-only DH EVP_PKEY from explicit (p, q, g) big-endian
+ * unsigned magnitudes via EVP_PKEY_fromdata.
+ *
+ * q is OPTIONAL and selects the ENCODING FORM: supplied means X9.42
+ * (dhpublicnumber, imported under the "DHX" keymgmt), absent means PKCS#3
+ * (dhKeyAgreement, under "DH"). Supplying q merely as a parameter is not
+ * enough - a "DH" key carrying q still encodes as PKCS#3.
  */
 int32_t dh_make_params_from_components(key_spec *spec,
                                        const uint8_t *p_be, size_t p_len,
+                                       const uint8_t *q_be, size_t q_len,
                                        const uint8_t *g_be, size_t g_len);
 
 
@@ -108,10 +114,15 @@ int32_t dh_get_component(const key_spec *spec, int32_t component,
                          uint8_t *out, size_t out_len);
 
 /*
- * Build a DH private key from explicit (p, g, x) big-endian unsigned
+ * Build a DH private key from explicit (p, q, g, x) big-endian unsigned
  * magnitudes. The public value y = g^x mod p is computed here
  * (constant-time modular exponentiation) because OpenSSL's FFC
  * fromdata import does not re-derive it.
+ *
+ * q is OPTIONAL and selects the ENCODING FORM: supplied means X9.42
+ * (dhpublicnumber, imported under the "DHX" keymgmt), absent means PKCS#3
+ * (dhKeyAgreement, under "DH"). Supplying q merely as a parameter is not
+ * enough - a "DH" key carrying q still encodes as PKCS#3.
  *
  *   rnd_src: RandSource. Conservatively required so any RAND
  *            consumption inside the OpenSSL import path can up-call
@@ -119,16 +130,23 @@ int32_t dh_get_component(const key_spec *spec, int32_t component,
  */
 int32_t dh_make_private_from_components(key_spec *spec,
                                         const uint8_t *p_be, size_t p_len,
+                                        const uint8_t *q_be, size_t q_len,
                                         const uint8_t *g_be, size_t g_len,
                                         const uint8_t *x_be, size_t x_len,
                                         void *rnd_src);
 
 /*
- * Build a DH public key from explicit (p, g, y) big-endian unsigned
+ * Build a DH public key from explicit (p, q, g, y) big-endian unsigned
  * magnitudes.
+ *
+ * q is OPTIONAL and selects the ENCODING FORM: supplied means X9.42
+ * (dhpublicnumber, imported under the "DHX" keymgmt), absent means PKCS#3
+ * (dhKeyAgreement, under "DH"). Supplying q merely as a parameter is not
+ * enough - a "DH" key carrying q still encodes as PKCS#3.
  */
 int32_t dh_make_public_from_components(key_spec *spec,
                                        const uint8_t *p_be, size_t p_len,
+                                       const uint8_t *q_be, size_t q_len,
                                        const uint8_t *g_be, size_t g_len,
                                        const uint8_t *y_be, size_t y_len);
 

@@ -131,7 +131,7 @@ public class DHOpsTest
         keyRef = dh.generateKeyPairByGroup("ffdhe2048", TestUtil.RNDSrc);
         peerRef = dh.generateKeyPairByGroup("ffdhe2048", TestUtil.RNDSrc);
         paramsRef = dh.makeParamsFromComponents(
-                component(DHServiceNI.COMP_P), component(DHServiceNI.COMP_G));
+                component(DHServiceNI.COMP_P), null, component(DHServiceNI.COMP_G));
     }
 
     @AfterAll
@@ -394,7 +394,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5220), err[0]);
     }
@@ -410,7 +410,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5225), err[0]);
     }
@@ -426,7 +426,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5226), err[0]);
     }
@@ -442,7 +442,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5229), err[0]);
     }
@@ -458,7 +458,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5230), err[0]);
     }
@@ -474,7 +474,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5231), err[0]);
     }
@@ -490,7 +490,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
         int[] err = new int[1];
-        long ref = dh.ni_makeParamsFromComponents(p, g, err);
+        long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5232), err[0]);
     }
@@ -512,7 +512,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
-        long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+        long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5222), err[0]);
     }
@@ -529,7 +529,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
-        long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+        long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5223), err[0]);
     }
@@ -546,7 +546,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
-        long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+        long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5224), err[0]);
     }
@@ -563,7 +563,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
         int[] err = new int[1];
-        long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+        long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5227), err[0]);
     }
@@ -580,7 +580,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
         int[] err = new int[1];
-        long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+        long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5228), err[0]);
     }
@@ -602,7 +602,7 @@ public class DHOpsTest
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
-        long ref = dh.ni_makePublicFromComponents(p, g, y, err);
+        long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(5221), err[0]);
     }
@@ -946,7 +946,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:161
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
-            long ref = dh.ni_makeParamsFromComponents(p, g, err);
+            long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -968,7 +968,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:165
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
-            long ref = dh.ni_makeParamsFromComponents(p, g, err);
+            long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -991,7 +991,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:264
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
-            long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+            long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -1014,7 +1014,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:268
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
-            long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+            long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -1037,7 +1037,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:272
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
-            long ref = dh.ni_makePrivateFromComponents(p, g, x, err, TestUtil.RNDSrc);
+            long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -1060,7 +1060,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:327
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
-            long ref = dh.ni_makePublicFromComponents(p, g, y, err);
+            long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -1083,7 +1083,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:331
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
-            long ref = dh.ni_makePublicFromComponents(p, g, y, err);
+            long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
@@ -1106,7 +1106,7 @@ public class DHOpsTest
             // Exercises interface/nonfips/jni/dh_ni_jni.c:335
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
-            long ref = dh.ni_makePublicFromComponents(p, g, y, err);
+            long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
             Assertions.assertEquals(0L, ref);
             Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, err[0]);
         }
