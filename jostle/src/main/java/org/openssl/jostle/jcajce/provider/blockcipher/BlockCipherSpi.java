@@ -15,6 +15,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -64,6 +65,15 @@ class BlockCipherSpi extends CipherSpi
     // FIPSNISelector.BlockCipherNI (the FIPS interface library) for JSLFIPS.
     private final BlockCipherNI blockCipherNi;
 
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Read only by {@link #engineUnwrap}, which must
+     * reconstruct an unwrapped asymmetric key through the provider that
+     * unwrapped it rather than through whatever JCA order picks (MT-10). The
+     * instance, not the name - see {@code UnwrappedKeys}.
+     */
+    private final java.security.Provider providerInstance;
+
     Class[] availableSpecs = new Class[]{
             IvParameterSpec.class,
             GCMParameterSpec.class,
@@ -71,12 +81,19 @@ class BlockCipherSpi extends CipherSpi
 
     BlockCipherSpi(Object params, String expectedKeyAlgorithm)
     {
-        this(NISelector.BlockCipherNI, params, expectedKeyAlgorithm);
+        this(NISelector.BlockCipherNI, params, expectedKeyAlgorithm, null);
     }
 
     BlockCipherSpi(BlockCipherNI blockCipherNi, Object params, String expectedKeyAlgorithm)
     {
+        this(blockCipherNi, params, expectedKeyAlgorithm, null);
+    }
+
+    BlockCipherSpi(BlockCipherNI blockCipherNi, Object params, String expectedKeyAlgorithm,
+                   java.security.Provider providerInstance)
+    {
         this.blockCipherNi = blockCipherNi;
+        this.providerInstance = providerInstance;
         mandatedCipher = null;
         mandatedMode = null;
         this.keyAlgorithm = expectedKeyAlgorithm;
@@ -84,12 +101,19 @@ class BlockCipherSpi extends CipherSpi
 
     BlockCipherSpi(OSSLCipher osslCipher, String expectedKeyAlgorithm)
     {
-        this(NISelector.BlockCipherNI, osslCipher, expectedKeyAlgorithm);
+        this(NISelector.BlockCipherNI, osslCipher, expectedKeyAlgorithm, null);
     }
 
     BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, String expectedKeyAlgorithm)
     {
+        this(blockCipherNi, osslCipher, expectedKeyAlgorithm, null);
+    }
+
+    BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, String expectedKeyAlgorithm,
+                   java.security.Provider providerInstance)
+    {
         this.blockCipherNi = blockCipherNi;
+        this.providerInstance = providerInstance;
         mandatedCipher = osslCipher;
         mandatedMode = null;
         this.keyAlgorithm = expectedKeyAlgorithm;
@@ -97,12 +121,19 @@ class BlockCipherSpi extends CipherSpi
 
     BlockCipherSpi(OSSLCipher osslCipher, OSSLMode osslMode, String expectedKeyAlgorithm)
     {
-        this(NISelector.BlockCipherNI, osslCipher, osslMode, expectedKeyAlgorithm);
+        this(NISelector.BlockCipherNI, osslCipher, osslMode, expectedKeyAlgorithm, null);
     }
 
     BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, OSSLMode osslMode, String expectedKeyAlgorithm)
     {
+        this(blockCipherNi, osslCipher, osslMode, expectedKeyAlgorithm, null);
+    }
+
+    BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, OSSLMode osslMode,
+                   String expectedKeyAlgorithm, java.security.Provider providerInstance)
+    {
         this.blockCipherNi = blockCipherNi;
+        this.providerInstance = providerInstance;
         mandatedCipher = osslCipher;
         mandatedMode = osslMode;
         // Seed the active osslMode field with the mandated mode. JCE
@@ -869,6 +900,17 @@ class BlockCipherSpi extends CipherSpi
     protected Key engineUnwrap(byte[] wrappedKey, String wrappedKeyAlgorithm, int wrappedKeyType)
         throws InvalidKeyException, NoSuchAlgorithmException
     {
+        //
+        // Resolve the KeyFactory BEFORE decrypting, from THIS SPI's provider
+        // instance. Ordering is load-bearing: resolving afterwards would make
+        // the exception type depend on whether the decrypt succeeded, which is
+        // an oracle. See UnwrappedKeys for the full contract.
+        //
+        final KeyFactory keyFactory =
+                (wrappedKeyType == Cipher.PUBLIC_KEY || wrappedKeyType == Cipher.PRIVATE_KEY)
+                        ? UnwrappedKeys.keyFactory(providerInstance, wrappedKeyAlgorithm)
+                        : null;
+
         final byte[] encoded;
         try
         {
@@ -895,9 +937,9 @@ class BlockCipherSpi extends CipherSpi
             case Cipher.SECRET_KEY:
                 return new SecretKeySpec(encoded, wrappedKeyAlgorithm);
             case Cipher.PUBLIC_KEY:
-                return KeyFactory.getInstance(wrappedKeyAlgorithm).generatePublic(new X509EncodedKeySpec(encoded));
+                return keyFactory.generatePublic(new X509EncodedKeySpec(encoded));
             case Cipher.PRIVATE_KEY:
-                return KeyFactory.getInstance(wrappedKeyAlgorithm).generatePrivate(new PKCS8EncodedKeySpec(encoded));
+                return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded));
             default:
                 throw new InvalidKeyException("unknown wrapped key type: " + wrappedKeyType);
             }

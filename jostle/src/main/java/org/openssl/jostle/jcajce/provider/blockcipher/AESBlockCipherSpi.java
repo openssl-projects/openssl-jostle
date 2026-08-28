@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
 
 import org.openssl.jostle.util.Arrays;
 
@@ -21,7 +22,9 @@ public class AESBlockCipherSpi extends BlockCipherSpi
 
     public AESBlockCipherSpi()
     {
-        this(null, null);
+        // Casts, not bare nulls: the provider-binding overloads added by MT-10
+        // make (BlockCipherNI, Provider) an equally applicable match.
+        this((OSSLCipher) null, (OSSLMode) null);
         osslMode = OSSLMode.ECB;
     }
 
@@ -33,6 +36,25 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     public AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
         super(cipher, mode, "AES");
+    }
+
+    //
+    // Provider-binding constructors (MT-10). The provider INSTANCE is read
+    // only by engineUnwrap, which must reconstruct an unwrapped asymmetric key
+    // through the provider that unwrapped it rather than through whatever JCA
+    // order picks. Registrations use these; direct construction stays unbound,
+    // and an asymmetric unwrap on an unbound SPI then fails loudly.
+    //
+    public AESBlockCipherSpi(java.security.Provider providerInstance)
+    {
+        this(null, null, providerInstance);
+        osslMode = OSSLMode.ECB;
+    }
+
+    public AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
+                             java.security.Provider providerInstance)
+    {
+        super(NISelector.BlockCipherNI, cipher, mode, "AES", providerInstance);
     }
 
     //
@@ -48,6 +70,21 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     public AESBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode)
     {
         super(blockCipherNi, cipher, mode, "AES");
+    }
+
+    //
+    // The same pair again, NI-bound: what ProvFIPSAES registers.
+    //
+    public AESBlockCipherSpi(BlockCipherNI blockCipherNi, java.security.Provider providerInstance)
+    {
+        super(blockCipherNi, null, null, "AES", providerInstance);
+        osslMode = OSSLMode.ECB;
+    }
+
+    public AESBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode,
+                             java.security.Provider providerInstance)
+    {
+        super(blockCipherNi, cipher, mode, "AES", providerInstance);
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException

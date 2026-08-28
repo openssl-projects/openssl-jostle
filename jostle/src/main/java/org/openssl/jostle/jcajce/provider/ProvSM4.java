@@ -30,7 +30,7 @@ class ProvSM4
 
     public void configure(final JostleProvider provider)
     {
-        provider.addAlgorithmImplementation("Cipher", "SM4", PREFIX + "Base", generalAttributes, (arg) -> new SM4BlockCipherSpi());
+        provider.addAlgorithmImplementation("Cipher", "SM4", PREFIX + "Base", generalAttributes, (arg) -> new SM4BlockCipherSpi(provider));
 
         // SM4/CCM — see ProvAES note on the dedicated CCM SPI.
         provider.addAlgorithmImplementation("Cipher", "SM4/CCM/NoPadding",

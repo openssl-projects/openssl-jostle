@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kdf.KeyAgreementKDF;
+import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKTSCipherSpi;
 
@@ -29,6 +30,7 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
@@ -230,5 +232,53 @@ public class ProviderPinningLoudFailureTest
             }
         }
         return true;
+    }
+
+    // -----------------------------------------------------------------
+    // UnwrappedKeys — MT-10's unbound-SPI arm
+    // -----------------------------------------------------------------
+
+    /**
+     * An SPI constructed outside any provider has nothing to bind an
+     * unwrapped asymmetric key to, and must say so rather than reach for JCA
+     * order — the same loud-failure contract as MT-5's digest pins above, one
+     * work item later.
+     *
+     * <p>Pinned here at the helper rather than end to end because
+     * {@code engineUnwrap} is {@code protected} and every provider-mediated
+     * route is bound by construction, so there is no legal JCE call that
+     * reaches this arm. That makes it exactly the kind of near-unreachable
+     * branch this class exists for: unexercised, and therefore not known to
+     * still work.
+     */
+    @Test
+    public void unwrappedKeys_unboundSpi_failsTypedNamingTheCause()
+    {
+        NoSuchAlgorithmException e = Assertions.assertThrows(NoSuchAlgorithmException.class,
+                () -> UnwrappedKeys.keyFactory(null, "EC"));
+        Assertions.assertEquals(
+                "cannot reconstruct an unwrapped EC key: this cipher was constructed outside "
+                        + "any provider, so there is no provider instance to bind the key to. "
+                        + "Obtain the Cipher from a Jostle provider rather than constructing "
+                        + "the SPI directly.",
+                e.getMessage());
+    }
+
+    /**
+     * And a provider that IS named but serves no such KeyFactory fails naming
+     * both, rather than silently resolving elsewhere. The base
+     * {@code UnwrappedKeyBindingTest} covers this through the JCE surface;
+     * this pins the helper's own message, which is what that test matches on.
+     */
+    @Test
+    public void unwrappedKeys_providerWithoutTheKeyFactory_namesProviderAndAlgorithm()
+    {
+        Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        NoSuchAlgorithmException e = Assertions.assertThrows(NoSuchAlgorithmException.class,
+                () -> UnwrappedKeys.keyFactory(jsl, "NoSuchKeyAlgorithm"));
+        Assertions.assertTrue(
+                e.getMessage().startsWith(
+                        "provider JSL serves no KeyFactory for NoSuchKeyAlgorithm"),
+                "got: " + e.getMessage());
     }
 }

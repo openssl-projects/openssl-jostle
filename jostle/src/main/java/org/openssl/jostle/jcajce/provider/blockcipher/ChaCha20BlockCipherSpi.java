@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
+
 /**
  * Raw ChaCha20 stream cipher (RFC 8439) — no authentication.
  *
@@ -30,7 +32,16 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
 {
     public ChaCha20BlockCipherSpi()
     {
-        super(OSSLCipher.CHACHA20, OSSLMode.STREAM, "ChaCha20");
+        this((java.security.Provider) null);
+    }
+
+    //
+    // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
+    //
+    public ChaCha20BlockCipherSpi(java.security.Provider providerInstance)
+    {
+        super(NISelector.BlockCipherNI, OSSLCipher.CHACHA20, OSSLMode.STREAM, "ChaCha20",
+                providerInstance);
         // Fixed cipher (no key-size variant selection), so set osslCipher here:
         // the base 3-arg constructor seeds only osslMode, leaving osslCipher for
         // subclasses (AES/ARIA/...) that resolve it from key length at init.

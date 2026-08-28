@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
+
 import javax.crypto.spec.GCMParameterSpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -36,7 +38,16 @@ public class ChaCha20Poly1305CipherSpi extends BlockCipherSpi
 {
     public ChaCha20Poly1305CipherSpi()
     {
-        super(OSSLCipher.CHACHA20_POLY1305, OSSLMode.POLY1305, "ChaCha20");
+        this((java.security.Provider) null);
+    }
+
+    //
+    // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
+    //
+    public ChaCha20Poly1305CipherSpi(java.security.Provider providerInstance)
+    {
+        super(NISelector.BlockCipherNI, OSSLCipher.CHACHA20_POLY1305, OSSLMode.POLY1305,
+                "ChaCha20", providerInstance);
         // Fixed cipher (no key-size variant selection), so set osslCipher here:
         // the base 3-arg constructor seeds only osslMode, leaving osslCipher for
         // subclasses (AES/ARIA/...) that resolve it from key length at init.

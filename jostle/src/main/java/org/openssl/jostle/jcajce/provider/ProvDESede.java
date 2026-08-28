@@ -62,7 +62,7 @@ class ProvDESede
         // specified in the transformation string.
         safeRegister("Cipher.DESede", () ->
                 provider.addAlgorithmImplementation("Cipher", "DESede", PREFIX + "Base",
-                        generalAttributes, (arg) -> new DESedeBlockCipherSpi()));
+                        generalAttributes, (arg) -> new DESedeBlockCipherSpi(provider)));
 
         // "TripleDES" is the JCE-standard alias.
         safeRegister("Cipher.TripleDES (alias of DESede)", () ->
@@ -76,7 +76,7 @@ class ProvDESede
         safeRegister("Cipher." + DES_EDE3_CBC_OID + " (OID, CBC-locked)", () ->
                 provider.addAlgorithmImplementation("Cipher", DES_EDE3_CBC_OID,
                         PREFIX + "DESedeCBC", generalAttributes,
-                        (arg) -> new DESedeBlockCipherSpi(OSSLCipher.DES_EDE3, OSSLMode.CBC)));
+                        (arg) -> new DESedeBlockCipherSpi(OSSLCipher.DES_EDE3, OSSLMode.CBC, provider)));
 
         safeRegister("KeyGenerator.DESede", () ->
                 provider.addAlgorithmImplementation("KeyGenerator", "DESede",

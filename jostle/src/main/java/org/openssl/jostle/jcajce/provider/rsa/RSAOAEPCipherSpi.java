@@ -37,6 +37,8 @@ import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
+
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -505,6 +507,19 @@ public class RSAOAEPCipherSpi extends CipherSpi
                 throw new InvalidKeyException("wrapped key algorithm is null");
             }
 
+            //
+            // Resolve the KeyFactory BEFORE decrypting, from THIS SPI's
+            // provider instance (MT-10). Ordering is load-bearing: resolving
+            // afterwards would make the exception type depend on whether the
+            // decrypt succeeded, which on an unserved algorithm is a padding
+            // oracle. See UnwrappedKeys for the full contract.
+            //
+            final KeyFactory keyFactoryForUnwrap =
+                    (wrappedKeyType == Cipher.PUBLIC_KEY || wrappedKeyType == Cipher.PRIVATE_KEY)
+                            ? UnwrappedKeys.keyFactory(keyFactory.ownProviderInstance(),
+                                    wrappedKeyAlgorithm)
+                            : null;
+
             byte[] encoded;
             try
             {
@@ -528,14 +543,12 @@ public class RSAOAEPCipherSpi extends CipherSpi
 
                     case Cipher.PUBLIC_KEY:
                     {
-                        KeyFactory kf = KeyFactory.getInstance(wrappedKeyAlgorithm);
-                        return kf.generatePublic(new X509EncodedKeySpec(encoded));
+                        return keyFactoryForUnwrap.generatePublic(new X509EncodedKeySpec(encoded));
                     }
 
                     case Cipher.PRIVATE_KEY:
                     {
-                        KeyFactory kf = KeyFactory.getInstance(wrappedKeyAlgorithm);
-                        return kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+                        return keyFactoryForUnwrap.generatePrivate(new PKCS8EncodedKeySpec(encoded));
                     }
 
                     default:

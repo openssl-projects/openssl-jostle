@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
 
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
@@ -71,6 +72,33 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
     public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode)
     {
         super(blockCipherNi, cipher, mode, DESEDE);
+    }
+
+    //
+    // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
+    //
+    public DESedeBlockCipherSpi(java.security.Provider providerInstance)
+    {
+        this(NISelector.BlockCipherNI, providerInstance);
+    }
+
+    public DESedeBlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
+                                java.security.Provider providerInstance)
+    {
+        super(NISelector.BlockCipherNI, cipher, mode, DESEDE, providerInstance);
+    }
+
+    public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi,
+                                java.security.Provider providerInstance)
+    {
+        super(blockCipherNi, null, null, DESEDE, providerInstance);
+        osslMode = OSSLMode.ECB;
+    }
+
+    public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode,
+                                java.security.Provider providerInstance)
+    {
+        super(blockCipherNi, cipher, mode, DESEDE, providerInstance);
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException

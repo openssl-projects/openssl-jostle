@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
 
 import org.openssl.jostle.util.Arrays;
 
@@ -37,6 +38,21 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
     public CAMELLIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
         super(cipher, mode, "CAMELLIA");
+    }
+
+    //
+    // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
+    //
+    public CAMELLIABlockCipherSpi(java.security.Provider providerInstance)
+    {
+        this(null, null, providerInstance);
+        osslMode = OSSLMode.ECB;
+    }
+
+    public CAMELLIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
+                                  java.security.Provider providerInstance)
+    {
+        super(NISelector.BlockCipherNI, cipher, mode, "CAMELLIA", providerInstance);
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException

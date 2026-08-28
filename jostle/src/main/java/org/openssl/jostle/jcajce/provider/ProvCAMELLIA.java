@@ -32,15 +32,15 @@ class ProvCAMELLIA
 
     public void configure(final JostleProvider provider)
     {
-        provider.addAlgorithmImplementation("Cipher", "CAMELLIA", PREFIX + "Base", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi());
-        provider.addAlgorithmImplementation("Cipher", "CAMELLIA128", PREFIX + "CAMELLIA128", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA128, OSSLMode.ECB));
-        provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia128_cbc, PREFIX + "CAMELLIA128CBC", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA128, OSSLMode.CBC));
+        provider.addAlgorithmImplementation("Cipher", "CAMELLIA", PREFIX + "Base", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(provider));
+        provider.addAlgorithmImplementation("Cipher", "CAMELLIA128", PREFIX + "CAMELLIA128", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA128, OSSLMode.ECB, provider));
+        provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia128_cbc, PREFIX + "CAMELLIA128CBC", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA128, OSSLMode.CBC, provider));
 
-        provider.addAlgorithmImplementation("Cipher", "CAMELLIA192", PREFIX + "CAMELLIA192", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA192, OSSLMode.ECB));
-        provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia192_cbc, PREFIX + "CAMELLIA192CBC", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA192, OSSLMode.CBC));
+        provider.addAlgorithmImplementation("Cipher", "CAMELLIA192", PREFIX + "CAMELLIA192", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA192, OSSLMode.ECB, provider));
+        provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia192_cbc, PREFIX + "CAMELLIA192CBC", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA192, OSSLMode.CBC, provider));
 
-        provider.addAlgorithmImplementation("Cipher", "CAMELLIA256", PREFIX + "CAMELLIA256", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA256, OSSLMode.ECB));
+        provider.addAlgorithmImplementation("Cipher", "CAMELLIA256", PREFIX + "CAMELLIA256", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA256, OSSLMode.ECB, provider));
 
-        provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia256_cbc, PREFIX + "CAMELLIA256CBC", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA256, OSSLMode.CBC));
+        provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia256_cbc, PREFIX + "CAMELLIA256CBC", generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA256, OSSLMode.CBC, provider));
     }
 }

@@ -85,7 +85,7 @@ class ProvFIPSDESede
         // run with whatever the caller put in the transformation string.
         safeRegister("Cipher.DESede", () ->
                 provider.addAlgorithmImplementation("Cipher", "DESede", PREFIX + "Base",
-                        generalAttributes, (arg) -> new DESedeBlockCipherSpi(FIPSNISelector.BlockCipherNI)));
+                        generalAttributes, (arg) -> new DESedeBlockCipherSpi(FIPSNISelector.BlockCipherNI, provider)));
 
         safeRegister("Cipher.TripleDES (alias of DESede)", () ->
                 provider.addAlias("Cipher", "DESede", "TripleDES"));
@@ -98,7 +98,7 @@ class ProvFIPSDESede
                 provider.addAlgorithmImplementation("Cipher", DES_EDE3_CBC_OID,
                         PREFIX + "DESedeCBC", generalAttributes,
                         (arg) -> new DESedeBlockCipherSpi(FIPSNISelector.BlockCipherNI,
-                                OSSLCipher.DES_EDE3, OSSLMode.CBC)));
+                                OSSLCipher.DES_EDE3, OSSLMode.CBC, provider)));
 
         // Key bytes come from the module's own approved DRBG (the provider's
         // DEFAULT SecureRandom service) rather than a JDK SecureRandom.

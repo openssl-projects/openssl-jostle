@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
 
 import org.openssl.jostle.util.Arrays;
 
@@ -37,6 +38,15 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
     public SM4BlockCipherSpi(OSSLCipher cipher, OSSLMode mode)
     {
         super(cipher, mode, "SM4");
+    }
+
+    //
+    // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
+    //
+    public SM4BlockCipherSpi(java.security.Provider providerInstance)
+    {
+        super(NISelector.BlockCipherNI, null, null, "SM4", providerInstance);
+        osslMode = OSSLMode.ECB;
     }
 
     protected void determineOSSLCipher(int keySize) throws InvalidKeyException

@@ -94,30 +94,11 @@ public class ProviderPinningParityTest
             "KSServiceSPI.java"));
 
     /**
-     * Call sites parked under MT-10 rather than blessed. These build a Key out
-     * of freshly UNWRAPPED secret material through whatever provider JCA picks,
-     * which raises two questions this lint cannot settle: whether a JSLFIPS
-     * unwrap should yield a key resident in the FIPS lib ctx, and whether an
-     * unwrap under either Jostle provider should be handing back a foreign key
-     * object that then fails Jostle's own isolation checks when used.
-     *
-     * <p>Listed so the lint does not silently bless them for ever. Remove the
-     * entries when MT-10 decides the contract.
-     *
-     * <p><b>The deferral is FILE-level, which is coarser than the defect.</b>
-     * Exempting these three files also exempts any future unpinned crypto
-     * {@code getInstance} added anywhere in them. Accepted for now; closing
-     * MT-10 must remove these entries and restore full-file coverage, and if
-     * this lint ever grows call-site granularity, these three are the reason.
-     */
-    private static final Set<String> DEFERRED_TO_MT10 = new HashSet<String>(Arrays.asList(
-            "BlockCipherSpi.java",
-            "RSAOAEPCipherSpi.java",
-            "RSAPKCS1CipherSpi.java"));
-
-    /**
-     * Parked under MT-11, a different item from {@link #DEFERRED_TO_MT10} and
-     * kept in its own set so closing one cannot silently close the other.
+     * Parked under MT-11. Kept in its own set from the day MT-10 had one, so
+     * that closing MT-10 could not silently close this too — and it did not:
+     * MT-10's entries are gone and {@code BlockCipherSpi},
+     * {@code RSAOAEPCipherSpi} and {@code RSAPKCS1CipherSpi} are back under
+     * full-file coverage, while this one stands.
      *
      * <p>{@code HKDFSecretKeyFactory} asks SUN for a digest LENGTH, not for
      * hashing — no secret touches it, so it is not the MT-5 boundary defect.
@@ -148,7 +129,6 @@ public class ProviderPinningParityTest
             {
                 String name = source.getFileName().toString();
                 if (EXEMPT_FILES.contains(name)
-                        || DEFERRED_TO_MT10.contains(name)
                         || DEFERRED_TO_MT11.contains(name))
                 {
                     continue;

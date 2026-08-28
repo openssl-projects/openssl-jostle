@@ -58,7 +58,7 @@ class ProvChaCha20
         // (12-byte-nonce) engine.
         safeRegister("Cipher.ChaCha20", () ->
                 provider.addAlgorithmImplementation("Cipher", "ChaCha20",
-                        PREFIX + "ChaCha20", generalAttributes, (arg) -> new ChaCha20BlockCipherSpi()));
+                        PREFIX + "ChaCha20", generalAttributes, (arg) -> new ChaCha20BlockCipherSpi(provider)));
         safeRegister("Cipher.CHACHA7539 (alias of ChaCha20)", () ->
                 provider.addAlias("Cipher", "ChaCha20", "CHACHA7539"));
 
@@ -69,7 +69,7 @@ class ProvChaCha20
         // OID is a separate alias to avoid a duplicate-key collision at load.
         safeRegister("Cipher.ChaCha20-Poly1305", () ->
                 provider.addAlgorithmImplementation("Cipher", "ChaCha20-Poly1305",
-                        PREFIX + "ChaCha20Poly1305", generalAttributes, (arg) -> new ChaCha20Poly1305CipherSpi()));
+                        PREFIX + "ChaCha20Poly1305", generalAttributes, (arg) -> new ChaCha20Poly1305CipherSpi(provider)));
         safeRegister("Cipher." + CHACHA20_POLY1305_OID + " (OID alias)", () ->
                 provider.addAlias("Cipher", "ChaCha20-Poly1305", CHACHA20_POLY1305_OID));
 
