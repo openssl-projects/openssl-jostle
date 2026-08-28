@@ -15,7 +15,7 @@
 #include <openssl/err.h>
 
 #include <stddef.h>
-#include "../util/capability.h"
+#include "../util/capability_fips.h"
 #include "../util/jo_assert.h"
 #include "../util/rand.h"
 #include "../util/rand/jostle_fips_ctx.h"

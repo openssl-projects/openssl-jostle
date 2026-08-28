@@ -17,6 +17,8 @@
 #include "../util/jo_assert.h"
 #include "../util/rand.h"
 #include "../util/rand/jostle_lib_ctx.h"
+#include "../util/capability.h"
+#include "../util/bc_err_codes.h"
 
 
 /*
@@ -95,4 +97,20 @@ char *JoOpenSSL_getErrors(uint64_t *len) {
     }
     BIO_free(bio);
     return ret; /* Now, Owned by Java side. */
+}
+
+/*
+ * Capability probe. Bridge responsibilities per the project rules: null-check
+ * the caller-supplied name and range-check the caller-supplied op type, and
+ * surface both as typed codes - never let either reach a util jo_assert.
+ * Returns identical codes to the JNI twin for identical inputs.
+ */
+int32_t JoOpenSSL_canFetch(int32_t op_type, const char *name) {
+    if (name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+    if (op_type < JO_CAP_OP_MIN || op_type > JO_CAP_OP_MAX) {
+        return JO_UNEXPECTED_STATE;
+    }
+    return capability_can_fetch(op_type, name);
 }

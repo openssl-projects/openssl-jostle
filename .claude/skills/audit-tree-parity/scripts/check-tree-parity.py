@@ -118,12 +118,13 @@ NONFIPS_ONLY_PREFIXES = (
 )
 FIPS_ONLY_PREFIXES = (
     "util/rand/jostle_fips_ctx",      # FIPS lib ctx configuration
-    # Capability probes on the loaded FIPS module. JSLFIPS serves one build
-    # against two modules that disagree about what they implement (validated
-    # 3.1.2 and a 3.5.x once certified), so its registered surface is decided
-    # from whichever module is loaded. The base provider links one mainline
-    # libcrypto whose surface is fixed at build time — nothing to probe.
-    "util/capability",
+    # The two capability probes that only mean something against a loaded FIPS
+    # module: capability_module_version (loads the "fips" provider) and
+    # capability_implementing_provider (would only ever answer "default" in the
+    # base ctx). The SHARED fetch probe, util/capability.{c,h}, is an ordinary
+    # twin — both providers gate registrations on it — and is deliberately NOT
+    # listed here.
+    "util/capability_fips",
 )
 # fips/jni holds the rename-re-include wrappers (<x>_fips_jni.c) — fips-only.
 def fips_only(rel):

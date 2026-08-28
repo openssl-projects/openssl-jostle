@@ -27,9 +27,10 @@ int32_t JoFIPS_set_openssl_module(const char *module_dir, const char *prov_name,
 
 
 /*
- * Capability probes on the loaded FIPS module (util/capability.c). Jo*-
- * prefixed like every other export of this library so no name can shadow a
- * libcrypto symbol at load time.
+ * Capability probes on the loaded FIPS module (util/capability.c for the
+ * shared fetch probe, util/capability_fips.c for the two FIPS-only ones).
+ * Jo*-prefixed like every other export of this library so no name can shadow
+ * a libcrypto symbol at load time.
  *
  * JoFIPS_can_fetch returns 1/0, or JO_NAME_IS_NULL / JO_UNEXPECTED_STATE for
  * an unusable argument. JoFIPS_module_version writes "<name> <version>" into
@@ -42,7 +43,7 @@ int32_t JoFIPS_module_version(char *out, int32_t out_len);
 /*
  * Names the OSSL_PROVIDER that implements an algorithm in this library's lib
  * ctx ("fips" / "default") - the only direct evidence an operation runs inside
- * the module. See util/capability.h.
+ * the module. See util/capability_fips.h.
  */
 int32_t JoFIPS_implementing_provider(int32_t op_type, const char *name,
                                      char *out, int32_t out_len);

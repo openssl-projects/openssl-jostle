@@ -23,12 +23,10 @@ import java.util.logging.Logger;
 /**
  * The four TLS hybrid KEM groups (draft-ietf-tls-ecdhe-mlkem).
  *
- * <p>Registered unconditionally, like every other base-provider family:
- * the base links one mainline libcrypto chosen at build time, and JSL already
- * registers ML-KEM / ML-DSA / SLH-DSA the same way even though those need
- * OpenSSL 3.5 or later. Mainline 3.5+ serves all four groups. The FIPS twin
- * gates per variant instead, because JSLFIPS serves two modules that disagree
- * - see {@code ProvFIPSMLXKEM}.
+ * <p>Gated per variant, like {@code ProvFIPSMLXKEM}: the four groups are not
+ * all-or-nothing, so a single representative name cannot decide them. Both
+ * mainline installs on hand serve all four (measured 2026-08-28), but a
+ * distributor's older libcrypto may not.
  *
  * <p>No OID aliases and no Cipher: these groups have no ASN.1 encoding, so
  * there is nothing for a certificate or a CMS recipient-info to key on.
@@ -61,6 +59,11 @@ class ProvMLXKEM
         for (final MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
         {
             String name = spec.getName();
+
+            if (!Capabilities.canFetchKeyMgmt(name))
+            {
+                continue;
+            }
 
             provider.addAlgorithmImplementation("KeyPairGenerator", name,
                     PREFIX + "MLXKEMKeyPairGenerator$" + name, attr,

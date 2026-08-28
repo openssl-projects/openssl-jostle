@@ -357,9 +357,12 @@ public class FIPSLibraryLookupParityTest
         }
 
         // Neither spelling of the base init glue may be present.
+        // Every export of openssl_ffi.c, both spellings. Keep in step with
+        // that file: a new base entry point the FIPS library must not carry.
         for (String gone : new String[]{
                 "JoOpenSSL_setModule", "JoFIPS_JoOpenSSL_setModule",
-                "JoOpenSSL_getErrors", "JoFIPS_JoOpenSSL_getErrors"})
+                "JoOpenSSL_getErrors", "JoFIPS_JoOpenSSL_getErrors",
+                "JoOpenSSL_canFetch", "JoFIPS_JoOpenSSL_canFetch"})
         {
             if (fips.find(gone).isPresent())
             {
@@ -371,7 +374,8 @@ public class FIPSLibraryLookupParityTest
 
         // Control: the base library still has both, so a probe that found
         // nothing anywhere could not pass this test vacuously.
-        for (String kept : new String[]{"JoOpenSSL_setModule", "JoOpenSSL_getErrors"})
+        for (String kept : new String[]{"JoOpenSSL_setModule", "JoOpenSSL_getErrors",
+                "JoOpenSSL_canFetch"})
         {
             if (base.find(kept).isEmpty())
             {

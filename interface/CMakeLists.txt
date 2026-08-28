@@ -85,10 +85,13 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 #
 set(FIPS_UTIL_SOURCES
         fips/util/jo_assert.h
-        # FIPS-tree only: the base provider links one mainline libcrypto whose
-        # surface is fixed at build time, so it has nothing to probe.
+        # capability.{h,c} is an ordinary twin - both providers need the fetch
+        # probe. capability_fips.{h,c} holds the two probes that only mean
+        # something against a loaded module.
         fips/util/capability.h
         fips/util/capability.c
+        fips/util/capability_fips.h
+        fips/util/capability_fips.c
         fips/util/encapdecap.h
         fips/util/encapdecap.c
         fips/util/block_cipher_ctx.h
@@ -271,6 +274,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/mlkem.c
             nonfips/util/mlxkem.h
             nonfips/util/mlxkem.c
+            nonfips/util/capability.h
+            nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -385,6 +390,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/mlkem.c
             nonfips/util/mlxkem.h
             nonfips/util/mlxkem.c
+            nonfips/util/capability.h
+            nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -554,6 +561,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/mlkem.c
             nonfips/util/mlxkem.h
             nonfips/util/mlxkem.c
+            nonfips/util/capability.h
+            nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/ctr_u128_t.h
@@ -656,6 +665,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/mlkem.c
             nonfips/util/mlxkem.h
             nonfips/util/mlxkem.c
+            nonfips/util/capability.h
+            nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -803,6 +814,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/mlkem.c
             nonfips/util/mlxkem.h
             nonfips/util/mlxkem.c
+            nonfips/util/capability.h
+            nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
@@ -907,6 +920,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/mlkem.c
             nonfips/util/mlxkem.h
             nonfips/util/mlxkem.c
+            nonfips/util/capability.h
+            nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h

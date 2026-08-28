@@ -49,6 +49,26 @@ class OpenSSLFFI implements OpenSSLNI
     }
 
     @Override
+    public int canFetch(int opType, String name)
+    {
+        try (Arena arena = Arena.ofConfined())
+        {
+            var func = lookup.find("JoOpenSSL_canFetch").orElseThrow();
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+
+            var n = name != null ? arena.allocateFrom(name) : MemorySegment.ofAddress(0);
+
+            return (int) handle.invokeExact(opType, n);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "ffi JoOpenSSL_canFetch", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
     public String getOSSLErrors()
     {
         String result = null;

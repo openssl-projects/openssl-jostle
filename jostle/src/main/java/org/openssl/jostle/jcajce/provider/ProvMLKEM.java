@@ -33,6 +33,12 @@ class ProvMLKEM
 
     public void configure(final JostleProvider provider)
     {
+        // Gate: ML-KEM needs OpenSSL 3.5 or later. See Capabilities.
+        if (!Capabilities.canFetchKeyMgmt("ML-KEM-768"))
+        {
+            return;
+        }
+
         // Fail soft: a failure registering the ML-KEM algorithms must not abort
         // JostleProvider's static initialization, which would take the whole
         // provider down with an ExceptionInInitializerError (never retried for

@@ -28,6 +28,12 @@ class ProvSLHDSA
 
     public void configure(final JostleProvider provider)
     {
+        // Gate: SLH-DSA needs OpenSSL 3.5 or later. See Capabilities.
+        if (!Capabilities.canFetchKeyMgmt("SLH-DSA-SHA2-128S"))
+        {
+            return;
+        }
+
         configureSLHDSA(provider);
     }
 

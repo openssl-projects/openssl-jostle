@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.OpenSSLNI;
+
 /**
  * Native interface for initialising the FIPS interface library.
  *
@@ -59,24 +61,27 @@ public interface OpenSSLFIPSNI
     // supported modules, never as a blanket wrapper over every algorithm.
     // ------------------------------------------------------------------
 
+    // Aliases, not a second table: one C contract (JO_CAP_OP_* in
+    // util/capability.h), one Java definition, on OpenSSLNI.
+
     /** {@link #canFetch} operation type: EVP_KEYMGMT_fetch. */
-    int OP_KEYMGMT = 1;
+    int OP_KEYMGMT = OpenSSLNI.OP_KEYMGMT;
     /** {@link #canFetch} operation type: EVP_KEYEXCH_fetch. */
-    int OP_KEYEXCH = 2;
+    int OP_KEYEXCH = OpenSSLNI.OP_KEYEXCH;
     /** {@link #canFetch} operation type: EVP_SIGNATURE_fetch. */
-    int OP_SIGNATURE = 3;
+    int OP_SIGNATURE = OpenSSLNI.OP_SIGNATURE;
     /** {@link #canFetch} operation type: EVP_ASYM_CIPHER_fetch. */
-    int OP_ASYM_CIPHER = 4;
+    int OP_ASYM_CIPHER = OpenSSLNI.OP_ASYM_CIPHER;
     /** {@link #canFetch} operation type: EVP_MD_fetch. */
-    int OP_MD = 5;
+    int OP_MD = OpenSSLNI.OP_MD;
     /** {@link #canFetch} operation type: EVP_CIPHER_fetch. */
-    int OP_CIPHER = 6;
+    int OP_CIPHER = OpenSSLNI.OP_CIPHER;
     /** {@link #canFetch} operation type: EVP_KDF_fetch. */
-    int OP_KDF = 7;
+    int OP_KDF = OpenSSLNI.OP_KDF;
     /** {@link #canFetch} operation type: EVP_MAC_fetch. */
-    int OP_MAC = 8;
+    int OP_MAC = OpenSSLNI.OP_MAC;
     /** {@link #canFetch} operation type: EVP_RAND_fetch. */
-    int OP_RAND = 9;
+    int OP_RAND = OpenSSLNI.OP_RAND;
 
     /**
      * Can the loaded module resolve {@code name} for {@code opType} under the

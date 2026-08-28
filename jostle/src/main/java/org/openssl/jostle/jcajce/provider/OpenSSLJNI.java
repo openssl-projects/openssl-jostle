@@ -17,4 +17,7 @@ class OpenSSLJNI implements OpenSSLNI
 
     @Override
     public native String getOSSLErrors();
+
+    @Override
+    public native int canFetch(int opType, String name);
 }

@@ -24,5 +24,12 @@ int32_t JoOpenSSL_setModule(const char *prov_name);
 */
 char *JoOpenSSL_getErrors(uint64_t *len);
 
+/*
+* Can this library's lib ctx resolve name for op_type? Returns 1/0, or
+* JO_NAME_IS_NULL / JO_UNEXPECTED_STATE for an unusable argument. Backs the
+* base provider's registration gates - see util/capability.h.
+*/
+int32_t JoOpenSSL_canFetch(int32_t op_type, const char *name);
+
 
 #endif //OPENSSL_FFI_H

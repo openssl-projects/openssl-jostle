@@ -22,7 +22,7 @@ int32_t capability_can_fetch(int32_t op_type, const char *name) {
     jo_assert(name != NULL);
     jo_assert(op_type >= JO_CAP_OP_MIN && op_type <= JO_CAP_OP_MAX);
 
-    OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
     int32_t found = 0;
 
     // Scoped so a failed fetch cannot leave "unsupported algorithm" noise on

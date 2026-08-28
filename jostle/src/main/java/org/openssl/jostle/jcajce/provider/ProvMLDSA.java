@@ -32,6 +32,12 @@ class ProvMLDSA
 
     public void configure(final JostleProvider provider)
     {
+        // Gate: ML-DSA needs OpenSSL 3.5 or later. See Capabilities.
+        if (!Capabilities.canFetchKeyMgmt("ML-DSA-65"))
+        {
+            return;
+        }
+
         // Fail soft: a failure registering the ML-DSA algorithms must not abort
         // JostleProvider's static initialization, which would take the whole
         // provider down with an ExceptionInInitializerError (never retried for
