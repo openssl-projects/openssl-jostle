@@ -53,31 +53,31 @@ structure for this is laid out in ```interface/loading``` along with appropriate
 "deps.txt" files.
 
 
-### Step 1 Obtain and build OpenSSL Library 3.6
+### Step 1 Obtain and build OpenSSL Library 3.5
 
-OpenSSL Library 3.6 source bundle can be downloaded from [OpenSSL Downloads](https://openssl-library.org/source/)
+OpenSSL Library 3.5 source bundle can be downloaded from [OpenSSL Downloads](https://openssl-library.org/source/)
 
 After copying the source url, download the source tarball onto a suitable machine and unpack it.
 For the current LTS release you can use the following commands.
 
 ```
-    wget https://github.com/openssl/openssl/releases/download/openssl-3.6.2/openssl-3.6.2.tar.gz
+    wget https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz
     
-    tar -zxvf openssl-3.6.2.tar.gz    
+    tar -zxvf openssl-3.5.8.tar.gz    
 ```
 
-In order to build OpenSSL 3.6 you will need to have also installed the appropriate build tools for the OS that you are building on.
+In order to build OpenSSL 3.5 you will need to have also installed the appropriate build tools for the OS that you are building on.
 
-### Step 2 Build OpenSSL Library 3.6 
+### Step 2 Build OpenSSL Library 3.5 
 
 Users should specify a prefix when building the OpenSSL Library for this example there is no need to install it on the host 
 for all users so we will use prefix and keep it nearby. 
 
 ```
-  cd openssl-3.6.2
+  cd openssl-3.5.8
   
-  # Tell OpenSSL to install build products in the same parent as openssl-3.6.2
-  ./Configure --prefix=`pwd`/../openssl_3_6
+  # Tell OpenSSL to install build products in the same parent as openssl-3.5.8
+  ./Configure --prefix=`pwd`/../openssl_3_5
   
   # Build it.
   make clean
@@ -87,7 +87,7 @@ for all users so we will use prefix and keep it nearby.
    
 ```
 
-When the OpenSSL Library build finishes you should have the build artefacts available in ```../openssl_3_6```
+When the OpenSSL Library build finishes you should have the build artefacts available in ```../openssl_3_5```
 
 For example, it should look something like this.
 
@@ -98,10 +98,10 @@ ls -al
     
 drwxr-xr-x.  4 ec2-user ec2-user    46 Oct  2 08:08 .
 drwx------.  4 ec2-user ec2-user   133 Oct  2 07:34 ..
-drwxr-xr-x. 28 ec2-user ec2-user 16384 Oct  2 08:08 openssl-3.6.2
-drwxr-xr-x.  5 ec2-user ec2-user    45 Oct  2 08:08 openssl_3_6
+drwxr-xr-x. 28 ec2-user ec2-user 16384 Oct  2 08:08 openssl-3.5.8
+drwxr-xr-x.  5 ec2-user ec2-user    45 Oct  2 08:08 openssl_3_5
 
-ls -al openssl_3_6
+ls -al openssl_3_5
 
 drwxr-xr-x. 5 ec2-user ec2-user  45 Oct  2 08:08 .
 drwxr-xr-x. 4 ec2-user ec2-user  46 Oct  2 08:08 ..
@@ -115,13 +115,13 @@ Lastly we need to set the ```OPENSSL_PREFIX``` env var, this variable will be us
 OpenSSL Jostle build to locate the OpenSSL libraries.
 
 ```
-cd openssl_3_6/
+cd openssl_3_5/
 export OPENSSL_PREFIX=`pwd`
 
 # Print it out.
 
 echo "${OPENSSL_PREFIX}"
-/home/ec2-user/build/openssl_3_6
+/home/ec2-user/build/openssl_3_5
 
 ```
 
@@ -225,7 +225,7 @@ You must also ensure that JAVA_HOME is set.
 
 ```
 echo $OPENSSL_PREFIX 
-/home/ec2-user/build/openssl_3_6
+/home/ec2-user/build/openssl_3_5
 
 echo $JAVA_HOME
 /usr/lib/jvm/java-25-amazon-corretto.x86_64/
@@ -350,7 +350,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.6.2
+  OpenSSL Version: 3.5.8
 .END
 Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 -------------------------------------------------------------------------------
@@ -384,7 +384,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.6.2
+  OpenSSL Version: 3.5.8
 .END
 Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 -------------------------------------------------------------------------------
@@ -431,7 +431,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.6.2
+  OpenSSL Version: 3.5.8
 .END
 Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 

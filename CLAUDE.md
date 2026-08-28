@@ -17,7 +17,7 @@ Building requires Java 25; the resulting jar runs on Java 8 → Java 25 via a mu
 Two stages: native interface, then jar. **Both `OPENSSL_PREFIX` and `JAVA_HOME` (Java 25) must be set.**
 
 ```bash
-# Stage 0 (one-off): build a current mainline OpenSSL 3.6.x with --prefix pointing
+# Stage 0 (one-off): build mainline OpenSSL 3.5.8 with --prefix pointing
 # somewhere accessible, then export OPENSSL_PREFIX=<that prefix>.
 
 # Stage 1: generate JNI headers from current Java sources.
