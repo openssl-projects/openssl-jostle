@@ -252,13 +252,14 @@ public class FIPSUnwrappedKeyBindingTest
      * Unwrapping a family JSLFIPS does not serve fails LOUDLY rather than
      * borrowing someone else's KeyFactory.
      *
-     * <p>Ed25519 is the real case, not a synthetic one: the {@code edec}
-     * sources are nonfips-only, so JSLFIPS registers no Ed25519 KeyFactory
-     * while both JSL and SunEC (JDK 15+) do. A bare
-     * {@code KeyFactory.getInstance("Ed25519")} therefore succeeds on this
-     * JVM, which is precisely the fall-through that must not happen — and the
-     * precondition is asserted, so if JSLFIPS ever gains Ed25519 this test
-     * says so instead of passing vacuously.
+     * <p>The family is DISCOVERED, not named. Naming one was tried and broke:
+     * this test pinned Ed25519, which JSLFIPS genuinely lacks on the 3.1.2
+     * module but SERVES on 3.5.8 — {@code ProvFIPSED} gates registration on
+     * what the loaded module implements. The vacuity guard fired correctly on
+     * the first sweep that ran a 3.5.x module, which is the point of having
+     * one, but a pinned name cannot be right for both supported modules. The
+     * base twin {@code UnwrappedKeyBindingTest} already discovers for the same
+     * reason.
      *
      * <p>Refusing is the right answer rather than a gap: the alternative is
      * handing back a key from outside the module under a provider whose whole
@@ -267,22 +268,51 @@ public class FIPSUnwrappedKeyBindingTest
     @Test
     public void unwrapOfAFamilyTheModuleDoesNotServeFailsLoudly() throws Exception
     {
-        Assertions.assertNull(fips.getService("KeyFactory", "Ed25519"),
-                "JSLFIPS now serves an Ed25519 KeyFactory, so this test no longer "
-                        + "discriminates — pick another unserved family");
-
-        Provider elsewhere;
-        try
+        // A KeyFactory algorithm JSLFIPS does not serve but a bare lookup
+        // resolves somewhere else — the fall-through that must not happen.
+        String borrowable = null;
+        Provider elsewhere = null;
+        for (Provider p : Security.getProviders())
         {
-            elsewhere = KeyFactory.getInstance("Ed25519").getProvider();
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            Assertions.fail("no installed provider serves Ed25519, so there is nothing for a "
-                    + "bare lookup to fall through TO and this test cannot discriminate");
-            return;
+            if (p == fips)
+            {
+                continue;
+            }
+            for (Provider.Service svc : p.getServices())
+            {
+                if (!"KeyFactory".equals(svc.getType())
+                        || fips.getService("KeyFactory", svc.getAlgorithm()) != null)
+                {
+                    continue;
+                }
+                try
+                {
+                    Provider resolved = KeyFactory.getInstance(svc.getAlgorithm()).getProvider();
+                    if (resolved != fips)
+                    {
+                        borrowable = svc.getAlgorithm();
+                        elsewhere = resolved;
+                        break;
+                    }
+                }
+                catch (NoSuchAlgorithmException ignored)
+                {
+                    // An alias the bare lookup cannot resolve is no trap.
+                }
+            }
+            if (borrowable != null)
+            {
+                break;
+            }
         }
 
+        Assertions.assertNotNull(borrowable,
+                "no installed provider registers a KeyFactory that JSLFIPS lacks, so there is "
+                        + "nothing for a bare lookup to fall through TO and this test cannot "
+                        + "discriminate");
+
+        final String alg = borrowable;
+        final Provider owner = elsewhere;
         for (String t : TRANSFORMS)
         {
             byte[] garbage = new byte[t.startsWith("RSA") ? 256 : 40];
@@ -290,11 +320,11 @@ public class FIPSUnwrappedKeyBindingTest
 
             final Cipher c = unwrapper(t);
             NoSuchAlgorithmException e = Assertions.assertThrows(NoSuchAlgorithmException.class,
-                    () -> c.unwrap(garbage, "Ed25519", Cipher.PRIVATE_KEY),
-                    t + ": a JSLFIPS unwrap must not borrow " + elsewhere.getName()
-                            + "'s Ed25519 KeyFactory");
+                    () -> c.unwrap(garbage, alg, Cipher.PRIVATE_KEY),
+                    t + ": a JSLFIPS unwrap must not borrow " + owner.getName()
+                            + "'s " + alg + " KeyFactory");
             Assertions.assertTrue(
-                    e.getMessage().contains("provider JSLFIPS serves no KeyFactory for Ed25519"),
+                    e.getMessage().contains("provider JSLFIPS serves no KeyFactory for " + alg),
                     t + ": the failure must name the provider and the algorithm, got: "
                             + e.getMessage());
         }
