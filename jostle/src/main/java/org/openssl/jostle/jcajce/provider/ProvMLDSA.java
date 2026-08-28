@@ -106,11 +106,17 @@ class ProvMLDSA
                 NISelector.Asn1NI, keyType, provider);
     }
 
+    /**
+     * Key factory UNFORCED, {@code forcedType} enforced by the SPI — matching
+     * {@code ProvFIPSMLDSA}. A forced factory rejects a foreign
+     * wrong-parameter key during import, pre-empting the SPI's more specific
+     * message and covering fewer keys. One enforcement point, one message.
+     */
     private static MLDSASignatureSpi signature(JostleProvider provider, OSSLKeyType forcedType,
                                                MLDSASignatureSpi.MuHandling forcedMu)
     {
         return new MLDSASignatureSpi(NISelector.MLDSAServiceNI,
-                keyFactory(provider, forcedType), forcedType, forcedMu);
+                keyFactory(provider, OSSLKeyType.NONE), forcedType, forcedMu);
     }
 
     private static MLDSAKeyPairGeneratorImpl keyPairGenerator(JostleProvider provider, Object algorithm)

@@ -64,7 +64,8 @@ public class MLDSASignatureSpi extends SignatureSpi
 
     public MLDSASignatureSpi(OSSLKeyType forcedType, MuHandling forcedMu)
     {
-        this(NISelector.MLDSAServiceNI, new MLDSAKeyFactorySpiImpl(forcedType), forcedType, forcedMu);
+        // Unforced factory - see the note on ProvMLDSA.signature().
+        this(NISelector.MLDSAServiceNI, new MLDSAKeyFactorySpiImpl(OSSLKeyType.NONE), forcedType, forcedMu);
     }
 
     public MLDSASignatureSpi(MLDSAServiceNI mldsaServiceNI, MLDSAKeyFactorySpiImpl keyFactory,
