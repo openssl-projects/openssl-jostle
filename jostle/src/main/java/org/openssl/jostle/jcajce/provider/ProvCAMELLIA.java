@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.CAMELLIABlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
@@ -40,5 +41,10 @@ class ProvCAMELLIA
         provider.addAlgorithmImplementation("Cipher", "CAMELLIA256", CAMELLIABlockCipherSpi.class.getName(), generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA256, OSSLMode.ECB, provider));
 
         provider.addAlgorithmImplementation("Cipher", NTTObjectIdentifiers.id_camellia256_cbc, CAMELLIABlockCipherSpi.class.getName(), generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(OSSLCipher.CAMELLIA256, OSSLMode.CBC, provider));
+
+        // IV AlgorithmParameters under the bare family name — CAMELLIA had NONE
+        // before MT-18, so getParameters() threw IllegalStateException.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "CAMELLIA",
+                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
     }
 }

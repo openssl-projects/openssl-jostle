@@ -17,28 +17,17 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 
 /**
- * Resolves an {@link AlgorithmParameters} instance from a named Jostle
- * provider, falling back to the other only when the named one is absent.
+ * Name-based resolution of an {@link AlgorithmParameters} from a Jostle
+ * provider, for callers that have no provider INSTANCE to pin.
  *
- * <p>The AEAD cipher SPIs expose their session nonce and tag length through
- * {@code engineGetParameters()}. An unpinned
- * {@code AlgorithmParameters.getInstance(alg)} makes the returned object's
- * implementation depend on {@code java.security.Provider} search order — a
- * foreign provider registered ahead of Jostle silently supplies it, coupling a
- * Jostle cipher's parameter behaviour to whatever that provider does. This was
- * latent until BouncyCastle 1.85, whose CCM AlgorithmParameters rejects
- * RFC 5084-valid ICV lengths below 12 on the {@code getParameterSpec} path
- * (its CCM read-back reuses the GCM extractor, which 1.85 validates with
- * GCM's 12..16 range); with BC ahead of JSL in the search order, a JSL CCM
- * cipher's own default 8-byte tag became unreadable from its own parameters.</p>
+ * <p>Since MT-18 the only such caller is a directly-constructed SPI (MT-14's
+ * unbound realm). Everything reached through a provider resolves by instance
+ * instead — see {@code BlockCipherSpi.resolveParameters}, which also records
+ * why the pin matters.
  *
- * <p>The caller passes the provider its SPI belongs to (from
- * {@code DefaultServiceNI.providerName()}), so a JSLFIPS cipher's parameters
- * come from JSLFIPS even when JSL is registered alongside it. Both providers
- * register the same {@code CCM} and {@code GCM} codecs — pure-Java encoding
- * classes, no cryptography and no native binding — so the fallback is a
- * functional no-op; it exists so a single-provider deployment still resolves
- * if the SPI's own provider is somehow unregistered.</p>
+ * <p>The cross-Jostle fallback exists so a single-provider deployment still
+ * resolves when the SPI's own provider is unregistered; both providers
+ * register the same pure-Java codecs, so it is a functional no-op.
  */
 final class JostleAlgorithmParameters
 {

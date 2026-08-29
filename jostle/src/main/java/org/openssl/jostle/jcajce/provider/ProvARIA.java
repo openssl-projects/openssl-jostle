@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 
+import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIABlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIACCMCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
@@ -49,5 +50,10 @@ class ProvARIA
         // ARIA/CCM — see ProvAES note on the dedicated CCM SPI.
         provider.addAlgorithmImplementation("Cipher", "ARIA/CCM/NoPadding",
                 ARIACCMCipherSpi.class.getName(), generalAttributes, (arg) -> new ARIACCMCipherSpi());
+
+        // IV AlgorithmParameters under the bare family name — ARIA had NONE
+        // before MT-18, so getParameters() threw IllegalStateException.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "ARIA",
+                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
     }
 }

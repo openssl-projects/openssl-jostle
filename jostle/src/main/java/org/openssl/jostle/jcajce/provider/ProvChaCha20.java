@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 
+import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.ChaCha20BlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.ChaCha20KeyGenerator;
 import org.openssl.jostle.jcajce.provider.blockcipher.ChaCha20Poly1305CipherSpi;
@@ -27,6 +28,9 @@ import java.util.logging.Logger;
 class ProvChaCha20
 {
     private static final Logger LOG = Logger.getLogger(ProvChaCha20.class.getName());
+
+    /** RFC 8103 / PKCS arc {@code id-alg-AEADChaCha20Poly1305}, the OID BouncyCastle aliases. */
+    private static final String ID_ALG_AEAD_CHACHA20_POLY1305 = "1.2.840.113549.1.9.16.3.18";
 
     private static final Map<String, String> generalAttributes = new HashMap<String, String>();
 
@@ -78,6 +82,22 @@ class ProvChaCha20
                         ChaCha20KeyGenerator.class.getName(), generalAttributes, (arg) -> new ChaCha20KeyGenerator()));
         safeRegister("KeyGenerator.ChaCha20-Poly1305 (alias of ChaCha20)", () ->
                 provider.addAlias("KeyGenerator", "ChaCha20", "ChaCha20-Poly1305", CHACHA20_POLY1305_OID));
+        // ChaCha20-Poly1305 AlgorithmParameters — RFC 8103: the 12-octet nonce
+        // as a bare OCTET STRING, which is what SunJCE and BouncyCastle both
+        // emit (measured). Before MT-18 this cipher's getParameters() routed
+        // through the GCM SEQUENCE form, producing bytes neither could read.
+        //
+        // Raw ChaCha20 deliberately gets NO parameters service: its state
+        // includes a 32-bit counter that no standard container carries, and
+        // SunJCE registers none either. BlockCipherSpi returns null there.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "ChaCha20-Poly1305",
+                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
+        // BOTH lookup forms, as BouncyCastle registers them: a caller
+        // resolving by bare OID and one resolving by "OID."-prefixed OID must
+        // both reach this codec.
+        provider.addAlias("AlgorithmParameters", "ChaCha20-Poly1305",
+                ID_ALG_AEAD_CHACHA20_POLY1305,
+                "OID." + ID_ALG_AEAD_CHACHA20_POLY1305);
     }
 
     /**

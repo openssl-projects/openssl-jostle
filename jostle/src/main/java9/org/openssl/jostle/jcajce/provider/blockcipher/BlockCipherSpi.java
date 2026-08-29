@@ -37,6 +37,9 @@ class BlockCipherSpi extends CipherSpi
 {
     final OSSLCipher mandatedCipher;
     final OSSLMode mandatedMode;
+    /** The key algorithm both ChaCha20 SPIs declare. */
+    private static final String CHACHA20 = "ChaCha20";
+
     final String keyAlgorithm;
 
     OSSLCipher osslCipher;
@@ -331,21 +334,47 @@ class BlockCipherSpi extends CipherSpi
                 return null;
             }
 
+            if (CHACHA20.equals(keyAlgorithm) && !isAeadMode())
+            {
+                // Raw ChaCha20 has no parameters to report. Its state is a
+                // nonce PLUS a 32-bit counter, and no standard ASN.1 container
+                // carries the counter — SunJCE returns null here for the same
+                // reason (measured), and inventing a Jostle-only encoding would
+                // be an interop liability. The nonce is on engineGetIV().
+                return null;
+            }
+
             try
             {
                 AlgorithmParameters params;
                 if (isAeadMode())
                 {
-                    // GCM AlgorithmParameters is the de-facto JCE holder for any
-                    // AEAD tag+nonce; OCB has no JCE-standard parameters type, so
-                    // it reuses GCM's. The tag length is preserved on round-trip
-                    // (a plain IvParameterSpec would drop it).
-                    params = JostleAlgorithmParameters.getInstance("GCM", blockCipherNi.providerName());
-                    params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
+                    if (CHACHA20.equals(keyAlgorithm))
+                    {
+                        // ChaCha20-Poly1305 has its OWN standard parameters —
+                        // RFC 8103, a bare 12-octet OCTET STRING nonce, which is
+                        // what SunJCE and BouncyCastle both emit. Routing it
+                        // through GCM's SEQUENCE produced bytes neither could
+                        // read.
+                        params = resolveParameters("ChaCha20-Poly1305");
+                        params.init(new IvParameterSpec(ivBytes));
+                    }
+                    else
+                    {
+                        // GCM AlgorithmParameters is the JCE holder for AEAD
+                        // modes that have no parameters type of their own — OCB
+                        // and CCM. It is NOT a universal AEAD holder: an
+                        // algorithm with its own standard gets that standard,
+                        // as ChaCha20-Poly1305 does above. The tag length is
+                        // preserved on round-trip (a plain IvParameterSpec
+                        // would drop it).
+                        params = resolveParameters("GCM");
+                        params.init(new GCMParameterSpec(tagLen * 8, ivBytes));
+                    }
                 }
                 else
                 {
-                    params = AlgorithmParameters.getInstance(keyAlgorithm);
+                    params = resolveParameters(keyAlgorithm);
                     params.init(new IvParameterSpec(ivBytes));
                 }
                 return params;
@@ -359,6 +388,37 @@ class BlockCipherSpi extends CipherSpi
         {
             Reference.reachabilityFence(this);
         }
+    }
+
+    /**
+     * Resolve parameters from THIS SPI's own provider instance.
+     *
+     * <p>{@code getInstance(String, Provider)} reads the provider OBJECT and
+     * never consults the {@code Security} registry, so a foreign provider
+     * ahead of Jostle cannot supply them, and it works whether or not that
+     * provider is registered.
+     *
+     * <p>Why the pin is load-bearing, not hygiene: an unpinned
+     * {@code getInstance(alg)} makes the returned object's implementation
+     * depend on {@code java.security.Provider} search order. That was latent
+     * until BouncyCastle 1.85, whose CCM AlgorithmParameters rejects
+     * RFC 5084-valid ICV lengths below 12 on the {@code getParameterSpec} path
+     * (its CCM read-back reuses the GCM extractor, which 1.85 validates with
+     * GCM's 12..16 range) — with BC ahead of JSL, a JSL CCM cipher's own
+     * default 8-byte tag became unreadable from its own parameters.
+     *
+     * <p>A directly-constructed SPI has no provider (MT-14's unbound realm)
+     * and can only resolve by name; {@link JostleAlgorithmParameters} does
+     * that, preferring the SPI's own Jostle provider.
+     */
+    private AlgorithmParameters resolveParameters(String algorithm)
+        throws NoSuchAlgorithmException
+    {
+        if (providerInstance != null)
+        {
+            return AlgorithmParameters.getInstance(algorithm, providerInstance);
+        }
+        return JostleAlgorithmParameters.getInstance(algorithm, blockCipherNi.providerName());
     }
 
     @Override

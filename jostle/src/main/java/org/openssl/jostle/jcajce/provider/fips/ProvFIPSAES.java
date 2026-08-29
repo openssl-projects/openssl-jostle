@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.AESBlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.AESKeyGenerator;
 import org.openssl.jostle.jcajce.provider.blockcipher.AESCCMCipherSpi;
@@ -188,5 +189,9 @@ class ProvFIPSAES
                 (arg) -> new CBCAlgorithmParameters());
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_CBC, CBCAlgorithmParameters.class.getName(), generalAesAttributes,
                 (arg) -> new CBCAlgorithmParameters());
+        // IV AlgorithmParameters under the bare family name; BlockCipherSpi
+        // resolves it from THIS provider instance, so JSLFIPS serves its own.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "AES",
+                IvAlgorithmParameters.class.getName(), generalAesAttributes, (arg) -> new IvAlgorithmParameters());
     }
 }

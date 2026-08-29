@@ -60,7 +60,13 @@ public class FIPSServedSurfaceSnapshotTest
             "AlgorithmParameters.2.16.840.1.101.3.4.1.47",
             "AlgorithmParameters.2.16.840.1.101.3.4.1.6",
             "AlgorithmParameters.2.16.840.1.101.3.4.1.7",
+            // MT-18: the IV codec, registered under the bare family name so
+            // BlockCipherSpi resolves parameters from its own provider instance
+            // rather than from whatever the Security order offers. Pure-Java
+            // DER encoding, no cryptography and no module interaction.
+            "AlgorithmParameters.AES",
             "AlgorithmParameters.CCM",
+            "AlgorithmParameters.DESEDE",   // Triple-DES, capability-gated (see TDES_GATED)
             "AlgorithmParameters.DH",
             "AlgorithmParameters.DSA",
             "AlgorithmParameters.EC",
@@ -603,6 +609,10 @@ public class FIPSServedSurfaceSnapshotTest
             "Cipher.1.2.840.113549.3.7",
             "Cipher.DESEDE",
             "KeyGenerator.DESEDE",
+            // MT-18's IV codec is registered behind the same canFetchCipher
+            // gate in ProvFIPSDESede, so it is absent on a module that does
+            // not serve Triple-DES at all.
+            "AlgorithmParameters.DESEDE",
     };
 
 

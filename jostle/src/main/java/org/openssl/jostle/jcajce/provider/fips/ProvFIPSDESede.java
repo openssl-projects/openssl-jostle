@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.DESedeBlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.DESedeKeyGenerator;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
@@ -107,6 +108,10 @@ class ProvFIPSDESede
                         (arg) -> new DESedeKeyGenerator(provider.getDefaultSecureRandom())));
         safeRegister("KeyGenerator.TripleDES (alias of DESede)", () ->
                 provider.addAlias("KeyGenerator", "DESede", "TripleDES"));
+        // IV AlgorithmParameters under the bare family name; BlockCipherSpi
+        // resolves it from THIS provider instance, so JSLFIPS serves its own.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "DESede",
+                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
     }
 
     /**

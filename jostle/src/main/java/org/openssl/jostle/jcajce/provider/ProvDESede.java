@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 
+import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.DESedeBlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.DESedeKeyGenerator;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
@@ -81,6 +82,10 @@ class ProvDESede
                         DESedeKeyGenerator.class.getName(), generalAttributes, (arg) -> new DESedeKeyGenerator()));
         safeRegister("KeyGenerator.TripleDES (alias of DESede)", () ->
                 provider.addAlias("KeyGenerator", "DESede", "TripleDES"));
+        // IV AlgorithmParameters under the bare family name — DESede had NONE
+        // before MT-18, so getParameters() threw IllegalStateException.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "DESede",
+                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
     }
 
     /**
@@ -103,5 +108,6 @@ class ProvDESede
                     "ProvDESede: skipped " + description + " — " + t.getMessage(),
                     t);
         }
+
     }
 }

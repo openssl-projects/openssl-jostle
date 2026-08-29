@@ -18,6 +18,7 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.Provider;
@@ -268,7 +269,21 @@ public final class CipherSurfaceDriver
             }
             else
             {
-                dec.init(Cipher.DECRYPT_MODE, key);
+                // No parameters to report — raw ChaCha20, by design: its state
+                // includes a counter no standard container carries, so SunJCE
+                // and Jostle both return null and the nonce comes from getIV().
+                // Before MT-18 this branch was never reached here, because
+                // AlgorithmParameters.getInstance("ChaCha20") silently resolved
+                // to whichever OTHER provider was installed.
+                byte[] iv = enc.getIV();
+                if (iv != null)
+                {
+                    dec.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
+                }
+                else
+                {
+                    dec.init(Cipher.DECRYPT_MODE, key);
+                }
             }
         }
         Assertions.assertArrayEquals(msg, dec.doFinal(ct), name + ": round trip");

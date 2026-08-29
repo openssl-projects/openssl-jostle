@@ -120,6 +120,12 @@ class ProvAES
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes192_CCM, CCMAlgorithmParameters.class.getName(), generalAesAttributes, (arg) -> new CCMAlgorithmParameters());
         provider.addAlgorithmImplementation("AlgorithmParameters", NISTObjectIdentifiers.id_aes256_CCM, CCMAlgorithmParameters.class.getName(), generalAesAttributes, (arg) -> new CCMAlgorithmParameters());
 
+        // IV AlgorithmParameters under the bare family name. BlockCipherSpi's
+        // non-AEAD getParameters() resolves this from its own provider instance;
+        // before MT-18 it resolved "AES" from whichever provider answered first.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "AES",
+                IvAlgorithmParameters.class.getName(), generalAesAttributes, (arg) -> new IvAlgorithmParameters());
+
         // AES-CBC AlgorithmParameters, registered under the CBC OIDs only (see
         // CBCAlgorithmParameters). Lets OID-driven callers — notably BC's PBES2 /
         // PKCS#8 / PKCS#12 decryptors — recover the stored IV via
