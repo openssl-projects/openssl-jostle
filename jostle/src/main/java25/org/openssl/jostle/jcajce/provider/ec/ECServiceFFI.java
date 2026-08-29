@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -42,6 +43,8 @@ public class ECServiceFFI implements ECServiceNI
     private final MethodHandle generateKeyPairH;
     private final MethodHandle makePrivateFromComponentsH;
     private final MethodHandle getComponentH;
+    private final MethodHandle getCurveComponentH;
+    private final MethodHandle findCurveNameH;
     private final MethodHandle allocSignerH;
     private final MethodHandle disposeSignerH;
     private final MethodHandle initSignH;
@@ -117,6 +120,33 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
+
+        // JoEC_getCurveComponent(const char* name, int32_t comp, uint8_t* out, size_t out_len) -> int
+        // NOT critical: the name crosses as an arena segment and the output is
+        // copied back, so there is no heap segment to pin. These are cached
+        // per curve, so the copy is paid once.
+        getCurveComponentH = bind(lookup, symPrefix + "JoEC_getCurveComponent",
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG));
+
+        // JoEC_findCurveName(int32_t field_type, seven (ptr,len) pairs,
+        //                    uint8_t* out, size_t out_len) -> int
+        findCurveNameH = bind(lookup, symPrefix + "JoEC_findCurveName",
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
         allocSignerH = bind(lookup, symPrefix + "JoEC_allocateSigner",
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
@@ -361,6 +391,93 @@ public class ECServiceFFI implements ECServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI EC_getComponent", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_getCurveComponent(String curveName, int component, byte[] out)
+    {
+        if (curveName == null)
+        {
+            return ErrorCode.JO_NAME_IS_NULL.getCode();
+        }
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment name = nativeString(a, curveName);
+            if (out == null)
+            {
+                return (int) getCurveComponentH.invokeExact(
+                        name, component, MemorySegment.NULL, 0L);
+            }
+            MemorySegment outSeg = a.allocate(out.length);
+            int written = (int) getCurveComponentH.invokeExact(
+                    name, component, outSeg, (long) out.length);
+            if (written > 0)
+            {
+                MemorySegment.copy(outSeg, ValueLayout.JAVA_BYTE, 0,
+                        out, 0, written);
+            }
+            return written;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI EC_getCurveComponent", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_findCurveName(int fieldType, byte[] p, byte[] a, byte[] b,
+                                byte[] gx, byte[] gy, byte[] order,
+                                byte[] cofactor, byte[] out)
+    {
+        byte[][] inputs = {p, a, b, gx, gy, order, cofactor};
+        for (byte[] in : inputs)
+        {
+            if (in == null)
+            {
+                return ErrorCode.JO_INPUT_IS_NULL.getCode();
+            }
+        }
+        try (Arena arena = Arena.ofConfined())
+        {
+            // Copied into the arena rather than passed as heap segments: a
+            // zero-length input is legitimate here (a == 0 on secp256k1) and
+            // MemorySegment.ofArray on an empty array is a valid but
+            // non-dereferenceable segment, so the C side would receive a
+            // pointer it must not treat as null.
+            MemorySegment[] segs = new MemorySegment[inputs.length];
+            for (int i = 0; i < inputs.length; i++)
+            {
+                segs[i] = arena.allocate(Math.max(1, inputs[i].length));
+                MemorySegment.copy(inputs[i], 0, segs[i],
+                        ValueLayout.JAVA_BYTE, 0, inputs[i].length);
+            }
+            MemorySegment outSeg = out == null
+                    ? MemorySegment.NULL
+                    : arena.allocate(Math.max(1, out.length));
+            long outLen = out == null ? 0L : out.length;
+
+            int written = (int) findCurveNameH.invokeExact(fieldType,
+                    segs[0], (long) inputs[0].length,
+                    segs[1], (long) inputs[1].length,
+                    segs[2], (long) inputs[2].length,
+                    segs[3], (long) inputs[3].length,
+                    segs[4], (long) inputs[4].length,
+                    segs[5], (long) inputs[5].length,
+                    segs[6], (long) inputs[6].length,
+                    outSeg, outLen);
+            if (out != null && written > 0)
+            {
+                MemorySegment.copy(outSeg, ValueLayout.JAVA_BYTE, 0,
+                        out, 0, written);
+            }
+            return written;
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI EC_findCurveName", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

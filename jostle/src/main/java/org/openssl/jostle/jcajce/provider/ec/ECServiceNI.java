@@ -28,6 +28,37 @@ public interface ECServiceNI extends DefaultServiceNI
     int COMP_PUBLIC_Y = 2;
     int COMP_PRIVATE_VALUE = 3;
 
+    // Curve-table component selectors. MUST match EC_CURVE_COMP_* in ec.h.
+    // These index the CURVE TABLE by name; COMP_* above index a KEY.
+    int CURVE_COMP_FIELD_TYPE = 0;
+    int CURVE_COMP_DEGREE = 1;
+    int CURVE_COMP_P = 2;
+    int CURVE_COMP_A = 3;
+    int CURVE_COMP_B = 4;
+    int CURVE_COMP_GX = 5;
+    int CURVE_COMP_GY = 6;
+    int CURVE_COMP_ORDER = 7;
+    int CURVE_COMP_COFACTOR = 8;
+    int CURVE_COMP_OID = 9;
+    int CURVE_COMP_NAME = 10;
+
+    // Values of CURVE_COMP_FIELD_TYPE. MUST match EC_FIELD_TYPE_* in ec.h.
+    int FIELD_TYPE_PRIME = 1;
+    int FIELD_TYPE_BINARY = 2;
+
+    /**
+     * Hard structural cap on the field degree, mirroring EC_CURVE_MAX_FIELD_BITS
+     * in ec.h. Every per-component allocation bound derives from the degree,
+     * so this is the one constant the length-to-allocation chain rests on.
+     * The largest curve any current OpenSSL build ships is sect571r1 at 571
+     * bits.
+     */
+    int MAX_FIELD_BITS = 4096;
+
+    /** Caps on the two text components, mirroring ec.h. */
+    int MAX_CURVE_NAME_BYTES = 64;
+    int MAX_CURVE_OID_BYTES = 128;
+
 
     /** 1 if OpenSSL recognises the curve name, 0 otherwise. */
     int ni_curveSupported(String curveName);
@@ -44,6 +75,28 @@ public interface ECServiceNI extends DefaultServiceNI
                                       int[] err, RandSource rndSource);
 
     int ni_getComponent(long specRef, int component, byte[] out);
+
+    /**
+     * Fetch one component of a NAMED CURVE from OpenSSL's builtin table.
+     * {@code curveName} may be any spelling OpenSSL resolves — short name,
+     * long name, dotted OID, or a NIST name such as {@code "P-256"}.
+     *
+     * <p>Two-call protocol: {@code out == null} returns the required byte
+     * length, a second call with a large enough buffer writes it. A
+     * zero-length result is SUCCESS and means the value is zero — secp256k1
+     * has {@code a == 0}, so this is a real case, not a theoretical one.
+     */
+    int ni_getCurveComponent(String curveName, int component, byte[] out);
+
+    /**
+     * Reverse direction: name the builtin curve these explicit domain
+     * parameters describe. Numeric inputs are big-endian unsigned magnitude
+     * and must all be non-null; a zero-length array legitimately denotes
+     * zero. Two-call protocol as above.
+     */
+    int ni_findCurveName(int fieldType, byte[] p, byte[] a, byte[] b,
+                         byte[] gx, byte[] gy, byte[] order, byte[] cofactor,
+                         byte[] out);
 
 
     // ---------------------------------------------------------------
@@ -129,6 +182,41 @@ public interface ECServiceNI extends DefaultServiceNI
     default int getComponent(long specRef, int component, byte[] out)
     {
         return (int) handleErrors(ni_getComponent(specRef, component, out));
+    }
+
+    /**
+     * Returns the byte count, or {@code JO_CURVE_NOT_SUPPORTED} when the name
+     * is not a curve this build knows. That one code is returned rather than
+     * thrown because "no such curve" is an ordinary answer the caller phrases
+     * for itself; every other negative code still throws.
+     */
+    default int getCurveComponent(String curveName, int component, byte[] out)
+    {
+        int code = ni_getCurveComponent(curveName, component, out);
+        if (code == ErrorCode.JO_CURVE_NOT_SUPPORTED.getCode())
+        {
+            return code;
+        }
+        return (int) handleErrors(code);
+    }
+
+    /**
+     * Returns the byte count, or {@code JO_CURVE_NO_MATCH} when the values
+     * describe no named curve. Suppressed for the same reason as above — the
+     * KeyFactory and the KeyPairGenerator each phrase that outcome
+     * differently, so neither wants an exception thrown from here.
+     */
+    default int findCurveName(int fieldType, byte[] p, byte[] a, byte[] b,
+                              byte[] gx, byte[] gy, byte[] order,
+                              byte[] cofactor, byte[] out)
+    {
+        int code = ni_findCurveName(fieldType, p, a, b, gx, gy, order,
+                                    cofactor, out);
+        if (code == ErrorCode.JO_CURVE_NO_MATCH.getCode())
+        {
+            return code;
+        }
+        return (int) handleErrors(code);
     }
 
 
@@ -227,6 +315,11 @@ public interface ECServiceNI extends DefaultServiceNI
         {
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type for EC");
+            case JO_CURVE_NO_MATCH:
+                // Only reached by a direct NI caller: the findCurveName
+                // wrapper above returns this code rather than throwing.
+                throw new IllegalArgumentException(
+                        "explicit parameters match no named curve");
             default:
         }
 

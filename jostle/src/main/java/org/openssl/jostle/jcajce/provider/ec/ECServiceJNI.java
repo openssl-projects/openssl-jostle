@@ -33,6 +33,14 @@ public class ECServiceJNI implements ECServiceNI
     public native int ni_getComponent(long specRef, int component, byte[] out);
 
     @Override
+    public native int ni_getCurveComponent(String curveName, int component, byte[] out);
+
+    @Override
+    public native int ni_findCurveName(int fieldType, byte[] p, byte[] a, byte[] b,
+                                       byte[] gx, byte[] gy, byte[] order,
+                                       byte[] cofactor, byte[] out);
+
+    @Override
     public native long ni_allocateSigner(int[] err);
 
     @Override
