@@ -95,12 +95,7 @@ public class UnpinnedServiceResolutionParityTest
             // Same unbound realm, reached from the generators' null-provider
             // constructors.
             "DHAlgorithmParameterGenerator:AlgorithmParameters",
-            "DSAAlgorithmParameterGenerator:AlgorithmParameters",
-            // MT-21 converts these; the verdict is decided and the execution is
-            // sequenced to the next arc. Remove these four when MT-21 lands.
-            "ECComponents:AlgorithmParameters",
-            "ECAlgorithmParameters:Security.getProviders",
-            "ECAlgorithmParameters:AlgorithmParameters"
+            "DSAAlgorithmParameterGenerator:AlgorithmParameters"
     )));
 
     @Test
