@@ -588,6 +588,22 @@ The general rule behind both: **before trusting a green from a guard you just tr
    the same footprint one step worse: it REPLACES the directory with two files,
    so the leg then looks both fresh and nearly empty.
 
+6. **`strings` cannot answer "is this symbol here?" on macOS, and answers NO.**
+   During MT-21's gate, `strings <lib> | grep JoOps_setFlag` returned nothing
+   and the installed library was briefly read as a plain build. It was
+   INSTRUMENTED — `nm -gU` shows `_JoOps_setFlag` exported. macOS `strings`
+   scans `__TEXT` only, so a name living in the `__LINKEDIT` symbol table is
+   invisible to it, and `-a` does not help. Measured on one file: `strings` 0,
+   `strings -a` 0, `grep -a` 1. **Never use `strings` for symbol presence —
+   use `nm -gU`, or a raw byte grep, which is what `verify-results.py` does**
+   (`OPS_MARKER` is a `bytes` literal for exactly this reason). Note the shape
+   of the error: a negative result from an instrument that cannot see the
+   thing is indistinguishable from the thing's absence, so a wrong instrument
+   fails SILENTLY and in the reassuring direction. What caught it was a
+   second, independent reading — CMake's `flags.make` carried `JOSTLE_OPS` and
+   contradicted the first. When a check returns the answer you were hoping
+   for, read a different instrument before believing it.
+
 The unifying form: **verify the state you care about, not the command you ran
 to reach it.** Every instance above passes the "did the command return?" test
 and fails the "is the world as I assume?" test.
