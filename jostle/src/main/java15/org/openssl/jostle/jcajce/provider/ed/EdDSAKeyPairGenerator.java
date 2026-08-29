@@ -166,21 +166,4 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
         PKEYKeySpec spec = new PKEYKeySpec(specNI, res, effectiveType, providerInstance);
         return new KeyPair(new JOEdPublicKey(edServiceNI, asn1NI, spec), new JOEdPrivateKey(edServiceNI, asn1NI, spec));
     }
-
-
-    public static class ED25519 extends EdDSAKeyPairGenerator
-    {
-        public ED25519()
-        {
-            super(EdDSAParameterSpec.ED25519);
-        }
-    }
-
-    public static class ED448 extends EdDSAKeyPairGenerator
-    {
-        public ED448()
-        {
-            super(EdDSAParameterSpec.ED448);
-        }
-    }
 }
