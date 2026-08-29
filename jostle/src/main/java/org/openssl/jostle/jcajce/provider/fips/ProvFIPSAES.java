@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.blockcipher.AESBlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.AESKeyGenerator;
 import org.openssl.jostle.jcajce.provider.blockcipher.AESCCMCipherSpi;
@@ -46,6 +47,19 @@ class ProvFIPSAES
         generalAesAttributes.put("SupportedKeyFormats", "RAW");
     }
 
+    /**
+     * {@link JostleProvider#KEY_WRAP_ATTRIBUTE} on top of the general set —
+     * the registration-site declaration of wrap-ness that
+     * {@code CipherSurfaceDriver}'s cross-check reads.
+     */
+    private static final Map<String, String> wrapAesAttributes = new HashMap<String, String>();
+
+    static
+    {
+        wrapAesAttributes.putAll(generalAesAttributes);
+        wrapAesAttributes.put(JostleProvider.KEY_WRAP_ATTRIBUTE, "true");
+    }
+
     public void configure(final JostleFIPSProvider provider)
     {
         provider.addAlgorithmImplementation("Cipher", "AES", PREFIX + "Base", generalAesAttributes,
@@ -54,10 +68,10 @@ class ProvFIPSAES
                 (arg) -> new AESKeyGenerator(provider.getDefaultSecureRandom()));
 
 
-        provider.addAlgorithmImplementation("Cipher", "AESWrap", PREFIX + "AESWRAPNAME", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", "AESWrap", PREFIX + "AESWRAPNAME", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP, provider));
         provider.addAlias("Cipher", "AESWrap", "AESKW");
-        provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP_PAD, provider));
         provider.addAlias("Cipher", "AESWrapPad", "AESKWP");
 
@@ -78,7 +92,7 @@ class ProvFIPSAES
         // ambiguous, deliberately left so - an operator needing the answer
         // should take it to the module owner. Registration is unchanged
         // either way: JSLFIPS serves what the module serves.
-        provider.addAlgorithmImplementation("Cipher", "AESWrapInv", PREFIX + "AESWRAPINVNAME", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", "AESWrapInv", PREFIX + "AESWRAPINVNAME", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, null, OSSLMode.WRAP_INV, provider));
         provider.addAlias("Cipher", "AESWrapInv", "AESKWINV");
 
@@ -92,9 +106,9 @@ class ProvFIPSAES
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_GCM, PREFIX + "AES128GCM", generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.GCM, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap, PREFIX + "AES128WRAP", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap, PREFIX + "AES128WRAP", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.WRAP, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap_pad, PREFIX + "AES128WRAPPAD", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap_pad, PREFIX + "AES128WRAPPAD", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.WRAP_PAD, provider));
 
         provider.addAlgorithmImplementation("Cipher", "AES192", PREFIX + "AES192", generalAesAttributes,
@@ -107,9 +121,9 @@ class ProvFIPSAES
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES192, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_GCM, PREFIX + "AES192GCM", generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES192, OSSLMode.GCM, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap, PREFIX + "AES192WRAP", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap, PREFIX + "AES192WRAP", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES192, OSSLMode.WRAP, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap_pad, PREFIX + "AES192WRAPPAD", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap_pad, PREFIX + "AES192WRAPPAD", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES192, OSSLMode.WRAP_PAD, provider));
 
         provider.addAlgorithmImplementation("Cipher", "AES256", PREFIX + "AES256", generalAesAttributes,
@@ -122,9 +136,9 @@ class ProvFIPSAES
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES256, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_GCM, PREFIX + "AES256GCM", generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES256, OSSLMode.GCM, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap, PREFIX + "AES256WRAP", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap, PREFIX + "AES256WRAP", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES256, OSSLMode.WRAP, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap_pad, PREFIX + "AES256WRAPPAD", generalAesAttributes,
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap_pad, PREFIX + "AES256WRAPPAD", wrapAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES256, OSSLMode.WRAP_PAD, provider));
 
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding", PREFIX + "AESCCM", generalAesAttributes,

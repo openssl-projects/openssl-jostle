@@ -87,6 +87,58 @@ public final class ProviderSurfaceGuard
         return out;
     }
 
+    /**
+     * {@code "<Type>.<ALGORITHM>"} to one registered ATTRIBUTE's value, with an
+     * alias mapped to its target primary's value. Absent attribute, absent key.
+     *
+     * <p>Read from the primaries and then propagated to aliases deliberately:
+     * {@code JostleProvider.getService} collects attributes under the name it
+     * was ASKED for, so resolving through an alias sees none of the primary's.
+     */
+    public static java.util.Map<String, String> registeredAttribute(Provider provider, String prefix,
+                                                                    String[] types, String attribute)
+    {
+        java.util.Map<String, String> out = new java.util.HashMap<String, String>();
+        Set<String> wanted = new HashSet<String>(Arrays.asList(types));
+
+        for (Provider.Service s : provider.getServices())
+        {
+            String cn = s.getClassName();
+            if (cn == null || !cn.startsWith(prefix) || !wanted.contains(s.getType()))
+            {
+                continue;
+            }
+            String v = s.getAttribute(attribute);
+            if (v != null)
+            {
+                out.put(s.getType() + "." + s.getAlgorithm().toUpperCase(Locale.ROOT), v);
+            }
+        }
+
+        for (Map.Entry<Object, Object> e : provider.entrySet())
+        {
+            String key = String.valueOf(e.getKey());
+            if (!key.startsWith("Alg.Alias."))
+            {
+                continue;
+            }
+            String rest = key.substring("Alg.Alias.".length());
+            int dot = rest.indexOf('.');
+            if (dot < 0)
+            {
+                continue;
+            }
+            String type = rest.substring(0, dot);
+            String alias = rest.substring(dot + 1).toUpperCase(Locale.ROOT);
+            String target = type + "." + String.valueOf(e.getValue()).toUpperCase(Locale.ROOT);
+            if (wanted.contains(type) && out.containsKey(target))
+            {
+                out.put(type + "." + alias, out.get(target));
+            }
+        }
+        return out;
+    }
+
     /** Drives one discovered service. Must THROW for a name it does not know. */
     public interface ServiceDriver
     {

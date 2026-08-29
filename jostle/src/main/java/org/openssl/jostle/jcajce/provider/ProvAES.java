@@ -27,6 +27,19 @@ class ProvAES
         generalAesAttributes.put("SupportedKeyFormats", "RAW");
     }
 
+    /**
+     * {@link JostleProvider#KEY_WRAP_ATTRIBUTE} on top of the general set —
+     * the registration-site declaration of wrap-ness that
+     * {@code CipherSurfaceDriver}'s cross-check reads.
+     */
+    private static final Map<String, String> wrapAesAttributes = new HashMap<String, String>();
+
+    static
+    {
+        wrapAesAttributes.putAll(generalAesAttributes);
+        wrapAesAttributes.put(JostleProvider.KEY_WRAP_ATTRIBUTE, "true");
+    }
+
     private static final String PREFIX = ProvAES.class.getName();
 
     public void configure(final JostleProvider provider)
@@ -35,9 +48,9 @@ class ProvAES
         provider.addAlgorithmImplementation("KeyGenerator", "AES", PREFIX + "AES", generalAesAttributes, (arg) -> new AESKeyGenerator());
 
 
-        provider.addAlgorithmImplementation("Cipher", "AESWrap", PREFIX + "AESWRAPNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP, provider));
+        provider.addAlgorithmImplementation("Cipher", "AESWrap", PREFIX + "AESWRAPNAME", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP, provider));
         provider.addAlias("Cipher", "AESWrap", "AESKW");
-        provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_PAD, provider));
+        provider.addAlgorithmImplementation("Cipher", "AESWrapPad", PREFIX + "AESWRAPPADNAME", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_PAD, provider));
         provider.addAlias("Cipher", "AESWrapPad", "AESKWP");
 
         // AES key wrap on the INVERSE cipher function (SP 800-38F 5.1), which
@@ -53,7 +66,7 @@ class ProvAES
         //
         // No per-width OID primaries: there are no OIDs, so the width comes
         // from the key length as it does for the bare AESWrap name.
-        provider.addAlgorithmImplementation("Cipher", "AESWrapInv", PREFIX + "AESWRAPINVNAME", generalAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_INV, provider));
+        provider.addAlgorithmImplementation("Cipher", "AESWrapInv", PREFIX + "AESWRAPINVNAME", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP_INV, provider));
         provider.addAlias("Cipher", "AESWrapInv", "AESKWINV");
 
         // NIST AES OIDs are registered so that consumers which resolve algorithms by OID
@@ -66,8 +79,8 @@ class ProvAES
         provider.addAlias("Cipher", "AES128", NISTObjectIdentifiers.id_aes128_ECB);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_CBC, PREFIX + "AES128CBC", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_GCM, PREFIX + "AES128GCM", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.GCM, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap, PREFIX + "AES128WRAP", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.WRAP, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap_pad, PREFIX + "AES128WRAPPAD", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.WRAP_PAD, provider));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap, PREFIX + "AES128WRAP", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.WRAP, provider));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap_pad, PREFIX + "AES128WRAPPAD", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.WRAP_PAD, provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES128", PREFIX + "AESKeyGen128", generalAesAttributes, (arg) -> new AESKeyGenerator(128));
         provider.addAlias("KeyGenerator", "AES128", NISTObjectIdentifiers.id_aes128_ECB, NISTObjectIdentifiers.id_aes128_CBC, NISTObjectIdentifiers.id_aes128_GCM, NISTObjectIdentifiers.id_aes128_wrap, NISTObjectIdentifiers.id_aes128_wrap_pad);
 
@@ -75,8 +88,8 @@ class ProvAES
         provider.addAlias("Cipher", "AES192", NISTObjectIdentifiers.id_aes192_ECB);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_CBC, PREFIX + "AES192CBC", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_GCM, PREFIX + "AES192GCM", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.GCM, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap, PREFIX + "AES192WRAP", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.WRAP, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap_pad, PREFIX + "AES192WRAPPAD", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.WRAP_PAD, provider));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap, PREFIX + "AES192WRAP", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.WRAP, provider));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap_pad, PREFIX + "AES192WRAPPAD", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.WRAP_PAD, provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES192", PREFIX + "AESKeyGen192", generalAesAttributes, (arg) -> new AESKeyGenerator(192));
         provider.addAlias("KeyGenerator", "AES192", NISTObjectIdentifiers.id_aes192_ECB, NISTObjectIdentifiers.id_aes192_CBC, NISTObjectIdentifiers.id_aes192_GCM, NISTObjectIdentifiers.id_aes192_wrap, NISTObjectIdentifiers.id_aes192_wrap_pad);
 
@@ -84,8 +97,8 @@ class ProvAES
         provider.addAlias("Cipher", "AES256", NISTObjectIdentifiers.id_aes256_ECB);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CBC, PREFIX + "AES256CBC", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_GCM, PREFIX + "AES256GCM", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.GCM, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap, PREFIX + "AES256WRAP", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.WRAP, provider));
-        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap_pad, PREFIX + "AES256WRAPPAD", generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.WRAP_PAD, provider));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap, PREFIX + "AES256WRAP", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.WRAP, provider));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap_pad, PREFIX + "AES256WRAPPAD", wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.WRAP_PAD, provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES256", PREFIX + "AESKeyGen256", generalAesAttributes, (arg) -> new AESKeyGenerator(256));
         provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad);
 

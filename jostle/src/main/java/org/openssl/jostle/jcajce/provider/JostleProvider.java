@@ -37,6 +37,20 @@ public class JostleProvider
      */
     public static final String OPENSSL_PROVIDER_NAME = "org.openssl.jostle.ossl_prov";
 
+    /**
+     * Marks a Cipher registration whose mode is key wrap ({@code "true"} when
+     * present, absent otherwise). Jostle-namespaced and deliberately NOT a
+     * standard JCA attribute — {@code Cipher.getInstance} transformation
+     * matching reads {@code SupportedModes} / {@code SupportedPaddings}, so
+     * using either would change cipher selection; this one is inert to JCA.
+     *
+     * <p>It is the registration-site declaration that
+     * {@code CipherSurfaceDriver}'s wrap-routing cross-check compares against
+     * the algorithm name, and callers may read it instead of sniffing names
+     * for "WRAP" / "KW".
+     */
+    public static final String KEY_WRAP_ATTRIBUTE = "Jostle.KeyWrap";
+
     private transient Map<String, JoService> serviceMap;
 
     /**

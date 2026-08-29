@@ -12,6 +12,7 @@
 package org.openssl.jostle.test.util;
 
 import org.junit.jupiter.api.Assertions;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -127,21 +128,28 @@ public final class CipherSurfaceDriver
      * {@code wrap()} / {@code unwrap()} entry points went unexercised — with
      * every test still green.
      *
-     * <p>The second opinion is the SPI class name: {@code ProvAES} registers
-     * those OIDs as {@code …AES128WRAP}, {@code …AES128WRAPPAD} and so on. That
-     * is a separate declaration written by hand at the registration site, so
-     * comparing the two is not the provider checked against itself. A future
-     * wrap registration that this dispatch has not been taught now fails here
-     * by name instead of being driven the wrong way.
+     * <p>The second opinion is {@link JostleProvider#KEY_WRAP_ATTRIBUTE},
+     * written by hand at each wrap registration site. That is a separate
+     * declaration from the algorithm name, so comparing the two is not the
+     * provider checked against itself — which rules out any behavioural probe
+     * here, however convenient. Absence means not-wrap, so the check fails in
+     * BOTH directions by construction: a new wrap registration that omits the
+     * attribute, or that this dispatch has not been taught, diverges from
+     * {@link #isWrapName} instead of being driven the wrong way silently.
+     *
+     * <p>It used to read the SPI class name, which carried the mode only
+     * because the registered names were phantom concatenations
+     * ({@code …AES128WRAP}); MT-17 made them name the class actually
+     * constructed, so that declaration no longer exists.
      */
     private static void assertWrapRoutingAgreesWithTheRegistrar(Provider provider, String prefix,
                                                                 String keyAlg, SortedSet<String> registered)
     {
-        java.util.Map<String, String> classNames =
-                ProviderSurfaceGuard.registeredClassNames(provider, prefix, new String[]{"Cipher"});
+        java.util.Map<String, String> wrapAttr = ProviderSurfaceGuard.registeredAttribute(
+                provider, prefix, new String[]{"Cipher"}, JostleProvider.KEY_WRAP_ATTRIBUTE);
 
         SortedSet<String> byName = new java.util.TreeSet<String>();
-        SortedSet<String> byClass = new java.util.TreeSet<String>();
+        SortedSet<String> byAttribute = new java.util.TreeSet<String>();
 
         for (String entry : registered)
         {
@@ -150,19 +158,18 @@ public final class CipherSurfaceDriver
             {
                 byName.add(alg);
             }
-            String cn = classNames.get(entry);
-            if (cn != null && cn.toUpperCase(Locale.ROOT).contains("WRAP"))
+            if ("true".equals(wrapAttr.get(entry)))
             {
-                byClass.add(alg);
+                byAttribute.add(alg);
             }
         }
 
-        Assertions.assertEquals(byClass, byName,
+        Assertions.assertEquals(byAttribute, byName,
                 keyAlg + ": wrap routing disagrees with the registrar. Names the registrar"
-                        + " declared as wrap (by SPI class name) but this driver does not route"
-                        + " through wrap/unwrap, or vice versa. A name in the first set only is"
-                        + " being driven as a plain cipher and its wrap entry points are"
-                        + " unexercised.");
+                        + " declared as wrap (by " + JostleProvider.KEY_WRAP_ATTRIBUTE + ") but this"
+                        + " driver does not route through wrap/unwrap, or vice versa. A name in the"
+                        + " first set only is being driven as a plain cipher and its wrap entry"
+                        + " points are unexercised.");
     }
 
     /**
