@@ -78,9 +78,28 @@ class BlockCipherSpi extends CipherSpi
      */
     private final java.security.Provider providerInstance;
 
+    /**
+     * The parameter specs {@link #engineInit(int, Key, AlgorithmParameters,
+     * SecureRandom)} will ask an {@link AlgorithmParameters} for, <b>ordered
+     * most-informative first</b>. That ordering is the contract, not an
+     * accident of how the array was typed: the walk takes the FIRST spec the
+     * parameters agree to answer, so a less informative spec listed earlier
+     * silently discards whatever the later one would have carried.
+     * <p>
+     * Concretely, {@code GCMParameterSpec} carries a tag length and
+     * {@code IvParameterSpec} does not. With {@code IvParameterSpec} first,
+     * any AEAD parameters object that serves both — {@code
+     * CCMAlgorithmParameters} does — hands back a bare nonce, the tag length
+     * reverts to the mode default, and an AEAD decrypt then fails as a bad
+     * tag rather than as a parameter error. Measured before this ordering was
+     * fixed: a 96-bit tag encrypted as 128.
+     * <p>
+     * A new spec goes in at the position matching how much it carries, not at
+     * the end.
+     */
     Class[] availableSpecs = new Class[]{
-            IvParameterSpec.class,
             GCMParameterSpec.class,
+            IvParameterSpec.class,
     };
 
     BlockCipherSpi(Object params, String expectedKeyAlgorithm)
