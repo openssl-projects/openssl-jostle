@@ -27,7 +27,6 @@ import java.util.Map;
  */
 class ProvFIPSDSA
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.dsa.";
 
     private static final String ID_DSA_OID = "1.2.840.10040.4.1";
     private static final String ID_DSA_WITH_SHA1_OID = "1.2.840.10040.4.3";
@@ -40,24 +39,24 @@ class ProvFIPSDSA
         attr.put("SupportedKeyFormats", "PKCS#8|X.509");
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "DSA",
-                PREFIX + "DSAKeyPairGenerator", attr,
+                DSAKeyPairGenerator.class.getName(), attr,
                 (arg) -> new DSAKeyPairGenerator(
                         FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
                         provider));
         provider.addAlias("KeyPairGenerator", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DSA",
-                PREFIX + "DSAKeyFactorySpi", attr,
+                DSAKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("AlgorithmParameters", "DSA",
-                PREFIX + "DSAAlgorithmParameters", new HashMap<>(),
+                DSAAlgorithmParameters.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameters());
         provider.addAlias("AlgorithmParameters", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DSA",
-                PREFIX + "DSAAlgorithmParameterGenerator", new HashMap<>(),
+                DSAAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameterGenerator(
                         FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI));
         provider.addAlias("AlgorithmParameterGenerator", "DSA", ID_DSA_OID);
@@ -73,7 +72,7 @@ class ProvFIPSDSA
         registerDsaSignature(provider, attr, "SHA3-512withDSA", "SHA3-512", "2.16.840.1.101.3.4.3.8");
 
         provider.addAlgorithmImplementation("Signature", "NoneWithDSA",
-                PREFIX + "DSASignatureSpi$None", attr,
+                DSASignatureSpi.class.getName(), attr,
                 (arg) -> new DSASignatureSpi(FIPSNISelector.DSAServiceNI, keyFactory(provider), "NONE"));
     }
 
@@ -94,7 +93,7 @@ class ProvFIPSDSA
                                              String oid)
     {
         provider.addAlgorithmImplementation("Signature", name,
-                PREFIX + "DSASignatureSpi$" + name.replace("-", "_"), attr,
+                DSASignatureSpi.class.getName(), attr,
                 (arg) -> new DSASignatureSpi(FIPSNISelector.DSAServiceNI, keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
     }

@@ -29,7 +29,6 @@ import java.util.Set;
  */
 class ProvFIPSRand
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.rand.";
 
     public void configure(final JostleFIPSProvider provider)
     {
@@ -71,9 +70,8 @@ class ProvFIPSRand
     private static void addRand(final JostleFIPSProvider provider, RandAlgorithm algorithm, Map<String, String> attr)
     {
         String name = algorithm.getJcaName();
-        String clName = name.replace("-", "_").replace("/", "_");
         provider.addAlgorithmImplementation("SecureRandom", name,
-                PREFIX + "RandServiceSPI$" + clName, attr,
+                RandServiceSPI.class.getName(), attr,
                 (arg) -> createInstance(algorithm, arg));
     }
 

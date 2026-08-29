@@ -33,7 +33,6 @@ class ProvFIPSMac
         generalAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.mac.";
 
     public void configure(final JostleFIPSProvider provider)
     {
@@ -52,7 +51,7 @@ class ProvFIPSMac
 
         // AES CMAC -- the function name selects the cipher family; the actual
         // AES variant follows the key size (as in ProvMac).
-        provider.addAlgorithmImplementation("Mac", "AESCMAC", PREFIX + "MacServiceSPI$AESCMAC",
+        provider.addAlgorithmImplementation("Mac", "AESCMAC", MacServiceSPI.class.getName(),
                 generalAttributes, (arg) -> new MacServiceSPI(FIPSNISelector.MacServiceNI, "CMAC", "aes-cbc"));
 
         // AES GMAC -- registered UNCONDITIONALLY, unlike the gated families:
@@ -67,7 +66,7 @@ class ProvFIPSMac
         // already reports a native copy failure as CloneNotSupportedException,
         // which is the JCE-correct answer, so nothing is gated here; see
         // FIPSMacTest for the contract test that pins both branches.
-        provider.addAlgorithmImplementation("Mac", "AESGMAC", PREFIX + "MacServiceSPI$AESGMAC",
+        provider.addAlgorithmImplementation("Mac", "AESGMAC", MacServiceSPI.class.getName(),
                 generalAttributes, (arg) -> new MacServiceSPI(FIPSNISelector.MacServiceNI, "GMAC", "aes-gcm"));
         provider.addAlias("Mac", "AESGMAC", "AES-GMAC");
 
@@ -104,7 +103,7 @@ class ProvFIPSMac
     {
         String mainName = "KMAC" + size;
         String osslName = "KMAC-" + size;
-        provider.addAlgorithmImplementation("Mac", mainName, PREFIX + "MacServiceSPI$" + mainName,
+        provider.addAlgorithmImplementation("Mac", mainName, MacServiceSPI.class.getName(),
                 generalAttributes,
                 (arg) -> new MacServiceSPI(FIPSNISelector.MacServiceNI, osslName, osslName));
         provider.addAlias("Mac", mainName, osslName);
@@ -121,7 +120,7 @@ class ProvFIPSMac
     private void addMac(JostleFIPSProvider provider, String type, String name, String function)
     {
         String mainName = type + name;
-        String className = PREFIX + "MacServiceSPI$" + mainName.replace("-", "_").replace("/", "_");
+        String className = MacServiceSPI.class.getName();
         provider.addAlgorithmImplementation("Mac", mainName, className, generalAttributes,
                 (arg) -> new MacServiceSPI(FIPSNISelector.MacServiceNI, type, function));
         provider.addAlias("Mac", mainName, type + "-" + name, type + "/" + name);

@@ -22,7 +22,6 @@ import java.util.Map;
 
 class ProvDH
 {
-    private static final String PREFIX = ProvDH.class.getPackage().getName() + ".dh.";
 
     /**
      * PKCS#3 dhKeyAgreement OID — the algorithm identifier in X.509
@@ -58,14 +57,14 @@ class ProvDH
         // same orientation SunJCE uses in reverse. Lookups are
         // case-insensitive so both spellings resolve either way.
         provider.addAlgorithmImplementation("KeyPairGenerator", "DH",
-                PREFIX + "DHKeyPairGenerator", attr,
+                DHKeyPairGenerator.class.getName(), attr,
                 (arg) -> new DHKeyPairGenerator(
                         NISelector.DHServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DH",
-                PREFIX + "DHKeyFactorySpi", attr,
+                DHKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
@@ -73,19 +72,19 @@ class ProvDH
         // AlgorithmParameters DH — PKCS#3 DHParameter codec delegated
         // to the platform (SunJCE).
         provider.addAlgorithmImplementation("AlgorithmParameters", "DH",
-                PREFIX + "DHAlgorithmParameters", new HashMap<>(),
+                DHAlgorithmParameters.class.getName(), new HashMap<>(),
                 (arg) -> new DHAlgorithmParameters());
         provider.addAlias("AlgorithmParameters", "DH",
                 "DiffieHellman", PKCS3_DH_OID);
 
         // AlgorithmParameterGenerator DH — native safe-prime paramgen.
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DH",
-                PREFIX + "DHAlgorithmParameterGenerator", new HashMap<>(),
+                DHAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
                 (arg) -> new DHAlgorithmParameterGenerator());
         provider.addAlias("AlgorithmParameterGenerator", "DH", "DiffieHellman");
 
         provider.addAlgorithmImplementation("KeyAgreement", "DH",
-                PREFIX + "DHKeyAgreementSpi", attr,
+                DHKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new DHKeyAgreementSpi(NISelector.DHServiceNI, keyFactory(provider)));
         provider.addAlias("KeyAgreement", "DH",
                 "DiffieHellman", PKCS3_DH_OID);
@@ -94,7 +93,7 @@ class ProvDH
         // SHA-1). id-alg-ESDH and id-alg-SSDH both resolve here so
         // KeyAgreeRecipientInfo for finite-field DH works.
         provider.addAlgorithmImplementation("KeyAgreement", "DHWITHRFC2631KDF",
-                PREFIX + "DHWithKDFKeyAgreementSpi", attr,
+                DHWithKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new DHWithKDFKeyAgreementSpi(NISelector.DHServiceNI,
                         keyFactory(provider), "SHA-1", JostleProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "DHWITHRFC2631KDF",

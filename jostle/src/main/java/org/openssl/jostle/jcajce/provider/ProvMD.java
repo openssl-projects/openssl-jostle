@@ -21,7 +21,6 @@ import static org.openssl.jostle.OpenSSLNameUtil.parseOpenSSLDefString;
 
 public class ProvMD
 {
-    private static final String PREFIX = ProvMD.class.getPackage().getName() + ".md.";
 
     public void configure(final JostleProvider provider)
     {
@@ -85,7 +84,7 @@ public class ProvMD
                 }
             }
             String clName = name.replace("-", "_").replace("/", "_");
-            provider.addAlgorithmImplementation("MessageDigest", name, PREFIX + "MDServiceSPI$" + clName, attr, (arg) -> new MDServiceSPI(name, xofLen));
+            provider.addAlgorithmImplementation("MessageDigest", name, MDServiceSPI.class.getName(), attr, (arg) -> new MDServiceSPI(name, xofLen));
             provider.addAlias("MessageDigest", name, keyAliasMap.get(name));
         }
 
@@ -96,8 +95,8 @@ public class ProvMD
         // has no digest with these names, so map them onto the SHAKE-128 / SHAKE-256
         // primitives with the corresponding fixed XOF output length (256 / 512 bits).
         //
-        provider.addAlgorithmImplementation("MessageDigest", "SHAKE128-256", PREFIX + "MDServiceSPI$SHAKE128_256", attr, (arg) -> new MDServiceSPI("SHAKE-128", 32));
-        provider.addAlgorithmImplementation("MessageDigest", "SHAKE256-512", PREFIX + "MDServiceSPI$SHAKE256_512", attr, (arg) -> new MDServiceSPI("SHAKE-256", 64));
+        provider.addAlgorithmImplementation("MessageDigest", "SHAKE128-256", MDServiceSPI.class.getName(), attr, (arg) -> new MDServiceSPI("SHAKE-128", 32));
+        provider.addAlgorithmImplementation("MessageDigest", "SHAKE256-512", MDServiceSPI.class.getName(), attr, (arg) -> new MDServiceSPI("SHAKE-256", 64));
     }
 
 

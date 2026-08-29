@@ -31,11 +31,10 @@ class ProvArgon2KDF
 {
     private static final Map<String, String> generalKDFAttributes = new HashMap<String, String>();
 
-    private static final String PREFIX = ProvArgon2KDF.class.getName();
 
     public void configure(final JostleProvider provider)
     {
-        provider.addAlgorithmImplementation("SecretKeyFactory", "ARGON2", PREFIX + "Argon2",
+        provider.addAlgorithmImplementation("SecretKeyFactory", "ARGON2", Argon2SecretKeyFactory.class.getName(),
                 generalKDFAttributes, (arg) -> new Argon2SecretKeyFactory());
     }
 }

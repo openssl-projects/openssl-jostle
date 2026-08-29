@@ -44,8 +44,6 @@ class ProvChaCha20
      */
     private static final String CHACHA20_POLY1305_OID = "1.2.840.113549.1.9.16.3.18";
 
-    private static final String PREFIX = ProvChaCha20.class.getName();
-
     public void configure(final JostleProvider provider)
     {
         // CLAUDE.md "resilient configure()": wrap each registration so one
@@ -58,7 +56,7 @@ class ProvChaCha20
         // (12-byte-nonce) engine.
         safeRegister("Cipher.ChaCha20", () ->
                 provider.addAlgorithmImplementation("Cipher", "ChaCha20",
-                        PREFIX + "ChaCha20", generalAttributes, (arg) -> new ChaCha20BlockCipherSpi(provider)));
+                        ChaCha20BlockCipherSpi.class.getName(), generalAttributes, (arg) -> new ChaCha20BlockCipherSpi(provider)));
         safeRegister("Cipher.CHACHA7539 (alias of ChaCha20)", () ->
                 provider.addAlias("Cipher", "ChaCha20", "CHACHA7539"));
 
@@ -69,7 +67,7 @@ class ProvChaCha20
         // OID is a separate alias to avoid a duplicate-key collision at load.
         safeRegister("Cipher.ChaCha20-Poly1305", () ->
                 provider.addAlgorithmImplementation("Cipher", "ChaCha20-Poly1305",
-                        PREFIX + "ChaCha20Poly1305", generalAttributes, (arg) -> new ChaCha20Poly1305CipherSpi(provider)));
+                        ChaCha20Poly1305CipherSpi.class.getName(), generalAttributes, (arg) -> new ChaCha20Poly1305CipherSpi(provider)));
         safeRegister("Cipher." + CHACHA20_POLY1305_OID + " (OID alias)", () ->
                 provider.addAlias("Cipher", "ChaCha20-Poly1305", CHACHA20_POLY1305_OID));
 
@@ -77,7 +75,7 @@ class ProvChaCha20
         // (one ChaCha20 key type — the BouncyCastle model).
         safeRegister("KeyGenerator.ChaCha20", () ->
                 provider.addAlgorithmImplementation("KeyGenerator", "ChaCha20",
-                        PREFIX + "ChaCha20KeyGen", generalAttributes, (arg) -> new ChaCha20KeyGenerator()));
+                        ChaCha20KeyGenerator.class.getName(), generalAttributes, (arg) -> new ChaCha20KeyGenerator()));
         safeRegister("KeyGenerator.ChaCha20-Poly1305 (alias of ChaCha20)", () ->
                 provider.addAlias("KeyGenerator", "ChaCha20", "ChaCha20-Poly1305", CHACHA20_POLY1305_OID));
     }

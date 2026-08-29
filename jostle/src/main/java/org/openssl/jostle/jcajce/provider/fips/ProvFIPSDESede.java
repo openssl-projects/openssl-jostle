@@ -64,7 +64,6 @@ class ProvFIPSDESede
      */
     private static final String DES_EDE3_CBC_OID = "1.2.840.113549.3.7";
 
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.ProvDESede";
 
     private static final Map<String, String> generalAttributes = new HashMap<String, String>();
 
@@ -84,7 +83,7 @@ class ProvFIPSDESede
         // Bare "DESede" — JCE form-4 fallback: engineSetMode / engineSetPadding
         // run with whatever the caller put in the transformation string.
         safeRegister("Cipher.DESede", () ->
-                provider.addAlgorithmImplementation("Cipher", "DESede", PREFIX + "Base",
+                provider.addAlgorithmImplementation("Cipher", "DESede", DESedeBlockCipherSpi.class.getName(),
                         generalAttributes, (arg) -> new DESedeBlockCipherSpi(FIPSNISelector.BlockCipherNI, provider)));
 
         safeRegister("Cipher.TripleDES (alias of DESede)", () ->
@@ -96,7 +95,7 @@ class ProvFIPSDESede
         // "form-1 alias vs form-4 fallback").
         safeRegister("Cipher." + DES_EDE3_CBC_OID + " (OID, CBC-locked)", () ->
                 provider.addAlgorithmImplementation("Cipher", DES_EDE3_CBC_OID,
-                        PREFIX + "DESedeCBC", generalAttributes,
+                        DESedeBlockCipherSpi.class.getName(), generalAttributes,
                         (arg) -> new DESedeBlockCipherSpi(FIPSNISelector.BlockCipherNI,
                                 OSSLCipher.DES_EDE3, OSSLMode.CBC, provider)));
 
@@ -104,7 +103,7 @@ class ProvFIPSDESede
         // DEFAULT SecureRandom service) rather than a JDK SecureRandom.
         safeRegister("KeyGenerator.DESede", () ->
                 provider.addAlgorithmImplementation("KeyGenerator", "DESede",
-                        PREFIX + "KeyGen", generalAttributes,
+                        DESedeKeyGenerator.class.getName(), generalAttributes,
                         (arg) -> new DESedeKeyGenerator(provider.getDefaultSecureRandom())));
         safeRegister("KeyGenerator.TripleDES (alias of DESede)", () ->
                 provider.addAlias("KeyGenerator", "DESede", "TripleDES"));

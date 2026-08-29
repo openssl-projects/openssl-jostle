@@ -289,9 +289,9 @@ public class ECDSASignatureSpi extends SignatureSpi
     }
 
 
-    // ProvEC registers each digest variant via lambda — the inner
-    // classes below give className-attribute consumers a stable Class<?>
-    // per digest.
+    // Unused since MT-17 rekeyed creatorMap: the registrations construct
+    // the parent with a digest argument, so these name nothing. Retained
+    // pending the API-removal decision.
 
     public static class SHA1 extends ECDSASignatureSpi
     {

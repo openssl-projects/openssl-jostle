@@ -35,7 +35,6 @@ class ProvSSHKDF
         generalKDFAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = ProvSSHKDF.class.getName();
 
     public void configure(final JostleProvider provider)
     {
@@ -49,7 +48,7 @@ class ProvSSHKDF
     private static void add(JostleProvider provider, String suffix, String digest)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "SSHKDF-" + suffix,
-                PREFIX + suffix, generalKDFAttributes,
+                SSHKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new SSHKDFSecretKeyFactory(digest));
     }
 }

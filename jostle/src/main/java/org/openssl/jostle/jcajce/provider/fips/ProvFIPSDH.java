@@ -27,7 +27,6 @@ import java.util.Map;
  */
 class ProvFIPSDH
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.dh.";
 
     private static final String PKCS3_DH_OID = "1.2.840.113549.1.3.1";
     private static final String X942_DH_OID = "1.2.840.10046.2.1";
@@ -42,7 +41,7 @@ class ProvFIPSDH
         attr.put("SupportedKeyFormats", "PKCS#8|X.509");
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "DH",
-                PREFIX + "DHKeyPairGenerator", attr,
+                DHKeyPairGenerator.class.getName(), attr,
                 (arg) -> new DHKeyPairGenerator(
                         FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
                         provider));
@@ -50,31 +49,31 @@ class ProvFIPSDH
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DH",
-                PREFIX + "DHKeyFactorySpi", attr,
+                DHKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
         provider.addAlgorithmImplementation("AlgorithmParameters", "DH",
-                PREFIX + "DHAlgorithmParameters", new HashMap<>(),
+                DHAlgorithmParameters.class.getName(), new HashMap<>(),
                 (arg) -> new DHAlgorithmParameters());
         provider.addAlias("AlgorithmParameters", "DH",
                 "DiffieHellman", PKCS3_DH_OID);
 
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DH",
-                PREFIX + "DHAlgorithmParameterGenerator", new HashMap<>(),
+                DHAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
                 (arg) -> new DHAlgorithmParameterGenerator(
                         FIPSNISelector.DHServiceNI, FIPSNISelector.SpecNI));
         provider.addAlias("AlgorithmParameterGenerator", "DH", "DiffieHellman");
 
         provider.addAlgorithmImplementation("KeyAgreement", "DH",
-                PREFIX + "DHKeyAgreementSpi", attr,
+                DHKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new DHKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory(provider)));
         provider.addAlias("KeyAgreement", "DH",
                 "DiffieHellman", PKCS3_DH_OID);
 
         provider.addAlgorithmImplementation("KeyAgreement", "DHWITHRFC2631KDF",
-                PREFIX + "DHWithKDFKeyAgreementSpi", attr,
+                DHWithKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new DHWithKDFKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory(provider),
                         "SHA-1", JostleFIPSProvider.PROVIDER_NAME));
         provider.addAlias("KeyAgreement", "DHWITHRFC2631KDF",

@@ -46,8 +46,6 @@ class ProvDESede
      */
     private static final String DES_EDE3_CBC_OID = "1.2.840.113549.3.7";
 
-    private static final String PREFIX = ProvDESede.class.getName();
-
     public void configure(final JostleProvider provider)
     {
         // CLAUDE.md "Provider registration: resilient configure()":
@@ -61,7 +59,7 @@ class ProvDESede
         // engineSetPadding will be called with whatever the caller
         // specified in the transformation string.
         safeRegister("Cipher.DESede", () ->
-                provider.addAlgorithmImplementation("Cipher", "DESede", PREFIX + "Base",
+                provider.addAlgorithmImplementation("Cipher", "DESede", DESedeBlockCipherSpi.class.getName(),
                         generalAttributes, (arg) -> new DESedeBlockCipherSpi(provider)));
 
         // "TripleDES" is the JCE-standard alias.
@@ -75,12 +73,12 @@ class ProvDESede
         // distinct primary SPI for the OID with the mode pre-set.
         safeRegister("Cipher." + DES_EDE3_CBC_OID + " (OID, CBC-locked)", () ->
                 provider.addAlgorithmImplementation("Cipher", DES_EDE3_CBC_OID,
-                        PREFIX + "DESedeCBC", generalAttributes,
+                        DESedeBlockCipherSpi.class.getName(), generalAttributes,
                         (arg) -> new DESedeBlockCipherSpi(OSSLCipher.DES_EDE3, OSSLMode.CBC, provider)));
 
         safeRegister("KeyGenerator.DESede", () ->
                 provider.addAlgorithmImplementation("KeyGenerator", "DESede",
-                        PREFIX + "KeyGen", generalAttributes, (arg) -> new DESedeKeyGenerator()));
+                        DESedeKeyGenerator.class.getName(), generalAttributes, (arg) -> new DESedeKeyGenerator()));
         safeRegister("KeyGenerator.TripleDES (alias of DESede)", () ->
                 provider.addAlias("KeyGenerator", "DESede", "TripleDES"));
     }

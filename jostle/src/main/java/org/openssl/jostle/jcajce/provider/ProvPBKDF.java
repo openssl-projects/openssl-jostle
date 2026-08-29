@@ -25,33 +25,32 @@ class ProvPBKDF
         generalKDFAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = ProvPBKDF.class.getName();
 
     public void configure(final JostleProvider provider)
     {
 
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PREFIX + "Base", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory());
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA1", PREFIX + "BaseSHA1", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-1"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA224", PREFIX + "BaseSHA224", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-224"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA256", PREFIX + "BaseSHA256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-256"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA384", PREFIX + "BaseSHA384", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-384"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512", PREFIX + "BaseSHA512", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory());
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA1", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-1"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA224", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-224"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA256", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA384", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-384"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512"));
 
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-224", PREFIX + "BaseSHA512_224", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/224"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-256", PREFIX + "BaseSHA512_256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-224", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/224"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-256", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/256"));
 
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-224", PREFIX + "BaseSHA3_224", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-224"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-256", PREFIX + "BaseSHA3_256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-256"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-384", PREFIX + "BaseSHA3_384", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-384"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-512", PREFIX + "BaseSHA3_512", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-512"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-224", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-224"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-256", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-384", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-384"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA3-512", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA3-512"));
 
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACBLAKE2B-512", PREFIX + "BLAKE2B_512", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("BLAKE2B-512"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACBLAKE2S-256", PREFIX + "BLAKE2S_256", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("BLAKE2s-256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACBLAKE2B-512", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("BLAKE2B-512"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACBLAKE2S-256", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("BLAKE2s-256"));
 
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSM3", PREFIX + "SM3", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SM3"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACMD5", PREFIX + "MD5", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("MD5"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACMD5-SHA1", PREFIX + "MD5_SHA1", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("MD5-SHA1"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACRIPEMD160", PREFIX + "RIPEMD160", generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("RIPEMD160"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSM3", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SM3"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACMD5", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("MD5"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACMD5-SHA1", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("MD5-SHA1"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACRIPEMD160", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("RIPEMD160"));
 
     }
 }

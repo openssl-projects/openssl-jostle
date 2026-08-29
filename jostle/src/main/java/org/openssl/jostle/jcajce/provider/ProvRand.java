@@ -20,7 +20,6 @@ import java.util.Map;
 
 class ProvRand
 {
-    private static final String PREFIX = ProvRand.class.getPackage().getName() + ".rand.";
 
     public void configure(final JostleProvider provider)
     {
@@ -37,9 +36,8 @@ class ProvRand
     private static void addRand(final JostleProvider provider, RandAlgorithm algorithm, Map<String, String> attr)
     {
         String name = algorithm.getJcaName();
-        String clName = name.replace("-", "_").replace("/", "_");
         provider.addAlgorithmImplementation("SecureRandom", name,
-                PREFIX + "RandServiceSPI$" + clName, attr,
+                RandServiceSPI.class.getName(), attr,
                 (arg) -> createInstance(algorithm, arg));
     }
 

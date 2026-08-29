@@ -25,7 +25,6 @@ class ProvMac
         generalAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = ProvMac.class.getPackage().getName() + ".mac.";
 
     public void configure(final JostleProvider provider)
     {
@@ -49,7 +48,7 @@ class ProvMac
         addMac(provider, "HMAC", "RIPEMD160", "RIPEMD-160");
 
         // AES CMAC -- note function _AES is just a placeholder, actual function is selected based on key size
-        provider.addAlgorithmImplementation("Mac", "AESCMAC", PREFIX + "MacServiceSPI$AESCMAC",
+        provider.addAlgorithmImplementation("Mac", "AESCMAC", MacServiceSPI.class.getName(),
                 generalAttributes, (arg) -> new MacServiceSPI("CMAC", "aes-cbc"));
 
         // AES GMAC (NIST SP 800-38D) -- GCM with no plaintext, so every input
@@ -65,7 +64,7 @@ class ProvMac
         // deliberately NOT registered here. Each names a key size, but the tag
         // and cipher variant follow the key the caller supplies, so an
         // OID-named service could not enforce the size its own name claims.
-        provider.addAlgorithmImplementation("Mac", "AESGMAC", PREFIX + "MacServiceSPI$AESGMAC",
+        provider.addAlgorithmImplementation("Mac", "AESGMAC", MacServiceSPI.class.getName(),
                 generalAttributes, (arg) -> new MacServiceSPI("GMAC", "aes-gcm"));
         provider.addAlias("Mac", "AESGMAC", "AES-GMAC");
 
@@ -73,7 +72,7 @@ class ProvMac
         // The function name is a placeholder (Poly1305 takes no cipher/digest);
         // the C POLY1305 branch ignores it. Uppercase "POLY1305" matches the
         // BouncyCastle registration name.
-        provider.addAlgorithmImplementation("Mac", "POLY1305", PREFIX + "MacServiceSPI$POLY1305",
+        provider.addAlgorithmImplementation("Mac", "POLY1305", MacServiceSPI.class.getName(),
                 generalAttributes, (arg) -> new MacServiceSPI("POLY1305", "POLY1305"));
 
         addKmac(provider, "128");
@@ -102,7 +101,7 @@ class ProvMac
     {
         String mainName = "KMAC" + size;
         String osslName = "KMAC-" + size;
-        provider.addAlgorithmImplementation("Mac", mainName, PREFIX + "MacServiceSPI$" + mainName,
+        provider.addAlgorithmImplementation("Mac", mainName, MacServiceSPI.class.getName(),
                 generalAttributes, (arg) -> new MacServiceSPI(osslName, osslName));
         provider.addAlias("Mac", mainName, osslName);
         if ("128".equals(size))
@@ -118,7 +117,7 @@ class ProvMac
     private void addMac(JostleProvider provider, String type, String name, String function)
     {
         String mainName = type + name;
-        String className = PREFIX + "MacServiceSPI$" + mainName.replace("-", "_").replace("/", "_");
+        String className = MacServiceSPI.class.getName();
         provider.addAlgorithmImplementation("Mac", mainName, className, generalAttributes, (arg) -> new MacServiceSPI(type, function));
         provider.addAlias("Mac", mainName, type + "-" + name, type + "/" + name);
     }

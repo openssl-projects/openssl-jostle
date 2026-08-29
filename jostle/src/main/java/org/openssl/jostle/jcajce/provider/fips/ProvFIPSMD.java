@@ -31,7 +31,6 @@ import static org.openssl.jostle.OpenSSLNameUtil.parseOpenSSLDefString;
  */
 class ProvFIPSMD
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.md.";
 
     public void configure(final JostleFIPSProvider provider)
     {
@@ -75,7 +74,7 @@ class ProvFIPSMD
                 }
             }
             String clName = name.replace("-", "_").replace("/", "_");
-            provider.addAlgorithmImplementation("MessageDigest", name, PREFIX + "MDServiceSPI$" + clName, attr,
+            provider.addAlgorithmImplementation("MessageDigest", name, MDServiceSPI.class.getName(), attr,
                     (arg) -> new MDServiceSPI(FIPSNISelector.MDServiceNI, name, xofLen));
             provider.addAlias("MessageDigest", name, keyAliasMap.get(name).toArray(new String[0]));
         }
@@ -84,9 +83,9 @@ class ProvFIPSMD
         // Fixed-output SHAKE variants, mirroring ProvMD (BouncyCastle's
         // CMS/PKIX layer requests these by name).
         //
-        provider.addAlgorithmImplementation("MessageDigest", "SHAKE128-256", PREFIX + "MDServiceSPI$SHAKE128_256", attr,
+        provider.addAlgorithmImplementation("MessageDigest", "SHAKE128-256", MDServiceSPI.class.getName(), attr,
                 (arg) -> new MDServiceSPI(FIPSNISelector.MDServiceNI, "SHAKE-128", 32));
-        provider.addAlgorithmImplementation("MessageDigest", "SHAKE256-512", PREFIX + "MDServiceSPI$SHAKE256_512", attr,
+        provider.addAlgorithmImplementation("MessageDigest", "SHAKE256-512", MDServiceSPI.class.getName(), attr,
                 (arg) -> new MDServiceSPI(FIPSNISelector.MDServiceNI, "SHAKE-256", 64));
     }
 }

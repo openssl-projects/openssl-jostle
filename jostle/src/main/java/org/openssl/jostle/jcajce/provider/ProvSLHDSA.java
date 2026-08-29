@@ -24,7 +24,6 @@ import java.util.Map;
 
 class ProvSLHDSA
 {
-    private static final String PREFIX = ProvSLHDSA.class.getPackage().getName() + ".slhdsa.";
 
     public void configure(final JostleProvider provider)
     {
@@ -59,44 +58,44 @@ class ProvSLHDSA
 
 
         final Map<String, String> slhdsaKeyGenAttr = new HashMap<String, String>();
-        provider.addAlgorithmImplementation("KeyPairGenerator", "SLHDSA", PREFIX + "SLHDSAKeyPairGenerator", slhdsaKeyGenAttr, (arg) -> keyPairGenerator(provider, "SLH-DSA"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "SLHDSA", SLHDSAKeyPairGenerator.class.getName(), slhdsaKeyGenAttr, (arg) -> keyPairGenerator(provider, "SLH-DSA"));
         provider.addAlias("KeyPairGenerator", "SLHDSA", "SLH-DSA");
 
-        provider.addAlgorithmImplementation("KeyFactory", "SLHDSA", PREFIX + "SLHDSAKeyFactory", slhdsaKeyGenAttr, (arg) -> keyFactory(provider, OSSLKeyType.NONE));
+        provider.addAlgorithmImplementation("KeyFactory", "SLHDSA", SLHDSAKeyFactorySpi.class.getName(), slhdsaKeyGenAttr, (arg) -> keyFactory(provider, OSSLKeyType.NONE));
         provider.addAlias("KeyFactory", "SLHDSA", "SLH-DSA");
 
 
         SLHDSAParameterSpec.getParameterNames().forEach(name ->
         {
-            provider.addAlgorithmImplementation("KeyPairGenerator", name, PREFIX + "SLHDSAKeyPairGeneratorSpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> keyPairGenerator(provider, name));
-            provider.addAlgorithmImplementation("KeyFactory", name, PREFIX + "SLHDSAKeyFactorySpi$" + name.replace("-", "_"), slhdsaKeyGenAttr, (arg) -> keyFactory(provider, SLHDSAParameterSpec.fromName(name).getKeyType()));
+            provider.addAlgorithmImplementation("KeyPairGenerator", name, SLHDSAKeyPairGenerator.class.getName(), slhdsaKeyGenAttr, (arg) -> keyPairGenerator(provider, name));
+            provider.addAlgorithmImplementation("KeyFactory", name, SLHDSAKeyFactorySpi.class.getName(), slhdsaKeyGenAttr, (arg) -> keyFactory(provider, SLHDSAParameterSpec.fromName(name).getKeyType()));
         });
 
         final Map<String, String> slhdsaSigAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("Signature", "SLHDSA", PREFIX + "SLHDSASignatureSpi$SLHDSA", slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
+        provider.addAlgorithmImplementation("Signature", "SLHDSA", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.PURE,
                         SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
         provider.addAlias("Signature", "SLHDSA", "SLH-DSA");
 
-        provider.addAlgorithmImplementation("Signature", "SLH-DSA-PURE", PREFIX + "SLHDSASignatureSpi$SLHDSA_Pure", slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
+        provider.addAlgorithmImplementation("Signature", "SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.PURE,
                         SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
-        provider.addAlgorithmImplementation("Signature", "SLH-DSA-NONE", PREFIX + "SLHDSASignatureSpi$SLHDSA_None", slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
+        provider.addAlgorithmImplementation("Signature", "SLH-DSA-NONE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.NONE,
                         SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
 
-        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-PURE", PREFIX + "SLHDSASignatureSpi$SLHDSADetPure", slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
+        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.PURE,
                         SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
-        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-NONE", PREFIX + "SLHDSASignatureSpi$SLHDSADetNone", slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
+        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-NONE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.NONE,
                         SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
 
 
         for (String algName : algNames)
         {
-            provider.addAlgorithmImplementation("Signature", algName, PREFIX + "SLHDSASignatureSpi$" + algName.replace("-", "_"), slhdsaSigAttr, (arg) -> signature(provider, SLHDSAParameterSpec.fromName(algName).getKeyType(),
+            provider.addAlgorithmImplementation("Signature", algName, SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, SLHDSAParameterSpec.fromName(algName).getKeyType(),
                         SLHDSASignatureSpi.MessageEncoding.PURE,
                         SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
         }

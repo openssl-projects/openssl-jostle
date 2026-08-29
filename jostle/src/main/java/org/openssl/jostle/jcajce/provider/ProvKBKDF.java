@@ -42,7 +42,6 @@ class ProvKBKDF
         generalKDFAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = ProvKBKDF.class.getName();
 
     public void configure(final JostleProvider provider)
     {
@@ -60,14 +59,14 @@ class ProvKBKDF
     private static void addHmac(JostleProvider provider, String suffix, String digest)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-HMAC-" + suffix,
-                PREFIX + "HMAC" + suffix, generalKDFAttributes,
+                KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new KBKDFSecretKeyFactory(KBKDFSecretKeyFactory.HMAC, digest, null));
     }
 
     private static void addCmac(JostleProvider provider, String suffix, String cipher)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-CMAC-" + suffix,
-                PREFIX + "CMAC" + suffix, generalKDFAttributes,
+                KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new KBKDFSecretKeyFactory(KBKDFSecretKeyFactory.CMAC, null, cipher));
     }
 }

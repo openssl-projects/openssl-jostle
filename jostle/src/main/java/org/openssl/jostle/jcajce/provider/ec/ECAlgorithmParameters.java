@@ -66,9 +66,9 @@ public class ECAlgorithmParameters
             // would let a JSLFIPS-first deployment resolve getInstance
             // back into this class and recurse to StackOverflowError.
             // Match by SPI package, not provider name, so every current
-            // and future Jostle-derived provider is guarded (the
-            // registered class-name string is not always the concrete
-            // class, so a package-prefix test is used, not exact match).
+            // and future Jostle-derived provider is guarded. A package
+            // prefix, not an exact class match: several Jostle classes
+            // serve this type and a new one must be skipped too.
             Provider.Service svc = p.getService("AlgorithmParameters", "EC");
             if (svc == null)
             {

@@ -59,9 +59,10 @@ public class RSASignatureSpi extends RSASignatureSpiBase
     }
 
 
-    // ProvRSA registers each digest variant via lambda — the inner
-    // classes below give checkstyle / className-attribute consumers
-    // a stable Class<?> per digest.
+    // The DIGEST subclasses below are unused since MT-17 rekeyed creatorMap:
+    // ProvRSA constructs the parent with a digest argument. Retained pending
+    // the API-removal decision. None, further down, IS constructed — it
+    // overrides the native init and is not substitutable by the parent.
 
     public static class MD5 extends RSASignatureSpi
     {

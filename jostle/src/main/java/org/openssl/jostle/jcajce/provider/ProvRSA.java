@@ -18,8 +18,6 @@ import java.util.Map;
 
 class ProvRSA
 {
-    private static final String PREFIX = ProvRSA.class.getPackage().getName() + ".rsa.";
-
     /** ISO 18033-2 {@code id-kem-rsa}, the OID CMS names in KEMRecipientInfo.kem. */
     static final String ID_KEM_RSA = "1.0.18033.2.2.4";
     /** PKCS-arc {@code id-rsa-KEM}, used when an RSA-KEM SPKI names the cipher (RFC 9690 s3.3). */
@@ -34,14 +32,14 @@ class ProvRSA
 
         // KeyPairGenerator.
         provider.addAlgorithmImplementation("KeyPairGenerator", "RSA",
-                PREFIX + "RSAKeyPairGenerator", attr,
+                RSAKeyPairGenerator.class.getName(), attr,
                 (arg) -> new RSAKeyPairGenerator(
                         NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
 
         // KeyFactory.
         provider.addAlgorithmImplementation("KeyFactory", "RSA",
-                PREFIX + "RSAKeyFactorySpi", attr,
+                RSAKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
         // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
@@ -56,38 +54,38 @@ class ProvRSA
         // PKCS#1 v1.5 Signature variants. MD5 is registered for legacy
         // interop only — callers should prefer SHA-2 / SHA-3 family.
         registerPkcs1Signature(provider, attr,
-                "MD5withRSA", "MD5", RSASignatureSpi.MD5.class, "1.2.840.113549.1.1.4");
+                "MD5withRSA", "MD5", "1.2.840.113549.1.1.4");
         registerPkcs1Signature(provider, attr,
-                "SHA1withRSA", "SHA-1", RSASignatureSpi.SHA1.class, "1.2.840.113549.1.1.5");
+                "SHA1withRSA", "SHA-1", "1.2.840.113549.1.1.5");
         registerPkcs1Signature(provider, attr,
-                "SHA224withRSA", "SHA-224", RSASignatureSpi.SHA224.class, "1.2.840.113549.1.1.14");
+                "SHA224withRSA", "SHA-224", "1.2.840.113549.1.1.14");
         registerPkcs1Signature(provider, attr,
-                "SHA256withRSA", "SHA-256", RSASignatureSpi.SHA256.class, "1.2.840.113549.1.1.11");
+                "SHA256withRSA", "SHA-256", "1.2.840.113549.1.1.11");
         registerPkcs1Signature(provider, attr,
-                "SHA384withRSA", "SHA-384", RSASignatureSpi.SHA384.class, "1.2.840.113549.1.1.12");
+                "SHA384withRSA", "SHA-384", "1.2.840.113549.1.1.12");
         registerPkcs1Signature(provider, attr,
-                "SHA512withRSA", "SHA-512", RSASignatureSpi.SHA512.class, "1.2.840.113549.1.1.13");
+                "SHA512withRSA", "SHA-512", "1.2.840.113549.1.1.13");
         registerPkcs1Signature(provider, attr,
-                "SHA3-224withRSA", "SHA3-224", RSASignatureSpi.SHA3_224.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_224.getId());
+                "SHA3-224withRSA", "SHA3-224", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_224.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA3-256withRSA", "SHA3-256", RSASignatureSpi.SHA3_256.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_256.getId());
+                "SHA3-256withRSA", "SHA3-256", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_256.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA3-384withRSA", "SHA3-384", RSASignatureSpi.SHA3_384.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_384.getId());
+                "SHA3-384withRSA", "SHA3-384", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_384.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA3-512withRSA", "SHA3-512", RSASignatureSpi.SHA3_512.class, NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId());
+                "SHA3-512withRSA", "SHA3-512", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId());
 
         // Raw PKCS#1 v1.5 ("NoneWithRSA"): the caller has already formed the
         // bytes to sign (e.g. a DigestInfo), so there is no per-digest OID to
         // alias. Required by TLS 1.3's externally-hashed RSA CertificateVerify
         // (BouncyCastle's JcaTlsRSASigner.getRawSigner()).
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
-                PREFIX + "RSASignatureSpi$None", attr,
+                RSASignatureSpi.None.class.getName(), attr,
                 (arg) -> new RSASignatureSpi.None(NISelector.RSAServiceNI,
                         keyFactory(provider)));
 
         // RSASSA-PSS — parameters carried via PSSParameterSpec.
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
-                PREFIX + "RSAPSSSignatureSpi", attr,
+                RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI, keyFactory(provider)));
         provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
 
@@ -124,7 +122,7 @@ class ProvRSA
         // engineSetPadding, where the digest is parsed out of the name.
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
-                PREFIX + "RSAOAEPCipherSpi", cipherAttr,
+                RSAOAEPCipherSpi.class.getName(), cipherAttr,
                 (arg) -> new RSAOAEPCipherSpi(NISelector.RSAOAEPCipherNI, keyFactory(provider)));
         provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
 
@@ -134,7 +132,7 @@ class ProvRSA
         // RSA-OAEP SPI rejects the "PKCS1Padding" padding string.
         Map<String, String> pkcs1Attr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA/ECB/PKCS1Padding",
-                PREFIX + "RSAPKCS1CipherSpi", pkcs1Attr,
+                RSAPKCS1CipherSpi.class.getName(), pkcs1Attr,
                 (arg) -> new RSAPKCS1CipherSpi(NISelector.RSAPKCS1CipherNI, keyFactory(provider)));
         provider.addAlias("Cipher", "RSA/ECB/PKCS1Padding", "RSA/None/PKCS1Padding");
 
@@ -152,7 +150,7 @@ class ProvRSA
         //                                                (RFC 9690 s3.3)
         Map<String, String> ktsAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
-                PREFIX + "RSAKEMCipherSpi", ktsAttr,
+                RSAKEMCipherSpi.class.getName(), ktsAttr,
                 (arg) -> new RSAKEMCipherSpi(keyFactory(provider), NISelector.SpecNI));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
                 ID_KEM_RSA, ID_RSA_KEM);
@@ -169,12 +167,8 @@ class ProvRSA
                                              String opensslDigest)
     {
         String mgf1Name = digestJcaName + "WITHRSAANDMGF1";
-        // Unique creatorMap key per digest (the map is keyed by this class-name
-        // string; reusing the bare SPI name collides with the generic RSASSA-PSS
-        // registration and the other per-digest entries).
-        String implName = PREFIX + "RSAPSSSignatureSpi$" + digestJcaName.replace("-", "_");
         provider.addAlgorithmImplementation("Signature", mgf1Name,
-                implName, attr,
+                RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI,
                         keyFactory(provider), opensslDigest));
         provider.addAlias("Signature", mgf1Name, digestJcaName + "WITHRSASSA-PSS");
@@ -184,15 +178,10 @@ class ProvRSA
                                                Map<String, String> attr,
                                                String name,
                                                String digestName,
-                                               Class<?> spiClass,
                                                String oid)
     {
-        // Use the fully-qualified binary name (e.g. ...rsa.RSASignatureSpi$MD5),
-        // not PREFIX + getSimpleName() which produced a phantom ...rsa.MD5 that
-        // names no loadable class. Each nested SPI is distinct, so the
-        // creatorMap keys stay unique.
         provider.addAlgorithmImplementation("Signature", name,
-                spiClass.getName(), attr,
+                RSASignatureSpi.class.getName(), attr,
                 (arg) -> new RSASignatureSpi(NISelector.RSAServiceNI,
                         keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);

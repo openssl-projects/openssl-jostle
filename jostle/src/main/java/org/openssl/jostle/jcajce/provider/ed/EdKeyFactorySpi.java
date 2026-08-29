@@ -446,6 +446,9 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         }
     }
 
+    // Unused since MT-17 rekeyed creatorMap: the registrations construct
+    // the parent with a key-type argument, so these name nothing. Retained
+    // pending the API-removal decision.
     public static class ED25519 extends EdKeyFactorySpi
     {
         public ED25519()

@@ -27,17 +27,22 @@ public final class CipherFamilies
     {
     }
 
-    public static final String AES_PREFIX = "org.openssl.jostle.jcajce.provider.ProvAES";
-    public static final String ARIA_PREFIX = "org.openssl.jostle.jcajce.provider.ProvARIA";
-    public static final String CAMELLIA_PREFIX = "org.openssl.jostle.jcajce.provider.ProvCAMELLIA";
-    public static final String SM4_PREFIX = "org.openssl.jostle.jcajce.provider.ProvSM4";
-    public static final String CHACHA20_PREFIX = "org.openssl.jostle.jcajce.provider.ProvChaCha20";
-    public static final String DESEDE_PREFIX = "org.openssl.jostle.jcajce.provider.ProvDESede";
+    public static final String AES_PREFIX = "org.openssl.jostle.jcajce.provider.blockcipher.AES";
+    public static final String ARIA_PREFIX = "org.openssl.jostle.jcajce.provider.blockcipher.ARIA";
+    public static final String CAMELLIA_PREFIX = "org.openssl.jostle.jcajce.provider.blockcipher.CAMELLIA";
+    public static final String SM4_PREFIX = "org.openssl.jostle.jcajce.provider.blockcipher.SM4";
+    public static final String CHACHA20_PREFIX = "org.openssl.jostle.jcajce.provider.blockcipher.ChaCha20";
+    public static final String DESEDE_PREFIX = "org.openssl.jostle.jcajce.provider.blockcipher.DESede";
 
-    // RSA and ML-KEM register through SPI classes named after the SPI, not
-    // after the Prov class, so their prefix is the package. That also pulls in
-    // Signature / KeyFactory / KeyPairGenerator, which is why the service
-    // types passed to ProviderSurfaceGuard are required and explicit.
+    // Every prefix above is the SPI class-name stem, so it discriminates the
+    // family without naming a transformation. AES's AlgorithmParameters
+    // ({GCM,CCM,CBC}AlgorithmParameters) are deliberately outside AES_PREFIX —
+    // every caller filters types to {"Cipher"}.
+    //
+    // RSA and ML-KEM have no per-family class stem, so their prefix is the
+    // package. That also pulls in Signature / KeyFactory / KeyPairGenerator,
+    // which is why the service types passed to ProviderSurfaceGuard are
+    // required and explicit.
     public static final String RSA_PREFIX = "org.openssl.jostle.jcajce.provider.rsa.";
     public static final String MLKEM_PREFIX = "org.openssl.jostle.jcajce.provider.mlkem.";
 

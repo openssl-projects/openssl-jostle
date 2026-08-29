@@ -26,14 +26,12 @@ class ProvSM4
         generalAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = ProvSM4.class.getName();
-
     public void configure(final JostleProvider provider)
     {
-        provider.addAlgorithmImplementation("Cipher", "SM4", PREFIX + "Base", generalAttributes, (arg) -> new SM4BlockCipherSpi(provider));
+        provider.addAlgorithmImplementation("Cipher", "SM4", SM4BlockCipherSpi.class.getName(), generalAttributes, (arg) -> new SM4BlockCipherSpi(provider));
 
         // SM4/CCM — see ProvAES note on the dedicated CCM SPI.
         provider.addAlgorithmImplementation("Cipher", "SM4/CCM/NoPadding",
-                PREFIX + "SM4CCM", generalAttributes, (arg) -> new SM4CCMCipherSpi());
+                SM4CCMCipherSpi.class.getName(), generalAttributes, (arg) -> new SM4CCMCipherSpi());
     }
 }

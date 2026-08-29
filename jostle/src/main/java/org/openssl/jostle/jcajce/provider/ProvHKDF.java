@@ -24,12 +24,11 @@ class ProvHKDF
         generalKDFAttributes.put("SupportedKeyFormats", "RAW");
     }
 
-    private static final String PREFIX = ProvHKDF.class.getName();
 
     public void configure(final JostleProvider provider)
     {
-        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA256", PREFIX + "SHA256", generalKDFAttributes, (arg) -> new HKDFSecretKeyFactory("SHA-256"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA384", PREFIX + "SHA384", generalKDFAttributes, (arg) -> new HKDFSecretKeyFactory("SHA-384"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA512", PREFIX + "SHA512", generalKDFAttributes, (arg) -> new HKDFSecretKeyFactory("SHA-512"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA256", HKDFSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new HKDFSecretKeyFactory("SHA-256"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA384", HKDFSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new HKDFSecretKeyFactory("SHA-384"));
+        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA512", HKDFSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new HKDFSecretKeyFactory("SHA-512"));
     }
 }

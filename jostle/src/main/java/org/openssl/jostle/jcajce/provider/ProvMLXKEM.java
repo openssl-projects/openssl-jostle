@@ -33,7 +33,6 @@ import java.util.logging.Logger;
  */
 class ProvMLXKEM
 {
-    private static final String PREFIX = ProvMLXKEM.class.getPackage().getName() + ".mlxkem.";
 
     private static final Logger LOG = Logger.getLogger(ProvMLXKEM.class.getName());
 
@@ -66,17 +65,17 @@ class ProvMLXKEM
             }
 
             provider.addAlgorithmImplementation("KeyPairGenerator", name,
-                    PREFIX + "MLXKEMKeyPairGenerator$" + name, attr,
+                    MLXKEMKeyPairGenerator.class.getName(), attr,
                     (arg) -> new MLXKEMKeyPairGenerator(
                             NISelector.MLXKEMServiceNI, NISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyGenerator", name,
-                    PREFIX + "MLXKEMKeyGenerator$" + name, attr,
+                    MLXKEMKeyGenerator.class.getName(), attr,
                     (arg) -> new MLXKEMKeyGenerator(
                             NISelector.MLXKEMServiceNI, NISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyFactory", name,
-                    PREFIX + "MLXKEMKeyFactorySpi$" + name, attr,
+                    MLXKEMKeyFactorySpi.class.getName(), attr,
                     (arg) -> new MLXKEMKeyFactorySpi(
                             NISelector.MLXKEMServiceNI, NISelector.SpecNI, spec, provider));
         }

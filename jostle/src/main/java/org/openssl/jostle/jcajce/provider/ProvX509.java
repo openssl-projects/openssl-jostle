@@ -17,12 +17,11 @@ import java.util.Map;
 
 class ProvX509
 {
-    private static final String PREFIX = ProvX509.class.getPackage().getName() + ".cert.";
 
     public void configure(final JostleProvider provider)
     {
         final Map<String, String> attr = new HashMap<String, String>();
-        provider.addAlgorithmImplementation("CertificateFactory", "X.509", PREFIX + "X509CertificateFactorySpi", attr, (arg) -> new X509CertificateFactorySpi());
+        provider.addAlgorithmImplementation("CertificateFactory", "X.509", X509CertificateFactorySpi.class.getName(), attr, (arg) -> new X509CertificateFactorySpi());
         provider.addAlias("CertificateFactory", "X.509", "X509");
     }
 }

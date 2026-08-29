@@ -89,7 +89,6 @@ import java.util.logging.Logger;
  */
 class ProvFIPSMLXKEM
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.mlxkem.";
 
     private static final Logger LOG = Logger.getLogger(ProvFIPSMLXKEM.class.getName());
 
@@ -121,17 +120,17 @@ class ProvFIPSMLXKEM
             }
 
             provider.addAlgorithmImplementation("KeyPairGenerator", name,
-                    PREFIX + "MLXKEMKeyPairGenerator$" + name, attr,
+                    MLXKEMKeyPairGenerator.class.getName(), attr,
                     (arg) -> new MLXKEMKeyPairGenerator(
                             FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyGenerator", name,
-                    PREFIX + "MLXKEMKeyGenerator$" + name, attr,
+                    MLXKEMKeyGenerator.class.getName(), attr,
                     (arg) -> new MLXKEMKeyGenerator(
                             FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec, provider));
 
             provider.addAlgorithmImplementation("KeyFactory", name,
-                    PREFIX + "MLXKEMKeyFactorySpi$" + name, attr,
+                    MLXKEMKeyFactorySpi.class.getName(), attr,
                     (arg) -> new MLXKEMKeyFactorySpi(
                             FIPSNISelector.MLXKEMServiceNI, FIPSNISelector.SpecNI, spec, provider));
         }

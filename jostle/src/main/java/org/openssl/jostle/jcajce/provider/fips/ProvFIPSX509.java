@@ -35,13 +35,12 @@ import java.util.Map;
  */
 class ProvFIPSX509
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.cert.";
 
     public void configure(final JostleFIPSProvider provider)
     {
         final Map<String, String> attr = new HashMap<String, String>();
         provider.addAlgorithmImplementation("CertificateFactory", "X.509",
-                PREFIX + "X509CertificateFactorySpi", attr,
+                X509CertificateFactorySpi.class.getName(), attr,
                 (arg) -> new X509CertificateFactorySpi(JostleFIPSProvider.PROVIDER_NAME, true));
         provider.addAlias("CertificateFactory", "X.509", "X509");
     }

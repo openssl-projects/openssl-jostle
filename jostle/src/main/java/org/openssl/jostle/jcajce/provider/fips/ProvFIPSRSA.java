@@ -41,7 +41,6 @@ import java.util.Map;
  */
 class ProvFIPSRSA
 {
-    private static final String PREFIX = "org.openssl.jostle.jcajce.provider.rsa.";
 
     /**
      * The 3.1.2 FIPS module refuses RSA key generation below 2048 bits;
@@ -58,14 +57,14 @@ class ProvFIPSRSA
         attr.put("SupportedKeyFormats", "PKCS#8|X.509");
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "RSA",
-                PREFIX + "RSAKeyPairGenerator", attr,
+                RSAKeyPairGenerator.class.getName(), attr,
                 (arg) -> new RSAKeyPairGenerator(
                         FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
                         FIPS_RSA_MIN_KEY_SIZE_BITS, provider));
         provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
 
         provider.addAlgorithmImplementation("KeyFactory", "RSA",
-                PREFIX + "RSAKeyFactorySpi", attr,
+                RSAKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
         // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
@@ -77,15 +76,15 @@ class ProvFIPSRSA
         // (JSLKeyX509Certificate), surfacing to TLS as bad_certificate(42).
         provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.10", "RSASSA-PSS");
 
-        registerPkcs1Signature(provider, attr, "SHA1withRSA", "SHA-1", "SHA1", "1.2.840.113549.1.1.5");
-        registerPkcs1Signature(provider, attr, "SHA224withRSA", "SHA-224", "SHA224", "1.2.840.113549.1.1.14");
-        registerPkcs1Signature(provider, attr, "SHA256withRSA", "SHA-256", "SHA256", "1.2.840.113549.1.1.11");
-        registerPkcs1Signature(provider, attr, "SHA384withRSA", "SHA-384", "SHA384", "1.2.840.113549.1.1.12");
-        registerPkcs1Signature(provider, attr, "SHA512withRSA", "SHA-512", "SHA512", "1.2.840.113549.1.1.13");
-        registerPkcs1Signature(provider, attr, "SHA3-224withRSA", "SHA3-224", "SHA3_224", "2.16.840.1.101.3.4.3.13");
-        registerPkcs1Signature(provider, attr, "SHA3-256withRSA", "SHA3-256", "SHA3_256", "2.16.840.1.101.3.4.3.14");
-        registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", "SHA3_384", "2.16.840.1.101.3.4.3.15");
-        registerPkcs1Signature(provider, attr, "SHA3-512withRSA", "SHA3-512", "SHA3_512", "2.16.840.1.101.3.4.3.16");
+        registerPkcs1Signature(provider, attr, "SHA1withRSA", "SHA-1", "1.2.840.113549.1.1.5");
+        registerPkcs1Signature(provider, attr, "SHA224withRSA", "SHA-224", "1.2.840.113549.1.1.14");
+        registerPkcs1Signature(provider, attr, "SHA256withRSA", "SHA-256", "1.2.840.113549.1.1.11");
+        registerPkcs1Signature(provider, attr, "SHA384withRSA", "SHA-384", "1.2.840.113549.1.1.12");
+        registerPkcs1Signature(provider, attr, "SHA512withRSA", "SHA-512", "1.2.840.113549.1.1.13");
+        registerPkcs1Signature(provider, attr, "SHA3-224withRSA", "SHA3-224", "2.16.840.1.101.3.4.3.13");
+        registerPkcs1Signature(provider, attr, "SHA3-256withRSA", "SHA3-256", "2.16.840.1.101.3.4.3.14");
+        registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", "2.16.840.1.101.3.4.3.15");
+        registerPkcs1Signature(provider, attr, "SHA3-512withRSA", "SHA3-512", "2.16.840.1.101.3.4.3.16");
 
         // Registered by constructing the base RSASignatureSpi with digest
         // "NONE" (the PKCS#1 v1.5 digest path), NOT the raw RSASignatureSpi.None
@@ -94,11 +93,11 @@ class ProvFIPSRSA
         // className therefore names the base class that is actually constructed
         // (see FIPSRSANoneWithRSASignatureTest for the pinned behaviour).
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
-                PREFIX + "RSASignatureSpi", attr,
+                RSASignatureSpi.class.getName(), attr,
                 (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider), "NONE"));
 
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
-                PREFIX + "RSAPSSSignatureSpi", attr,
+                RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider)));
         provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
 
@@ -119,7 +118,7 @@ class ProvFIPSRSA
         // padding oracle. The bare "RSA" transformation therefore maps to OAEP.
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
-                PREFIX + "RSAOAEPCipherSpi", cipherAttr,
+                RSAOAEPCipherSpi.class.getName(), cipherAttr,
                 (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory(provider)));
         provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
 
@@ -134,7 +133,7 @@ class ProvFIPSRSA
         // BouncyCastle interop.
         Map<String, String> ktsAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA-KTS-KEM-KWS",
-                PREFIX + "RSAKEMCipherSpi", ktsAttr,
+                RSAKEMCipherSpi.class.getName(), ktsAttr,
                 (arg) -> new RSAKEMCipherSpi(keyFactory(provider), FIPSNISelector.SpecNI));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
                 "1.0.18033.2.2.4", "1.2.840.113549.1.9.16.3.14");
@@ -154,11 +153,10 @@ class ProvFIPSRSA
                                                Map<String, String> attr,
                                                String name,
                                                String digestName,
-                                               String classNameSuffix,
                                                String oid)
     {
         provider.addAlgorithmImplementation("Signature", name,
-                PREFIX + classNameSuffix, attr,
+                RSASignatureSpi.class.getName(), attr,
                 (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
     }
@@ -169,9 +167,8 @@ class ProvFIPSRSA
                                              String opensslDigest)
     {
         String mgf1Name = digestJcaName + "WITHRSAANDMGF1";
-        String implName = PREFIX + "RSAPSSSignatureSpi$" + digestJcaName.replace("-", "_");
         provider.addAlgorithmImplementation("Signature", mgf1Name,
-                implName, attr,
+                RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider),
                         opensslDigest));
         // BouncyCastle's PKIX/CMS layer derives <digest>WITHRSASSA-PSS as the

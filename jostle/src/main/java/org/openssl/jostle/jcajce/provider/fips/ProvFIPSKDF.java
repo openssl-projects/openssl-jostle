@@ -28,11 +28,6 @@ import java.util.Map;
  */
 class ProvFIPSKDF
 {
-    private static final String PBKDF_PREFIX = "org.openssl.jostle.jcajce.provider.ProvPBKDF";
-    private static final String HKDF_PREFIX = "org.openssl.jostle.jcajce.provider.ProvHKDF";
-    private static final String KBKDF_PREFIX = "org.openssl.jostle.jcajce.provider.ProvKBKDF";
-    private static final String SSKDF_PREFIX = "org.openssl.jostle.jcajce.provider.ProvSSKDF";
-    private static final String SSHKDF_PREFIX = "org.openssl.jostle.jcajce.provider.ProvSSHKDF";
 
     private static final Map<String, String> generalKDFAttributes = new HashMap<String, String>();
 
@@ -43,25 +38,25 @@ class ProvFIPSKDF
 
     public void configure(final JostleFIPSProvider provider)
     {
-        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PBKDF_PREFIX + "Base", generalKDFAttributes,
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new PBKDF2SecretKeyFactory(FIPSNISelector.KdfNI, null));
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA1", "BaseSHA1", "SHA-1");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA224", "BaseSHA224", "SHA-224");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA256", "BaseSHA256", "SHA-256");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA384", "BaseSHA384", "SHA-384");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA512", "BaseSHA512", "SHA-512");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA512-224", "BaseSHA512_224", "SHA-512/224");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA512-256", "BaseSHA512_256", "SHA-512/256");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-224", "BaseSHA3_224", "SHA3-224");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-256", "BaseSHA3_256", "SHA3-256");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-384", "BaseSHA3_384", "SHA3-384");
-        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-512", "BaseSHA3_512", "SHA3-512");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA1", "SHA-1");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA224", "SHA-224");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA256", "SHA-256");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA384", "SHA-384");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA512", "SHA-512");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA512-224", "SHA-512/224");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA512-256", "SHA-512/256");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-224", "SHA3-224");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-256", "SHA3-256");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-384", "SHA3-384");
+        registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-512", "SHA3-512");
 
-        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA256", HKDF_PREFIX + "SHA256", generalKDFAttributes,
+        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA256", HKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI, "SHA-256"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA384", HKDF_PREFIX + "SHA384", generalKDFAttributes,
+        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA384", HKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI, "SHA-384"));
-        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA512", HKDF_PREFIX + "SHA512", generalKDFAttributes,
+        provider.addAlgorithmImplementation("SecretKeyFactory", "HKDF-SHA512", HKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new HKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI, "SHA-512"));
 
         // KBKDF, SSKDF and SSHKDF are registered UNGATED: all three were
@@ -95,7 +90,7 @@ class ProvFIPSKDF
     private static void registerKbkdfHmac(JostleFIPSProvider provider, String suffix, String digest)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-HMAC-" + suffix,
-                KBKDF_PREFIX + "HMAC" + suffix, generalKDFAttributes,
+                KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new KBKDFSecretKeyFactory(FIPSNISelector.KdfNI,
                         KBKDFSecretKeyFactory.HMAC, digest, null));
     }
@@ -103,7 +98,7 @@ class ProvFIPSKDF
     private static void registerKbkdfCmac(JostleFIPSProvider provider, String suffix, String cipher)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-CMAC-" + suffix,
-                KBKDF_PREFIX + "CMAC" + suffix, generalKDFAttributes,
+                KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new KBKDFSecretKeyFactory(FIPSNISelector.KdfNI,
                         KBKDFSecretKeyFactory.CMAC, null, cipher));
     }
@@ -111,20 +106,20 @@ class ProvFIPSKDF
     private static void registerSskdf(JostleFIPSProvider provider, String suffix, String digest)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "SSKDF-" + suffix,
-                SSKDF_PREFIX + suffix, generalKDFAttributes,
+                SSKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new SSKDFSecretKeyFactory(FIPSNISelector.KdfNI, digest));
     }
 
     private static void registerSshkdf(JostleFIPSProvider provider, String suffix, String digest)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "SSHKDF-" + suffix,
-                SSHKDF_PREFIX + suffix, generalKDFAttributes,
+                SSHKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new SSHKDFSecretKeyFactory(FIPSNISelector.KdfNI, digest));
     }
 
-    private static void registerPbkdf2(JostleFIPSProvider provider, String name, String classNameSuffix, String digest)
+    private static void registerPbkdf2(JostleFIPSProvider provider, String name, String digest)
     {
-        provider.addAlgorithmImplementation("SecretKeyFactory", name, PBKDF_PREFIX + classNameSuffix, generalKDFAttributes,
+        provider.addAlgorithmImplementation("SecretKeyFactory", name, PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new PBKDF2SecretKeyFactory(FIPSNISelector.KdfNI, digest));
     }
 }

@@ -168,6 +168,9 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
     }
 
 
+    // Unused since MT-17 rekeyed creatorMap: the registrations construct
+    // the parent with a parameter-spec argument, so these name nothing. Retained
+    // pending the API-removal decision.
     public static class ED25519 extends EdDSAKeyPairGenerator
     {
         public ED25519()

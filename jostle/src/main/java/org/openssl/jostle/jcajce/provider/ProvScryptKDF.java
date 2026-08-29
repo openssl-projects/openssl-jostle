@@ -20,12 +20,11 @@ class ProvScryptKDF
     private static final Map<String, String> generalKDFAttributes = new HashMap<String, String>();
 
 
-    private static final String PREFIX = ProvScryptKDF.class.getName();
 
     public void configure(final JostleProvider provider)
     {
-        provider.addAlgorithmImplementation("SecretKeyFactory", "SCRYPT", PREFIX + "Scrypt", generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
-        provider.addAlgorithmImplementation("SecretKeyFactory", "1.3.6.1.4.1.11591.4.11", PREFIX + "ScryptOid", generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
+        provider.addAlgorithmImplementation("SecretKeyFactory", "SCRYPT", ScryptSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
+        provider.addAlgorithmImplementation("SecretKeyFactory", "1.3.6.1.4.1.11591.4.11", ScryptSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
 
     }
 }

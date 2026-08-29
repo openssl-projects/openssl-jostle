@@ -22,7 +22,6 @@ import java.util.Map;
 
 class ProvDSA
 {
-    private static final String PREFIX = ProvDSA.class.getPackage().getName() + ".dsa.";
 
     /**
      * id-dsa OID (X9.57) — used as the ASN.1 algorithm identifier in
@@ -42,13 +41,13 @@ class ProvDSA
         attr.put("SupportedKeyFormats", "PKCS#8|X.509");
 
         provider.addAlgorithmImplementation("KeyPairGenerator", "DSA",
-                PREFIX + "DSAKeyPairGenerator", attr,
+                DSAKeyPairGenerator.class.getName(), attr,
                 (arg) -> new DSAKeyPairGenerator(
                         NISelector.DSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
         provider.addAlias("KeyPairGenerator", "DSA", ID_DSA_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "DSA",
-                PREFIX + "DSAKeyFactorySpi", attr,
+                DSAKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DSA", ID_DSA_OID);
 
@@ -56,13 +55,13 @@ class ProvDSA
         // delegated to the platform (SUN). Needed by callers that carry
         // DSA domain parameters in AlgorithmIdentifier.parameters.
         provider.addAlgorithmImplementation("AlgorithmParameters", "DSA",
-                PREFIX + "DSAAlgorithmParameters", new HashMap<>(),
+                DSAAlgorithmParameters.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameters());
         provider.addAlias("AlgorithmParameters", "DSA", ID_DSA_OID);
 
         // AlgorithmParameterGenerator DSA — native FIPS 186-4 paramgen.
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DSA",
-                PREFIX + "DSAAlgorithmParameterGenerator", new HashMap<>(),
+                DSAAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameterGenerator());
         provider.addAlias("AlgorithmParameterGenerator", "DSA", ID_DSA_OID);
 
@@ -71,39 +70,30 @@ class ProvDSA
         // from NIST CSOR. The digest is fixed at SPI construction —
         // no AlgorithmParameter negotiation is needed.
         registerDsaSignature(provider, attr,
-                "SHA1withDSA", "SHA-1", DSASignatureSpi.SHA1.class,
-                ID_DSA_WITH_SHA1_OID);
+                "SHA1withDSA", "SHA-1", ID_DSA_WITH_SHA1_OID);
         registerDsaSignature(provider, attr,
-                "SHA224withDSA", "SHA-224", DSASignatureSpi.SHA224.class,
-                NISTObjectIdentifiers.dsa_with_sha224.getId());
+                "SHA224withDSA", "SHA-224", NISTObjectIdentifiers.dsa_with_sha224.getId());
         registerDsaSignature(provider, attr,
-                "SHA256withDSA", "SHA-256", DSASignatureSpi.SHA256.class,
-                NISTObjectIdentifiers.dsa_with_sha256.getId());
+                "SHA256withDSA", "SHA-256", NISTObjectIdentifiers.dsa_with_sha256.getId());
         registerDsaSignature(provider, attr,
-                "SHA384withDSA", "SHA-384", DSASignatureSpi.SHA384.class,
-                NISTObjectIdentifiers.dsa_with_sha384.getId());
+                "SHA384withDSA", "SHA-384", NISTObjectIdentifiers.dsa_with_sha384.getId());
         registerDsaSignature(provider, attr,
-                "SHA512withDSA", "SHA-512", DSASignatureSpi.SHA512.class,
-                NISTObjectIdentifiers.dsa_with_sha512.getId());
+                "SHA512withDSA", "SHA-512", NISTObjectIdentifiers.dsa_with_sha512.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-224withDSA", "SHA3-224", DSASignatureSpi.SHA3_224.class,
-                NISTObjectIdentifiers.id_dsa_with_sha3_224.getId());
+                "SHA3-224withDSA", "SHA3-224", NISTObjectIdentifiers.id_dsa_with_sha3_224.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-256withDSA", "SHA3-256", DSASignatureSpi.SHA3_256.class,
-                NISTObjectIdentifiers.id_dsa_with_sha3_256.getId());
+                "SHA3-256withDSA", "SHA3-256", NISTObjectIdentifiers.id_dsa_with_sha3_256.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-384withDSA", "SHA3-384", DSASignatureSpi.SHA3_384.class,
-                NISTObjectIdentifiers.id_dsa_with_sha3_384.getId());
+                "SHA3-384withDSA", "SHA3-384", NISTObjectIdentifiers.id_dsa_with_sha3_384.getId());
         registerDsaSignature(provider, attr,
-                "SHA3-512withDSA", "SHA3-512", DSASignatureSpi.SHA3_512.class,
-                NISTObjectIdentifiers.id_dsa_with_sha3_512.getId());
+                "SHA3-512withDSA", "SHA3-512", NISTObjectIdentifiers.id_dsa_with_sha3_512.getId());
 
         // Raw DSA ("NoneWithDSA"): the caller supplies an already-computed
         // digest, so there is no per-digest OID to alias. Required by
         // externally-hashed DSA signing (BouncyCastle's TLS
         // JcaTlsDSASigner raw-signature path).
         provider.addAlgorithmImplementation("Signature", "NoneWithDSA",
-                PREFIX + "DSASignatureSpi$None", attr,
+                DSASignatureSpi.class.getName(), attr,
                 (arg) -> new DSASignatureSpi(NISelector.DSAServiceNI,
                         keyFactory(provider), "NONE"));
     }
@@ -113,11 +103,10 @@ class ProvDSA
                                              Map<String, String> attr,
                                              String name,
                                              String digestName,
-                                             Class<?> spiClass,
                                              String oid)
     {
         provider.addAlgorithmImplementation("Signature", name,
-                PREFIX + spiClass.getSimpleName(), attr,
+                DSASignatureSpi.class.getName(), attr,
                 (arg) -> new DSASignatureSpi(NISelector.DSAServiceNI,
                         keyFactory(provider), digestName));
         provider.addAlias("Signature", name, oid);
