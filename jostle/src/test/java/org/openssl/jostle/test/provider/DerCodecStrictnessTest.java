@@ -191,6 +191,93 @@ public class DerCodecStrictnessTest
         assertRejected(new byte[]{0x04, (byte) 0x84, 0x00, 0x01}, "unsupported length form");
     }
 
+    // -----------------------------------------------------------------
+    // OBJECT IDENTIFIER (MT-21). Driven through the EC codec, which is the
+    // only surface that parses one, for the same reason the rest of this
+    // class drives through the IV and DH codecs.
+    // -----------------------------------------------------------------
+
+    /** X.690 8.19.2: a subidentifier's first octet may not be 0x80. */
+    @Test
+    public void nonMinimalOidSubidentifierIsRejected()
+    {
+        assertOidRejected(new byte[]{0x06, 0x02, (byte) 0x80, 0x01},
+                "non-minimal subidentifier");
+    }
+
+    /** A final octet still carrying the continuation bit is truncated. */
+    @Test
+    public void truncatedOidSubidentifierIsRejected()
+    {
+        assertOidRejected(new byte[]{0x06, 0x02, 0x2A, (byte) 0x86},
+                "truncated subidentifier");
+    }
+
+    /** Empty contents are not an OID. */
+    @Test
+    public void emptyOidIsRejected()
+    {
+        assertOidRejected(new byte[]{0x06, 0x00}, "empty OBJECT IDENTIFIER");
+    }
+
+    /**
+     * An arc wider than a long is REFUSED rather than wrapped. A silently
+     * wrapped arc would decode to a different, entirely valid-looking OID —
+     * which is worse than a rejection, because it names a different curve.
+     */
+    @Test
+    public void anOverWideOidArcIsRejectedRatherThanWrapped()
+    {
+        byte[] tenContinuationOctets = new byte[]{
+                0x06, 0x0B, 0x2A,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x7F};
+        assertOidRejected(tenContinuationOctets, "wider than 63 bits");
+    }
+
+    /** Trailing bytes after the OID are refused, as everywhere else in Der. */
+    @Test
+    public void trailingDataAfterAnOidIsRejected()
+    {
+        assertOidRejected(new byte[]{0x06, 0x08, 0x2A, (byte) 0x86, 0x48, (byte) 0xCE,
+                0x3D, 0x03, 0x01, 0x07, 0x00}, "trailing data");
+    }
+
+    /**
+     * The exact-length positive control: the same bytes without the trailing
+     * octet must be accepted, so the boundary is shown to sit at
+     * consumed == length rather than one either side.
+     */
+    @Test
+    public void anExactLengthOidIsAccepted() throws Exception
+    {
+        AlgorithmParameters ap = AlgorithmParameters.getInstance("EC", JSL);
+        ap.init(new byte[]{0x06, 0x08, 0x2A, (byte) 0x86, 0x48, (byte) 0xCE,
+                0x3D, 0x03, 0x01, 0x07});
+        Assertions.assertEquals("prime256v1", ap.toString());
+    }
+
+    /**
+     * SunEC refuses an explicit-parameters SEQUENCE with IOException and so do
+     * we: {@code ECParameters} is a CHOICE and only the namedCurve arm is
+     * served. Pinned because "accepts more than the platform" is a divergence
+     * as much as "accepts less".
+     */
+    @Test
+    public void anExplicitParametersSequenceIsRejectedLikeThePlatform()
+    {
+        assertOidRejected(new byte[]{0x30, 0x03, 0x02, 0x01, 0x01}, "expected EC parameters");
+    }
+
+    private static void assertOidRejected(byte[] der, String expectedFragment)
+    {
+        IOException e = Assertions.assertThrows(IOException.class,
+                () -> AlgorithmParameters.getInstance("EC", JSL).init(der),
+                "malformed EC parameters must be refused, not tolerated");
+        Assertions.assertTrue(String.valueOf(e.getMessage()).contains(expectedFragment),
+                "expected a message naming \"" + expectedFragment + "\", got: " + e.getMessage());
+    }
+
     private static void assertRejected(byte[] der, String expectedFragment)
     {
         IOException e = Assertions.assertThrows(IOException.class,
