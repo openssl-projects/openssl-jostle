@@ -38,6 +38,17 @@ public class JostleProvider
     public static final String OPENSSL_PROVIDER_NAME = "org.openssl.jostle.ossl_prov";
 
     private transient Map<String, JoService> serviceMap;
+
+    /**
+     * Keyed by {@code "<type>.<UPPERCASE-ALGORITHM>"} — the same key the class
+     * name is stored under, and already proven unique by the
+     * {@code containsKey(key1)} guard in
+     * {@link #addAlgorithmImplementation(String, String, String, Map, EngineCreator)}.
+     *
+     * <p>NOT keyed by class name. Many registrations construct the SAME class
+     * with different constructor arguments, so a class-name key forces every
+     * registration to invent a distinct string.
+     */
     private transient Map<String, EngineCreator> creatorMap;
     private transient Map<Map<String, String>, Map<String, String>> attributeMaps;
 
@@ -221,11 +232,11 @@ public class JostleProvider
 
 
         put(key1, className);
-        if (creatorMap.containsKey(className))
+        if (creatorMap.containsKey(key1))
         {
-            throw new IllegalStateException("duplicate creatorMap key (" + className + ") found");
+            throw new IllegalStateException("duplicate creatorMap key (" + key1 + ") found");
         }
-        creatorMap.put(className, creator);
+        creatorMap.put(key1, creator);
     }
 
     public void addAlgorithmImplementation(String type, ASN1ObjectIdentifier name, String className, Map<String, String> attributes, EngineCreator creator)
@@ -247,11 +258,11 @@ public class JostleProvider
 
 
         put(key1, className);
-        if (creatorMap.containsKey(className))
+        if (creatorMap.containsKey(key1))
         {
-            throw new IllegalStateException("duplicate creatorMap key (" + className + ") found");
+            throw new IllegalStateException("duplicate creatorMap key (" + key1 + ") found");
         }
-        creatorMap.put(className, creator);
+        creatorMap.put(key1, creator);
 
         doPut("Alg.Alias." + type + ".OID." + name, name.getId());
     }
@@ -344,7 +355,8 @@ public class JostleProvider
                 realName = upperCaseAlgName;
             }
 
-            String className = (String) this.get(type + "." + realName);
+            String primaryKey = type + "." + realName;
+            String className = (String) this.get(primaryKey);
 
             if (className == null)
             {
@@ -372,7 +384,7 @@ public class JostleProvider
                 }
             }
 
-            service = new JoService(this, type, upperCaseAlgName, className, aliases, getAttributeMap(attributes), creatorMap.get(className));
+            service = new JoService(this, type, upperCaseAlgName, className, aliases, getAttributeMap(attributes), creatorMap.get(primaryKey));
 
             serviceMap.put(type + "." + upperCaseAlgName, service);
         }
