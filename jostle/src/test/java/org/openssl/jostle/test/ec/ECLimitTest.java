@@ -1437,6 +1437,210 @@ public class ECLimitTest
 
 
     // -----------------------------------------------------------------
+    // getCurveComponent / findCurveName (MT-21)
+    //
+    // Both bridges validate independently and must reject identical inputs
+    // with identical codes, so every case here runs on JNI and FFI alike.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void ECServiceNI_getCurveComponent_nullName()
+    {
+        try
+        {
+            ec.getCurveComponent(null, ECServiceNI.CURVE_COMP_P, null);
+            Assertions.fail("expected NullPointerException");
+        }
+        catch (NullPointerException expected)
+        {
+            Assertions.assertEquals("name is null", expected.getMessage());
+        }
+    }
+
+    /**
+     * A name OpenSSL resolves to some OTHER kind of object must not be taken
+     * for a curve. {@code OBJ_txt2nid} answers for every object OpenSSL knows,
+     * so the group build is what actually gates this — without it a cipher
+     * name would reach the component switch.
+     */
+    @Test
+    public void ECServiceNI_getCurveComponent_nonCurveObjectNameIsRefused()
+    {
+        Assertions.assertEquals(ErrorCode.JO_CURVE_NOT_SUPPORTED.getCode(),
+                ec.getCurveComponent("AES-256-CBC", ECServiceNI.CURVE_COMP_P, null),
+                "a non-curve object name must not resolve as a curve");
+        Assertions.assertEquals(ErrorCode.JO_CURVE_NOT_SUPPORTED.getCode(),
+                ec.getCurveComponent("no-such-curve", ECServiceNI.CURVE_COMP_P, null));
+    }
+
+    /** Selector outside the EC_CURVE_COMP_* set is a typed state error. */
+    @Test
+    public void ECServiceNI_getCurveComponent_invalidSelector()
+    {
+        try
+        {
+            ec.getCurveComponent("P-256", 999, null);
+            Assertions.fail("expected IllegalStateException for invalid selector");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("unexpected state", expected.getMessage());
+        }
+    }
+
+    /** One byte short of the reported length is refused, not truncated. */
+    @Test
+    public void ECServiceNI_getCurveComponent_outputTooSmall()
+    {
+        int len = ec.getCurveComponent("P-256", ECServiceNI.CURVE_COMP_P, null);
+        Assertions.assertTrue(len > 0, "P-256 must report a field size");
+        try
+        {
+            ec.getCurveComponent("P-256", ECServiceNI.CURVE_COMP_P, new byte[len - 1]);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("output too small", expected.getMessage());
+        }
+    }
+
+    /**
+     * A zero-length component is SUCCESS, not an error: secp256k1's a is zero
+     * and {@code BN_num_bytes} reports 0 for it. Pinned by name because the
+     * whole error space is negative, so a 0 here can only mean "empty".
+     */
+    @Test
+    public void ECServiceNI_getCurveComponent_zeroLengthComponentIsSuccess()
+    {
+        if (!ec.curveSupported("secp256k1"))
+        {
+            return;
+        }
+        Assertions.assertEquals(0,
+                ec.getCurveComponent("secp256k1", ECServiceNI.CURVE_COMP_A, null),
+                "secp256k1 has a == 0, which is a zero-length component");
+        Assertions.assertEquals(0,
+                ec.getCurveComponent("secp256k1", ECServiceNI.CURVE_COMP_A, new byte[4]),
+                "the fetch call must also report zero, not an error");
+    }
+
+    /**
+     * Every one of the seven domain inputs is null-checked independently.
+     * Probed one at a time so a bridge that checked six of seven is caught by
+     * the position it missed rather than passing on the other six.
+     */
+    @Test
+    public void ECServiceNI_findCurveName_everyInputIsNullChecked()
+    {
+        byte[] ok = new byte[]{0x01};
+        for (int missing = 0; missing < 7; missing++)
+        {
+            byte[][] in = new byte[7][];
+            for (int i = 0; i < 7; i++)
+            {
+                in[i] = i == missing ? null : ok;
+            }
+            try
+            {
+                ec.findCurveName(ECServiceNI.FIELD_TYPE_PRIME,
+                        in[0], in[1], in[2], in[3], in[4], in[5], in[6], null);
+                Assertions.fail("expected NullPointerException for null input " + missing);
+            }
+            catch (NullPointerException expected)
+            {
+                Assertions.assertEquals("input is null", expected.getMessage(),
+                        "null input at position " + missing);
+            }
+        }
+    }
+
+    /**
+     * The zero-length-input case, which is the one that slips past a range
+     * check: an empty array is a legitimate zero, so the bridge must accept it
+     * and let the lookup answer "no match" rather than reaching a util assert.
+     */
+    @Test
+    public void ECServiceNI_findCurveName_allZeroLengthInputsAreNoMatch()
+    {
+        byte[] empty = new byte[0];
+        Assertions.assertEquals(ErrorCode.JO_CURVE_NO_MATCH.getCode(),
+                ec.findCurveName(ECServiceNI.FIELD_TYPE_PRIME,
+                        empty, empty, empty, empty, empty, empty, empty, null),
+                "all-zero domain parameters name no curve, and must not abort");
+    }
+
+    /** A field-type selector outside {1,2} is a typed state error. */
+    @Test
+    public void ECServiceNI_findCurveName_invalidFieldType()
+    {
+        byte[] ok = new byte[]{0x01};
+        try
+        {
+            ec.findCurveName(99, ok, ok, ok, ok, ok, ok, ok, null);
+            Assertions.fail("expected IllegalStateException for invalid field type");
+        }
+        catch (IllegalStateException expected)
+        {
+            Assertions.assertEquals("unexpected state", expected.getMessage());
+        }
+    }
+
+    /** The output buffer is range-checked the same way as every other. */
+    @Test
+    public void ECServiceNI_findCurveName_outputTooSmall()
+    {
+        byte[][] p256 = p256Domain();
+        int len = ec.findCurveName(ECServiceNI.FIELD_TYPE_PRIME,
+                p256[0], p256[1], p256[2], p256[3], p256[4], p256[5], p256[6], null);
+        Assertions.assertTrue(len > 0, "P-256's domain must name a curve");
+        try
+        {
+            ec.findCurveName(ECServiceNI.FIELD_TYPE_PRIME,
+                    p256[0], p256[1], p256[2], p256[3], p256[4], p256[5], p256[6],
+                    new byte[len - 1]);
+            Assertions.fail("expected IllegalArgumentException");
+        }
+        catch (IllegalArgumentException expected)
+        {
+            Assertions.assertEquals("output too small", expected.getMessage());
+        }
+    }
+
+    /**
+     * Declaring a prime curve's values to be a binary field must not match:
+     * the field type is part of the domain, not a formatting hint.
+     */
+    @Test
+    public void ECServiceNI_findCurveName_wrongFieldTypeDoesNotMatch()
+    {
+        byte[][] p256 = p256Domain();
+        Assertions.assertEquals(ErrorCode.JO_CURVE_NO_MATCH.getCode(),
+                ec.findCurveName(ECServiceNI.FIELD_TYPE_BINARY,
+                        p256[0], p256[1], p256[2], p256[3], p256[4], p256[5], p256[6], null));
+    }
+
+    /** P-256's seven domain values, fetched through the forward direction. */
+    private byte[][] p256Domain()
+    {
+        int[] components = {
+                ECServiceNI.CURVE_COMP_P, ECServiceNI.CURVE_COMP_A,
+                ECServiceNI.CURVE_COMP_B, ECServiceNI.CURVE_COMP_GX,
+                ECServiceNI.CURVE_COMP_GY, ECServiceNI.CURVE_COMP_ORDER,
+                ECServiceNI.CURVE_COMP_COFACTOR};
+        byte[][] out = new byte[components.length][];
+        for (int i = 0; i < components.length; i++)
+        {
+            int len = ec.getCurveComponent("P-256", components[i], null);
+            Assertions.assertTrue(len >= 0, "component " + components[i]);
+            out[i] = new byte[len];
+            ec.getCurveComponent("P-256", components[i], out[i]);
+        }
+        return out;
+    }
+
+
+    // -----------------------------------------------------------------
     // Helper — dispose key_spec via the SpecNI bridge.
     // -----------------------------------------------------------------
 
