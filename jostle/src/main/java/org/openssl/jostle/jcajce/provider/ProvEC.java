@@ -50,13 +50,13 @@ class ProvEC
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "EC", EC_PUBLIC_KEY_OID);
 
-        // AlgorithmParameters EC — delegates curve-parameter resolution to
-        // the platform (SunEC). Needed by BouncyCastle's TLS JceTlsECDomain,
-        // which resolves NIST-curve domain parameters via
+        // AlgorithmParameters EC — curve parameters from OpenSSL's own
+        // builtin table, ASN.1 in house. Needed by BouncyCastle's TLS
+        // JceTlsECDomain, which resolves NIST-curve domain parameters via
         // createAlgorithmParameters("EC") on the JSL-bound helper.
         provider.addAlgorithmImplementation("AlgorithmParameters", "EC",
                 ECAlgorithmParameters.class.getName(), new HashMap<>(),
-                (arg) -> new ECAlgorithmParameters());
+                (arg) -> new ECAlgorithmParameters(NISelector.ECServiceNI));
         provider.addAlias("AlgorithmParameters", "EC", EC_PUBLIC_KEY_OID);
 
         // ECDSA Signature variants. The signature OIDs come from

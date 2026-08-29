@@ -79,6 +79,7 @@ class JOECPrivateKey extends AsymmetricKeyImpl implements ECPrivateKey, ECKey, O
     @Override
     public ECParameterSpec getParams()
     {
-        return ECComponents.resolveParams(ECComponents.getCurveName(ecServiceNI, spec));
+        return ECComponents.resolveParams(
+                ecServiceNI, ECComponents.getCurveName(ecServiceNI, spec));
     }
 }

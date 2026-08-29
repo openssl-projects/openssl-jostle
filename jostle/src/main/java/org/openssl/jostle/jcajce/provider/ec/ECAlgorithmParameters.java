@@ -11,14 +11,14 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.asn1.Der;
+
 import java.io.IOException;
-import java.security.AlgorithmParameters;
 import java.security.AlgorithmParametersSpi;
-import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
-import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
 /**
@@ -29,68 +29,36 @@ import java.security.spec.InvalidParameterSpecException;
  * {@code helper.createAlgorithmParameters("EC")} on the JSL-bound helper
  * before any NIST-curve TLS group can be negotiated.
  *
- * <p>The ASN.1 codec and the {@code ECParameterSpec}/{@code ECGenParameterSpec}
- * translation are delegated to a platform EC {@code AlgorithmParameters}
- * (SunEC on a standard JDK) — this provider has no curve list of its own.
+ * <p>Curve parameters come from OpenSSL's builtin table via
+ * {@link ECComponents}, and the ASN.1 from {@link Der}.
  *
- * <p>Unlike {@link org.openssl.jostle.jcajce.provider.blockcipher.GCMAlgorithmParameters}
- * (which dodges recursion by NOT registering its bare name and resolving
- * its delegate via {@code getInstance("GCM")}), this class IS registered
- * under the bare name {@code "EC"} because the TLS path needs that name.
- * The delegate must therefore be resolved from a provider that is NOT
- * Jostle, or {@code getInstance("EC")} could resolve back to this class
- * and recurse. {@link #resolveDelegate()} walks the installed providers
- * and skips Jostle for exactly that reason.
+ * <p><b>Wire form.</b> {@code ECParameters} is a CHOICE and this provider
+ * emits, and accepts, only the {@code namedCurve} arm: a bare OBJECT
+ * IDENTIFIER. That is byte-for-byte what SunEC produces, and SunEC likewise
+ * refuses an explicit-parameters SEQUENCE with {@code IOException}.
+ *
+ * <p><b>Not gated on curve capability, deliberately.</b> Describing a curve is
+ * not an operation on it, so this class answers for any curve the loaded build
+ * knows even when the provider would refuse to generate a key on it. Under
+ * JSLFIPS that difference is observable and pinned by test — see
+ * {@link ECComponents#curveNameForEncoding}.
  */
 public class ECAlgorithmParameters
     extends AlgorithmParametersSpi
 {
-    private final AlgorithmParameters delegate;
+    private final ECServiceNI ecServiceNI;
+
+    /** The OpenSSL canonical curve name, or null until initialised. */
+    private String curveName;
 
     public ECAlgorithmParameters()
     {
-        this.delegate = resolveDelegate();
+        this(NISelector.ECServiceNI);
     }
 
-    /**
-     * Find a platform EC {@code AlgorithmParameters} that is not this
-     * provider's, so delegation cannot recurse into this class.
-     */
-    private static AlgorithmParameters resolveDelegate()
+    public ECAlgorithmParameters(ECServiceNI ecServiceNI)
     {
-        for (Provider p : Security.getProviders())
-        {
-            // Skip any provider whose "EC" AlgorithmParameters SPI is a
-            // Jostle class. This SPI is registered under BOTH "JSL" and
-            // "JSLFIPS", so a provider-name check that skipped only "JSL"
-            // would let a JSLFIPS-first deployment resolve getInstance
-            // back into this class and recurse to StackOverflowError.
-            // Match by SPI package, not provider name, so every current
-            // and future Jostle-derived provider is guarded. A package
-            // prefix, not an exact class match: several Jostle classes
-            // serve this type and a new one must be skipped too.
-            Provider.Service svc = p.getService("AlgorithmParameters", "EC");
-            if (svc == null)
-            {
-                continue;
-            }
-            String svcClass = svc.getClassName();
-            if (svcClass != null && svcClass.startsWith("org.openssl.jostle."))
-            {
-                continue;
-            }
-            try
-            {
-                return AlgorithmParameters.getInstance("EC", p);
-            }
-            catch (NoSuchAlgorithmException e)
-            {
-                // Service advertised but not constructible from this
-                // provider — keep looking.
-            }
-        }
-        throw new IllegalStateException(
-                "no non-Jostle AlgorithmParameters(\"EC\") available from the platform");
+        this.ecServiceNI = ecServiceNI;
     }
 
     @Override
@@ -99,73 +67,132 @@ public class ECAlgorithmParameters
     {
         if (paramSpec instanceof ECGenParameterSpec)
         {
-            // SunEC's ECParameters accepts only some aliases of a curve
-            // name (e.g. "secp256r1" but not "P-256" on some JDKs). Try
-            // each known alias against the delegate so any standard name
-            // for a curve resolves. Resolving against the (non-Jostle)
-            // delegate — never via getInstance("EC") — keeps this off the
-            // path that could route back into this class and recurse.
-            String name = ((ECGenParameterSpec) paramSpec).getName();
-            InvalidParameterSpecException last = null;
-            for (String candidate : ECComponents.aliasesFor(name))
+            String requested = ((ECGenParameterSpec) paramSpec).getName();
+            String resolved = ECComponents.canonicalCurveName(ecServiceNI, requested);
+            if (resolved == null)
             {
-                try
-                {
-                    delegate.init(new ECGenParameterSpec(candidate));
-                    return;
-                }
-                catch (InvalidParameterSpecException e)
-                {
-                    last = e;
-                }
+                throw new InvalidParameterSpecException("unsupported EC curve: " + requested);
             }
-            if (last != null)
-            {
-                throw last;
-            }
-            throw new InvalidParameterSpecException("unsupported EC curve: " + name);
+            curveName = resolved;
+            return;
         }
-        delegate.init(paramSpec);
+        if (paramSpec instanceof ECParameterSpec)
+        {
+            String resolved = ECComponents.curveNameForEncoding(
+                    ecServiceNI, (ECParameterSpec) paramSpec);
+            if (resolved == null)
+            {
+                throw new InvalidParameterSpecException(
+                        "explicit EC parameters match no named curve known to the "
+                                + "loaded OpenSSL build");
+            }
+            curveName = resolved;
+            return;
+        }
+        throw new InvalidParameterSpecException(
+                "expected ECGenParameterSpec or ECParameterSpec (got "
+                        + (paramSpec == null ? "null" : paramSpec.getClass().getName()) + ")");
     }
 
     @Override
     protected void engineInit(byte[] params)
         throws IOException
     {
-        delegate.init(params);
+        if (params == null)
+        {
+            throw new IOException("encoded parameters are null");
+        }
+        Der.Reader reader = new Der.Reader(params);
+        String oid = reader.readObjectIdentifier("EC parameters");
+        reader.requireEnd("trailing data after EC parameters");
+
+        String resolved = ECComponents.canonicalCurveName(ecServiceNI, oid);
+        if (resolved == null)
+        {
+            throw new IOException("unknown EC named curve: " + oid);
+        }
+        curveName = resolved;
     }
 
     @Override
     protected void engineInit(byte[] params, String format)
         throws IOException
     {
-        delegate.init(params, format);
+        // SunEC accepts "ASN.1" and null and treats both as the only format it
+        // has. Anything else is a caller error rather than a decode failure.
+        if (format != null && !"ASN.1".equalsIgnoreCase(format))
+        {
+            throw new IOException("unsupported EC parameter format: " + format);
+        }
+        engineInit(params);
     }
 
     @Override
     protected <T extends AlgorithmParameterSpec> T engineGetParameterSpec(Class<T> paramSpec)
         throws InvalidParameterSpecException
     {
-        return delegate.getParameterSpec(paramSpec);
+        requireInitialised();
+        if (paramSpec == null)
+        {
+            throw new InvalidParameterSpecException("requested spec class is null");
+        }
+        if (paramSpec.isAssignableFrom(ECParameterSpec.class))
+        {
+            return paramSpec.cast(ECComponents.resolveParams(ecServiceNI, curveName));
+        }
+        if (paramSpec.isAssignableFrom(ECGenParameterSpec.class))
+        {
+            // The SECG spelling where one exists, matching what the platform
+            // provider answers for the same curve.
+            return paramSpec.cast(
+                    new ECGenParameterSpec(ECComponents.jceSpellingOf(curveName)));
+        }
+        throw new InvalidParameterSpecException(
+                "unsupported parameter spec: " + paramSpec.getName());
     }
 
     @Override
     protected byte[] engineGetEncoded()
         throws IOException
     {
-        return delegate.getEncoded();
+        if (curveName == null)
+        {
+            throw new IOException("EC parameters are not initialised");
+        }
+        String oid = ECComponents.curveOid(ecServiceNI, curveName);
+        if (oid == null)
+        {
+            // Oakley-EC2N-3 and -4 carry no OID, so there is no namedCurve
+            // arm to emit for them. Fail naming the curve rather than
+            // producing something that is not an ECParameters encoding.
+            throw new IOException("curve " + curveName + " has no object identifier "
+                    + "and cannot be encoded as a named curve");
+        }
+        return Der.objectIdentifier(oid);
     }
 
     @Override
     protected byte[] engineGetEncoded(String format)
         throws IOException
     {
-        return delegate.getEncoded(format);
+        if (format != null && !"ASN.1".equalsIgnoreCase(format))
+        {
+            throw new IOException("unsupported EC parameter format: " + format);
+        }
+        return engineGetEncoded();
     }
 
     @Override
     protected String engineToString()
     {
-        return delegate.toString();
+        return curveName == null ? "EC parameters (not initialised)" : curveName;
+    }
+
+    private void requireInitialised() throws InvalidParameterSpecException
+    {
+        if (curveName == null)
+        {
+            throw new InvalidParameterSpecException("EC parameters are not initialised");
+        }
     }
 }

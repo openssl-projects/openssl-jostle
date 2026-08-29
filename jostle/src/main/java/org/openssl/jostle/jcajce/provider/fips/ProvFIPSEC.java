@@ -51,7 +51,7 @@ class ProvFIPSEC
 
         provider.addAlgorithmImplementation("AlgorithmParameters", "EC",
                 ECAlgorithmParameters.class.getName(), attr,
-                (arg) -> new ECAlgorithmParameters());
+                (arg) -> new ECAlgorithmParameters(FIPSNISelector.ECServiceNI));
 
         registerEcdsaSignature(provider, attr, "SHA1withECDSA", "SHA-1", "1.2.840.10045.4.1");
         registerEcdsaSignature(provider, attr, "SHA224withECDSA", "SHA-224", "1.2.840.10045.4.3.1");

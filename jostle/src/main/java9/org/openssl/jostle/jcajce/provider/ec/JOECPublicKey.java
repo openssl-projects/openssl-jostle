@@ -91,6 +91,7 @@ class JOECPublicKey extends AsymmetricKeyImpl implements ECPublicKey, ECKey, OSS
     @Override
     public ECParameterSpec getParams()
     {
-        return ECComponents.resolveParams(ECComponents.getCurveName(ecServiceNI, spec));
+        return ECComponents.resolveParams(
+                ecServiceNI, ECComponents.getCurveName(ecServiceNI, spec));
     }
 }

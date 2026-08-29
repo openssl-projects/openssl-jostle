@@ -15,18 +15,27 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.AlgorithmParameters;
-import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECField;
+import java.security.spec.ECFieldF2m;
+import java.security.spec.ECFieldFp;
 import java.security.spec.ECParameterSpec;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.security.spec.ECPoint;
+import java.security.spec.EllipticCurve;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Shared helper that fetches EC components from the native EVP_PKEY.
- * Mirrors {@code RSAComponents}: synchronizes on the spec to keep the
- * underlying EVP_PKEY reachable across the two-call protocol (query
- * length, then fetch).
+ * Shared helper for EC components, in two halves.
+ *
+ * <p>The KEY half fetches components from a native EVP_PKEY, mirroring
+ * {@code RSAComponents}: it synchronizes on the spec to keep the underlying
+ * EVP_PKEY reachable across the two-call protocol (query length, then fetch).
+ *
+ * <p>The CURVE half reads OpenSSL's builtin curve table by name, in both
+ * directions. It replaces a hardcoded 16-entry candidate list and a 47-entry
+ * alias map, both of which were a second source of truth for values OpenSSL
+ * owns — see the query-and-cache rule in {@code java-spi.md}. Two spellings
+ * survive as {@link #SECG_SUBSTITUTIONS} because OpenSSL genuinely does not
+ * know them.
  */
 final class ECComponents
 {
@@ -75,111 +84,206 @@ final class ECComponents
     }
 
     /**
-     * Resolve the JCE-standard {@link ECParameterSpec} for the given
-     * OpenSSL curve name. Delegates to the JDK's built-in
-     * AlgorithmParameters("EC") (SunEC), which knows the standard
-     * NIST and SECG curve parameters.
+     * Resolve the JCE-standard {@link ECParameterSpec} for an OpenSSL curve
+     * name, from OpenSSL's own builtin curve table.
      *
-     * <p>Returning a proper {@link ECParameterSpec} (instead of null)
-     * is what makes Jostle's EC keys interoperable with foreign EC
-     * code that introspects via {@code getParams().getCurve()} etc.
+     * <p>Returning a proper {@link ECParameterSpec} (instead of null) is what
+     * makes Jostle's EC keys interoperable with foreign EC code that
+     * introspects via {@code getParams().getCurve()} etc.
      *
-     * <p>The same curve has multiple valid names (e.g. "P-256" /
-     * "secp256r1" / "prime256v1"). OpenSSL canonicalises differently
-     * from SunEC — when fetched back, a curve generated as "P-256"
-     * may report itself as "prime256v1". We try each known alias in
-     * turn so the lookup succeeds regardless of which provider's
-     * canonical form OpenSSL gave us.
+     * <p>Answers for every curve the loaded build knows — 82 in OpenSSL 3.5.x,
+     * of which 42 are binary-field.
+     *
+     * @throws IllegalStateException if the name is not a curve this build knows.
      */
-    static ECParameterSpec resolveParams(String curveName)
+    static ECParameterSpec resolveParams(ECServiceNI ecServiceNI, String curveName)
     {
-        // Try the name as-given first, then aliases. SunEC accepts
-        // "secp256r1" and "1.2.840.10045.3.1.7" but not "prime256v1"
-        // or "P-256" (older JDKs); enumerate enough aliases so that
-        // at least one resolves on every reasonable JDK + curve combo.
-        Throwable firstFailure = null;
-        for (String candidate : aliasesFor(curveName))
+        if (curveName == null)
         {
-            try
-            {
-                AlgorithmParameters ap = AlgorithmParameters.getInstance("EC");
-                ap.init(new ECGenParameterSpec(candidate));
-                return ap.getParameterSpec(ECParameterSpec.class);
-            }
-            catch (Throwable t)
-            {
-                if (firstFailure == null)
-                {
-                    firstFailure = t;
-                }
-            }
+            throw new IllegalStateException("curve name is null");
         }
-        throw new IllegalStateException(
-                "unable to resolve ECParameterSpec for curve " + curveName,
-                firstFailure);
+        ECParameterSpec cached = PARAM_CACHE.get(curveName);
+        if (cached != null)
+        {
+            return cached;
+        }
+
+        // Field type and degree first: both are small fixed-width answers, and
+        // the degree is what bounds every remaining allocation.
+        byte[] rawFieldType = curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_FIELD_TYPE, FIELD_TYPE_MAX_BYTES);
+        if (rawFieldType == null || rawFieldType.length != 1)
+        {
+            throw new IllegalStateException(
+                    "unable to resolve ECParameterSpec for curve " + curveName);
+        }
+        int degree = smallValue(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_DEGREE, DEGREE_MAX_BYTES), curveName, "degree");
+        if (degree <= 0 || degree > ECServiceNI.MAX_FIELD_BITS)
+        {
+            throw new IllegalStateException("curve " + curveName
+                    + " reports a field degree outside 1.." + ECServiceNI.MAX_FIELD_BITS);
+        }
+
+        // Every field-valued component is a residue mod a `degree`-bit modulus,
+        // so it cannot need more than ceil(degree/8) bytes. The order n is the
+        // one that can exceed the field: Hasse bounds it by p + 1 + 2*sqrt(p),
+        // which needs at most one further byte.
+        int fieldMaxBytes = (degree + 7) / 8 + 1;
+
+        BigInteger p = magnitude(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_P, fieldMaxBytes));
+        BigInteger a = magnitude(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_A, fieldMaxBytes));
+        BigInteger b = magnitude(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_B, fieldMaxBytes));
+        BigInteger gx = magnitude(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_GX, fieldMaxBytes));
+        BigInteger gy = magnitude(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_GY, fieldMaxBytes));
+        BigInteger order = magnitude(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_ORDER, fieldMaxBytes));
+        int cofactor = smallValue(curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_COFACTOR, COFACTOR_MAX_BYTES),
+                curveName, "cofactor");
+
+        if (p == null || a == null || b == null || gx == null || gy == null
+                || order == null)
+        {
+            throw new IllegalStateException(
+                    "unable to resolve ECParameterSpec for curve " + curveName);
+        }
+
+        ECField field;
+        if (rawFieldType[0] == (byte) ECServiceNI.FIELD_TYPE_PRIME)
+        {
+            field = new ECFieldFp(p);
+        }
+        else
+        {
+            // The reduction-polynomial constructor derives the mid-terms
+            // itself, so nothing about the polynomial is transcribed here and
+            // the mid-term array matches what any JDK-built spec carries.
+            field = new ECFieldF2m(degree, p);
+        }
+
+        ECParameterSpec spec = new ECParameterSpec(
+                new EllipticCurve(field, a, b), new ECPoint(gx, gy), order, cofactor);
+
+        // Key by the name as asked: aliases of one curve are separate keys
+        // holding equal specs, which costs a few entries and saves resolving
+        // the canonical name on every hit.
+        PARAM_CACHE.putIfAbsent(curveName, spec);
+        return spec;
     }
 
     /**
-     * Reverse-resolve an arbitrary {@link ECParameterSpec} back to an
-     * OpenSSL curve name. Iterates over a fixed list of OpenSSL-supported
-     * curves, materialises each as an {@link ECParameterSpec} via
-     * {@link #resolveParams}, and returns the first whose components
-     * match. Returns {@code null} if no candidate matches — the caller
-     * surfaces this as an {@code InvalidKeySpecException}.
+     * Reverse-resolve an {@link ECParameterSpec} to an OpenSSL curve name the
+     * loaded provider will also OPERATE on, or {@code null}.
      *
-     * <p>Used by the {@link ECKeyFactorySpi} to translate
-     * {@link java.security.spec.ECPrivateKeySpec} (which carries an
-     * {@code ECParameterSpec}, not a curve name) into a name OpenSSL
-     * accepts via {@code OSSL_PKEY_PARAM_GROUP_NAME}.
+     * <p>Used by {@link ECKeyFactorySpi} and {@link ECKeyPairGenerator}, both of
+     * which feed the result straight into {@code OSSL_PKEY_PARAM_GROUP_NAME}.
+     * The {@code curveSupported} gate is therefore part of the contract here:
+     * OpenSSL's curve TABLE is not provider-gated, so under a FIPS lib ctx the
+     * lookup happily names secp256k1 while the module refuses to use it.
+     * {@link #curveNameForEncoding} is the ungated form, for callers that only
+     * describe a curve rather than operate on it.
      */
     static String findCurveName(ECServiceNI ecServiceNI, ECParameterSpec params)
+    {
+        String name = curveNameForEncoding(ecServiceNI, params);
+        if (name == null || !ecServiceNI.curveSupported(name))
+        {
+            return null;
+        }
+        return name;
+    }
+
+    /**
+     * Reverse-resolve an {@link ECParameterSpec} to an OpenSSL curve name
+     * without asking whether the provider can operate on that curve, or
+     * {@code null} when the values name no builtin curve.
+     *
+     * <p>Encoding domain parameters describes a curve; it is not an operation
+     * on it. So {@link ECAlgorithmParameters} can name a curve JSLFIPS would
+     * refuse to generate a key on, deliberately.
+     */
+    static String curveNameForEncoding(ECServiceNI ecServiceNI, ECParameterSpec params)
     {
         if (params == null)
         {
             return null;
         }
-        for (String candidate : KNOWN_CURVES)
+        ECField field = params.getCurve().getField();
+        BigInteger modulus;
+        int fieldType;
+        if (field instanceof ECFieldFp)
         {
-            if (!ecServiceNI.curveSupported(candidate))
-            {
-                continue;
-            }
-            try
-            {
-                ECParameterSpec known = resolveParams(candidate);
-                if (paramsEqual(params, known))
-                {
-                    return candidate;
-                }
-            }
-            catch (RuntimeException ignored)
-            {
-                // resolveParams failed for this curve — keep trying
-                // others. The candidate list is curated so this is
-                // unusual but possible on a stripped-down JDK.
-            }
+            fieldType = ECServiceNI.FIELD_TYPE_PRIME;
+            modulus = ((ECFieldFp) field).getP();
         }
-        return null;
+        else if (field instanceof ECFieldF2m)
+        {
+            fieldType = ECServiceNI.FIELD_TYPE_BINARY;
+            modulus = ((ECFieldF2m) field).getReductionPolynomial();
+        }
+        else
+        {
+            // A third ECField implementation is not something this provider
+            // can describe to OpenSSL.
+            return null;
+        }
+        if (modulus == null)
+        {
+            return null;
+        }
+
+        byte[] p = unsignedBytes(modulus);
+        byte[] a = unsignedBytes(params.getCurve().getA());
+        byte[] b = unsignedBytes(params.getCurve().getB());
+        byte[] gx = unsignedBytes(params.getGenerator().getAffineX());
+        byte[] gy = unsignedBytes(params.getGenerator().getAffineY());
+        byte[] order = unsignedBytes(params.getOrder());
+        byte[] cofactor = unsignedBytes(BigInteger.valueOf(params.getCofactor()));
+        if (p == null || a == null || b == null || gx == null || gy == null
+                || order == null || cofactor == null)
+        {
+            return null;
+        }
+
+        int len = ecServiceNI.findCurveName(fieldType, p, a, b, gx, gy, order,
+                cofactor, null);
+        if (len < 0)
+        {
+            return null;
+        }
+        // Bound stated at the allocation: a curve name is an OpenSSL short
+        // name, capped at MAX_CURVE_NAME_BYTES by the C side.
+        if (len > ECServiceNI.MAX_CURVE_NAME_BYTES)
+        {
+            throw new IllegalStateException(
+                    "curve name longer than " + ECServiceNI.MAX_CURVE_NAME_BYTES + " bytes");
+        }
+        byte[] out = new byte[len];
+        int written = ecServiceNI.findCurveName(fieldType, p, a, b, gx, gy,
+                order, cofactor, out);
+        if (written != len)
+        {
+            throw new IllegalStateException("curve name length changed between calls: "
+                    + len + " then " + written);
+        }
+        return new String(out, StandardCharsets.UTF_8);
     }
 
     /**
-     * Canonicalise a caller-supplied curve name to one the loaded
-     * OpenSSL build accepts via {@code OSSL_PKEY_PARAM_GROUP_NAME}.
+     * Canonicalise a caller-supplied curve name to one the loaded OpenSSL build
+     * accepts via {@code OSSL_PKEY_PARAM_GROUP_NAME}, or {@code null} if no
+     * form of the curve is supported.
      *
-     * <p>OpenSSL does not recognise every standard name for a curve:
-     * P-256 is registered under {@code prime256v1}/{@code P-256} but NOT
-     * the SECG {@code secp256r1} nor the X9.62 OID
-     * {@code 1.2.840.10045.3.1.7}, even though those are the names TLS
-     * (and SECG) callers use. This method maps any accepted alias of a
-     * curve to a name OpenSSL does recognise.
-     *
-     * <p>Strategy: if OpenSSL already accepts the name as-given, return
-     * it unchanged (the common case, and the only behaviour for names
-     * not in the alias table). Otherwise locate the alias family the
-     * name belongs to — matching against every form, including the OID —
-     * and return the first member OpenSSL accepts. Returns {@code null}
-     * if no form of the curve is supported by the loaded build, which
-     * the caller surfaces as {@link java.security.InvalidAlgorithmParameterException}.
+     * <p>That parameter accepts short and NIST names but NOT dotted OIDs, so
+     * the canonicalisation is load-bearing rather than cosmetic: a caller
+     * passing {@code 1.2.840.10045.3.1.7} would otherwise be refused a curve
+     * the build has.
      */
     static String toOpenSSLCurveName(ECServiceNI ecServiceNI, String requested)
     {
@@ -187,176 +291,216 @@ final class ECComponents
         {
             return null;
         }
-        if (ecServiceNI.curveSupported(requested))
+        String canonical = canonicalCurveName(ecServiceNI, requested);
+        if (canonical != null && ecServiceNI.curveSupported(canonical))
         {
-            return requested;
+            return canonical;
         }
-        for (String[] family : CURVE_ALIASES.values())
+        return null;
+    }
+
+    /**
+     * The OpenSSL short name for any spelling OpenSSL resolves, or {@code null}.
+     * Applies the two SECG substitutions below before giving up.
+     */
+    static String canonicalCurveName(ECServiceNI ecServiceNI, String requested)
+    {
+        if (requested == null)
         {
-            boolean member = false;
-            for (String alias : family)
+            return null;
+        }
+        String cached = NAME_CACHE.get(requested);
+        if (cached != null)
+        {
+            return cached;
+        }
+        String resolved = rawCanonicalName(ecServiceNI, requested);
+        if (resolved == null)
+        {
+            String substitute = openSSLSpellingOf(requested);
+            if (substitute != null)
             {
-                if (alias.equals(requested))
-                {
-                    member = true;
-                    break;
-                }
+                resolved = rawCanonicalName(ecServiceNI, substitute);
             }
-            if (!member)
+        }
+        if (resolved != null)
+        {
+            NAME_CACHE.putIfAbsent(requested, resolved);
+        }
+        return resolved;
+    }
+
+    private static String rawCanonicalName(ECServiceNI ecServiceNI, String requested)
+    {
+        byte[] raw = curveComponent(ecServiceNI, requested,
+                ECServiceNI.CURVE_COMP_NAME, ECServiceNI.MAX_CURVE_NAME_BYTES);
+        if (raw == null || raw.length == 0)
+        {
+            return null;
+        }
+        return new String(raw, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The dotted-decimal OID of a curve, or {@code null} when the curve has
+     * none. Two builtin curves (Oakley-EC2N-3 / -4) genuinely have no OID, so
+     * "none" is an answer rather than a failure.
+     */
+    static String curveOid(ECServiceNI ecServiceNI, String curveName)
+    {
+        byte[] raw = curveComponent(ecServiceNI, curveName,
+                ECServiceNI.CURVE_COMP_OID, ECServiceNI.MAX_CURVE_OID_BYTES);
+        if (raw == null || raw.length == 0)
+        {
+            return null;
+        }
+        return new String(raw, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The name a JCE caller expects back for an OpenSSL curve name — the
+     * inverse of {@link #openSSLSpellingOf}, so
+     * {@code getParameterSpec(ECGenParameterSpec.class)} answers
+     * {@code "secp256r1"} exactly as the platform provider does.
+     */
+    static String jceSpellingOf(String openSSLName)
+    {
+        for (int i = 0; i < SECG_SUBSTITUTIONS.length; i++)
+        {
+            if (SECG_SUBSTITUTIONS[i][1].equals(openSSLName))
             {
-                continue;
+                return SECG_SUBSTITUTIONS[i][0];
             }
-            for (String candidate : family)
+        }
+        return openSSLName;
+    }
+
+    private static String openSSLSpellingOf(String requested)
+    {
+        for (int i = 0; i < SECG_SUBSTITUTIONS.length; i++)
+        {
+            if (SECG_SUBSTITUTIONS[i][0].equals(requested))
             {
-                if (ecServiceNI.curveSupported(candidate))
-                {
-                    return candidate;
-                }
+                return SECG_SUBSTITUTIONS[i][1];
             }
         }
         return null;
     }
 
     /**
-     * Compare two {@link ECParameterSpec} instances field-by-field.
-     * {@code ECParameterSpec} doesn't override {@code equals}, so this
-     * is a content-based comparison over the curve, generator, order,
-     * and cofactor — sufficient to distinguish all curves Jostle exposes.
+     * The only curve spellings OpenSSL does not resolve for itself. Measured
+     * across SEC 2 against {@code OBJ_txt2nid} and {@code EC_curve_nist2nid}:
+     * these two SECG names are absent because OpenSSL registers both curves
+     * under their X9.62 names instead. Every other SECG, NIST and OID spelling
+     * resolves natively — see {@code ECCurveTableTest}, which fails
+     * if OpenSSL ever learns them and this table stops being needed.
      */
-    private static boolean paramsEqual(ECParameterSpec a, ECParameterSpec b)
-    {
-        if (a == b)
-        {
-            return true;
-        }
-        if (a == null || b == null)
-        {
-            return false;
-        }
-        if (a.getCofactor() != b.getCofactor())
-        {
-            return false;
-        }
-        if (!a.getOrder().equals(b.getOrder()))
-        {
-            return false;
-        }
-        if (a.getCurve().getField().getFieldSize()
-                != b.getCurve().getField().getFieldSize())
-        {
-            return false;
-        }
-        if (!a.getCurve().getA().equals(b.getCurve().getA()))
-        {
-            return false;
-        }
-        if (!a.getCurve().getB().equals(b.getCurve().getB()))
-        {
-            return false;
-        }
-        if (!a.getGenerator().getAffineX().equals(b.getGenerator().getAffineX()))
-        {
-            return false;
-        }
-        if (!a.getGenerator().getAffineY().equals(b.getGenerator().getAffineY()))
-        {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Curated list of curve names tried by {@link #findCurveName}.
-     * Covers NIST P-curves, the common SECG curves (including the
-     * Koblitz secp256k1), and the NIST binary-field K/B curves (the
-     * sectXXXkN/rN families that BC also exposes via short {@code K-NNN}
-     * / {@code B-NNN} aliases). Uncommon curves (Brainpool, X9.62
-     * binary, Oakley/IPSec) won't reverse-resolve via this path but
-     * still work via the encoded-form KeyFactory paths.
-     */
-    private static final String[] KNOWN_CURVES = {
-            "P-256", "P-384", "P-521", "secp256k1", "P-224",
-            // NIST K-curves (binary field, Koblitz)
-            "sect163k1", "sect233k1", "sect283k1", "sect409k1", "sect571k1",
-            // NIST B-curves (binary field, random — note B-163 is r2)
-            "sect163r2", "sect233r1", "sect283r1", "sect409r1", "sect571r1"
+    private static final String[][] SECG_SUBSTITUTIONS = {
+            {"secp192r1", "prime192v1"},
+            {"secp256r1", "prime256v1"},
     };
 
+    /** Field type is one byte; degree is a bit count below 2^16. */
+    private static final int FIELD_TYPE_MAX_BYTES = 1;
+    private static final int DEGREE_MAX_BYTES = 4;
+
     /**
-     * Return the input plus all known aliases for a given curve name.
-     * Order in the returned array: SECG canonical name first (this is
-     * the form SunEC's {@code AlgorithmParameters("EC")} accepts on
-     * JDK 9+), then BC-style short name, then OID. If the input
-     * doesn't match a known family, returns just the input wrapped
-     * in a single-element array.
-     *
-     * <p>The lookup table is built once at class init. Each accepted
-     * input name is registered as a separate map key with its own
-     * (deliberately duplicated) alias array — keeps each row of the
-     * static block self-contained for review and dodges the
-     * {@code switch}-with-fallthrough hazards a manual editor might
-     * introduce when adding a new family.
+     * A cofactor must fit an {@code int} to reach {@link ECParameterSpec} at
+     * all, so four bytes is the structural bound rather than a chosen one.
      */
-    static String[] aliasesFor(String curveName)
+    private static final int COFACTOR_MAX_BYTES = 4;
+
+    /**
+     * Memoised curve descriptions, keyed by the name as asked. Fixed table
+     * values, so a concurrent double-probe is benign. Only names that RESOLVE
+     * are cached, so the key space is bounded by the curve table's alias set —
+     * a caller asking for unknown names cannot grow either map. A plain map
+     * rather than {@code NativeLengthCache} because there is no guard logic to
+     * share — the reason that class exists — and the values are objects, not
+     * lengths.
+     */
+    private static final ConcurrentHashMap<String, ECParameterSpec> PARAM_CACHE =
+            new ConcurrentHashMap<String, ECParameterSpec>();
+
+    private static final ConcurrentHashMap<String, String> NAME_CACHE =
+            new ConcurrentHashMap<String, String>();
+
+    /**
+     * Fetch one curve-table component through the two-call protocol, or
+     * {@code null} when the name is not a curve this build knows.
+     *
+     * <p>{@code maxBytes} is checked against the length the FIRST call reports,
+     * BEFORE the allocation, so a native answer outside the bound is refused
+     * rather than sized. The second call's length must then equal the first:
+     * these are fixed table values for a fixed name, so an answer that shrinks
+     * between two calls is evidence of a defect, not a shorter result. That is
+     * deliberately stricter than {@link #getBigInteger} above, which trims,
+     * because a KEY's components are fetched from live state that a concurrent
+     * caller could legitimately have replaced.
+     */
+    private static byte[] curveComponent(ECServiceNI ecServiceNI, String curveName,
+                                         int component, int maxBytes)
     {
-        String[] aliases = CURVE_ALIASES.get(curveName);
-        return aliases != null ? aliases : new String[]{curveName};
+        int len = ecServiceNI.getCurveComponent(curveName, component, null);
+        if (len < 0)
+        {
+            return null;
+        }
+        if (len > maxBytes)
+        {
+            throw new IllegalStateException("curve " + curveName + " component "
+                    + component + " is " + len + " bytes, above the " + maxBytes
+                    + "-byte bound");
+        }
+        byte[] out = new byte[len];
+        int written = ecServiceNI.getCurveComponent(curveName, component, out);
+        if (written != len)
+        {
+            throw new IllegalStateException("curve " + curveName + " component "
+                    + component + " changed length between calls: " + len
+                    + " then " + written);
+        }
+        return out;
     }
 
-    private static final Map<String, String[]> CURVE_ALIASES;
-
-    static
+    /** Big-endian unsigned magnitude to BigInteger; empty means zero. */
+    private static BigInteger magnitude(byte[] raw)
     {
-        Map<String, String[]> m = new HashMap<>();
+        return raw == null ? null : new BigInteger(1, raw);
+    }
 
-        // NIST P-256 / SECG secp256r1 / X9.62 prime256v1
-        m.put("P-256",       new String[]{"secp256r1", "P-256", "prime256v1", "1.2.840.10045.3.1.7"});
-        m.put("prime256v1",  new String[]{"secp256r1", "P-256", "prime256v1", "1.2.840.10045.3.1.7"});
-        m.put("secp256r1",   new String[]{"secp256r1", "P-256", "prime256v1", "1.2.840.10045.3.1.7"});
+    /** A component that must fit a non-negative int. */
+    private static int smallValue(byte[] raw, String curveName, String what)
+    {
+        BigInteger v = magnitude(raw);
+        if (v == null || v.bitLength() > 31)
+        {
+            throw new IllegalStateException(
+                    "curve " + curveName + " has an out-of-range " + what);
+        }
+        return v.intValue();
+    }
 
-        // NIST P-384 / SECG secp384r1
-        m.put("P-384",       new String[]{"secp384r1", "P-384", "1.3.132.0.34"});
-        m.put("secp384r1",   new String[]{"secp384r1", "P-384", "1.3.132.0.34"});
-
-        // NIST P-521 / SECG secp521r1
-        m.put("P-521",       new String[]{"secp521r1", "P-521", "1.3.132.0.35"});
-        m.put("secp521r1",   new String[]{"secp521r1", "P-521", "1.3.132.0.35"});
-
-        // NIST P-224 / SECG secp224r1
-        m.put("P-224",       new String[]{"secp224r1", "P-224", "1.3.132.0.33"});
-        m.put("secp224r1",   new String[]{"secp224r1", "P-224", "1.3.132.0.33"});
-
-        // SECG secp256k1 (Koblitz prime — Bitcoin)
-        m.put("secp256k1",   new String[]{"secp256k1", "1.3.132.0.10"});
-
-        // NIST K-curves (binary field, Koblitz). BC accepts the short
-        // K-NNN names; SunEC needs the SECG sectNNNk1 form, so the
-        // SECG name is listed first in the alias array.
-        m.put("K-163",       new String[]{"sect163k1", "K-163", "1.3.132.0.1"});
-        m.put("sect163k1",   new String[]{"sect163k1", "K-163", "1.3.132.0.1"});
-        m.put("K-233",       new String[]{"sect233k1", "K-233", "1.3.132.0.26"});
-        m.put("sect233k1",   new String[]{"sect233k1", "K-233", "1.3.132.0.26"});
-        m.put("K-283",       new String[]{"sect283k1", "K-283", "1.3.132.0.16"});
-        m.put("sect283k1",   new String[]{"sect283k1", "K-283", "1.3.132.0.16"});
-        m.put("K-409",       new String[]{"sect409k1", "K-409", "1.3.132.0.36"});
-        m.put("sect409k1",   new String[]{"sect409k1", "K-409", "1.3.132.0.36"});
-        m.put("K-571",       new String[]{"sect571k1", "K-571", "1.3.132.0.38"});
-        m.put("sect571k1",   new String[]{"sect571k1", "K-571", "1.3.132.0.38"});
-
-        // NIST B-curves (binary field, random). B-163 maps to sect163r2
-        // — NOT r1; sect163r1 was withdrawn before NIST adopted the
-        // family. The other B-NNN curves all map to sectNNNr1.
-        m.put("B-163",       new String[]{"sect163r2", "B-163", "1.3.132.0.15"});
-        m.put("sect163r2",   new String[]{"sect163r2", "B-163", "1.3.132.0.15"});
-        m.put("B-233",       new String[]{"sect233r1", "B-233", "1.3.132.0.27"});
-        m.put("sect233r1",   new String[]{"sect233r1", "B-233", "1.3.132.0.27"});
-        m.put("B-283",       new String[]{"sect283r1", "B-283", "1.3.132.0.17"});
-        m.put("sect283r1",   new String[]{"sect283r1", "B-283", "1.3.132.0.17"});
-        m.put("B-409",       new String[]{"sect409r1", "B-409", "1.3.132.0.37"});
-        m.put("sect409r1",   new String[]{"sect409r1", "B-409", "1.3.132.0.37"});
-        m.put("B-571",       new String[]{"sect571r1", "B-571", "1.3.132.0.39"});
-        m.put("sect571r1",   new String[]{"sect571r1", "B-571", "1.3.132.0.39"});
-
-        CURVE_ALIASES = Collections.unmodifiableMap(m);
+    /**
+     * BigInteger to big-endian unsigned magnitude, dropping the sign byte
+     * {@code toByteArray} adds. Returns {@code null} for a negative value,
+     * which no domain parameter can legitimately be.
+     */
+    private static byte[] unsignedBytes(BigInteger v)
+    {
+        if (v == null || v.signum() < 0)
+        {
+            return null;
+        }
+        byte[] raw = v.toByteArray();
+        if (raw.length > 1 && raw[0] == 0)
+        {
+            byte[] trimmed = new byte[raw.length - 1];
+            System.arraycopy(raw, 1, trimmed, 0, trimmed.length);
+            return trimmed;
+        }
+        // BigInteger.ZERO encodes as a single 0x00; the native side reads an
+        // empty array as zero, and both forms decode identically.
+        return raw;
     }
 }
