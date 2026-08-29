@@ -121,10 +121,25 @@ public class RSAAgreementTest
         return names;
     }
 
+    /**
+     * Service discovery returns each object identifier in BOTH registered
+     * spellings — bare and JCA's {@code "OID."}-prefixed form — and the two
+     * name the same algorithm. Classification by name must therefore
+     * normalise, or the prefixed spelling falls into the wrong bucket: it was
+     * driven as deterministic PKCS#1 rather than as PSS, and as a plain
+     * Cipher rather than as KTS, when the prefixed aliases were first
+     * registered.
+     */
+    private static String bareName(String alg)
+    {
+        String n = alg.toUpperCase(Locale.ROOT);
+        return n.startsWith("OID.") ? n.substring("OID.".length()) : n;
+    }
+
     /** PSS and MGF1 names are randomised; the rest are deterministic PKCS#1. */
     private static boolean isRandomised(String alg)
     {
-        String n = alg.toUpperCase(Locale.ROOT);
+        String n = bareName(alg);
         return n.contains("PSS") || n.contains("MGF1") || n.equals("1.2.840.113549.1.1.10");
     }
 
@@ -136,7 +151,7 @@ public class RSAAgreementTest
      */
     private static boolean usesSpiDefaultDigest(String alg)
     {
-        String n = alg.toUpperCase(Locale.ROOT);
+        String n = bareName(alg);
         return n.equals("RSASSA-PSS") || n.equals("1.2.840.113549.1.1.10");
     }
 
@@ -629,7 +644,7 @@ public class RSAAgreementTest
      */
     private static void driveCipher(String alg, SecureRandom sr) throws Exception
     {
-        String n = alg.toUpperCase(Locale.ROOT);
+        String n = bareName(alg);
         boolean kts = n.contains("KTS") || n.equals("1.0.18033.2.2.4")
                 || n.equals("1.2.840.113549.1.9.16.3.14");
 

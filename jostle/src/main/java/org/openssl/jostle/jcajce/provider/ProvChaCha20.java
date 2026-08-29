@@ -92,12 +92,11 @@ class ProvChaCha20
         // SunJCE registers none either. BlockCipherSpi returns null there.
         provider.addAlgorithmImplementation("AlgorithmParameters", "ChaCha20-Poly1305",
                 IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
-        // BOTH lookup forms, as BouncyCastle registers them: a caller
-        // resolving by bare OID and one resolving by "OID."-prefixed OID must
-        // both reach this codec.
+        // Both lookup spellings, as BouncyCastle registers them. Only the
+        // bare OID is passed: addAlias emits the "OID."-prefixed form for any
+        // OID-shaped alias, so this no longer needs stating per call site.
         provider.addAlias("AlgorithmParameters", "ChaCha20-Poly1305",
-                ID_ALG_AEAD_CHACHA20_POLY1305,
-                "OID." + ID_ALG_AEAD_CHACHA20_POLY1305);
+                ID_ALG_AEAD_CHACHA20_POLY1305);
     }
 
     /**

@@ -537,7 +537,7 @@ public class FIPSRSAAgreementTest
     {
         byte[] msg = new byte[32];
         sr.nextBytes(msg);
-        String n = alg.toUpperCase(java.util.Locale.ROOT);
+        String n = bareName(alg);
         boolean sha1 = n.contains("SHA1") || n.equals("1.2.840.113549.1.1.5");
         boolean none = n.equals("NONEWITHRSA");
 
@@ -583,7 +583,7 @@ public class FIPSRSAAgreementTest
 
     private static void driveFipsCipher(String alg, KeyPair kp, SecureRandom sr) throws Exception
     {
-        String n = alg.toUpperCase(java.util.Locale.ROOT);
+        String n = bareName(alg);
         boolean kts = n.contains("KTS") || n.equals("1.0.18033.2.2.4")
                 || n.equals("1.2.840.113549.1.9.16.3.14");
 
@@ -626,4 +626,20 @@ public class FIPSRSAAgreementTest
         // assertNotNull passed even if the module decrypted to the wrong bytes.
         Assertions.assertArrayEquals(msg, dec.doFinal(ct), alg + ": round trip");
     }
+
+    /**
+     * Service discovery returns each object identifier in BOTH registered
+     * spellings — bare and JCA's {@code "OID."}-prefixed form — and the two
+     * name the same algorithm. Classification by name must therefore
+     * normalise, or the prefixed spelling falls into the wrong bucket: when
+     * the prefixed aliases were first registered, the KTS transformations
+     * were driven as plain Ciphers and failed for want of a
+     * {@code KTSParameterSpec}.
+     */
+    private static String bareName(String alg)
+    {
+        String n = alg.toUpperCase(java.util.Locale.ROOT);
+        return n.startsWith("OID.") ? n.substring("OID.".length()) : n;
+    }
+
 }
