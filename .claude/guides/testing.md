@@ -55,6 +55,8 @@ Note the last row. Divergence is NOT continuation: two EMPTY clones fed differen
 
 Revert the sabotage, rebuild, and re-verify green before declaring done. For native changes that means re-running `interface/build.sh` — the Gradle build does not recompile C.
 
+**The multi-release trap is not confined to sabotage — it bites ORDINARY edits, and there it has no falsification step to catch it.** Rule 2 above frames `javaN/` overrides as a reason a sabotage silently fails to land. The same mechanism swallows a normal fix: MT-17 converted `ProvRand`'s registered class names in `src/main/java/`, rebuilt, and the JDK-25 probe still reported the OLD names for all 18 SecureRandom services, because `META-INF/versions/9/.../ProvRand.class` is what runs. Every source-level check said the edit had landed, and the jar's baseline entry genuinely was correct. Only a probe that measures BEHAVIOUR — enumerate the services and read what they report — showed otherwise; a source sweep would have declared the file done and shipped 18 wrong names. So before declaring any edit complete, ask whether the class has an override: `find jostle/src/main -name "<Class>.java" | grep -v src/main/java/` (for registrars, `-name "Prov*.java"` lists all of them — there are exactly two, `ProvRand` and `ProvFIPSRand`). And prefer a behavioural probe over a source grep when confirming a sweep is complete, because only the former can see which copy the JVM loads.
+
 ### Landing a check that is inert until a later flip: ADDITIVE is relative to what EXISTS
 
 When a change lands in two phases — checks first, activation later — the
@@ -572,6 +574,19 @@ The general rule behind both: **before trusting a green from a guard you just tr
    an already-final working tree, so a tip-only comparison passes even when
    two adjacent commits have swapped content — same endpoint, different
    history.
+
+5. **A leg that did not RUN reads as green from the previous run's XML.**
+   `build/test-results/<task>/` is not cleared when a run stops early, so when
+   Gradle fails at one task the *later* tasks keep serving result files from
+   whenever they last ran — days old, against a different tree. MT-17's gate
+   failed at `unitTest11` and the other unit legs still showed the same test
+   PASSING; that read as a JDK-11-specific quirk for several minutes, and it
+   was nothing of the sort — those XMLs predated the change by three hours and
+   the failure applied to every leg. **Before reading any per-leg result, check
+   that the result directory's mtime postdates the change** (`stat -f '%Sm'` on
+   the newest `TEST-*.xml`), or re-run that leg. A filtered `--tests` run leaves
+   the same footprint one step worse: it REPLACES the directory with two files,
+   so the leg then looks both fresh and nearly empty.
 
 The unifying form: **verify the state you care about, not the command you ran
 to reach it.** Every instance above passes the "did the command return?" test
