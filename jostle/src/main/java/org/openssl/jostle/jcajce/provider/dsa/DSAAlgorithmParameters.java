@@ -11,126 +11,139 @@
 
 package org.openssl.jostle.jcajce.provider.dsa;
 
+import org.openssl.jostle.util.asn1.Der;
+
 import java.io.IOException;
-import java.security.AlgorithmParameters;
+import java.math.BigInteger;
 import java.security.AlgorithmParametersSpi;
-import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
-import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.DSAParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 
 /**
- * {@code AlgorithmParameters} for DSA. Encodes/decodes the X9.57
- * {@code Dss-Parms ::= SEQUENCE \{ p, q, g \}} structure and
- * translates to/from {@link java.security.spec.DSAParameterSpec}.
+ * DSA {@code AlgorithmParameters} — the domain parameters, encoded in house.
  *
- * <p>The ASN.1 codec and the spec translation are delegated to a
- * platform DSA {@code AlgorithmParameters} (the SUN provider on a
- * standard JDK) — the same delegation pattern as
- * {@link org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters}.
- * Because this class IS registered under the bare name {@code "DSA"},
- * the delegate must be resolved from a provider that is NOT Jostle, or
- * {@code getInstance("DSA")} could resolve back to this class and
- * recurse. {@link #resolveDelegate()} walks the installed providers
- * and skips Jostle for exactly that reason.
+ * <pre>
+ *   Dss-Parms ::= SEQUENCE { p INTEGER, q INTEGER, g INTEGER }   -- RFC 3279 s2.3.2
+ * </pre>
+ *
+ * <p>Previously delegated to a non-Jostle provider's DSA
+ * {@code AlgorithmParameters}, resolved by walking the installed providers and
+ * skipping Jostle by package prefix so {@code getInstance("DSA")} could not
+ * recurse into this class. The codec is three integers; there was nothing to
+ * delegate, and with the delegate gone the recursion hazard goes with it.
  */
 public class DSAAlgorithmParameters
     extends AlgorithmParametersSpi
 {
-    private final AlgorithmParameters delegate;
-
-    public DSAAlgorithmParameters()
-    {
-        this.delegate = resolveDelegate();
-    }
-
-    /**
-     * Find a platform DSA {@code AlgorithmParameters} that is not this
-     * provider's, so delegation cannot recurse into this class.
-     */
-    private static AlgorithmParameters resolveDelegate()
-    {
-        for (Provider p : Security.getProviders())
-        {
-            // Skip any provider whose "DSA" AlgorithmParameters SPI is a
-            // Jostle class. This SPI is registered under BOTH "JSL" and
-            // "JSLFIPS", so a provider-name check that skipped only "JSL"
-            // would let a JSLFIPS-first deployment resolve getInstance
-            // back into this class and recurse to StackOverflowError.
-            // Match by SPI package, not provider name, so every current
-            // and future Jostle-derived provider is guarded. A package
-            // prefix, not an exact class match: several Jostle classes
-            // serve this type and a new one must be skipped too.
-            Provider.Service svc = p.getService("AlgorithmParameters", "DSA");
-            if (svc == null)
-            {
-                continue;
-            }
-            String svcClass = svc.getClassName();
-            if (svcClass != null && svcClass.startsWith("org.openssl.jostle."))
-            {
-                continue;
-            }
-            try
-            {
-                return AlgorithmParameters.getInstance("DSA", p);
-            }
-            catch (NoSuchAlgorithmException e)
-            {
-                // Service advertised but not constructible from this
-                // provider — keep looking.
-            }
-        }
-        throw new IllegalStateException(
-                "no non-Jostle AlgorithmParameters(\"DSA\") available from the platform");
-    }
+    private BigInteger p;
+    private BigInteger q;
+    private BigInteger g;
 
     @Override
     protected void engineInit(AlgorithmParameterSpec paramSpec)
         throws InvalidParameterSpecException
     {
-        delegate.init(paramSpec);
+        if (!(paramSpec instanceof DSAParameterSpec))
+        {
+            throw new InvalidParameterSpecException(
+                    "DSA parameters require a DSAParameterSpec, got "
+                            + (paramSpec == null ? "null" : paramSpec.getClass().getName()));
+        }
+        DSAParameterSpec spec = (DSAParameterSpec) paramSpec;
+        if (spec.getP() == null || spec.getQ() == null || spec.getG() == null)
+        {
+            throw new InvalidParameterSpecException("DSA parameters require p, q and g");
+        }
+        this.p = spec.getP();
+        this.q = spec.getQ();
+        this.g = spec.getG();
     }
 
     @Override
     protected void engineInit(byte[] params)
         throws IOException
     {
-        delegate.init(params);
+        if (params == null)
+        {
+            throw new IOException("null DSA parameters");
+        }
+        Der.Reader r = new Der.Reader(params);
+        Der.Reader seq = r.readTLV(Der.SEQUENCE, "Dss-Parms SEQUENCE");
+        r.requireEnd("trailing bytes after Dss-Parms");
+
+        BigInteger rp = seq.readInteger("Dss-Parms p");
+        BigInteger rq = seq.readInteger("Dss-Parms q");
+        BigInteger rg = seq.readInteger("Dss-Parms g");
+        seq.requireEnd("trailing bytes inside Dss-Parms");
+
+        this.p = rp;
+        this.q = rq;
+        this.g = rg;
     }
 
     @Override
     protected void engineInit(byte[] params, String format)
         throws IOException
     {
-        delegate.init(params, format);
+        if (format == null || "ASN.1".equalsIgnoreCase(format) || "DER".equalsIgnoreCase(format))
+        {
+            engineInit(params);
+            return;
+        }
+        throw new IOException("unsupported DSA parameters format: " + format);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected <T extends AlgorithmParameterSpec> T engineGetParameterSpec(Class<T> paramSpec)
         throws InvalidParameterSpecException
     {
-        return delegate.getParameterSpec(paramSpec);
+        requireInitialised();
+        if (paramSpec == null)
+        {
+            throw new InvalidParameterSpecException("null parameter spec class");
+        }
+        if (paramSpec.isAssignableFrom(DSAParameterSpec.class))
+        {
+            return (T) new DSAParameterSpec(p, q, g);
+        }
+        throw new InvalidParameterSpecException("unsupported parameter spec: " + paramSpec.getName());
     }
 
     @Override
     protected byte[] engineGetEncoded()
         throws IOException
     {
-        return delegate.getEncoded();
+        if (p == null)
+        {
+            throw new IOException("DSA parameters not initialised");
+        }
+        return Der.sequence(Der.integer(p), Der.integer(q), Der.integer(g));
     }
 
     @Override
     protected byte[] engineGetEncoded(String format)
         throws IOException
     {
-        return delegate.getEncoded(format);
+        if (format == null || "ASN.1".equalsIgnoreCase(format) || "DER".equalsIgnoreCase(format))
+        {
+            return engineGetEncoded();
+        }
+        throw new IOException("unsupported DSA parameters format: " + format);
     }
 
     @Override
     protected String engineToString()
     {
-        return delegate.toString();
+        return p == null ? "Dss-Parms (uninitialised)" : "Dss-Parms [p=" + p.bitLength() + " bits, q=" + q.bitLength() + " bits]";
+    }
+
+    private void requireInitialised() throws InvalidParameterSpecException
+    {
+        if (p == null)
+        {
+            throw new InvalidParameterSpecException("DSA parameters not initialised");
+        }
     }
 }
