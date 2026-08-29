@@ -111,6 +111,141 @@ public final class Der
         return integer(BigInteger.valueOf(v));
     }
 
+    /**
+     * Upper bound on the arcs in an OBJECT IDENTIFIER this codec will encode or
+     * decode. Every OID in the JCA surface has fewer than ten; 32 refuses a
+     * pathological input without ruling out anything real.
+     */
+    public static final int MAX_OID_ARCS = 32;
+
+    /**
+     * Upper bound on an OBJECT IDENTIFIER's content octets. Mirrors
+     * EC_CURVE_MAX_OID_BYTES in ec.h. The longest OID this provider handles is
+     * the 20-character brainpool one; 128 leaves room without being open-ended.
+     */
+    public static final int MAX_OID_CONTENT_BYTES = 128;
+
+    /**
+     * Widest single arc, in bits. Nine base-128 octets carry 63 bits, which is
+     * the most a Java {@code long} holds without becoming negative. An arc
+     * beyond it is REFUSED rather than allowed to wrap — a silently wrapped arc
+     * would decode to a different, valid-looking OID.
+     */
+    private static final int MAX_OID_ARC_BITS = 63;
+
+    /**
+     * Encode a dotted-decimal OBJECT IDENTIFIER TLV.
+     *
+     * <p>Rejects anything X.690 8.19 does not permit: fewer than two arcs, a
+     * first arc outside 0..2, a second arc above 39 when the first is 0 or 1,
+     * a negative or non-numeric arc, and an arc wider than
+     * {@link #MAX_OID_ARC_BITS}.
+     *
+     * @throws IllegalArgumentException if {@code dotted} is not a valid OID.
+     */
+    public static byte[] objectIdentifier(String dotted)
+    {
+        if (dotted == null || dotted.isEmpty())
+        {
+            throw new IllegalArgumentException("empty object identifier");
+        }
+        String[] parts = dotted.split("\\.", -1);
+        if (parts.length < 2)
+        {
+            throw new IllegalArgumentException(
+                    "object identifier needs at least two arcs: " + dotted);
+        }
+        if (parts.length > MAX_OID_ARCS)
+        {
+            throw new IllegalArgumentException(
+                    "object identifier has more than " + MAX_OID_ARCS + " arcs");
+        }
+        long[] arcs = new long[parts.length];
+        for (int i = 0; i < parts.length; i++)
+        {
+            arcs[i] = parseArc(parts[i], dotted);
+        }
+        if (arcs[0] > 2)
+        {
+            throw new IllegalArgumentException(
+                    "first arc of an object identifier must be 0, 1 or 2: " + dotted);
+        }
+        if (arcs[0] < 2 && arcs[1] > 39)
+        {
+            throw new IllegalArgumentException(
+                    "second arc must be below 40 when the first is 0 or 1: " + dotted);
+        }
+        if (arcs[0] == 2 && arcs[1] > Long.MAX_VALUE - 80)
+        {
+            throw new IllegalArgumentException("second arc overflows: " + dotted);
+        }
+
+        // Bounded by construction: at most MAX_OID_ARCS arcs, each at most
+        // nine base-128 octets, so the buffer cannot exceed 32 * 9 bytes
+        // however hostile the input string is.
+        ByteArrayOutputStream body = new ByteArrayOutputStream(MAX_OID_ARCS * 9);
+        writeBase128(body, arcs[0] * 40 + arcs[1]);
+        for (int i = 2; i < arcs.length; i++)
+        {
+            writeBase128(body, arcs[i]);
+        }
+        byte[] content = body.toByteArray();
+        if (content.length > MAX_OID_CONTENT_BYTES)
+        {
+            throw new IllegalArgumentException(
+                    "object identifier encodes to more than "
+                            + MAX_OID_CONTENT_BYTES + " octets: " + dotted);
+        }
+        return tlv(OBJECT_IDENTIFIER, content);
+    }
+
+    private static long parseArc(String text, String dotted)
+    {
+        if (text.isEmpty())
+        {
+            throw new IllegalArgumentException("empty arc in object identifier: " + dotted);
+        }
+        // Deliberately not Long.parseLong: it accepts a leading '+' or '-',
+        // neither of which belongs in an OID, and would then be rejected only
+        // by the range check below on the '-' case.
+        long value = 0;
+        for (int i = 0; i < text.length(); i++)
+        {
+            char c = text.charAt(i);
+            if (c < '0' || c > '9')
+            {
+                throw new IllegalArgumentException(
+                        "non-numeric arc in object identifier: " + dotted);
+            }
+            if (value > (Long.MAX_VALUE - (c - '0')) / 10)
+            {
+                throw new IllegalArgumentException(
+                        "arc too large in object identifier: " + dotted);
+            }
+            value = value * 10 + (c - '0');
+        }
+        return value;
+    }
+
+    private static void writeBase128(ByteArrayOutputStream out, long value)
+    {
+        if (value < 0 || 64 - Long.numberOfLeadingZeros(value) > MAX_OID_ARC_BITS)
+        {
+            throw new IllegalArgumentException("arc wider than "
+                    + MAX_OID_ARC_BITS + " bits in object identifier");
+        }
+        int shift = 63;
+        while (shift > 0 && (value >>> shift) == 0)
+        {
+            shift -= 7;
+        }
+        for (; shift > 0; shift -= 7)
+        {
+            out.write((int) ((value >>> shift) & 0x7F) | 0x80);
+        }
+        out.write((int) (value & 0x7F));
+    }
+
     public static byte[] octetString(byte[] v)
     {
         return tlv(OCTET_STRING, v);
@@ -232,6 +367,81 @@ public final class Der
             System.arraycopy(buf, pos, out, 0, out.length);
             pos = end;
             return out;
+        }
+
+        /**
+         * Read an OBJECT IDENTIFIER and return it in dotted-decimal form.
+         *
+         * <p>Strict per X.690 8.19 and DER: empty contents, a subidentifier
+         * whose first octet is 0x80 (non-minimal base-128), a final octet that
+         * still carries the continuation bit (truncated), an arc wider than 63
+         * bits, and contents beyond {@link Der#MAX_OID_CONTENT_BYTES} are all
+         * rejected.
+         */
+        public String readObjectIdentifier(String what) throws IOException
+        {
+            byte[] content = readTLV(OBJECT_IDENTIFIER, what).remaining();
+            if (content.length == 0)
+            {
+                throw new IOException("empty OBJECT IDENTIFIER in " + what);
+            }
+            if (content.length > MAX_OID_CONTENT_BYTES)
+            {
+                throw new IOException("OBJECT IDENTIFIER longer than "
+                        + MAX_OID_CONTENT_BYTES + " octets in " + what);
+            }
+            // Bounded by the check above: at most MAX_OID_CONTENT_BYTES
+            // subidentifiers can appear in that many octets, so the builder
+            // cannot grow past a few hundred characters.
+            StringBuilder sb = new StringBuilder(MAX_OID_CONTENT_BYTES * 4);
+            int arcs = 0;
+            int i = 0;
+            while (i < content.length)
+            {
+                if ((content[i] & 0xFF) == 0x80)
+                {
+                    throw new IOException(
+                            "non-minimal subidentifier (leading 0x80) in " + what);
+                }
+                long value = 0;
+                int bits = 0;
+                while (true)
+                {
+                    if (i >= content.length)
+                    {
+                        throw new IOException(
+                                "truncated subidentifier in " + what);
+                    }
+                    int octet = content[i++] & 0xFF;
+                    bits += 7;
+                    if (bits > MAX_OID_ARC_BITS)
+                    {
+                        throw new IOException("arc wider than "
+                                + MAX_OID_ARC_BITS + " bits in " + what);
+                    }
+                    value = (value << 7) | (octet & 0x7F);
+                    if ((octet & 0x80) == 0)
+                    {
+                        break;
+                    }
+                }
+                if (++arcs > MAX_OID_ARCS)
+                {
+                    throw new IOException("more than " + MAX_OID_ARCS
+                            + " arcs in " + what);
+                }
+                if (arcs == 1)
+                {
+                    // X.690 8.19.4: the first octet encodes 40 * arc1 + arc2.
+                    long first = value < 40 ? 0 : (value < 80 ? 1 : 2);
+                    sb.append(first).append('.').append(value - first * 40);
+                }
+                else
+                {
+                    sb.append('.').append(value);
+                }
+            }
+            return sb.toString();
         }
 
         /** Read a non-negative INTEGER's value. */
