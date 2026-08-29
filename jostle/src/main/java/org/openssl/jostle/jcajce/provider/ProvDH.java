@@ -80,7 +80,8 @@ class ProvDH
         // AlgorithmParameterGenerator DH — native safe-prime paramgen.
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DH",
                 DHAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
-                (arg) -> new DHAlgorithmParameterGenerator());
+                (arg) -> new DHAlgorithmParameterGenerator(
+                        NISelector.DHServiceNI, NISelector.SpecNI, provider));
         provider.addAlias("AlgorithmParameterGenerator", "DH", "DiffieHellman");
 
         provider.addAlgorithmImplementation("KeyAgreement", "DH",

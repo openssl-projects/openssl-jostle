@@ -48,6 +48,12 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
     private final DSAServiceNI dsaServiceNI;
     private final SpecNI specNI;
 
+    /**
+     * The provider this generator belongs to, or null when it was constructed
+     * directly rather than through a provider (MT-14's unbound realm).
+     */
+    private final java.security.Provider providerInstance;
+
     public DSAAlgorithmParameterGenerator()
     {
         this(NISelector.DSAServiceNI, NISelector.SpecNI);
@@ -55,6 +61,16 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
 
     public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI)
     {
+        this(dsaServiceNI, specNI, null);
+    }
+
+    /**
+     * @param providerInstance the provider this generator belongs to; its own
+     *                         AlgorithmParameters serve the generated parameters.
+     */
+    public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.dsaServiceNI = dsaServiceNI;
         this.specNI = specNI;
     }
@@ -125,11 +141,14 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
         DSAParameterSpec spec = DSAComponents.getParams(dsaServiceNI, paramsSpec);
         try
         {
-            // Resolve from the installed providers — if Jostle is
-            // registered this returns our DSAAlgorithmParameters (which
-            // delegates the codec to the platform); on a bare JVM the
-            // SUN provider serves directly.
-            AlgorithmParameters params = AlgorithmParameters.getInstance("DSA");
+            // Resolve from THIS generator's own provider. getInstance(String,
+            // Provider) reads the provider OBJECT and never consults the
+            // Security registry, so a foreign provider ahead of Jostle cannot
+            // supply the parameters. A directly-constructed generator has no
+            // provider to pin and falls back to registry order.
+            AlgorithmParameters params = providerInstance != null
+                    ? AlgorithmParameters.getInstance("DSA", providerInstance)
+                    : AlgorithmParameters.getInstance("DSA");
             params.init(spec);
             return params;
         }

@@ -52,6 +52,12 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     private final DHServiceNI dhServiceNI;
     private final SpecNI specNI;
 
+    /**
+     * The provider this generator belongs to, or null when it was constructed
+     * directly rather than through a provider (MT-14's unbound realm).
+     */
+    private final java.security.Provider providerInstance;
+
     public DHAlgorithmParameterGenerator()
     {
         this(NISelector.DHServiceNI, NISelector.SpecNI);
@@ -59,6 +65,16 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
 
     public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI, SpecNI specNI)
     {
+        this(dhServiceNI, specNI, null);
+    }
+
+    /**
+     * @param providerInstance the provider this generator belongs to; its own
+     *                         AlgorithmParameters serve the generated parameters.
+     */
+    public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI, SpecNI specNI, java.security.Provider providerInstance)
+    {
+        this.providerInstance = providerInstance;
         this.dhServiceNI = dhServiceNI;
         this.specNI = specNI;
     }
@@ -128,11 +144,14 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
         DHParameterSpec spec = DHComponents.getParams(dhServiceNI, paramsSpec);
         try
         {
-            // Resolve from the installed providers — if Jostle is
-            // registered this returns our DHAlgorithmParameters (which
-            // delegates the codec to the platform); on a bare JVM
-            // SunJCE serves directly.
-            AlgorithmParameters params = AlgorithmParameters.getInstance("DH");
+            // Resolve from THIS generator's own provider. getInstance(String,
+            // Provider) reads the provider OBJECT and never consults the
+            // Security registry, so a foreign provider ahead of Jostle cannot
+            // supply the parameters. A directly-constructed generator has no
+            // provider to pin and falls back to registry order.
+            AlgorithmParameters params = providerInstance != null
+                    ? AlgorithmParameters.getInstance("DH", providerInstance)
+                    : AlgorithmParameters.getInstance("DH");
             params.init(spec);
             return params;
         }

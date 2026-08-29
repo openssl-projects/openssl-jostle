@@ -58,7 +58,7 @@ class ProvFIPSDSA
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DSA",
                 DSAAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameterGenerator(
-                        FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI));
+                        FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, provider));
         provider.addAlias("AlgorithmParameterGenerator", "DSA", ID_DSA_OID);
 
         registerDsaSignature(provider, attr, "SHA1withDSA", "SHA-1", ID_DSA_WITH_SHA1_OID);

@@ -62,7 +62,8 @@ class ProvDSA
         // AlgorithmParameterGenerator DSA — native FIPS 186-4 paramgen.
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DSA",
                 DSAAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
-                (arg) -> new DSAAlgorithmParameterGenerator());
+                (arg) -> new DSAAlgorithmParameterGenerator(
+                        NISelector.DSAServiceNI, NISelector.SpecNI, provider));
         provider.addAlias("AlgorithmParameterGenerator", "DSA", ID_DSA_OID);
 
         // DSA Signature variants. SHA-1 is the X9.57 id-dsa-with-sha1;
