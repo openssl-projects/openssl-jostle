@@ -122,6 +122,57 @@ int32_t JoEC_getComponent(key_spec *spec, int32_t component,
 
 
 // =============================================================
+// Curve table lookup
+// =============================================================
+
+int32_t JoEC_getCurveComponent(const char *curve_name, int32_t component,
+                               uint8_t *out, size_t out_len) {
+    if (curve_name == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+    if (out_len > (size_t) INT32_MAX) {
+        return JO_OUTPUT_TOO_LONG_INT32;
+    }
+    return ec_get_curve_component(curve_name, component, out, out_len);
+}
+
+
+int32_t JoEC_findCurveName(int32_t field_type,
+                           const uint8_t *p, size_t p_len,
+                           const uint8_t *a, size_t a_len,
+                           const uint8_t *b, size_t b_len,
+                           const uint8_t *gx, size_t gx_len,
+                           const uint8_t *gy, size_t gy_len,
+                           const uint8_t *order, size_t order_len,
+                           const uint8_t *cofactor, size_t cofactor_len,
+                           uint8_t *out, size_t out_len) {
+    // The seven domain values checked as a table for the same reason the JNI
+    // twin loops: seven hand-written copies of one check is where one gets
+    // missed. Both bridges must reject identical inputs identically.
+    const uint8_t *inputs[7] = {p, a, b, gx, gy, order, cofactor};
+    const size_t lengths[7] = {p_len, a_len, b_len, gx_len, gy_len,
+                               order_len, cofactor_len};
+    for (int i = 0; i < 7; i++) {
+        if (inputs[i] == NULL) {
+            return JO_INPUT_IS_NULL;
+        }
+        if (lengths[i] > (size_t) INT32_MAX) {
+            return JO_INPUT_TOO_LONG_INT32;
+        }
+    }
+    if (out_len > (size_t) INT32_MAX) {
+        return JO_OUTPUT_TOO_LONG_INT32;
+    }
+
+    return ec_find_curve_name(field_type,
+                              p, p_len, a, a_len, b, b_len,
+                              gx, gx_len, gy, gy_len,
+                              order, order_len, cofactor, cofactor_len,
+                              out, out_len);
+}
+
+
+// =============================================================
 // Sign / verify session
 // =============================================================
 

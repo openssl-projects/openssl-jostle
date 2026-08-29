@@ -208,6 +208,122 @@ exit:
 }
 
 
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
+ * Method:    ni_getCurveComponent
+ * Signature: (Ljava/lang/String;I[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1getCurveComponent
+(JNIEnv *env, jobject jo, jstring _curveName, jint component, jbyteArray _out) {
+    UNUSED(jo);
+
+    if (_curveName == NULL) {
+        return JO_NAME_IS_NULL;
+    }
+
+    const char *curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
+    if (OPS_FAILED_ACCESS_2 curve_name == NULL) {
+        return JO_UNABLE_TO_ACCESS_NAME;
+    }
+
+    int32_t ret_code = JO_FAIL;
+    java_bytearray_ctx out_ctx;
+    init_bytearray_ctx(&out_ctx);
+
+    if (_out == NULL) {
+        // Caller wants the required size.
+        ret_code = ec_get_curve_component(curve_name, component, NULL, 0);
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&out_ctx, env, _out)) {
+        ret_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    ret_code = ec_get_curve_component(curve_name, component,
+                                      out_ctx.bytearray, out_ctx.size);
+
+exit:
+    release_bytearray_ctx(&out_ctx);
+    (*env)->ReleaseStringUTFChars(env, _curveName, curve_name);
+    return ret_code;
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
+ * Method:    ni_findCurveName
+ * Signature: (I[B[B[B[B[B[B[B[B)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1findCurveName
+(JNIEnv *env, jobject jo, jint fieldType,
+ jbyteArray _p, jbyteArray _a, jbyteArray _b,
+ jbyteArray _gx, jbyteArray _gy, jbyteArray _order, jbyteArray _cofactor,
+ jbyteArray _out) {
+    UNUSED(jo);
+
+    // The seven domain values, in the order ec_find_curve_name takes them.
+    // Held as an array so every one gets the identical null check, load and
+    // release — a per-parameter transcription of the same twenty lines is
+    // exactly where one of seven gets missed.
+    jbyteArray inputs[7] = {_p, _a, _b, _gx, _gy, _order, _cofactor};
+    java_bytearray_ctx in_ctx[7];
+    for (int i = 0; i < 7; i++) {
+        init_bytearray_ctx(&in_ctx[i]);
+    }
+
+    int32_t ret_code = JO_FAIL;
+    java_bytearray_ctx out_ctx;
+    init_bytearray_ctx(&out_ctx);
+
+    for (int i = 0; i < 7; i++) {
+        if (inputs[i] == NULL) {
+            ret_code = JO_INPUT_IS_NULL;
+            goto exit;
+        }
+        if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&in_ctx[i], env, inputs[i])) {
+            ret_code = JO_FAILED_ACCESS_INPUT;
+            goto exit;
+        }
+        // load_bytearray_ctx reports SUCCESS for a null Java array with size
+        // zero, so the null check above is not on its own enough: check the
+        // pointer it actually produced.
+        if (in_ctx[i].bytearray == NULL) {
+            ret_code = JO_INPUT_IS_NULL;
+            goto exit;
+        }
+    }
+
+    // Nested rather than &&-joined: OPS_FAILED_ACCESS_5 expands to
+    // "is_ops_set(n) ||", and && binds tighter than ||, so the flat form
+    // would call load_bytearray_ctx even when _out is NULL.
+    if (_out != NULL) {
+        if (OPS_FAILED_ACCESS_5 !load_bytearray_ctx(&out_ctx, env, _out)) {
+            ret_code = JO_FAILED_ACCESS_OUTPUT;
+            goto exit;
+        }
+    }
+
+    ret_code = ec_find_curve_name(fieldType,
+                                  in_ctx[0].bytearray, in_ctx[0].size,
+                                  in_ctx[1].bytearray, in_ctx[1].size,
+                                  in_ctx[2].bytearray, in_ctx[2].size,
+                                  in_ctx[3].bytearray, in_ctx[3].size,
+                                  in_ctx[4].bytearray, in_ctx[4].size,
+                                  in_ctx[5].bytearray, in_ctx[5].size,
+                                  in_ctx[6].bytearray, in_ctx[6].size,
+                                  out_ctx.bytearray, out_ctx.size);
+
+exit:
+    release_bytearray_ctx(&out_ctx);
+    for (int i = 0; i < 7; i++) {
+        release_bytearray_ctx(&in_ctx[i]);
+    }
+    return ret_code;
+}
+
+
 // =================================================================
 // Sign / verify session
 // =================================================================

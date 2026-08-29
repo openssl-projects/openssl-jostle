@@ -17,8 +17,10 @@
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1curveSupported           Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1curveSupported
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1disposeKex               Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1disposeKex
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1disposeSigner            Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1disposeSigner
+#define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1findCurveName                                   Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1findCurveName
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1generateKeyPair          Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1generateKeyPair
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1getComponent             Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1getComponent
+#define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1getCurveComponent                               Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1getCurveComponent
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1initSign                 Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1initSign
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1initVerify               Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1initVerify
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1kexDerive                Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1kexDerive

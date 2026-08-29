@@ -539,6 +539,21 @@
 
 
 /*
+ * The explicit domain parameters handed to ec_find_curve_name describe no
+ * curve in OpenSSL's builtin table. This is the ordinary "not a named curve"
+ * answer, NOT an error condition: the Java layer turns it into a null return
+ * so each caller can phrase its own rejection (InvalidKeySpecException from
+ * the KeyFactory, InvalidAlgorithmParameterException from the generator).
+ *
+ * It also covers malformed values, because OpenSSL's EC_GROUP_check_named_curve
+ * answers -1 for "unknown" and "malformed" alike and nothing downstream acts
+ * on the difference - both mean the caller must name a curve instead.
+ */
+#define JO_CURVE_NO_MATCH -172
+
+
+
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config

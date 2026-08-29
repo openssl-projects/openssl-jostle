@@ -27,8 +27,10 @@
 #define JoEC_curveSupported            JoFIPS_JoEC_curveSupported
 #define JoEC_disposeKex                JoFIPS_JoEC_disposeKex
 #define JoEC_disposeSigner             JoFIPS_JoEC_disposeSigner
+#define JoEC_findCurveName             JoFIPS_JoEC_findCurveName
 #define JoEC_generateKeyPair           JoFIPS_JoEC_generateKeyPair
 #define JoEC_getComponent              JoFIPS_JoEC_getComponent
+#define JoEC_getCurveComponent         JoFIPS_JoEC_getCurveComponent
 #define JoEC_initSign                  JoFIPS_JoEC_initSign
 #define JoEC_initVerify                JoFIPS_JoEC_initVerify
 #define JoEC_kexDerive                 JoFIPS_JoEC_kexDerive

@@ -294,6 +294,12 @@ public enum ErrorCode
     // to pair them even when p and g are identical.
     JO_DH_PEER_ENCODING_MISMATCH(-171),
 
+    // Explicit domain parameters that describe no curve in OpenSSL's builtin
+    // table. Not an error condition: ECComponents turns it into a null so
+    // each caller phrases its own rejection. Covers malformed values too,
+    // because EC_GROUP_check_named_curve answers -1 for both.
+    JO_CURVE_NO_MATCH(-172),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

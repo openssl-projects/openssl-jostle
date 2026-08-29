@@ -16,6 +16,8 @@
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/objects.h>
+#include <openssl/obj_mac.h>
 #include <openssl/params.h>
 
 #include "bc_err_codes.h"
@@ -318,6 +320,380 @@ int32_t ec_get_component(const key_spec *spec, int32_t component,
             // the opaque "unexpected error code" fallback in Java).
             return JO_UNEXPECTED_STATE;
     }
+}
+
+
+// =============================================================
+// Curve table lookup (by name, and in reverse)
+// =============================================================
+
+/*
+ * Resolve any spelling OpenSSL knows to a NID. OBJ_txt2nid covers short
+ * names, long names and dotted OIDs; the NIST spellings ("P-256", "K-163",
+ * "B-163") live in their own table. Returns NID_undef when nothing matches.
+ *
+ * The caller MUST still confirm the NID names an EC curve: OBJ_txt2nid
+ * resolves every object OpenSSL knows, so "AES-256-CBC" comes back with a
+ * perfectly good NID. Building the group is that confirmation.
+ */
+static int curve_nid_from_name(const char *curve_name) {
+    int nid = OBJ_txt2nid(curve_name);
+    if (nid == NID_undef) {
+        nid = EC_curve_nist2nid(curve_name);
+    }
+    return nid;
+}
+
+
+/*
+ * Build the builtin group for a curve spelling, through the tree's own lib
+ * ctx. Writes the resolved NID through nid_out on success. Returns NULL when
+ * the name resolves to nothing this build knows as an EC curve.
+ */
+static EC_GROUP *curve_group_from_name(const char *curve_name, int *nid_out) {
+    int nid = curve_nid_from_name(curve_name);
+    if (nid == NID_undef) {
+        return NULL;
+    }
+    EC_GROUP *group = EC_GROUP_new_by_curve_name_ex(
+            get_global_jostle_ossl_lib_ctx(), NULL, nid);
+    if (group != NULL) {
+        *nid_out = nid;
+    }
+    return group;
+}
+
+
+/*
+ * Two-call emit for a byte range. A zero length is SUCCESS, not an error —
+ * see the ec_get_curve_component contract.
+ */
+static int32_t emit_curve_bytes(const uint8_t *src, size_t len,
+                                uint8_t *out, size_t out_len) {
+    if (OPS_INT32_OVERFLOW_2 len > (size_t) INT32_MAX) {
+        return JO_OUTPUT_TOO_LONG_INT32;
+    }
+    if (out == NULL || out_len == 0) {
+        return (int32_t) len;
+    }
+    if (out_len < len) {
+        return JO_OUTPUT_TOO_SMALL;
+    }
+    if (len > 0) {
+        memcpy(out, src, len);
+    }
+    return (int32_t) len;
+}
+
+
+/* Two-call emit for a BIGNUM as big-endian unsigned magnitude. */
+static int32_t emit_curve_bn(const BIGNUM *bn, uint8_t *out, size_t out_len) {
+    int byte_len = BN_num_bytes(bn);
+    if (OPS_OPENSSL_ERROR_7 byte_len < 0) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(3200);
+    }
+    if (out == NULL || out_len == 0) {
+        return byte_len;
+    }
+    if (out_len < (size_t) byte_len) {
+        return JO_OUTPUT_TOO_SMALL;
+    }
+    // BN_bn2bin writes nothing and returns 0 for a zero BIGNUM, which is
+    // the legitimate secp256k1 a == 0 case rather than a failure.
+    int written = BN_bn2bin(bn, out);
+    if (OPS_OPENSSL_ERROR_8 written < 0) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(3201);
+    }
+    return written;
+}
+
+
+int32_t ec_get_curve_component(const char *curve_name, int32_t component,
+                               uint8_t *out, size_t out_len) {
+    // Bridge-validated invariant: the JNI / FFI bridge null-checked the
+    // name and surfaced JO_NAME_IS_NULL itself.
+    jo_assert(curve_name != NULL);
+
+    ERR_clear_error();
+
+    int nid = NID_undef;
+    EC_GROUP *group = curve_group_from_name(curve_name, &nid);
+    if (group == NULL) {
+        // A name that resolves to nothing is an ordinary answer, not an
+        // error worth reporting from the queue.
+        ERR_clear_error();
+        return JO_CURVE_NOT_SUPPORTED;
+    }
+
+    int32_t ret_code = JO_FAIL;
+    BN_CTX *ctx = NULL;
+    BIGNUM *p = NULL;
+    BIGNUM *a = NULL;
+    BIGNUM *b = NULL;
+    BIGNUM *gx = NULL;
+    BIGNUM *gy = NULL;
+    BIGNUM *scratch = NULL;
+
+    // Fetched before the switch because every field-valued component's
+    // allocation bound on the Java side is derived from the degree: a
+    // degree outside the structural cap has to fail here, not downstream
+    // where it would already have sized a buffer.
+    int degree = EC_GROUP_get_degree(group);
+    if (degree <= 0 || degree > EC_CURVE_MAX_FIELD_BITS) {
+        ret_code = JO_CURVE_NOT_SUPPORTED;
+        goto exit;
+    }
+
+    switch (component) {
+        case EC_CURVE_COMP_FIELD_TYPE: {
+            uint8_t value = (EC_GROUP_get_field_type(group)
+                             == NID_X9_62_prime_field)
+                                    ? (uint8_t) EC_FIELD_TYPE_PRIME
+                                    : (uint8_t) EC_FIELD_TYPE_BINARY;
+            ret_code = emit_curve_bytes(&value, 1, out, out_len);
+            goto exit;
+        }
+
+        case EC_CURVE_COMP_DEGREE: {
+            scratch = BN_new();
+            if (OPS_OPENSSL_ERROR_9 scratch == NULL
+                || 1 != BN_set_word(scratch, (BN_ULONG) degree)) {
+                ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(3202);
+                goto exit;
+            }
+            ret_code = emit_curve_bn(scratch, out, out_len);
+            goto exit;
+        }
+
+        case EC_CURVE_COMP_NAME: {
+            const char *sn = OBJ_nid2sn(nid);
+            if (OPS_OPENSSL_ERROR_10 sn == NULL) {
+                ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(3203);
+                goto exit;
+            }
+            size_t sn_len = strlen(sn);
+            if (sn_len > EC_CURVE_MAX_NAME_BYTES) {
+                ret_code = JO_OUTPUT_TOO_LONG_INT32;
+                goto exit;
+            }
+            ret_code = emit_curve_bytes((const uint8_t *) sn, sn_len,
+                                        out, out_len);
+            goto exit;
+        }
+
+        case EC_CURVE_COMP_OID: {
+            char oid[EC_CURVE_MAX_OID_BYTES + 1];
+            ASN1_OBJECT *obj = OBJ_nid2obj(nid);
+            int written = (obj == NULL)
+                    ? 0
+                    : OBJ_obj2txt(oid, (int) sizeof(oid), obj, 1);
+            if (written <= 0 || (size_t) written > EC_CURVE_MAX_OID_BYTES) {
+                // Two builtin curves carry no OID (Oakley-EC2N-3 / -4). An
+                // empty answer is the contract for that, so the caller can
+                // say "cannot encode" instead of reading a failure here.
+                ERR_clear_error();
+                ret_code = emit_curve_bytes(NULL, 0, out, out_len);
+                goto exit;
+            }
+            ret_code = emit_curve_bytes((const uint8_t *) oid,
+                                        (size_t) written, out, out_len);
+            goto exit;
+        }
+
+        case EC_CURVE_COMP_ORDER:
+            ret_code = emit_curve_bn(EC_GROUP_get0_order(group), out, out_len);
+            goto exit;
+
+        case EC_CURVE_COMP_COFACTOR:
+            ret_code = emit_curve_bn(EC_GROUP_get0_cofactor(group),
+                                     out, out_len);
+            goto exit;
+
+        case EC_CURVE_COMP_P:
+        case EC_CURVE_COMP_A:
+        case EC_CURVE_COMP_B:
+        case EC_CURVE_COMP_GX:
+        case EC_CURVE_COMP_GY:
+            break;
+
+        default:
+            // Unknown selector — only the EC_CURVE_COMP_* constants are
+            // valid and all are supplied internally by ECComponents.
+            ret_code = JO_UNEXPECTED_STATE;
+            goto exit;
+    }
+
+    ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
+    p = BN_new();
+    a = BN_new();
+    b = BN_new();
+    gx = BN_new();
+    gy = BN_new();
+    if (OPS_OPENSSL_ERROR_11 ctx == NULL || p == NULL || a == NULL
+        || b == NULL || gx == NULL || gy == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3204);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_12 1 != EC_GROUP_get_curve(group, p, a, b, ctx)
+        || 1 != EC_POINT_get_affine_coordinates(
+                    group, EC_GROUP_get0_generator(group), gx, gy, ctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(3205);
+        goto exit;
+    }
+
+    switch (component) {
+        case EC_CURVE_COMP_P:
+            ret_code = emit_curve_bn(p, out, out_len);
+            break;
+        case EC_CURVE_COMP_A:
+            ret_code = emit_curve_bn(a, out, out_len);
+            break;
+        case EC_CURVE_COMP_B:
+            ret_code = emit_curve_bn(b, out, out_len);
+            break;
+        case EC_CURVE_COMP_GX:
+            ret_code = emit_curve_bn(gx, out, out_len);
+            break;
+        default:
+            ret_code = emit_curve_bn(gy, out, out_len);
+            break;
+    }
+
+exit:
+    BN_free(scratch);
+    BN_free(gy);
+    BN_free(gx);
+    BN_free(b);
+    BN_free(a);
+    BN_free(p);
+    BN_CTX_free(ctx);
+    EC_GROUP_free(group);
+    return ret_code;
+}
+
+
+int32_t ec_find_curve_name(int32_t field_type,
+                           const uint8_t *p, size_t p_len,
+                           const uint8_t *a, size_t a_len,
+                           const uint8_t *b, size_t b_len,
+                           const uint8_t *gx, size_t gx_len,
+                           const uint8_t *gy, size_t gy_len,
+                           const uint8_t *order, size_t order_len,
+                           const uint8_t *cofactor, size_t cofactor_len,
+                           uint8_t *out, size_t out_len) {
+    // Bridge-validated invariants: every pointer was null-checked and every
+    // length range-checked by the JNI / FFI bridge.
+    jo_assert(p != NULL && a != NULL && b != NULL);
+    jo_assert(gx != NULL && gy != NULL);
+    jo_assert(order != NULL && cofactor != NULL);
+    jo_assert(p_len <= INT32_MAX && a_len <= INT32_MAX && b_len <= INT32_MAX);
+    jo_assert(gx_len <= INT32_MAX && gy_len <= INT32_MAX);
+    jo_assert(order_len <= INT32_MAX && cofactor_len <= INT32_MAX);
+
+    if (field_type != EC_FIELD_TYPE_PRIME
+        && field_type != EC_FIELD_TYPE_BINARY) {
+        return JO_UNEXPECTED_STATE;
+    }
+
+    int32_t ret_code = JO_FAIL;
+    BN_CTX *ctx = NULL;
+    EC_GROUP *group = NULL;
+    EC_POINT *generator = NULL;
+    BIGNUM *bn_p = NULL;
+    BIGNUM *bn_a = NULL;
+    BIGNUM *bn_b = NULL;
+    BIGNUM *bn_gx = NULL;
+    BIGNUM *bn_gy = NULL;
+    BIGNUM *bn_order = NULL;
+    BIGNUM *bn_cofactor = NULL;
+
+    ERR_clear_error();
+
+    ctx = BN_CTX_new_ex(get_global_jostle_ossl_lib_ctx());
+    bn_p = BN_bin2bn(p, (int) p_len, NULL);
+    bn_a = BN_bin2bn(a, (int) a_len, NULL);
+    bn_b = BN_bin2bn(b, (int) b_len, NULL);
+    bn_gx = BN_bin2bn(gx, (int) gx_len, NULL);
+    bn_gy = BN_bin2bn(gy, (int) gy_len, NULL);
+    bn_order = BN_bin2bn(order, (int) order_len, NULL);
+    bn_cofactor = BN_bin2bn(cofactor, (int) cofactor_len, NULL);
+    if (ctx == NULL || bn_p == NULL || bn_a == NULL || bn_b == NULL
+        || bn_gx == NULL || bn_gy == NULL || bn_order == NULL
+        || bn_cofactor == NULL) {
+        ret_code = JO_OPENSSL_ERROR;
+        goto exit;
+    }
+
+    // Same structural cap the forward direction enforces, applied to the
+    // caller's own values so an absurd modulus cannot drive the group
+    // arithmetic below.
+    if (BN_num_bits(bn_p) <= 0 || BN_num_bits(bn_p) > EC_CURVE_MAX_FIELD_BITS) {
+        ret_code = JO_CURVE_NO_MATCH;
+        goto exit;
+    }
+
+    /*
+     * From here every failure is "these values are not a named curve".
+     * OpenSSL raises for each rejected candidate, so the whole reverse
+     * lookup runs inside a mark that is discarded on the no-match path —
+     * otherwise a routine miss would leave the queue looking like a fault
+     * for whatever runs next.
+     */
+    ERR_set_mark();
+
+    group = (field_type == EC_FIELD_TYPE_PRIME)
+            ? EC_GROUP_new_curve_GFp(bn_p, bn_a, bn_b, ctx)
+            : EC_GROUP_new_curve_GF2m(bn_p, bn_a, bn_b, ctx);
+    if (group == NULL) {
+        ERR_pop_to_mark();
+        ret_code = JO_CURVE_NO_MATCH;
+        goto exit;
+    }
+
+    generator = EC_POINT_new(group);
+    if (generator == NULL
+        || 1 != EC_POINT_set_affine_coordinates(group, generator,
+                                                bn_gx, bn_gy, ctx)
+        || 1 != EC_GROUP_set_generator(group, generator, bn_order,
+                                       bn_cofactor)) {
+        ERR_pop_to_mark();
+        ret_code = JO_CURVE_NO_MATCH;
+        goto exit;
+    }
+
+    int matched = EC_GROUP_check_named_curve(group, 0, ctx);
+    if (matched <= 0) {
+        ERR_pop_to_mark();
+        ret_code = JO_CURVE_NO_MATCH;
+        goto exit;
+    }
+    ERR_clear_last_mark();
+
+    const char *sn = OBJ_nid2sn(matched);
+    if (sn == NULL) {
+        ret_code = JO_CURVE_NO_MATCH;
+        goto exit;
+    }
+    size_t sn_len = strlen(sn);
+    if (sn_len > EC_CURVE_MAX_NAME_BYTES) {
+        ret_code = JO_OUTPUT_TOO_LONG_INT32;
+        goto exit;
+    }
+    ret_code = emit_curve_bytes((const uint8_t *) sn, sn_len, out, out_len);
+
+exit:
+    BN_free(bn_cofactor);
+    BN_free(bn_order);
+    BN_free(bn_gy);
+    BN_free(bn_gx);
+    BN_free(bn_b);
+    BN_free(bn_a);
+    BN_free(bn_p);
+    EC_POINT_free(generator);
+    EC_GROUP_free(group);
+    BN_CTX_free(ctx);
+    return ret_code;
 }
 
 

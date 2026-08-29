@@ -24,6 +24,47 @@
 #define EC_COMP_PRIVATE_VALUE   3   // private scalar `s`
 
 
+// Component selectors for ec_get_curve_component(). Stable identifiers
+// across the FFI/JNI boundary — do NOT renumber. These index the CURVE
+// TABLE by name; EC_COMP_* above index a KEY by its spec.
+#define EC_CURVE_COMP_FIELD_TYPE  0   // EC_FIELD_TYPE_* below, one byte
+#define EC_CURVE_COMP_DEGREE      1   // field degree in bits, big-endian
+#define EC_CURVE_COMP_P           2   // prime p, or the reduction polynomial
+#define EC_CURVE_COMP_A           3   // curve coefficient a
+#define EC_CURVE_COMP_B           4   // curve coefficient b
+#define EC_CURVE_COMP_GX          5   // generator affine X
+#define EC_CURVE_COMP_GY          6   // generator affine Y
+#define EC_CURVE_COMP_ORDER       7   // group order n
+#define EC_CURVE_COMP_COFACTOR    8   // cofactor h
+#define EC_CURVE_COMP_OID         9   // dotted-decimal OID as UTF-8, or empty
+#define EC_CURVE_COMP_NAME       10   // OpenSSL canonical short name as UTF-8
+
+// Values of EC_CURVE_COMP_FIELD_TYPE. Deliberately not 0/1: a zero-length
+// component is a legitimate answer elsewhere in this protocol (secp256k1
+// has a == 0), so no component encodes meaning in an empty result.
+#define EC_FIELD_TYPE_PRIME   1
+#define EC_FIELD_TYPE_BINARY  2
+
+/*
+ * Hard structural cap on the field degree accepted from, or reported by,
+ * the curve table. The largest curve any current OpenSSL build ships is
+ * sect571r1 at 571 bits; 4096 leaves seven times that headroom while
+ * still refusing a degree that could only come from corruption. Callers
+ * derive their per-component allocation bound from the degree, so this
+ * is the one constant the whole length -> allocation chain rests on.
+ */
+#define EC_CURVE_MAX_FIELD_BITS 4096
+
+/*
+ * Caps on the two text components. Measured against the 82 curves in the
+ * 3.5.x builtin table: longest name is "wap-wsg-idm-ecid-wtls12" (23) and
+ * longest OID "1.3.36.3.3.2.8.1.1.7" (20). Both caps are set well clear
+ * of those without being open-ended.
+ */
+#define EC_CURVE_MAX_NAME_BYTES 64
+#define EC_CURVE_MAX_OID_BYTES 128
+
+
 // =============================================================
 // Curve introspection
 // =============================================================
@@ -45,6 +86,54 @@
  * error reporting.
  */
 int32_t ec_curve_supported(const char *curve_name);
+
+
+/*
+ * Fetch one component of a NAMED CURVE from OpenSSL's builtin table.
+ * curve_name MUST be non-NULL (bridge-validated) and may be given in any
+ * form OpenSSL resolves: short name, long name, dotted OID, or NIST name
+ * ("P-256", "K-163"). EC_CURVE_COMP_NAME returns the canonical short name
+ * for whichever form was supplied, which is what callers feed back into
+ * OSSL_PKEY_PARAM_GROUP_NAME — that parameter accepts short and NIST names
+ * but NOT dotted OIDs, so the canonicalisation is load-bearing.
+ *
+ * Two-call protocol matching ec_get_component: pass NULL out / 0 out_len to
+ * query the required byte length, then call again with a large enough
+ * buffer. Numeric components are big-endian unsigned magnitude; a
+ * zero-length result is SUCCESS and means the value is zero (secp256k1 has
+ * a == 0). EC_CURVE_COMP_OID returns zero length for the two builtin curves
+ * that carry no OID (Oakley-EC2N-3 / -4), which callers surface as "cannot
+ * encode" rather than as an error here.
+ *
+ * Returns JO_CURVE_NOT_SUPPORTED when the name resolves to nothing this
+ * build knows as an EC curve.
+ */
+int32_t ec_get_curve_component(const char *curve_name, int32_t component,
+                               uint8_t *out, size_t out_len);
+
+
+/*
+ * Reverse direction: given a curve's explicit domain parameters, return the
+ * canonical short name of the builtin curve they describe. Every pointer
+ * MUST be non-NULL (bridge-validated); numeric inputs are big-endian
+ * unsigned magnitude and a zero length legitimately denotes zero.
+ *
+ * field_type is EC_FIELD_TYPE_PRIME or EC_FIELD_TYPE_BINARY; for a binary
+ * field, p carries the reduction polynomial.
+ *
+ * Two-call protocol as above. Returns JO_CURVE_NO_MATCH when the values
+ * describe no named curve — which includes the malformed case, because
+ * OpenSSL answers -1 for both and nothing downstream distinguishes them.
+ */
+int32_t ec_find_curve_name(int32_t field_type,
+                           const uint8_t *p, size_t p_len,
+                           const uint8_t *a, size_t a_len,
+                           const uint8_t *b, size_t b_len,
+                           const uint8_t *gx, size_t gx_len,
+                           const uint8_t *gy, size_t gy_len,
+                           const uint8_t *order, size_t order_len,
+                           const uint8_t *cofactor, size_t cofactor_len,
+                           uint8_t *out, size_t out_len);
 
 
 // =============================================================

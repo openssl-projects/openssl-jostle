@@ -540,6 +540,21 @@
 
 
 /*
+ * The explicit domain parameters handed to ec_find_curve_name describe no
+ * curve in OpenSSL's builtin table. This is the ordinary "not a named curve"
+ * answer, NOT an error condition: the Java layer turns it into a null return
+ * so each caller can phrase its own rejection (InvalidKeySpecException from
+ * the KeyFactory, InvalidAlgorithmParameterException from the generator).
+ *
+ * It also covers malformed values, because OpenSSL's EC_GROUP_check_named_curve
+ * answers -1 for "unknown" and "malformed" alike and nothing downstream acts
+ * on the difference - both mean the caller must name a curve instead.
+ */
+#define JO_CURVE_NO_MATCH -172
+
+
+
+/*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros
  * expand to nothing in a release build, so only an unadorned JO_OPENSSL_ERROR
