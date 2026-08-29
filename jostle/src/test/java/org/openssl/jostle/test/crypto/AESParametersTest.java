@@ -910,4 +910,112 @@ public class AESParametersTest
         System.arraycopy(b, 0, out, a.length, b.length);
         return out;
     }
+    /**
+     * The parameter-spec walk in {@code BlockCipherSpi.engineInit(int, Key,
+     * AlgorithmParameters, SecureRandom)} must not throw away a tag length
+     * the supplied parameters were willing to hand over.
+     * <p>
+     * The walk takes the FIRST spec the parameters agree to answer, so its
+     * ordering decides what survives. With {@code IvParameterSpec} probed
+     * first, any parameters object serving both specs yields a bare nonce and
+     * the tag length silently reverts to the mode default — an AEAD decrypt
+     * then fails as a bad tag rather than as a parameter error.
+     * <p>
+     * CCM parameters drive a GCM cipher here deliberately. An {@code
+     * AlgorithmParameters} is a transport container and JCA places no
+     * restriction on pairing one with a cipher, and {@code
+     * CCMAlgorithmParameters} is the only class Jostle ships that answers
+     * BOTH {@code GCMParameterSpec} and {@code IvParameterSpec} — so it is
+     * what makes the hazard reachable with shipped code rather than only with
+     * a purpose-built test double. {@code CCMCipherSpi} itself never meets the
+     * trap: it asks for {@code GCMParameterSpec} directly instead of walking
+     * the array.
+     * <p>
+     * The assertion is the caller-visible property — the tag length asked for
+     * is the tag length used — not the order of the array that delivers it.
+     */
+    @Test
+    public void aeadParametersServingBothSpecsKeepTheirTagLength() throws Exception
+    {
+        SecureRandom random = seededRandom("aeadParametersServingBothSpecsKeepTheirTagLength");
+        SecretKey key = aes256Key(random);
+
+        // A tag length that is legal for GCM, legal for the CCM parameters
+        // container, and NOT the 128-bit default — pinning the default would
+        // pass whether or not the length survived the walk. GCM allows
+        // 96/104/112/120/128 and CCM only multiples of 16 bits from 32, so
+        // {96, 112} is the whole usable intersection here.
+        int[] nonDefault = new int[]{96, 112};
+        int tagBits = nonDefault[random.nextInt(nonDefault.length)];
+        System.out.println("aeadParametersServingBothSpecsKeepTheirTagLength tagBits=" + tagBits);
+
+        byte[] nonce = new byte[12];
+        random.nextBytes(nonce);
+        byte[] msg = new byte[1 + random.nextInt(200)];
+        random.nextBytes(msg);
+
+        // Control: the same tag length delivered as a spec, bypassing the walk.
+        Cipher control = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+        control.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(tagBits, nonce));
+        byte[] expected = control.doFinal(msg);
+        Assertions.assertEquals(msg.length + tagBits / 8, expected.length,
+                "control: the explicit spec must produce the tag length it asked for");
+
+        AlgorithmParameters params =
+                AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
+        params.init(new GCMParameterSpec(tagBits, nonce));
+
+        // Vacuity guard: this test says nothing unless the parameters really
+        // do answer both specs, which is what makes the walk's order matter.
+        Assertions.assertNotNull(params.getParameterSpec(GCMParameterSpec.class),
+                "fixture must answer GCMParameterSpec");
+        Assertions.assertNotNull(params.getParameterSpec(IvParameterSpec.class),
+                "fixture must answer IvParameterSpec, or the walk is never baited");
+
+        Cipher enc = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, params);
+        byte[] viaParams = enc.doFinal(msg);
+
+        Assertions.assertEquals(msg.length + tagBits / 8, viaParams.length,
+                "tag length carried by the parameters was discarded by the spec walk");
+        Assertions.assertTrue(Arrays.areEqual(expected, viaParams),
+                "parameters-driven encryption must match the explicit-spec control");
+
+        // Both directions: the same parameters must decrypt what they encrypted.
+        Cipher dec = Cipher.getInstance(GCM, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, key, params);
+        Assertions.assertTrue(Arrays.areEqual(msg, dec.doFinal(viaParams)),
+                "parameters-driven decryption must recover the plaintext");
+    }
+
+    /**
+     * The companion to the test above: ordering the walk most-informative
+     * first must not break the fall-through for parameters that answer only
+     * the less informative spec. CBC parameters serve {@code IvParameterSpec}
+     * alone, so the {@code GCMParameterSpec} probe has to fail and the walk
+     * has to keep going rather than reject the parameters outright.
+     */
+    @Test
+    public void nonAeadParametersStillResolveAfterTheAeadProbeFails() throws Exception
+    {
+        SecureRandom random = seededRandom("nonAeadParametersStillResolveAfterTheAeadProbeFails");
+        SecretKey key = aes256Key(random);
+        byte[] msg = new byte[16 * (1 + random.nextInt(8))];
+        random.nextBytes(msg);
+
+        Cipher enc = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, key, random);
+        AlgorithmParameters params = enc.getParameters();
+        byte[] ct = enc.doFinal(msg);
+
+        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+                () -> params.getParameterSpec(GCMParameterSpec.class),
+                "CBC parameters must not answer GCMParameterSpec, or this proves nothing");
+
+        Cipher dec = Cipher.getInstance(CBC, JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, key, params);
+        Assertions.assertTrue(Arrays.areEqual(msg, dec.doFinal(ct)),
+                "CBC parameters must still resolve through the walk");
+    }
+
 }
