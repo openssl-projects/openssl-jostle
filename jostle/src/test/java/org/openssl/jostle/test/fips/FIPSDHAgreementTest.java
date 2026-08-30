@@ -19,6 +19,8 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
+import org.openssl.jostle.test.util.CipherFamilies;
+
 import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
 import java.security.KeyFactory;
@@ -392,5 +394,99 @@ public class FIPSDHAgreementTest
         byte[] fips2Rev = agreeIn(FIPS, bcBob.getPrivate(), bcAlice.getPublic());
         Assertions.assertArrayEquals(bc2Rev, fips2Rev,
                 "JSLFIPS must decode BC bob.private + alice.public and derive the same secret");
+    }
+
+    /**
+     * The PKCS#3 {@code DHParameter} codec, JSLFIPS against JSL and BC.
+     * <p>
+     * Built as a plain {@code DHParameterSpec(p, g)} deliberately: a spec taken
+     * from a key is a {@code DHDomainParameterSpec} and encodes the X9.42
+     * {@code DomainParameters} SEQUENCE {p, g, q}, which BC's {@code
+     * DHParameterSpec} cannot represent — comparing those byte-for-byte
+     * compares different structures. The q-preserving form is
+     * {@code DHX942Test}'s subject.
+     * <p>
+     * Added because {@code AlgorithmParameters.DH} was registered by
+     * {@code ProvFIPSDH} and exercised by NO test on the FIPS side — the
+     * AlgorithmParameterGenerator has {@code
+     * FIPSDHKeyAgreementTest.dhAlgorithmParameterGeneratorRefusesNamedGroupSubstitution},
+     * but the codec had nothing.
+     */
+    @Test
+    public void algorithmParametersAgreeAcrossProviders() throws Exception
+    {
+        SecureRandom sr = seededRandom("algorithmParametersAgreeAcrossProviders");
+        DHParameterSpec keyDerived = ffdhe2048Spec(sr);
+        DHParameterSpec domain = new DHParameterSpec(keyDerived.getP(), keyDerived.getG());
+
+        java.security.AlgorithmParameters fipsAp =
+                java.security.AlgorithmParameters.getInstance("DH", FIPS);
+        fipsAp.init(domain);
+
+        java.security.AlgorithmParameters jslAp =
+                java.security.AlgorithmParameters.getInstance("DH", JSL);
+        jslAp.init(domain);
+        Assertions.assertArrayEquals(jslAp.getEncoded(), fipsAp.getEncoded(),
+                "JSLFIPS and JSL encode the same DH parameters differently");
+
+        java.security.AlgorithmParameters bcAp =
+                java.security.AlgorithmParameters.getInstance("DH", BC);
+        bcAp.init(domain);
+        Assertions.assertArrayEquals(bcAp.getEncoded(), fipsAp.getEncoded(),
+                "JSLFIPS and BC encode the same DH parameters differently");
+
+        // And JSLFIPS reads the peer's encoding back to the same components.
+        java.security.AlgorithmParameters reread =
+                java.security.AlgorithmParameters.getInstance("DH", FIPS);
+        reread.init(bcAp.getEncoded());
+        DHParameterSpec back = reread.getParameterSpec(DHParameterSpec.class);
+        Assertions.assertEquals(domain.getP(), back.getP(), "p differs after re-reading BC's encoding");
+        Assertions.assertEquals(domain.getG(), back.getG(), "g differs after re-reading BC's encoding");
+    }
+
+    /**
+     * Completeness guard over the DH PRIMARIES JSLFIPS registers.
+     * {@code getServices()} omits aliases, so the OID spellings are
+     * {@code FIPSOidSpellingParityTest}'s job.
+     * <p>
+     * {@code AlgorithmParameterGenerator} is covered by
+     * {@code FIPSDHKeyAgreementTest.dhAlgorithmParameterGeneratorRefusesNamedGroupSubstitution}
+     * rather than here — the FIPS module's paramgen behaviour is a refusal
+     * contract, not an agreement one — so it is named in the covered set with
+     * that as its justification.
+     */
+    @Test
+    public void everyRegisteredDhServiceIsCovered()
+    {
+        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        java.util.SortedSet<String> covered = new java.util.TreeSet<String>(java.util.Arrays.asList(
+                "KeyAgreement.DH",
+                "KeyAgreement.DHWITHRFC2631KDF",
+                "KeyFactory.DH",
+                "KeyPairGenerator.DH",
+                "AlgorithmParameters.DH",
+                "AlgorithmParameterGenerator.DH"));
+
+        java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
+        for (java.security.Provider.Service svc : provider.getServices())
+        {
+            String cn = svc.getClassName();
+            if (cn != null && cn.startsWith(CipherFamilies.DH_PREFIX))
+            {
+                registered.add(svc.getType() + "." + svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+            }
+        }
+        Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no DH services");
+
+        java.util.SortedSet<String> uncovered = new java.util.TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers DH services with no agreement coverage: " + uncovered);
+
+        java.util.SortedSet<String> stale = new java.util.TreeSet<String>(covered);
+        stale.removeAll(registered);
+        Assertions.assertTrue(stale.isEmpty(),
+                "this class names DH services JSLFIPS does not register: " + stale);
     }
 }
