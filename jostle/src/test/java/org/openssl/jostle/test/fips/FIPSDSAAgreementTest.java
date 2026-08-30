@@ -517,9 +517,15 @@ public class FIPSDSAAgreementTest
             }
             catch (OpenSSLException ex)
             {
-                Assertions.assertTrue(String.valueOf(ex.getMessage()).contains("digest not allowed"),
-                        sigAlg + ": expected a module 'digest not allowed' refusal, got: "
-                                + ex.getMessage());
+                // The module's wording differs between the two supported
+                // versions, so both are accepted — 3.1.2 says "digest not
+                // allowed", 3.5.x says "invalid digest". Pinning only the
+                // first passes on 3.1.2 and on any 3.5.x config where this
+                // branch is unreachable, and fails exactly where the gate
+                // fires. FIPSSha1SignatureGateTest is the source of this pair.
+                String m = String.valueOf(ex.getMessage());
+                Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
+                        sigAlg + ": expected a module digest rejection, got: " + m);
             }
         }
     }
@@ -584,9 +590,10 @@ public class FIPSDSAAgreementTest
     }
 
     /**
-     * Completeness guard, both directions, over the whole registered DSA
-     * surface — discovered from JSLFIPS by SPI class-name prefix, so OID
-     * aliases are included.
+     * Completeness guard, both directions, over the DSA PRIMARIES JSLFIPS
+     * registers — {@code getServices()} omits aliases, so the OID spellings
+     * are NOT covered here; that is {@code FIPSOidSpellingParityTest}'s job,
+     * which checks both spellings of every alias resolve to one implementation.
      * <p>
      * Not interchangeable with {@code DSAAgreementTest}'s guard: that one
      * reads JSL's registered set. Compared against what is ACTUALLY registered
