@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.util.asn1;
 
+import org.openssl.jostle.util.Properties;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -124,6 +126,104 @@ public final class Der
      * the 20-character brainpool one; 128 leaves room without being open-ended.
      */
     public static final int MAX_OID_CONTENT_BYTES = 128;
+
+    /**
+     * Ceiling on an OCTET STRING's content octets, and the JCA property that
+     * overrides it.
+     *
+     * <p>This is the TIER-1 backstop of a two-tier model: a ceiling here
+     * applies even when a call site declares nothing, and a call site may
+     * tighten further for its own field. The same shape already exists in this
+     * codebase one layer up — {@code DSAKeyPairGenerator.MAX_P_BITS} (3072)
+     * bounds GENERATION while {@code DSAKeyFactorySpi.MAX_COMPONENT_BITS}
+     * (16384) bounds ACCEPTANCE, deliberately looser.
+     *
+     * <p>64 KiB is generous against every octet string the provider actually
+     * serves — the largest legitimate one is a 16-byte IV — while refusing the
+     * shape that motivated the bound: an 8 MiB nonce, with the bytes genuinely
+     * present, was accepted by the IV and GCM codecs and then held in SPI
+     * state and copied again on every {@code getIV()} / {@code getEncoded()}.
+     * The figure matches the 64 KiB presize cap {@code
+     * ExposedByteArrayOutputStream} already applies for the same reason.
+     *
+     * <p>Overridable because an octet-string field is not bounded by any spec
+     * in general. Values below 1 are ignored and the default used.
+     */
+    public static final int DEFAULT_MAX_OCTET_STRING_BYTES = 64 * 1024;
+
+    /** JCA/system property overriding {@link #DEFAULT_MAX_OCTET_STRING_BYTES}. */
+    public static final String MAX_OCTET_STRING_PROPERTY =
+            "org.openssl.jostle.asn1.max_octet_string_bytes";
+
+    /**
+     * Ceiling on an INTEGER's content octets, and the JCA property that
+     * overrides it.
+     *
+     * <p>2048 octets is 16384 bits, which is exactly the acceptance ceiling
+     * the provider already applies to a big-integer key component —
+     * {@code DSAKeyFactorySpi.MAX_COMPONENT_BITS} and
+     * {@code RSAKeyPairGenerator.MAX_KEY_SIZE_BITS} are both 16384. Reusing it
+     * keeps one number rather than inventing a second, and a DH or DSA p
+     * beyond it is refused before it becomes a BigInteger.
+     *
+     * <p>Overridable because a modulus size is open-ended by spec. Values
+     * below 1 are ignored and the default used.
+     */
+    public static final int DEFAULT_MAX_INTEGER_BYTES = 2048;
+
+    /** JCA/system property overriding {@link #DEFAULT_MAX_INTEGER_BYTES}. */
+    public static final String MAX_INTEGER_PROPERTY =
+            "org.openssl.jostle.asn1.max_integer_bytes";
+
+    /**
+     * The configured ceiling for {@code tag}, or -1 when the type carries no
+     * ceiling. Read per call so the property is settable at runtime, which is
+     * the BouncyCastle {@code Properties} convention; parameter decoding is
+     * not a hot path.
+     */
+    private static int typeCeiling(int tag)
+    {
+        switch (tag)
+        {
+        case OCTET_STRING:
+            return usableOr(MAX_OCTET_STRING_PROPERTY, DEFAULT_MAX_OCTET_STRING_BYTES);
+        case INTEGER:
+            return usableOr(MAX_INTEGER_PROPERTY, DEFAULT_MAX_INTEGER_BYTES);
+        case OBJECT_IDENTIFIER:
+            // Spec-bounded, so a hard constant: configurability is for
+            // open-endedness, not for permitting a spec violation.
+            return MAX_OID_CONTENT_BYTES;
+        default:
+            return -1;
+        }
+    }
+
+    /**
+     * The configured value when it is usable, otherwise {@code fallback}.
+     *
+     * <p>{@code Properties.asInteger} throws {@link NumberFormatException} on a
+     * non-numeric value, and an operator typo in a configuration property must
+     * not become an exception out of every parameter decode. A value of zero or
+     * less is equally unusable — it would refuse every field.
+     *
+     * <p>The trade-off is stated rather than hidden: falling back is
+     * fail-OPEN relative to an operator who meant to TIGHTEN the ceiling, since
+     * they get the (larger) default instead of their intended bound. That is
+     * accepted because the default is itself a safe bound, whereas the
+     * alternative breaks decoding outright.
+     */
+    private static int usableOr(String propertyName, int fallback)
+    {
+        try
+        {
+            int configured = Properties.asInteger(propertyName, fallback);
+            return configured > 0 ? configured : fallback;
+        }
+        catch (NumberFormatException e)
+        {
+            return fallback;
+        }
+    }
 
     /**
      * Widest single arc, in bits. Nine base-128 octets carry 63 bits, which is
@@ -354,6 +454,14 @@ public final class Der
             if (len > end - pos)
             {
                 throw new IOException("truncated content in " + what);
+            }
+            // Tier-1 ceiling: applies even where the call site declares
+            // nothing, so no decode path can forget to bound its field.
+            int ceiling = typeCeiling(tag);
+            if (ceiling >= 0 && len > ceiling)
+            {
+                throw new IOException(what + " exceeds the " + ceiling
+                        + "-byte ceiling for this type (" + len + " bytes)");
             }
             Reader content = new Reader(buf, pos, len);
             pos += len;
