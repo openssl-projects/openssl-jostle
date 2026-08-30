@@ -15,7 +15,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -409,5 +411,209 @@ public class FIPSECAgreementTest
                         tag + ": BC sign -> JSLFIPS-decoded public verify");
             }
         }
+    }
+
+    /**
+     * The ONLY registered ECDSA name whose signing refusal is a legitimate
+     * deployment rather than a regression. {@code signature-digest-check} is a
+     * {@code fipsinstall} setting — off at defaults, on under {@code -pedantic}
+     * — so SHA-1 signing may or may not be available on a supported module.
+     * <p>
+     * Every other registered digest is approved (the SHA-2 family and the SHA-3
+     * family, which the module's {@code digest_to_nid} table lists; NONE takes
+     * a caller-supplied digest), so a refusal on any of them fails hard. A
+     * uniform tolerance would let a module that regressed into refusing
+     * {@code SHA256withECDSA} pass this test as "contract".
+     */
+    private static final java.util.Set<String> SHA1_ECDSA =
+            java.util.Collections.singleton("SHA1WITHECDSA");
+
+    /** The five JCA types {@code ProvFIPSEC} registers under. */
+    private static final String[] GUARDED_TYPES = {
+            "AlgorithmParameters", "KeyAgreement", "KeyFactory", "KeyPairGenerator", "Signature"
+    };
+
+    /** Every EC primary of one type JSLFIPS registers, sorted. */
+    private static java.util.List<String> registeredFips(String type)
+    {
+        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+        java.util.List<String> names = new java.util.ArrayList<String>();
+        for (java.security.Provider.Service svc : provider.getServices())
+        {
+            String cn = svc.getClassName();
+            if (type.equals(svc.getType()) && cn != null && cn.startsWith(CipherFamilies.EC_PREFIX))
+            {
+                names.add(svc.getAlgorithm());
+            }
+        }
+        Assertions.assertFalse(names.isEmpty(), "JSLFIPS registered no EC " + type + " services");
+        java.util.Collections.sort(names);
+        return names;
+    }
+
+    private static byte[] signWith(String alg, String provider, PrivateKey key, byte[] message)
+            throws Exception
+    {
+        Signature s = Signature.getInstance(alg, provider);
+        s.initSign(key);
+        s.update(message);
+        return s.sign();
+    }
+
+    private static boolean verifyWith(String alg, String provider, PublicKey key, byte[] message,
+                                      byte[] sig) throws Exception
+    {
+        Signature v = Signature.getInstance(alg, provider);
+        v.initVerify(key);
+        v.update(message);
+        return v.verify(sig);
+    }
+
+    /**
+     * EVERY registered ECDSA name cross-verified with BC, not just the one
+     * {@link #ecdsaAgrees()} drives. Both directions where the module signs.
+     * <p>
+     * The both-branches tolerance is scoped to {@code SHA1withECDSA} alone
+     * ({@link #SHA1_ECDSA}); every other name must actually sign, so a module
+     * that regressed into refusing an approved digest fails here rather than
+     * passing as "contract". Verification is legacy-approved and must work on
+     * every name either way.
+     * <p>
+     * {@code NoneWithECDSA} takes a caller-supplied digest, sized here to the
+     * 256-bit order of the test curve.
+     */
+    @Test
+    public void everyRegisteredEcdsaNameCrossVerifiesWithBc() throws Exception
+    {
+        SecureRandom sr = seededRandom("everyRegisteredEcdsaNameCrossVerifiesWithBc");
+        Map<String, Keys> keys = shareAcrossProviders("secp256r1");
+
+        for (String alg : registeredFips("Signature"))
+        {
+            byte[] message = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(message);
+            byte[] input = "NONEWITHECDSA".equalsIgnoreCase(alg)
+                    ? java.security.MessageDigest.getInstance("SHA-256").digest(message)
+                    : message;
+
+            byte[] tampered = input.clone();
+            tampered[sr.nextInt(tampered.length)] ^= 0x01;
+
+            // BC signs, JSLFIPS verifies — available on every module.
+            byte[] sigBc = signWith(alg, BC, keys.get(BC).priv, input);
+            Assertions.assertTrue(verifyWith(alg, FIPS, keys.get(FIPS).pub, input, sigBc),
+                    alg + ": BC sign -> JSLFIPS verify");
+            Assertions.assertFalse(verifyWith(alg, FIPS, keys.get(FIPS).pub, tampered, sigBc),
+                    alg + ": tampered message must not verify");
+
+            if (!SHA1_ECDSA.contains(alg.toUpperCase(java.util.Locale.ROOT)))
+            {
+                // An APPROVED digest. A refusal here is a regression, not a
+                // configuration — no tolerance, so it fails hard.
+                byte[] sigFips = signWith(alg, FIPS, keys.get(FIPS).priv, input);
+                Assertions.assertTrue(verifyWith(alg, BC, keys.get(BC).pub, input, sigFips),
+                        alg + ": the module signed, so BC must verify the result");
+                continue;
+            }
+
+            // SHA-1 alone is a contract rather than one answer: whether signing
+            // is refused is the signature-digest-check fipsinstall setting, off
+            // at defaults and on under -pedantic. Both are legitimate.
+            try
+            {
+                byte[] sigFips = signWith(alg, FIPS, keys.get(FIPS).priv, input);
+                Assertions.assertTrue(verifyWith(alg, BC, keys.get(BC).pub, input, sigFips),
+                        alg + ": the module signed, so BC must verify the result");
+            }
+            catch (OpenSSLException ex)
+            {
+                // The module's wording differs between the two supported
+                // versions, so both are accepted — 3.1.2 says "digest not
+                // allowed", 3.5.x says "invalid digest". Pinning only the
+                // first passes on 3.1.2 and on any 3.5.x config where this
+                // branch is unreachable, and fails exactly where the gate
+                // fires. FIPSSha1SignatureGateTest is the source of this pair.
+                String m = String.valueOf(ex.getMessage());
+                Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
+                        alg + ": expected a module digest rejection, got: " + m);
+            }
+        }
+    }
+
+    /**
+     * The named-curve {@code AlgorithmParameters} encoding must be identical to
+     * BC's, and each side must read the other's back.
+     */
+    @Test
+    public void algorithmParametersAgreeWithBc() throws Exception
+    {
+        for (String curve : CURVES)
+        {
+            java.security.AlgorithmParameters fipsAp =
+                    java.security.AlgorithmParameters.getInstance("EC", FIPS);
+            fipsAp.init(new java.security.spec.ECGenParameterSpec(curve));
+            java.security.AlgorithmParameters bcAp =
+                    java.security.AlgorithmParameters.getInstance("EC", BC);
+            bcAp.init(new java.security.spec.ECGenParameterSpec(curve));
+            Assertions.assertArrayEquals(bcAp.getEncoded(), fipsAp.getEncoded(),
+                    curve + ": JSLFIPS and BC encode the named curve differently");
+
+            java.security.AlgorithmParameters reread =
+                    java.security.AlgorithmParameters.getInstance("EC", FIPS);
+            reread.init(bcAp.getEncoded());
+            Assertions.assertArrayEquals(bcAp.getEncoded(), reread.getEncoded(),
+                    curve + ": JSLFIPS did not read a BC encoding back unchanged");
+        }
+    }
+
+    /**
+     * Completeness guard, both directions, over the EC PRIMARIES JSLFIPS
+     * registers. {@code getServices()} omits aliases, so the OID spellings are
+     * {@code FIPSOidSpellingParityTest}'s job, not this one.
+     * <p>
+     * Compared against what is ACTUALLY registered rather than a fixed list,
+     * since a gated family is legitimately absent on one module.
+     */
+    @Test
+    public void everyRegisteredEcServiceIsCovered()
+    {
+        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        java.util.SortedSet<String> covered = new java.util.TreeSet<String>();
+        for (String alg : registeredFips("Signature"))
+        {
+            // Every one is driven by everyRegisteredEcdsaNameCrossVerifiesWithBc.
+            covered.add("Signature." + alg.toUpperCase(java.util.Locale.ROOT));
+        }
+        covered.add("KeyAgreement.ECDH");
+        for (String alg : ECDH_KDF_NAMES)
+        {
+            covered.add("KeyAgreement." + alg.toUpperCase(java.util.Locale.ROOT));
+        }
+        covered.add("KeyFactory.EC");
+        covered.add("KeyPairGenerator.EC");
+        covered.add("AlgorithmParameters.EC");
+
+        java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
+        for (java.security.Provider.Service svc : provider.getServices())
+        {
+            String cn = svc.getClassName();
+            if (cn != null && cn.startsWith(CipherFamilies.EC_PREFIX))
+            {
+                registered.add(svc.getType() + "." + svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+            }
+        }
+        Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no EC services");
+
+        java.util.SortedSet<String> uncovered = new java.util.TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers EC services with no agreement coverage in this class: "
+                        + uncovered + "\nAdd them to a coverage group.");
+
+        java.util.SortedSet<String> stale = new java.util.TreeSet<String>(covered);
+        stale.removeAll(registered);
+        Assertions.assertTrue(stale.isEmpty(),
+                "this class names EC services JSLFIPS does not register: " + stale);
     }
 }
