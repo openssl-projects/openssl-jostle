@@ -46,6 +46,15 @@ public class CCMAlgorithmParameters
     private static final int MIN_NONCE_LEN = 7;
     private static final int MAX_NONCE_LEN = 13;
 
+    /**
+     * The widest content this reader will accept, and the reason it needs no
+     * configurable ceiling: short-form DER lengths stop at 127 octets, and
+     * every CCMParameters field is spec-bounded far below that. Stated as a
+     * constant so the bound is a contract rather than a side effect of the
+     * length decoder - see {@link Reader#readTLV}.
+     */
+    static final int MAX_CONTENT_BYTES = 127;
+
     private byte[] nonce;
     private int icvBytes;
 
@@ -311,6 +320,15 @@ public class CCMAlgorithmParameters
             int len = buf[pos++] & 0xFF;
             if ((len & 0x80) != 0)
             {
+                // Short-form only, and that is DELIBERATE, not a limitation
+                // left unfinished. Every field this structure carries is
+                // spec-bounded well inside 127 octets - the nonce is 7..13
+                // (RFC 5084 s3.1) and the ICV length is a single octet - so a
+                // long-form length cannot appear in a conforming
+                // CCMParameters. Refusing it here caps any field at
+                // MAX_CONTENT_BYTES before a length ever sizes an allocation,
+                // which is why this reader needs no separate size ceiling of
+                // the kind Der applies to its own types.
                 throw new IOException("unsupported long-form length in " + what);
             }
             if (len > end - pos)
