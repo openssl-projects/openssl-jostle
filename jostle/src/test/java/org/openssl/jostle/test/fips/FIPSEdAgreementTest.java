@@ -26,6 +26,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
+import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
@@ -404,5 +405,194 @@ public class FIPSEdAgreementTest
         Assertions.assertEquals(0,
                 FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_CIPHER, "ChaCha20"),
                 "the capability probe answers yes to everything, so it proves nothing");
+    }
+
+    /**
+     * The Ed signature names this class drives, and the reference each uses.
+     * Read by {@link #everyRegisteredEdSignatureIsCovered()}; a name JSLFIPS
+     * does not register is simply absent from the registered set, so this is a
+     * ceiling on coverage rather than an expectation of registration.
+     */
+    private static final java.util.SortedSet<String> COVERED_SIGNATURES =
+            java.util.Collections.unmodifiableSortedSet(new java.util.TreeSet<String>(
+                    java.util.Arrays.asList(
+                            "EDDSA", "ED25519", "ED448",          // BC JCE
+                            "ED25519PH", "ED448PH", "ED25519CTX"  // BC lightweight
+                    )));
+
+    /**
+     * {@code ED25519CTX} against BouncyCastle's lightweight
+     * {@code Ed25519ctxSigner}, both directions, and the context proven
+     * load-bearing — a signature made under one context must not verify under
+     * another, or the context could be ignored on both sides and every other
+     * assertion here would still pass.
+     * <p>
+     * Skipped when the module does not implement it, which is a per-NAME gate:
+     * {@code ProvFIPSED} registers each Ed signature variant independently on
+     * what the module can fetch, so Ed25519 being served does not imply
+     * Ed25519ctx is.
+     */
+    @Test
+    public void ed25519CtxAgreesWithBcLightweightAndHonoursItsContext() throws Exception
+    {
+        Assumptions.assumeTrue(
+                Security.getProvider(FIPS).getService("Signature", "ED25519CTX") != null,
+                "the loaded FIPS module does not implement Ed25519ctx");
+
+        SecureRandom sr = seededRandom("ed25519CtxAgreesWithBcLightweightAndHonoursItsContext");
+
+        for (int t = 0; t < 3; t++)
+        {
+            KeyPair kp = KeyPairGenerator.getInstance("ED25519", FIPS).generateKeyPair();
+            byte[] spki = kp.getPublic().getEncoded();
+            byte[] pkcs8 = kp.getPrivate().getEncoded();
+
+            byte[] ctx = new byte[1 + sr.nextInt(32)];
+            sr.nextBytes(ctx);
+            byte[] msg = new byte[1 + sr.nextInt(512)];
+            sr.nextBytes(msg);
+
+            byte[] fipsSig = signWithContext("ED25519CTX", kp.getPrivate(), ctx, msg);
+
+            org.bouncycastle.crypto.params.AsymmetricKeyParameter bcPub =
+                    org.bouncycastle.crypto.util.PublicKeyFactory.createKey(spki);
+            org.bouncycastle.crypto.params.AsymmetricKeyParameter bcPriv =
+                    org.bouncycastle.crypto.util.PrivateKeyFactory.createKey(pkcs8);
+
+            Signer v = new org.bouncycastle.crypto.signers.Ed25519ctxSigner(ctx);
+            v.init(false, bcPub);
+            v.update(msg, 0, msg.length);
+            Assertions.assertTrue(v.verifySignature(fipsSig),
+                    "ED25519CTX: BC's lightweight signer rejected a JSLFIPS signature");
+
+            Signer bs = new org.bouncycastle.crypto.signers.Ed25519ctxSigner(ctx);
+            bs.init(true, bcPriv);
+            bs.update(msg, 0, msg.length);
+            byte[] bcSig = bs.generateSignature();
+
+            // Ed25519ctx is deterministic in (key, context, message), so the
+            // bytes must match. A nonce-derivation deviation still produces
+            // VERIFYING signatures, so cross-verification cannot see it.
+            Assertions.assertArrayEquals(bcSig, fipsSig,
+                    "ED25519CTX: deterministic signatures differ — suspect nonce derivation");
+
+            Signature jv = Signature.getInstance("ED25519CTX", FIPS);
+            jv.setParameter(new ContextParameterSpec(ctx));
+            jv.initVerify(kp.getPublic());
+            jv.update(msg);
+            Assertions.assertTrue(jv.verify(bcSig),
+                    "ED25519CTX: JSLFIPS rejected a BC lightweight signature");
+
+            // The context is load-bearing.
+            byte[] otherCtx = new byte[ctx.length];
+            do
+            {
+                sr.nextBytes(otherCtx);
+            }
+            while (org.openssl.jostle.util.Arrays.areEqual(ctx, otherCtx));
+
+            Signature wrong = Signature.getInstance("ED25519CTX", FIPS);
+            wrong.setParameter(new ContextParameterSpec(otherCtx));
+            wrong.initVerify(kp.getPublic());
+            wrong.update(msg);
+            Assertions.assertFalse(wrong.verify(fipsSig),
+                    "ED25519CTX: a signature verified under a DIFFERENT context");
+        }
+    }
+
+    /**
+     * Completeness guard for a PER-NAME GATED family. Every Ed Signature name
+     * JSLFIPS actually registers must be one this class drives.
+     * <p>
+     * Only that direction is asserted. The reverse — every covered name is
+     * registered — would be WRONG here: {@code ProvFIPSED} gates each variant
+     * on what the loaded module can fetch, so a module without Ed448ph
+     * legitimately registers fewer names, and a fixed expectation would fail on
+     * a supported module (rule 6).
+     * <p>
+     * The guard therefore PASSES on an empty registered set, which is correct
+     * and not a hole: the emptiness itself is pinned by
+     * {@link #edAgreementIsAvailableIffTheModuleImplementsIt()}, which fails if
+     * the module implements Ed and JSLFIPS registers nothing, or the reverse.
+     * That test is what stops this one from being vacuous on a module without
+     * Ed.
+     */
+    @Test
+    public void everyRegisteredEdSignatureIsCovered()
+    {
+        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
+        for (java.security.Provider.Service svc : provider.getServices())
+        {
+            String cn = svc.getClassName();
+            if ("Signature".equals(svc.getType()) && cn != null
+                    && cn.startsWith(CipherFamilies.ED_PREFIX))
+            {
+                registered.add(svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+            }
+        }
+
+        java.util.SortedSet<String> uncovered = new java.util.TreeSet<String>(registered);
+        uncovered.removeAll(COVERED_SIGNATURES);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers Ed Signature services with no agreement coverage in this class: "
+                        + uncovered + "\nAdd each to a driver and to COVERED_SIGNATURES.");
+    }
+
+    /**
+     * The generic {@code EDDSA} signature name, which {@code ProvFIPSED}
+     * registers whenever the module serves either curve, on BOTH curves'
+     * keys — byte-identical to BouncyCastle and cross-verified.
+     * <p>
+     * It has its own test because the loops above drive the curve-specific
+     * names: {@code COVERED_SIGNATURES} counted {@code EDDSA} as covered while
+     * nothing exercised it, which is invisible on a module without Ed (the
+     * registered set is empty) and false exactly on the 3.5.x configs where the
+     * name is served.
+     */
+    @Test
+    public void eddsaGenericNameAgreesWithBcOnBothCurves() throws Exception
+    {
+        Assumptions.assumeTrue(
+                Security.getProvider(FIPS).getService("Signature", "EDDSA") != null,
+                "the loaded FIPS module does not implement Ed25519/Ed448");
+
+        SecureRandom sr = seededRandom("eddsaGenericNameAgreesWithBcOnBothCurves");
+
+        for (String curve : new String[]{"ED25519", "ED448"})
+        {
+            if (Security.getProvider(FIPS).getService("KeyPairGenerator", curve) == null)
+            {
+                // Per-name gating: the module may serve one curve and not the
+                // other, and EDDSA is registered when EITHER is present.
+                continue;
+            }
+
+            String bcName = "ED25519".equals(curve) ? "Ed25519" : "Ed448";
+            KeyPair kp = KeyPairGenerator.getInstance(curve, FIPS).generateKeyPair();
+            byte[] spki = kp.getPublic().getEncoded();
+            byte[] pkcs8 = kp.getPrivate().getEncoded();
+
+            byte[] msg = new byte[1 + sr.nextInt(1024)];
+            sr.nextBytes(msg);
+
+            byte[] fipsSig = sign("EDDSA", FIPS, kp.getPrivate(), msg);
+
+            PrivateKey bcPriv = privateVia("EdDSA", BC, pkcs8);
+            PublicKey bcPub = publicVia("EdDSA", BC, spki);
+            Assertions.assertTrue(Arrays.areEqual(fipsSig, sign(bcName, BC, bcPriv, msg)),
+                    "EDDSA / " + curve + ": JSLFIPS and BC produced different signatures");
+            Assertions.assertTrue(verify(bcName, BC, bcPub, msg, fipsSig),
+                    "EDDSA / " + curve + ": BC rejected a JSLFIPS signature");
+            Assertions.assertTrue(
+                    verify("EDDSA", FIPS, kp.getPublic(), msg, sign(bcName, BC, bcPriv, msg)),
+                    "EDDSA / " + curve + ": JSLFIPS rejected a BC signature");
+
+            byte[] tampered = msg.clone();
+            tampered[sr.nextInt(tampered.length)] ^= 0x01;
+            Assertions.assertFalse(verify("EDDSA", FIPS, kp.getPublic(), tampered, fipsSig),
+                    "EDDSA / " + curve + ": a tampered message verified");
+        }
     }
 }
