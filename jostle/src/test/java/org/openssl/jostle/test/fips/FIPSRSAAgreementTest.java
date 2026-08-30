@@ -502,8 +502,19 @@ public class FIPSRSAAgreementTest
                         }
                         else if ("KeyPairGenerator".equals(type))
                         {
-                            Assertions.assertNotNull(
-                                    KeyPairGenerator.getInstance(alg, FIPS).generateKeyPair(), alg);
+                            // generateKeyPair() THROWS on failure, so non-null
+                            // asserts nothing — a pair that encodes to garbage
+                            // would pass. Re-encode through this provider's own
+                            // KeyFactory and require the SPKI to be stable, the
+                            // check RSAAgreementTest already makes.
+                            KeyPair generated =
+                                    KeyPairGenerator.getInstance(alg, FIPS).generateKeyPair();
+                            byte[] spki = generated.getPublic().getEncoded();
+                            byte[] reEncoded = KeyFactory.getInstance("RSA", FIPS)
+                                    .generatePublic(new java.security.spec.X509EncodedKeySpec(spki))
+                                    .getEncoded();
+                            Assertions.assertArrayEquals(spki, reEncoded,
+                                    alg + ": generated public key did not survive a re-encode");
                         }
                         else
                         {

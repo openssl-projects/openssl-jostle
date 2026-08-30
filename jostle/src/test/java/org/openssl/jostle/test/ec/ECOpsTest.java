@@ -169,7 +169,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:149
+        // Exercises interface/nonfips/util/ec.c:152
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -188,7 +188,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:154
+        // Exercises interface/nonfips/util/ec.c:157
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -207,7 +207,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:164
+        // Exercises interface/nonfips/util/ec.c:167
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -226,7 +226,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:173
+        // Exercises interface/nonfips/util/ec.c:176
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -245,7 +245,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:178
+        // Exercises interface/nonfips/util/ec.c:181
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -279,7 +279,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:366
+        // Exercises interface/nonfips/util/ec.c:747
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -299,7 +299,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:424
+        // Exercises interface/nonfips/util/ec.c:805
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
@@ -320,7 +320,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:429
+        // Exercises interface/nonfips/util/ec.c:810
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
@@ -341,7 +341,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:434
+        // Exercises interface/nonfips/util/ec.c:815
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
@@ -361,7 +361,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:446
+        // Exercises interface/nonfips/util/ec.c:827
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
         int[] err = new int[1];
@@ -382,7 +382,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:453
+        // Exercises interface/nonfips/util/ec.c:834
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
         int[] err = new int[1];
@@ -402,7 +402,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:458
+        // Exercises interface/nonfips/util/ec.c:839
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
 
         int[] err = new int[1];
@@ -425,7 +425,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:468
+        // Exercises interface/nonfips/util/ec.c:849
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -447,7 +447,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:474
+        // Exercises interface/nonfips/util/ec.c:855
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -470,7 +470,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:388
+        // Exercises interface/nonfips/util/ec.c:769
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -491,7 +491,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:395
+        // Exercises interface/nonfips/util/ec.c:776
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -512,7 +512,7 @@ public class ECOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/ec.c:400
+        // Exercises interface/nonfips/util/ec.c:781
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -608,7 +608,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:662
+            // Exercises interface/nonfips/util/ec.c:1040
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = ec.ni_initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3020), code);
@@ -634,7 +634,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:667
+            // Exercises interface/nonfips/util/ec.c:1045
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = ec.ni_initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3021), code);
@@ -660,7 +660,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:720
+            // Exercises interface/nonfips/util/ec.c:1098
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = ec.ni_initVerify(sigRef, keyRef, "SHA-256");
             Assertions.assertEquals(errorAt(3030), code);
@@ -686,7 +686,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:725
+            // Exercises interface/nonfips/util/ec.c:1103
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = ec.ni_initVerify(sigRef, keyRef, "SHA-256");
             Assertions.assertEquals(errorAt(3031), code);
@@ -719,7 +719,7 @@ public class ECOpsTest
         {
             ec.initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:770
+            // Exercises interface/nonfips/util/ec.c:1148
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = ec.ni_update(sigRef, new byte[]{0x01, 0x02}, 0, 2);
             Assertions.assertEquals(errorAt(3040), code);
@@ -748,7 +748,7 @@ public class ECOpsTest
         {
             ec.initVerify(sigRef, keyRef, "SHA-256");
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:775
+            // Exercises interface/nonfips/util/ec.c:1153
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = ec.ni_update(sigRef, new byte[]{0x01, 0x02}, 0, 2);
             Assertions.assertEquals(errorAt(3041), code);
@@ -777,7 +777,7 @@ public class ECOpsTest
             ec.initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
             ec.update(sigRef, new byte[]{0x01}, 0, 1);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:845
+            // Exercises interface/nonfips/util/ec.c:1226
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
             // First call (probe with NULL out) hits the flag.
             int code = ec.ni_sign(sigRef, null, 0, TestUtil.RNDSrc);
@@ -808,7 +808,7 @@ public class ECOpsTest
             ec.initSign(sigRef, keyRef, "SHA-256", TestUtil.RNDSrc);
             ec.update(sigRef, new byte[]{0x01}, 0, 1);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:873
+            // Exercises interface/nonfips/util/ec.c:1254
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             // Real-buffer call: probe (flag _8) succeeds normally,
             // fetch (flag _9) faults.
@@ -841,7 +841,7 @@ public class ECOpsTest
             ec.initVerify(sigRef, keyRef, "SHA-256");
             ec.update(sigRef, new byte[]{0x01}, 0, 1);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:950
+            // Exercises interface/nonfips/util/ec.c:1333
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = ec.ni_verify(sigRef, new byte[64], 64, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3060), code);
@@ -872,7 +872,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1026
+            // Exercises interface/nonfips/util/ec.c:1409
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3070), code);
@@ -898,7 +898,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1031
+            // Exercises interface/nonfips/util/ec.c:1414
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = ec.ni_kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3071), code);
@@ -928,7 +928,7 @@ public class ECOpsTest
         {
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1076
+            // Exercises interface/nonfips/util/ec.c:1459
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = ec.ni_kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             // OPS_OPENSSL_ERROR_1 fires at kex_set_peer offset 3080
@@ -962,7 +962,7 @@ public class ECOpsTest
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1113
+            // Exercises interface/nonfips/util/ec.c:1496
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = ec.ni_kexDerive(kexRef, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3090), code);
@@ -996,7 +996,7 @@ public class ECOpsTest
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1134
+            // Exercises interface/nonfips/util/ec.c:1517
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = ec.ni_kexDerive(kexRef, new byte[64], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3091), code);
@@ -1030,7 +1030,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:203
+            // Exercises interface/nonfips/util/ec.c:206
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = ec.ni_getComponent(keyRef, ECServiceNI.COMP_CURVE_NAME,
                     new byte[64]);
@@ -1057,7 +1057,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:224
+            // Exercises interface/nonfips/util/ec.c:227
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = ec.ni_getComponent(keyRef, ECServiceNI.COMP_CURVE_NAME,
                     new byte[64]);
@@ -1085,7 +1085,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:228
+            // Exercises interface/nonfips/util/ec.c:231
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = ec.ni_getComponent(keyRef, ECServiceNI.COMP_CURVE_NAME,
                     new byte[64]);
@@ -1112,7 +1112,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:251
+            // Exercises interface/nonfips/util/ec.c:254
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = ec.ni_getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X,
                     new byte[64]);
@@ -1139,7 +1139,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:257
+            // Exercises interface/nonfips/util/ec.c:260
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = ec.ni_getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X,
                     new byte[64]);
@@ -1165,7 +1165,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:273
+            // Exercises interface/nonfips/util/ec.c:276
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = ec.ni_getComponent(keyRef, ECServiceNI.COMP_PUBLIC_X,
                     new byte[64]);
@@ -1469,7 +1469,7 @@ public class ECOpsTest
         try
         {
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:562
+            // Exercises interface/nonfips/util/ec.c:939
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3104), code);
@@ -1493,7 +1493,7 @@ public class ECOpsTest
             ec.initSign(sigRef, keyRef, "NONE", TestUtil.RNDSrc);
             ec.ni_update(sigRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:803
+            // Exercises interface/nonfips/util/ec.c:1184
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = ec.ni_sign(sigRef, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3105), code);
@@ -1531,7 +1531,7 @@ public class ECOpsTest
             Assertions.assertTrue(upperBound > 0,
                     "size query should return a positive upper bound");
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:822
+            // Exercises interface/nonfips/util/ec.c:1203
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_sign(sigRef, new byte[upperBound], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3106), code);
@@ -1555,7 +1555,7 @@ public class ECOpsTest
             ec.initVerify(sigRef, keyRef, "NONE");
             ec.ni_update(sigRef, new byte[32], 0, 32);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:907
+            // Exercises interface/nonfips/util/ec.c:1290
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = ec.ni_verify(sigRef, new byte[72], 72, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3107), code);

@@ -347,6 +347,7 @@ public class FIPSAESKeyWrapInvTest
         wrapper.init(Cipher.WRAP_MODE, new SecretKeySpec(kek, "AES"));
 
         byte[] first = null;
+        byte[] firstCek = null;
         for (int i = 0; i < 4; i++)
         {
             byte[] cek = new byte[16 + 8 * i];
@@ -355,6 +356,7 @@ public class FIPSAESKeyWrapInvTest
             if (i == 0)
             {
                 first = mine;
+                firstCek = cek;
             }
             Assertions.assertTrue(Arrays.areEqual(bcEngineWrap(kek, cek), mine),
                     "operation " + i + ": diverged from BouncyCastle on a reused instance");
@@ -368,8 +370,12 @@ public class FIPSAESKeyWrapInvTest
         Assertions.assertThrows(InvalidKeyException.class,
                 () -> unwrapper.unwrap(damaged, "AES", Cipher.SECRET_KEY));
 
-        Assertions.assertNotNull(unwrapper.unwrap(first, "AES", Cipher.SECRET_KEY),
-                "the failed unwrap left the instance unusable");
+        // unwrap() THROWS on failure, so non-null asserts nothing: an instance
+        // left corrupt that returned the WRONG key would pass. The test is named
+        // for staying CORRECT — compare against the CEK that was wrapped.
+        java.security.Key recovered = unwrapper.unwrap(first, "AES", Cipher.SECRET_KEY);
+        Assertions.assertTrue(Arrays.areEqual(firstCek, recovered.getEncoded()),
+                "the failed unwrap left the instance returning the wrong key");
     }
 
     /**

@@ -269,6 +269,7 @@ public class AESKeyWrapTest
             // self-consistency would pass with a zeroed ICV, since both
             // operations would use it.
             byte[] wrappedFirst = null;
+            byte[] firstCek = null;
             for (int i = 0; i < 4; i++)
             {
                 byte[] cekBytes = new byte[16 + 8 * i];
@@ -279,6 +280,7 @@ public class AESKeyWrapTest
                 if (i == 0)
                 {
                     wrappedFirst = mine;
+                    firstCek = cekBytes;
                 }
 
                 Cipher bc = Cipher.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
@@ -298,8 +300,13 @@ public class AESKeyWrapTest
                     () -> unwrap.unwrap(bad, "AES", Cipher.SECRET_KEY),
                     name + ": damaged blob must be rejected");
 
-            Assertions.assertNotNull(unwrap.unwrap(wrappedFirst, "AES", Cipher.SECRET_KEY),
-                    name + ": the failed unwrap left the instance unusable");
+            // unwrap() THROWS on failure, so non-null asserts nothing: an
+            // instance left in a corrupt state that returned the WRONG key
+            // would pass. This test is named for staying CORRECT, so compare
+            // against the CEK that was wrapped.
+            Key recovered = unwrap.unwrap(wrappedFirst, "AES", Cipher.SECRET_KEY);
+            Assertions.assertTrue(Arrays.areEqual(firstCek, recovered.getEncoded()),
+                    name + ": the failed unwrap left the instance returning the wrong key");
         }
     }
 

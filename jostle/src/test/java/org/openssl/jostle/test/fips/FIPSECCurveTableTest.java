@@ -21,6 +21,7 @@ import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.AlgorithmParameters;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
@@ -108,7 +109,16 @@ public class FIPSECCurveTableTest
 
         KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", fips);
         generator.initialize(new ECGenParameterSpec(APPROVED_CURVE));
-        Assertions.assertNotNull(generator.generateKeyPair());
+        KeyPair kp = generator.generateKeyPair();
+
+        // generateKeyPair() THROWS on failure, so non-null asserts nothing —
+        // a pair generated on the WRONG curve would pass. "Generated ON" is
+        // the claim in this test's name, so check the curve it came out on.
+        ECParameterSpec described = ap.getParameterSpec(ECParameterSpec.class);
+        ECParameterSpec generated = ((java.security.interfaces.ECPublicKey) kp.getPublic()).getParams();
+        Assertions.assertEquals(described.getCurve(), generated.getCurve(),
+                APPROVED_CURVE + ": key was generated on a different curve than described");
+        Assertions.assertEquals(described.getOrder(), generated.getOrder(), APPROVED_CURVE);
     }
 
     /**
@@ -120,6 +130,13 @@ public class FIPSECCurveTableTest
     @Test
     public void bothProvidersDescribeACurveIdentically() throws Exception
     {
+        // Curves the loaded module cannot describe are skipped, so the loop
+        // needs a floor: without one, a build where all three failed to
+        // initialise would pass having compared nothing. The sibling loops in
+        // ECCurveTableTest carry theirs (MIN_CURVES_RESOLVED, and `checked > 0`
+        // in aCurveWithNoObjectIdentifierRefusesToEncode); this one was written
+        // without and the omission survived two reviews.
+        int compared = 0;
         for (String curve : new String[]{APPROVED_CURVE, UNAPPROVED_CURVE, "sect233r1"})
         {
             AlgorithmParameters fipsParams = AlgorithmParameters.getInstance("EC", fips);
@@ -143,7 +160,10 @@ public class FIPSECCurveTableTest
             Assertions.assertEquals(a.getGenerator(), b.getGenerator(), curve);
             Assertions.assertEquals(a.getOrder(), b.getOrder(), curve);
             Assertions.assertEquals(a.getCofactor(), b.getCofactor(), curve);
+            compared++;
         }
+        Assertions.assertTrue(compared > 0,
+                "no curve was describable through both providers — the comparison was vacuous");
     }
 
     /**

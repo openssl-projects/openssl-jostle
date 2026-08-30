@@ -47,11 +47,26 @@ from pathlib import Path
 C_OFFSET_RE = re.compile(
     r"OPS_OFFSET_OPENSSL_ERROR_(\d+)\s*\(\s*(\d+)\s*\)"
 )
+# The receiver is whatever the test class named its OperationsTestNI field.
+# Two names are in use - measured 2026-08-30: `operationsTestNI` at 656 call
+# sites and `ops` at 327 - and pinning the regex to the first meant every
+# test using the shorter name was silently unresolvable, which is why
+# ECOpsTest reported "changed: 0" while carrying 41 stale anchors.
 JAVA_FLAG_RE = re.compile(
-    r"operationsTestNI\.setFlag\s*\(\s*[^)]*?OpsTestFlag\.OPS_OPENSSL_ERROR_(\d+)\s*\)"
+    r"\b[A-Za-z_][A-Za-z0-9_]*\.setFlag\s*\(\s*[^)]*?OpsTestFlag\.OPS_OPENSSL_ERROR_(\d+)\s*\)"
 )
 JAVA_EQ_RE = re.compile(
     r"Assertions\.assertEquals\s*\(\s*(-?\d+)\s*,"
+)
+# Most OPS tests now assert through a per-class helper rather than a
+# literal: `errorAt(offset)` returns `JO_OPENSSL_ERROR - offset`, so its
+# argument IS the offset and needs no arithmetic. Measured 2026-08-30:
+# 248 call sites use the helper against 182 remaining literals, and
+# because the parser only understood the literal form the annotator
+# resolved NONE of the 318 stale OPS_OPENSSL_ERROR anchors - it reported
+# "changed: 0" on files it had correctly mapped and scanned.
+JAVA_ERROR_AT_RE = re.compile(
+    r"Assertions\.assertEquals\s*\(\s*errorAt\s*\(\s*(\d+)\s*\)\s*,"
 )
 TEST_METHOD_END_RE = re.compile(r"^    \}\s*$")  # closing brace at method indent
 COMMENT_PREFIX = "Exercises "
@@ -137,12 +152,21 @@ def candidate_c_files(java_path, c_index):
       3. Empty — caller skips this Java file with a warning.
     """
     class_name = java_path.stem  # filename without .java
-    explicit = TEST_TO_C_FILES.get(class_name)
+    # A FIPS test drives the same algorithm as its base twin, so it targets
+    # the same C basename - only the TREE differs, and that is already
+    # chosen per Java file by index_for(). Strip the prefix before both the
+    # explicit lookup and the heuristic; without this every FIPS*OpsTest
+    # fell through to a heuristic base of e.g. "fipsec", matched nothing,
+    # and was skipped (measured: 25 of 41 files skipped, 2026-08-30).
+    lookup_name = class_name
+    if lookup_name.startswith("FIPS"):
+        lookup_name = lookup_name[len("FIPS"):]
+    explicit = TEST_TO_C_FILES.get(class_name) or TEST_TO_C_FILES.get(lookup_name)
     if explicit:
         wanted = set(explicit)
         return [p for p in c_index if p.name in wanted]
     # Heuristic fallback.
-    base = class_name.removesuffix("OpsTest").lower()
+    base = lookup_name.removesuffix("OpsTest").lower()
     if not base:
         return []
     return [p for p in c_index if p.stem == base]
@@ -211,6 +235,10 @@ def annotate_java_file(java_path, c_index, repo_root, dry_run=False):
                     flag_line_idx = idx
                     flag_slot = int(fm.group(1))
             elif offset is None:
+                am = JAVA_ERROR_AT_RE.search(lines[idx])
+                if am:
+                    offset = int(am.group(1))
+                    break
                 em = JAVA_EQ_RE.search(lines[idx])
                 if em:
                     code = int(em.group(1))

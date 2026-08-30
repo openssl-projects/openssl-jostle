@@ -186,7 +186,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:75
+        // Exercises interface/nonfips/util/dsa.c:186
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -200,7 +200,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:80
+        // Exercises interface/nonfips/util/dsa.c:191
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -214,7 +214,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:90
+        // Exercises interface/nonfips/util/dsa.c:201
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -228,7 +228,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:95
+        // Exercises interface/nonfips/util/dsa.c:206
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -242,7 +242,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:100
+        // Exercises interface/nonfips/util/dsa.c:214
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -264,7 +264,7 @@ public class DSAOpsTest
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dsa.c:154
+        // Exercises interface/nonfips/util/dsa.c:268
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -281,7 +281,7 @@ public class DSAOpsTest
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dsa.c:208
+        // Exercises interface/nonfips/util/dsa.c:322
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
@@ -298,7 +298,7 @@ public class DSAOpsTest
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dsa.c:213
+        // Exercises interface/nonfips/util/dsa.c:327
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
@@ -315,7 +315,7 @@ public class DSAOpsTest
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dsa.c:236
+        // Exercises interface/nonfips/util/dsa.c:350
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
 
         int[] err = new int[1];
@@ -332,7 +332,7 @@ public class DSAOpsTest
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dsa.c:243
+        // Exercises interface/nonfips/util/dsa.c:357
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -349,7 +349,7 @@ public class DSAOpsTest
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dsa.c:248
+        // Exercises interface/nonfips/util/dsa.c:362
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -389,7 +389,7 @@ public class DSAOpsTest
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
         byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dsa.c:175
+        // Exercises interface/nonfips/util/dsa.c:289
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -407,7 +407,7 @@ public class DSAOpsTest
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
         byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dsa.c:195
+        // Exercises interface/nonfips/util/dsa.c:309
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -425,7 +425,7 @@ public class DSAOpsTest
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
         byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dsa.c:199
+        // Exercises interface/nonfips/util/dsa.c:313
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
@@ -443,7 +443,7 @@ public class DSAOpsTest
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
         byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dsa.c:221
+        // Exercises interface/nonfips/util/dsa.c:335
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
         int[] err = new int[1];
@@ -461,7 +461,7 @@ public class DSAOpsTest
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
         byte[] x = component(DSAServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dsa.c:228
+        // Exercises interface/nonfips/util/dsa.c:342
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
         int[] err = new int[1];
@@ -484,7 +484,7 @@ public class DSAOpsTest
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
         byte[] y = component(DSAServiceNI.COMP_PUBLIC_VALUE);
-        // Exercises interface/nonfips/util/dsa.c:161
+        // Exercises interface/nonfips/util/dsa.c:275
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -503,7 +503,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:378
+        // Exercises interface/nonfips/util/dsa.c:492
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -517,7 +517,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:383
+        // Exercises interface/nonfips/util/dsa.c:497
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -531,7 +531,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:388
+        // Exercises interface/nonfips/util/dsa.c:502
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -545,7 +545,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:393
+        // Exercises interface/nonfips/util/dsa.c:510
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -564,7 +564,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:421
+        // Exercises interface/nonfips/util/dsa.c:538
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int code = dsa.ni_getComponent(keyRef, DSAServiceNI.COMP_P, new byte[256]);
@@ -576,7 +576,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:427
+        // Exercises interface/nonfips/util/dsa.c:544
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int code = dsa.ni_getComponent(keyRef, DSAServiceNI.COMP_P, new byte[256]);
@@ -588,7 +588,7 @@ public class DSAOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dsa.c:443
+        // Exercises interface/nonfips/util/dsa.c:560
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int code = dsa.ni_getComponent(keyRef, DSAServiceNI.COMP_P, new byte[256]);
@@ -608,7 +608,7 @@ public class DSAOpsTest
         long ref = dsa.allocateSigner();
         try
         {
-            // Exercises interface/nonfips/util/dsa.c:639
+            // Exercises interface/nonfips/util/dsa.c:770
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = dsa.ni_initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5040), code);
@@ -628,7 +628,7 @@ public class DSAOpsTest
         long ref = dsa.allocateSigner();
         try
         {
-            // Exercises interface/nonfips/util/dsa.c:646
+            // Exercises interface/nonfips/util/dsa.c:775
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = dsa.ni_initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5041), code);
@@ -648,7 +648,7 @@ public class DSAOpsTest
         long ref = dsa.allocateSigner();
         try
         {
-            // Exercises interface/nonfips/util/dsa.c:697
+            // Exercises interface/nonfips/util/dsa.c:831
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = dsa.ni_initVerify(ref, keyRef, "SHA-256");
             Assertions.assertEquals(errorAt(5050), code);
@@ -668,7 +668,7 @@ public class DSAOpsTest
         long ref = dsa.allocateSigner();
         try
         {
-            // Exercises interface/nonfips/util/dsa.c:704
+            // Exercises interface/nonfips/util/dsa.c:836
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = dsa.ni_initVerify(ref, keyRef, "SHA-256");
             Assertions.assertEquals(errorAt(5051), code);
@@ -694,7 +694,7 @@ public class DSAOpsTest
         try
         {
             dsa.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
-            // Exercises interface/nonfips/util/dsa.c:749
+            // Exercises interface/nonfips/util/dsa.c:881
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = dsa.ni_update(ref, new byte[]{0x01}, 0, 1);
             Assertions.assertEquals(errorAt(5060), code);
@@ -715,7 +715,7 @@ public class DSAOpsTest
         try
         {
             dsa.initVerify(ref, keyRef, "SHA-256");
-            // Exercises interface/nonfips/util/dsa.c:754
+            // Exercises interface/nonfips/util/dsa.c:886
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = dsa.ni_update(ref, new byte[]{0x01}, 0, 1);
             Assertions.assertEquals(errorAt(5061), code);
@@ -742,7 +742,7 @@ public class DSAOpsTest
         {
             dsa.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
             dsa.update(ref, new byte[]{0x01}, 0, 1);
-            // Exercises interface/nonfips/util/dsa.c:824
+            // Exercises interface/nonfips/util/dsa.c:959
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
             int code = dsa.ni_sign(ref, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5070), code);
@@ -764,7 +764,7 @@ public class DSAOpsTest
         {
             dsa.initSign(ref, keyRef, "SHA-256", TestUtil.RNDSrc);
             dsa.update(ref, new byte[]{0x01}, 0, 1);
-            // Exercises interface/nonfips/util/dsa.c:852
+            // Exercises interface/nonfips/util/dsa.c:987
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             int code = dsa.ni_sign(ref, new byte[128], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5071), code);
@@ -813,7 +813,7 @@ public class DSAOpsTest
         {
             dsa.initVerify(ref, keyRef, "SHA-256");
             dsa.update(ref, new byte[]{0x01}, 0, 1);
-            // Exercises interface/nonfips/util/dsa.c:927
+            // Exercises interface/nonfips/util/dsa.c:1066
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = dsa.ni_verify(ref, new byte[]{0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01}, 8, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5080), code);
@@ -838,7 +838,7 @@ public class DSAOpsTest
         long ref = dsa.allocateSigner();
         try
         {
-            // Exercises interface/nonfips/util/dsa.c:552
+            // Exercises interface/nonfips/util/dsa.c:665
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = dsa.ni_initSign(ref, keyRef, "NONE", TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5090), code);
@@ -880,7 +880,7 @@ public class DSAOpsTest
         {
             dsa.initSign(ref, keyRef, "NONE", TestUtil.RNDSrc);
             dsa.update(ref, new byte[20], 0, 20);
-            // Exercises interface/nonfips/util/dsa.c:782
+            // Exercises interface/nonfips/util/dsa.c:917
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = dsa.ni_sign(ref, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5091), code);
@@ -902,7 +902,7 @@ public class DSAOpsTest
         {
             dsa.initVerify(ref, keyRef, "NONE");
             dsa.update(ref, new byte[20], 0, 20);
-            // Exercises interface/nonfips/util/dsa.c:886
+            // Exercises interface/nonfips/util/dsa.c:1023
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = dsa.ni_verify(ref, new byte[]{0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01}, 8, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5092), code);

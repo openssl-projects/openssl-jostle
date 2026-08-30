@@ -520,8 +520,13 @@ public class FIPSAsn1LimitTest
 
         KeyFactory keyFactory = KeyFactory.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
 
-        // Positive control: the unmodified encoding decodes at the JCE surface.
-        Assertions.assertNotNull(keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+        // Positive control: the unmodified encoding decodes at the JCE surface,
+        // and decodes FAITHFULLY. generatePrivate throws on failure, so a
+        // non-null assertion alone would also pass for a key decoded wrongly,
+        // and the boundary is only meaningful if the accepted side is correct.
+        Assertions.assertArrayEquals(encoded,
+                keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded)).getEncoded(),
+                "the exact-length encoding must decode to the same key");
 
         for (int junkLen : new int[]{1, 7})
         {
@@ -540,8 +545,11 @@ public class FIPSAsn1LimitTest
 
         KeyFactory keyFactory = KeyFactory.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);
 
-        // Positive control: the unmodified encoding decodes at the JCE surface.
-        Assertions.assertNotNull(keyFactory.generatePublic(new X509EncodedKeySpec(encoded)));
+        // Positive control: the unmodified encoding decodes at the JCE surface,
+        // and decodes FAITHFULLY — see the private-key twin above.
+        Assertions.assertArrayEquals(encoded,
+                keyFactory.generatePublic(new X509EncodedKeySpec(encoded)).getEncoded(),
+                "the exact-length encoding must decode to the same key");
 
         for (int junkLen : new int[]{1, 7})
         {

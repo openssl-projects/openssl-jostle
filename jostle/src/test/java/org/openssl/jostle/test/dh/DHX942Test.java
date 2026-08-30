@@ -249,9 +249,16 @@ public class DHX942Test
         byte[] spki = kp.getPublic().getEncoded();
         byte[] p8 = kp.getPrivate().getEncoded();
 
-        // Exact length is accepted — the boundary is where it should be.
-        Assertions.assertNotNull(jsl.generatePublic(new X509EncodedKeySpec(spki)));
-        Assertions.assertNotNull(jsl.generatePrivate(new PKCS8EncodedKeySpec(p8)));
+        // Exact length is accepted — the boundary is where it should be — and
+        // the accepted side decodes FAITHFULLY. Both calls throw on failure, so
+        // non-null would also pass for a key decoded wrongly, and a boundary is
+        // only meaningful if what it admits is correct.
+        Assertions.assertArrayEquals(spki,
+                jsl.generatePublic(new X509EncodedKeySpec(spki)).getEncoded(),
+                "the exact-length SPKI must decode to the same key");
+        Assertions.assertArrayEquals(p8,
+                jsl.generatePrivate(new PKCS8EncodedKeySpec(p8)).getEncoded(),
+                "the exact-length PKCS#8 must decode to the same key");
 
         for (int extra : new int[]{1, 37})
         {

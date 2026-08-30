@@ -731,8 +731,14 @@ public class Asn1LimitTest
 
         KeyFactory keyFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
 
-        // Positive control: the unmodified encoding decodes at the JCE surface.
-        Assertions.assertNotNull(keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+        // Positive control: the unmodified encoding decodes at the JCE surface,
+        // and decodes FAITHFULLY. generatePrivate throws on failure, so a
+        // non-null assertion alone would also pass for a key decoded wrongly —
+        // and the boundary this test pins is only meaningful if the accepted
+        // side is actually correct.
+        Assertions.assertArrayEquals(encoded,
+                keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded)).getEncoded(),
+                "the exact-length encoding must decode to the same key");
 
         for (int junkLen : new int[]{1, 7})
         {
@@ -751,8 +757,12 @@ public class Asn1LimitTest
 
         KeyFactory keyFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
 
-        // Positive control: the unmodified encoding decodes at the JCE surface.
-        Assertions.assertNotNull(keyFactory.generatePublic(new X509EncodedKeySpec(encoded)));
+        // Positive control: the unmodified encoding decodes at the JCE surface,
+        // and decodes FAITHFULLY — see the private-key twin above for why
+        // non-null alone is not enough.
+        Assertions.assertArrayEquals(encoded,
+                keyFactory.generatePublic(new X509EncodedKeySpec(encoded)).getEncoded(),
+                "the exact-length encoding must decode to the same key");
 
         for (int junkLen : new int[]{1, 7})
         {

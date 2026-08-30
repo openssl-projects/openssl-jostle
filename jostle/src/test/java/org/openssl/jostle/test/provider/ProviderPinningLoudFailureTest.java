@@ -252,7 +252,20 @@ public class ProviderPinningLoudFailureTest
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
         Cipher c = Cipher.getInstance("ML-KEM", jsl);
         c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
-        Assertions.assertNotNull(c.wrap(new SecretKeySpec(new byte[32], "AES")));
+
+        // wrap() THROWS on failure, so asserting non-null on its result asserts
+        // nothing: a wrapping that produced the wrong bytes would pass. The
+        // property this test is named for is that the instance WRAPS, and the
+        // only thing that demonstrates it is recovering the key again.
+        byte[] cek = new byte[32];
+        new SecureRandom().nextBytes(cek);
+        byte[] wrapped = c.wrap(new SecretKeySpec(cek, "AES"));
+
+        Cipher unwrapper = Cipher.getInstance("ML-KEM", jsl);
+        unwrapper.init(Cipher.UNWRAP_MODE, kp.getPrivate(), ktsSpec(), new SecureRandom());
+        Key recovered = unwrapper.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
+        Assertions.assertArrayEquals(cek, recovered.getEncoded(),
+                "the wrapped CEK did not come back — wrap produced the wrong bytes");
     }
 
     /** A 256-bit KEK derived by KDF3/SHA-256 — what all four arms drive. */

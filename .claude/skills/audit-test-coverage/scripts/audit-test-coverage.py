@@ -303,6 +303,128 @@ def is_kat_style(body):
     return any(p.search(body) for p in KAT_ASSERTION_PATTERNS)
 
 
+# --- MT-7 shapes: assertions that cannot fire ---------------------------------
+#
+# Both shapes are green-by-default: the test passes whether or not the property
+# holds. Measured across the tree 2026-08-30 — 106 raw candidates, of which 79
+# were NOT defects — so each shape is keyed on what the call can DO, never on a
+# site list. An allowlist of sites would need maintaining and would go stale;
+# these rules stay correct for code written tomorrow.
+
+# Calls that THROW on failure and can also return a WRONG-but-non-null result.
+# assertNotNull on one of these asserts nothing while the operation may have
+# produced garbage — the shape that let a KTS wrap test assert only that wrap()
+# returned something.
+VACUOUS_NOTNULL_CALLEES = (
+    "generateKeyPair", "generatePublic", "generatePrivate", "generateSecret",
+    "generateKey", "unwrap", "wrap", "doFinal", "translateKey",
+)
+
+# Calls that THROW on failure and CANNOT return a wrong answer: the returned
+# object either resolves or the call throws. assertNotNull on these is
+# redundant, not vacuous — the test still fails when the property is false — so
+# it is deliberately NOT flagged. 61 such sites exist and deleting them would
+# be churn that buries the real findings.
+REDUNDANT_NOTNULL_CALLEES = (
+    "getInstance",
+)
+
+VACUOUS_NOTNULL_RE = re.compile(
+    r"assertNotNull\s*\(([^;]*)", re.S
+)
+
+# A catch block that names a broad type and never inspects what it caught. The
+# legitimate form is the offset-write contract's shifted-window negative, where
+# ANY failure confirms the property — those methods are recognised by name
+# rather than exempted individually, and each carries its own positive control
+# asserting the UNSHIFTED window round-trips (e.g.
+# FIPSDSALimitTest.sign_writesAtOffsetWithoutClobberingPrefix step (2), which
+# requires JO_SUCCESS), so "any exception confirms it" cannot pass against a
+# bridge that throws on everything.
+SWALLOWED_CATCH_RE = re.compile(
+    r"catch\s*\(\s*(?:Exception|Throwable)\s+(\w+)\s*\)\s*\{(.*?)\n\s*\}", re.S
+)
+SHIFTED_WINDOW_HINTS = ("shifted", "writesatoffset", "clobber")
+
+
+def _enclosing_method_body(lines, idx):
+    """The body of the method containing line index `idx`, as one string."""
+    start = 0
+    for k in range(idx, -1, -1):
+        t = lines[k].strip()
+        if t.startswith(("public ", "private ", "protected ", "void ", "static ")) and "(" in t:
+            start = k
+            break
+    end = start
+    for k in range(start, min(len(lines), start + 200)):
+        if METHOD_END_RE.match(lines[k]):
+            end = k
+            break
+    return "\n".join(lines[start:end])
+
+
+def vacuous_notnull_sites(lines):
+    """Yield (line_no, callee) for assertNotNull on a can-return-wrong call.
+
+    Suppressed when the enclosing method asserts something ELSE: the non-null
+    is then incidental to a property the test does check, which was true of 14
+    of the 25 vacuous-shaped sites measured 2026-08-30. Keying on "does this
+    method assert anything else" is a semantic rule, like the callee rule
+    above — not a list of sites that would go stale.
+    """
+    for i, line in enumerate(lines):
+        if "assertNotNull" not in line:
+            continue
+        expr = line
+        if i + 1 < len(lines) and line.rstrip().endswith(("(", ",")):
+            expr += " " + lines[i + 1].strip()
+        if any(c + "(" in expr for c in REDUNDANT_NOTNULL_CALLEES):
+            continue
+        for callee in VACUOUS_NOTNULL_CALLEES:
+            if callee + "(" in expr:
+                body = _enclosing_method_body(lines, i)
+                others = len(re.findall(r"\bassert\w+\s*\(", body)) \
+                    - len(re.findall(r"\bassertNotNull\s*\(", body))
+                if others == 0:
+                    yield (i + 1, callee)
+                break
+
+
+def swallowed_catch_sites(text, lines):
+    """Yield (line_no,) for a broad catch that inspects nothing, excluding the
+    shifted-window negative where any failure legitimately confirms."""
+    for m in SWALLOWED_CATCH_RE.finditer(text):
+        var, body = m.group(1), m.group(2)
+        if var in body or "fail" in body or "assert" in body.lower():
+            continue
+        # A catch whose whole body RETURNS a sentinel is PROPAGATING the
+        # failure to its caller, not eating it — the caller then null-checks or
+        # compares the error code. Same reasoning as the shifted-window
+        # exclusion (`return ErrorCode.JO_FAIL.getCode()`), and it covers the
+        # `return null` probe helpers whose callers do `if (x == null) continue`
+        # inside a floored loop.
+        if re.fullmatch(r"\s*return\s+[^;]+;\s*", body):
+            continue
+        lineno = text[:m.start()].count("\n") + 1
+        context = "\n".join(lines[max(0, lineno - 30):lineno]).lower()
+        if any(h in context for h in SHIFTED_WINDOW_HINTS):
+            continue
+        # A loop that skips on failure is safe when the method asserts a
+        # NON-VACUITY FLOOR: some counter is incremented per successful
+        # iteration and asserted at the end, so an all-skipped run fails.
+        # This is the difference between the sibling loops in ECCurveTableTest
+        # (which carry `generated >= MIN_CURVES_RESOLVED` and `checked > 0`)
+        # and FIPSECCurveTableTest.bothProvidersDescribeACurveIdentically,
+        # which carried none and could pass having compared nothing.
+        body = _enclosing_method_body(lines, lineno - 1)
+        counters = set(re.findall(r"\b(\w+)\s*\+\+", body))
+        floored = any(re.search(r"\bassert\w+\s*\([^;]*\b%s\b" % re.escape(c), body)
+                      for c in counters)
+        if floored:
+            continue
+        yield (lineno,)
+
+
 def scan_file(path):
     """Yield findings for one file.
 
@@ -358,6 +480,14 @@ def scan_file(path):
         yield ("RANDOM", name, lineno, ", ".join(prims))
     for prim in negative_gaps:
         yield ("NEGATIVE", None, None, prim)
+    for lineno, callee in vacuous_notnull_sites(lines):
+        yield ("VACUOUS", None, lineno,
+               "assertNotNull on %s() — it throws on failure, so this asserts "
+               "nothing while a wrong result passes" % callee)
+    for (lineno,) in swallowed_catch_sites(text, lines):
+        yield ("SWALLOWED", None, lineno,
+               "catch of a broad type that inspects nothing — a state error "
+               "here would be eaten and the test would go dead silently")
 
 
 def main(argv):
@@ -392,6 +522,7 @@ def main(argv):
 
     total_random = 0
     total_negative = 0
+    total_assertion = 0
     findings_by_file = {}
     for t in targets:
         findings = list(scan_file(t))
@@ -400,18 +531,30 @@ def main(argv):
             for kind, _, _, _ in findings:
                 if kind == "RANDOM":
                     total_random += 1
+                elif kind in ("VACUOUS", "SWALLOWED"):
+                    total_assertion += 1
                 else:
                     total_negative += 1
 
     if not findings_by_file:
-        print(f"scanned {len(targets)} file(s); no random-input or negative-path gaps found")
+        print(f"scanned {len(targets)} file(s); no random-input, negative-path or "
+              f"cannot-fire-assertion gaps found")
         return 0
 
-    print(f"scanned {len(targets)} file(s); {total_random} random-input gap(s) and "
-          f"{total_negative} negative-path gap(s) in {len(findings_by_file)} file(s):\n")
+    print(f"scanned {len(targets)} file(s); {total_random} random-input gap(s), "
+          f"{total_negative} negative-path gap(s) and {total_assertion} "
+          f"cannot-fire assertion(s) in {len(findings_by_file)} file(s):\n")
     for path in sorted(findings_by_file):
         print(f"== {path}")
         for kind, name, lineno, detail in findings_by_file[path]:
+            if kind == "VACUOUS":
+                print(f"  VACUOUS  {path}:{lineno}")
+                print(f"    {detail}")
+                continue
+            if kind == "SWALLOWED":
+                print(f"  SWALLOW  {path}:{lineno}")
+                print(f"    {detail}")
+                continue
             if kind == "RANDOM":
                 print(f"  RANDOM   {path}:{lineno}  {name}  [{detail}]")
                 print(f"    test body contains hardcoded literal AND no SecureRandom/KeyGenerator")
@@ -424,6 +567,17 @@ def main(argv):
     print("  RANDOM   findings: tests likely use a hardcoded key / message / IV.")
     print("           Fix: derive each input from a SecureRandom (nextBytes / KeyGenerator).")
     print("           False positives: KAT tests that pin a published vector — exempt.")
+    print("  VACUOUS  findings: assertNotNull on a call that THROWS on failure and can")
+    print("           return a WRONG result — the assertion cannot fail while the")
+    print("           property is false. Fix: assert the property (round-trip,")
+    print("           re-encode equality, expected value).")
+    print("           NOT flagged: getInstance and kin, where the throw IS the assertion.")
+    print("  SWALLOW  findings: a broad catch that never inspects what it caught, so a")
+    print("           state error is eaten and the test can go dead silently. Fix: catch")
+    print("           the narrow type, or count iterations and assert a non-vacuity floor.")
+    print("           NOT flagged: the offset-write shifted-window negative, where ANY")
+    print("           failure legitimately confirms and a positive control asserts the")
+    print("           unshifted window round-trips.")
     print("  NEGATIVE findings: file's roundtrip primitive has no obvious tamper / wrong-key /")
     print("           distinct-input differentiator. Fix: add at least one test that proves")
     print("           the operation actually transforms input. KAT vectors alone don't count.")
