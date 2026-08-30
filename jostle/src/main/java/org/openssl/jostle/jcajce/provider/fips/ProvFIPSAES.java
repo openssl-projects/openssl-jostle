@@ -146,7 +146,7 @@ class ProvFIPSAES
 
         // XTS-AES (IEEE 1619 / SP 800-38E). Ungated: probed servable, with
         // identical behaviour, on both supported FIPS modules (3.1.2 and
-        // 3.5.7) at their default and -pedantic fipsinstall configurations.
+        // 3.5.8) at their default and -pedantic fipsinstall configurations.
         // See the base ProvAES registration for why there are no per-key-size
         // variants.
         provider.addAlgorithmImplementation("Cipher", "AES/XTS/NoPadding", AESBlockCipherSpi.class.getName(), generalAesAttributes,

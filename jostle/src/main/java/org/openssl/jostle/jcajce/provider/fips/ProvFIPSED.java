@@ -26,27 +26,29 @@ import java.util.Map;
  *
  * <p><b>Registered only when the loaded module serves them</b>, and — unlike
  * every other gated family here — <b>per name</b>. The two supported modules
- * disagree, and 3.5.7 disagrees with itself across the family. Measured
+ * disagree, and 3.5.8 disagrees with itself across the family. Measured
  * through the FIPS lib ctx's {@code fips=yes} default properties by
  * {@code fips-c-review/probes/ed_gate_probe.c}:
  *
  * <pre>
  *   3.1.2            : keymgmt ED25519/ED448 REFUSED ("unsupported"), and
  *                      every EVP_SIGNATURE name REFUSED -> nothing registered
- *   3.5.7 default    : keymgmt ok; EVP_SIGNATURE ED25519 ok, ED25519PH ok,
+ *   3.5.8 default    : keymgmt ok; EVP_SIGNATURE ED25519 ok, ED25519PH ok,
  *                      ED448 ok, ED448PH ok, ED25519CTX REFUSED
- *   3.5.7 -pedantic  : byte-identical to default; no cnf switch gates Ed
+ *   3.5.8 -pedantic  : byte-identical to default; no cnf switch gates Ed
  * </pre>
  *
+ * <p>Re-measured 2026-08-31 on 3.5.8 (ed_gate_probe): unchanged.
+ *
  * <p>This is the exact inverse of {@link ProvFIPSXDH}'s direction — X25519 is
- * served on 3.1.2 and refused on 3.5.7 — so a reader looking for the usual
+ * served on 3.1.2 and refused on 3.5.8 — so a reader looking for the usual
  * "newer module, fewer algorithms" pattern will not find it here.
  *
  * <p><b>Why ED25519CTX is gated separately.</b> The keymgmt fetch answers only
- * "is there an Ed25519 key type?", which is true on 3.5.7. But
+ * "is there an Ed25519 key type?", which is true on 3.5.8. But
  * {@code EdSignatureSpi} drives {@code EVP_DigestSignInit_ex} with
  * {@code instance="Ed25519ctx"} for that forced type <i>unconditionally</i>,
- * whether or not the caller supplied a context — and 3.5.7's module refuses
+ * whether or not the caller supplied a context — and 3.5.8's module refuses
  * that instance with "invalid eddsa instance for attempted operation". A
  * registration would resolve through {@code getInstance} and then fail at
  * every {@code init}: the "registration is not usability" trap. The

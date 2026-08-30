@@ -34,8 +34,8 @@ import java.util.logging.Logger;
  *
  * <pre>
  *   3.1.2               : EVP_CIPHER_fetch = 0  -&gt; nothing registered
- *   3.5.7 default       : fetch = 1, provider=fips, encrypt AND decrypt run
- *   3.5.7 -pedantic     : fetch = 1, provider=fips, decrypt runs, ENCRYPT refused
+ *   3.5.8 default       : fetch = 1, provider=fips, encrypt AND decrypt run
+ *   3.5.8 -pedantic     : fetch = 1, provider=fips, decrypt runs, ENCRYPT refused
  * </pre>
  *
  * <p><b>The gate is registration-only, and deliberately so.</b> The fetch

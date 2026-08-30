@@ -72,7 +72,7 @@ import java.security.spec.X509EncodedKeySpec;
  * registered with no agreement coverage at all.
  *
  * <p>Gated on {@code TEST_FIPS_LIB} and on the loaded module serving the family
- * (3.1.2 refuses it, 3.5.7 serves it — see
+ * (3.1.2 refuses it, 3.5.8 serves it — see
  * {@code FIPSEdSignatureTest.edServedIffModuleImplementsIt}, which runs on both
  * and pins the absence against the module itself).
  */

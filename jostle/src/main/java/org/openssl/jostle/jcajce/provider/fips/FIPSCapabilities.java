@@ -41,17 +41,20 @@ package org.openssl.jostle.jcajce.provider.fips;
  *       contract than a service that resolves and then refuses, and it lets
  *       the caller fall through to another provider. This class serves that
  *       question. Currently: X25519 / X448, whose keymgmt fetch succeeds on
- *       3.1.2 and fails on 3.5.7; and ML-KEM / ML-DSA / SLH-DSA, the other way
+ *       3.1.2 and fails on 3.5.8; and ML-KEM / ML-DSA / SLH-DSA, the other way
  *       round - 3.5.x implements all three and 3.1.2 implements none. For PQC
- *       the fetch is a COMPLETE answer, verified by running real operations
- *       under both the -pedantic and the default fipsinstall config
- *       ({@code fips-c-review/probes/pqc_op_probe.c}): unlike DSA signing, no
- *       config switch gates it, so no failure classifier is needed. Also
+ *       the fetch is a COMPLETE answer. The fetch half is measured by
+ *       {@code fips-c-review/probes/keymgmt_fetch_probe.c}; the
+ *       operations-actually-run half by the 2026-08-31 three-config sweep,
+ *       where the FIPS PQC classes passed against both 3.5.8 configs. (The
+ *       older {@code pqc_op_probe.c} is cited nowhere now: it does not build —
+ *       it includes a {@code ctx.inc} that is not in the tree.) Unlike DSA
+ *       signing, no config switch gates it, so no failure classifier is needed. Also
  *       Ed25519 / Ed448 — the inverse of X25519/X448, absent on 3.1.2 and
- *       present on 3.5.7 — which additionally need
+ *       present on 3.5.8 — which additionally need
  *       {@link #canFetchSignature} because that family is not
  *       all-or-nothing. And Triple-DES, whose cipher fetch is refused on 3.1.2
- *       and served on 3.5.7 - see {@link #canFetchCipher}, and note that only
+ *       and served on 3.5.8 - see {@link #canFetchCipher}, and note that only
  *       the REGISTRATION half is decided here: whether the module will
  *       ENCRYPT with it is a fipsinstall switch no fetch can see, classified
  *       in C like DSA signing.</li>
@@ -116,14 +119,14 @@ final class FIPSCapabilities
      *
      * <pre>
      *   3.1.2               : every Ed name REFUSED (fips=no on that module)
-     *   3.5.7 default       : ED25519 ok, ED25519PH ok, ED448 ok, ED448PH ok,
+     *   3.5.8 default       : ED25519 ok, ED25519PH ok, ED448 ok, ED448PH ok,
      *                         ED25519CTX REFUSED
-     *   3.5.7 -pedantic     : identical to default — no cnf switch gates Ed
+     *   3.5.8 -pedantic     : identical to default — no cnf switch gates Ed
      * </pre>
      *
      * <p>The probe verified that the fetch answer tracks reality: driving
      * {@code EVP_DigestSignInit_ex} with {@code instance="Ed25519ctx"} on
-     * 3.5.7 fails with "invalid eddsa instance for attempted operation", while
+     * 3.5.8 fails with "invalid eddsa instance for attempted operation", while
      * every name that fetches signs and verifies. Registering ED25519CTX would
      * therefore be the "registration is not usability" trap —
      * {@code EdSignatureSpi} passes that instance unconditionally for the
@@ -146,8 +149,8 @@ final class FIPSCapabilities
      *
      * <pre>
      *   3.1.2               : DES-EDE3-CBC / -ECB / DES-EDE3 all REFUSED
-     *   3.5.7 default       : all three fetch, provider=fips, both directions run
-     *   3.5.7 -pedantic     : all three fetch — but ENCRYPTION is refused
+     *   3.5.8 default       : all three fetch, provider=fips, both directions run
+     *   3.5.8 -pedantic     : all three fetch — but ENCRYPTION is refused
      * </pre>
      *
      * <p>The fetch is therefore the complete answer to <i>registration</i>, and

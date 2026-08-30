@@ -57,7 +57,7 @@ final class FIPSTestUtil
      * <p>
      * SP 800-131A retires MAC keys below 112 bits, and the 3.5.x module
      * enforces it: {@code hmac_setkey: invalid key length} for anything
-     * shorter. Measured against 3.5.7 — 8 and 13 bytes are refused, 14 bytes
+     * shorter. Measured against 3.5.8 — 8 and 13 bytes are refused, 14 bytes
      * (112 bits) and above pass. The 3.1.2 module accepted any length, which
      * is why several tests were written with 1-byte-and-up key material.
      * <p>
@@ -107,7 +107,7 @@ final class FIPSTestUtil
      * {@code capability_can_fetch(JO_CAP_OP_SIGNATURE, ...)} the registrar
      * gates on, so a test using it asserts that the registration AGREES with
      * the module rather than pinning either module's answer. Needed for the Ed
-     * family, whose per-name gate ({@code ED25519CTX} absent on 3.5.7 while the
+     * family, whose per-name gate ({@code ED25519CTX} absent on 3.5.8 while the
      * rest of the family is served) has no keymgmt-level signal.
      */
     static boolean moduleServesSignature(String name)
@@ -339,7 +339,7 @@ final class FIPSTestUtil
      * neither direction is available on both:
      * <pre>
      *   3.1.2 : encrypt WORKS   / decrypt-init refused (no implicit rejection)
-     *   3.5.7 : encrypt REFUSED / decrypt-init works   (implicit rejection present)
+     *   3.5.8 : encrypt REFUSED / decrypt-init works   (implicit rejection present)
      * </pre>
      * 3.5.x gates PKCS#1 v1.5 <i>encryption</i> behind its
      * {@code rsa-pkcs15-pad-disabled} FIPS indicator
@@ -426,7 +426,7 @@ final class FIPSTestUtil
      * cipher fetches, the {@code Cipher} resolves, and only the encrypt init is
      * refused. This is a fipsinstall CONFIG difference rather than a module
      * version one — {@code tdes-encrypt-disabled} is off at defaults and on
-     * under {@code -pedantic}, so 3.5.7 answers both ways depending on the cnf
+     * under {@code -pedantic}, so 3.5.8 answers both ways depending on the cnf
      * (probe: {@code fips-c-review/probes/tdes_gate_probe.c}).
      * <p>
      * The refusal is pinned here, not merely detected: it must arrive as

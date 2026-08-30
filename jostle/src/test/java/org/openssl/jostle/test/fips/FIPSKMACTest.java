@@ -31,7 +31,7 @@ import java.security.Security;
  * KMAC128 / KMAC256 through JSLFIPS.
  * <p>
  * KMAC is served unconditionally by both supported modules — {@code EVP_MAC_fetch}
- * succeeds under {@code fips=yes} on 3.1.2 and 3.5.7 alike, and all four
+ * succeeds under {@code fips=yes} on 3.1.2 and 3.5.8 alike, and all four
  * measured builds produce byte-identical tags matching the SP 800-185 samples
  * ({@code fips-c-review/probes/kmac_probe.c}). So there is no registration gate
  * to test, unlike the Ed family.

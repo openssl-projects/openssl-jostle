@@ -185,7 +185,7 @@ public class FIPSX509CertificateFactoryTest
     /**
      * The load-bearing strict-mode test, asserted as a CONTRACT because the two
      * supported modules disagree about Ed25519: 3.1.2 refuses the family
-     * outright, 3.5.7 serves it (probe:
+     * outright, 3.5.8 serves it (probe:
      * {@code fips-c-review/probes/ed_gate_probe.c}).
      *
      * <p>An Ed25519-keyed certificate always parses — structure is not crypto —
@@ -261,7 +261,7 @@ public class FIPSX509CertificateFactoryTest
      * does NOT — otherwise the two policies produce the same answer and the
      * test cannot see the difference. No single algorithm is unresolvable on
      * both supported modules, but two are unresolvable on exactly one each, in
-     * opposite directions: 3.1.2 refuses Ed25519 and serves X25519, 3.5.7 the
+     * opposite directions: 3.1.2 refuses Ed25519 and serves X25519, 3.5.8 the
      * reverse. So the vehicle is CHOSEN AT RUNTIME from what the loaded module
      * cannot serve, which keeps the re-wrap covered on both.
      *

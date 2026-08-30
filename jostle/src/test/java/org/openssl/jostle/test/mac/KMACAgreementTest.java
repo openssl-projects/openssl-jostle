@@ -42,7 +42,7 @@ import java.security.spec.AlgorithmParameterSpec;
  * <p>
  * Facts pinned below that were MEASURED rather than assumed
  * ({@code fips-c-review/probes/kmac_probe.c}, 2026-08-24, across mainline
- * 3.6.2, mainline 3.5.7, FIPS 3.1.2 and FIPS 3.5.7-pedantic):
+ * 3.6.2, mainline 3.5.7, FIPS 3.1.2 and FIPS 3.5.8-pedantic):
  * <ul>
  *   <li>{@code L} is bound into the KMAC input, so two output lengths share
  *       <b>no prefix</b>. Asking for 32 bytes is not the same as truncating a

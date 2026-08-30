@@ -56,12 +56,12 @@ class ProvFIPSMac
 
         // AES GMAC -- registered UNCONDITIONALLY, unlike the gated families:
         // EVP_MAC_fetch("GMAC") succeeds under fips=yes on BOTH supported
-        // modules, and 3.1.2, 3.5.7 and mainline produce byte-identical tags
+        // modules, and 3.1.2, 3.5.8 and mainline produce byte-identical tags
         // for identical inputs (fips-c-review/probes/gmac_probe.c Q1).
         //
         // The one place the two modules DISAGREE is Mac.clone(): 3.1.2 refuses
         // EVP_MAC_CTX_dup for GMAC ("not able to copy ctx") while serving the
-        // MAC itself perfectly, and 3.5.7 allows it. The refusal is
+        // MAC itself perfectly, and 3.5.8 allows it. The refusal is
         // GMAC-specific -- HMAC and CMAC dup fine on both. MacServiceSPI.clone
         // already reports a native copy failure as CloneNotSupportedException,
         // which is the JCE-correct answer, so nothing is gated here; see
@@ -78,7 +78,7 @@ class ProvFIPSMac
      * KMAC128 / KMAC256 (NIST SP 800-185), registered UNCONDITIONALLY for the
      * same reason as AES-GMAC: {@code EVP_MAC_fetch} succeeds under
      * {@code fips=yes} on BOTH supported modules, and mainline 3.6.2, mainline
-     * 3.5.7, FIPS 3.1.2 and FIPS 3.5.7 all produce byte-identical tags and all
+     * 3.5.7, FIPS 3.1.2 and FIPS 3.5.8 all produce byte-identical tags and all
      * match the SP 800-185 sample vectors
      * ({@code fips-c-review/probes/kmac_probe.c} Q1/Q13). Unlike GMAC, even
      * {@code EVP_MAC_CTX_dup} works on every one of them, so clone needs no

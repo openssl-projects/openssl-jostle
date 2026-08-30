@@ -42,7 +42,7 @@ import java.security.Security;
  * behaviour alone cannot tell the two apart.
  *
  * <p>Ungated: XTS was probed servable, with identical behaviour, on both
- * supported FIPS modules (3.1.2 and 3.5.7) at their default and
+ * supported FIPS modules (3.1.2 and 3.5.8) at their default and
  * {@code -pedantic} fipsinstall configurations.
  *
  * <p>Gated on {@code TEST_FIPS_LIB}; skipped when unset.

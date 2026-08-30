@@ -262,7 +262,7 @@ public class FIPSModuleIsActuallyUsedTest
      * way.
      * <p>
      * That blind spot matters most for GMAC, where mainline 3.6.2, FIPS 3.1.2
-     * and FIPS 3.5.7 produce byte-identical tags for identical inputs
+     * and FIPS 3.5.8 produce byte-identical tags for identical inputs
      * (measured, {@code fips-c-review/probes/gmac_probe.c}), so no agreement,
      * negative or chunking test can tell the module from mainline. Asking which
      * provider implements it is the only check that can.

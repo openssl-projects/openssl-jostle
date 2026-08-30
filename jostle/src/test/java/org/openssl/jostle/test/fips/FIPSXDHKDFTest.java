@@ -73,7 +73,7 @@ public class FIPSXDHKDFTest
      *
      * <pre>
      *   3.1.2 : keymgmt fetch succeeds -> ProvFIPSXDH registers; agreement works
-     *   3.5.7 : fetch refused ("unsupported ... Non-default") -> nothing registered
+     *   3.5.8 : fetch refused ("unsupported ... Non-default") -> nothing registered
      * </pre>
      *
      * <p>Both halves are load-bearing. Where the module serves XDH, refusing to

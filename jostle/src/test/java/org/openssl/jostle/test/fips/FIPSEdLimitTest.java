@@ -38,7 +38,7 @@ import java.security.SecureRandom;
  * <p>Gated twice, and both gates are needed. The class skips when
  * {@code TEST_FIPS_LIB} is unset, and again when the loaded module does not
  * implement the Ed family — 3.1.2 refuses ED25519 and ED448 outright while
- * 3.5.7 serves them (probe: {@code fips-c-review/probes/ed_gate_probe.c}). The
+ * 3.5.8 serves them (probe: {@code fips-c-review/probes/ed_gate_probe.c}). The
  * second skip is legitimate only because
  * {@code FIPSEdSignatureTest.edServedIffModuleImplementsIt} runs on both
  * modules and pins the absence against the module itself.

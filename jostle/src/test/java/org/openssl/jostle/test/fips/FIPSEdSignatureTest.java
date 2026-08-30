@@ -42,7 +42,7 @@ import java.security.spec.X509EncodedKeySpec;
  * both JSL and BouncyCastle, both directions, including the prehash variants
  * (which need BC's lightweight signer — BC registers no JCE name for them).
  *
- * <p>The family is <b>capability-gated</b> — 3.1.2 refuses it outright, 3.5.7
+ * <p>The family is <b>capability-gated</b> — 3.1.2 refuses it outright, 3.5.8
  * serves it — so every operational test here first takes the
  * {@link #assumeEdServed()} skip. {@link #edServedIffModuleImplementsIt} is
  * the one test that runs on both modules and pins the contract itself; the
@@ -116,7 +116,7 @@ public class FIPSEdSignatureTest
      *
      * <pre>
      *   3.1.2 : keymgmt and every EVP_SIGNATURE name refused -> nothing registered
-     *   3.5.7 : keymgmt ok; ED25519 / ED25519PH / ED448 / ED448PH registered,
+     *   3.5.8 : keymgmt ok; ED25519 / ED25519PH / ED448 / ED448PH registered,
      *           ED25519CTX NOT (the module does not register that instance)
      * </pre>
      *
@@ -168,7 +168,7 @@ public class FIPSEdSignatureTest
                     "Signature." + alg + " registration disagrees with the rest of the Ed family");
         }
 
-        // ED25519CTX tracks its OWN capability, not the family's: on 3.5.7 the
+        // ED25519CTX tracks its OWN capability, not the family's: on 3.5.8 the
         // family is served and this instance is not.
         Assertions.assertEquals(
                 FIPSTestUtil.moduleServesSignature("ED25519CTX"),

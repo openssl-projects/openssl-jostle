@@ -433,7 +433,7 @@ public class FIPSMacAgreementTest
      * <p>
      * Measured ({@code fips-c-review/probes/gmac_probe.c} Q4): 3.1.2 refuses
      * {@code EVP_MAC_CTX_dup} for GMAC with "not able to copy ctx" while
-     * serving the MAC itself perfectly, and 3.5.7 allows it. The refusal is
+     * serving the MAC itself perfectly, and 3.5.8 allows it. The refusal is
      * GMAC-specific — HMAC and CMAC dup fine on both, which the control below
      * pins so a module that lost cloning wholesale cannot pass as "3.1.2".
      * <p>
@@ -494,7 +494,7 @@ public class FIPSMacAgreementTest
             return;
         }
 
-        // 3.5.7 branch: the clone must CONTINUE, judged against BC over the
+        // 3.5.8 branch: the clone must CONTINUE, judged against BC over the
         // whole message — a hollow clone diverges from the source but cannot
         // match this.
         copy.update(msg, split, msg.length - split);

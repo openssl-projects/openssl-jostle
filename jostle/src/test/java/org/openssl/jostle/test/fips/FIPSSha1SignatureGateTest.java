@@ -128,7 +128,7 @@ public class FIPSSha1SignatureGateTest
             // The module's wording changed between the two supported versions,
             // so both are pinned rather than either being matched loosely:
             //   3.1.2 : "... securitycheck: digest not allowed"
-            //   3.5.7 : "... ossl_fips_ind_digest_sign_check: invalid digest"
+            //   3.5.8 : "... ossl_fips_ind_digest_sign_check: invalid digest"
             String m = String.valueOf(openssl.getMessage());
             Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
                     sigAlg + ": expected a module digest rejection, got: " + m);

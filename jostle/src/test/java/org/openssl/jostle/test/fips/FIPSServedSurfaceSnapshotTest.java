@@ -354,7 +354,7 @@ public class FIPSServedSurfaceSnapshotTest
      * when the module genuinely refuses, and only for the whole group at once.
      * <p>
      * XDH (X25519 / X448), measured through the keymgmt fetch under
-     * {@code fips=yes}: 3.1.2 resolves it and JSLFIPS registers; 3.5.7 answers
+     * {@code fips=yes}: 3.1.2 resolves it and JSLFIPS registers; 3.5.8 answers
      * {@code inner_evp_generic_fetch: unsupported ... Non-default} and
      * ProvFIPSXDH registers nothing. See {@code FIPSCapabilities} for the
      * scoping rule and {@code FIPSXDHKDFTest} for the operation-level lock.
@@ -375,14 +375,14 @@ public class FIPSServedSurfaceSnapshotTest
      * EdDSA, the third capability-gated group — and the one that runs the
      * OPPOSITE way to {@link #XDH_GATED}: 3.1.2 refuses the whole family
      * ({@code EVP_PKEY_CTX_new_from_name("ED25519")} → "unsupported", and every
-     * {@code EVP_SIGNATURE} name refused), while 3.5.7 serves it. A reader
+     * {@code EVP_SIGNATURE} name refused), while 3.5.8 serves it. A reader
      * looking for "newer module, fewer algorithms" will not find that pattern
      * here. Measured by {@code fips-c-review/probes/ed_gate_probe.c}; ProvFIPSED
      * gates the family on the keymgmt fetch.
      * <p>
      * {@code Signature.ED25519CTX} is deliberately NOT in this array — see
      * {@link #ED_CTX_GATED}. Putting it here would break the all-or-nothing
-     * check on 3.5.7, which serves everything else in the family.
+     * check on 3.5.8, which serves everything else in the family.
      */
     private static final String[] ED_GATED = {
             "KeyFactory.ED",
@@ -570,7 +570,7 @@ public class FIPSServedSurfaceSnapshotTest
         assertGatedAbsenceIsJustified("SLH-DSA", pqcSubset("SLH-DSA", "SLHDSA"), OpenSSLFIPSNI.OP_KEYMGMT, "SLH-DSA-SHA2-128S", removed);
         assertGatedAbsenceIsJustified("EdDSA", ED_GATED, OpenSSLFIPSNI.OP_KEYMGMT, "ED25519", removed);
         // Per-NAME, and probed as a SIGNATURE: the family's keymgmt resolves on
-        // 3.5.7 while this one instance does not.
+        // 3.5.8 while this one instance does not.
         assertGatedAbsenceIsJustified("Ed25519ctx", ED_CTX_GATED, OpenSSLFIPSNI.OP_SIGNATURE, "ED25519CTX", removed);
         // Probed as a CIPHER: the family has no keymgmt of its own.
         assertGatedAbsenceIsJustified("Triple-DES", TDES_GATED, OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC", removed);

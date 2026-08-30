@@ -80,7 +80,7 @@ public class RSAKEMCipherSpi
      * (native-code.md) in its strongest form: the pin is not defensive against
      * a future default changing, it is REQUIRED TODAY on the CMVP-validated
      * 3.1.2 module. Measured on all four supported environments
-     * ({@code fips-c-review/probes/rsakem_probe.c}): mainline and the 3.5.7
+     * ({@code fips-c-review/probes/rsakem_probe.c}): mainline and the 3.5.8
      * module default to RSASVE and work without it, while 3.1.2 refuses
      * {@code EVP_PKEY_encapsulate}'s size query outright - and refuses it
      * MUTELY, with an empty error queue. A build tested only against mainline

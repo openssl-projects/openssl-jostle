@@ -31,13 +31,13 @@ import java.security.Signature;
  * loaded module - or is unconditional.
  *
  * <p><b>EdDSA is module-dependent too</b>, and in the OPPOSITE direction to
- * XDH: 3.1.2 refuses ED25519 / ED448 outright while 3.5.7 serves them (probe:
+ * XDH: 3.1.2 refuses ED25519 / ED448 outright while 3.5.8 serves them (probe:
  * {@code fips-c-review/probes/ed_gate_probe.c}). This test asserted
  * unconditional absence until 2026-08-23, when {@code ProvFIPSED} was added;
  * it is now an <b>iff</b> for the same reason PQC is. The one member gated on
  * its OWN capability, {@code Signature.ED25519CTX}, is deliberately not swept
  * here — {@code FIPSEdSignatureTest.edServedIffModuleImplementsIt} owns it,
- * because it is absent on 3.5.7 while the rest of the family is present and
+ * because it is absent on 3.5.8 while the rest of the family is present and
  * would break the all-or-nothing check.
  *
  * <p><b>PQC is module-dependent</b>, and this test changed shape on 2026-08-23
@@ -185,7 +185,7 @@ public class FIPSPQCAbsenceTest
      * Every EdDSA name resolves through JSLFIPS iff the module serves the
      * family, and every name agrees with the rest.
      * <p>
-     * {@code Signature.ED25519CTX} is excluded on purpose: 3.5.7 serves the
+     * {@code Signature.ED25519CTX} is excluded on purpose: 3.5.8 serves the
      * family but does NOT register that instance, so it is gated on its own
      * signature-level probe and sweeping it here would fail the
      * all-or-nothing assertion. {@code FIPSEdSignatureTest} pins it.
