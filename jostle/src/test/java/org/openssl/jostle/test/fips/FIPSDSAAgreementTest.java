@@ -17,7 +17,11 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 
+import java.security.AlgorithmParameterGenerator;
+import java.security.AlgorithmParameters;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -27,8 +31,13 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.spec.DSAParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement for the FIPS provider's DSA signature surface.
@@ -93,6 +102,23 @@ public class FIPSDSAAgreementTest
      */
     private static final String[] SHA3_DSA = {
             "SHA3-224withDSA", "SHA3-256withDSA", "SHA3-384withDSA", "SHA3-512withDSA"
+    };
+
+    /**
+     * SHA-1 DSA. Separate because the module's {@code signature-digest-check}
+     * decides whether signing is refused, and that is a {@code fipsinstall}
+     * setting rather than a module property — both configurations are
+     * legitimate, so the contract is asserted, not one answer.
+     */
+    private static final String[] SHA1_DSA = {"SHA1withDSA"};
+
+    /** Pre-hashed DSA: the caller supplies a digest, so it needs its own driver. */
+    private static final String[] NONE_DSA = {"NoneWithDSA"};
+
+    /** The five JCA types {@code ProvFIPSDSA} registers under. */
+    private static final String[] GUARDED_TYPES = {
+            "AlgorithmParameterGenerator", "AlgorithmParameters",
+            "KeyFactory", "KeyPairGenerator", "Signature"
     };
 
     private static final int TRIALS = 8;
@@ -402,5 +428,228 @@ public class FIPSDSAAgreementTest
                 "BC-encoded public key, decoded by JSLFIPS, verifies the signature");
         Assertions.assertFalse(verify("SHA256withDSA", BC, bcPub, tampered, sig2),
                 "tampered message must not verify against the round-tripped key (BC)");
+    }
+
+    /**
+     * {@code NoneWithDSA} takes an already-computed digest rather than a
+     * message, so it needs its own driver — SHA-256 matches the 256-bit q of
+     * the shared keypair, so the whole digest is consumed. Cross-verified
+     * against BC in both directions where the module signs, and in the
+     * BC-signs direction always.
+     */
+    @Test
+    public void noneWithDsaAgreesWithBc() throws Exception
+    {
+        ensureSharedKeyPair();
+        SecureRandom sr = seededRandom("noneWithDsaAgreesWithBc");
+
+        ProviderKeys fips = keysFor(FIPS);
+        ProviderKeys bc = keysFor(BC);
+        boolean fipsSigns = FIPSTestUtil.fipsDsaCanSign();
+
+        for (int trial = 0; trial < TRIALS; trial++)
+        {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(randomMessage(sr));
+            byte[] tampered = digest.clone();
+            tampered[sr.nextInt(tampered.length)] ^= 0x01;
+
+            byte[] sigBc = sign("NoneWithDSA", BC, bc.priv, digest);
+            Assertions.assertTrue(verify("NoneWithDSA", FIPS, fips.pub, digest, sigBc),
+                    "NoneWithDSA: BC sign -> JSLFIPS verify");
+            Assertions.assertFalse(verify("NoneWithDSA", FIPS, fips.pub, tampered, sigBc),
+                    "NoneWithDSA: tampered digest must not verify (JSLFIPS)");
+
+            if (!fipsSigns)
+            {
+                continue;
+            }
+
+            byte[] sigFips = sign("NoneWithDSA", FIPS, fips.priv, digest);
+            Assertions.assertTrue(verify("NoneWithDSA", BC, bc.pub, digest, sigFips),
+                    "NoneWithDSA: JSLFIPS sign -> BC verify");
+            Assertions.assertFalse(verify("NoneWithDSA", BC, bc.pub, tampered, sigFips),
+                    "NoneWithDSA: tampered digest must not verify (BC)");
+        }
+    }
+
+    /**
+     * SHA1withDSA, asserted as a CONTRACT rather than one answer: the module
+     * either signs — in which case BC must verify the result — or refuses
+     * naming the digest. A module with {@code signature-digest-check} off and
+     * one with it on are both legitimate deployments.
+     * <p>
+     * The BC-signs / JSLFIPS-verifies direction runs either way: SHA-1
+     * verification is legacy-approved, so a module that refuses to SIGN must
+     * still verify.
+     */
+    @Test
+    public void sha1WithDsaAgreesWithBcOrIsRefusedNamingTheDigest() throws Exception
+    {
+        ensureSharedKeyPair();
+        SecureRandom sr = seededRandom("sha1WithDsaAgreesWithBcOrIsRefusedNamingTheDigest");
+
+        ProviderKeys fips = keysFor(FIPS);
+        ProviderKeys bc = keysFor(BC);
+
+        for (String sigAlg : SHA1_DSA)
+        {
+            byte[] msg = randomMessage(sr);
+            byte[] tampered = msg.clone();
+            tampered[sr.nextInt(tampered.length)] ^= 0x01;
+
+            byte[] sigBc = sign(sigAlg, BC, bc.priv, msg);
+            Assertions.assertTrue(verify(sigAlg, FIPS, fips.pub, msg, sigBc),
+                    sigAlg + ": SHA-1 verification is legacy-approved and must work");
+            Assertions.assertFalse(verify(sigAlg, FIPS, fips.pub, tampered, sigBc),
+                    sigAlg + ": tampered message must not verify");
+
+            if (!FIPSTestUtil.fipsDsaCanSign())
+            {
+                continue;
+            }
+
+            try
+            {
+                byte[] sigFips = sign(sigAlg, FIPS, fips.priv, msg);
+                Assertions.assertTrue(verify(sigAlg, BC, bc.pub, msg, sigFips),
+                        sigAlg + ": the module signed, so BC must verify the result");
+            }
+            catch (OpenSSLException ex)
+            {
+                Assertions.assertTrue(String.valueOf(ex.getMessage()).contains("digest not allowed"),
+                        sigAlg + ": expected a module 'digest not allowed' refusal, got: "
+                                + ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * The {@code Dss-Parms SEQUENCE { p, q, g }} codec must agree with BC in
+     * both directions — same encoding out for the same components, same
+     * components back from the peer's encoding. No generation involved, so
+     * this runs on a module that refuses DSA keygen.
+     */
+    @Test
+    public void algorithmParametersAgreeWithBc() throws Exception
+    {
+        ensureSharedKeyPair();
+
+        java.security.interfaces.DSAPublicKey pub =
+                (java.security.interfaces.DSAPublicKey) keysFor(FIPS).pub;
+        DSAParameterSpec domain = new DSAParameterSpec(
+                pub.getParams().getP(), pub.getParams().getQ(), pub.getParams().getG());
+
+        AlgorithmParameters fipsAp = AlgorithmParameters.getInstance("DSA", FIPS);
+        fipsAp.init(domain);
+        AlgorithmParameters bcAp = AlgorithmParameters.getInstance("DSA", BC);
+        bcAp.init(domain);
+        Assertions.assertArrayEquals(bcAp.getEncoded(), fipsAp.getEncoded(),
+                "JSLFIPS and BC encode the same Dss-Parms differently");
+
+        assertSameDomain(domain, reread(BC, fipsAp.getEncoded()), "BC reading a JSLFIPS encoding");
+        assertSameDomain(domain, reread(FIPS, bcAp.getEncoded()), "JSLFIPS reading a BC encoding");
+    }
+
+    /**
+     * Domain-parameter generation is randomised, so agreement is
+     * CROSS-ACCEPTANCE, not byte-equality: BC must read back what JSLFIPS
+     * generated, unchanged. Where the module refuses generation the refusal is
+     * pinned instead — both are legitimate deployments.
+     */
+    @Test
+    public void generatedParametersAreAcceptedByBc_orGenerationIsRefusedTyped() throws Exception
+    {
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DSA", FIPS);
+        apg.init(2048);
+
+        AlgorithmParameters params;
+        try
+        {
+            params = apg.generateParameters();
+        }
+        catch (java.security.ProviderException ex)
+        {
+            // The capability refusal surfaces here per java-spi.md — the
+            // generator's contract carries no checked exception.
+            Assertions.assertNotNull(ex.getMessage(),
+                    "a refusal must carry the capability message, not an empty ProviderException");
+            return;
+        }
+
+        DSAParameterSpec spec = params.getParameterSpec(DSAParameterSpec.class);
+        Assertions.assertEquals(2048, spec.getP().bitLength(), "JSLFIPS generated p of the wrong size");
+        assertSameDomain(spec, reread(BC, params.getEncoded()),
+                "BC reading JSLFIPS-generated parameters");
+    }
+
+    /**
+     * Completeness guard, both directions, over the whole registered DSA
+     * surface — discovered from JSLFIPS by SPI class-name prefix, so OID
+     * aliases are included.
+     * <p>
+     * Not interchangeable with {@code DSAAgreementTest}'s guard: that one
+     * reads JSL's registered set. Compared against what is ACTUALLY registered
+     * rather than a fixed list, since a gated family is legitimately absent on
+     * one module.
+     */
+    @Test
+    public void everyRegisteredDsaServiceIsCovered()
+    {
+        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        SortedSet<String> covered = new TreeSet<String>();
+        for (String[] group : new String[][]{SHA2_DSA, SHA3_DSA, SHA1_DSA, NONE_DSA})
+        {
+            for (String alg : group)
+            {
+                covered.add("Signature." + alg.toUpperCase(java.util.Locale.ROOT));
+            }
+        }
+        // The remaining four types are each driven by a named test above:
+        // KeyFactory + KeyPairGenerator by keyEncodingRoundTripsThroughBC and
+        // ensureSharedKeyPair, AlgorithmParameters by
+        // algorithmParametersAgreeWithBc, AlgorithmParameterGenerator by
+        // generatedParametersAreAcceptedByBc_orGenerationIsRefusedTyped.
+        covered.add("KeyFactory.DSA");
+        covered.add("KeyPairGenerator.DSA");
+        covered.add("AlgorithmParameters.DSA");
+        covered.add("AlgorithmParameterGenerator.DSA");
+
+        SortedSet<String> registered = new TreeSet<String>();
+        for (java.security.Provider.Service s : provider.getServices())
+        {
+            String cn = s.getClassName();
+            if (cn != null && cn.startsWith(CipherFamilies.DSA_PREFIX))
+            {
+                registered.add(s.getType() + "." + s.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+            }
+        }
+        Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no DSA services");
+
+        SortedSet<String> uncovered = new TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers DSA services with no agreement coverage in this class: "
+                        + uncovered + "\nAdd them to a coverage group.");
+
+        SortedSet<String> stale = new TreeSet<String>(covered);
+        stale.removeAll(registered);
+        Assertions.assertTrue(stale.isEmpty(),
+                "this class names DSA services JSLFIPS does not register: " + stale);
+    }
+
+    private static DSAParameterSpec reread(String provider, byte[] encoded) throws Exception
+    {
+        AlgorithmParameters ap = AlgorithmParameters.getInstance("DSA", provider);
+        ap.init(encoded);
+        return ap.getParameterSpec(DSAParameterSpec.class);
+    }
+
+    private static void assertSameDomain(DSAParameterSpec expected, DSAParameterSpec actual, String what)
+    {
+        Assertions.assertEquals(expected.getP(), actual.getP(), what + ": p differs");
+        Assertions.assertEquals(expected.getQ(), actual.getQ(), what + ": q differs");
+        Assertions.assertEquals(expected.getG(), actual.getG(), what + ": g differs");
     }
 }

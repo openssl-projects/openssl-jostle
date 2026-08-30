@@ -45,6 +45,7 @@ public final class CipherFamilies
     // required and explicit.
     public static final String RSA_PREFIX = "org.openssl.jostle.jcajce.provider.rsa.";
     public static final String MLKEM_PREFIX = "org.openssl.jostle.jcajce.provider.mlkem.";
+    public static final String DSA_PREFIX = "org.openssl.jostle.jcajce.provider.dsa.";
 
     /**
      * NIST's AES arc: {@code 2.16.840.1.101.3.4.1.{1..9}} is AES-128,

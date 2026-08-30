@@ -128,7 +128,15 @@ public class MDTest
         for (String digest : new String[]{
                 "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
                 "SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512", "SHAKE-128", "SHAKE-256", "MD5",
-                "SM3", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512"}) // Skipping "MD5-SHA1"
+                "SM3", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512",
+                // The fixed-output SHAKE registrations. ShakeFixedLengthTest
+                // already compares their ONE-SHOT output against BC, but its
+                // chunking test compares against our own one-shot call — which a
+                // uniformly wrong implementation satisfies. Driving them through
+                // this sweep gives them chunked-against-BC coverage instead.
+                // BouncyCastle spells both names identically, so the bcName
+                // derivation below leaves them alone.
+                "SHAKE128-256", "SHAKE256-512"}) // Skipping "MD5-SHA1" — see md5Sha1ChunkedAgreesWithItsConstruction
         {
             String bcName = digest;
             if (bcName.startsWith("SHA2-"))
@@ -191,7 +199,9 @@ public class MDTest
         for (String digest : new String[]{
                 "SHA2-224", "SHA2-256", "SHA2-384", "SHA2-512", "SHA2-512/224", "SHA2-512/256", "SHA1",
                 "SHA3-224", "SHA3-256", "SHA3-384", "SHA3-512", "SHAKE-128", "SHAKE-256", "MD5",
-                "SM3", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512"}) // Skipping "MD5-SHA1"
+                "SM3", "RIPEMD-160", "BLAKE2S-256", "BLAKE2B-512",
+                // The fixed-output SHAKEs — see testAgreeWithBCSlidingWindow.
+                "SHAKE128-256", "SHAKE256-512"}) // Skipping "MD5-SHA1" — see md5Sha1ChunkedAgreesWithItsConstruction
         {
 
             String bcName = digest;
@@ -669,6 +679,66 @@ public class MDTest
             // Same input twice → identical digest (digests are deterministic).
             Assertions.assertArrayEquals(dBase, md.digest(base),
                     alg + ": same input must produce the same digest");
+        }
+    }
+
+
+    /**
+     * Chunking depth for {@code MD5-SHA1}, the one registered digest the two
+     * BC-agreement sweeps above have to skip because BouncyCastle registers no
+     * such JCE name.
+     * <p>
+     * The reference is the algorithm's own definition — the TLS 1.0/1.1
+     * concatenation {@code MD5(m) || SHA1(m)}, 36 bytes — built from BC's MD5
+     * and SHA-1, so it is an independent implementation rather than a second
+     * call into Jostle. Comparing chunked output against a one-shot call of our
+     * own code would be satisfied by an implementation that is uniformly wrong.
+     * <p>
+     * Breadth for this name lives in {@code MDAgreementTest}; what is here is
+     * the partial-block buffering path, which a one-shot sweep cannot reach.
+     */
+    @Test
+    public void md5Sha1ChunkedAgreesWithItsConstruction() throws Exception
+    {
+        SecureRandom sr = seededRandom("md5Sha1ChunkedAgreesWithItsConstruction");
+
+        for (int t = 0; t < 8; t++)
+        {
+            byte[] message = new byte[1 + sr.nextInt(4096)];
+            sr.nextBytes(message);
+
+            byte[] md5 = MessageDigest.getInstance("MD5", BouncyCastleProvider.PROVIDER_NAME).digest(message);
+            byte[] sha1 = MessageDigest.getInstance("SHA-1", BouncyCastleProvider.PROVIDER_NAME).digest(message);
+            byte[] expected = Arrays.concatenate(md5, sha1);
+            Assertions.assertEquals(36, expected.length, "MD5-SHA1 reference must be MD5(16) || SHA1(20)");
+
+            MessageDigest oneShot = MessageDigest.getInstance("MD5-SHA1", JostleProvider.PROVIDER_NAME);
+            Assertions.assertArrayEquals(expected, oneShot.digest(message), "MD5-SHA1 one-shot");
+
+            MessageDigest byteWise = MessageDigest.getInstance("MD5-SHA1", JostleProvider.PROVIDER_NAME);
+            for (byte b : message)
+            {
+                byteWise.update(b);
+            }
+            Assertions.assertArrayEquals(expected, byteWise.digest(), "MD5-SHA1 byte-wise");
+
+            MessageDigest randomSplit = MessageDigest.getInstance("MD5-SHA1", JostleProvider.PROVIDER_NAME);
+            int offset = 0;
+            while (offset < message.length)
+            {
+                int chunk = Math.min(1 + sr.nextInt(97), message.length - offset);
+                randomSplit.update(message, offset, chunk);
+                offset += chunk;
+            }
+            Assertions.assertArrayEquals(expected, randomSplit.digest(), "MD5-SHA1 random splits");
+
+            // Differentiator: a one-byte change must change the digest, so an
+            // implementation that consumed only part of its input cannot pass.
+            byte[] tampered = message.clone();
+            tampered[sr.nextInt(tampered.length)] ^= (byte) (1 + sr.nextInt(255));
+            Assertions.assertFalse(Arrays.areEqual(expected,
+                            MessageDigest.getInstance("MD5-SHA1", JostleProvider.PROVIDER_NAME).digest(tampered)),
+                    "MD5-SHA1: a one-byte change to the message left the digest unchanged");
         }
     }
 

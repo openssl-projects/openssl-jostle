@@ -18,8 +18,11 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import java.security.MessageDigest;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement for the FIPS provider's MessageDigest surface — the
@@ -101,6 +104,49 @@ public class FIPSMDAgreementTest
     private static byte[] digest(String name, String provider, byte[] message) throws Exception
     {
         return MessageDigest.getInstance(name, provider).digest(message);
+    }
+
+    /**
+     * Completeness guard, both directions: every MessageDigest JSLFIPS
+     * registers must appear in {@link #APPROVED}, and every name this class
+     * claims to cover must still be registered.
+     * <p>
+     * Compared against what is ACTUALLY registered, not a fixed expectation,
+     * so a digest the module stops serving is reported by name. Not
+     * interchangeable with {@code MDAgreementTest}'s guard: that one reads
+     * JSL's strictly wider set, so a JSLFIPS-only registration is invisible
+     * to it, and the six base-only digests are invisible to this one.
+     */
+    @Test
+    public void everyRegisteredMessageDigestIsCovered()
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+
+        Set<String> covered = new TreeSet<String>(java.util.Arrays.asList(APPROVED));
+
+        Set<String> registered = new TreeSet<String>();
+        for (Provider.Service service : provider.getServices())
+        {
+            if ("MessageDigest".equals(service.getType()))
+            {
+                registered.add(service.getAlgorithm());
+            }
+        }
+        Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no MessageDigest services");
+
+        Set<String> uncovered = new TreeSet<String>(registered);
+        uncovered.removeAll(covered);
+        Assertions.assertTrue(uncovered.isEmpty(),
+                "JSLFIPS registers MessageDigest services with no agreement coverage in this class: "
+                        + uncovered + "\nAdd them to APPROVED — registration without agreement "
+                        + "testing is exactly how KMAC shipped one-shot-only.");
+
+        // And the reverse, so a rename leaves a dead entry rather than silently
+        // testing nothing.
+        Set<String> stale = new TreeSet<String>(covered);
+        stale.removeAll(registered);
+        Assertions.assertTrue(stale.isEmpty(),
+                "this class names MessageDigest services JSLFIPS does not register: " + stale);
     }
 
     /**
