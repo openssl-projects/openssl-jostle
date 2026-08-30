@@ -390,6 +390,21 @@ def vacuous_notnull_sites(lines):
                 break
 
 
+def _returns_null_sentinel(body):
+    """True when `body` is a helper method whose LAST statement is `return null`.
+
+    Such a method reports failure to its caller by returning null, so a broad
+    catch inside it is propagating rather than swallowing. A @Test method
+    returns void and therefore never matches.
+    """
+    if "@Test" in body:
+        return False
+    returns = re.findall(r"\breturn\s+([^;]+);", body)
+    if not returns:
+        return False
+    return returns[-1].strip() == "null"
+
+
 def swallowed_catch_sites(text, lines):
     """Yield (line_no,) for a broad catch that inspects nothing, excluding the
     shifted-window negative where any failure legitimately confirms."""
@@ -417,6 +432,25 @@ def swallowed_catch_sites(text, lines):
         # and FIPSECCurveTableTest.bothProvidersDescribeACurveIdentically,
         # which carried none and could pass having compared nothing.
         body = _enclosing_method_body(lines, lineno - 1)
+
+        # Same sentinel reasoning as the catch-body rule above, one level up:
+        # a HELPER whose terminal statement is `return null` is a PROBE, and
+        # its failure reaches the caller as null rather than being eaten. The
+        # catch body is empty because the loop tries the next candidate; the
+        # method's own return is what communicates "none of them worked".
+        # Callers then null-check inside a floored loop, which is where the
+        # non-vacuity lives. ECCurveTableTest's platform() and
+        # encodedByPlatform() are the reference, and MT-7's census already
+        # triaged both as legitimate — this encodes that verdict by CALLEE
+        # SHAPE rather than by naming the two sites, so a third probe written
+        # the same way is covered and a test method is not.
+        #
+        # Scoped to non-@Test methods deliberately: a @Test returns void, so it
+        # can never match, and the shape cannot be used to silence a real
+        # dead-test risk in a test body.
+        if _returns_null_sentinel(body):
+            continue
+
         counters = set(re.findall(r"\b(\w+)\s*\+\+", body))
         floored = any(re.search(r"\bassert\w+\s*\([^;]*\b%s\b" % re.escape(c), body)
                       for c in counters)
