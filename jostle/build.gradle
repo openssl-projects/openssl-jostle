@@ -366,9 +366,24 @@ sourceSets {
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    // BouncyCastle is SANCTIONED on the TEST classpath only, as the second
+    // independent reference the agreement and ASN.1-parity tests compare
+    // against. It is deliberately not a production dependency, and the
+    // sanction carries a known hazard: a test-classpath provider can MASK a
+    // production path that resolves a service from whatever provider happens
+    // to be installed - which is how a delegation to a foreign provider once
+    // went unnoticed here. UnpinnedServiceResolutionParityTest is the
+    // compensating control and must stay; being a SOURCE lint, it cannot
+    // itself be masked by anything on the classpath.
     testImplementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
     // CMS key-agreement interop tests (bcpkix carries org.bouncycastle.cms.*;
     // it depends on bcutil for the ASN.1 CMS structures).
+    //
+    // bcutil also carries org.bouncycastle.asn1.cms.CCMParameters/GCMParameters,
+    // the references AlgorithmParametersBcParityTest compares the CCM and GCM
+    // codecs against. Take them from HERE: bcprov ships same-named classes
+    // under org.bouncycastle.internal.asn1.cms, an internal package with no
+    // API-stability promise, and an IDE will offer that import first.
     testImplementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
     testImplementation 'org.bouncycastle:bcutil-jdk18on:1.85'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
