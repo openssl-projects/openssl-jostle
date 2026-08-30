@@ -201,9 +201,14 @@ public class DSAAgreementTest
      * <p>
      * No covered list, for the reason {@code ProviderSurfaceGuard} documents:
      * a list drifts, and deriving one from the provider compares the provider
-     * against itself. The removal direction is a per-TYPE floor below rather
-     * than a per-name list — a family dropped wholesale fails here, and a
-     * single name dropped is the golden snapshot's job.
+     * against itself.
+     * <p>
+     * <b>The removal direction lives elsewhere, deliberately.</b> A family
+     * dropped wholesale fails the per-TYPE floor below; a SINGLE name dropped
+     * is caught by {@code ServedSurfaceSnapshotTest}, the provider-wide golden
+     * set — which is the right home for it, because a per-family list would
+     * drift and a list derived from the provider would compare the provider
+     * against itself.
      */
     @Test
     public void everyRegisteredDsaServiceIsDriven() throws Exception
