@@ -300,6 +300,12 @@ public enum ErrorCode
     // because EC_GROUP_check_named_curve answers -1 for both.
     JO_CURVE_NO_MATCH(-172),
 
+    // A key-wrap input whose LENGTH the RFCs forbid. Exists to control the
+    // exception TYPE, not to catch bad input: OpenSSL refuses these lengths
+    // itself, but generically, where BouncyCastle raises
+    // IllegalBlockSizeException on the wrap side.
+    JO_WRAP_INPUT_LENGTH_INVALID(-173),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

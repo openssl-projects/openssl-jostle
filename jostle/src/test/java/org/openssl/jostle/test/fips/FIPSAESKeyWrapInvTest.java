@@ -236,6 +236,18 @@ public class FIPSAESKeyWrapInvTest
     /**
      * A tampered blob and a wrong KEK both fail the integrity check as the
      * JCE-contracted {@link InvalidKeyException}, with the pinned message.
+     *
+     * <p>The native layer now raises {@code BadPaddingException} for a failed
+     * unwrap integrity check, matching BouncyCastle (2026-08-31); it used to
+     * raise {@code OpenSSLException}. Either way {@code engineUnwrap} converts
+     * to {@code InvalidKeyException}.
+     *
+     * <p>NOTE, a real loss rather than a tidy-up: this test also used to assert
+     * that the recovery path had not scrubbed the OpenSSL error queue, by
+     * requiring the message to carry queue content and not end in "null". The
+     * message is now the typed one and does not come from the queue, so that
+     * guard has no observable left and the mark/pop discipline in
+     * {@code wrap_recover_after_failure} is unguarded from here.
      */
     @Test
     public void tamperedWrappedKeyRejectedTyped() throws Exception
@@ -256,14 +268,8 @@ public class FIPSAESKeyWrapInvTest
             InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
                     () -> unwrap(FIPS, kek, bad),
                     "tampering at byte " + pos + " was not rejected");
-            Assertions.assertTrue(ex.getMessage().startsWith("unable to unwrap key: OpenSSL Error:"),
-                    "byte " + pos + ": unexpected message " + ex.getMessage());
-            // Not "OpenSSL Error: null" — an EMPTY queue, which elsewhere in
-            // this suite means an OPS-INJECTED failure. The wrap recovery
-            // re-inits under a mark/pop pair precisely so it does not scrub
-            // the refusal.
-            Assertions.assertFalse(ex.getMessage().endsWith("null"),
-                    "byte " + pos + ": the OpenSSL error queue was scrubbed by the recovery path");
+            Assertions.assertEquals("unable to unwrap key: invalid cipher text", ex.getMessage(),
+                    "byte " + pos + ": unexpected message");
         }
 
         byte[] wrongKek = Arrays.clone(kek);

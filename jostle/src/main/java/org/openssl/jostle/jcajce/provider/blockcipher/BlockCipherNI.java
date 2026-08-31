@@ -225,6 +225,12 @@ public interface BlockCipherNI extends DefaultServiceNI
                 throw new ShortBufferException("output too small");
             case JO_NOT_BLOCK_ALIGNED:
                 throw new IllegalBlockSizeException("data not block size aligned");
+            case JO_WRAP_INPUT_LENGTH_INVALID:
+                // Same JCE type BouncyCastle raises for a wrap-side length
+                // refusal; the message differs because ours says what failed
+                // rather than restating a block-alignment rule that is not the
+                // rule a key wrap breaks.
+                throw new IllegalBlockSizeException("invalid key wrap input length");
             case JO_CTR_MODE_OVERFLOW:
                 throw new IllegalStateException("ctr mode overflow");
             case JO_CTX_POISONED:

@@ -1494,30 +1494,108 @@ public class AESAgreementTest
         }
     }
 
+    /**
+     * A sub-block update is BUFFERED and the bytes are kept; the alignment
+     * requirement applies to the TOTAL.
+     *
+     * <p>This test previously asserted the exact opposite, and its comment
+     * reasoned its way there: the refusal was "the right semantic failure for
+     * non-aligned input to an unpadded mode". It was not - BouncyCastle and
+     * SunJCE both buffer a partial update for an unpadded mode and emit at
+     * block completion. The test had turned a defect into a documented
+     * convention, which is why it is inverted here rather than deleted.
+     *
+     * <p>Asserted against BouncyCastle, not against our own one-shot: a
+     * uniformly wrong implementation agrees with itself.
+     */
     @Test
-    public void testJce_aesCbcNoPadding_updateRejectsNonAligned() throws Exception
+    public void testJce_aesCbcNoPadding_updateBuffersSubBlockInput() throws Exception
     {
-        // Cipher.update has no checked-exception throws clause, so the SPI
-        // wraps the underlying error in a RuntimeException. After the
-        // get_update_size fix that widens the buffer to max(aligned,
-        // in_len), the sub-block input now passes the out_len >= in_len
-        // guard and reaches the more-accurate alignment check; the cause
-        // is now IllegalBlockSizeException ("data not block size aligned"),
-        // which is the right semantic failure for non-aligned input to
-        // an unpadded mode. Pin the wrapping behavior — silent success
-        // or a bare NPE would be the dangerous failure modes.
+        SecureRandom sr = seededRandom("testJce_aesCbcNoPadding_updateBuffersSubBlockInput");
+        byte[] key = new byte[16];
+        byte[] iv = new byte[16];
+        byte[] msg = new byte[16];
+        sr.nextBytes(key);
+        sr.nextBytes(iv);
+        sr.nextBytes(msg);
+
+        SecretKeySpec k = new SecretKeySpec(key, "AES");
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+        Cipher bc = Cipher.getInstance("AES/CBC/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, k, ivSpec);
+        byte[] expected = bc.doFinal(msg);
+
         Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
-        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
-        try
+        c.init(Cipher.ENCRYPT_MODE, k, ivSpec);
+
+        byte[] first = c.update(msg, 0, 15);
+        Assertions.assertEquals(0, first == null ? 0 : first.length,
+                "a sub-block update must emit nothing");
+
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] second = c.update(msg, 15, 1);
+        if (second != null)
         {
-            c.update(new byte[15]);
-            fail("expected non-aligned update to fail");
+            out.write(second);
         }
-        catch (RuntimeException ex)
+        out.write(c.doFinal());
+
+        Assertions.assertArrayEquals(expected, out.toByteArray(),
+                "15 + 1 must produce the block BouncyCastle produces in one shot");
+    }
+
+
+    /**
+     * The other half of the contract: a misaligned TOTAL still fails loudly,
+     * and the object stays usable afterwards.
+     *
+     * <p>Reusability is not incidental - it is what BouncyCastle and SunJCE
+     * both do after refusing a misaligned total (measured 2026-08-31), so a
+     * poisoning implementation would be a new divergence. Pinned in both
+     * directions because the discard is a re-init of the underlying context and
+     * a direction-specific mistake there would leave residue on one side only.
+     */
+    @Test
+    public void testJce_aesCbcNoPadding_misalignedTotalRefusedAndStillReusable() throws Exception
+    {
+        SecureRandom sr = seededRandom("testJce_aesCbcNoPadding_misalignedTotalRefusedAndStillReusable");
+        byte[] key = new byte[16];
+        byte[] iv = new byte[16];
+        byte[] msg = new byte[32];
+        sr.nextBytes(key);
+        sr.nextBytes(iv);
+        sr.nextBytes(msg);
+
+        SecretKeySpec k = new SecretKeySpec(key, "AES");
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+        Cipher bc = Cipher.getInstance("AES/CBC/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, k, ivSpec);
+        byte[] expectedCt = bc.doFinal(msg);
+
+        for (int mode : new int[]{Cipher.ENCRYPT_MODE, Cipher.DECRYPT_MODE})
         {
-            Assertions.assertTrue(ex.getCause() instanceof IllegalBlockSizeException,
-                    "expected IllegalBlockSizeException cause, got "
-                            + (ex.getCause() == null ? "null" : ex.getCause().getClass().getName()));
+            byte[] good = mode == Cipher.ENCRYPT_MODE ? msg : expectedCt;
+            byte[] want = mode == Cipher.ENCRYPT_MODE ? expectedCt : msg;
+
+            Cipher c = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+            c.init(mode, k, ivSpec);
+
+            try
+            {
+                c.doFinal(new byte[17]);
+                fail("expected a misaligned total to be refused, mode=" + mode);
+            }
+            catch (IllegalBlockSizeException ex)
+            {
+                Assertions.assertEquals("data not block size aligned", ex.getMessage());
+            }
+
+            // The residue of the refused 17 bytes must be gone, or this comes
+            // back wrong rather than throwing.
+            Assertions.assertArrayEquals(want, c.doFinal(good),
+                    "the cipher must be reusable after refusing a misaligned total, mode=" + mode);
         }
     }
 

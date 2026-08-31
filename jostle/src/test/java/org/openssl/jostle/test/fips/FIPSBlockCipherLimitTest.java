@@ -55,6 +55,7 @@ public class FIPSBlockCipherLimitTest
     private static final int DES_EDE3 = OSSLCipher.DES_EDE3.ordinal();
     private static final int CTR = OSSLMode.CTR.ordinal();
     private static final int DES_BLOCK = 8;
+    private static final int AES_256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
 
     /** CBC-CTS mode ordinal. */
     private static final int CTS = OSSLMode.CTS.ordinal();
@@ -891,8 +892,31 @@ public class FIPSBlockCipherLimitTest
         {
             ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0);
             long r = ref;
+            // Buffered, per the streaming contract; the misaligned TOTAL is
+            // what gets refused, at the terminal call.
+            ni.update(r, new byte[32], 0, new byte[9], 0, 9);
             Exception e = Assertions.assertThrows(Exception.class,
-                    () -> ni.update(r, new byte[32], 0, new byte[9], 0, 9));
+                    () -> ni.doFinal(r, new byte[32], 0));
+            Assertions.assertTrue(e instanceof IllegalBlockSizeException);
+            Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+
+        // The discriminator, previously asserted only in a comment: the same
+        // 8-byte total that DES-EDE3 accepts must be REFUSED by a 16-byte-block
+        // cipher. Without it, an implementation that had stopped checking
+        // alignment at all would pass every assertion above.
+        ref = ni.makeInstance(AES_256, CBC, NO_PADDING);
+        try
+        {
+            ni.init(ref, Cipher.DECRYPT_MODE, new byte[32], new byte[16], 0);
+            long r = ref;
+            ni.update(r, new byte[32], 0, new byte[DES_BLOCK], 0, DES_BLOCK);
+            Exception e = Assertions.assertThrows(Exception.class,
+                    () -> ni.doFinal(r, new byte[32], 0));
             Assertions.assertTrue(e instanceof IllegalBlockSizeException);
             Assertions.assertEquals("data not block size aligned", e.getMessage());
         }
@@ -1040,7 +1064,10 @@ public class FIPSBlockCipherLimitTest
         {
             ni.init(wref, Cipher.ENCRYPT_MODE, key, null, 0);
             byte[] buf = new byte[ni.getFinalSize(wref, cek.length)];
-            wrapped = Arrays.copyOf(buf, ni.update(wref, buf, 0, cek, 0, cek.length));
+            // Wraps accumulate, so the bytes are emitted by doFinal.
+            Assertions.assertEquals(0, ni.update(wref, buf, 0, cek, 0, cek.length),
+                    "an accumulating update must emit nothing");
+            wrapped = Arrays.copyOf(buf, ni.doFinal(wref, buf, 0));
         }
         finally
         {
@@ -1050,19 +1077,44 @@ public class FIPSBlockCipherLimitTest
         byte[] damaged = wrapped.clone();
         damaged[0] ^= (byte) 0x01;
 
+        // The guard moved to the final path with the accumulation change,
+        // because that is where the EVP call now happens. Same claim, driven
+        // to the new site.
         long ref = ni.makeInstance(aes256, wrapPad, 0);
         try
         {
             ni.init(ref, Cipher.DECRYPT_MODE, key, null, 0);
+            ni.update(ref, new byte[damaged.length - 8], 0, damaged, 0, damaged.length);
             javax.crypto.ShortBufferException e = Assertions.assertThrows(
                     javax.crypto.ShortBufferException.class,
-                    () -> ni.update(ref, new byte[damaged.length - 8], 0, damaged, 0, damaged.length),
-                    "a (len - 8) unwrap buffer was accepted — this build overflows by 8 bytes");
+                    () -> ni.doFinal(ref, new byte[damaged.length - 8], 0),
+                    "a (len - 8) unwrap buffer was accepted \u2014 this build overflows by 8 bytes");
             Assertions.assertEquals("output too small", e.getMessage());
         }
         finally
         {
             ni.dispose(ref);
+        }
+
+        // The accepting side of the boundary: exactly the input length is
+        // enough, reaches OpenSSL, and fails on integrity rather than capacity.
+        long ok = ni.makeInstance(aes256, wrapPad, 0);
+        try
+        {
+            ni.init(ok, Cipher.DECRYPT_MODE, key, null, 0);
+            ni.update(ok, new byte[damaged.length], 0, damaged, 0, damaged.length);
+            Exception e = Assertions.assertThrows(Exception.class,
+                    () -> ni.doFinal(ok, new byte[damaged.length], 0));
+            Assertions.assertFalse(e instanceof javax.crypto.ShortBufferException,
+                    "a buffer of exactly the input length was called too small: " + e.getMessage());
+            // The integrity failure's own type, matching BouncyCastle.
+            Assertions.assertTrue(e instanceof javax.crypto.BadPaddingException,
+                    "expected BadPaddingException, got " + e.getClass().getName());
+            Assertions.assertEquals("invalid cipher text", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(ok);
         }
     }
 }

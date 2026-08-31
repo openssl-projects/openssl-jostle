@@ -638,4 +638,204 @@ public class AESKeyWrapTest
             }
         }
     }
+
+    /**
+     * Illegal key-wrap LENGTHS must raise the JCE type BouncyCastle raises, so
+     * a caller's existing catch block fires.
+     *
+     * <p>These lengths are refused by OpenSSL too, correctly - the explicit
+     * rules in {@code wrap_length_check} exist to control the exception TYPE,
+     * not the decision. Left to OpenSSL every cell below arrived as
+     * {@code OpenSSLException}, an unchecked type nothing catches on.
+     *
+     * <p>BC's measured type is cited per cell. Both the one-shot and the
+     * chunked path are driven, because after the accumulation change the
+     * refusal is raised from doFinal in both and a divergence between them
+     * would be invisible to a one-shot-only test.
+     */
+    @Test
+    public void illegalWrapLengths_raiseBouncyCastlesType() throws Exception
+    {
+        SecureRandom sr = seededRandom("illegalWrapLengths_raiseBouncyCastlesType");
+        byte[] keyBytes = new byte[32];
+        sr.nextBytes(keyBytes);
+        Key kek = new SecretKeySpec(keyBytes, "AES");
+
+        // {transformation, opMode, length}. BC measured 2026-08-31:
+        //   KW wrap    0,1,7,15,23,31 -> IllegalBlockSizeException
+        //   KW unwrap  0,1,7,8,15,16,23,31 -> BadPaddingException
+        //   KWP unwrap 0,1,7,8,15,23,31 -> BadPaddingException
+        // KWP wrap has no illegal length above zero (RFC 5649 accepts >= 1).
+        int[] kwWrapBad = {0, 1, 7, 15, 23, 31};
+        int[] kwUnwrapBad = {0, 1, 7, 8, 15, 16, 23, 31};
+        int[] kwpUnwrapBad = {0, 1, 7, 8, 15, 23, 31};
+
+        for (int len : kwWrapBad)
+        {
+            assertRaises(AES256_WRAP, Cipher.ENCRYPT_MODE, kek, len,
+                    javax.crypto.IllegalBlockSizeException.class, "KW wrap");
+        }
+        for (int len : kwUnwrapBad)
+        {
+            assertRaises(AES256_WRAP, Cipher.DECRYPT_MODE, kek, len,
+                    javax.crypto.BadPaddingException.class, "KW unwrap");
+        }
+        for (int len : kwpUnwrapBad)
+        {
+            assertRaises(AES256_WRAP_PAD, Cipher.DECRYPT_MODE, kek, len,
+                    javax.crypto.BadPaddingException.class, "KWP unwrap");
+        }
+        // Zero is the only illegal KWP wrap length.
+        assertRaises(AES256_WRAP_PAD, Cipher.ENCRYPT_MODE, kek, 0,
+                javax.crypto.IllegalBlockSizeException.class, "KWP wrap");
+    }
+
+    private void assertRaises(String transformation, int opMode, Key kek, int len,
+                              Class<? extends Exception> expected, String what) throws Exception
+    {
+        for (int chunk : new int[]{0, 3})
+        {
+            String where = what + " len=" + len + (chunk == 0 ? " one-shot" : " chunked");
+            try
+            {
+                Cipher c = Cipher.getInstance(transformation, JostleProvider.PROVIDER_NAME);
+                c.init(opMode, kek);
+                byte[] in = new byte[len];
+                if (chunk == 0)
+                {
+                    c.doFinal(in);
+                }
+                else
+                {
+                    for (int off = 0; off < len; off += chunk)
+                    {
+                        c.update(in, off, Math.min(chunk, len - off));
+                    }
+                    c.doFinal();
+                }
+                Assertions.fail(where + ": expected " + expected.getSimpleName() + ", nothing was thrown");
+            }
+            catch (Exception e)
+            {
+                Assertions.assertTrue(expected.isInstance(e),
+                        where + ": expected " + expected.getSimpleName()
+                                + ", got " + e.getClass().getName() + " (" + e.getMessage() + ")");
+            }
+        }
+    }
+
+    /**
+     * A DELIBERATE divergence from BouncyCastle, pinned so neither side of it
+     * can move silently.
+     *
+     * <p>RFC 3394 defines key wrap over n >= 2 semiblocks. BouncyCastle accepts
+     * a single 8-byte semiblock and returns 16 bytes; OpenSSL refuses it, and
+     * we adhere to OpenSSL (Megan, 2026-08-31). The refusal is typed rather
+     * than opaque, so a caller still catches it the way it catches BC's.
+     *
+     * <p>Load-bearing in both directions: it fails if we start accepting an
+     * 8-byte KW wrap (drift toward BC), and its existence stops a future
+     * BC-exception-parity sweep from "fixing" the divergence without a
+     * decision. The BC half is asserted, not merely described, so the day BC
+     * changes its mind this test says so.
+     */
+    @Test
+    public void kwSingleSemiblock_refusedByUsAcceptedByBouncyCastle() throws Exception
+    {
+        SecureRandom sr = seededRandom("kwSingleSemiblock_refusedByUsAcceptedByBouncyCastle");
+        byte[] keyBytes = new byte[32];
+        byte[] oneSemiblock = new byte[8];
+        sr.nextBytes(keyBytes);
+        sr.nextBytes(oneSemiblock);
+        Key kek = new SecretKeySpec(keyBytes, "AES");
+
+        Cipher bc = Cipher.getInstance(AES256_WRAP, BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, kek);
+        byte[] bcWrapped = bc.doFinal(oneSemiblock);
+        Assertions.assertEquals(16, bcWrapped.length,
+                "BouncyCastle is expected to wrap a single semiblock into 16 bytes");
+
+        Cipher jsl = Cipher.getInstance(AES256_WRAP, JostleProvider.PROVIDER_NAME);
+        jsl.init(Cipher.ENCRYPT_MODE, kek);
+        try
+        {
+            jsl.doFinal(oneSemiblock);
+            Assertions.fail("an 8-byte KW wrap was accepted - we adhere to OpenSSL's "
+                    + "RFC 3394 reading (n >= 2 semiblocks) and must refuse it");
+        }
+        catch (javax.crypto.IllegalBlockSizeException e)
+        {
+            Assertions.assertEquals("invalid key wrap input length", e.getMessage());
+        }
+    }
+
+    /**
+     * A failed unwrap integrity check raises {@code BadPaddingException}, the
+     * type BouncyCastle raises.
+     *
+     * <p>This is the routine outcome for attacker-supplied ciphertext, so it is
+     * the path a caller's handler most needs to catch. It previously surfaced
+     * {@code OpenSSLException}, which extends {@code RuntimeException} - so the
+     * standard BC-shaped {@code catch (BadPaddingException)} caught NOTHING and
+     * the error escaped to whatever sat above. That checked-versus-unchecked
+     * fact is what decided it (Megan, 2026-08-31, reversing an earlier
+     * leave-as-is once it was measured).
+     *
+     * <p>Asserted for both KW and KWP, and for the chunked path as well as the
+     * one-shot, because after the accumulation change both raise from doFinal
+     * and a divergence between them would be invisible to a one-shot test.
+     */
+    @Test
+    public void unwrapIntegrityFailure_raisesBouncyCastlesBadPaddingException() throws Exception
+    {
+        SecureRandom sr = seededRandom("unwrapIntegrityFailure_keepsOpenSSLExceptionByDecision");
+        byte[] keyBytes = new byte[32];
+        byte[] cek = new byte[32];
+        sr.nextBytes(keyBytes);
+        sr.nextBytes(cek);
+        Key kek = new SecretKeySpec(keyBytes, "AES");
+
+        for (String transformation : new String[]{AES256_WRAP, AES256_WRAP_PAD})
+        {
+            Cipher wrap = Cipher.getInstance(transformation, JostleProvider.PROVIDER_NAME);
+            wrap.init(Cipher.ENCRYPT_MODE, kek);
+            byte[] wrapped = wrap.doFinal(cek);
+
+            byte[] damaged = Arrays.clone(wrapped);
+            damaged[0] ^= (byte) 0x01;
+
+            for (int chunk : new int[]{0, 3})
+            {
+                String where = transformation + (chunk == 0 ? " one-shot" : " chunked");
+                Cipher unwrap = Cipher.getInstance(transformation, JostleProvider.PROVIDER_NAME);
+                unwrap.init(Cipher.DECRYPT_MODE, kek);
+                try
+                {
+                    if (chunk == 0)
+                    {
+                        unwrap.doFinal(damaged);
+                    }
+                    else
+                    {
+                        for (int off = 0; off < damaged.length; off += chunk)
+                        {
+                            unwrap.update(damaged, off, Math.min(chunk, damaged.length - off));
+                        }
+                        unwrap.doFinal();
+                    }
+                    Assertions.fail(where + ": a damaged wrap must not unwrap");
+                }
+                catch (javax.crypto.BadPaddingException e)
+                {
+                    Assertions.assertEquals("invalid cipher text", e.getMessage(), where);
+                }
+
+                // The object must survive it: an integrity failure is an
+                // expected outcome, not a fatal one.
+                unwrap.init(Cipher.DECRYPT_MODE, kek);
+                Assertions.assertArrayEquals(cek, unwrap.doFinal(wrapped),
+                        where + ": the cipher must stay usable after an integrity failure");
+            }
+        }
+    }
 }

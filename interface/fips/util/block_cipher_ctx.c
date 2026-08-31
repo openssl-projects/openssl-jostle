@@ -76,32 +76,106 @@ static inline int is_aead_mode(uint32_t mode_id) {
  *        needs the end of the message before any block can be emitted.
  *        Measured: fips-c-review/probes/cts_probe.c, Q5.
  *
+ *   WRAP  RFC 3394 / RFC 5649 key wrap emits the ENTIRE result from one EVP
+ *   KWP   update - there is no such thing as a partial wrap - so a chunked
+ *   INV   caller got one independent wrap per update() call, concatenated.
+ *         That output round-tripped through our own decrypt, which hid it from
+ *         every roundtrip test; only comparison against an independent
+ *         implementation showed it. Measured against BouncyCastle: one-shot
+ *         byte-perfect, chunked garbage whose length grew with the number of
+ *         update() calls.
+ *
  * Everything downstream keys off this rather than naming a mode, so the four
  * obligations stay in one place: update emits nothing and needs no output
- * capacity, final_size reports buffered + len, the length minimum is checked
- * against the accumulated total, and the buffer is cleansed on init and after
- * the terminal call.
+ * capacity, final_size reports the whole emission, the length minimum is
+ * checked against the accumulated total, and the buffer is cleansed on init
+ * and after the terminal call.
+ *
+ * The wrap modes satisfy those four differently from XTS/CTS, and each
+ * difference is named at the site that cares: their emission is NOT the
+ * accumulated length (final_size), their length rule is the RFCs' rather than
+ * one cipher block (wrap_length_check), and an integrity failure is an
+ * expected outcome that must leave the object reusable instead of poisoned,
+ * and must be typed as a ciphertext failure (block_cipher_ctx_final).
  */
-static inline int mode_accumulates(uint32_t mode_id) {
-    return mode_id == XTS || mode_id == CTS;
-}
 
-
-/* Defined below; needed by the wrap capacity guard in block_cipher_ctx_update. */
+/* Defined below; needed by final_size's wrap sizing and the accum capacity guard. */
 int32_t final_size(block_cipher_ctx *ctx, size_t len);
 
 /*
  * The AES key-wrap modes: RFC 3394 (WRAP), RFC 5649 (WRAP_PAD), and RFC 3394
  * on the inverse cipher function (WRAP_INV, SP 800-38F 5.1).
  *
- * All three share what the five call sites below care about: no IV (a fixed
- * default ICV), one-shot emission from the single EVP update, an 8-byte
- * integrity block, and length rules OpenSSL enforces itself. Only the
- * plaintext padding differs, and that is WRAP_PAD alone, named where it
- * matters (final_size).
+ * All three share what the call sites below care about: no IV (a fixed
+ * default ICV), one-shot emission from a single EVP update, and an 8-byte
+ * integrity block. Only the plaintext padding and the length rule differ, and
+ * both differences are WRAP_PAD's alone, named where they matter (final_size
+ * and wrap_length_check).
  */
 static inline int is_wrap_mode(uint32_t mode_id) {
     return mode_id == WRAP || mode_id == WRAP_PAD || mode_id == WRAP_INV;
+}
+
+
+static inline int mode_accumulates(uint32_t mode_id) {
+    return mode_id == XTS || mode_id == CTS || is_wrap_mode(mode_id);
+}
+
+
+/*
+ * RFC 3394 / RFC 5649 length rules for the key-wrap modes, checked explicitly
+ * at the terminal call rather than delegated to OpenSSL.
+ *
+ * Two reasons, and both must survive anyone tempted to "simplify" this back
+ * into delegation:
+ *
+ *   1. EXCEPTION TYPE. OpenSSL refuses these lengths correctly, but as a
+ *      generic error - the caller sees OpenSSLException where BouncyCastle
+ *      raises IllegalBlockSizeException on the wrap side and
+ *      BadPaddingException on the unwrap side. BC's types are the de facto
+ *      standard callers catch on, so the length decisions have to be ours in
+ *      order for the types to be ours.
+ *   2. MEMORY SAFETY. Wraps were briefly exempted from the accumulating
+ *      length minimum altogether, on the reasoning that OpenSSL enforced the
+ *      real rules anyway. A zero-length total then reached EVP with no
+ *      accumulator allocated at all and crashed the JVM.
+ *
+ * OpenSSL stays behind these as the backstop; nothing here replaces it.
+ */
+static int32_t wrap_length_check(block_cipher_ctx *ctx, size_t total) {
+    if (ctx->op_mode == ENCRYPT_MODE) {
+        if (ctx->mode_id == WRAP_PAD) {
+            // RFC 5649: any length from one byte up.
+            return total < 1 ? JO_WRAP_INPUT_LENGTH_INVALID : JO_SUCCESS;
+        }
+        // RFC 3394, also on the inverse cipher function (SP 800-38F 5.1):
+        // n >= 2 semiblocks.
+        //
+        // BouncyCastle accepts a SINGLE semiblock here and returns 16 bytes;
+        // OpenSSL refuses it. We adhere to OpenSSL (Megan, 2026-08-31), so an
+        // 8-byte KW wrap is refused - typed, now, rather than opaquely.
+        // AESKeyWrapTest pins the divergence in both directions so neither a
+        // drift toward BC nor a future BC-parity sweep can erase it silently.
+        if (total < 16 || (total % 8) != 0) {
+            return JO_WRAP_INPUT_LENGTH_INVALID;
+        }
+        return JO_SUCCESS;
+    }
+
+    // Unwrap. The wrapped blob is semiblock-aligned and carries one extra
+    // semiblock of integrity data, so KW's minimum ciphertext is three
+    // semiblocks (its plaintext minimum being two) and KWP's is two (its
+    // plaintext minimum of one byte padding up to a single semiblock).
+    //
+    // JO_INVALID_CIPHER_TEXT, not the wrap-side code: BouncyCastle answers the
+    // unwrap side with BadPaddingException. An integrity failure at a LEGAL
+    // length reaches the same code by a different route, in
+    // block_cipher_ctx_final, so both unwrap failure modes present one type to
+    // the caller.
+    if (total < ((ctx->mode_id == WRAP_PAD) ? 16u : 24u) || (total % 8) != 0) {
+        return JO_INVALID_CIPHER_TEXT;
+    }
+    return JO_SUCCESS;
 }
 
 
@@ -1363,6 +1437,16 @@ int32_t block_cipher_ctx_updateAAD(
  * The wrap providers hold no per-update state, so the key re-schedule plus
  * processed = 0 is the whole reset; WRAP_ALLOW is a ctx flag and survives.
  */
+/*
+ * The ERR mark/pop discipline below is UNGUARDED BY TESTS since 2026-08-31.
+ * Its only observable was the OpenSSL queue text reaching Java in the unwrap
+ * failure message; that message is now the typed "invalid cipher text", so no
+ * Java-side or OPS-side assertion can see a scrubbed queue any more. The two
+ * ways to break it are dropping the mark/pop pair, and calling
+ * block_cipher_ctx_init here (it opens with ERR_clear_error). Both are
+ * review-visible and neither is caught by the suite: reviewer attention
+ * required on any edit to this function.
+ */
 static int32_t wrap_recover_after_failure(block_cipher_ctx *ctx) {
     int ok;
 
@@ -1422,35 +1506,12 @@ int32_t block_cipher_ctx_update(
     // it also drives the OCB buffered-residue bookkeeping after the EVP call.
     const size_t evp_fed = evp_fed_bytes(ctx, in_len);
 
-    if (is_wrap_mode(ctx->mode_id)) {
-        // Key wrap emits everything from this single update, so the buffer has
-        // to hold the whole result now.
-        //
-        // This check is load-bearing, not belt-and-braces. It previously read
-        // "OpenSSL fails closed on a short buffer" and did nothing - which is
-        // false: on the integrity-failure path the unwrap primitive writes up
-        // to in_len bytes regardless of what the size query reported, and
-        // EVP_DecryptUpdate has no capacity argument to stop it. See
-        // CVE-2026-63072 and the note in final_size().
-        if (!ctx->initialized) {
-            // Same legacy pre-init precedence the OCB and streaming branches
-            // keep - JO_OUTPUT_TOO_SMALL ahead of the JO_NOT_INITIALIZED
-            // below. Explicit rather than incidental: final_size() reads
-            // ctx->op_mode, which is unset here, so letting it decide would
-            // make the answer depend on a zero-initialised field.
-            if (out_len < in_len) {
-                return JO_OUTPUT_TOO_SMALL;
-            }
-        } else {
-            const int32_t need = final_size(ctx, in_len);
-            if (need < 0) {
-                return need;
-            }
-            if (out_len < (size_t) need) {
-                return JO_OUTPUT_TOO_SMALL;
-            }
-        }
-    } else if (ctx->mode_id == OCB) {
+    // Wrap modes take NO output capacity here: they accumulate (see
+    // mode_accumulates) and emit at final. The CVE-2026-63072 capacity guard
+    // that used to live here MOVED to the accumulating branch of
+    // block_cipher_ctx_final - it was not dropped. Leaving it here as well
+    // would demand a window the correctly-sized caller allocates as zero.
+    if (ctx->mode_id == OCB) {
         // OCB is an AEAD mode but NOT a pure stream: it buffers up to
         // (block-1) bytes internally and can flush a previously-buffered
         // partial block on this update, so a single update may emit MORE than
@@ -1539,15 +1600,13 @@ int32_t block_cipher_ctx_update(
         return 0;
     }
 
-    if (ctx->streaming == 0 && ctx->padding == NO_PADDING) {
-        if (is_wrap_mode(ctx->mode_id)) {
-            // RFC 3394 (KW) requires input that is a multiple of 8 bytes and at
-            // least 16; RFC 5649 (KWP) accepts any length >= 1. OpenSSL enforces
-            // these per-algorithm, so don't impose the 16-byte block alignment.
-        } else if (in_len % ctx->cipher_block_size != 0) {
-            return JO_NOT_BLOCK_ALIGNED;
-        }
-    }
+    // No per-chunk block-alignment check. EVP buffers a partial block across
+    // update calls, so 8 bytes then 8 more is a legal 16-byte message that
+    // this check used to refuse - a divergence from BouncyCastle and SunJCE,
+    // both of which buffer (measured). The alignment requirement is real but
+    // applies to the TOTAL, so it is checked in block_cipher_ctx_final once
+    // the total is known. Wrap modes never reach here at all: they accumulate
+    // and return above.
 
     if (ctx->mode_id == CTR) {
         //
@@ -1586,9 +1645,8 @@ int32_t block_cipher_ctx_update(
 
     if (ctx->op_mode == ENCRYPT_MODE) {
         if (OPS_OPENSSL_ERROR_3 1 != EVP_EncryptUpdate(ctx->evp, output, &written, input, (int) in_len)) {
-            if (is_wrap_mode(ctx->mode_id)) {
-                return wrap_recover_after_failure(ctx);
-            }
+            // No wrap arm here: wrap modes accumulate and never reach this
+            // call. Their recovery lives on the final path.
             ctx->poisoned = 1;
             return JO_OPENSSL_ERROR;
         }
@@ -1660,9 +1718,8 @@ int32_t block_cipher_ctx_update(
             }
         } else {
             if (OPS_OPENSSL_ERROR_3 1 != EVP_DecryptUpdate(ctx->evp, output, &written, input, (int) in_len)) {
-                if (is_wrap_mode(ctx->mode_id)) {
-                    return wrap_recover_after_failure(ctx);
-                }
+                // No wrap arm here: wrap modes accumulate and never reach
+                // this call. Their recovery lives on the final path.
                 ctx->poisoned = 1;
                 return JO_OPENSSL_ERROR;
             }
@@ -1689,6 +1746,44 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
+    if (is_wrap_mode(ctx->mode_id)) {
+        // Key wrap is one-shot: the whole result is produced from the single
+        // EVP update at final, so size the buffer for the complete operation.
+        //
+        // Must precede the generic accumulating arm below, which reports the
+        // accumulated length - right for XTS/CTS, wrong for a wrap, whose
+        // output length differs from its input length in both directions.
+        const size_t total = accum_len(ctx) + len;
+        size_t out;
+        if (ctx->op_mode == ENCRYPT_MODE) {
+            // KW appends one 8-byte integrity block; KWP first pads the
+            // plaintext up to a multiple of 8, then appends the block.
+            size_t padded = (ctx->mode_id == WRAP_PAD) ? (((total + 7u) / 8u) * 8u) : total;
+            out = padded + 8u;
+        } else {
+            // The whole input length, NOT (total - 8).
+            //
+            // On its integrity-failure path the AES key-unwrap primitive
+            // writes and cleanses up to `total` bytes of the output buffer -
+            // measured for WRAP_PAD on mainline 3.6.2 and FIPS 3.5.8
+            // (fips-c-review/probes/wrap_unwrap_overflow_probe.c), and the
+            // same behaviour behind CVE-2026-63072, whose OpenSSL fix sizes
+            // its own buffer the same way. EVP_DecryptUpdate takes no output
+            // capacity, so a (total - 8) buffer is simply overrun by 8 bytes -
+            // and since the JNI bridge hands OpenSSL a critical pointer
+            // straight into the caller's byte[], that is a write past the end
+            // of a Java array.
+            //
+            // Over-reporting is safe: getOutputSize is an upper bound by
+            // contract, and the SPI trims to the written length.
+            out = total;
+        }
+        if (out > INT32_MAX) {
+            return JO_OUTPUT_SIZE_INT_OVERFLOW;
+        }
+        return (int32_t) out;
+    }
+
     // Accumulating modes emit everything at final: whatever previous updates
     // buffered, plus the bytes this doFinal call is about to append. Both XTS
     // and CTS steal ciphertext, so output length equals input length exactly.
@@ -1700,38 +1795,6 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         return (int32_t) out;
     }
 
-    if (is_wrap_mode(ctx->mode_id)) {
-        // Key wrap is one-shot: the whole result is produced from the single
-        // EVP update, so size the buffer for the complete operation here.
-        size_t out;
-        if (ctx->op_mode == ENCRYPT_MODE) {
-            // KW appends one 8-byte integrity block; KWP first pads the
-            // plaintext up to a multiple of 8, then appends the block.
-            size_t padded = (ctx->mode_id == WRAP_PAD) ? (((len + 7u) / 8u) * 8u) : len;
-            out = padded + 8u;
-        } else {
-            // The whole input length, NOT (len - 8).
-            //
-            // On its integrity-failure path the AES key-unwrap primitive
-            // writes and cleanses up to `len` bytes of the output buffer -
-            // measured for WRAP_PAD on mainline 3.6.2 and FIPS 3.5.8
-            // (fips-c-review/probes/wrap_unwrap_overflow_probe.c), and the
-            // same behaviour behind CVE-2026-63072, whose OpenSSL fix sizes
-            // its own buffer the same way. EVP_DecryptUpdate takes no output
-            // capacity, so a (len - 8) buffer is simply overrun by 8 bytes -
-            // and since the JNI bridge hands OpenSSL a critical pointer
-            // straight into the caller's byte[], that is a write past the end
-            // of a Java array.
-            //
-            // Over-reporting is safe: getOutputSize is an upper bound by
-            // contract, and the SPI trims to the written length.
-            out = len;
-        }
-        if (out > INT32_MAX) {
-            return JO_OUTPUT_SIZE_INT_OVERFLOW;
-        }
-        return (int32_t) out;
-    }
 
     if (ctx->streaming == 1) {
         switch (ctx->mode_id) {
@@ -1896,34 +1959,71 @@ int32_t block_cipher_ctx_final(
         // 8-byte message is not. Covers the zero-length case too, which never
         // reaches update at all (the SPI skips the call when there is nothing
         // to feed).
-        if (accum_len(ctx) < ctx->cipher_block_size) {
+        // Mode-aware minimum. XTS and CTS define no output below one cipher
+        // block. A wrap's real minimum is RFC 5649's 1 byte (KWP); KW's own
+        // multiple-of-8, at-least-16 rule is left to OpenSSL, which enforces
+        // it per algorithm and whose refusals match BouncyCastle's accept and
+        // reject decisions exactly (measured: KW 7/15/17 refused, 16/24 fine;
+        // KWP 1 and 7 fine).
+        //
+        // The 1 is load-bearing, not a formality. Exempting wraps entirely was
+        // tried and is wrong twice over: a zero-length total reached EVP with
+        // no accumulator allocated at all and crashed, and once that pointer
+        // was made safe OpenSSL treated a zero-length update as a no-op and
+        // returned SUCCESS WITH AN EMPTY RESULT - a wrap that silently
+        // produced nothing, where BouncyCastle raises. Refusing zero here is
+        // what keeps delegation safe.
+        int32_t len_rc = is_wrap_mode(ctx->mode_id)
+                ? wrap_length_check(ctx, accum_len(ctx))
+                : (accum_len(ctx) < ctx->cipher_block_size ? JO_NOT_BLOCK_ALIGNED : JO_SUCCESS);
+        if (UNSUCCESSFUL(len_rc)) {
             // Discard before returning: a rejected data unit must not leave
             // bytes behind for the NEXT doFinal to silently absorb, which
             // would turn a refused 7-byte unit plus a later 9-byte one into an
             // accepted 16-byte unit the caller never asked for.
             accum_discard(ctx);
-            written = JO_NOT_BLOCK_ALIGNED;
+            written = len_rc;
             goto failed;
         }
 
-        if (accum_len(ctx) > out_len) {
-            // Same reasoning, but note this one is recoverable by the caller
-            // re-calling with a large enough buffer — so it must NOT discard.
-            // JCE's ShortBufferException contract is explicitly "retry with a
-            // bigger buffer", and dropping the unit would make the retry
-            // produce a different (shorter) result.
+        // Output capacity. NOT accum_len: a wrap's emission is LONGER than its
+        // input (KW appends an 8-byte integrity block, KWP pads first), and on
+        // the unwrap integrity-failure path the primitive writes up to the
+        // whole input with no capacity argument to stop it - CVE-2026-63072,
+        // whose guard used to sit on the update path and now sits here.
+        // final_size answers both shapes, and reduces to accum_len for XTS/CTS
+        // where output length equals input length.
+        //
+        // Recoverable by the caller re-calling with a large enough buffer, so
+        // it must NOT discard: JCE's ShortBufferException contract is "retry
+        // with a bigger buffer", and dropping the unit would make the retry
+        // produce a different (shorter) result.
+        const int32_t need = final_size(ctx, 0);
+        if (need < 0) {
+            written = need;
+            goto failed;
+        }
+        if ((size_t) need > out_len) {
             written = JO_OUTPUT_TOO_SMALL;
             goto failed;
         }
 
         int evp_written = 0;
         int ok;
+        // accum stays NULL until the first non-empty append, so an empty
+        // message reaches here with no buffer at all. XTS and CTS can never
+        // see that - their length minimum above rejects a zero total first -
+        // The minimum check above now makes that unreachable for every mode.
+        // Kept anyway: memory safety here should not depend on an invariant
+        // established by a different check twenty lines up.
+        uint8_t empty = 0;
+        uint8_t *accum_data = (ctx->accum == NULL) ? &empty : (uint8_t *) ctx->accum->data;
         if (ctx->op_mode == ENCRYPT_MODE) {
             ok = EVP_EncryptUpdate(ctx->evp, output, &evp_written,
-                                   (uint8_t *) ctx->accum->data, (int) accum_len(ctx));
+                                   accum_data, (int) accum_len(ctx));
         } else if (ctx->op_mode == DECRYPT_MODE) {
             ok = EVP_DecryptUpdate(ctx->evp, output, &evp_written,
-                                   (uint8_t *) ctx->accum->data, (int) accum_len(ctx));
+                                   accum_data, (int) accum_len(ctx));
         } else {
             written = JO_INVALID_OP_MODE;
             goto failed;
@@ -1934,13 +2034,60 @@ int32_t block_cipher_ctx_final(
         accum_discard(ctx);
 
         if (OPS_OPENSSL_ERROR_8 1 != ok) {
-            ctx->poisoned = 1;
-            written = JO_OPENSSL_ERROR;
+            if (is_wrap_mode(ctx->mode_id)) {
+                // An unwrap integrity failure is an EXPECTED outcome on
+                // attacker-supplied ciphertext, not a fatal one. Re-init from
+                // the stored key so the object stays usable - exactly what the
+                // update path did before wraps accumulated, and what
+                // oneInstanceStaysCorrectAcrossOperationsAndAfterFailure pins.
+                int32_t recovered = wrap_recover_after_failure(ctx);
+
+                if (ctx->op_mode == DECRYPT_MODE) {
+                    // Type it as a ciphertext failure, which is what it is, so
+                    // the caller's BouncyCastle-shaped catch(BadPaddingException)
+                    // fires. Leaving it generic surfaced OpenSSLException - a
+                    // RuntimeException - so the standard handler caught NOTHING
+                    // on the routine attacker-data path.
+                    //
+                    // Safe to attribute without inspecting the error queue:
+                    // wrap_length_check has already rejected every illegal
+                    // length, so the unwrap primitive has exactly one failure
+                    // mode left, its RFC 3394 integrity check (measured: OpenSSL
+                    // raises PROV_R_CIPHER_OPERATION_FAILED from
+                    // aes_wrap_cipher_internal). This is the same attribution -
+                    // and the same residual risk, that an internal error would
+                    // read as bad ciphertext - that the EVP_DecryptFinal_ex arm
+                    // below already makes for every padded and AEAD mode.
+                    written = JO_INVALID_CIPHER_TEXT;
+                } else {
+                    written = recovered;
+                }
+            } else {
+                ctx->poisoned = 1;
+                written = JO_OPENSSL_ERROR;
+            }
             goto failed;
         }
 
         ctx->processed += (size_t) evp_written;
         written = evp_written;
+        goto reset;
+    }
+
+    // Unpadded block modes: the TOTAL must be block-aligned. Checked here, not
+    // per update, because EVP buffers a partial block across update calls - so
+    // 8 bytes then 8 more is a legal 16-byte message, which the old per-chunk
+    // check refused while BouncyCastle and SunJCE both accepted it.
+    //
+    // Discard rather than poison. Measured: after refusing a misaligned total
+    // both references leave the Cipher object REUSABLE and it then produces
+    // correct output. `goto reset` re-inits from the stored key and IV, which
+    // drops the residue EVP is still holding - without that the next doFinal
+    // would silently absorb it and emit a wrong answer.
+    if (ctx->streaming == 0 && ctx->padding == NO_PADDING
+        && ctx->cipher_block_size > 0
+        && (ctx->processed % ctx->cipher_block_size) != 0) {
+        written = JO_NOT_BLOCK_ALIGNED;
         goto reset;
     }
 
@@ -2084,12 +2231,6 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
     // actually pass a 2GB+ value across the JNI/FFI boundary.
     if (OPS_INT32_OVERFLOW_1 len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
-    }
-
-    // Key wrap is one-shot — the entire wrapped/unwrapped result is written by
-    // the single update call, so size it exactly as the final operation.
-    if (is_wrap_mode(ctx->mode_id)) {
-        return final_size(ctx, len);
     }
 
     // OCB is a block-buffering AEAD (unlike GCM/POLY1305, which stream): a

@@ -552,6 +552,19 @@
 #define JO_CURVE_NO_MATCH -172
 
 
+/*
+ * A key-wrap input whose LENGTH the RFCs forbid: RFC 3394 needs a multiple of
+ * 8 bytes and at least two semiblocks, RFC 5649 needs at least one byte.
+ *
+ * OpenSSL enforces these itself and refuses correctly, so this code does not
+ * exist to catch bad input - it exists to control the EXCEPTION TYPE. Left to
+ * OpenSSL the refusal surfaces as a generic OpenSSLException, where
+ * BouncyCastle raises IllegalBlockSizeException, and BC's types are what
+ * callers write catch blocks against.
+ */
+#define JO_WRAP_INPUT_LENGTH_INVALID -173
+
+
 
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so

@@ -230,10 +230,21 @@ public class AESKeyWrapInvTest
 
     /**
      * A tampered blob must fail the integrity check as
-     * {@link InvalidKeyException} — the JCE-contracted type. The native layer
-     * raises {@code OpenSSLException}, a RuntimeException, so this pins the
-     * translation in {@code engineUnwrap} too. Every byte position in turn, so
-     * a check covering only the 8-byte integrity block cannot pass.
+     * {@link InvalidKeyException} — the JCE-contracted type. Every byte
+     * position in turn, so a check covering only the 8-byte integrity block
+     * cannot pass.
+     *
+     * <p>The native layer now raises {@code BadPaddingException} for a failed
+     * unwrap integrity check, matching BouncyCastle (2026-08-31); it used to
+     * raise {@code OpenSSLException}. Either way {@code engineUnwrap} converts
+     * to {@code InvalidKeyException}, which is what this pins.
+     *
+     * <p>NOTE, and it is a real loss rather than a tidy-up: this test also used
+     * to assert that the recovery path had not scrubbed the OpenSSL error queue,
+     * by requiring the message to carry queue content and not end in "null".
+     * That guard has no observable left — the message is now the typed one and
+     * does not come from the queue at all. The mark/pop discipline in
+     * {@code wrap_recover_after_failure} is consequently unguarded from here.
      */
     @Test
     public void tamperedWrappedKeyRejectedTyped() throws Exception
@@ -254,16 +265,8 @@ public class AESKeyWrapInvTest
             InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
                     () -> jslUnwrap("AESWrapInv", kek, bad),
                     "tampering at byte " + pos + " was not rejected");
-            Assertions.assertTrue(ex.getMessage().startsWith("unable to unwrap key: OpenSSL Error:"),
-                    "byte " + pos + ": unexpected message " + ex.getMessage());
-            // Not "OpenSSL Error: null" — an EMPTY queue, which elsewhere in
-            // this suite means an OPS-INJECTED failure. The wrap recovery
-            // re-inits under a mark/pop pair precisely so it does not scrub
-            // the refusal; drop the pair, or call block_cipher_ctx_init
-            // (which opens with ERR_clear_error), and a genuine integrity
-            // failure starts reporting as an injected one.
-            Assertions.assertFalse(ex.getMessage().endsWith("null"),
-                    "byte " + pos + ": the OpenSSL error queue was scrubbed by the recovery path");
+            Assertions.assertEquals("unable to unwrap key: invalid cipher text", ex.getMessage(),
+                    "byte " + pos + ": unexpected message");
         }
 
         // A wrong KEK is the other integrity failure, and must present the

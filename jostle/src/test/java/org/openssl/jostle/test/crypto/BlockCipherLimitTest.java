@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 
 import javax.crypto.BadPaddingException;
@@ -43,6 +44,7 @@ public class BlockCipherLimitTest
     private static final int CTR_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTR.ordinal();
     private static final int NO_PAD = 0;
     private static final int DES_BLOCK = 8;
+    private static final int AES_256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
 
     /** AES / CTS ordinals, for the ciphertext-stealing tests. */
     private static final int AES128_ORD = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal();
@@ -977,37 +979,109 @@ public class BlockCipherLimitTest
     }
 
 
+    /**
+     * A sub-block update is BUFFERED, not refused; the alignment requirement
+     * applies to the TOTAL and is enforced at the terminal call.
+     *
+     * <p>This test used to assert the opposite - that a 15-byte update was
+     * rejected outright - which diverged from BouncyCastle and SunJCE, both of
+     * which buffer partial updates for an unpadded mode and emit at block
+     * completion (measured 2026-08-31). The old assertion was the bug wearing a
+     * test's clothing, so it is inverted here rather than deleted: the refusal
+     * still has to happen, just at the point the contract actually places it.
+     *
+     * <p>Pairs with {@link #testBlockCipherUpdate_subBlockUpdatesCompleteABlock()},
+     * which is the half that proves the bytes were KEPT. Deferring the refusal
+     * while silently dropping the input would pass this test alone.
+     */
     @Test
-    public void testBlockCipherUpdate_blockAlignment() throws Exception
+    public void testBlockCipherUpdate_subBlockUpdateBuffersAndFinalRejects() throws Exception
     {
         long ref = 0;
         try
         {
-            byte[] input = new byte[16];
-            int inOff = 0;
-            int inLen = 15;
-
-            byte[] output = new byte[32];
-            int outOff = 0;
-
-
             ref = blockCipherNI.makeInstance(8, 1, 0);
             blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
-            blockCipherNI.update(ref, output, outOff, input, inOff, inLen);
 
+            // 15 bytes into a 16-byte-block unpadded mode: accepted, emits nothing.
+            int written = blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 15);
+            Assertions.assertEquals(0, written, "a sub-block update must emit nothing");
 
-            Assertions.fail("expected exception");
-
-        }
-        catch (Exception e)
-        {
-            Assertions.assertSame(IllegalBlockSizeException.class, e.getClass(), "unexpected exception class");
-            Assertions.assertEquals("data not block size aligned", e.getMessage(), "unexpected exception message");
+            try
+            {
+                blockCipherNI.doFinal(ref, new byte[32], 0);
+                Assertions.fail("expected a misaligned total to be refused at doFinal");
+            }
+            catch (Exception e)
+            {
+                Assertions.assertSame(IllegalBlockSizeException.class, e.getClass(), "unexpected exception class");
+                Assertions.assertEquals("data not block size aligned", e.getMessage(), "unexpected exception message");
+            }
         }
         finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
         }
+    }
+
+
+    /**
+     * The half that proves buffering rather than deferral: two sub-block
+     * updates that together complete one block must produce exactly the
+     * ciphertext a single 16-byte update produces.
+     *
+     * <p>Compared against this implementation's own one-shot rather than an
+     * independent one because the NI surface has no independent counterpart;
+     * the cross-implementation comparison for this behaviour lives at the JCE
+     * level in the agreement tests, where it is checked against BouncyCastle.
+     * Here the claim is narrower and still worth pinning: no bytes were lost.
+     */
+    @Test
+    public void testBlockCipherUpdate_subBlockUpdatesCompleteABlock() throws Exception
+    {
+        byte[] key = new byte[16];
+        byte[] iv = new byte[16];
+        byte[] msg = new byte[16];
+        new SecureRandom().nextBytes(key);
+        new SecureRandom().nextBytes(iv);
+        new SecureRandom().nextBytes(msg);
+
+        byte[] oneShot = new byte[32];
+        int oneShotLen;
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(8, 1, 0);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0);
+            oneShotLen = blockCipherNI.update(ref, oneShot, 0, msg, 0, msg.length);
+            oneShotLen += blockCipherNI.doFinal(ref, oneShot, oneShotLen);
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(ref);
+        }
+
+        byte[] split = new byte[32];
+        int splitLen;
+        long ref2 = 0;
+        try
+        {
+            ref2 = blockCipherNI.makeInstance(8, 1, 0);
+            blockCipherNI.init(ref2, Cipher.ENCRYPT_MODE, key, iv, 0);
+            splitLen = blockCipherNI.update(ref2, split, 0, msg, 0, 15);
+            splitLen += blockCipherNI.update(ref2, split, splitLen, msg, 15, 1);
+            splitLen += blockCipherNI.doFinal(ref2, split, splitLen);
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(ref2);
+        }
+
+        Assertions.assertEquals(oneShotLen, splitLen, "split total length must match one-shot");
+        Assertions.assertArrayEquals(
+                java.util.Arrays.copyOf(oneShot, oneShotLen),
+                java.util.Arrays.copyOf(split, splitLen),
+                "15+1 must produce the same block as a single 16-byte update");
     }
 
 
@@ -2479,8 +2553,34 @@ public class BlockCipherLimitTest
         {
             ref = blockCipherNI.makeInstance(DES_EDE3, CBC_MODE, NO_PAD);
             blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0);
+            // Buffered, per the streaming contract; the misaligned TOTAL is
+            // what gets refused, at the terminal call.
             blockCipherNI.update(ref, new byte[32], 0, new byte[9], 0, 9);
-            Assertions.fail("expected a 9-byte unpadded update to be refused");
+            blockCipherNI.doFinal(ref, new byte[32], 0);
+            Assertions.fail("expected a 9-byte unpadded total to be refused");
+        }
+        catch (Exception e)
+        {
+            Assertions.assertTrue(e instanceof IllegalBlockSizeException);
+            Assertions.assertEquals("data not block size aligned", e.getMessage());
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+
+        // The discriminator, previously asserted only in a comment: the same
+        // 8-byte total that DES-EDE3 accepts must be REFUSED by a 16-byte-block
+        // cipher. Without this, an implementation that had simply stopped
+        // checking alignment would pass every assertion above.
+        ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(AES_256, CBC_MODE, NO_PAD);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[32], new byte[16], 0);
+            blockCipherNI.update(ref, new byte[32], 0, new byte[DES_BLOCK], 0, DES_BLOCK);
+            blockCipherNI.doFinal(ref, new byte[32], 0);
+            Assertions.fail("an 8-byte total must be refused by a 16-byte-block cipher");
         }
         catch (Exception e)
         {
@@ -2651,7 +2751,8 @@ public class BlockCipherLimitTest
         new SecureRandom().nextBytes(key);
         new SecureRandom().nextBytes(cek);
 
-        // Wrap first, so there is a well-formed blob to damage.
+        // Wrap first, so there is a well-formed blob to damage. Wraps now
+        // accumulate, so the bytes are emitted by doFinal, not by update.
         byte[] wrapped;
         long wref = 0;
         try
@@ -2660,6 +2761,8 @@ public class BlockCipherLimitTest
             blockCipherNI.init(wref, Cipher.ENCRYPT_MODE, key, null, 0);
             wrapped = new byte[blockCipherNI.getFinalSize(wref, cek.length)];
             int n = blockCipherNI.update(wref, wrapped, 0, cek, 0, cek.length);
+            Assertions.assertEquals(0, n, "an accumulating update must emit nothing");
+            n = blockCipherNI.doFinal(wref, wrapped, 0);
             wrapped = java.util.Arrays.copyOf(wrapped, n);
         }
         finally
@@ -2670,15 +2773,17 @@ public class BlockCipherLimitTest
         byte[] damaged = wrapped.clone();
         damaged[0] ^= (byte) 0x01;
 
-        // (len - 8) is what the pre-fix sizing advertised, and what OpenSSL
-        // overruns by 8 on the failure path.
+        // (len - 8) is what naive sizing gives, and what OpenSSL overruns by 8
+        // on the integrity-failure path. The guard now lives on the final path
+        // because that is where the EVP call happens; this drives it there.
         long ref = 0;
         try
         {
             ref = blockCipherNI.makeInstance(AES256, WRAP_PAD_MODE, 0);
             blockCipherNI.init(ref, Cipher.DECRYPT_MODE, key, null, 0);
             blockCipherNI.update(ref, new byte[damaged.length - 8], 0, damaged, 0, damaged.length);
-            Assertions.fail("a (len - 8) unwrap buffer was accepted at the NI surface — "
+            blockCipherNI.doFinal(ref, new byte[damaged.length - 8], 0);
+            Assertions.fail("a (len - 8) unwrap buffer was accepted at the NI surface \u2014 "
                     + "OpenSSL writes up to len bytes on the integrity-failure path, so this "
                     + "build overflows by 8 bytes (CVE-2026-63072)");
         }
@@ -2689,6 +2794,34 @@ public class BlockCipherLimitTest
         finally
         {
             TestNISelector.getBlockCipher().dispose(ref);
+        }
+
+        // The other side of the boundary, which is what makes the check a
+        // boundary and not just a refusal: a buffer of exactly the input
+        // length is ACCEPTED, reaches OpenSSL, and fails on integrity rather
+        // than on capacity. Without this the guard could be rejecting
+        // everything and still pass above.
+        long ok = 0;
+        try
+        {
+            ok = blockCipherNI.makeInstance(AES256, WRAP_PAD_MODE, 0);
+            blockCipherNI.init(ok, Cipher.DECRYPT_MODE, key, null, 0);
+            blockCipherNI.update(ok, new byte[damaged.length], 0, damaged, 0, damaged.length);
+            blockCipherNI.doFinal(ok, new byte[damaged.length], 0);
+            Assertions.fail("expected the damaged blob to fail its integrity check");
+        }
+        catch (ShortBufferException e)
+        {
+            Assertions.fail("a buffer of exactly the input length was called too small: " + e.getMessage());
+        }
+        catch (BadPaddingException e)
+        {
+            // The integrity failure's own type, matching BouncyCastle.
+            Assertions.assertEquals("invalid cipher text", e.getMessage());
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(ok);
         }
     }
 
@@ -2703,48 +2836,92 @@ public class BlockCipherLimitTest
      * "OpenSSL fails closed on a short buffer" comment survived long enough to
      * become CVE-2026-63072 here. So: both branches, asserted.
      */
+    /**
+     * Where an illegal wrap length is refused is a CONTRACT, not an accident.
+     *
+     * <p>Wraps accumulate, so nothing reaches OpenSSL until the terminal call,
+     * and an illegal length therefore surfaces from doFinal rather than from
+     * the update that supplied it. That is inherent to accumulation and XTS and
+     * CTS behave the same way, but it is caller-visible for anyone driving
+     * update() separately, so it is pinned here rather than left to be
+     * rediscovered - or silently re-moved by the next refactor.
+     */
     @Test
-    public void BlockCipher_wrapUpdateBeforeInit_sizeCheckedFirst() throws Exception
+    public void BlockCipher_wrapIllegalLength_refusedAtFinalNotUpdate() throws Exception
+    {
+        final int wrapMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP.ordinal();
+        final int aes256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+
+        byte[] key = new byte[32];
+        new SecureRandom().nextBytes(key);
+
+        long ref = 0;
+        try
+        {
+            ref = blockCipherNI.makeInstance(aes256, wrapMode, 0);
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, null, 0);
+
+            // 15 bytes: not a multiple of 8, so RFC 3394 forbids it. The update
+            // must nonetheless ACCEPT it - the length is not knowable as final
+            // until the terminal call.
+            int written = blockCipherNI.update(ref, new byte[64], 0, new byte[15], 0, 15);
+            Assertions.assertEquals(0, written, "an accumulating update must emit nothing");
+
+            try
+            {
+                blockCipherNI.doFinal(ref, new byte[64], 0);
+                Assertions.fail("expected a 15-byte KW total to be refused");
+            }
+            catch (IllegalBlockSizeException e)
+            {
+                // BouncyCastle's type for a wrap-side length refusal; ours by
+                // explicit rule rather than by OpenSSL's generic error.
+                Assertions.assertEquals("invalid key wrap input length", e.getMessage());
+            }
+        }
+        finally
+        {
+            TestNISelector.getBlockCipher().dispose(ref);
+        }
+    }
+
+
+    @Test
+    public void BlockCipher_wrapUpdateBeforeInit_notInitializedWhateverTheBufferSize() throws Exception
     {
         final int wrapPad = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP_PAD.ordinal();
         final int aes256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
 
-        // Undersized, before init: the size is rejected first.
-        long a = 0;
-        try
+        // Both buffer sizes, one assertion: the size is not consulted at all.
+        // This test previously pinned the opposite - that an undersized buffer
+        // was rejected AHEAD of the init state - which was a real claim while
+        // the wrap capacity guard sat on the update path. That guard moved to
+        // the final path with the accumulation change, so update has no size
+        // opinion for a wrap any more, and the precedence question it pinned
+        // no longer exists. Inverted rather than deleted, so the absence is
+        // asserted instead of merely assumed.
+        for (int outSize : new int[]{8, 64})
         {
-            a = blockCipherNI.makeInstance(aes256, wrapPad, 0);
-            blockCipherNI.update(a, new byte[8], 0, new byte[40], 0, 40);
-            Assertions.fail("expected the undersized buffer to be rejected before init");
-        }
-        catch (ShortBufferException e)
-        {
-            Assertions.assertEquals("output too small", e.getMessage());
-        }
-        finally
-        {
-            TestNISelector.getBlockCipher().dispose(a);
-        }
-
-        // Adequately sized, still before init: now the init state is what fails.
-        long b = 0;
-        try
-        {
-            b = blockCipherNI.makeInstance(aes256, wrapPad, 0);
-            blockCipherNI.update(b, new byte[64], 0, new byte[40], 0, 40);
-            Assertions.fail("expected a not-initialized rejection");
-        }
-        catch (ShortBufferException e)
-        {
-            Assertions.fail("an adequate buffer was called too small: " + e.getMessage());
-        }
-        catch (Exception e)
-        {
-            Assertions.assertEquals("not initialized", e.getMessage());
-        }
-        finally
-        {
-            TestNISelector.getBlockCipher().dispose(b);
+            long ref = 0;
+            try
+            {
+                ref = blockCipherNI.makeInstance(aes256, wrapPad, 0);
+                blockCipherNI.update(ref, new byte[outSize], 0, new byte[40], 0, 40);
+                Assertions.fail("expected a not-initialized rejection, outSize=" + outSize);
+            }
+            catch (ShortBufferException e)
+            {
+                Assertions.fail("update still has a size opinion before init, outSize=" + outSize
+                        + ": " + e.getMessage());
+            }
+            catch (Exception e)
+            {
+                Assertions.assertEquals("not initialized", e.getMessage(), "outSize=" + outSize);
+            }
+            finally
+            {
+                TestNISelector.getBlockCipher().dispose(ref);
+            }
         }
     }
 }
