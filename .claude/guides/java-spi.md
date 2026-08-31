@@ -53,6 +53,19 @@ The JCE SPI surface is a contract-heavy state machine: subtle exception-type exp
 
 Don't register transformation aliases on a primary cipher whose SPI uses `engineSetPadding` to configure itself. Either register each transformation as its own primary (separate SPI per name, the `RSA/ECB/PKCS1Padding` model), or register only the bare algorithm and let JCE fall through to form 4 where `setMode`/`setPadding` actually run.
 
+**Match BouncyCastle's exception TYPE for the same refusal — it is a de facto standard (standing rule, Megan 2026-08-31)**
+
+So much is built on BouncyCastle that its exception types are what callers write `catch` blocks against. **A type divergence is an interop break even when the accept/reject DECISION agrees**: the caller's handler simply does not fire, and since `OpenSSLException` is a `RuntimeException`, it escapes to whatever sits above. So when adding or reviewing a negative path, measure what BC throws for the same input and match the TYPE. Messages stay ours — they need to be clear and accurate, not verbatim BC — and if you believe a caller matches on message text, surface that rather than matching silently.
+
+The trap this rule exists for: **delegating a refusal to OpenSSL delegates the TYPE too.** OpenSSL refused every illegal AES key-wrap length correctly, so delegation looked like the clean choice — and produced `OpenSSLException` where BC raises `IllegalBlockSizeException` (wrap side) and `BadPaddingException` (unwrap side). The fix is to make the *decision* ours so the *type* can be: explicit RFC 3394 / RFC 5649 length rules in `wrap_length_check`, mapping to `JO_WRAP_INPUT_LENGTH_INVALID` and `JO_INVALID_CIPHER_TEXT`, with OpenSSL left in place behind them as backstop. Comment such a check with why it is explicit, or the next reader "simplifies" it back into delegation.
+
+Two boundaries worth knowing, both settled by measurement rather than argument:
+
+1. **A DECISION disagreement is not a type problem and no mapping fixes it.** BC wraps a single 8-byte semiblock and returns 16 bytes; OpenSSL refuses (RFC 3394 defines n >= 2 semiblocks). We adhere to OpenSSL and pin the divergence with a test asserting BOTH halves, so neither a drift toward BC nor a later parity sweep can move it silently.
+2. **Ask which side of the CHECKED/UNCHECKED line each type sits on — it decides urgency, and it reverses judgements.** A failed AES key-unwrap integrity check was first left on `OpenSSLException` as an acceptable divergence, then reversed the same day on one measured fact: `OpenSSLException` extends `RuntimeException`, so the BC-shaped `catch (BadPaddingException)` caught **nothing** on the routine attacker-data path and the error escaped to whatever sat above. Type parity reads as cosmetic until you notice that. Where the mismatched type is unchecked and the matched one is checked, the divergence is not a style difference — it is a handler that never runs.
+
+**Measure before claiming parity, and measure every cell.** "Matches BC" from a handful of lengths is not a claim about the mapping — widening one such matrix from six lengths to ten turned "identical in every cell" into one decision disagreement plus a whole column of type mismatches. MT-31 tracks the provider-wide survey.
+
 **Throw the right JCE exception type — provider-chain fallback depends on it**
 
 JCE has strict exception-type contracts that determine both caller-visible behaviour and **whether the JCE moves on to the next registered provider**:

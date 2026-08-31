@@ -177,6 +177,32 @@ The same matrix applies to digest `update` vs. one-shot, and to incremental sign
 
 When the test isn't anchored to a published KAT (i.e. a roundtrip comparing `decrypt(encrypt(x)) == x` rather than against a fixed expected output), use fully random values for **everything** — key, IV / nonce, AAD, plaintext content, and plaintext length. Hardcoded inputs let bugs hide in alignment-, length-, or value-specific code paths: an off-by-one in CTR counter handling that only fires past a certain block count, a GCM length encoding bug that only triggers when AAD length mod 16 is zero, a digest finalisation bug that only fires when the input length is a multiple of the block size. Seed `SecureRandom` from a value the test logs on failure so a flaky run is reproducible.
 
+### Chunking is a contract DIMENSION — cover it, and never let one knob govern two
+
+**Symptom: every name is covered, every roundtrip passes, and the transformation is wrong for any caller who splits its input.** Two defects in one arc, same shape. AES key wrap emitted the ENTIRE result from one EVP update, so a chunked caller got one independent wrap per `update()`, concatenated — byte-perfect one-shot against BouncyCastle, garbage chunked, with output length growing with the number of calls. And ECB/CBC `NoPadding` REFUSED a sub-block `update()` outright, where BC and SunJCE buffer and emit at block completion. Neither was visible to anything in the suite: the wrap suite made zero `update()` calls at all, and the alignment refusal had a test asserting it was correct.
+
+A JCA transformation with `update`/`doFinal` promises that any split of the same input yields the same output. That promise is a **dimension of the contract**, independent of the per-name coverage the completeness guards check. Cover it explicitly:
+
+1. **Split shapes**: one-shot, byte-wise, `B-1`, `B`, `B+1`, and random splits, where `B` is the block or unit size. Encrypt AND decrypt separately — they are different code paths, and a discard/reset mechanism can be right in one direction only.
+2. **Against an independent implementation.** Chunked-vs-our-own-one-shot proves nothing: a uniformly wrong implementation agrees with itself, which is exactly how the wrap defect round-tripped. One-shot-vs-BC proves nothing about chunking, which is how it survived.
+3. **A mode with no `update()` call anywhere in the suite is uncovered on this dimension**, however many one-shot vectors it has. Grep for `.update(` per transformation before believing otherwise.
+
+**ONE PARAMETER MUST NOT GOVERN TWO DIMENSIONS — a legitimate constraint on one silently imposes an illegitimate one on the other.** This is what hid the ECB/CBC defect, and it is worth recognising by shape because it looks like ordinary parameterisation. `AESAgreementTest.exercise_complexUpdateDoFinal(xform, keys, top, step, ivLen, sr)` uses `step` for BOTH the message-length loop (`t += step`) and the split-point loop (`splitAt += step`). For a `NoPadding` mode the caller must pass `step = 16`, because non-aligned message lengths are genuinely illegal — a correct, necessary constraint. It then also forces split points onto 16-byte boundaries, which nothing requires and which skips the entire partial-block path. CFB gets byte-wise splits purely as a side effect of ITS lengths being unconstrained. Nobody chose the aligned-only splitting; it was inherited from an unrelated rule one parameter away. When a helper takes one knob, ask which dimensions it reaches.
+
+### The input-shape restriction smell: a test that avoids a throw is a bug report
+
+**A test exercising a NARROWER input shape than the contract allows must say which of two things it is: documenting a real limitation, or working around a defect.** Unstated, the second is indistinguishable from the first, and it hardens — the next author copies the convention.
+
+The worked example is `AESAgreementTest.testJce_aesCbcNoPadding_updateRejectsNonAligned`, which did not merely avoid the shape but **pinned the defect as correct, with a rationale attached**: the refusal was "the right semantic failure for non-aligned input to an unpadded mode". Plausible, and wrong — BC and SunJCE both buffer. A bug report filed as a test convention. It is now inverted into `testJce_aesCbcNoPadding_updateBuffersSubBlockInput`, which asserts the bytes are KEPT by comparing `15 + 1` against BouncyCastle's one-shot block.
+
+Two rules follow. **When a test asserts a REFUSAL that an independent implementation does not make, check the independent implementation before pinning it** — the assertion is a claim about the contract, not about our code. And **when inverting such a test, keep the old rationale quoted in one line of the new test's javadoc**; the reasoning was persuasive enough to survive review once, so the correction is worth more than the deletion.
+
+### Per-name completeness guards cannot see dimensions
+
+`everyRegistered<Type>IsCovered()` proves every registered name reaches a reference comparison. It says nothing about which INPUT SHAPES that comparison used, so a family can be green on the guard and untested on chunking, offsets, or aliasing. Both defects above sat behind fully-green completeness guards.
+
+So when a contract has a dimension — chunking, offset-writes, aliasing, reset/reuse — that dimension needs its own named rule and its own coverage, and neither substitutes for the other. Read a green completeness guard as "no name is missing", never as "this family is covered".
+
 ### Run agreement tests against BouncyCastle, with random inputs
 
 Jostle's native path can produce wrong-but-self-consistent output that a roundtrip-only test never surfaces — a `verify()` stub that always returns `true`, an encrypt that copies its input, a digest that returns zeros, a tag check that's been short-circuited. The strongest defence against this is cross-validation against an independent reference implementation: BouncyCastle. **For every transformation Jostle exposes, there must be at least one agreement test that pipes ciphertext / signatures / MACs / KEM-encapsulated material between BouncyCastle and Jostle and asserts byte-equality (or the equivalent semantic check).** Files following the `*AgreementTest` convention are where these tests live (see `AESAgreementTest`, `CAMELLIAAgreementTest`, `SM4AgreementTest`, the `*BCParity*` methods in `RSATest` / `RSAOAEPCipherTest` / `RSAPKCS1CipherTest` for canonical examples).
