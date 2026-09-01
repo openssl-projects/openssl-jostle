@@ -72,7 +72,8 @@ public interface BlockCipherNI extends DefaultServiceNI
         }
         catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "init cannot report a buffer, block-size or padding fault", others);
         }
 
     }
@@ -87,7 +88,8 @@ public interface BlockCipherNI extends DefaultServiceNI
         catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException |
                IllegalBlockSizeException | BadPaddingException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "a block-size query cannot report a key, parameter or data fault", others);
         }
 
     }
@@ -105,7 +107,8 @@ public interface BlockCipherNI extends DefaultServiceNI
         catch (InvalidKeyException | InvalidAlgorithmParameterException |
                BadPaddingException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "update cannot report a key, parameter or padding fault", others);
         }
 
     }
@@ -123,21 +126,34 @@ public interface BlockCipherNI extends DefaultServiceNI
         }
         catch (InvalidKeyException | InvalidAlgorithmParameterException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "doFinal cannot report a key or parameter fault except through the post-final reinit, whose inputs already succeeded once", others);
         }
 
     }
 
     default int updateAAD(long ref, byte[] input, int inputOffset, int inputLen)
     {
+        int code = ni_updateAAD(ref, input, inputOffset, inputLen);
+        if (code == ErrorCode.JO_INVALID_MODE.getCode())
+        {
+            // Position attribution. At THIS entry point JO_INVALID_MODE has
+            // exactly one producer - the is_aead_mode gate in
+            // block_cipher_ctx_updateAAD - so it means "this mode takes no
+            // AAD". At init the same code means a cipher/mode mismatch and
+            // keeps the shared InvalidAlgorithmParameterException mapping.
+            // BouncyCastle and SunJCE both answer this with UnsupportedOperationException.
+            throw new UnsupportedOperationException("mode does not support AAD");
+        }
         try
         {
-            return (int) handleError(ni_updateAAD(ref, input, inputOffset, inputLen));
+            return (int) handleError(code);
         }
         catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException |
                IllegalBlockSizeException | BadPaddingException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "updateAAD cannot report a key, buffer or data fault", others);
         }
     }
 
@@ -150,7 +166,8 @@ public interface BlockCipherNI extends DefaultServiceNI
         catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException |
                IllegalBlockSizeException | BadPaddingException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "a final-size query cannot report any operational fault", others);
         }
     }
 
@@ -163,7 +180,8 @@ public interface BlockCipherNI extends DefaultServiceNI
         catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException |
                IllegalBlockSizeException | BadPaddingException others)
         {
-            throw new RuntimeException(others.getMessage(), others);
+            throw new IllegalStateException(
+                    "an update-size query cannot report any operational fault", others);
         }
     }
 

@@ -735,7 +735,15 @@ class BlockCipherSpi extends CipherSpi
             }
             catch (Exception ex)
             {
-                throw new RuntimeException(ex.getMessage(), ex);
+                // Unreachable, but for a WEAKER reason than the sibling below:
+                // it holds only because two layers agree on a sizing contract -
+                // block_cipher_get_update_size returns max(aligned, len), which
+                // is exactly what update's own capacity guard requires. An edit
+                // to either side re-animates this. Say so, rather than "cannot
+                // happen", because that is the one thing worth knowing here.
+                throw new IllegalStateException(
+                        "update reported a fault its own size query should have"
+                                + " precluded; the two sizing rules have diverged", ex);
             }
 
 
@@ -872,7 +880,12 @@ class BlockCipherSpi extends CipherSpi
             }
             catch (IllegalBlockSizeException ibsx)
             {
-                throw new RuntimeException(ibsx.getMessage(), ibsx);
+                // The compiler requires this catch because update DECLARES the
+                // exception; neither code that maps to it is produced anywhere
+                // in block_cipher_ctx_update - both come from ctx_final.
+                throw new IllegalStateException(
+                        "update reported block misalignment, which only final"
+                                + " can produce", ibsx);
             }
 
         }

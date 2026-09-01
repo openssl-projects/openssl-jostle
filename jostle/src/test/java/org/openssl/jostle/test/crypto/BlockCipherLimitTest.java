@@ -1629,22 +1629,34 @@ public class BlockCipherLimitTest
     @Test
     public void testUpdateAAD_nonGcmMode() throws Exception
     {
-        // updateAAD requires a GCM ctx; non-GCM modes must reject before the
-        // EVP layer silently swallows the AAD. The underlying exception is
-        // InvalidAlgorithmParameterException; updateAAD wraps it in a
-        // RuntimeException since it isn't part of its declared throws set.
+        // updateAAD requires an AEAD ctx; non-AEAD modes must reject before the
+        // EVP layer silently swallows the AAD.
+        //
+        // INVERTED 2026-09-01. This previously asserted a bare
+        // java.lang.RuntimeException, with the rationale that "updateAAD wraps
+        // it in a RuntimeException since it isn't part of its declared throws
+        // set" - describing the erasure as though it were the contract. It was
+        // not: a bare RuntimeException is catchable by nothing specific, and
+        // BOTH BouncyCastle and SunJCE answer this with
+        // UnsupportedOperationException (measured). The old rationale is kept
+        // here because it survived review once and the correction is worth more
+        // than the deletion.
+        //
+        // Note the attribution: JO_INVALID_MODE keeps its
+        // InvalidAlgorithmParameterException mapping at every OTHER entry point
+        // - see the init vectors above, which still assert exactly that. Only
+        // updateAAD reinterprets it, because there it has one producer.
         long ref = 0;
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
             blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[16], new byte[16], 0);
             blockCipherNI.updateAAD(ref, new byte[16], 0, 16);
-            Assertions.fail("expected non-GCM updateAAD to fail");
+            Assertions.fail("expected non-AEAD updateAAD to fail");
         }
-        catch (RuntimeException ex)
+        catch (UnsupportedOperationException ex)
         {
-            Assertions.assertEquals("mode not supported for cipher", ex.getMessage());
-            Assertions.assertTrue(ex.getCause() instanceof InvalidAlgorithmParameterException);
+            Assertions.assertEquals("mode does not support AAD", ex.getMessage());
         }
         finally
         {
