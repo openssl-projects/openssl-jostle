@@ -835,7 +835,12 @@ class BlockCipherSpi extends CipherSpi
         {
             requireInitialized();
             checkEncryptReuse();
-            int k = engineGetOutputSize(inputLen);
+            // update's own bound, NOT engineGetOutputSize - that reports
+            // update PLUS a following doFinal, so it demanded capacity this
+            // call cannot use and refused correctly-sized buffers. The 3-arg
+            // overload has always used this oracle. It also sizes the overlap
+            // window below to exactly what this call may write.
+            int k = blockCipherNi.getUpdateSize(refWrapper.getReference(), inputLen);
             if (output.length - outputOffset < k)
             {
                 throw new ShortBufferException("output buffer too small");
