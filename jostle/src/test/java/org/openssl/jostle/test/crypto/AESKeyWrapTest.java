@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.parity.BouncyCastleTranscripts;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -661,14 +662,12 @@ public class AESKeyWrapTest
         sr.nextBytes(keyBytes);
         Key kek = new SecretKeySpec(keyBytes, "AES");
 
-        // {transformation, opMode, length}. BC measured 2026-08-31:
-        //   KW wrap    0,1,7,15,23,31 -> IllegalBlockSizeException
-        //   KW unwrap  0,1,7,8,15,16,23,31 -> BadPaddingException
-        //   KWP unwrap 0,1,7,8,15,23,31 -> BadPaddingException
-        // KWP wrap has no illegal length above zero (RFC 5649 accepts >= 1).
-        int[] kwWrapBad = {0, 1, 7, 15, 23, 31};
-        int[] kwUnwrapBad = {0, 1, 7, 8, 15, 16, 23, 31};
-        int[] kwpUnwrapBad = {0, 1, 7, 8, 15, 23, 31};
+        // BC's measured behaviour is HOISTED into BouncyCastleTranscripts so
+        // the drift check can compare live BC against the same literal. One
+        // copy, two consumers - a second copy would drift independently.
+        int[] kwWrapBad = BouncyCastleTranscripts.KW_WRAP_ILLEGAL;
+        int[] kwUnwrapBad = BouncyCastleTranscripts.KW_UNWRAP_ILLEGAL;
+        int[] kwpUnwrapBad = BouncyCastleTranscripts.KWP_UNWRAP_ILLEGAL;
 
         for (int len : kwWrapBad)
         {
