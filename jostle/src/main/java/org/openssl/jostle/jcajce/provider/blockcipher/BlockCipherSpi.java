@@ -1103,8 +1103,23 @@ class BlockCipherSpi extends CipherSpi
         return inputOffset == outputOffset || Math.max(inputOffset, outputOffset) <= Math.min(inputOffset + inputLen, outputOffset + outputLen);
     }
 
+    /**
+     * A null key is refused with the JCE-canonical type, not a raw NPE.
+     *
+     * <p>Also restores provider fallback: the JCE retries the next provider on
+     * InvalidKeyException from init, and never on an NPE.
+     */
+    protected static void requireKey(Key key) throws InvalidKeyException
+    {
+        if (key == null)
+        {
+            throw new InvalidKeyException("key is null");
+        }
+    }
+
     protected void validateKeyAlg(Key key) throws InvalidKeyException
     {
+        requireKey(key);
         // A password/KDF-derived key (PBKDF2 or scrypt — a javax.crypto PBEKey)
         // is generic RAW key material whose owning algorithm is the PBES2 /
         // PKCS#8 EncryptionScheme, not a competing cipher; accept it for any

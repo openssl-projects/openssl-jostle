@@ -85,6 +85,10 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
+        // Ahead of the dereference below: a null key is an InvalidKeyException,
+        // never an NPE.
+        requireKey(key);
+
         // Capture the encoded key once so the transient copy getEncoded()
         // returns can be zeroized; reading .length off a throwaway getEncoded()
         // leaves an un-scrubbed key copy on the heap (the base engineInit
@@ -108,6 +112,10 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        // Ahead of the dereference below: a null key is an InvalidKeyException,
+        // never an NPE.
+        requireKey(key);
+
         // Capture the encoded key once so the transient copy getEncoded()
         // returns can be zeroized; reading .length off a throwaway getEncoded()
         // leaves an un-scrubbed key copy on the heap (the base engineInit

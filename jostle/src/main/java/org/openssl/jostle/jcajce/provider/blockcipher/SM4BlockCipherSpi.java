@@ -74,6 +74,10 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
         validateKeyAlg(key);
+        // Ahead of the dereference below: a null key is an InvalidKeyException,
+        // never an NPE.
+        requireKey(key);
+
         // Capture the encoded key once so the transient copy getEncoded()
         // returns can be zeroized; reading .length off a throwaway getEncoded()
         // leaves an un-scrubbed key copy on the heap (the base engineInit
@@ -97,10 +101,15 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        // Ahead of every dereference below - the algorithm check reads the key
+        // too, so this must precede it. A null key is an InvalidKeyException,
+        // never an NPE.
+        requireKey(key);
         if (!"SM4".equalsIgnoreCase(key.getAlgorithm()))
         {
             throw new InvalidKeyException("unsupported key algorithm " + key.getAlgorithm());
         }
+
         // Capture the encoded key once so the transient copy getEncoded()
         // returns can be zeroized; reading .length off a throwaway getEncoded()
         // leaves an un-scrubbed key copy on the heap (the base engineInit

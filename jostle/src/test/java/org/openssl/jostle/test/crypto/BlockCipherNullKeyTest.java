@@ -17,8 +17,10 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import java.security.InvalidKeyException;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.Security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -125,5 +127,73 @@ public class BlockCipherNullKeyTest
         InvalidKeyException ex2 = assertThrows(InvalidKeyException.class,
                 () -> cipher.init(Cipher.ENCRYPT_MODE, nullKey, new IvParameterSpec(new byte[16])));
         assertEquals("key has no encoded form", ex2.getMessage());
+    }
+
+    // ------------------------------------------------------------------
+    // MT-31 G1: a null Key REFERENCE, distinct from the null-ENCODED key above.
+    //
+    // Measured against BouncyCastle across 16 transformations: we raised a raw
+    // NullPointerException from key.getEncoded() where BC raises
+    // InvalidKeyException. Unchecked, so a caller's catch did not fire, and it
+    // also lost the next-provider retry described in the class note.
+    // ------------------------------------------------------------------
+
+    /** Every family's init overloads reject a null Key with the JCE type. */
+    @Test
+    public void nullKeyReference_rejectedTypedAcrossEveryFamily() throws Exception
+    {
+        String[][] cases = {
+                {"AES/CBC/NoPadding", "16"},
+                {"AES/ECB/NoPadding", "0"},
+                {"AES/GCM/NoPadding", "12"},
+                {"AES/CTS/NoPadding", "16"},
+                {"AESWRAP", "0"},
+                {"ARIA/CBC/NoPadding", "16"},
+                {"CAMELLIA/CBC/NoPadding", "16"},
+                {"SM4/CBC/NoPadding", "16"},
+                {"DESede/CBC/NoPadding", "8"},
+                {"ChaCha20-Poly1305", "12"},
+                {"AES/CCM/NoPadding", "12"},
+        };
+
+        for (String[] c : cases)
+        {
+            String xform = c[0];
+            int ivLen = Integer.parseInt(c[1]);
+            Cipher cipher = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
+
+            // 2-arg init.
+            assertThrows(InvalidKeyException.class,
+                    () -> cipher.init(Cipher.ENCRYPT_MODE, (java.security.Key) null),
+                    xform + ": null key via the 2-arg init");
+
+            // 3-arg init, with a VALID spec - the null-key refusal must come
+            // before any parameter validation, or the caller sees the wrong type.
+            if (ivLen > 0)
+            {
+                AlgorithmParameterSpec ps = xform.contains("GCM") || xform.contains("ChaCha20-Poly1305")
+                        || xform.contains("CCM")
+                        ? new GCMParameterSpec(128, new byte[ivLen])
+                        : new IvParameterSpec(new byte[ivLen]);
+                assertThrows(InvalidKeyException.class,
+                        () -> cipher.init(Cipher.ENCRYPT_MODE, (java.security.Key) null, ps),
+                        xform + ": null key via the 3-arg init with a valid spec");
+            }
+        }
+    }
+
+    /**
+     * A null key must lose to nothing: even paired with an INVALID parameter
+     * spec the type stays InvalidKeyException, so ordering cannot regress
+     * silently into whichever check happens to run first.
+     */
+    @Test
+    public void nullKeyBeatsAnInvalidParameterSpec() throws Exception
+    {
+        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
+        assertThrows(InvalidKeyException.class,
+                () -> cipher.init(Cipher.ENCRYPT_MODE, (java.security.Key) null,
+                        new IvParameterSpec(new byte[3])),
+                "a null key with a bad IV must still be an InvalidKeyException");
     }
 }
