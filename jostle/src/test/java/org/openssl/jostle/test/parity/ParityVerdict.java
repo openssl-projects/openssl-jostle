@@ -80,6 +80,38 @@ public enum ParityVerdict
     NO_BASELINE,
 
     /**
+     * Both refused by RETURNING FALSE rather than throwing.
+     *
+     * <p>A {@code Signature.verify} reports refusal by its return value. Folding
+     * that into the accept case would make a false-returning verify
+     * indistinguishable from a true-returning one - the R1 shape, one surface
+     * over.
+     */
+    MATCH_REFUSED_BY_RETURN,
+
+    /**
+     * Both refused, but by DIFFERENT MECHANISMS - one threw, the other returned
+     * false.
+     *
+     * <p>The decision agrees, so this is not a {@link #DECISION_DIVERGENCE};
+     * but it is not agreement either. A caller migrating between the two either
+     * meets an uncaught exception or silently takes the wrong branch, depending
+     * which way round it is - so the direction is recorded. This is the
+     * signature surface's analogue of the checked/unchecked axis.
+     */
+    REFUSAL_SHAPE_DIVERGENCE,
+
+    /**
+     * SEVERE: one side ACCEPTED what the other refused.
+     *
+     * <p>One provider verified a signature the other rejected - the
+     * forgery-acceptance shape. It has its own verdict so it cannot hide inside
+     * {@link #DECISION_DIVERGENCE}'s bucket, and it outranks every
+     * exception-type verdict in any report.
+     */
+    VERIFICATION_DIVERGENCE,
+
+    /**
      * Live BouncyCastle disagrees with a BouncyCastle type TRANSCRIBED into a
      * pinned test. Produced by a different comparison from every verdict above
      * - see {@link ExceptionParity#classifyPinDrift} - and fires when a bcprov

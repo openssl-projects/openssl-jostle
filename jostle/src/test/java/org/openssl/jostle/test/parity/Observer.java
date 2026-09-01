@@ -37,6 +37,12 @@ public final class Observer
         byte[] run() throws Throwable;
     }
 
+    /** A call whose answer IS a boolean - a {@code Signature.verify}. */
+    public interface BooleanCall
+    {
+        boolean run() throws Throwable;
+    }
+
     /**
      * Observe one call.
      *
@@ -52,6 +58,31 @@ public final class Observer
         {
             byte[] out = call.run();
             return out == null ? Observation.acceptedNoOutput() : Observation.accepted(out);
+        }
+        catch (NoSuchAlgorithmException | NoSuchPaddingException | NoSuchProviderException absent)
+        {
+            return Observation.absent();
+        }
+        catch (Throwable t)
+        {
+            return Observation.threw(t);
+        }
+    }
+
+    /**
+     * Observe a verification.
+     *
+     * <p>Separate from {@link #observe} because a verify reports refusal by
+     * RETURNING false, and a returned false must not be recorded as an accept.
+     * Folding the two would make a correct rejection and a wrongly-accepted
+     * forgery the same observation - the one distinction the whole surface
+     * exists to measure.
+     */
+    public static Observation observeVerify(BooleanCall call)
+    {
+        try
+        {
+            return Observation.returned(call.run());
         }
         catch (NoSuchAlgorithmException | NoSuchPaddingException | NoSuchProviderException absent)
         {

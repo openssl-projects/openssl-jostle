@@ -227,6 +227,76 @@ public class ExceptionParityTest
                 Observation.accepted(new byte[]{1}), IllegalBlockSizeException.class).verdict());
     }
 
+    // ---------- boolean-returning refusal (Signature.verify) ----------
+
+    @Test
+    public void bothReturningFalseIsAMatchThatIsNotAnAccept()
+    {
+        ParityResult r = ExceptionParity.classify(
+                Observation.returned(false), Observation.returned(false));
+        Assertions.assertEquals(ParityVerdict.MATCH_REFUSED_BY_RETURN, r.verdict());
+        Assertions.assertFalse(r.isDivergence());
+    }
+
+    @Test
+    public void oneAcceptingWhatTheOtherRefusedIsTheSevereVerdict()
+    {
+        // The forgery shape, both directions. Must NOT fold into
+        // DECISION_DIVERGENCE, where it would sit in a 22-row bucket.
+        ParityResult weAccept = ExceptionParity.classify(
+                Observation.returned(true), Observation.returned(false));
+        Assertions.assertEquals(ParityVerdict.VERIFICATION_DIVERGENCE, weAccept.verdict());
+        Assertions.assertEquals("we-accept-bc-refuses", weAccept.qualifier());
+
+        ParityResult bcAccepts = ExceptionParity.classify(
+                Observation.returned(false), Observation.returned(true));
+        Assertions.assertEquals(ParityVerdict.VERIFICATION_DIVERGENCE, bcAccepts.verdict());
+        Assertions.assertEquals("bc-accepts-we-refuse", bcAccepts.qualifier());
+    }
+
+    @Test
+    public void acceptingWhereTheOtherThrewIsAlsoTheSevereVerdict()
+    {
+        // returned(true) against a throw is still one side accepting.
+        Assertions.assertEquals(ParityVerdict.VERIFICATION_DIVERGENCE, ExceptionParity.classify(
+                Observation.returned(true),
+                Observation.threw(new java.security.SignatureException("bc"))).verdict());
+    }
+
+    @Test
+    public void throwVersusReturnedFalseIsARefusalShapeDivergence()
+    {
+        // Both REFUSED, so not a decision divergence - but a caller migrating
+        // either meets an uncaught exception or takes the wrong branch.
+        ParityResult weThrow = ExceptionParity.classify(
+                Observation.threw(new java.security.SignatureException("ours")),
+                Observation.returned(false));
+        Assertions.assertEquals(ParityVerdict.REFUSAL_SHAPE_DIVERGENCE, weThrow.verdict());
+        Assertions.assertEquals("we-throw-bc-returns-false", weThrow.qualifier());
+
+        ParityResult bcThrows = ExceptionParity.classify(
+                Observation.returned(false),
+                Observation.threw(new java.security.SignatureException("bc")));
+        Assertions.assertEquals(ParityVerdict.REFUSAL_SHAPE_DIVERGENCE, bcThrows.verdict());
+        Assertions.assertEquals("we-return-false-bc-throws", bcThrows.qualifier());
+    }
+
+    @Test
+    public void bothReturningTrueIsNotADivergence()
+    {
+        // The positive baseline: both verified. Must be silent - AND must not
+        // be labelled a refusal. The first version returned
+        // MATCH_REFUSED_BY_RETURN with the qualifier "both returned false" for
+        // a both-TRUE pair: not a divergence, so this test passed, while every
+        // baseline row in the Signature survey would have read as a refusal.
+        // Asserting only isDivergence() is what let that through.
+        ParityResult both = ExceptionParity.classify(
+                Observation.returned(true), Observation.returned(true));
+        Assertions.assertFalse(both.isDivergence());
+        Assertions.assertEquals(ParityVerdict.MATCH_ACCEPT, both.verdict());
+        Assertions.assertEquals("both verified", both.qualifier());
+    }
+
     // ---------- vacuity: the case table must reach every arm ----------
 
     @Test
@@ -244,6 +314,9 @@ public class ExceptionParityTest
         produced.add(ExceptionParity.classify(Observation.acceptedNoOutput(), Observation.acceptedNoOutput()).verdict());
         produced.add(ExceptionParity.classify(Observation.accepted(new byte[1]), Observation.absent()).verdict());
         produced.add(ExceptionParity.classifyPinDrift(Observation.accepted(new byte[1]), BadPaddingException.class).verdict());
+        produced.add(ExceptionParity.classify(Observation.returned(false), Observation.returned(false)).verdict());
+        produced.add(ExceptionParity.classify(Observation.returned(true), Observation.returned(false)).verdict());
+        produced.add(ExceptionParity.classify(t(new java.security.SignatureException("a")), Observation.returned(false)).verdict());
 
         Set<ParityVerdict> expected = EnumSet.allOf(ParityVerdict.class);
         // NO_BASELINE is produced by the HARNESS, never by the classifier - the

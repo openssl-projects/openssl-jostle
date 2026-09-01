@@ -80,6 +80,44 @@ public final class ExceptionParity
                     ours.message(), bc.message());
         }
 
+        // A boolean-returning call (Signature.verify) reports REFUSAL by its
+        // return value, so these arms must precede every accept/throw arm.
+        // Order matters: acceptance-vs-refusal outranks the shape of a refusal.
+        Boolean ourR = ours.returnedValue();
+        Boolean bcR = bc.returnedValue();
+        if (ourR != null || bcR != null)
+        {
+            // "Accepted" spans both shapes: a returned true, and a completion
+            // that produced no boolean at all. A side that did not throw and did
+            // not return false did not refuse.
+            boolean ourAccepted = ourR == null ? !ours.isThrow() : ourR.booleanValue();
+            boolean bcAccepted = bcR == null ? !bc.isThrow() : bcR.booleanValue();
+            if (ourAccepted != bcAccepted)
+            {
+                // One side ACCEPTED what the other refused. The forgery shape;
+                // its own verdict so it cannot hide in DECISION_DIVERGENCE.
+                return new ParityResult(ParityVerdict.VERIFICATION_DIVERGENCE, ourType, bcType,
+                        ourAccepted ? "we-accept-bc-refuses" : "bc-accepts-we-refuse",
+                        ours.message(), bc.message());
+            }
+            if (ourAccepted)
+            {
+                // Both verified. The positive baseline, and the ONLY cell where
+                // true is the right answer.
+                return new ParityResult(ParityVerdict.MATCH_ACCEPT, ourType, bcType,
+                        "both verified", ours.message(), bc.message());
+            }
+            if (ourR != null && bcR != null)
+            {
+                return new ParityResult(ParityVerdict.MATCH_REFUSED_BY_RETURN, ourType, bcType,
+                        "both returned false", ours.message(), bc.message());
+            }
+            // Both refused, by different mechanisms.
+            return new ParityResult(ParityVerdict.REFUSAL_SHAPE_DIVERGENCE, ourType, bcType,
+                    ourR == null ? "we-throw-bc-returns-false" : "we-return-false-bc-throws",
+                    ours.message(), bc.message());
+        }
+
         if (ours.isThrow() && bc.isThrow())
         {
             Class<?> a = ours.thrown().getClass();

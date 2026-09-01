@@ -31,13 +31,16 @@ public final class Observation
     private final byte[] output;
     private final boolean hasComparableOutput;
     private final boolean absent;
+    private final Boolean returned;
 
-    private Observation(Throwable thrown, byte[] output, boolean hasComparableOutput, boolean absent)
+    private Observation(Throwable thrown, byte[] output, boolean hasComparableOutput,
+                        boolean absent, Boolean returned)
     {
         this.thrown = thrown;
         this.output = output;
         this.hasComparableOutput = hasComparableOutput;
         this.absent = absent;
+        this.returned = returned;
     }
 
     /** The provider refused, with this throwable. */
@@ -47,25 +50,43 @@ public final class Observation
         {
             throw new IllegalArgumentException("threw(null) - use accepted*()");
         }
-        return new Observation(t, null, false, false);
+        return new Observation(t, null, false, false, null);
     }
 
     /** The provider accepted and produced bytes a caller can compare. */
     public static Observation accepted(byte[] output)
     {
-        return new Observation(null, output, true, false);
+        return new Observation(null, output, true, false, null);
     }
 
     /** The provider accepted; the cell produces nothing comparable. */
     public static Observation acceptedNoOutput()
     {
-        return new Observation(null, null, false, false);
+        return new Observation(null, null, false, false, null);
     }
 
     /** The provider serves no comparable transformation for this cell. */
     public static Observation absent()
     {
-        return new Observation(null, null, false, true);
+        return new Observation(null, null, false, true, null);
+    }
+
+    /**
+     * The call completed and returned a boolean - a {@code Signature.verify}.
+     *
+     * <p>A first-class shape because verify reports REFUSAL by returning false.
+     * Recording it as an ordinary accept would make a correct rejection and a
+     * wrongly-accepted forgery the same observation.
+     */
+    public static Observation returned(boolean value)
+    {
+        return new Observation(null, null, false, false, Boolean.valueOf(value));
+    }
+
+    /** Non-null when the call returned a boolean. */
+    public Boolean returnedValue()
+    {
+        return returned;
     }
 
     public boolean isAbsent()
@@ -119,6 +140,10 @@ public final class Observation
         if (absent)
         {
             return "(absent)";
+        }
+        if (returned != null)
+        {
+            return returned.booleanValue() ? "(returned true)" : "(returned false)";
         }
         if (thrown == null)
         {
