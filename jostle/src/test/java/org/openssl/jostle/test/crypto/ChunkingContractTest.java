@@ -81,8 +81,10 @@ public class ChunkingContractTest
     static final String[] NO_BC_JCE_NAME = {
             "AES/XTS/NoPadding - BouncyCastle serves no XTS Cipher; AESXTSTest "
                     + "pins the same contract against a from-spec IEEE 1619 reference",
-            "AES/CFB1/NoPadding - BouncyCastle serves no AES/CFB1 Cipher; needs a "
-                    + "from-spec reference, currently UNCOVERED on the chunking dimension",
+            "AES/CFB1/NoPadding - BouncyCastle serves no AES/CFB1 Cipher, in EITHER "
+                    + "API (its lightweight CFBBlockCipher refuses a 1-bit width outright), "
+                    + "and neither does any other installed provider. AESCFB1Test pins it "
+                    + "against NIST SP 800-38A F.3 and a from-spec reference instead",
             "AESWrapInv - no BouncyCastle JCE transformation exists; AESKeyWrapInvTest "
                     + "anchors it on BC's lightweight AESWrapEngine(true) instead",
             "AES/CFB64, AES/STREAM, AES/POLY1305 - resolve through engineSetMode but "
