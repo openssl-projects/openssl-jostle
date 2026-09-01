@@ -22,10 +22,13 @@ import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayOutputStream;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * AES key wrap on the INVERSE cipher function (SP 800-38F 5.1), which OpenSSL
@@ -414,5 +417,139 @@ public class AESKeyWrapInvTest
                 () -> c.init(Cipher.WRAP_MODE, new SecretKeySpec(kek, "AES"),
                         new javax.crypto.spec.IvParameterSpec(iv)),
                 "AESWrapInv must not accept an IV");
+    }
+
+    /**
+     * The chunking dimension, which this class did not touch until now: every
+     * assertion above drives {@code wrap}/{@code unwrap}, so the streaming
+     * {@code update}/{@code doFinal} surface had zero calls anywhere in the file.
+     *
+     * <p>That is the same condition that hid the plain key-wrap defect — the
+     * wrap modes emitted their entire result from one EVP update, so a chunked
+     * caller received one independent wrap per {@code update()} concatenated,
+     * byte-perfect one-shot and garbage chunked. WRAP_INV shares every code
+     * path with WRAP, so the fix covers it, but "shares the code path" is an
+     * argument and this is the measurement.
+     *
+     * <p>Anchored on BouncyCastle's lightweight {@code AESWrapEngine(true)},
+     * not on our own one-shot: chunked-equals-our-one-shot is satisfied by an
+     * implementation that is uniformly wrong. No from-spec reference is needed
+     * here — unlike CFB1, BC does implement this construction, so the
+     * interop-reference order stops at rule 5 rather than exhausting.
+     *
+     * <p>Split shapes are fixed here rather than derived, and both directions
+     * are driven separately.
+     */
+    @Test
+    public void chunkedAgreesWithBouncyCastleEngine() throws Exception
+    {
+        SecureRandom sr = seededRandom("chunkedAgreesWithBouncyCastleEngine");
+        List<String> failures = new ArrayList<String>();
+
+        for (int kekLen : new int[]{16, 24, 32})
+        {
+            for (int cekLen : new int[]{16, 24, 32})
+            {
+                byte[] kek = new byte[kekLen];
+                byte[] cek = new byte[cekLen];
+                sr.nextBytes(kek);
+                sr.nextBytes(cek);
+
+                byte[] reference = bcEngineWrap(kek, cek);
+
+                for (int chunk : new int[]{1, 3, 7, 8, 9, 16, 0})
+                {
+                    String where = "kek=" + kekLen + " cek=" + cekLen + " chunk=" + (chunk == 0 ? "one-shot" : chunk);
+
+                    byte[] wrapped = drive(Cipher.ENCRYPT_MODE, kek, cek, chunk);
+                    if (!Arrays.areEqual(reference, wrapped))
+                    {
+                        failures.add(where + ": chunked wrap differs from BouncyCastle");
+                        continue;
+                    }
+                    byte[] back = drive(Cipher.DECRYPT_MODE, kek, reference, chunk);
+                    if (!Arrays.areEqual(cek, back))
+                    {
+                        failures.add(where + ": chunked unwrap did not recover the key");
+                    }
+                }
+
+                // Random splits, so boundaries do not always land where we chose.
+                for (int trial = 0; trial < 4; trial++)
+                {
+                    Cipher c = Cipher.getInstance("AESWrapInv", JSL);
+                    c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(kek, "AES"));
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    int off = 0;
+                    while (off < cek.length)
+                    {
+                        int n = 1 + sr.nextInt(cek.length - off);
+                        byte[] part = c.update(cek, off, n);
+                        if (part != null)
+                        {
+                            out.write(part);
+                        }
+                        off += n;
+                    }
+                    out.write(c.doFinal());
+                    if (!Arrays.areEqual(reference, out.toByteArray()))
+                    {
+                        failures.add("kek=" + kekLen + " cek=" + cekLen
+                                + " random split trial=" + trial + " differs from BouncyCastle");
+                    }
+                }
+            }
+        }
+
+        if (!failures.isEmpty())
+        {
+            Assertions.fail(String.join("\n  ", failures));
+        }
+    }
+
+    /**
+     * An accumulating mode emits nothing from {@code update()}. Pinned
+     * separately from the byte-equality above because a mode that emitted its
+     * result early AND re-emitted it at final would still produce the right
+     * bytes for some split shapes while being wrong for the size queries the
+     * auto-allocating {@code Cipher.update(byte[],int,int)} path consults.
+     */
+    @Test
+    public void updateEmitsNothingBecauseTheWrapAccumulates() throws Exception
+    {
+        SecureRandom sr = seededRandom("updateEmitsNothingBecauseTheWrapAccumulates");
+        byte[] kek = new byte[32];
+        byte[] cek = new byte[32];
+        sr.nextBytes(kek);
+        sr.nextBytes(cek);
+
+        Cipher c = Cipher.getInstance("AESWrapInv", JSL);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(kek, "AES"));
+        byte[] part = c.update(cek, 0, cek.length);
+        Assertions.assertEquals(0, part == null ? 0 : part.length,
+                "a wrap accumulates, so update() must emit nothing");
+        Assertions.assertArrayEquals(bcEngineWrap(kek, cek), c.doFinal(),
+                "the whole wrap must arrive at doFinal and match BouncyCastle");
+    }
+
+    private static byte[] drive(int mode, byte[] kek, byte[] in, int chunk) throws Exception
+    {
+        Cipher c = Cipher.getInstance("AESWrapInv", JSL);
+        c.init(mode, new SecretKeySpec(kek, "AES"));
+        if (chunk <= 0)
+        {
+            return c.doFinal(in);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        for (int off = 0; off < in.length; off += chunk)
+        {
+            byte[] part = c.update(in, off, Math.min(chunk, in.length - off));
+            if (part != null)
+            {
+                out.write(part);
+            }
+        }
+        out.write(c.doFinal());
+        return out.toByteArray();
     }
 }
