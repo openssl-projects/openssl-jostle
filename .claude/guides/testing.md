@@ -197,6 +197,77 @@ The worked example is `AESAgreementTest.testJce_aesCbcNoPadding_updateRejectsNon
 
 Two rules follow. **When a test asserts a REFUSAL that an independent implementation does not make, check the independent implementation before pinning it** — the assertion is a claim about the contract, not about our code. And **when inverting such a test, keep the old rationale quoted in one line of the new test's javadoc**; the reasoning was persuasive enough to survive review once, so the correction is worth more than the deletion.
 
+### An instrument cannot audit itself — five ways a measuring test lied, all in one arc
+
+A survey, a detector, a known-answer control: each is a test whose OUTPUT you act
+on, and each failed in a way its own green result could not show. All five below
+were caught by something OUTSIDE the instrument — a second probe, an independent
+grep, a reviewer's arithmetic — never by the instrument itself.
+
+1. **A survey cannot falsify its own FAULT CONSTRUCTION.** The MT-31 Cipher
+   survey reported 13 divergences in one group; a single-purpose probe
+   contradicted three. One parameter, `blockBytes`, was governing two dimensions
+   at once — alignment semantics AND plaintext sizing — so every stream mode
+   silently received a four-byte plaintext and those cells measured a buffering
+   corner rather than the capacity rule. The one-knob-two-dimensions trap, in the
+   instrument this time. **When a cell looks surprising, probe it with something
+   else before it enters a report.**
+2. **A survey cannot audit its own CATALOGUE for completeness.** The same survey
+   had no `updateAAD` row, so it was structurally blind to a live bare-
+   `RuntimeException` site that a STATIC code inventory then predicted and a
+   three-line probe confirmed. Two instruments of different shapes find disjoint
+   things; neither subsumes the other.
+3. **A known-answer control must run with EVERY TREE-STATE-DEPENDENT JUDGEMENT
+   DISABLED.** MT-32's historical control began reporting the known instances as
+   "explained" once its triage table cited a test that did not exist at the
+   historical commit — it had quietly stopped measuring the detector and started
+   measuring the triage. `--no-classifications` is REQUIRED for control runs.
+   The same applies to any exclusion list, named-entry evidence, or anything
+   citing the present tree.
+4. **A census must ASSERT ITS OWN SUM.** A report that says "2 + 7" and then
+   lists three items is the one document that has to be exact, and prose drifts
+   from the tally the moment a fix flips a row. Compute the tally, assert it
+   against the row count.
+5. **Coverage attribution must bind to the OBJECT, not the FILE.** File
+   granularity credited `ChaCha20-Poly1305` as chunked because a file NAMING it
+   updated a different cipher. Bind to the variable — `Cipher c =
+   getInstance(X)` then `c.update(...)` credits X and nothing else — and scope
+   the search to the enclosing METHOD, or a same-named variable in a sibling
+   method credits across.
+
+**And the vacuity rule that ties them together: a check that considered ZERO
+candidates must FAIL THE RUN, never return a verdict.** "UNREACHABLE of 0 codes"
+and "0 uncovered" read exactly like analysis. Two separate parser bugs produced
+the first, and both would have shipped a tool that agreed with a hand audit while
+analysing nothing.
+
+### The wrapper's answer is not the thing's answer
+
+Three distinct instances in one day, across two agents, each producing the number
+the reader wanted from a command that did not do the work:
+
+1. **A wrapper's exit code is not the build's.** A stopped gate script leaves the
+   Gradle daemon running.
+2. **`$?` after a pipe answers for the LAST command.** `cmd | tail` reports
+   tail's status; a failing run reads as exit 0. Redirect to a file and check the
+   status, or capture it before piping.
+3. **zsh does not word-split unquoted variables.** `set -- $pair` inside a loop
+   left `$2` and `$3` empty, every `git diff` errored on an empty argument, and
+   the attribution check PRINTED "mentions: 0" for both commits — the desired
+   answer, from a command that never ran.
+
+4. **A trailing `; echo` makes the compound command's status the ECHO's.**
+   `bash gate.sh > log 2>&1; echo "EXIT: $?"` reports 0 whatever the gate did -
+   the background-task notification said "exit code 0" while the log said both
+   passes FAILED. Written into this guide one hour before being committed in the
+   next command, by the author of the rule. Knowing the rule is not the same as
+   having the habit; the habit is reading the thing's own recorded answer.
+
+The general form: **verify the state you care about, not the command you ran to
+reach it.** A negative result from an instrument that cannot see the thing is
+indistinguishable from the thing's absence, so a wrong instrument fails silently
+and in the reassuring direction.
+
 ### Per-name completeness guards cannot see dimensions
 
 `everyRegistered<Type>IsCovered()` proves every registered name reaches a reference comparison. It says nothing about which INPUT SHAPES that comparison used, so a family can be green on the guard and untested on chunking, offsets, or aliasing. Both defects above sat behind fully-green completeness guards.

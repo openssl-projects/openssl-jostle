@@ -64,6 +64,18 @@ Two boundaries worth knowing, both settled by measurement rather than argument:
 1. **A DECISION disagreement is not a type problem and no mapping fixes it.** BC wraps a single 8-byte semiblock and returns 16 bytes; OpenSSL refuses (RFC 3394 defines n >= 2 semiblocks). We adhere to OpenSSL and pin the divergence with a test asserting BOTH halves, so neither a drift toward BC nor a later parity sweep can move it silently.
 2. **Ask which side of the CHECKED/UNCHECKED line each type sits on — it decides urgency, and it reverses judgements.** A failed AES key-unwrap integrity check was first left on `OpenSSLException` as an acceptable divergence, then reversed the same day on one measured fact: `OpenSSLException` extends `RuntimeException`, so the BC-shaped `catch (BadPaddingException)` caught **nothing** on the routine attacker-data path and the error escaped to whatever sat above. Type parity reads as cosmetic until you notice that. Where the mismatched type is unchecked and the matched one is checked, the divergence is not a style difference — it is a handler that never runs.
 
+
+**THE RULE HAS ONE BOUNDARY, added 2026-09-01 after a provider-wide survey measured two cases where BouncyCastle is the non-canonical side: match BouncyCastle's type UNLESS BOUNCYCASTLE DIVERGES FROM THE JCE CONTRACT.** Where BC is wrong, JCE-canonical wins and the divergence is pinned in BOTH halves.
+
+Both instances came from the same 235-cell measurement, and neither is arguable:
+
+1. **A short key.** We raise `InvalidKeyException`; BC raises `InvalidAlgorithmParameterException` because its key-length check sits inside its parameter handling. Both messages name the key length, so the disagreement is purely about type. `InvalidKeyException` is what the contract names for a bad key AND the JCE's next-provider fallback trigger, so matching BC would cost correctness twice.
+2. **A null key on the key-wrap ciphers.** BC raises a raw `NullPointerException` from `BaseWrapCipher.engineInit` — the exact defect we had just fixed in our own SPIs. "Match BC" plainly does not extend to copying a bug.
+
+**Pin such a divergence in both halves** — our type AND BC's, measured live — so a future parity sweep must delete a self-explaining test before it can "fix" the divergence. Asserting BC's half has a second job: a bcprov bump that moves the reference fails the pin loudly, which is what you want, because the reason for the divergence may have moved too. `ExceptionTypeDivergencePinTest` is the reference.
+
+**A pin that transcribes BC into a literal needs a DRIFT CHECK, and the literal needs ONE home.** A pin SHOULD hold a literal — re-measuring BC inside it would make it follow BC anywhere, which is the opposite of pinning — but then a dependency bump moves the reference with nothing failing. Hoist the literal into one holder with two consumers: the pin asserts our conformance against it, and a drift check measures LIVE BC against the same constant. Two copies would drift apart independently, which is the failure the consolidation prevents. `BouncyCastleTranscripts` + `BouncyCastleDriftTest` are the reference. Where a BC claim is prose rationale rather than a literal an assertion consumes, drift only makes a COMMENT stale, not a pin vacuous — record it as unmonitored rather than building machinery for it.
+
 **Measure before claiming parity, and measure every cell.** "Matches BC" from a handful of lengths is not a claim about the mapping — widening one such matrix from six lengths to ten turned "identical in every cell" into one decision disagreement plus a whole column of type mismatches. MT-31 tracks the provider-wide survey.
 
 **Throw the right JCE exception type — provider-chain fallback depends on it**
