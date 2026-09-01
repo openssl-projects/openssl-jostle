@@ -197,6 +197,25 @@ The worked example is `AESAgreementTest.testJce_aesCbcNoPadding_updateRejectsNon
 
 Two rules follow. **When a test asserts a REFUSAL that an independent implementation does not make, check the independent implementation before pinning it** — the assertion is a claim about the contract, not about our code. And **when inverting such a test, keep the old rationale quoted in one line of the new test's javadoc**; the reasoning was persuasive enough to survive review once, so the correction is worth more than the deletion.
 
+### Name the second witness, or report the result UNWITNESSED
+
+**Every clean-or-green instrument result that feeds a decision names its
+differently-shaped second witness. A result with no witness is reported as
+UNWITNESSED, not as clean.**
+
+A witness is differently shaped when it could fail independently: a static
+inventory against a behavioural survey, a from-spec reference against a
+roundtrip, a historical known-answer run against a live one, an independent
+grep against a tool's own census. A second run of the same instrument is not a
+witness. Neither is a louder assertion inside it.
+
+Why it is a checklist field and not a habit: across one day, five instrument
+faults and four wrapper-opinion cases were caught, and in every single case the
+trigger for looking was a human judgement - "too tidy", "looks surprising".
+That does not scale, does not transfer, and does not survive a tired afternoon.
+Naming the witness converts the judgement into a field someone can leave blank
+and be asked about.
+
 ### An instrument cannot audit itself — five ways a measuring test lied, all in one arc
 
 A survey, a detector, a known-answer control: each is a test whose OUTPUT you act
