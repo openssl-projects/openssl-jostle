@@ -55,6 +55,16 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
     @Override
     protected SecretKey engineGenerateSecret(KeySpec keySpec) throws InvalidKeySpecException
     {
+        // MT-54a. A null spec reached a later dereference and raised a raw
+        // NullPointerException - the defect class we are reporting against
+        // BouncyCastle. HKDFSecretKeyFactory, a sibling in this same package,
+        // already answered "unsupported KeySpec null" correctly; this brings
+        // PBKDF2 into line with code that was already right rather than
+        // inventing a policy.
+        if (keySpec == null)
+        {
+            throw new InvalidKeySpecException("unsupported KeySpec null");
+        }
         if (keySpec instanceof PBEKeySpec)
         {
             PBEKeySpec spec = (PBEKeySpec) keySpec;
@@ -138,7 +148,11 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
     @Override
     protected KeySpec engineGetKeySpec(SecretKey key, Class<?> keySpec) throws InvalidKeySpecException
     {
-        throw new UnsupportedOperationException("not implemented");
+        // MT-54b. Still not implemented - that is honest and unchanged - but
+        // the method DECLARES InvalidKeySpecException, and an unchecked refusal
+        // means a caller's catch never fires. BouncyCastle and the JDK both
+        // raise the declared type here.
+        throw new InvalidKeySpecException("getKeySpec is not implemented for this key factory");
     }
 
     @Override

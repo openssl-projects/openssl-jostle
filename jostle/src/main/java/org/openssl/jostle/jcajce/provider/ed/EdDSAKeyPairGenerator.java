@@ -24,6 +24,7 @@ import org.openssl.jostle.util.asn1.Asn1Ni;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.InvalidParameterException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
@@ -38,6 +39,13 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
     private final Asn1Ni asn1NI;
 
     private OSSLKeyType keyType = OSSLKeyType.NONE;
+
+    /** Ed25519's field size in bits - what the JDK's generator expects. */
+    private static final int ED25519_FIELD_BITS = 255;
+    /** Ed25519's encoded length in bits - what BouncyCastle also accepts. */
+    private static final int ED25519_ENCODED_BITS = 256;
+    /** Ed448, agreed by both references. */
+    private static final int ED448_KEY_BITS = 448;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
 
@@ -106,10 +114,26 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
     @Override
     public void initialize(int keysize, SecureRandom random)
     {
-        // Ed25519 / Ed448 key sizes are fixed by the algorithm; the size
-        // argument is advisory only (mirrors XECKeyPairGenerator). Refresh the
-        // RNG if the caller supplied one — the base-class no-op would otherwise
-        // silently discard both arguments.
+        // MT-52. This USED to ignore the size entirely, with a comment claiming
+        // it mirrored XECKeyPairGenerator - which actually validates. So the
+        // comment asserted a parity that did not exist, and we accepted -1, 0,
+        // 2^26 and Integer.MIN_VALUE where BouncyCastle and the JDK both raise
+        // InvalidParameterException.
+        //
+        // The two references disagree slightly on Ed25519 and the superset is
+        // taken deliberately: the JDK accepts 255 (the curve's field size),
+        // BouncyCastle accepts 255 and 256 (the encoded byte length in bits).
+        // Both name the same key, so refusing either would reject a caller one
+        // reference tells to use. Ed448 is 448 on both.
+        int effective = keysize;
+        boolean ok = (keyType == OSSLKeyType.ED448)
+                ? (effective == ED448_KEY_BITS)
+                : (effective == ED25519_FIELD_BITS || effective == ED25519_ENCODED_BITS);
+        if (!ok)
+        {
+            throw new InvalidParameterException("key size " + keysize + " is not valid for "
+                    + (keyType == OSSLKeyType.ED448 ? "Ed448 (448)" : "Ed25519 (255 or 256)"));
+        }
         this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 

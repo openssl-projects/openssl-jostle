@@ -37,10 +37,15 @@ import java.security.spec.AlgorithmParameterSpec;
  * <p>The key size is fixed by the algorithm, so {@code initialize(int)}
  * accepts only this variant's canonical key size (255 bits for X25519,
  * 448 for X448) and rejects any other with {@code InvalidParameterException};
- * {@code initialize(AlgorithmParameterSpec)} accepts only {@code null}.
- * A generic "XDH" generator that disambiguates via
- * {@code NamedParameterSpec} (Java 11+) is intentionally out of scope for
- * this cut — callers pick the variant by name ("X25519" / "X448").
+ * {@code initialize(AlgorithmParameterSpec)} refuses EVERY spec, {@code null}
+ * included, with {@code InvalidAlgorithmParameterException}.
+ *
+ * <p>That is narrower than both references and is a KNOWN divergence, MT-59:
+ * BouncyCastle and the JDK accept the MATCHING {@code NamedParameterSpec}
+ * (Java 11+), which is the JCA-idiomatic way to write this call. Supporting it
+ * needs a {@code java11} twin, so it is out of scope for this cut rather than
+ * unconsidered — callers pick the variant by name ("X25519" / "X448") and use
+ * {@code initialize(int)} or {@code initialize(SecureRandom)}.
  */
 public class XECKeyPairGenerator extends KeyPairGenerator
 {
@@ -119,12 +124,24 @@ public class XECKeyPairGenerator extends KeyPairGenerator
     public void initialize(AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidAlgorithmParameterException
     {
-        if (params != null)
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "no parameters accepted for " + keyType.getAlgorithmName());
-        }
-        this.random = DefaultRandSource.replaceWith(this.random, random);
+        // MT-52. A null spec used to be ACCEPTED here - the method refused
+        // every actual spec and let "no parameters at all" through, which is
+        // backwards: both references raise InvalidAlgorithmParameterException
+        // for null, and initialize(null) is not how a caller asks for
+        // defaults. initialize(int) or initialize(SecureRandom) is.
+        //
+        // Every spec is refused, so this is ONE arm. The two causes are
+        // distinguished in the MESSAGE, not in control flow - a second
+        // `params != null` branch after this one would never be reachable.
+        //
+        // Refusing a matching NamedParameterSpec is a known divergence from
+        // both references (MT-59); accepting it needs a java11 twin.
+        throw new InvalidAlgorithmParameterException(
+                (params == null
+                        ? "parameters are null"
+                        : "no parameters accepted (" + params.getClass().getName() + ")")
+                        + " for " + keyType.getAlgorithmName()
+                        + "; use initialize(keysize) or initialize(random)");
     }
 
     @Override

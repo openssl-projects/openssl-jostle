@@ -190,7 +190,11 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
     @Override
     protected KeySpec engineGetKeySpec(SecretKey key, Class<?> keySpec) throws InvalidKeySpecException
     {
-        throw new UnsupportedOperationException("not implemented");
+        // MT-54b. Still not implemented - that is honest and unchanged - but
+        // the method DECLARES InvalidKeySpecException, and an unchecked refusal
+        // means a caller's catch never fires. BouncyCastle and the JDK both
+        // raise the declared type here.
+        throw new InvalidKeySpecException("getKeySpec is not implemented for this key factory");
     }
 
     @Override
