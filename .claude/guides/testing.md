@@ -287,6 +287,70 @@ reach it.** A negative result from an instrument that cannot see the thing is
 indistinguishable from the thing's absence, so a wrong instrument fails silently
 and in the reassuring direction.
 
+### Answer "which legs cover the file I touched" BEFORE choosing the verification set
+
+**Symptom: four green legs, reported as sufficient, none of which ran the file
+that covers the change.** The unit legs EXCLUDE `*LimitTest*`
+(`build.gradle` 454/482/513/544). So a change under `interface/**/util` or
+`interface/**/jni` — whose closest coverage is almost always a `*LimitTest` —
+can be verified on every unit leg and still not have been exercised by the one
+file that tests it.
+
+Worked example, 2026-09-02: `md.c`'s xof validation was changed and verified on
+`unitTest8`, `unitTest11`, `unitTest25JNI` and `unitTest25FFI`, all green, then
+committed. `MDLimitTest` — 37 tests, and the file that actually covers that
+validation — runs only on the integration legs and **had not run**. It was green
+when finally run, so nothing was broken; **the answer came out right by luck,
+and that is recorded as luck.**
+
+Two rules follow:
+
+1. **A change under `interface/**/util`, `interface/**/jni`, or a
+   `java25 *FFI.java` REQUIRES the matching `*LimitTest` on an integration leg
+   in the pre-commit set.** The Tier-1 mapping claim must NAME the Limit test
+   and the leg it ran on, not merely say "unit legs green".
+2. **When a commit is authorized mid-work** ("commit what you have"), the commit
+   question states which legs RAN and which did NOT for the touched files. The
+   authorizer can still say commit — but they say it knowing, rather than
+   discovering the gap afterwards.
+
+The general form: leg-exclusion patterns mean a green leg proves only what that
+leg includes. Read the includes before choosing what to run, not after.
+
+### The BRIDGE is a leg dimension, exactly like the JDK level
+
+**Symptom: a guard pinned, green, and broken on the other bridge.** Measured
+2026-09-02. A null `err` array was aborting the JVM from two `native public`
+methods; the fix went into the JNI glue, a pin was written, it passed on
+`unitTest8`, and it was committed under the subject *"Return a typed refusal
+instead of aborting on a null error array"*. The first run on
+`unitTest25FFI` **failed**: `MDServiceFFI` still raised a bare
+`RuntimeException`, because `MemorySegment.ofArray(null)` NPEs and the catch
+rewraps it. The commit's subject was true of half the surface it named.
+
+**What caught it was the pin, one leg later** — not review, not the survey that
+found the original defect, not re-reading the ruling that had said "both
+bridges". That is the argument for pinning guards that already look correct,
+made concrete: the JNI half was pinned and green while the FFI half was broken,
+and only running the OTHER BRIDGE separated them.
+
+So the bridge is a leg dimension in its own right:
+
+1. **A guard spanning two bridges is verified on BOTH before its commit.** A pin
+   green on one bridge says nothing about the other — they are different code
+   (C glue versus a Java downcall) reached through the same interface.
+2. **For any change or pin touching an NI surface, the Tier-1 mapping names a
+   JNI leg AND an FFI leg.** `java25 *FFI.java` additionally pulls in the
+   integration-leg Limit test, per the leg-coverage rule above.
+3. **A commit subject that claims a surface is checked against every leg of that
+   surface before it is written.** "Refuses a null error array" is a claim about
+   the boundary, not about one implementation of it.
+
+**Land a late completion as its own commit**, with a subject saying what it is
+("Complete the null error-array refusal on the FFI bridge"), rather than folding
+it into a neighbouring commit where the half-fix becomes invisible. Honest
+history beats a tidy one.
+
 ### Every JDK-level source set carries a CANARY, because wiring cannot be read
 
 **Symptom: a source set is declared, its tests compile, and one leg silently
