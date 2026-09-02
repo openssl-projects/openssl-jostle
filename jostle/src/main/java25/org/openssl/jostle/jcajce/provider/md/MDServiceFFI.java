@@ -134,6 +134,17 @@ public class MDServiceFFI implements MDServiceNI
     @Override
     public long ni_allocateDigest(String name, int xofLen, int[] err)
     {
+        // The err array is the ONLY channel this method has for reporting a
+        // failure - it returns the reference itself - so its absence cannot be
+        // reported through it. Refuse and return 0, matching the JNI bridge
+        // (md_jni.c) exactly: the same hostile input must get the same answer
+        // through either bridge. Without this, MemorySegment.ofArray(null)
+        // raises NullPointerException, which the catch below rewraps as a bare
+        // RuntimeException - neither typed nor equal to the JNI answer.
+        if (err == null)
+        {
+            return 0;
+        }
         try (var a = Arena.ofConfined())
         {
             var nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
@@ -151,6 +162,17 @@ public class MDServiceFFI implements MDServiceNI
     @Override
     public long ni_copyDigest(long ref, int[] err)
     {
+        // The err array is the ONLY channel this method has for reporting a
+        // failure - it returns the reference itself - so its absence cannot be
+        // reported through it. Refuse and return 0, matching the JNI bridge
+        // (md_jni.c) exactly: the same hostile input must get the same answer
+        // through either bridge. Without this, MemorySegment.ofArray(null)
+        // raises NullPointerException, which the catch below rewraps as a bare
+        // RuntimeException - neither typed nor equal to the JNI answer.
+        if (err == null)
+        {
+            return 0;
+        }
         try
         {
             var errSeg = MemorySegment.ofArray(err);
