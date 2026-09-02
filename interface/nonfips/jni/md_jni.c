@@ -32,11 +32,25 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     const char *name = NULL;
 
     //
-    // err needs to be defined and accessible
+    // The err array is the ONLY channel this function has for reporting a
+    // failure - it returns the reference itself - so its absence cannot be
+    // reported through it. Refuse and return 0, matching what a null digest
+    // name already does. These were jo_assert until 2026-09-02: on Java 8 the
+    // NI classes are public-reachable with no module to hide them, so a caller
+    // passing a null array aborted the JVM.
     //
-    jo_assert(_err != NULL);
+    if (_err == NULL) {
+        return 0;
+    }
     err = (*env)->GetIntArrayElements(env, _err, NULL);
-    jo_assert(err != NULL);
+    //
+    // Different CAUSE - a JVM access or allocation failure, not caller data -
+    // but the identical consequence and the identical fix: the thing that
+    // failed IS the return channel, so JO_FAILED_ACCESS_* has nowhere to go.
+    //
+    if (err == NULL) {
+        return 0;
+    }
 
     if (_digest == NULL) {
         err[0] = JO_NAME_IS_NULL;
@@ -73,9 +87,26 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     int32_t *err = NULL;
     md_ctx *new_ctx = NULL;
 
-    jo_assert(_err != NULL);
+    //
+    // The err array is the ONLY channel this function has for reporting a
+    // failure - it returns the reference itself - so its absence cannot be
+    // reported through it. Refuse and return 0, matching what a null digest
+    // name already does. These were jo_assert until 2026-09-02: on Java 8 the
+    // NI classes are public-reachable with no module to hide them, so a caller
+    // passing a null array aborted the JVM.
+    //
+    if (_err == NULL) {
+        return 0;
+    }
     err = (*env)->GetIntArrayElements(env, _err, NULL);
-    jo_assert(err != NULL);
+    //
+    // Different CAUSE - a JVM access or allocation failure, not caller data -
+    // but the identical consequence and the identical fix: the thing that
+    // failed IS the return channel, so JO_FAILED_ACCESS_* has nowhere to go.
+    //
+    if (err == NULL) {
+        return 0;
+    }
 
     md_ctx *ctx = (md_ctx *) ref;
     if (ctx == NULL) {
