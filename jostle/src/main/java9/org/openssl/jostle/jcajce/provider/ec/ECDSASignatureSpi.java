@@ -167,6 +167,29 @@ public class ECDSASignatureSpi extends SignatureSpi
         requireInitialised();
         try
         {
+            // MT-39, ruled by Megan 2026-09-02: "if BC or the JCE accept
+            // zero length signatures then we should too" - and measured,
+            // BOTH references THROW here, so the rule's OR clause never
+            // engages for ECDSA and we throw as well.
+            //
+            // A zero-length signature is not a ECDSA signature that fails to
+            // verify; it is structurally impossible, since the DER SEQUENCE
+            // carrying (r, s) cannot be empty. Returning false said "this
+            // signature did not match", a different and weaker claim. Our own
+            // NONEwithECDSA path already threw, so this also removes an
+            // inconsistency between two entry points of this same class.
+            //
+            // The null case rides the same guard - disclosed, not assumed: we
+            // previously raised SignatureException here, where verify() declares
+            // SignatureException and BouncyCastle raises it. (The JDK raises a
+            // raw NullPointerException for DSA - its own defect, not a target.)
+            if (sigBytes == null || sigBytes.length == 0)
+            {
+                throw new SignatureException(
+                        "signature is " + (sigBytes == null ? "null" : "empty")
+                                + "; a ECDSA signature cannot be");
+            }
+
             int code = ecServiceNI.verify(
                     ref.getReference(),
                     sigBytes,
