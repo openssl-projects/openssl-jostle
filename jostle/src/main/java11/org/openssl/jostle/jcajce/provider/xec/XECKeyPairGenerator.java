@@ -1,0 +1,184 @@
+/*
+ *
+ *   Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
+ *
+ *   Licensed under the Apache License 2.0 (the "License"). You may not use
+ *   this file except in compliance with the License.  You can obtain a copy
+ *   in the file LICENSE in the source distribution or at
+ *   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider.xec;
+
+import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.util.asn1.Asn1Ni;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
+
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.NamedParameterSpec;
+
+/**
+ * KeyPairGenerator for X25519 / X448. Each instance is fixed to one key
+ * type (set at construction by the provider registration), so unlike EC
+ * there is no curve to select — the algorithm name fully determines the
+ * key. {@code generateKeyPair} delegates to OpenSSL keygen via
+ * {@link XECServiceNI}.
+ *
+ * <p>The key size is fixed by the algorithm, so {@code initialize(int)}
+ * accepts only this variant's canonical key size (255 bits for X25519,
+ * 448 for X448) and rejects any other with {@code InvalidParameterException};
+ * <p><b>This is the {@code java11} copy.</b> It ACCEPTS the
+ * {@code NamedParameterSpec} matching this generator's own variant — the
+ * JCA-idiomatic call, and what BouncyCastle and the JDK both accept (MT-59,
+ * measured 2026-09-02). A MISMATCHED {@code NamedParameterSpec} and every other
+ * spec type are refused with {@code InvalidAlgorithmParameterException}, and so
+ * is {@code null}.
+ *
+ * <p>The Java 8 baseline copy cannot reference {@code NamedParameterSpec} at
+ * all — it is a Java 11 API — so it refuses every spec including the matching
+ * one. That is why this twin exists; a JDK 8 caller still selects the variant by
+ * name ("X25519" / "X448") and uses {@code initialize(int)} or
+ * {@code initialize(SecureRandom)}.
+ */
+public class XECKeyPairGenerator extends KeyPairGenerator
+{
+    // Instance fields, not NISelector statics (NISelector for JSL,
+    // FIPSNISelector for JSLFIPS).
+    private final XECServiceNI xecServiceNI;
+    private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
+
+    private final OSSLKeyType keyType;
+    private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
+
+    // Canonical RFC 8410 key sizes in bits, used only to validate the JCA
+    // initialize(int) selector against this generator's fixed variant. These
+    // are external JCE-convention constants (like algorithm names / OIDs),
+    // not OpenSSL-owned fixed values to be queried at the boundary — the key
+    // itself is generated from the type name, never from a size.
+    private static final int X25519_KEY_BITS = 255;
+    private static final int X448_KEY_BITS = 448;
+
+    public XECKeyPairGenerator(OSSLKeyType keyType)
+    {
+        this(NISelector.XECServiceNI, NISelector.SpecNI, NISelector.Asn1NI, keyType);
+    }
+
+
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Every key this SPI produces is BOUND to it, and is
+     * then usable only through that instance. Null is the direct-SPI realm,
+     * which has no provider boundary to protect. See MT-14 and
+     * {@code PKEYKeySpec.usableBy}.
+     */
+    private final java.security.Provider providerInstance;
+
+    public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType)
+    {
+        this(xecServiceNI, specNI, asn1NI, keyType, null);
+    }
+
+    public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType, java.security.Provider providerInstance)
+    {
+        super(keyType.getAlgorithmName());
+        this.providerInstance = providerInstance;
+        this.keyType = keyType;
+        this.xecServiceNI = xecServiceNI;
+        this.specNI = specNI;
+        this.asn1NI = asn1NI;
+    }
+
+    @Override
+    public void initialize(int keysize, SecureRandom random)
+    {
+        // The key size is fixed by the algorithm (X25519 / X448). Reject a
+        // size that does not match this variant so a caller asking for the
+        // wrong strength gets a typed error rather than silently receiving
+        // this variant's key regardless — SunEC's fixed XDH generators do
+        // the same. The RNG is refreshed only after the size is validated.
+        int expected = expectedKeySizeBits();
+        if (keysize != expected)
+        {
+            throw new InvalidParameterException(
+                    keyType.getAlgorithmName() + " key size must be " + expected
+                            + " bits; got " + keysize);
+        }
+        this.random = DefaultRandSource.replaceWith(this.random, random);
+    }
+
+    /** Canonical key size in bits for this generator's fixed variant. */
+    private int expectedKeySizeBits()
+    {
+        return keyType == OSSLKeyType.X448 ? X448_KEY_BITS : X25519_KEY_BITS;
+    }
+
+    @Override
+    public void initialize(AlgorithmParameterSpec params, SecureRandom random)
+            throws InvalidAlgorithmParameterException
+    {
+        // MT-59, the reason this twin exists. The MATCHING NamedParameterSpec
+        // is the JCA-idiomatic way to write this call and both references
+        // accept it; the Java 8 baseline cannot even name the type.
+        //
+        // A null spec is still refused (MT-52): initialize(null) is not how a
+        // caller asks for defaults.
+        if (params == null)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "parameters are null for " + keyType.getAlgorithmName()
+                            + "; use initialize(keysize) or initialize(random)");
+        }
+        if (params instanceof NamedParameterSpec)
+        {
+            String asked = ((NamedParameterSpec) params).getName();
+            if (!keyType.getAlgorithmName().equalsIgnoreCase(asked))
+            {
+                // A mismatched name means the caller wanted the OTHER variant
+                // from a generator fixed to this one. BouncyCastle raises the
+                // declared checked type here; the JDK raises the unchecked
+                // InvalidParameterException for XDH while using the checked one
+                // for its own Edwards generators - its own two generators
+                // disagree, so the DECLARED type settles it rather than a vote.
+                throw new InvalidAlgorithmParameterException(
+                        "this generator is fixed to " + keyType.getAlgorithmName()
+                                + " and cannot produce " + asked);
+            }
+            this.random = DefaultRandSource.replaceWith(this.random, random);
+            return;
+        }
+        throw new InvalidAlgorithmParameterException(
+                "no parameters accepted (" + params.getClass().getName() + ") for "
+                        + keyType.getAlgorithmName()
+                        + "; use a matching NamedParameterSpec, initialize(keysize) or initialize(random)");
+    }
+
+    @Override
+    public void initialize(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
+    {
+        initialize(params, null);
+    }
+
+    @Override
+    public KeyPair generateKeyPair()
+    {
+        long ref = xecServiceNI.generateKeyPair(keyType.getTypeName(), random);
+        if (ref == 0)
+        {
+            throw new IllegalStateException("unexpected null pointer from native layer");
+        }
+        PKEYKeySpec spec = new PKEYKeySpec(specNI, ref, keyType, providerInstance);
+        return new KeyPair(new JOXECPublicKey(asn1NI, spec), new JOXECPrivateKey(asn1NI, spec));
+    }
+}

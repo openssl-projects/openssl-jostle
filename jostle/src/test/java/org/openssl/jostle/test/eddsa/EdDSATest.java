@@ -125,7 +125,15 @@ public class EdDSATest
         }
         catch (InvalidAlgorithmParameterException e)
         {
-            Assertions.assertEquals("expected instance of EdDSAParameterSpec", e.getMessage());
+            // MT-59, 2026-09-02: the message changed because the BEHAVIOUR
+            // did. This generator now also accepts a matching
+            // NamedParameterSpec, so "expected instance of EdDSAParameterSpec"
+            // had become false - it named one of the two types it takes. The
+            // refusal itself is unchanged: an unrelated spec is still refused
+            // with InvalidAlgorithmParameterException.
+            Assertions.assertTrue(
+                    e.getMessage().startsWith("expected an EdDSAParameterSpec or a NamedParameterSpec"),
+                    "message should name both accepted spec types: " + e.getMessage());
         }
     }
 

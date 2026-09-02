@@ -154,14 +154,14 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
         // existing paramToTypeMap logic, so the accept-matching /
         // refuse-mismatched rule is written once rather than twice.
         //
-        // This is the java15 copy and it DUPLICATES the java11 one verbatim.
-        // The change belongs at java11, where NamedParameterSpec enters the
-        // platform; this copy exists only because the ed package already had a
-        // java15 source set, and a javaN copy that omitted the method would
-        // silently withdraw the support on JDK 15+. The duplication is
-        // deliberate (Megan, 2026-09-02: introduce the change at the level the
-        // API arrives, and if a higher source set duplicates the class, so be
-        // it). Edit both copies together.
+        // This is the java11 copy, and java11 is where it belongs:
+        // NamedParameterSpec enters the platform at 11, so the support enters
+        // at 11 too. A caller on JDK 11-14 gets THIS copy. The java15 copy
+        // duplicates this method verbatim - the duplication is accepted
+        // deliberately (Megan, 2026-09-02: introduce the change at the level
+        // the API arrives, and if a higher source set duplicates the class,
+        // so be it) rather than letting the level of support be decided by
+        // which source sets happen to exist.
         String askedName;
         if (params instanceof EdDSAParameterSpec)
         {
