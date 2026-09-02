@@ -110,6 +110,25 @@ public class MDServiceSPI extends MessageDigestSpi implements Cloneable
             // Per the MessageDigestSpi contract, "buffer too small for the
             // digest output" must surface as DigestException rather than the
             // IllegalArgumentException the NI layer would otherwise throw.
+            //
+            // MT-39/ask 3, ruled by Megan 2026-09-02 ("do what the JDK does"):
+            // the SAME translation owes the offset and the buffer. This method
+            // declares DigestException; the too-small case was translated and a
+            // bad offset was not, so it fell through to the NI layer's
+            // IllegalArgumentException - unchecked, and a caller's
+            // catch (DigestException) never fired. Measured: the JDK raises
+            // DigestException here, BouncyCastle raises
+            // ArrayIndexOutOfBoundsException. This is the existing judgement
+            // finishing its job, not a new policy.
+            if (buf == null)
+            {
+                throw new DigestException("output buffer is null");
+            }
+            if (offset < 0 || len < 0 || offset > buf.length - len)
+            {
+                throw new DigestException("output range is invalid (offset " + offset
+                        + ", len " + len + ", buffer " + buf.length + ")");
+            }
             int needed = mdServiceNI.getDigestOutputLen(ref.getReference());
             if (len < needed)
             {
