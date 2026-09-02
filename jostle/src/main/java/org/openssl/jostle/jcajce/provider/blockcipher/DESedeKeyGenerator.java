@@ -18,6 +18,7 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -68,17 +69,26 @@ public class DESedeKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(SecureRandom random)
     {
-        if (random == null)
-        {
-            throw new IllegalArgumentException("random is null");
-        }
+        // MT-48d, and the ONLY loosening in this arc: a null SecureRandom means
+        // "use the default", which is what BouncyCastle and the JDK both do and
+        // what the overload's contract implies - it declares no exception. We
+        // were alone in refusing. resolveProviderRandom already supplies the
+        // provider default for null, so removing the check is the whole fix.
         this.random = CryptoServicesRegistrar.resolveProviderRandom(random, providerRandom);
     }
 
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
-        throw new UnsupportedOperationException("not implemented, use keySize, random");
+        // JCA declares InvalidAlgorithmParameterException for this overload, so
+        // an unchecked refusal means a caller's catch never fires (MT-48a).
+        // "No parameters are supported" is still the answer; only the type of
+        // the refusal changes.
+        throw new InvalidAlgorithmParameterException(
+                params == null
+                        ? "no AlgorithmParameterSpec is supported; use init(keysize) or init(random)"
+                        : "unsupported parameters " + params.getClass().getName()
+                                + "; use init(keysize) or init(random)");
     }
 
     @Override
@@ -90,14 +100,11 @@ public class DESedeKeyGenerator extends KeyGeneratorSpi
         // for 2-key TDES — is rejected.
         if (keysize != 168 && keysize != 192)
         {
-            throw new IllegalArgumentException("key size must be 168 or 192 bits for DESede (3-key Triple DES)");
+            // MT-48c: the JCA-named type for init(int).
+            throw new InvalidParameterException("key size must be 168 or 192 bits for DESede (3-key Triple DES)");
         }
 
-        if (random == null)
-        {
-            throw new IllegalArgumentException("random is null");
-        }
-
+        // MT-48d: a null SecureRandom is the caller asking for the default.
         this.random = CryptoServicesRegistrar.resolveProviderRandom(random, providerRandom);
     }
 

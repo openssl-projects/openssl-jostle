@@ -20,6 +20,7 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
@@ -58,8 +59,25 @@ public class AESKeyGeneratorTest
     }
 
 
+    /**
+     * INVERTED for MT-48a, 2026-09-02.
+     *
+     * <p>This test previously pinned
+     * {@code UnsupportedOperationException("not implemented, use keySize,
+     * random")} as the correct answer, with no rationale recorded beyond the
+     * assertion itself. The refusal was right; the TYPE was not.
+     * {@code KeyGenerator.init(AlgorithmParameterSpec, SecureRandom)} declares
+     * {@code InvalidAlgorithmParameterException}, and BouncyCastle and the JDK
+     * both raise it - so an unchecked refusal meant a caller's
+     * {@code catch (InvalidAlgorithmParameterException)} never fired and the
+     * error escaped to whatever sat above.
+     *
+     * <p>A test asserting a refusal that no independent implementation makes is
+     * a claim about the contract, not about our code, which is why this one had
+     * to be measured against the references before it could be trusted.
+     */
     @Test
-    public void testInitFails_notSupported() throws Exception
+    public void testInitWithParameters_raisesTheDeclaredCheckedException() throws Exception
     {
         KeyGenerator keyGen = KeyGenerator.getInstance("AES", JostleProvider.PROVIDER_NAME);
         try
@@ -68,9 +86,10 @@ public class AESKeyGeneratorTest
             {
             }, new SecureRandom());
             Assertions.fail("Should have thrown an exception");
-        } catch (UnsupportedOperationException ose)
+        } catch (InvalidAlgorithmParameterException expected)
         {
-            Assertions.assertEquals("not implemented, use keySize, random", ose.getMessage());
+            Assertions.assertTrue(expected.getMessage().contains("use init(keysize) or init(random)"),
+                    "the refusal should still say what to use instead: " + expected.getMessage());
         }
 
     }

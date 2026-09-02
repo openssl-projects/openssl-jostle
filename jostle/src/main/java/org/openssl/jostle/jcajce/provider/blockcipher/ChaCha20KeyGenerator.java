@@ -18,6 +18,7 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -46,7 +47,15 @@ public class ChaCha20KeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
-        throw new UnsupportedOperationException("not implemented, use keySize, random");
+        // JCA declares InvalidAlgorithmParameterException for this overload, so
+        // an unchecked refusal means a caller's catch never fires (MT-48a).
+        // "No parameters are supported" is still the answer; only the type of
+        // the refusal changes.
+        throw new InvalidAlgorithmParameterException(
+                params == null
+                        ? "no AlgorithmParameterSpec is supported; use init(keysize) or init(random)"
+                        : "unsupported parameters " + params.getClass().getName()
+                                + "; use init(keysize) or init(random)");
     }
 
     @Override
@@ -54,7 +63,9 @@ public class ChaCha20KeyGenerator extends KeyGeneratorSpi
     {
         if (keysize != KEY_SIZE_BITS)
         {
-            throw new IllegalArgumentException("ChaCha20 key size must be 256 bits");
+            // MT-48c: the JCA-named type for init(int); a subclass of
+            // IllegalArgumentException, so nothing that caught before stops.
+            throw new InvalidParameterException("ChaCha20 key size must be 256 bits");
         }
         this.random = CryptoServicesRegistrar.getSecureRandom(random);
     }

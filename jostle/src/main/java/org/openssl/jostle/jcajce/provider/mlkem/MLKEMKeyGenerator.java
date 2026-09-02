@@ -123,6 +123,16 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
+        // MT-48b. Without this, a null spec reached the trailing
+        // params.getClass() and raised a raw NullPointerException - the defect
+        // class we are reporting against BouncyCastle. MLXKEMKeyGenerator, the
+        // sibling KEM generator, already guarded it; this brings ML-KEM into
+        // line with code that was already correct rather than inventing a
+        // policy.
+        if (params == null)
+        {
+            throw new InvalidAlgorithmParameterException("parameters are null");
+        }
         if (params instanceof KEMExtractSpec)
         {
             PrivateKey key = ((KEMExtractSpec) params).getPrivateKey();

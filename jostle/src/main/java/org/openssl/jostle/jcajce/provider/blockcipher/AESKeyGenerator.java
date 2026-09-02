@@ -21,6 +21,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import javax.security.auth.DestroyFailedException;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -88,7 +89,15 @@ public class AESKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
-        throw new UnsupportedOperationException("not implemented, use keySize, random");
+        // JCA declares InvalidAlgorithmParameterException for this overload, so
+        // an unchecked refusal means a caller's catch never fires (MT-48a).
+        // "No parameters are supported" is still the answer; only the type of
+        // the refusal changes.
+        throw new InvalidAlgorithmParameterException(
+                params == null
+                        ? "no AlgorithmParameterSpec is supported; use init(keysize) or init(random)"
+                        : "unsupported parameters " + params.getClass().getName()
+                                + "; use init(keysize) or init(random)");
     }
 
     @Override
@@ -102,12 +111,15 @@ public class AESKeyGenerator extends KeyGeneratorSpi
             case 256:
                 break;
             default:
-                throw new IllegalArgumentException("key size must be 128, 192 or 256");
+                // MT-48c: InvalidParameterException is what JCA names for
+                // KeyGenerator.init(int). It EXTENDS IllegalArgumentException,
+                // so this widens what callers catch rather than narrowing it.
+                throw new InvalidParameterException("key size must be 128, 192 or 256");
         }
 
         if (fixedKeySize > 0 && keysize != fixedKeySize)
         {
-            throw new IllegalArgumentException("key size must be " + fixedKeySize);
+            throw new InvalidParameterException("key size must be " + fixedKeySize);
         }
 
 
