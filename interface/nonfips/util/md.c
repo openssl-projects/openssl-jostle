@@ -22,6 +22,15 @@
 #include "jo_assert.h"
 #include "rand/jostle_lib_ctx.h"
 
+/**
+ * Largest XOF output this library will size a context for, in bytes.
+ *
+ * <p>Ours to choose: OpenSSL imposes no limit on XOF output length, so this is
+ * an input we state rather than a fact we query. See md_ctx_create for why the
+ * bound exists at all.
+ */
+#define MD_MAX_XOF_BYTES (16 * 1024 * 1024)
+
 md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
     ERR_clear_error();
 
@@ -33,8 +42,38 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
 
     // Reject mismatched xof_len up front so the NI surface can't enter a
     // broken state where xof=0 but the algorithm is XOF (or vice versa).
+    //
+    // Two tightenings, 2026-09-02, both from the Java-8 NI-reachability review:
+    //
+    // 1. A NON-XOF digest now accepts ONLY 0. The old test was `xof_len > 0`,
+    //    so a NEGATIVE value slipped through as "not set" and was silently
+    //    ignored - measured: SHA2-256 with xof_len -1 returned a usable ctx. A
+    //    parameter that means nothing for this algorithm must be exactly its
+    //    null value; silently accepting a nonsense one is the acceptance smell.
+    //
+    // 2. An XOF's xof_len now has an UPPER BOUND. It becomes
+    //    digest_byte_length below and sizes every downstream output; measured,
+    //    SHAKE-256 accepted INT32_MAX and reported it from
+    //    ni_getDigestOutputLen. The C itself writes into the caller's buffer so
+    //    it allocates nothing, but any caller that sizes an allocation from
+    //    that number inherits it - including our own MDServiceSPI.engineDigest,
+    //    which does `new byte[getDigestOutputLen(...)]`. An allocation sized by
+    //    an untrusted length needs a stated bound, so here it is stated.
+    //
+    //    MD_MAX_XOF_BYTES is a value WE choose, not one OpenSSL defines - EVP
+    //    imposes no XOF output limit - so it is hard-coded deliberately rather
+    //    than queried. 16 MiB is far above any real use (the largest standard
+    //    XOF output in use is measured in hundreds of bytes) and far below a
+    //    length that turns a caller's buffer allocation into a denial of
+    //    service.
     const int is_xof = EVP_MD_xof(md);
-    if ((is_xof && xof_len <= 0) || (!is_xof && xof_len > 0)) {
+    if (is_xof) {
+        if (xof_len <= 0 || xof_len > MD_MAX_XOF_BYTES) {
+            EVP_MD_free(md);
+            *err = JO_MD_XOF_LEN_INVALID;
+            return NULL;
+        }
+    } else if (xof_len != 0) {
         EVP_MD_free(md);
         *err = JO_MD_XOF_LEN_INVALID;
         return NULL;
