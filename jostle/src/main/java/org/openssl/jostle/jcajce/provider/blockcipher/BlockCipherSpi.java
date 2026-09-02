@@ -294,19 +294,72 @@ class BlockCipherSpi extends CipherSpi
         }
     }
 
+    /**
+     * The family member whose block size this SPI reports before {@code init}.
+     *
+     * <p>Every member of a cipher family shares a block size, so any one of
+     * them can answer for the family - but WHICH member is only known once a
+     * key arrives, since AES128 and AES256 are distinct values. A subclass
+     * names one here so {@link #engineGetBlockSize()} can answer without a key.
+     *
+     * <p>Nothing is transcribed: the NUMBER still comes from
+     * {@link OSSLCipher}, and only the choice of which member to ask is ours.
+     * {@code blockSizeTableMatchesNative} witnesses that table against OpenSSL
+     * itself.
+     *
+     * <p>Null by default so a new subclass cannot fail to compile - the guard
+     * against one forgetting is behavioural, not a compiler error: every
+     * registered transformation is driven uninitialised by
+     * {@code blockSizeIsAnswerableBeforeInit}.
+     */
+    protected OSSLCipher blockSizeReference()
+    {
+        return null;
+    }
+
     @Override
     protected int engineGetBlockSize()
     {
         synchronized (this)
         {
-            requireInitialized();
+            // Block size is an algorithm invariant - it depends on neither
+            // the key nor the init state - so this method requires no
+            // initialisation. The JCE contract agrees: getBlockSize is
+            // documented to return the size "or 0 if the underlying algorithm
+            // is not a block cipher", with no init precondition, and
+            // BouncyCastle and the JDK both answer uninitialised (MT-57).
+            //
+            // requireInitialized() USED to gate this, and simply deleting it
+            // would NOT have been correct: osslCipher is resolved during
+            // engineInit from the KEY SIZE (AES128 / AES192 / AES256 are
+            // distinct values), so it is null beforehand and the guard was the
+            // only thing standing between a caller and a NullPointerException.
+            // Hence the three-step resolution below.
+            //
+            // The NI-level gate is a DIFFERENT question and stays:
+            // BlockCipherNI.getBlockSize reads a cached native value that can
+            // be stale after a failed init, and BlockCipherLimitTest pins its
+            // refusal. This method never consults it.
+            OSSLCipher c = mandatedCipher != null ? mandatedCipher
+                    : (osslCipher != null ? osslCipher : blockSizeReference());
+            if (c == null)
+            {
+                // Unreachable while every subclass names a reference, which
+                // blockSizeIsAnswerableBeforeInit pins for every registered
+                // transformation. Fail loudly rather than invent an answer.
+                requireInitialized();
+                throw new IllegalStateException("cipher not initialized");
+            }
 
-            // Block size is an algorithm invariant (independent of key/IV/init
-            // state), so source it from the cipher descriptor rather than the
-            // native EVP_CIPHER_CTX. Querying the context here during the
-            // auto-IV branch of engineInit — before EVP_CipherInit_ex has run —
-            // reported "not initialized" on a cold cache (CBC_AUTO_IV_COLD_CACHE_GAP.md).
-            return osslCipher.getBlockSize();
+            // TRANSLATION BOUNDARY, not a value lookup. OpenSSL reports a
+            // block size of 1 for a stream cipher (EVP_CIPHER_get_block_size);
+            // the JCE reserves 0 for "not a block cipher". Passing OpenSSL's 1
+            // straight through is what made us diverge from both references on
+            // ChaCha20, initialised as well as not. Same shape as
+            // MDServiceSPI.engineDigest translating a native
+            // IllegalArgumentException into the declared DigestException.
+            int bs = c.getBlockSize();
+            return bs == 1 ? 0 : bs;
         }
     }
 

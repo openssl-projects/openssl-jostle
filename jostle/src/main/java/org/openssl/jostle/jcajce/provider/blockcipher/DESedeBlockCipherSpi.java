@@ -247,4 +247,11 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
         }
         throw new InvalidKeyException("unsupported key algorithm " + alg);
     }
+
+    @Override
+    protected OSSLCipher blockSizeReference()
+    {
+        // the family has one member
+        return OSSLCipher.DES_EDE3;
+    }
 }

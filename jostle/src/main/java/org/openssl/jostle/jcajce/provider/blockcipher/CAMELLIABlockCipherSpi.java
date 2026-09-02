@@ -142,4 +142,11 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
     // AlgorithmParameterSpec overload above — which performs determineOSSLCipher.
     // Overriding it here previously narrowed support to IvParameterSpec only,
     // which broke GCM decryption from an AlgorithmParameters (as used by CMS).
+
+    @Override
+    protected OSSLCipher blockSizeReference()
+    {
+        // CAMELLIA128/192/256 all report 16
+        return OSSLCipher.CAMELLIA128;
+    }
 }

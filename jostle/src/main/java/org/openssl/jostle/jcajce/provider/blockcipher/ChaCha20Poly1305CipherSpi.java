@@ -84,4 +84,11 @@ public class ChaCha20Poly1305CipherSpi extends BlockCipherSpi
             throw new InvalidAlgorithmParameterException("ChaCha20-Poly1305 tag length must be 128 bits");
         }
     }
+
+    @Override
+    protected OSSLCipher blockSizeReference()
+    {
+        // typed AEAD, not STREAM, yet still blockSize 1 - which is why the discriminator is the SIZE, not the type
+        return OSSLCipher.CHACHA20_POLY1305;
+    }
 }

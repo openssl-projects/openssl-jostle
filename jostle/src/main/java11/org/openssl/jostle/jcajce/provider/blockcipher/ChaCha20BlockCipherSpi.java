@@ -78,4 +78,11 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
         }
         super.engineInit(opmode, key, params, random);
     }
+
+    @Override
+    protected OSSLCipher blockSizeReference()
+    {
+        // a stream cipher: OpenSSL says 1, the JCE surface reports 0
+        return OSSLCipher.CHACHA20;
+    }
 }

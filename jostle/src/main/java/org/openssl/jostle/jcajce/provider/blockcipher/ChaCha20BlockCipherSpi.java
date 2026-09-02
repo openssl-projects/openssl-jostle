@@ -47,4 +47,11 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
         // subclasses (AES/ARIA/...) that resolve it from key length at init.
         osslCipher = OSSLCipher.CHACHA20;
     }
+
+    @Override
+    protected OSSLCipher blockSizeReference()
+    {
+        // a stream cipher: OpenSSL says 1, the JCE surface reports 0
+        return OSSLCipher.CHACHA20;
+    }
 }

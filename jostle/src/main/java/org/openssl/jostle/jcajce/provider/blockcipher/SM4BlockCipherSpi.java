@@ -136,4 +136,11 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
     // AlgorithmParameterSpec overload above — which performs determineOSSLCipher.
     // Overriding it here previously narrowed support to IvParameterSpec only,
     // which broke GCM decryption from an AlgorithmParameters (as used by CMS).
+
+    @Override
+    protected OSSLCipher blockSizeReference()
+    {
+        // the family has one member
+        return OSSLCipher.SM4;
+    }
 }
