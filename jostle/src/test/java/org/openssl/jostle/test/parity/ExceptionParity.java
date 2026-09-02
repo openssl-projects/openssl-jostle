@@ -80,6 +80,41 @@ public final class ExceptionParity
                     ours.message(), bc.message());
         }
 
+        // A randomly-valued result (a fresh key) is compared by its SHAPE.
+        // Placed before every byte arm: a descriptor is not output, and the
+        // byte arms would report "no-output" for it.
+        String ourD = ours.descriptor();
+        String bcD = bc.descriptor();
+        if (ourD != null || bcD != null)
+        {
+            if (ours.isThrow() != bc.isThrow())
+            {
+                // One side REFUSED where the other produced a key. The single
+                // most important cell type in a fault survey, and the first
+                // version of this arm raised a harness error for it because it
+                // only asked whether both descriptors were present.
+                return new ParityResult(ParityVerdict.DECISION_DIVERGENCE, ourType, bcType,
+                        ours.isThrow() ? "we-refuse-bc-produces" : "we-produce-bc-refuses",
+                        ours.message(), bc.message());
+            }
+            if (ourD == null || bcD == null)
+            {
+                // One side described a shape and the other did not. That is the
+                // HARNESS having used two shapes for one cell, never a provider
+                // difference - so it is loud here rather than a plausible row.
+                throw new IllegalArgumentException(
+                        "shape-descriptor compared against a different observation shape: ours="
+                                + ours.typeName() + " bc=" + bc.typeName());
+            }
+            if (ourD.equals(bcD))
+            {
+                return new ParityResult(ParityVerdict.MATCH_ACCEPT, ourType, bcType,
+                        "same shape: " + ourD, ours.message(), bc.message());
+            }
+            return new ParityResult(ParityVerdict.SILENT_DIVERGENCE, ourType, bcType,
+                    "shapes differ: ours=" + ourD + " bc=" + bcD, ours.message(), bc.message());
+        }
+
         // A boolean-returning call (Signature.verify) reports REFUSAL by its
         // return value, so these arms must precede every accept/throw arm.
         // Order matters: acceptance-vs-refusal outranks the shape of a refusal.

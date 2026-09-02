@@ -297,6 +297,66 @@ public class ExceptionParityTest
         Assertions.assertEquals("both verified", both.qualifier());
     }
 
+    // ---------- shape descriptors, for randomly-valued results ----------
+
+    @Test
+    public void twoGeneratorsOfTheSameShapeMatch()
+    {
+        ParityResult r = ExceptionParity.classify(
+                Observation.produced("RSA/X.509/~288B"), Observation.produced("RSA/X.509/~288B"));
+        Assertions.assertEquals(ParityVerdict.MATCH_ACCEPT, r.verdict());
+        Assertions.assertEquals("same shape: RSA/X.509/~288B", r.qualifier());
+        Assertions.assertFalse(r.isDivergence());
+    }
+
+    @Test
+    public void generatorsOfDifferentShapesAreASilentDivergence()
+    {
+        ParityResult r = ExceptionParity.classify(
+                Observation.produced("RSA/X.509/~288B"), Observation.produced("RSA/X.509/~544B"));
+        Assertions.assertEquals(ParityVerdict.SILENT_DIVERGENCE, r.verdict());
+        Assertions.assertTrue(r.qualifier().contains("~288B"), r.qualifier());
+        Assertions.assertTrue(r.qualifier().contains("~544B"), r.qualifier());
+    }
+
+    @Test
+    public void oneProducingWhereTheOtherRefusedIsADecisionDivergence()
+    {
+        // The first version of the descriptor arm raised a HARNESS error here,
+        // because it asked only whether both descriptors were present. One side
+        // refusing a key request the other served is the single most important
+        // cell a generator survey can produce; it must never be an error.
+        ParityResult weProduce = ExceptionParity.classify(
+                Observation.produced("AES/RAW/~16B"),
+                t(new java.security.InvalidAlgorithmParameterException("no")));
+        Assertions.assertEquals(ParityVerdict.DECISION_DIVERGENCE, weProduce.verdict());
+        Assertions.assertEquals("we-produce-bc-refuses", weProduce.qualifier());
+
+        ParityResult bcProduces = ExceptionParity.classify(
+                t(new java.security.InvalidAlgorithmParameterException("no")),
+                Observation.produced("AES/RAW/~16B"));
+        Assertions.assertEquals(ParityVerdict.DECISION_DIVERGENCE, bcProduces.verdict());
+        Assertions.assertEquals("we-refuse-bc-produces", bcProduces.qualifier());
+    }
+
+    @Test
+    public void aDescriptorAgainstADifferentAcceptShapeIsAHarnessErrorNotARow()
+    {
+        // Both accepted, but the harness described one and took bytes from the
+        // other. That is never a provider difference, so it must be loud rather
+        // than a plausible-looking row in a report.
+        Assertions.assertThrows(IllegalArgumentException.class, () -> ExceptionParity.classify(
+                Observation.produced("AES/RAW/~16B"), Observation.accepted(new byte[16])));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> ExceptionParity.classify(
+                Observation.acceptedNoOutput(), Observation.produced("AES/RAW/~16B")));
+    }
+
+    @Test
+    public void aDescriptorIsRequiredWhenProducing()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> Observation.produced(null));
+    }
+
     // ---------- vacuity: the case table must reach every arm ----------
 
     @Test
@@ -317,6 +377,9 @@ public class ExceptionParityTest
         produced.add(ExceptionParity.classify(Observation.returned(false), Observation.returned(false)).verdict());
         produced.add(ExceptionParity.classify(Observation.returned(true), Observation.returned(false)).verdict());
         produced.add(ExceptionParity.classify(t(new java.security.SignatureException("a")), Observation.returned(false)).verdict());
+        produced.add(ExceptionParity.classify(Observation.produced("x"), Observation.produced("x")).verdict());
+        produced.add(ExceptionParity.classify(Observation.produced("x"), Observation.produced("y")).verdict());
+        produced.add(ExceptionParity.classify(Observation.produced("x"), t(new RuntimeException("r"))).verdict());
 
         Set<ParityVerdict> expected = EnumSet.allOf(ParityVerdict.class);
         // NO_BASELINE is produced by the HARNESS, never by the classifier - the

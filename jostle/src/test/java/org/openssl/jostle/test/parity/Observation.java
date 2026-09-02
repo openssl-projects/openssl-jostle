@@ -32,15 +32,17 @@ public final class Observation
     private final boolean hasComparableOutput;
     private final boolean absent;
     private final Boolean returned;
+    private final String descriptor;
 
     private Observation(Throwable thrown, byte[] output, boolean hasComparableOutput,
-                        boolean absent, Boolean returned)
+                        boolean absent, Boolean returned, String descriptor)
     {
         this.thrown = thrown;
         this.output = output;
         this.hasComparableOutput = hasComparableOutput;
         this.absent = absent;
         this.returned = returned;
+        this.descriptor = descriptor;
     }
 
     /** The provider refused, with this throwable. */
@@ -50,25 +52,25 @@ public final class Observation
         {
             throw new IllegalArgumentException("threw(null) - use accepted*()");
         }
-        return new Observation(t, null, false, false, null);
+        return new Observation(t, null, false, false, null, null);
     }
 
     /** The provider accepted and produced bytes a caller can compare. */
     public static Observation accepted(byte[] output)
     {
-        return new Observation(null, output, true, false, null);
+        return new Observation(null, output, true, false, null, null);
     }
 
     /** The provider accepted; the cell produces nothing comparable. */
     public static Observation acceptedNoOutput()
     {
-        return new Observation(null, null, false, false, null);
+        return new Observation(null, null, false, false, null, null);
     }
 
     /** The provider serves no comparable transformation for this cell. */
     public static Observation absent()
     {
-        return new Observation(null, null, false, true, null);
+        return new Observation(null, null, false, true, null, null);
     }
 
     /**
@@ -80,13 +82,49 @@ public final class Observation
      */
     public static Observation returned(boolean value)
     {
-        return new Observation(null, null, false, false, Boolean.valueOf(value));
+        return new Observation(null, null, false, false, Boolean.valueOf(value), null);
     }
 
     /** Non-null when the call returned a boolean. */
     public Boolean returnedValue()
     {
         return returned;
+    }
+
+    /**
+     * The call produced a RANDOM result, described by its caller-visible shape.
+     *
+     * <p>For a key generator every call returns fresh bytes, so comparing
+     * {@code getEncoded()} across providers reports a divergence on every
+     * baseline - the failure the signature-reuse fault produced, at surface
+     * scale. What IS comparable is the shape: algorithm, format, key size.
+     *
+     * <p><b>A descriptor is strictly weaker evidence than bytes</b>, so a
+     * surface using it also needs a bidirectional operate-baseline: shape alone
+     * would accept a generator returning a correctly-labelled, correctly-sized
+     * key full of zeros.
+     *
+     * <p><b>Every field must be GENERATION-STABLE before it is cross-provider
+     * evidence.</b> Encoded length is not reliably stable - DER INTEGER
+     * leading-zero stripping makes one key type's encoding vary by a byte
+     * between generations (classically a DSA or DH Y value), which would
+     * flicker divergence rows at random. See
+     * {@code Descriptors.generationStable}, which requires two generations to
+     * agree before any descriptor is compared across providers.
+     */
+    public static Observation produced(String descriptor)
+    {
+        if (descriptor == null)
+        {
+            throw new IllegalArgumentException("produced(null) - a descriptor is required");
+        }
+        return new Observation(null, null, false, false, null, descriptor);
+    }
+
+    /** Non-null when the call produced a randomly-valued result with a described shape. */
+    public String descriptor()
+    {
+        return descriptor;
     }
 
     public boolean isAbsent()
@@ -144,6 +182,10 @@ public final class Observation
         if (returned != null)
         {
             return returned.booleanValue() ? "(returned true)" : "(returned false)";
+        }
+        if (descriptor != null)
+        {
+            return "(produced)";
         }
         if (thrown == null)
         {
