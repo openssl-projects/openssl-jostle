@@ -287,6 +287,31 @@ reach it.** A negative result from an instrument that cannot see the thing is
 indistinguishable from the thing's absence, so a wrong instrument fails silently
 and in the reassuring direction.
 
+### Every JDK-level source set carries a CANARY, because wiring cannot be read
+
+**Symptom: a source set is declared, its tests compile, and one leg silently
+never runs them.** Measured (MT-60): `unitTest21` was wired to `sourceSets.test17`
+while `integrationTest21` took `test21`. Anything in `src/test/java21` compiled,
+ran on the integration leg, and did not run on the unit leg. Nothing failed,
+because **a test that never runs is indistinguishable from a test that passes.**
+Reading the build file is how the mistake survived review; only something that
+must EXECUTE can prove the wiring.
+
+So each `src/test/javaN` carries a trivial canary asserting nothing but that it
+ran on a JDK at or above its own level, and the gate's result check expects it
+by NAME. It is the known-answer control applied to build wiring.
+
+**A COUNT is not enough, and this was measured rather than assumed.** Under the
+sabotage (`unitTest21` reverted to `test17`) the leg produced **193 result files**
+and `BUILD SUCCESSFUL`; restored, it produced **193 result files** and
+`BUILD SUCCESSFUL`. Identical totals, because swapping one single-file source set
+for another single-file source set conserves the count. Only the by-NAME check
+separated them. Any wiring guard that watches a total will miss exactly this
+class of mistake.
+
+Keep the canary trivial and dependency-free: one that can fail for its own
+reasons stops being a wiring signal.
+
 ### A negative-path survey cannot see an OVER-refusal
 
 **Symptom: a thousand measured cells, all green on the question they ask, and
