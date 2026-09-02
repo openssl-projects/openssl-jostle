@@ -125,15 +125,37 @@ public class EdDSATest
         }
         catch (InvalidAlgorithmParameterException e)
         {
-            // MT-59, 2026-09-02: the message changed because the BEHAVIOUR
-            // did. This generator now also accepts a matching
+            // MT-59, 2026-09-02: the message changed because the BEHAVIOUR did,
+            // and it changed PER JDK LEVEL because the behaviour does.
+            //
+            // From JDK 11 the java11/java15 copies also accept a matching
             // NamedParameterSpec, so "expected instance of EdDSAParameterSpec"
-            // had become false - it named one of the two types it takes. The
-            // refusal itself is unchanged: an unrelated spec is still refused
-            // with InvalidAlgorithmParameterException.
-            Assertions.assertTrue(
-                    e.getMessage().startsWith("expected an EdDSAParameterSpec or a NamedParameterSpec"),
-                    "message should name both accepted spec types: " + e.getMessage());
+            // became false there - it named one of the two types accepted. On
+            // JDK 8 the baseline copy is loaded, cannot reference a Java 11
+            // API, and its original message is still exactly right.
+            //
+            // So this asserts the INVARIANT (the refusal names
+            // EdDSAParameterSpec) and then the level-specific addition. A
+            // single hardcoded message would be wrong on one level or the
+            // other - which is how this was caught: the first version passed on
+            // 25 and failed on 8.
+            Assertions.assertTrue(e.getMessage().contains("EdDSAParameterSpec"),
+                    "the refusal should name the spec type it wants: " + e.getMessage());
+            boolean hasNamedParameterSpec;
+            try
+            {
+                Class.forName("java.security.spec.NamedParameterSpec");
+                hasNamedParameterSpec = true;
+            }
+            catch (Throwable preJava11)
+            {
+                hasNamedParameterSpec = false;
+            }
+            if (hasNamedParameterSpec)
+            {
+                Assertions.assertTrue(e.getMessage().contains("NamedParameterSpec"),
+                        "from JDK 11 the message should name both accepted spec types: " + e.getMessage());
+            }
         }
     }
 

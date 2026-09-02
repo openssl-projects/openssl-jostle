@@ -78,7 +78,31 @@ public class KeyPairGeneratorNegativePathSurveyTest
         NULL_SECURE_RANDOM_WITH_INT,
         NULL_SECURE_RANDOM_WITH_SPEC,
         GENERATE_WITHOUT_INIT,
-        GENERATE_TWICE
+        GENERATE_TWICE,
+        /**
+         * The FIRST positive-path cell in any MT-31 table.
+         *
+         * <p>Every other fault here feeds BAD input. That is what let MT-59
+         * hide: our generators refused the matching {@code NamedParameterSpec}
+         * that both references accept, and no catalogue of bad inputs can see
+         * an over-refusal of a good one. So this cell feeds VALID input and a
+         * refusal is the finding.
+         *
+         * <p>Only meaningful where the family has a standard named parameter -
+         * see {@link Cell#namedSpec}.
+         *
+         * <p><b>Read the DECISION axis on this row, not the type axis.</b> All
+         * three providers accept, so {@code dec:ALL_AGREE} is the result that
+         * matters. The type axis reports {@code ALL_DIFFER} because a produced
+         * key is compared by its shape descriptor, and those legitimately
+         * differ: the JDK labels these keys {@code EdDSA} / {@code XDH} where we
+         * and BouncyCastle use the specific names, and BouncyCastle's PKCS#8
+         * carries RFC 8410's optional public key where ours and the JDK's do
+         * not (both recorded in MT-53 as legal variations). A refusal by any
+         * provider is what this cell exists to catch, and that shows up in the
+         * decision axis.
+         */
+        VALID_MATCHING_SPEC
     }
 
     static final class Cell
@@ -95,10 +119,26 @@ public class KeyPairGeneratorNegativePathSurveyTest
         final String keyFactory;
         /** Why no crossing exists, for the families where op is NONE. */
         final String noCrossReason;
+        /**
+         * The standard NamedParameterSpec name for this family, or null.
+         *
+         * <p>Null for RSA/DSA/DH/EC and the PQC families - they select their
+         * variant by key size or by algorithm name, so there is no named
+         * parameter to offer and the positive-path cell does not apply.
+         */
+        final String namedSpec;
 
         Cell(String name, String spiClass, int validSize, boolean sized,
              OperateCrossing.Op op, String opAlgorithm, String keyFactory, String noCrossReason)
         {
+            this(name, spiClass, validSize, sized, op, opAlgorithm, keyFactory, noCrossReason, null);
+        }
+
+        Cell(String name, String spiClass, int validSize, boolean sized,
+             OperateCrossing.Op op, String opAlgorithm, String keyFactory, String noCrossReason,
+             String namedSpec)
+        {
+            this.namedSpec = namedSpec;
             this.name = name;
             this.spiClass = spiClass;
             this.validSize = validSize;
@@ -139,9 +179,9 @@ public class KeyPairGeneratorNegativePathSurveyTest
         c.add(new Cell("EC", "ECKeyPairGenerator", 256, false,
                 OperateCrossing.Op.SIGNATURE, "SHA256withECDSA", "EC", null));
         c.add(new Cell("Ed25519", "EdDSAKeyPairGenerator", 0, false,
-                OperateCrossing.Op.SIGNATURE, "Ed25519", "Ed25519", null));
+                OperateCrossing.Op.SIGNATURE, "Ed25519", "Ed25519", null, "Ed25519"));
         c.add(new Cell("X25519", "XECKeyPairGenerator", 0, false,
-                OperateCrossing.Op.KEY_AGREEMENT, "X25519", "X25519", null));
+                OperateCrossing.Op.KEY_AGREEMENT, "X25519", "X25519", null, "X25519"));
         c.add(new Cell("ML-DSA-44", "MLDSAKeyPairGeneratorImpl", 0, false,
                 OperateCrossing.Op.SIGNATURE, "ML-DSA-44", "ML-DSA", null));
         c.add(new Cell("ML-KEM-512", "MLKEMKeyPairGenerator", 0, false,
@@ -212,6 +252,27 @@ public class KeyPairGeneratorNegativePathSurveyTest
                     return null;
 
                 // ---- generation state
+                case VALID_MATCHING_SPEC:
+                {
+                    // Reflective because NamedParameterSpec is a Java 11 API and
+                    // this source set compiles at release 8. Absent below 11, so
+                    // the cell reports "absent" there rather than a refusal -
+                    // recording a platform gap as a provider divergence would be
+                    // the wrong finding.
+                    Class<?> nps;
+                    try
+                    {
+                        nps = Class.forName("java.security.spec.NamedParameterSpec");
+                    }
+                    catch (Throwable preJava11)
+                    {
+                        return null;
+                    }
+                    AlgorithmParameterSpec spec = (AlgorithmParameterSpec)
+                            nps.getConstructor(String.class).newInstance(cell.namedSpec);
+                    g.initialize(spec);
+                    return Descriptors.of(g.generateKeyPair()).getBytes("UTF-8");
+                }
                 case GENERATE_WITHOUT_INIT:
                     return Descriptors.of(g.generateKeyPair()).getBytes("UTF-8");
                 case GENERATE_TWICE:
@@ -229,6 +290,10 @@ public class KeyPairGeneratorNegativePathSurveyTest
 
     static boolean applicable(Cell cell, Fault f)
     {
+        if (f == Fault.VALID_MATCHING_SPEC)
+        {
+            return cell.namedSpec != null;
+        }
         if (f == Fault.BELOW_FLOOR_SIZE_INT)
         {
             // Only meaningful where a size means bits of a modulus or prime.
@@ -296,7 +361,7 @@ public class KeyPairGeneratorNegativePathSurveyTest
             }
         }
         // Absolute floor: ten cells times ten shared faults, plus three sized.
-        report.assertMeasured(100, cells.size(), 1);
+        report.assertMeasured(104, cells.size(), 1);
 
         // The operate-crossing is a GATE, not an instrument row: a family whose
         // key cannot do its own job is a defect, not a divergence pending a
