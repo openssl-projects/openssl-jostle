@@ -287,6 +287,66 @@ reach it.** A negative result from an instrument that cannot see the thing is
 indistinguishable from the thing's absence, so a wrong instrument fails silently
 and in the reassuring direction.
 
+### A negative-path survey cannot see an OVER-refusal
+
+**Symptom: a thousand measured cells, all green on the question they ask, and
+the provider refuses input that every reference accepts.** Demonstrated, not
+theorised: MT-59 — our `X25519` KeyPairGenerator refuses
+`NamedParameterSpec.X25519`, the JCA-idiomatic call, which BouncyCastle and the
+JDK both accept — was found by CODE REVIEW after 352 Group B cells and ~1000
+across the whole MT-31 family had been measured without touching it.
+
+The reason is structural. **A fault survey measures what happens to BAD input.
+A valid spec is not a fault cell**, so good input being turned away is invisible
+to the entire instrument family by construction. No amount of extra fault
+coverage closes it; adding cells makes the blind spot larger, not smaller,
+because every new cell is another bad input.
+
+**The complement is positive-path coverage**, and this is what it is for:
+agreement tests, operate-crossings, and the positive baselines are the only
+instruments that can see an over-refusal, because they are the only ones that
+feed VALID input and require it to work. So:
+
+1. **A surface with negative-path cells and no positive-path coverage is only
+   half-watched**, however many divergence rows its table carries.
+2. When a fix TIGHTENS a refusal, ask what valid input the new check might now
+   turn away — the MT-52 fix that prompted MT-59 made an already-narrow spec
+   overload total, and the survey's tally did not move.
+3. A guard whose fix shape is "refuse more" deserves a positive assertion in the
+   same commit. `InitSurfaceContractTest.edwardsGeneratorsStillAcceptTheReferenceSizes`
+   is the pattern: the refusal test and the still-accepts test land together, so
+   a fix that refuses everything cannot pass.
+
+### Before building a witness, ask where BOTH sides get their values
+
+**A witness whose two sides share a source witnesses the sharing, nothing else.**
+Learned three times in one arc, each a layer deeper than the last:
+
+1. The first proposal was "iterate every `OSSLCipher` family member and assert
+   equal block sizes" — comparing transcribed constants to each other.
+2. The upgrade was "compare the Java table against the native value through the
+   NI" — which looked like querying OpenSSL and was not: the NI's value comes
+   from `cipher_mode_pad.h`'s `#define BLOCK_SIZE_AES 16`, a SECOND
+   transcription. `EVP_CIPHER_get_block_size` is called at exactly one site in
+   the tree (`mac.c`) and nowhere on the cipher path.
+3. The witness that works is EXTERNAL — BouncyCastle and the JDK, which cannot
+   share our source.
+
+So the question to ask before writing any parity or invariant check is not "does
+this compare two things" but "where does each side get its number". Two copies
+of one transcription agree perfectly and prove nothing.
+
+**A corollary for BUCKETING a wobbly value.** Comparing generated keys by shape
+needed a stable size, and bucketing the encoded length to 16 bytes looked like
+the robust answer. Measured, it is worse than nothing: twelve RSA-2048
+generations produce PKCS#8 encodings of 1215–1218 bytes and the bucket boundary
+sits at 1216, so the bucket took two values — while DSA and DH wobbled by a byte
+and passed only because their lengths do not straddle a boundary. **Bucketing
+makes a flicker RARER, and rare reads as real.** The fix is to ask the object
+for the fact (`RSAKey.getModulus().bitLength()`) rather than measure something
+derived from it, and to bucket only where nothing can be asked and the encoding
+is genuinely fixed-length.
+
 ### Per-name completeness guards cannot see dimensions
 
 `everyRegistered<Type>IsCovered()` proves every registered name reaches a reference comparison. It says nothing about which INPUT SHAPES that comparison used, so a family can be green on the guard and untested on chunking, offsets, or aliasing. Both defects above sat behind fully-green completeness guards.
