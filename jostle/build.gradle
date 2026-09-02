@@ -558,8 +558,12 @@ tasks.register('unitTest21', Test) {
         languageVersion = JavaLanguageVersion.of(21)
     }
 
-    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test17.runtimeClasspath
-    testClassesDirs += sourceSets.test17.output.classesDirs
+    // MT-60: this task took sourceSets.test17, so anything in src/test/java21
+    // compiled and then never ran on the unit leg - a test that never runs is
+    // indistinguishable from one that passes. SourceSet21CanaryTest is what
+    // makes the wiring self-proving from here on.
+    classpath = files(jar.archiveFile) + sourceSets.test.runtimeClasspath + sourceSets.test21.runtimeClasspath
+    testClassesDirs += sourceSets.test21.output.classesDirs
     testClassesDirs += sourceSets.test.output.classesDirs
 
     forkEvery = 1;
