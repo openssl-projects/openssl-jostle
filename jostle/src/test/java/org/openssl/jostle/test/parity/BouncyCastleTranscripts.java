@@ -48,6 +48,17 @@ public final class BouncyCastleTranscripts
     public static final int[] KWP_UNWRAP_ILLEGAL = {0, 1, 7, 8, 15, 23, 31};
     public static final Class<? extends Exception> KWP_UNWRAP_TYPE = BadPaddingException.class;
 
+    /**
+     * The type BouncyCastle raises when an AESGMAC instance is reused after
+     * {@code doFinal} — a refusal we deliberately do NOT make (MT-44).
+     *
+     * <p>Transcribed rather than re-measured inside the pin: a pin that read
+     * BouncyCastle live would follow it wherever it went, which is the opposite
+     * of pinning. {@code BouncyCastleDriftTest} measures the live value against
+     * this constant, so a bcprov change is noticed instead of absorbed.
+     */
+    public static final Class<? extends Exception> GMAC_REUSE_REFUSAL_TYPE = IllegalStateException.class;
+
     /** Zero is the only illegal KWP wrap length (RFC 5649 accepts >= 1). */
     public static final int[] KWP_WRAP_ILLEGAL = {0};
     public static final Class<? extends Exception> KWP_WRAP_TYPE = IllegalBlockSizeException.class;

@@ -27,6 +27,33 @@ import java.security.Key;
 import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 
+/**
+ * Shared SPI for every registered Mac.
+ *
+ * <h2>GMAC: reusing an instance reuses the NONCE — that is the caller's to prevent</h2>
+ *
+ * <p>{@link javax.crypto.Mac#doFinal()} is specified to reset the Mac "to its
+ * initial state", and this SPI honours that: after {@code doFinal} the instance
+ * is ready for the next message without re-initialisation, and produces exactly
+ * what a freshly-initialised instance would.
+ *
+ * <p><b>For AESGMAC that means the second message is authenticated under the
+ * same (key, nonce) pair as the first.</b> Repeating a nonce under GMAC is a
+ * real break, not a hygiene preference: two tags under one nonce expose the
+ * GHASH subkey relationship and permit forgery. The JCA reset contract and
+ * GMAC's nonce requirement genuinely conflict, and this provider resolves the
+ * conflict in favour of the contract.
+ *
+ * <p>So a caller authenticating more than one message with GMAC must
+ * re-{@code init} with a FRESH IV for each. Do not rely on {@code doFinal}
+ * leaving the instance safe to reuse — it leaves it usable, which is not the
+ * same thing.
+ *
+ * <p>BouncyCastle takes the other side and refuses the reuse with
+ * {@code IllegalStateException}; the JDK registers no GMAC. The divergence is
+ * deliberate (Megan, 2026-09-02) and pinned by
+ * {@code GmacNonceReuseContractTest}.
+ */
 public class MacServiceSPI extends MacSpi implements Cloneable
 {
     // Instance field, not a NISelector static: the SPI is bound to whichever
