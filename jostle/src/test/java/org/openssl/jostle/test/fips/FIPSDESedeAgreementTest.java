@@ -254,8 +254,13 @@ public class FIPSDESedeAgreementTest
         else
         {
             byte[] ct = doFinal("DESede/CBC/PKCS5Padding", FIPS, Cipher.ENCRYPT_MODE, key, iv, msg);
-            Assertions.assertFalse(Arrays.areEqual(msg, java.util.Arrays.copyOf(ct, msg.length)),
-                    "encryption must transform its input");
+            // MT-62: a one-byte compare has a 1-in-256 false failure; sound only at a full block.
+            // Kept: the roundtrip below is self-only and would pass a uniformly-wrong cipher.
+            if (msg.length >= 8)
+            {
+                Assertions.assertFalse(Arrays.areEqual(msg, java.util.Arrays.copyOf(ct, msg.length)),
+                        "encryption must transform its input");
+            }
             Assertions.assertArrayEquals(msg,
                     doFinal("DESede/CBC/PKCS5Padding", FIPS, Cipher.DECRYPT_MODE, key, iv, ct),
                     "JSLFIPS encrypt -> JSLFIPS decrypt");

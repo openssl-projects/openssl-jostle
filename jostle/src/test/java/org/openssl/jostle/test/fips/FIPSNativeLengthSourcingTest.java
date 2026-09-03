@@ -179,6 +179,7 @@ public class FIPSNativeLengthSourcingTest
         // Differentiator: the cipher actually transforms — encrypt/decrypt
         // round-trips, ciphertext differs from plaintext, and a tampered tag is
         // rejected (guards against a copy-input / fixed-output stub).
+        // MT-62: pt is a fixed 64 bytes, so this compare is sound; do not add a length guard.
         byte[] pt = new byte[64];
         RANDOM.nextBytes(pt);
         byte[] ct = c.doFinal(pt);

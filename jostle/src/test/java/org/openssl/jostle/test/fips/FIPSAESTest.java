@@ -96,9 +96,13 @@ public class FIPSAESTest
                 fips.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
                 byte[] ct = fips.doFinal(message);
 
-                Assertions.assertFalse(java.util.Arrays.equals(message,
-                                java.util.Arrays.copyOf(ct, message.length)),
-                        "ciphertext must differ from plaintext");
+                // MT-62: a one-byte compare has a 1-in-256 false failure; sound only at a full block.
+                if (message.length >= 16)
+                {
+                    Assertions.assertFalse(java.util.Arrays.equals(message,
+                                    java.util.Arrays.copyOf(ct, message.length)),
+                            "ciphertext must differ from plaintext");
+                }
 
                 Cipher bc = Cipher.getInstance("AES/CBC/PKCS5Padding", BouncyCastleProvider.PROVIDER_NAME);
                 bc.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
