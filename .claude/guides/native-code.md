@@ -44,6 +44,63 @@ the other — they are separate source files by design.
 7. Operations-test macros (`OPS_FAILED_ACCESS_1`, `OPS_OPENSSL_ERROR_3`, `OPS_FAILED_INIT_2`, etc.) defined in `interface/nonfips/util/ops.h` are placed inside conditionals so tests can fault-inject failure paths. They expand to `is_ops_set(N) ||` in OPS builds and to nothing otherwise; the `OPS_OFFSET_*` macros let tests differentiate between multiple call sites that produce the same error code.
 
 
+### A parameter WE control is an invariant and may assert; one a CALLER controls is an input and must refuse typed
+
+**The rule** (Megan, 2026-09-02): *"error is not expected to be null so an abort
+is acceptable"* — because *"it's like that because we control it."*
+
+The bridge-validation rules elsewhere in these guides say a `jo_assert` reachable
+from the NI surface is a defect: a JVM `abort()` where a typed refusal belongs.
+That is true of **caller data** and only of caller data. It does not follow that
+every parameter crossing the bridge is caller data.
+
+The `err` out-array is the worked example. It is jostle's OWN PLUMBING between
+the SPI and the native layer — the SPI constructs it and passes it; no external
+caller supplies it. Its shape is therefore an INVARIANT we guarantee, not an
+input we defend against, and a violated invariant is a programming error whose
+correct response is a controlled abort. Measured: 27 static `jo_assert(_err !=
+NULL)` sites / 12 reachable abort cells across asn1, mac, mldsa, mlkem and
+slhdsa. All closed as not-a-defect.
+
+**Classify the parameter before choosing the response:**
+
+| | response |
+|---|---|
+| We construct it (err out-array, internal ctx handles we allocated) | invariant — `jo_assert` is correct |
+| A caller supplies it (input/output arrays, offsets, lengths, keys, names, specs) | input — typed refusal, per the bridge rules |
+
+**The one thing an invariant may NOT do is get violated by CORRUPTING memory.**
+An abort is controlled; a wild write is not, and "we control it" is not a licence
+for the latter. `GetIntArrayElements` on a zero-length array returns a valid
+pointer to a zero-length buffer, and the following `*err = code` stores four
+bytes out of bounds — measured as a JVM **SIGBUS**, frame
+`libinterface_jni.dylib allocate_mac+0xe4`, reachable from pure Java. So an
+invariant that a pointer-taking JNI call would violate unsafely is asserted
+BEFORE the pointer is taken:
+
+```c
+jo_assert(_err != NULL);
+jo_assert((*env)->GetArrayLength(env, _err) >= 1);   /* before GetIntArrayElements */
+```
+
+`SetIntArrayRegion` sites need no such guard — the JVM bounds-checks them and
+raises `ArrayIndexOutOfBoundsException`. Only the `GetIntArrayElements` idiom
+corrupts, which is why the source lint keys on it and not on "err array".
+
+These asserts survive any build configuration, and that is by construction rather
+than by luck: `jo_assert_f` calls `abort()` with no `NDEBUG` guard and
+`jo_assert.h` says so. Do not reason from build type — this build selects none
+(`CMAKE_BUILD_TYPE` is empty and the generated `flags.make` carries no `NDEBUG`,
+though `CMakeCache.txt` does define `CMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG` for a
+config nobody chooses). Adding a build type later would not silence them.
+
+**Corollary for surveys.** A detector keyed on one SPELLING of a fault misses the
+others: a scan for `err[0] =` found nothing in `ks_jni.c`, which writes `*err =`,
+hiding 36 sites. And keep causes of different PROVENANCE in separate counts even
+when a ruling treats them alike — `jo_assert(_err != NULL)` (the caller's jarray)
+and `jo_assert(err != NULL)` (the pointer the JVM returned) are different
+questions, and conflating them inflated one count from 27 to 46.
+
 ### Hard-code security-critical OpenSSL parameters; pair with a runtime hard guard
 
 When OpenSSL exposes a parameter that controls a security property the implementation depends on — even when its default already matches what we need — set it explicitly in our code via `EVP_PKEY_CTX_set_params` (or the equivalent setter). Defaults can change between OpenSSL releases, custom providers can override them, and someone editing the C code can flip a value "for diagnostics" without realising it weakens the implementation. The explicit set makes the intent unambiguous to anyone reading the source and survives all three of those drift modes.
