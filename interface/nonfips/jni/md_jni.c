@@ -42,6 +42,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     if (_err == NULL) {
         return 0;
     }
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     //
     // Different CAUSE - a JVM access or allocation failure, not caller data -
@@ -98,6 +100,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     if (_err == NULL) {
         return 0;
     }
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     //
     // Different CAUSE - a JVM access or allocation failure, not caller data -

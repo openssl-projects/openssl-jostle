@@ -29,6 +29,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_
         return 0;
     }
 
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -114,6 +116,8 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         return NULL;
     }
 
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -185,6 +189,8 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         return NULL;
     }
 
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -307,6 +313,8 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         return NULL;
     }
 
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -479,6 +487,8 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         return NULL;
     }
 
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -631,6 +641,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_
         return 0;
     }
 
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 

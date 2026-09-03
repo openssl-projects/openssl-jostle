@@ -45,6 +45,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandService
         // code; the NI default method always supplies err.
         return (jlong) 0;
     }
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 

@@ -29,6 +29,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
     // err needs to be defined and accessible
     //
     jo_assert(_err != NULL);
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
@@ -90,6 +92,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
     mac_ctx *new_ctx = NULL;
 
     jo_assert(_err != NULL);
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
