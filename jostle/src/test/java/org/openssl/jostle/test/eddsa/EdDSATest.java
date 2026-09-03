@@ -39,6 +39,7 @@ import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Pack;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
+import org.openssl.jostle.test.multirelease.MultiReleaseOverrides;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
@@ -141,20 +142,24 @@ public class EdDSATest
             // 25 and failed on 8.
             Assertions.assertTrue(e.getMessage().contains("EdDSAParameterSpec"),
                     "the refusal should name the spec type it wants: " + e.getMessage());
-            boolean hasNamedParameterSpec;
-            try
-            {
-                Class.forName("java.security.spec.NamedParameterSpec");
-                hasNamedParameterSpec = true;
-            }
-            catch (Throwable preJava11)
-            {
-                hasNamedParameterSpec = false;
-            }
-            if (hasNamedParameterSpec)
+            // 2026-09-03: the gate below asked the JDK ("does NamedParameterSpec
+            // exist?") when the answer is decided by the CLASSPATH. The base
+            // :jostle:test task has no jar, so it loads the BASELINE copy on JDK
+            // 25 and the old message is right there - this assertion failed on
+            // that leg while passing on all five jar legs. Both branches are now
+            // asserted, so neither copy can regress unnoticed.
+            if (MultiReleaseOverrides.overrideActive(keyFactory.getClass(),
+                    "java.security.spec.NamedParameterSpec"))
             {
                 Assertions.assertTrue(e.getMessage().contains("NamedParameterSpec"),
-                        "from JDK 11 the message should name both accepted spec types: " + e.getMessage());
+                        "with the java11/java15 copy loaded the message should name both "
+                                + "accepted spec types: " + e.getMessage());
+            }
+            else
+            {
+                Assertions.assertFalse(e.getMessage().contains("NamedParameterSpec"),
+                        "the Java 8 baseline cannot accept a NamedParameterSpec, so its "
+                                + "refusal must not claim to: " + e.getMessage());
             }
         }
     }

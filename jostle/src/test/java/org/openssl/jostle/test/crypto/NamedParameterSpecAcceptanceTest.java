@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.multirelease.MultiReleaseOverrides;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -115,6 +116,22 @@ public class NamedParameterSpecAcceptanceTest
     }
 
     /**
+     * Is the {@code java11}/{@code java15} copy the one LOADED?
+     *
+     * <p>Not the same as "does this JDK have NamedParameterSpec". The base
+     * {@code :jostle:test} leg runs against class directories, so it loads the
+     * Java 8 baseline on JDK 25 and the support is legitimately absent there.
+     * Gating on API presence made this test FAIL on that leg while passing on
+     * all five jar legs. See {@link MultiReleaseOverrides}.
+     */
+    private static boolean supportLoaded()
+    {
+        return MultiReleaseOverrides.overrideActive(
+                org.openssl.jostle.jcajce.provider.xec.XECKeyPairGenerator.class,
+                "java.security.spec.NamedParameterSpec");
+    }
+
+    /**
      * The matching spec is accepted AND the key works, cross-provider.
      *
      * <p>Ed25519/Ed448 sign here and verify there; X25519/X448 agree to an
@@ -124,6 +141,21 @@ public class NamedParameterSpecAcceptanceTest
     public void aMatchingNamedParameterSpecYieldsAWorkingKey() throws Exception
     {
         requireNamedParameterSpec();
+        if (!supportLoaded())
+        {
+            // The baseline copy is loaded (class-directory classpath), so the
+            // refusal is CORRECT here. Assert that branch rather than skipping:
+            // a skip would let a genuinely broken baseline pass unnoticed.
+            for (String alg : new String[]{"X25519", "X448", "Ed25519", "Ed448"})
+            {
+                final String a = alg;
+                Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class,
+                        () -> KeyPairGenerator.getInstance(a, jsl).initialize(named(a)),
+                        a + ": the Java 8 baseline cannot reference NamedParameterSpec and "
+                                + "must refuse it");
+            }
+            return;
+        }
         List<String> failures = new ArrayList<String>();
 
         for (String alg : new String[]{"Ed25519", "Ed448"})
