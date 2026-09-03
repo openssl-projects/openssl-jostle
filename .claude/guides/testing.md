@@ -351,6 +351,49 @@ So the bridge is a leg dimension in its own right:
 it into a neighbouring commit where the half-fix becomes invisible. Honest
 history beats a tidy one.
 
+### The CLASSPATH is a leg dimension: classes-not-jar decides which multi-release copy runs
+
+**Symptom: two committed tests green on five legs and red on the sixth, and the
+sixth is the one that runs the code as plain classes.** Measured 2026-09-02:
+`NamedParameterSpecAcceptanceTest` and `EdDSATest` passed on unitTest11/17/21/
+25JNI/25FFI and FAILED the base `:jostle:test`, which is what stopped Tier 2.
+
+The unit and integration legs set `classpath = files(jar.archiveFile)`; the base
+`test` task does not, so it runs against raw `sourceSets.main.output` class
+directories. A `javaN/` override lives ONLY in the jar's `META-INF/versions/N`,
+so **the base leg loads the Java 8 baseline whatever JDK it runs on**.
+
+Both tests gated on the JDK's API presence (`NamedParameterSpec` exists from 11)
+when the behaviour is decided by the classpath. Measured, one probe per cell:
+
+| JDK | classpath | apiPresent | fromJar | copy loaded |
+|---|---|---|---|---|
+| 8  | jar     | false | true  | baseline |
+| 11 | jar     | true  | true  | **override** |
+| 11 | classes | true  | false | baseline |
+| 25 | jar     | true  | true  | **override** |
+| 25 | classes | true  | false | baseline |
+
+`apiPresent && fromJar` predicts all five; neither predicate alone does —
+apiPresent is true in two BASELINE cells (precisely the defect) and fromJar is
+true on JDK 8, where `META-INF/versions` is ignored. `MultiReleaseOverrides`
+(test/multirelease) is the helper; it carries this table.
+
+Three rules:
+
+1. **A test whose behaviour depends on a `javaN/` override gates on
+   override-in-effect, never on JDK API presence.** The two are different
+   questions and they disagree on exactly the leg that has no jar.
+2. **Assert BOTH branches.** The baseline's refusal is CORRECT on a classes leg,
+   so assert it rather than skipping — a skip lets a genuinely broken baseline
+   pass, which is the same blind spot the original defect had.
+3. **The Tier-1 mapping names the base `:jostle:test` leg** for any change to a
+   class with a `javaN/` override. Five jar legs green says nothing about it.
+
+This is the leg-coverage lesson a third time (after the `*LimitTest`-on-unit-legs
+exclusion and the JNI/FFI bridge dimension) and the first that did NOT come out
+green by luck.
+
 ### Every JDK-level source set carries a CANARY, because wiring cannot be read
 
 **Symptom: a source set is declared, its tests compile, and one leg silently
