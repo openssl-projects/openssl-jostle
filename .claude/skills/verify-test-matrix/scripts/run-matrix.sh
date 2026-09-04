@@ -62,4 +62,38 @@ for t in "${TASKS[@]}"; do
   ./gradlew ":jostle:$t" --rerun
 done
 
+# MT-64: keep this cycle's result XML somewhere the NEXT cycle cannot overwrite.
+# build/test-results is reused by every run, so a three-cycle gate otherwise ends
+# holding only cycle 3's evidence. Unset => nothing is copied and the output is
+# byte-identical to before. Copied BEFORE verification, so a cycle that FAILS
+# keeps the evidence you most want to read.
+if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
+  echo "=== snapshotting result XML to $JOSTLE_RESULT_SNAPSHOT_DIR ==="
+  # Provenance travels with the copy: XML alone cannot say which module made it.
+  mkdir -p "$JOSTLE_RESULT_SNAPSHOT_DIR"
+  {
+    echo "date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "tasks: ${TASKS[*]}"
+    if [ -n "${TEST_FIPS_LIB:-}" ]; then
+      echo "fips_module: ${TEST_FIPS_LIB}"
+      echo "fips_module_version: $(strings -a "$TEST_FIPS_LIB" 2>/dev/null \
+        | grep -oE '^3\.[0-9]+\.[0-9]+$' | sort -u | tr '\n' ' ')"
+    else
+      echo "fips_module: UNSET"
+    fi
+  } > "$JOSTLE_RESULT_SNAPSHOT_DIR/run-info.txt"
+  for t in "${TASKS[@]}"; do
+    src="jostle/build/test-results/$t"
+    n=$(ls -1 "$src"/TEST-*.xml 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$n" -eq 0 ]; then
+      echo "  $t: NO result files to snapshot" >&2
+      continue
+    fi
+    mkdir -p "$JOSTLE_RESULT_SNAPSHOT_DIR/$t"
+    cp "$src"/TEST-*.xml "$JOSTLE_RESULT_SNAPSHOT_DIR/$t/"
+    echo "  $t: $n files"
+  done
+fi
+
 python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${TASKS[@]}"
