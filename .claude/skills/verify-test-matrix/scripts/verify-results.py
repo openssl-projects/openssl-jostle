@@ -83,6 +83,7 @@ def main():
     rc = 0
     grand = [0, 0, 0, 0]
     ops_skipped_total = 0
+    fips_excused_total = 0
     for task in tasks:
         files = sorted(glob.glob(os.path.join(RESULTS_ROOT, task, "TEST-*.xml")))
         if not files:
@@ -128,6 +129,7 @@ def main():
         for i, v in enumerate((t, f, e, s)):
             grand[i] += v
         ops_skipped_total += len(masked_ops)
+        fips_excused_total += len(masked_fips_ops)
 
         flag = ""
         if f or e:
@@ -170,9 +172,14 @@ def main():
         print(f"OPS build state: INSTRUMENTED ({ops_evidence})")
     else:
         print(f"OPS build state: NOT instrumented ({ops_evidence})")
-        if ops_skipped_total:
-            print(f"  {ops_skipped_total} OpsTest class(es) did not run. This pass covers the"
-                  f" SHIPPED library; it does not cover the OPS fault-injection paths.")
+        if ops_skipped_total or fips_excused_total:
+            if fips_excused_total:
+                print(f"  {ops_skipped_total} OpsTest class(es) did not run, plus"
+                      f" {fips_excused_total} excused (module absent). This pass covers the"
+                      f" SHIPPED library; it does not cover the OPS fault-injection paths.")
+            else:
+                print(f"  {ops_skipped_total} OpsTest class(es) did not run. This pass covers the"
+                      f" SHIPPED library; it does not cover the OPS fault-injection paths.")
             print("  Second pass:  JOSTLE_OPS_TEST=1 ./interface/build.sh"
                   "  &&  run-matrix.sh integrationTest25JNI integrationTest25FFI")
             print("  Then rebuild plain so the tree is left shipping-clean.")
@@ -182,7 +189,10 @@ def main():
     if rc == 0:
         note = "green"
         note += ", no gated class masked" if require_fips else " (FIPS gating not enforced)"
-        note += ", OPS classes ran" if require_ops else ""
+        if require_ops:
+            note += ", OPS classes ran"
+            if fips_excused_total:
+                note += f" ({fips_excused_total} FIPS excused: module absent)"
         print(f"matrix verified: {note}")
     return rc
 
