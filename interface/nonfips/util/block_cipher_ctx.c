@@ -1858,6 +1858,25 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
     }
 
 
+
+    // NoPadding block modes retain a partial block across update() calls exactly
+    // as padded ones do, but reached no arm above and reported `len` alone — so a
+    // doFinal after a sub-block update was sized short and the write refused as
+    // JO_OUTPUT_TOO_SMALL, surfacing to the caller as IllegalBlockSizeException
+    // where BouncyCastle succeeds (MT-63; 10 registered names, both bridges).
+    //
+    // Written as an explicit case, not an else: it must not reach the wrap,
+    // accumulating or streaming paths above, which size on different rules.
+    // Over-reporting is the safe direction — getOutputSize is an upper bound by
+    // contract and the SPI trims to the written length.
+    if (ctx->padding == NO_PADDING && ctx->streaming == 0
+        && ctx->cipher_block_size > 0) {
+        size_t out = len + (ctx->processed % ctx->cipher_block_size);
+        if (out > INT32_MAX) {
+            return JO_OUTPUT_SIZE_INT_OVERFLOW;
+        }
+        return (int32_t) out;
+    }
     if (OPS_INT32_OVERFLOW_1 len > INT_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
