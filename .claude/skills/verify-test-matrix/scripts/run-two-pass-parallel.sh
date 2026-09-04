@@ -41,6 +41,18 @@
 # Optional:
 #   JOSTLE_TWOPASS_WORK  scratch root (default /tmp/jostle-two-pass)
 set -u
+
+# MT-37: name the FIPS module in the record. Both 3.1.2 and 3.5.8 are supported
+# and the gate runs once per module, so a green must say which module it is.
+# Read from the binary, not the path, so a wrongly-named directory cannot lie.
+if [ -n "${TEST_FIPS_LIB:-}" ]; then
+  echo "FIPS module: ${TEST_FIPS_LIB}"
+  echo "FIPS module version (from the binary): $(strings -a "$TEST_FIPS_LIB" 2>/dev/null \
+    | grep -oE '^3\.[0-9]+\.[0-9]+$' | sort -u | tr '\n' ' ')"
+else
+  echo "FIPS module: UNSET - FIPS classes will assumption-skip"
+fi
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 REPO=$(cd "$SCRIPT_DIR/../../../.." && pwd)
 cd "$REPO" || exit 3
