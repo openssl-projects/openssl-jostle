@@ -287,6 +287,80 @@ public final class CipherSurfaceDriver
             }
         }
         Assertions.assertArrayEquals(msg, dec.doFinal(ct), name + ": round trip");
+
+        driveChunked(provider, name, key, spec, enc, msg, ct, sr);
+    }
+
+    /**
+     * MT-37: the chunking dimension for names this driver is the only reader of.
+     *
+     * <p>Two split points, one inside a unit and one on its boundary: a
+     * boundary-only split cannot see a buffering fault, a mid-unit-only split
+     * cannot see an alignment one.
+     */
+    private static void driveChunked(String provider, String name, SecretKey key,
+                                     AlgorithmParameterSpec spec, Cipher oneShot,
+                                     byte[] msg, byte[] ct, SecureRandom sr) throws Exception
+    {
+        // Ask the cipher rather than assume 16: this driver also serves stream
+        // names, where getBlockSize() reports 0 and "on the boundary" is empty.
+        Cipher probe = Cipher.getInstance(name, provider);
+        final int blockSize = probe.getBlockSize();
+        final int unit = blockSize > 0 ? blockSize : 16;
+
+        int executed = 0;
+        for (int split : new int[]{unit - 1, unit})
+        {
+            if (split <= 0 || split >= msg.length)
+            {
+                continue;
+            }
+            // Reuse the one-shot's parameters. init(ENCRYPT_MODE, key, sr) picks a
+            // FRESH random IV per cipher, so re-initialising from `spec` alone
+            // compares two different encryptions and fails for every IV mode.
+            Cipher c = Cipher.getInstance(name, provider);
+            AlgorithmParameters used = oneShot.getParameters();
+            byte[] usedIv = oneShot.getIV();
+            if (spec != null)
+            {
+                c.init(Cipher.ENCRYPT_MODE, key, spec, sr);
+            }
+            else if (used != null)
+            {
+                c.init(Cipher.ENCRYPT_MODE, key, used, sr);
+            }
+            else if (usedIv != null)
+            {
+                c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(usedIv), sr);
+            }
+            else
+            {
+                c.init(Cipher.ENCRYPT_MODE, key, sr);
+            }
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] head = c.update(msg, 0, split);
+            if (head != null)
+            {
+                out.write(head);
+            }
+            // update-then-doFinal(), not doFinal(in,off,len): the three-arg form
+            // after a buffering update throws "output too small" on our NoPadding
+            // modes where BouncyCastle succeeds. Registered as MT-63; this arm
+            // tests the chunking dimension, not that divergence.
+            byte[] tail = c.update(msg, split, msg.length - split);
+            if (tail != null)
+            {
+                out.write(tail);
+            }
+            out.write(c.doFinal());
+            Assertions.assertArrayEquals(ct, out.toByteArray(),
+                    name + ": split at " + split + " must equal the one-shot ciphertext");
+            executed++;
+        }
+        // Without this a future shorter message makes the arm vacuous and green.
+        Assertions.assertTrue(executed > 0,
+                name + ": no split ran (message " + msg.length + "B, unit " + unit
+                        + ") — the chunking arm is vacuous for this name");
     }
 
     /** Wrap/unwrap round trip for the key-wrap registrations. */

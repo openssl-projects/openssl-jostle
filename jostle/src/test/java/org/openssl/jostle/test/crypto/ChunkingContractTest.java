@@ -139,6 +139,9 @@ public class ChunkingContractTest
         m.add(new Mode("AES/CBC/PKCS5Padding", "AES", 16, 16, 16, 37, false));
         // Accumulating: one-shot EVP primitives under a streaming contract.
         m.add(new Mode("AES/CTS/NoPadding", "AES", 16, 16, 16, 37, true));
+        // MT-37: a separately REGISTERED service, not an alias through
+        // engineSetPadding, so its init path is its own.
+        m.add(new Mode("AES/CBC/CS3Padding", "AES", 16, 16, 16, 37, true));
         m.add(new Mode("AESWRAP", "AES", 32, -1, 8, 32, true));
         m.add(new Mode("AESWRAPPAD", "AES", 32, -1, 8, 37, true));
         // ChaCha20-Poly1305. The other three AEADs are pinned on this dimension
