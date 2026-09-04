@@ -23,6 +23,10 @@ Usage:
   --require-ops  the OPS classes MUST have run: fails if the installed build
                  is not instrumented, or if OPS classes skipped despite it.
                  The two-pass driver passes this on the second pass.
+  --require-fips run-matrix.sh:38-46 passes this ONLY after confirming the
+                 module file exists, so its ABSENCE is a recorded run-time
+                 fact: no FIPS module was present. A hand-runner who types it
+                 without a module, or omits it with one, breaks that contract.
 
 Default tasks: test unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI
 Exit codes: 0 ok, 1 failures/errors present, 2 gated classes fully skipped,
@@ -68,6 +72,10 @@ def main():
     args = sys.argv[1:]
     require_fips = "--require-fips" in args
     require_ops = "--require-ops" in args
+    # run-matrix.sh:38-46 passes --require-fips only after confirming the module
+    # file exists, so its absence is a recorded run-time fact, not a guess.
+    # Naming it keeps require_fips' double duty (policy + fact) visible here.
+    fips_module_absent = not require_fips
     tasks = [a for a in args if not a.startswith("--")] or DEFAULT_TASKS
 
     ops_installed, ops_evidence = ops_build_installed()
@@ -84,6 +92,7 @@ def main():
         t = f = e = s = 0
         masked_fips = []
         masked_ops = []
+        masked_fips_ops = []
         for path in files:
             r = ET.parse(path).getroot()
             ct, cf, ce, cs = (int(r.get(k, 0)) for k in ("tests", "failures", "errors", "skipped"))
@@ -97,7 +106,15 @@ def main():
             # and a real defect against an instrumented one, so it is counted
             # separately from other gated classes rather than lumped in.
             if cls.endswith("OpsTest"):
-                masked_ops.append(cls)
+                # A FIPS OpsTest with no module present skipped at its
+                # class-level gate (@BeforeAll assumeFalse(skipFipsTests())),
+                # not for want of instrumentation - so an instrumented build
+                # gives it no case to answer. Bucketed, never dropped: the run
+                # must say what it excused.
+                if ".fips." in path and fips_module_absent:
+                    masked_fips_ops.append(cls)
+                else:
+                    masked_ops.append(cls)
             elif ".fips." in path:
                 masked_fips.append(cls)
 
@@ -132,6 +149,8 @@ def main():
                 flag += f"  (note: {len(masked_ops)} JNI-only OpsTest classes, expected)"
             else:
                 flag += f"  (OPS pass not run: {len(masked_ops)} OpsTest classes skipped)"
+        if masked_fips_ops:
+            flag += f"  ({len(masked_fips_ops)} FIPS OpsTests excused: module absent)"
         print(f"{task}: tests={t} failures={f} errors={e} skipped={s}{flag}")
         if masked_fips and require_fips:
             for m in masked_fips:
