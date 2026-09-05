@@ -68,13 +68,27 @@ done
 # byte-identical to before. Copied BEFORE verification, so a cycle that FAILS
 # keeps the evidence you most want to read.
 if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
-  echo "=== snapshotting result XML to $JOSTLE_RESULT_SNAPSHOT_DIR ==="
+  # The two-pass gate runs the SAME task names twice - integrationTest25JNI/FFI
+  # on the shipped library, then again on the instrumented one - so a flat
+  # destination has pass 2 overwrite pass 1, and those are different evidence
+  # (OpsTests skip on the shipped build, run on the instrumented one). Split by
+  # the build state actually INSTALLED, probed the way verify-results.py probes
+  # it, so no caller has to remember to vary the variable.
+  BUILD_STATE=plain
+  for _lib in jostle/src/main/resources/native/*/*/*interface_ffi*; do
+    case "$_lib" in *.txt) continue;; esac
+    [ -f "$_lib" ] || continue
+    if grep -qa JoOps_setFlag "$_lib"; then BUILD_STATE=ops; fi
+  done
+  SNAP_DIR="$JOSTLE_RESULT_SNAPSHOT_DIR/$BUILD_STATE"
+  echo "=== snapshotting result XML to $SNAP_DIR ==="
   # Provenance travels with the copy: XML alone cannot say which module made it.
-  mkdir -p "$JOSTLE_RESULT_SNAPSHOT_DIR"
+  mkdir -p "$SNAP_DIR"
   {
     echo "date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
     echo "tasks: ${TASKS[*]}"
+    echo "build_state: $BUILD_STATE"
     if [ -n "${TEST_FIPS_LIB:-}" ]; then
       echo "fips_module: ${TEST_FIPS_LIB}"
       echo "fips_module_version: $(strings -a "$TEST_FIPS_LIB" 2>/dev/null \
@@ -82,7 +96,7 @@ if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
     else
       echo "fips_module: UNSET"
     fi
-  } > "$JOSTLE_RESULT_SNAPSHOT_DIR/run-info.txt"
+  } > "$SNAP_DIR/run-info.txt"
   for t in "${TASKS[@]}"; do
     src="jostle/build/test-results/$t"
     n=$(ls -1 "$src"/TEST-*.xml 2>/dev/null | wc -l | tr -d ' ')
@@ -90,8 +104,8 @@ if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
       echo "  $t: NO result files to snapshot" >&2
       continue
     fi
-    mkdir -p "$JOSTLE_RESULT_SNAPSHOT_DIR/$t"
-    cp "$src"/TEST-*.xml "$JOSTLE_RESULT_SNAPSHOT_DIR/$t/"
+    mkdir -p "$SNAP_DIR/$t"
+    cp "$src"/TEST-*.xml "$SNAP_DIR/$t/"
     echo "  $t: $n files"
   done
 fi
