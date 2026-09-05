@@ -5,15 +5,41 @@ Auto-imported by CLAUDE.md.
 
 ### Update `module-info.java` when you add a package
 
-Each module has a JPMS descriptor at `<module>/src/main/jdk1.9/module-info.java` (e.g. `core/src/main/jdk1.9/module-info.java`) listing every exported package. The Java 8 sources under `<module>/src/main/java` and the descriptor are bundled into the same multi-release jar; the descriptor is the source of truth for what's visible when downstream code runs on JDK 9+ with `--module-path`. A package that exists in the source tree but isn't listed in `module-info.java` is invisible to modular consumers — class-path consumers still see it, which is why the omission is easy to miss locally.
+Jostle has ONE JPMS descriptor: `jostle/src/main/java9/module-info.java`,
+declaring `module org.openssl.jostle.prov`. It sits in `java9` because that is
+the lowest release where a descriptor compiles; `compileJava9Java` sets
+`options.sourcepath` so the packages it names resolve against the Java 8
+baseline. Class-path consumers ignore it, so an omission only shows up for a
+modular consumer on JDK 9+ — never on a class-path test run.
 
-When you add a class, ask which case applies:
+Measured 2026-09-05: 34 packages exist, 14 exported, 7 opened, no export
+without source. **The default for a new package is to export NOTHING** — every
+per-algorithm provider sub-package (`rsa`, `ec`, `mac`, `md`, `kdf`, …) is
+internal. Three cases:
 
-- **Existing package** (e.g. dropping `ECBModeCipher` into `org.bouncycastle.crypto.modes`, already on line 40 of `core/.../module-info.java`) — no descriptor change needed. `module-info.java` exports packages, not classes.
-- **New package** (a directory that doesn't yet exist under any `org.bouncycastle.*` tree) — add `exports org.bouncycastle.your.new.package;` to the corresponding module's `module-info.java`. The modules are `core`, `prov`, `util`, `pkix`, `tls`, `mail` / `jmail`, `pg` — pick the one whose `src/main/java` your new package physically lives under.
+1. **A new SPI sub-package** (`jcajce.provider.<transformation>`) — add nothing.
+   The common case.
+2. **A new public API package** — `exports <package>;`. The signal is a modular
+   consumer failing "does not export …".
+3. **Reflective access from `java.base`** — `opens <package> to java.base;`.
 
-Symmetrically, if you delete or merge away an entire package, remove its `exports` entry. The compile-time signal that catches a missed entry — `module org.bouncycastle.lts.core does not export org.bouncycastle.crypto.foo` — only fires for modular downstream consumers, so a class-path-only test run won't surface it.
+**Case 3: only ONE of the five opened-not-exported packages has a recorded
+mechanism.** By `git log -S` on the descriptor: `mldsa`/`mlkem`/`slhdsa` were
+opened in the first descriptor (e0fb4e5, 2025-10-05) when they were the only
+algorithm packages; `rand` with SecureRandom (d2949e6); `ks` with PKCS12
+(1f55edc). No commit body gives a reason, and registration style is not it —
+`ProvMLDSA` (opened) and `ProvRSA` (not) both register only through lambdas.
 
+`rand`'s mechanism is real: the JDK declares `SecureRandomSpi implements
+Serializable`, so `RandServiceSPI` inherits it — grepping the class for
+`Serializable` finds nothing — and `ObjectOutputStream` reflectively invokes its
+PRIVATE `writeObject`, which needs `opens`. So copy a sibling only if you can
+name the mechanism; otherwise leave `opens` off until something needs it.
+
+**Nothing in the test matrix witnesses this file:** `build.gradle` has no
+module-path leg, so "a modular run will tell you" means a run nobody performs,
+and a wrong entry ships silently. Deleting a package means deleting its
+`exports` / `opens` too — the count above was measured by hand, not guarded.
 
 ### OpenSSL is the single source of truth for fixed values — query and cache, never transcribe
 
