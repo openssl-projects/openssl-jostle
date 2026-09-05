@@ -165,8 +165,15 @@ public class RSATest
     @Test
     public void testKeyPairGenerator_rejectsKeySizeBelowMin() throws Exception
     {
+        // MT-66: 511/512/768/1023 are NO LONGER refused - the 1024 policy floor
+        // was removed because OpenSSL generates from 512 and jostle supports
+        // what OpenSSL supports. What remains is the SANITY bound: a
+        // non-positive size is nonsense at every provider and must never reach
+        // the bridge as a bits value. Those sizes are pinned as accepted by
+        // RSAKeySizePinTest, so this test and that one cannot both be satisfied
+        // by a reintroduced floor.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
-        for (int badSize : new int[]{0, 1, 511, 512, 768, 1023})
+        for (int badSize : new int[]{0, -1, Integer.MIN_VALUE, 16385})
         {
             try
             {

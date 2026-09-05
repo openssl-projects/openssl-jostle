@@ -57,9 +57,17 @@ import java.util.TreeMap;
  * <h2>Looking for the MT-46 shape from the other side</h2>
  *
  * <p>MT-46 found our RSA KeyFactory importing a 12-bit modulus while our
- * KeyPairGenerator pins a 1024-bit floor for generation. {@code BELOW_FLOOR_SIZE_INT}
- * probes the generator half of that pair directly: 512 bits, which is above the
- * JDK's documented floor and below ours.
+ * KeyPairGenerator pinned a 1024-bit floor for generation.
+ * {@code BELOW_FLOOR_SIZE_INT} probes the generator half of that pair directly.
+ *
+ * <p><b>MT-66 removed both jostle-side floors</b> (Megan, 2026-09-05: jostle
+ * supports what OpenSSL supports). So 512 is no longer "below ours" on JSL - it
+ * is ACCEPTED, because the default provider generates there. The cell is kept
+ * and still earns its place: it now measures the divergence in the OTHER
+ * direction, against a reference that may still refuse. JSLFIPS keeps a 2048
+ * fast-path floor mirroring the module's own, so the same cell refuses there.
+ * The floors themselves are pinned by {@code RSAKeySizePinTest} and
+ * {@code FIPSRSAKeySizePinTest}.
  */
 public class KeyPairGeneratorNegativePathSurveyTest
 {
@@ -233,7 +241,10 @@ public class KeyPairGeneratorNegativePathSurveyTest
                     g.initialize(Integer.MIN_VALUE);
                     return null;
                 case BELOW_FLOOR_SIZE_INT:
-                    // 512: above the JDK's documented RSA floor, below ours.
+                    // 512: the smallest size OpenSSL's default provider will
+                    // generate. Accepted by JSL since MT-66 removed the
+                    // jostle-side floor; refused by JSLFIPS, whose 2048
+                    // fast-path mirrors the module.
                     g.initialize(512);
                     return null;
                 case NULL_SECURE_RANDOM_WITH_INT:

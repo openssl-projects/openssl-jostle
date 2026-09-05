@@ -260,6 +260,47 @@ and "0 uncovered" read exactly like analysis. Two separate parser bugs produced
 the first, and both would have shipped a tool that agreed with a hand audit while
 analysing nothing.
 
+### Grep answers who NAMES a behaviour; only execution answers who DEPENDS on it
+
+**Symptom: a deliberate behaviour change ships with a green grep and four red
+tests.** MT-66 removed two RSA key-size floors and changed a caller-visible
+exception message. The pre-change sweep for dependents searched the test tree
+for `out of range \[`, `initialize(512)`, `imports at least` and the old test's
+name, found nothing beyond one survey row, and predicted "nothing else moves".
+Four tests failed on the first leg.
+
+Every spelling was wrong, and wrong in a way no amount of care at the keyboard
+would have fixed:
+
+1. `RSATest` never writes `initialize(512)`. It loops an int ARRAY
+   `{0, 1, 511, 512, 768, 1023}`, so the value appears in a literal that no
+   call-shaped pattern matches.
+2. `FIPSRSATest` asserts `contains("[2048, 16384]")` — a FRAGMENT of the message
+   being changed, not the phrase `out of range [` the sweep looked for.
+
+This is the one-spelling trap from native-code.md ("a scan for `err[0] =` found
+nothing in `ks_jni.c`, which writes `*err =`, hiding 36 sites") in its
+test-facing form, and it recurred one work item after that lesson was written
+into the guides, in the same session. Treat that recurrence as evidence the rule
+needs a *procedure*, not more diligence.
+
+**The rule.** When the thing being changed is a VALUE or a MESSAGE — anything a
+test can assert on without naming a symbol — the pre-change instrument is a TEST
+RUN of everything that could assert on it, not a grep. A grep finds references
+to a SYMBOL, which the compiler would have found anyway; it cannot find a
+runtime assertion on a string, because there is no symbol to name. Compilation
+passes for exactly the same reason.
+
+Practically: for a message or numeric-contract change, run the suites for the
+affected family BEFORE predicting the blast radius, and state the prediction
+after the run rather than before it. For a SYMBOL removal, grep remains correct
+and the compiler is the backstop.
+
+**Corollary for predictions.** Stating the expected blast radius before running
+is still right — it is what makes a surprise legible instead of rationalisable.
+But a prediction derived from a grep, about a value contract, is a prediction
+about the wrong evidence. Say which instrument produced it.
+
 ### The wrapper's answer is not the thing's answer
 
 Three distinct instances in one day, across two agents, each producing the number

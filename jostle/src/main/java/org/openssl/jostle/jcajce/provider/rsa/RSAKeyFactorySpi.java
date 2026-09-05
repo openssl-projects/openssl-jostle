@@ -85,56 +85,24 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     }
 
 
-    /**
-     * Smallest RSA modulus this factory will IMPORT, in bits.
+    /*
+     * There is deliberately NO import floor here.
      *
-     * <p><b>Deliberately below {@code RSAKeyPairGenerator}'s 1024-bit
-     * GENERATION floor, and the asymmetry is the point.</b> Generating a weak
-     * key is a choice the provider should refuse outright; reading one that
-     * already exists is something a caller legitimately has to do - a stored
-     * 768-bit key still needs decoding to be inspected, migrated or rejected by
-     * an application-level policy. 512 matches the JDK's own import floor.
+     * MT-66 (Megan, 2026-09-05): jostle supports what OpenSSL supports, for
+     * every module type. Measured, OpenSSL imports a 64-bit RSA key through
+     * EVP_PKEY_fromdata on the default provider AND on both FIPS modules
+     * (3.1.2 and 3.5.8), so a jostle-side floor refused keys the library
+     * accepts. The module is the only authority on size, and it enforces
+     * different floors per operation - keygen 2048, sign 2048, verify 1024,
+     * import none - which no single number here could express.
      *
-     * <p>Before MT-46 there was no import floor AT ALL: a 12-bit modulus was
-     * accepted here while the generator refused 512, so the generator's policy
-     * could be bypassed by encoding a key and reading it back. Both floors are
-     * asserted together by {@code RSAKeyFloorTest}, so neither can drift into
-     * agreeing with the other by accident.
+     * The bypass MT-46 named (a small key smuggled past the generator by
+     * encoding and re-reading it) is not reopened so much as dissolved: with
+     * the generation floor also gone, both doors now defer to the module, and
+     * the two were measured identical. RSAKeySizePinTest holds the table and
+     * fails both if a jostle-side floor reappears and if the module's own
+     * floors move.
      */
-    private static final int MIN_IMPORT_MODULUS_BITS = 512;
-
-    private static void requireImportableModulus(java.math.BigInteger n)
-            throws InvalidKeySpecException
-    {
-        if (n == null || n.bitLength() < MIN_IMPORT_MODULUS_BITS)
-        {
-            throw new InvalidKeySpecException("RSA modulus is "
-                    + (n == null ? "absent" : n.bitLength() + " bits")
-                    + "; this provider imports at least " + MIN_IMPORT_MODULUS_BITS);
-        }
-    }
-
-    /**
-     * Post-construction form, for the encoded branches where the modulus is
-     * only knowable after the decode.
-     *
-     * <p>Abandoning a constructed key on the throw does NOT leak: the native
-     * PKEY is owned by a {@code PKEYKeySpec}, whose {@code PKEYReference}
-     * extends {@code NativeReference}, whose constructor calls
-     * {@code DisposalDaemon.addDisposable} - so the disposer is registered when
-     * the spec is built, from constructor PARAMETERS rather than instance
-     * fields, and runs whether or not the key was ever used. Reclamation is
-     * GC-driven, so a flood of refused imports is bounded by collector pressure
-     * rather than unbounded; that is the same behaviour as any accepted key the
-     * caller drops. The spec branches avoid the allocation entirely by checking
-     * first.
-     */
-    private static <T extends java.security.interfaces.RSAKey> T requireImportableModulus(T key)
-            throws InvalidKeySpecException
-    {
-        requireImportableModulus(key.getModulus());
-        return key;
-    }
 
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
@@ -157,7 +125,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             {
                 PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireRSA(spec);
-                return requireImportableModulus(new JORSAPublicKey(rsaServiceNI, asn1NI, spec, sourceAlgId));
+                return new JORSAPublicKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
             }
             catch (RuntimeException e)
             {
@@ -171,12 +139,6 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof RSAPublicKeySpec)
         {
             RSAPublicKeySpec rsa = (RSAPublicKeySpec) keySpec;
-            // Floor checked BEFORE construction on this branch: the modulus is
-            // already in hand, so a refused import allocates no native key at
-            // all. The post-construction check below still stands as the
-            // catch-all for the encoded branches, where the modulus is only
-            // known after the decode.
-            requireImportableModulus(rsa.getModulus());
             try
             {
                 PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA, providerInstance);
@@ -184,7 +146,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                         spec.getReference(),
                         unsignedMagnitude(rsa.getModulus()),
                         unsignedMagnitude(rsa.getPublicExponent()));
-                return requireImportableModulus(new JORSAPublicKey(rsaServiceNI, asn1NI, spec));
+                return new JORSAPublicKey(rsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {
@@ -220,7 +182,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             {
                 PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireRSA(spec);
-                return requireImportableModulus(new JORSAPrivateKey(rsaServiceNI, asn1NI, spec, sourceAlgId));
+                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
             }
             catch (RuntimeException e)
             {
@@ -252,7 +214,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                         unsignedMagnitude(rsa.getPrimeExponentP()),
                         unsignedMagnitude(rsa.getPrimeExponentQ()),
                         unsignedMagnitude(rsa.getCrtCoefficient()));
-                return requireImportableModulus(new JORSAPrivateKey(rsaServiceNI, asn1NI, spec));
+                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
             {

@@ -50,14 +50,14 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     private static final BigInteger MIN_PUBLIC_EXPONENT = BigInteger.valueOf(3);
 
     /**
-     * Minimum modulus size in bits. RSA below 1024 bits is broken
-     * cryptographically (768-bit factored in 2010, 829-bit in 2020).
-     * OpenSSL 3.x's default provider also rejects very small keys at
-     * keygen time, but enforcing a friendly floor here surfaces a typed
-     * {@code InvalidParameterException} with a clear message instead of
-     * a generic {@code OpenSSLException} from deep in the stack.
+     * No jostle-side generation floor by default: the module's own floor is the
+     * authority (MT-66).
+     *
+     * <p>A provider may pass the module's measured generation floor so that
+     * refusal is typed and early rather than an OpenSSLException from inside
+     * the module - JSLFIPS passes 2048.
      */
-    private static final int MIN_KEY_SIZE_BITS = 1024;
+    private static final int NO_POLICY_FLOOR = 0;
 
     /**
      * Maximum modulus size in bits. RSA keygen runtime is O(bits<sup>3</sup>);
@@ -82,8 +82,8 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     private final SpecNI specNI;
     private final Asn1Ni asn1NI;
 
-    // Provider-policy floor: MIN_KEY_SIZE_BITS for JSL, the module's 2048-bit
-    // generation floor for JSLFIPS.
+    // Provider-policy floor: NO_POLICY_FLOOR (none) for JSL, the module's
+    // 2048-bit generation floor for JSLFIPS.
     private final int minKeySizeBits;
 
 
@@ -111,7 +111,7 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
 
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
-        this(rsaServiceNI, specNI, asn1NI, MIN_KEY_SIZE_BITS);
+        this(rsaServiceNI, specNI, asn1NI, NO_POLICY_FLOOR);
     }
 
     /**
@@ -123,7 +123,7 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
                                java.security.Provider providerInstance)
     {
-        this(rsaServiceNI, specNI, asn1NI, MIN_KEY_SIZE_BITS, providerInstance);
+        this(rsaServiceNI, specNI, asn1NI, NO_POLICY_FLOOR, providerInstance);
     }
 
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, int minKeySizeBits)
@@ -212,10 +212,18 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
      */
     private String validateKeySize(int keysize)
     {
-        if (keysize < minKeySizeBits || keysize > MAX_KEY_SIZE_BITS)
+        // Sanity bound, NOT a policy floor: a non-positive size is nonsense at
+        // every provider and would cross the bridge as a bits value. MT-66
+        // removed the 1024 POLICY floor; it did not remove range checking.
+        if (keysize < 1 || keysize > MAX_KEY_SIZE_BITS)
         {
             return "RSA key size " + keysize + " is out of range "
-                    + "[" + minKeySizeBits + ", " + MAX_KEY_SIZE_BITS + "]";
+                    + "[1, " + MAX_KEY_SIZE_BITS + "]";
+        }
+        if (keysize < minKeySizeBits)
+        {
+            return "RSA key size " + keysize + " is below this provider's "
+                    + "floor of " + minKeySizeBits;
         }
         return null;
     }

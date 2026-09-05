@@ -43,7 +43,8 @@ class ProvFIPSRSA
 {
 
     /**
-     * The 3.1.2 FIPS module refuses RSA key generation below 2048 bits;
+     * Both supported FIPS modules (3.1.2 and 3.5.8) refuse RSA key
+     * generation below 2048 bits;
      * enforcing the same floor at the JCE boundary surfaces a typed
      * InvalidParameterException instead of a module error.
      */

@@ -250,12 +250,16 @@ public class FIPSRSATest
     {
         // The FIPS module's RSA generation floor is 2048 bits, enforced at
         // the JCE boundary with a typed exception and a clear message.
+        // MT-66: this is a FAST PATH for the module's own refusal, not a jostle
+        // policy on top of it - both supported modules were measured to refuse
+        // keygen below 2048 - and it now has its own message, separate from the
+        // provider-independent sanity bound.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         java.security.InvalidParameterException ipe = Assertions.assertThrows(
                 java.security.InvalidParameterException.class, () -> kpg.initialize(1024),
                 "1024-bit RSA generation must be rejected at initialize");
-        Assertions.assertTrue(ipe.getMessage().contains("[2048, 16384]"),
-                "message must name the JSLFIPS range, got: " + ipe.getMessage());
+        Assertions.assertTrue(ipe.getMessage().contains("below this provider's floor of 2048"),
+                "message must name the JSLFIPS floor, got: " + ipe.getMessage());
 
         // MD5withRSA is not registered by JSLFIPS...
         Assertions.assertThrows(NoSuchAlgorithmException.class,
@@ -548,8 +552,11 @@ public class FIPSRSATest
         InvalidParameterException ipe = Assertions.assertThrows(
                 InvalidParameterException.class, () -> kpg.initialize(20000),
                 "size above the ceiling must be rejected");
-        Assertions.assertTrue(ipe.getMessage().contains("[2048, 16384]"),
-                "message must name the JSLFIPS range, got: " + ipe.getMessage());
+        // MT-66: the ceiling is the SANITY bound, which is provider-independent,
+        // so the range it names is [1, 16384] and no longer the FIPS floor. The
+        // floor has its own message, asserted in moduleKeySizeFloorAndUnapprovedGate.
+        Assertions.assertTrue(ipe.getMessage().contains("[1, 16384]"),
+                "message must name the sanity range, got: " + ipe.getMessage());
 
         // Even public exponent.
         for (BigInteger evenE : new BigInteger[]{
