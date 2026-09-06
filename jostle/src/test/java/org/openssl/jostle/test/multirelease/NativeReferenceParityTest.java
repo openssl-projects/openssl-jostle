@@ -115,6 +115,81 @@ public class NativeReferenceParityTest
                         + "\"Native references must outlive every JNI/FFI call\"): " + violations);
     }
 
+    /**
+     * Once a class has a fence override at ANY level, EVERY higher-level copy of
+     * it must keep the fence.
+     *
+     * <p>{@link #everyNativeReferenceClassHasAFenceOverride()} is satisfied by
+     * ONE fence override anywhere, so a class with a fenced {@code java9} copy
+     * and a later {@code java11} copy that dropped the fence passes it. That is
+     * not hypothetical: the {@code java11} XDH key copies were added to gain the
+     * JDK {@code XECPublicKey}/{@code XECPrivateKey} interfaces, and their
+     * reason for existing has nothing to do with reachability — so "this level
+     * is about interfaces, the fence is handled below" is exactly the plausible
+     * mistake, and it would silently reintroduce the use-after-free the
+     * {@code java9} copies exist to prevent.
+     *
+     * <p>Per-level, not per-method: the file-granular question is the right one
+     * here, because a copy that drops the fence drops it for the whole class.
+     */
+    @Test
+    public void everyLevelAboveAFenceOverrideAlsoFences()
+        throws IOException
+    {
+        Path mainJava = findMainJava();
+        Assumptions.assumeTrue(mainJava != null,
+                "src/main/java not reachable (packaged test jar) — source lint skipped");
+
+        List<String> violations = new ArrayList<String>();
+        int examined = 0;
+
+        for (int i = 0; i < OVERRIDE_DIRS.length; i++)
+        {
+            Path dir = mainJava.resolveSibling(OVERRIDE_DIRS[i]);
+            if (!Files.exists(dir))
+            {
+                continue;
+            }
+            List<Path> fenced = new ArrayList<Path>();
+            try (Stream<Path> walk = Files.walk(dir))
+            {
+                for (Path f : walk.filter(Files::isRegularFile)
+                        .filter(f -> f.toString().endsWith(".java"))
+                        .collect(Collectors.toList()))
+                {
+                    if (read(f).contains("reachabilityFence"))
+                    {
+                        fenced.add(dir.relativize(f));
+                    }
+                }
+            }
+            for (Path rel : fenced)
+            {
+                examined++;
+                // Every HIGHER level that also carries this class must fence too.
+                for (int j = i + 1; j < OVERRIDE_DIRS.length; j++)
+                {
+                    Path higher = mainJava.resolveSibling(OVERRIDE_DIRS[j]).resolve(rel);
+                    if (Files.exists(higher) && !read(higher).contains("reachabilityFence"))
+                    {
+                        violations.add(OVERRIDE_DIRS[j] + "/" + rel
+                                + " drops the reachabilityFence that "
+                                + OVERRIDE_DIRS[i] + "/" + rel + " carries");
+                    }
+                }
+            }
+        }
+
+        // Vacuity floor: the java9 tree alone carries many fenced classes, so a
+        // zero here means the walk found nothing and the check analysed nothing.
+        Assertions.assertTrue(examined > 0,
+                "no fenced javaN copies found at all — this lint analysed nothing");
+        Assertions.assertTrue(violations.isEmpty(),
+                "a higher javaN copy dropped a fence its lower copy carries;"
+                        + " the higher copy must keep BOTH reasons:\n  "
+                        + String.join("\n  ", violations));
+    }
+
     private static boolean hasFenceOverride(Path mainJava, String rel)
         throws IOException
     {

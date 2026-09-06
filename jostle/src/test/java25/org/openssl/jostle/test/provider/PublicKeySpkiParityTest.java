@@ -102,7 +102,7 @@ public class PublicKeySpkiParityTest
 
     /** Families compared byte-for-byte. */
     private static final TreeSet<String> CELLS = new TreeSet<String>(java.util.Arrays.asList(
-            "RSA", "DSA", "DH", "EC",
+            "RSA", "DSA", "DH", "EC", "ED25519", "ED448",
             "ML-DSA-44", "ML-DSA-65", "ML-DSA-87",
             "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"));
 
@@ -123,10 +123,18 @@ public class PublicKeySpkiParityTest
 
     static
     {
-        BLOCKED.put("X25519", "JOXECPublicKey has no XECPublicKey interface; KeyFactory rejects XECPublicKeySpec");
-        BLOCKED.put("X448", "JOXECPublicKey has no XECPublicKey interface; KeyFactory rejects XECPublicKeySpec");
-        BLOCKED.put("ED25519", "EdKeyFactorySpi rejects the JDK EdECPublicKeySpec; EdDSAPublicKey has no raw getter");
-        BLOCKED.put("ED448", "EdKeyFactorySpi rejects the JDK EdECPublicKeySpec; EdDSAPublicKey has no raw getter");
+        // Blocked on BC's side, not ours. Measured against BC 1.85.2 (the test
+        // classpath) and the checkout: BC's edec KeyFactorySpi.generatePublic
+        // accepts X509EncodedKeySpec, RawEncodedKeySpec and OpenSSHPublicKeySpec
+        // only — XECPublicKeySpec appears nowhere in prov — while BC's jdk1.11
+        // XDH key classes DO implement java.security.interfaces.XECPublicKey.
+        // So BC is readable through the JDK interface and not writable through
+        // the JDK spec, which is precisely the shape jostle had for Edwards
+        // before it was fixed. An encoded-route comparison would be coverage,
+        // not an encoder-agreement witness, so these stay blocked.
+        // jostle's own side is exercised by XECJdkSpecRoundTripTest.
+        BLOCKED.put("X25519", "BC 1.85.2 rejects the JDK XECPublicKeySpec (its edec KeyFactory has no such branch)");
+        BLOCKED.put("X448", "BC 1.85.2 rejects the JDK XECPublicKeySpec (its edec KeyFactory has no such branch)");
         for (String h : new String[]{"SHA2", "SHAKE"})
         {
             for (String s : new String[]{"128", "192", "256"})
@@ -243,56 +251,31 @@ public class PublicKeySpkiParityTest
     }
 
     /**
-     * FINDING C, pinned rather than described: jostle hands out a
-     * JDK-standard Ed public key and will not take one back.
+     * Edwards, now a byte-equality cell.
      *
-     * <p>{@code java15/JOEdPublicKey} implements
-     * {@code java.security.interfaces.EdECPublicKey}, so a caller can READ the
-     * key through the JDK interface — and {@code EdKeyFactorySpi} (which has
-     * only a {@code java/} copy) accepts just {@code X509EncodedKeySpec} and
-     * jostle's own {@code EdDSAPublicKeySpec}, so the same caller cannot WRITE
-     * one back. BC accepts the JDK spec, so the gap is one-sided and ours.
+     * <p>This replaces {@code edwardsKeysAreReadableButNotWritableThroughTheJdkSpec},
+     * which pinned finding C: {@code EdKeyFactorySpi} accepted only
+     * {@code X509EncodedKeySpec} and jostle's own spec, so a caller could READ
+     * a jostle Ed key through {@code java.security.interfaces.EdECPublicKey}
+     * (the {@code java15} key class implements it) and could not WRITE one back.
+     * That pin was written to FAIL when the gap closed, and it did: the
+     * {@code java15/EdKeyFactorySpi} override now accepts the JDK specs, so the
+     * refusal it asserted no longer happens and the rows moved into
+     * {@link #CELLS}.
      *
-     * <p>There is no raw-bytes fallback either: jostle's
-     * {@code EdDSAPublicKey} interface declares no methods, while
-     * {@code MLDSAPublicKey} and {@code SLHDSAPublicKey} both declare
-     * {@code getPublicData()}. That is why ED25519/ED448 are BLOCKED here
-     * rather than compared — no symmetric route exists.
-     *
-     * <p>Found by making the comparison symmetric (the same spec through both
-     * KeyFactories). The earlier asymmetric form — jostle's GENERATED key
-     * against BC's spec-built key — passed while this was false.
-     *
-     * <p>When the gap is closed, this test fails and ED25519/ED448 move back
-     * to {@link #CELLS}. It is written to fail on the fix, deliberately.
+     * <p>The conversion is not a pass-through: {@code EdECPoint} carries
+     * (y, xOdd) and RFC 8032 section 5.1.2 wants little-endian y with the
+     * x parity in the top bit of the final octet, so the override does that
+     * and this cell is what proves it agrees with OpenSSL and with BC.
      */
     @Test
-    public void edwardsKeysAreReadableButNotWritableThroughTheJdkSpec() throws Exception
+    public void edwardsSpkiIdentical() throws Exception
     {
         for (String alg : new String[]{"ED25519", "ED448"})
         {
             EdECPublicKey ed = (EdECPublicKey) KeyPairGenerator.getInstance(alg, jsl)
                     .generateKeyPair().getPublic();
-            EdECPublicKeySpec jdkSpec = new EdECPublicKeySpec(ed.getParams(), ed.getPoint());
-
-            // BC takes it.
-            PublicKey bcPub = KeyFactory.getInstance(alg, bc).generatePublic(jdkSpec);
-            Assertions.assertNotNull(bcPub, alg + ": BC must accept the JDK spec");
-
-            // jostle does not. Typed, per the KeyFactory contract.
-            Assertions.assertThrows(java.security.spec.InvalidKeySpecException.class,
-                    () -> KeyFactory.getInstance(alg, jsl).generatePublic(jdkSpec),
-                    alg + ": if jostle now ACCEPTS the JDK spec, finding C is fixed —"
-                            + " move " + alg + " into CELLS and delete this test");
-
-            // The encoded route still works both ways, which is why this is an
-            // interop inconvenience rather than a total block.
-            byte[] spki = ed.getEncoded();
-            Assertions.assertTrue(Arrays.areEqual(spki,
-                            KeyFactory.getInstance(alg, jsl)
-                                    .generatePublic(new java.security.spec.X509EncodedKeySpec(spki))
-                                    .getEncoded()),
-                    alg + ": the X509 route must still round-trip");
+            assertSpecBuiltAgree(alg, ed, new EdECPublicKeySpec(ed.getParams(), ed.getPoint()));
         }
     }
 
