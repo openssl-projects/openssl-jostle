@@ -27,6 +27,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
 import java.security.*;
+import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -996,7 +997,20 @@ class BlockCipherSpi extends CipherSpi
             }
             catch (ShortBufferException sbe)
             {
-                throw new IllegalBlockSizeException(sbe.getMessage());
+                // The buffer is OURS - allocated above from getFinalSize - so a
+                // short buffer cannot be caller data; it can only mean we
+                // mis-sized it. ProviderException follows MacServiceSPI's
+                // "MAC length mismatch": the same fault class, our own size
+                // disagreeing with reality. The IllegalStateException in
+                // engineUpdate above is a DIFFERENT case - a compiler-forced
+                // impossible path, not a sizing miss. Reporting this as
+                // IllegalBlockSizeException said the CALLER's data was
+                // misaligned, which is what made MT-63 read as a block-size
+                // rule rather than the sizing bug it was.
+                throw new ProviderException(
+                        "internal sizing defect: getFinalSize reported " + len
+                                + " bytes for an input of " + inputLen
+                                + ", which the operation then exceeded", sbe);
             }
         }
         finally
