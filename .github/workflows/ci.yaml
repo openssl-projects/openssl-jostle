@@ -335,6 +335,57 @@ jobs:
           check_name: "${{ matrix.runner }} - ${{ matrix.config.name }}"
           report_paths: "**/build/test-results/**/TEST-*.xml"
 
+  # jostle/src/main/java9/module-info.java has no other witness: nothing else
+  # puts jostle on the module path, and the class path ignores the descriptor.
+  # Two cells because the bridge differs - JDK 17 resolves JNI, 25 resolves FFI.
+  # A separate job, not a test-posix config entry, which would multiply across
+  # all four runners.
+  test-posix-modulepath:
+    needs: "build-posix"
+    strategy:
+      fail-fast: false
+      matrix:
+        jdk: ["17", "25"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-ubuntu-latest"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Set up target JDK"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "${{ matrix.jdk }}"
+      - name: "Set up Java 25 (Gradle runtime)"
+        uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: "25"
+      - name: "Cache Gradle"
+        uses: "gradle/actions/setup-gradle@v4"
+        with:
+          cache-read-only: true
+      - name: "Assemble the jar"
+        working-directory: "jostle"
+        run: |
+          ./gradlew :jostle:jar
+      # No `|| true`: a non-zero exit must fail the job.
+      - name: "Check jostle on the module path"
+        working-directory: "jostle"
+        env:
+          TARGET_JDK: "${{ matrix.jdk }}"
+        run: |
+          x64="JAVA_HOME_${TARGET_JDK}_X64"
+          export JAVA_HOME="${!x64}"
+          ./tools/check-module-path.sh
+
   test-posix-fips:
     needs: "build-posix"
     strategy:
