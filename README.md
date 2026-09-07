@@ -320,7 +320,7 @@ arguments may be appended to the command:
 #### With modules
 
 ```
-java --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
+java --module-path jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar \
 --enable-native-access=org.openssl.jostle.prov \
 --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo
 ```
@@ -395,7 +395,7 @@ NB: Java25 will emit a warning about access to restricted methods in java.lang.S
 
 ```
 WARNING: A restricted method in java.lang.System has been called
-WARNING: java.lang.System::load has been called by org.openssl.jostle.Loader in an unnamed module (file:/home/ec2-user/build/jostle/jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar)
+WARNING: java.lang.System::load has been called by org.openssl.jostle.Loader in an unnamed module (file:/home/ec2-user/build/jostle/jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar)
 WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
 WARNING: Restricted methods will be blocked in a future release unless native access is enabled
 
@@ -404,7 +404,7 @@ WARNING: Restricted methods will be blocked in a future release unless native ac
 #### Java 8
 
 ```
-java -cp jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+java -cp jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 
 
 -------------------------------------------------------------------------------
@@ -440,7 +440,7 @@ Use: --fine to emit FINE level logs, --services to list provider services groupe
 #### java 25 -- default will use FFI
 
 ```
-java --module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
+java --module-path jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar \
 --enable-native-access=org.openssl.jostle.prov \
 --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo
 
@@ -478,7 +478,7 @@ For example, with module loading
 
 ```
 java -Dorg.openssl.jostle.loader.interface=JNI \
---module-path jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar \
+--module-path jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar \
 --enable-native-access=org.openssl.jostle.prov \
 --module  org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo
 
@@ -508,9 +508,9 @@ Extracted: /native/linux/x86_64/libinterface_jni.so
 #### Unsuccessful loading example
 
 ```
-java -cp jostle/build/libs/openssl-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+java -cp jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 
-java -cp openssl-jostle-1.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+java -cp openssl-jostle-0.1-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
 Oct 02, 2025 10:02:41 PM org.openssl.jostle.Loader load
 WARNING: extraction file '/native/osx/arm64/libcrypto.3.dylib' not found
 java.io.IOException: extraction file '/native/osx/arm64/libcrypto.3.dylib' not found
