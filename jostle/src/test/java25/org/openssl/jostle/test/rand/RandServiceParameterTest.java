@@ -195,7 +195,12 @@ public class RandServiceParameterTest
     {
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
 
-        Assertions.assertThrows(UnsupportedOperationException.class, () ->
+        // MT-67: IllegalArgumentException, not UnsupportedOperationException.
+        // SecureRandom reserves UOE for "the underlying provider implementation
+        // has not overridden this method" and names IAE for "params is null,
+        // illegal or unsupported by this SecureRandom". We override it, so a
+        // wrong params type is the IAE case.
+        Assertions.assertThrows(IllegalArgumentException.class, () ->
                 random.nextBytes(new byte[16], unsupportedParameters()));
     }
 
@@ -265,6 +270,11 @@ public class RandServiceParameterTest
                 DrbgParameters.instantiation(128, DrbgParameters.Capability.NONE, null),
                 JostleProvider.PROVIDER_NAME);
 
+        // checkReseeding(): a DRBG instantiated with Capability.NONE cannot
+        // reseed at all. That is an INSTANCE CAPABILITY, not a params
+        // problem, and the no-arg reseed() reaches it with no params, so
+        // neither javadoc clause covers it. Deliberately NOT changed by
+        // MT-67, whose scope is the wrong-params-TYPE case.
         Assertions.assertThrows(UnsupportedOperationException.class, () ->
                 random.reseed(DrbgParameters.reseed(false, null)));
     }
@@ -283,7 +293,12 @@ public class RandServiceParameterTest
     {
         SecureRandom random = SecureRandom.getInstance("DRBG", JostleProvider.PROVIDER_NAME);
 
-        Assertions.assertThrows(UnsupportedOperationException.class, () ->
+        // MT-67: IllegalArgumentException, not UnsupportedOperationException.
+        // SecureRandom reserves UOE for "the underlying provider implementation
+        // has not overridden this method" and names IAE for "params is null,
+        // illegal or unsupported by this SecureRandom". We override it, so a
+        // wrong params type is the IAE case.
+        Assertions.assertThrows(IllegalArgumentException.class, () ->
                 random.reseed(unsupportedParameters()));
     }
 

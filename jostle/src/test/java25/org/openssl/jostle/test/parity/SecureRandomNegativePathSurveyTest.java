@@ -451,30 +451,32 @@ public class SecureRandomNegativePathSurveyTest
      * The divergences this surface carries, ASSERTED - because the survey does
      * not. The survey records cells and asserts only the measured floor.
      *
-     * <h2>MT-67: two cells where the MAJORITY is wrong</h2>
+     * <h2>MT-67: FIXED, and BouncyCastle was never wrong</h2>
      *
-     * <p>On a foreign {@code SecureRandomParameters} we raise
-     * {@code UnsupportedOperationException} and so does BouncyCastle, while the
-     * JDK raises {@code IllegalArgumentException}. The JDK is
-     * CONTRACT-CANONICAL: both {@code reseed(SecureRandomParameters)} and
-     * {@code nextBytes(byte[], SecureRandomParameters)} declare
+     * <p>On a foreign {@code SecureRandomParameters} we now raise
+     * {@code IllegalArgumentException}, matching the JDK.
+     * {@code reseed(SecureRandomParameters)} and
+     * {@code nextBytes(byte[], SecureRandomParameters)} both declare
      * {@code UnsupportedOperationException} <i>"if the underlying provider
      * implementation has not overridden this method"</i> and
      * {@code IllegalArgumentException} <i>"if params is null, illegal or
-     * unsupported by this SecureRandom"</i>. We HAVE overridden both - measured:
-     * {@code reseed()}, {@code reseed(DrbgParameters.reseed(..))} and
-     * {@code nextBytes(buf, DrbgParameters.nextBytes(..))} all succeed on all
-     * eighteen names - so our exception is in the wrong category.
+     * unsupported by this SecureRandom"</i>. We override both, so a wrong params
+     * type was always the IAE case - which the null check in the same method had
+     * been getting right all along.
      *
-     * <p><b>{@code ThreeWay} labels these {@code JDK_IS_ODD}, because two
-     * providers agree against one, and that label is misleading here.</b>
-     * Attribution by vote is not attribution by correctness: a two-against-one
-     * row is a pointer to look, never a verdict. Per the java-spi.md boundary -
-     * match BouncyCastle's type UNLESS BouncyCastle diverges from the JCE
-     * contract - the fix direction is OURS, to
-     * {@code IllegalArgumentException}. Registered as MT-67 and NOT fixed here
-     * (that is a {@code src/main} change with a product gate); this pin records
-     * current behaviour and must NOT be read as endorsing it.
+     * <p><b>BouncyCastle's {@code UnsupportedOperationException} is CORRECT and
+     * stays pinned as the measured value.</b> Verified reflectively against
+     * bcprov 1.85.2: {@code DRBG$Default} extends {@code SecureRandomSpi}
+     * directly and declares none of the params-taking methods, so its UOE IS the
+     * contract's not-overridden case. It is not a shared error - the earlier
+     * reading of this cell said so and was wrong.
+     *
+     * <p><b>{@code ThreeWay} will now label these cells BC_IS_ODD, and that
+     * label is by VOTE only.</b> Two providers agree because two providers
+     * implement the method; the third declines to, which the contract permits.
+     * Attribution by vote is not attribution by correctness, in either
+     * direction - the reason MT-67 needed a contract reading rather than a
+     * tally.
      */
     @Test
     public void pinnedDivergences()
@@ -482,14 +484,14 @@ public class SecureRandomNegativePathSurveyTest
 
         // Finding D, both halves, on a name every provider can answer.
         refuses(observe(jsl, "DRBG", Fault.RESEED_FOREIGN_PARAMS),
-                UnsupportedOperationException.class, "JSL DRBG RESEED_FOREIGN_PARAMS");
+                IllegalArgumentException.class, "JSL DRBG RESEED_FOREIGN_PARAMS");
         refuses(observeJdk("DRBG", Fault.RESEED_FOREIGN_PARAMS),
                 IllegalArgumentException.class, "JDK DRBG RESEED_FOREIGN_PARAMS");
         refuses(observe(bc, "DEFAULT", Fault.RESEED_FOREIGN_PARAMS),
                 UnsupportedOperationException.class, "BC DEFAULT RESEED_FOREIGN_PARAMS");
 
         refuses(observe(jsl, "DRBG", Fault.NEXT_BYTES_FOREIGN_PARAMS),
-                UnsupportedOperationException.class, "JSL DRBG NEXT_BYTES_FOREIGN_PARAMS");
+                IllegalArgumentException.class, "JSL DRBG NEXT_BYTES_FOREIGN_PARAMS");
         refuses(observeJdk("DRBG", Fault.NEXT_BYTES_FOREIGN_PARAMS),
                 IllegalArgumentException.class, "JDK DRBG NEXT_BYTES_FOREIGN_PARAMS");
         refuses(observe(bc, "DEFAULT", Fault.NEXT_BYTES_FOREIGN_PARAMS),

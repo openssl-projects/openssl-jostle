@@ -90,7 +90,7 @@ public final class RandServiceSPI extends SecureRandomSpi
      * @throws NullPointerException          if {@code algorithm} is {@code null}
      * @throws IllegalArgumentException      if the requested strength is invalid
      *                                       or exceeds the algorithm strength
-     * @throws UnsupportedOperationException if {@code params} is not
+     * @throws IllegalArgumentException if {@code params} is not
      *                                       {@link DrbgParameters.Instantiation}
      * @throws ProviderException             if the native DRBG context cannot be created
      */
@@ -211,7 +211,7 @@ public final class RandServiceSPI extends SecureRandomSpi
      *                                       requested strength is invalid, the requested strength exceeds the
      *                                       instantiated strength, or prediction resistance is requested for
      *                                       an instance that does not support it
-     * @throws UnsupportedOperationException if {@code params} is not
+     * @throws IllegalArgumentException if {@code params} is not
      *                                       {@link DrbgParameters.NextBytes}
      */
     @Override
@@ -229,7 +229,13 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         if (!(params instanceof DrbgParameters.NextBytes))
         {
-            throw new UnsupportedOperationException("only DrbgParameters.NextBytes is supported");
+            // MT-67: IllegalArgumentException, not UnsupportedOperationException.
+            // SecureRandom's javadoc reserves UOE for "if the underlying provider
+            // implementation has not overridden this method" and names IAE for
+            // "params is null, illegal or unsupported by this SecureRandom". We DO
+            // override this method, so a wrong params TYPE is the IAE case - as the
+            // null check a few lines up already treats it.
+            throw new IllegalArgumentException("only DrbgParameters.NextBytes is supported");
         }
 
         DrbgParameters.NextBytes nextBytes = (DrbgParameters.NextBytes) params;
@@ -267,7 +273,13 @@ public final class RandServiceSPI extends SecureRandomSpi
 
         if (!(params instanceof DrbgParameters.Reseed))
         {
-            throw new UnsupportedOperationException("only DrbgParameters.Reseed is supported");
+            // MT-67: IllegalArgumentException, not UnsupportedOperationException.
+            // SecureRandom's javadoc reserves UOE for "if the underlying provider
+            // implementation has not overridden this method" and names IAE for
+            // "params is null, illegal or unsupported by this SecureRandom". We DO
+            // override this method, so a wrong params TYPE is the IAE case - as the
+            // null check a few lines up already treats it.
+            throw new IllegalArgumentException("only DrbgParameters.Reseed is supported");
         }
 
         DrbgParameters.Reseed reseed = (DrbgParameters.Reseed) params;
