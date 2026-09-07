@@ -54,6 +54,14 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
      */
     private final java.security.Provider providerInstance;
 
+    /**
+     * The sizes this generator accepts, or null for any size in
+     * [{@link #MIN_P_BITS}, {@link #MAX_P_BITS}]. Per-provider on the
+     * {@code ProvFIPSRSA} precedent: a FIPS module enforces the FIPS 186-4
+     * &sect;4.2 (L, N) pairs, so {@code ProvFIPSDSA} passes that set.
+     */
+    private final int[] acceptedPBits;
+
     public DSAAlgorithmParameterGenerator()
     {
         this(NISelector.DSAServiceNI, NISelector.SpecNI);
@@ -70,9 +78,21 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
      */
     public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, java.security.Provider providerInstance)
     {
+        this(dsaServiceNI, specNI, null, providerInstance);
+    }
+
+    /**
+     * @param acceptedPBits the exact modulus sizes to accept, or null for any
+     *                      size in [{@link #MIN_P_BITS}, {@link #MAX_P_BITS}].
+     */
+    public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI,
+                                          int[] acceptedPBits,
+                                          java.security.Provider providerInstance)
+    {
         this.providerInstance = providerInstance;
         this.dsaServiceNI = dsaServiceNI;
         this.specNI = specNI;
+        this.acceptedPBits = org.openssl.jostle.util.Arrays.clone(acceptedPBits);
     }
 
     /** Default modulus size when no engineInit is performed. */
@@ -83,27 +103,53 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
 
+    /**
+     * Both bounds are OpenSSL's, not jostle policy: 512 is where the default
+     * provider starts generating, and 10000 is
+     * {@code OPENSSL_DSA_MAX_MODULUS_BITS} (openssl
+     * {@code include/openssl/dsa.h:61}) - enforced at parameter check
+     * ({@code crypto/dsa/dsa_check.c:30}) and at sign
+     * ({@code crypto/dsa/dsa_ossl.c:378}), though NOT at paramgen.
+     */
+    private static final int MIN_P_BITS = 512;
+    private static final int MAX_P_BITS = 10000;
+
     @Override
     protected void engineInit(int size, SecureRandom random)
     {
         // AlgorithmParameterGenerator.init(int) throws
         // InvalidParameterException (RuntimeException) per the JCA contract.
-        switch (size)
+        if (acceptedPBits != null)
         {
-            case 1024:
-                this.qBits = 160;
-                break;
-            case 2048:
-            case 3072:
-                this.qBits = 256;
-                break;
-            default:
+            if (!org.openssl.jostle.util.Arrays.contains(acceptedPBits, size))
+            {
                 throw new InvalidParameterException(
                         "DSA parameter size " + size + " is not supported. "
-                                + "Supported sizes: 1024, 2048, 3072.");
+                                + "Supported sizes: " + sizeList());
+            }
         }
+        else if (size < MIN_P_BITS || size > MAX_P_BITS)
+        {
+            throw new InvalidParameterException(
+                    "DSA parameter size " + size + " is not supported. "
+                            + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS + ".");
+        }
+
+        // FIPS 186-4 4.2 pairs N with L; q follows the modulus, it does not
+        // restrict it.
+        this.qBits = size < 2048 ? 160 : 256;
         this.pBits = size;
         this.random = DefaultRandSource.replaceWith(this.random, random);
+    }
+
+    private String sizeList()
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < acceptedPBits.length; i++)
+        {
+            sb.append(i > 0 ? ", " : "").append(acceptedPBits[i]);
+        }
+        return sb.toString();
     }
 
     @Override

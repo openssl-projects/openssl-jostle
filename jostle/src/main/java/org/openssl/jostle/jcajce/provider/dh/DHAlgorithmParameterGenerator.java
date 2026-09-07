@@ -35,11 +35,10 @@ import java.security.spec.AlgorithmParameterSpec;
  * {@code AlgorithmParameters("DH")} instance initialised with the
  * resulting {@link DHParameterSpec}.
  *
- * <p>Sizes range 1024–8192 bits, a multiple of 64. The floor is 1024
- * rather than the legacy JCA 512: 512/768-bit DH is export-grade and
- * trivially broken (Logjam), so this provider refuses to generate it —
- * matching the modern-floor policy in {@code DHKeyPairGenerator} /
- * {@code RSAKeyPairGenerator}. Safe-prime generation is a prime search —
+ * <p>Sizes range 512–10000 bits with no alignment requirement; both bounds are
+ * OpenSSL's (see {@code MIN_P_BITS} / {@code MAX_P_BITS}). 512-bit DH is
+ * export-grade and Logjam-broken — accepting it is not a claim otherwise, only
+ * that the size is the caller's choice. Safe-prime generation is a prime search —
  * slow at 2048 bits and above. For the RFC 7919 named groups use
  * {@code KeyPairGenerator.initialize(int)} instead, which is instant.
  */
@@ -83,11 +82,13 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     private static final int DEFAULT_KEY_SIZE = 2048;
 
     /**
-     * Security floor — DH below 1024 bits (Logjam-grade export DH) is
-     * refused outright — and DoS ceiling on the prime search.
+     * Both bounds are OpenSSL's, not jostle policy: 512 is where the default
+     * provider starts generating, and 10000 is
+     * {@code OPENSSL_DH_MAX_MODULUS_BITS} (openssl
+     * {@code include/openssl/dh.h:99}), which OpenSSL enforces up front.
      */
-    private static final int MIN_P_BITS = 1024;
-    private static final int MAX_P_BITS = 8192;
+    private static final int MIN_P_BITS = 512;
+    private static final int MAX_P_BITS = 10000;
 
     private int pBits = DEFAULT_KEY_SIZE;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -98,12 +99,11 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     {
         // AlgorithmParameterGenerator.init(int) throws
         // InvalidParameterException (RuntimeException) per the JCA contract.
-        if (size < MIN_P_BITS || size > MAX_P_BITS || (size % 64) != 0)
+        if (size < MIN_P_BITS || size > MAX_P_BITS)
         {
             throw new InvalidParameterException(
                     "DH parameter size " + size + " is not supported. "
-                            + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS
-                            + " and a multiple of 64.");
+                            + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS + ".");
         }
         this.pBits = size;
         this.random = DefaultRandSource.replaceWith(this.random, random);

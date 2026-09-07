@@ -31,6 +31,13 @@ class ProvFIPSDSA
     private static final String ID_DSA_OID = "1.2.840.10040.4.1";
     private static final String ID_DSA_WITH_SHA1_OID = "1.2.840.10040.4.3";
 
+    /**
+     * The FIPS 186-4 &sect;4.2 (L, N) moduli the validated modules generate.
+     * Enforced at the JCE boundary so the refusal is a typed
+     * InvalidParameterException rather than a module error.
+     */
+    private static final int[] FIPS_DSA_ACCEPTED_P_BITS = {2048, 3072};
+
     public void configure(final JostleFIPSProvider provider)
     {
         final Map<String, String> attr = new HashMap<>();
@@ -58,7 +65,8 @@ class ProvFIPSDSA
         provider.addAlgorithmImplementation("AlgorithmParameterGenerator", "DSA",
                 DSAAlgorithmParameterGenerator.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameterGenerator(
-                        FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI, provider));
+                        FIPSNISelector.DSAServiceNI, FIPSNISelector.SpecNI,
+                        FIPS_DSA_ACCEPTED_P_BITS, provider));
         provider.addAlias("AlgorithmParameterGenerator", "DSA", ID_DSA_OID);
 
         registerDsaSignature(provider, attr, "SHA1withDSA", "SHA-1", ID_DSA_WITH_SHA1_OID);

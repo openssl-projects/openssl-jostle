@@ -48,21 +48,23 @@ import java.util.TreeSet;
  *       {@code KeyGenerator} size) on a new surface, and it is DH-specific
  *       WITHIN BouncyCastle: its DSA generator refuses the same values. A row
  *       for the upstream bundle, not a defect of ours.</li>
- *   <li><b>We refuse a 512-bit size where BOTH references accept</b>, on DH and
- *       DSA alike. WE_ARE_ODD, twice. <b>The two floors differ in KIND</b>, which
- *       matters if anyone revisits them:
- *       <ul>
- *         <li>DSA's {@code {1024, 2048, 3072}} is the FIPS 186-4 &sect;4.2 (L, N)
- *             set - a standards set, not a local policy choice.</li>
- *         <li>DH's 1024 floor is a jostle policy choice, and its own comment
- *             says so: "Security floor - DH below 1024 bits (Logjam-grade export
- *             DH) is refused outright".</li>
- *       </ul>
- *       MT-66 ruled that jostle's RSA key-size support is what OpenSSL supports,
- *       with no jostle-side policy floor. Whether that principle reaches DH and
- *       DSA parameter generation is Megan's call. This table PINS current
- *       behaviour so a later sweep cannot move it silently, and a change of
- *       policy is expected to change this test deliberately.</li>
+ *   <li><b>The floor, the shape and the ceiling are now OpenSSL's, not ours.</b>
+ *       This table used to carry a WE_ARE_ODD row at 512: we refused it and both
+ *       references accepted. Arc C removed the 1024 floor, the DH
+ *       multiple-of-64 rule and the DSA {@code {1024, 2048, 3072}} set, none of
+ *       which OpenSSL imposes - measured, 511 is refused and 512, 513, 767,
+ *       1000, 1023, 1025 and 2047 all generate.
+ *
+ *       <p>What remains pinned is the boundary itself, 511 refused and 512
+ *       accepted by all three, plus the sizes where BouncyCastle's DSA refuses
+ *       by its OWN documented shape rule (multiple of 64 below 1024, multiple
+ *       of 1024 above, ceiling 3072). Those are BC's rules rather than defects,
+ *       and pinning them stops a parity sweep "fixing" our acceptance to match.
+ *
+ *       <p>The 1024 DH floor was a Logjam-grade security judgement, and removing
+ *       it is NOT a claim that 512-bit DH is safe - it is not. Choosing a
+ *       modulus size is the caller's decision, and this provider had been making
+ *       it for them.</li>
  * </ol>
  *
  * <h2>Two cells are deliberately NOT faults</h2>
@@ -86,7 +88,18 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
         INIT_ZERO,
         INIT_MIN_VALUE,
         INIT_ABSURD,
+        /** 511: one below OpenSSL's floor. All three refuse. */
         INIT_BELOW_FLOOR,
+        /** 512: OpenSSL's floor exactly. All three accept. */
+        INIT_AT_FLOOR,
+        /** 513: legal for OpenSSL, refused by BouncyCastle's DSA shape rule. */
+        INIT_UNALIGNED,
+        /** 1000: also unaligned, and above 512, to show it is not a 513 quirk. */
+        INIT_UNALIGNED_LARGE,
+        /** 4096: legal for OpenSSL, above BouncyCastle's 3072 DSA ceiling. */
+        INIT_ABOVE_BC_CEILING,
+        /** 10001: one above OPENSSL_{DSA,DH}_MAX_MODULUS_BITS. We refuse. */
+        INIT_ABOVE_CEILING,
         INIT_NULL_SPEC,
         INIT_FOREIGN_SPEC,
         /** Not a fault: a null SecureRandom means "use the default". */
@@ -152,7 +165,22 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
                     g.init(1 << 26);
                     return null;
                 case INIT_BELOW_FLOOR:
+                    g.init(511);
+                    return null;
+                case INIT_AT_FLOOR:
                     g.init(512);
+                    return null;
+                case INIT_UNALIGNED:
+                    g.init(513);
+                    return null;
+                case INIT_UNALIGNED_LARGE:
+                    g.init(1000);
+                    return null;
+                case INIT_ABOVE_BC_CEILING:
+                    g.init(4096);
+                    return null;
+                case INIT_ABOVE_CEILING:
+                    g.init(10001);
                     return null;
                 case INIT_NULL_SPEC:
                     g.init((AlgorithmParameterSpec) null);
@@ -194,8 +222,8 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
                         jdk == null ? Observation.absent() : applyFault(jdk, name, f)));
             }
         }
-        // Absolute floor: two names times nine faults.
-        report.assertMeasured(18, names.size(), 0);
+        // Absolute floor: two names times fourteen faults.
+        report.assertMeasured(28, names.size(), 0);
     }
 
     /**
@@ -222,21 +250,50 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
         Assertions.assertNotNull(dhJdk, "no JDK DH parameter generator; the JDK half cannot run");
         Assertions.assertNotNull(dsaJdk, "no JDK DSA parameter generator; the JDK half cannot run");
 
-        // 1. A 512-bit size: we refuse, both references accept. WE are the odd
-        //    provider, on both names, and the two floors differ in KIND -
-        //    DSA's {1024, 2048, 3072} is the FIPS 186-4 4.2 (L, N) set, while
-        //    DH's 1024 is a jostle policy choice against Logjam-grade export DH.
-        //    MT-66 ruled there is no jostle-side RSA floor; whether that reaches
-        //    here is Megan's call, so this pins current behaviour rather than
-        //    endorsing it.
+        // 1. THE FLOOR MOVED. 512 was our refusal and both references' accept -
+        //    the WE_ARE_ODD row this table used to carry. Arc C dropped the
+        //    floor to OpenSSL's own, so all three now accept 512 and all three
+        //    refuse 511. Both halves are asserted: a floor that crept back up
+        //    fails the 512 row, and one that vanished fails the 511 row.
         for (String name : names())
         {
             refuses(jsl, name, Fault.INIT_BELOW_FLOOR, java.security.InvalidParameterException.class);
+            accepts(jsl, name, Fault.INIT_AT_FLOOR);
+            accepts(bc, name, Fault.INIT_AT_FLOOR);
         }
-        accepts(bc, "DH", Fault.INIT_BELOW_FLOOR);
-        accepts(bc, "DSA", Fault.INIT_BELOW_FLOOR);
-        accepts(dhJdk, "DH", Fault.INIT_BELOW_FLOOR);
-        accepts(dsaJdk, "DSA", Fault.INIT_BELOW_FLOOR);
+        accepts(dhJdk, "DH", Fault.INIT_AT_FLOOR);
+        accepts(dsaJdk, "DSA", Fault.INIT_AT_FLOOR);
+
+        //    The DSA discrete set {1024, 2048, 3072} and the DH multiple-of-64
+        //    rule went with it: OpenSSL imposes neither (measured - 513, 767,
+        //    1000, 1023, 1025 and 2047 all generate), so we accept them and
+        //    BouncyCastle's DSA refuses by ITS OWN documented shape rule
+        //    ("multiple of 64 below 1024", "multiple of 1024 above"). That is
+        //    BC's rule, not a defect, and it is pinned so a parity sweep cannot
+        //    "fix" our acceptance to match it.
+        for (String name : names())
+        {
+            accepts(jsl, name, Fault.INIT_UNALIGNED);
+            accepts(jsl, name, Fault.INIT_UNALIGNED_LARGE);
+            accepts(jsl, name, Fault.INIT_ABOVE_BC_CEILING);
+        }
+        refuses(bc, "DSA", Fault.INIT_UNALIGNED, java.security.InvalidParameterException.class);
+        refuses(bc, "DSA", Fault.INIT_UNALIGNED_LARGE, java.security.InvalidParameterException.class);
+        refuses(bc, "DSA", Fault.INIT_ABOVE_BC_CEILING, java.security.InvalidParameterException.class);
+
+        //    The CEILING is inherited too, and is the one bound OpenSSL does not
+        //    enforce at paramgen: OPENSSL_DSA_MAX_MODULUS_BITS
+        //    (openssl include/openssl/dsa.h:61) is checked at parameter
+        //    validation (crypto/dsa/dsa_check.c:30) and at sign
+        //    (crypto/dsa/dsa_ossl.c:378), and OPENSSL_DH_MAX_MODULUS_BITS
+        //    (include/openssl/dh.h:99) is checked up front. So generating above
+        //    10000 is unbounded cost for a parameter set OpenSSL will not
+        //    validate or use - which is why WE refuse it at init. 10000 is
+        //    OpenSSL's number, not a jostle policy number.
+        for (String name : names())
+        {
+            refuses(jsl, name, Fault.INIT_ABOVE_CEILING, java.security.InvalidParameterException.class);
+        }
 
         // 2. BouncyCastle accepts every illegal DH size while REFUSING the same
         //    values on DSA. Both halves are asserted, because the DH-specific

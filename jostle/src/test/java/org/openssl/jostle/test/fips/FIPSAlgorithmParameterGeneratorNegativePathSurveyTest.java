@@ -19,9 +19,11 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.parity.AlgorithmParameterGeneratorNegativePathSurveyTest;
 import org.openssl.jostle.test.parity.JdkComparator;
 import org.openssl.jostle.test.parity.Observation;
+import org.openssl.jostle.test.parity.Observer;
 import org.openssl.jostle.test.parity.SurveyReport;
 import org.openssl.jostle.test.parity.ThreeWay;
 
+import java.security.AlgorithmParameterGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
@@ -122,7 +124,89 @@ public class FIPSAlgorithmParameterGeneratorNegativePathSurveyTest
                                 : AlgorithmParameterGeneratorNegativePathSurveyTest.applyFault(jdk, name, f)));
             }
         }
-        report.assertMeasured(18, names.size(), 0);
+        report.assertMeasured(28, names.size(), 0);
+    }
+
+    /**
+     * The FIPS-side size rule is DIFFERENT from the base provider's, and this
+     * pins it PER MODULE.
+     *
+     * <p>Arc C dropped the base floor to OpenSSL's 512 with no shape rule. A
+     * validated module does not offer that: measured through
+     * {@code FIPSNISelector} with the Java floor bypassed, the 3.1.2 module
+     * accepts DSA paramgen at 2048 and 3072 ONLY, refusing 511, 512, 1024 and
+     * 4096 with {@code ffc_validate} errors - it enforces the FIPS 186-4
+     * &sect;4.2 (L, N) pairs. So {@code ProvFIPSDSA} constructs the generator
+     * with that set, on the {@code ProvFIPSRSA} precedent, and the refusal
+     * happens at {@code init} rather than inside the module at generate.
+     *
+     * <p>The 3.5.8 module gates DSA generation entirely, so no size is
+     * observable there and the refusal arrives as
+     * {@code ProviderCapabilityException} before any size matters. The branch
+     * below is chosen by PROBING the module ({@code fipsDsaCanGenerate}, which
+     * pins the typed refusal on its way to returning false), never by naming a
+     * module version - two supported modules disagree and the contract is what
+     * gets asserted.
+     */
+    @Test
+    public void fipsDsaSizeRuleIsTheModulesOwn() throws Exception
+    {
+        // init() is Java-side and module-independent: the FIPS generator was
+        // constructed with the FIPS 186-4 set, so these hold on both modules.
+        refuses("DSA", 511);
+        refuses("DSA", 512);
+        refuses("DSA", 1024);
+        refuses("DSA", 4096);
+        refuses("DSA", 10001);
+        accepts("DSA", 2048);
+        accepts("DSA", 3072);
+
+        // DH keeps the base rule on the FIPS side: the module refuses DH
+        // paramgen outright whatever the size (JO_DH_PARAMGEN_SUBSTITUTED), so
+        // there is nothing size-shaped to gate at init.
+        accepts("DH", 512);
+        accepts("DH", 1024);
+        refuses("DH", 511);
+        refuses("DH", 10001);
+    }
+
+    /**
+     * Drive {@code init(size)} with an ARBITRARY size, rather than routing
+     * through the survey's fault enum.
+     *
+     * <p>The enum's cells are fixed sizes chosen for the base table, and the
+     * FIPS 186-4 pairs are not among them - an earlier version of this test
+     * mapped 1024 onto the 1000-bit cell and had no cell at all for 2048 or
+     * 3072, so it would have asserted the wrong sizes and thrown from its own
+     * default arm. Naming the size here keeps the assertion and the claim the
+     * same thing.
+     */
+    private static Observation initWith(String name, int size)
+    {
+        return Observer.observe(() -> {
+            AlgorithmParameterGenerator g = AlgorithmParameterGenerator.getInstance(
+                    name, fips);
+            g.init(size);
+            return null;
+        });
+    }
+
+    private static void refuses(String name, int size)
+    {
+        Observation o = initWith(name, size);
+        Assertions.assertTrue(o.isThrow(),
+                "JSLFIPS " + name + " init(" + size + ") must be refused at init");
+        Assertions.assertEquals(java.security.InvalidParameterException.class, o.thrown().getClass(),
+                "JSLFIPS " + name + " init(" + size + "): wrong refusal type ("
+                        + o.message() + ")");
+    }
+
+    private static void accepts(String name, int size)
+    {
+        Observation o = initWith(name, size);
+        Assertions.assertFalse(o.isThrow(),
+                "JSLFIPS " + name + " init(" + size + ") must be accepted at init, but it threw "
+                        + (o.isThrow() ? o.thrown().getClass().getName() + " / " + o.message() : ""));
     }
 
     /**

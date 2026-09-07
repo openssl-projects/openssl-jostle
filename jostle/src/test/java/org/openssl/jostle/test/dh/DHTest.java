@@ -253,14 +253,26 @@ public class DHTest
      * {@link InvalidParameterException}.
      */
     @Test
-    public void testAlgorithmParameterGenerator_belowFloor_rejected() throws Exception
+    /**
+     * The floor is OpenSSL's, not ours.
+     *
+     * <p>This test previously asserted the opposite: "512-bit DH paramgen must
+     * be rejected (Logjam floor)" and the same for 768. That reasoning was
+     * sound about the cryptography and wrong about whose decision it is -
+     * 512-bit DH IS export-grade and Logjam-broken, but jostle's support is
+     * what OpenSSL supports, and OpenSSL generates from 512 up (measured: 511
+     * refused, 512 accepted). A caller who wants a safe modulus chooses one.
+     */
+    public void testAlgorithmParameterGenerator_openSSLFloorIsHonoured() throws Exception
     {
         AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance(
                 "DH", JostleProvider.PROVIDER_NAME);
+        // 511 is below what OpenSSL will generate, so we refuse it at init.
         Assertions.assertThrows(InvalidParameterException.class,
-                () -> apg.init(512), "512-bit DH paramgen must be rejected (Logjam floor)");
-        Assertions.assertThrows(InvalidParameterException.class,
-                () -> apg.init(768), "768-bit DH paramgen must be rejected");
+                () -> apg.init(511), "511-bit DH is below OpenSSL's floor");
+        // 512 and 768 are now ACCEPTED at init - the inversion this test records.
+        apg.init(512);
+        apg.init(768);
     }
 
     /**
@@ -557,8 +569,11 @@ public class DHTest
     {
         AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance(
                 "DH", JostleProvider.PROVIDER_NAME);
-        // Boundary probes: below minimum, above maximum, non-multiple of 64.
-        for (int size : new int[]{0, 448, 511, 513, 8256, 1000})
+        // Boundary probes. 513 and 1000 were here as "non-multiple of 64" and
+        // have MOVED to the accepted side: OpenSSL imposes no alignment rule.
+        // 8256 was above the old 8192 ceiling and is now legal; 10001 is above
+        // OPENSSL_DH_MAX_MODULUS_BITS (openssl include/openssl/dh.h:99).
+        for (int size : new int[]{0, 448, 511, 10001, 100000})
         {
             try
             {

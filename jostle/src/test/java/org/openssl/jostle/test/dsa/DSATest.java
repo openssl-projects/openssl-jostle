@@ -650,7 +650,12 @@ public class DSATest
     {
         AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance(
                 "DSA", JostleProvider.PROVIDER_NAME);
-        for (int size : new int[]{0, 512, 1023, 2047, 3073})
+        // 512, 1023, 2047 and 3073 were rejected by the old discrete set
+        // {1024, 2048, 3072}; OpenSSL imposes no such set and generates any
+        // size from 512 up, so they have moved to the accepted side. What
+        // remains refused is below OpenSSL's floor and above
+        // OPENSSL_DSA_MAX_MODULUS_BITS (openssl include/openssl/dsa.h:61).
+        for (int size : new int[]{0, 511, 10001, 100000})
         {
             try
             {
