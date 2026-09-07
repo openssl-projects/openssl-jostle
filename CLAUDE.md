@@ -141,7 +141,7 @@ Direct buffer access (JNI critical regions) cannot make up-calls — fetch rando
 
 ## Useful debug entrypoints
 
-`org.openssl.jostle.util.DumpInfo` (run via the standard `java --module-path .../openssl-jostle-1.0-SNAPSHOT.jar --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo`) prints the loaded provider, OS/arch, JVM version, the resolved interface (JNI/FFI), and which native libs were extracted. Use it to confirm a build picked up the right native libraries.
+`org.openssl.jostle.util.DumpInfo` (run via the standard `java --module-path .../openssl-jostle-0.1-SNAPSHOT.jar --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo`) prints the loaded provider, OS/arch, JVM version, the resolved interface (JNI/FFI), and which native libs were extracted. Use it to confirm a build picked up the right native libraries.
 
 
 ## Detailed guides
