@@ -56,6 +56,7 @@ fi
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 REPO=$(cd "$SCRIPT_DIR/../../../.." && pwd)
 cd "$REPO" || exit 3
+. "$SCRIPT_DIR/tasks-lib.sh"
 
 for v in JAVA_HOME OPENSSL_PREFIX; do
   if [ -z "${!v:-}" ]; then
@@ -92,7 +93,7 @@ run_shard() {
     # plain library every *OpsTest assumption-skips and the suite is green
     # without executing a single fault-injection path.
     export JOSTLE_REQUIRE_OPS=1
-    for t in integrationTest25JNI integrationTest25FFI; do
+    for t in $(jostle_tasks ops); do
       echo "=== [$shard] :jostle:$t ==="
       ./gradlew ":jostle:$t" --rerun || return 1
     done

@@ -42,6 +42,7 @@ set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 REPO=$(cd "$SCRIPT_DIR/../../../.." && pwd)
 cd "$REPO" || exit 3
+. "$SCRIPT_DIR/tasks-lib.sh"
 
 if [ -z "${JAVA_HOME:-}" ]; then
   echo "JAVA_HOME must point at a Java 25 JDK" >&2
@@ -58,7 +59,7 @@ CONFIGS=(
   "3.5.8-default|$OPENSSLS/osx_3_5_8/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_8_default.cnf"
 )
 
-TASKS=(unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI)
+IFS=$'\n' read -r -d '' -a TASKS < <(jostle_tasks fipssweep && printf '\0')
 
 echo "=== preparing $WORK ==="
 rm -rf "$WORK"

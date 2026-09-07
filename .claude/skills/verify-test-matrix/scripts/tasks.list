@@ -1,0 +1,35 @@
+# Single source of truth for the gate's gradle task names.
+#
+# Read by every script in this directory and by verify-results.py. No literal
+# task list may exist elsewhere here; `verify-results.py --self-check` enforces
+# that.
+#
+# columns:  <task>  <roles,comma-separated>  <required env var, or - >
+#
+# roles
+#   invoke     run-matrix.sh invokes this with gradlew by default
+#   verify     its result XML is snapshotted and verified
+#   ops        run-two-pass.sh's pass-2 invocation list
+#   targeted   run-targeted.sh's default
+#   fipssweep  sweep-fips-parallel.sh's list
+#
+# verify is a SUPERSET of invoke: `:jostle:test` already runs
+# unitTest<NN>/integrationTest<NN> as dependencies, gated on BC_JDK<NN>, so
+# those legs need no invocation of their own but their XML must still be read.
+#
+# The env column mirrors build.gradle's gating. Set means the leg is EXPECTED
+# and missing results fail; unset means the leg is dropped and must be reported.
+
+test                  invoke,verify                      -
+unitTest8             verify                             BC_JDK8
+integrationTest8      verify                             BC_JDK8
+unitTest11            verify                             BC_JDK11
+integrationTest11     verify                             BC_JDK11
+unitTest17            verify                             BC_JDK17
+integrationTest17     verify                             BC_JDK17
+unitTest21            verify                             BC_JDK21
+integrationTest21     verify                             BC_JDK21
+unitTest25JNI         invoke,verify,targeted,fipssweep   BC_JDK25
+unitTest25FFI         invoke,verify,targeted,fipssweep   BC_JDK25
+integrationTest25JNI  invoke,verify,ops,targeted,fipssweep  BC_JDK25
+integrationTest25FFI  invoke,verify,ops,targeted,fipssweep  BC_JDK25

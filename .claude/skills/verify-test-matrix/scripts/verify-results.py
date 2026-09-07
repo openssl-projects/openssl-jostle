@@ -28,7 +28,9 @@ Usage:
                  fact: no FIPS module was present. A hand-runner who types it
                  without a module, or omits it with one, breaks that contract.
 
-Default tasks: test unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI
+Default tasks: every task carrying the `verify` role in tasks.list, which is
+the single source of truth for task names (run --self-check to prove no script
+has grown a literal copy).
 Exit codes: 0 ok, 1 failures/errors present, 2 gated classes fully skipped,
 3 a requested task has no result files at all (never ran), 4 OPS coverage
 missing while --require-ops.
@@ -36,11 +38,12 @@ missing while --require-ops.
 
 import glob
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 
-DEFAULT_TASKS = ["test", "unitTest25JNI", "unitTest25FFI",
-                 "integrationTest25JNI", "integrationTest25FFI"]
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TASKS_FILE = os.path.join(SCRIPT_DIR, "tasks.list")
 RESULTS_ROOT = "jostle/build/test-results"
 NATIVE_ROOT = "jostle/src/main/resources/native"
 
@@ -49,6 +52,79 @@ NATIVE_ROOT = "jostle/src/main/resources/native"
 # names appear literally in Mach-O, ELF and PE alike, so one code path covers
 # every platform we build for and the check needs no toolchain.
 OPS_MARKER = b"JoOps_setFlag"
+
+
+def read_tasks():
+    """[(task, roles, env_var_or_None)] from tasks.list, in file order.
+
+    tasks.list is the single source of truth. Nine literal copies across six
+    files are why eight legs ran unverified: `test` pulls in
+    unitTest<NN>/integrationTest<NN> as dependencies, and nobody read their XML.
+    """
+    rows = []
+    with open(TASKS_FILE) as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) != 3:
+                raise SystemExit(f"tasks.list: malformed row {line!r}")
+            task, roles, env = parts
+            rows.append((task, roles.split(","), None if env == "-" else env))
+    if not rows:
+        raise SystemExit("tasks.list: no rows — refusing to verify nothing")
+    return rows
+
+
+def tasks_for(role):
+    return [t for t, roles, _ in read_tasks() if role in roles]
+
+
+def env_for(task):
+    for t, _, env in read_tasks():
+        if t == task:
+            return env
+    return None
+
+
+def self_check():
+    """Fail if any sibling script has regrown a literal task list.
+
+    Matches every task name except the bare "test" on word boundaries, in CODE
+    only: comments are stripped first, because prose legitimately names tasks
+    and "test" is a substring of "tests" and "--tests".
+    """
+    # Every task name is a needle, not one: an ops list names only the two
+    # integration tasks. "test" is excluded — indistinguishable from prose.
+    needles = [t for t, _, _ in read_tasks() if t != "test"]
+    pattern = re.compile(r"(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, needles))
+                         + r")(?![A-Za-z0-9_])")
+    offenders = []
+    for name in sorted(os.listdir(SCRIPT_DIR)):
+        path = os.path.join(SCRIPT_DIR, name)
+        if not os.path.isfile(path) or name in ("tasks.list", os.path.basename(__file__)):
+            continue
+        if name.endswith((".pyc",)):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                for n, line in enumerate(fh, 1):
+                    code = line.split("#", 1)[0]
+                    m = pattern.search(code)
+                    if m:
+                        offenders.append(f"{name}:{n}: [{m.group(1)}] {line.strip()[:70]}")
+        except (UnicodeDecodeError, IsADirectoryError):
+            continue
+    if offenders:
+        print("SELF-CHECK FAILED — literal task names outside tasks.list:")
+        for o in offenders:
+            print(f"  {o}")
+        return 1
+    print(f"self-check: no literal task list outside tasks.list "
+          f"({len(read_tasks())} tasks, roles: "
+          f"{', '.join(sorted({r for _, rr, _ in read_tasks() for r in rr}))})")
+    return 0
 
 
 def ops_build_installed():
@@ -70,13 +146,15 @@ def ops_build_installed():
 
 def main():
     args = sys.argv[1:]
+    if "--self-check" in args:
+        return self_check()
     require_fips = "--require-fips" in args
     require_ops = "--require-ops" in args
     # run-matrix.sh:38-46 passes --require-fips only after confirming the module
     # file exists, so its absence is a recorded run-time fact, not a guess.
     # Naming it keeps require_fips' double duty (policy + fact) visible here.
     fips_module_absent = not require_fips
-    tasks = [a for a in args if not a.startswith("--")] or DEFAULT_TASKS
+    tasks = [a for a in args if not a.startswith("--")] or tasks_for("verify")
 
     ops_installed, ops_evidence = ops_build_installed()
 
@@ -84,10 +162,22 @@ def main():
     grand = [0, 0, 0, 0]
     ops_skipped_total = 0
     fips_excused_total = 0
+    dropped = []
     for task in tasks:
+        # Gate before files: an unset var means gradle did not run this leg,
+        # so any XML present is stale from an earlier run and must not be
+        # counted as a fresh pass.
+        gate = env_for(task)
+        if gate and not os.environ.get(gate):
+            stale = sorted(glob.glob(os.path.join(RESULTS_ROOT, task, "TEST-*.xml")))
+            extra = f", ignoring {len(stale)} stale result file(s)" if stale else ""
+            print(f"LEG DROPPED {task}: {gate} unset{extra}")
+            dropped.append(f"{task} ({gate} unset)")
+            continue
         files = sorted(glob.glob(os.path.join(RESULTS_ROOT, task, "TEST-*.xml")))
         if not files:
-            print(f"{task}: NO RESULT FILES — task never ran")
+            reason = f" — {gate} is set, so this leg was EXPECTED" if gate else ""
+            print(f"{task}: NO RESULT FILES — task never ran{reason}")
             rc = max(rc, 3)
             continue
         t = f = e = s = 0
@@ -162,6 +252,8 @@ def main():
                 print(f"    fully skipped: {m}")
 
     print(f"TOTAL: tests={grand[0]} failures={grand[1]} errors={grand[2]} skipped={grand[3]}")
+    if dropped:
+        print(f"LEGS DROPPED ({len(dropped)}): {', '.join(dropped)}")
 
     # --- the two-pass verdict ------------------------------------------------
     if ops_installed is None:
@@ -181,7 +273,7 @@ def main():
                 print(f"  {ops_skipped_total} OpsTest class(es) did not run. This pass covers the"
                       f" SHIPPED library; it does not cover the OPS fault-injection paths.")
             print("  Second pass:  JOSTLE_OPS_TEST=1 ./interface/build.sh"
-                  "  &&  run-matrix.sh integrationTest25JNI integrationTest25FFI")
+                  "  &&  run-matrix.sh " + " ".join(tasks_for("ops")))
             print("  Then rebuild plain so the tree is left shipping-clean.")
         if require_ops:
             rc = max(rc, 4)

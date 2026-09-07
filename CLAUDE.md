@@ -32,7 +32,7 @@ JOSTLE_OPS_TEST=1 ./interface/build.sh
 ./gradlew clean build
 ```
 
-`build_osx.sh` and `build_linux.sh` automate all three stages and do two passes (with and without `JOSTLE_OPS_TEST`). They expect `OPENSSL_PREFIX` to point at `../openssls/<os>/<arch>` relative to the repo.
+`build_osx.sh` automates all three stages and does two passes (with and without `JOSTLE_OPS_TEST`). It expects `OPENSSL_PREFIX` to point at `../openssls/<os>/<arch>` relative to the repo.
 
 ## Test
 

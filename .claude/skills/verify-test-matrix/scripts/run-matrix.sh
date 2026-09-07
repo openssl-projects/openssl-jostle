@@ -45,13 +45,22 @@ else
   echo "WARNING: TEST_FIPS_LIB unset — FIPS-gated classes will skip." >&2
 fi
 
-# Task names may be given as arguments; the five-task matrix is the default.
-# The OPS pass uses this to run only integrationTest25JNI/FFI, where every
-# *OpsTest lives - repeating the 27-minute base `test` task would add nothing.
+# Task names may be given as arguments; otherwise tasks.list decides.
+# The OPS pass passes only integrationTest25JNI/FFI, where every *OpsTest
+# lives - repeating the 27-minute base `test` task would add nothing.
 # JOSTLE_REQUIRE_OPS=1 additionally demands the OpsTest classes actually ran.
+#
+# INVOKE and VERIFY differ when no arguments are given: `:jostle:test` already
+# runs unitTest<NN>/integrationTest<NN> as dependencies, so those legs need no
+# invocation but their XML must still be read. With explicit arguments the two
+# lists are identical - naming tasks means those tasks and nothing else.
+. "$SCRIPT_DIR/tasks-lib.sh"
 TASKS=("$@")
 if [ "${#TASKS[@]}" -eq 0 ]; then
-  TASKS=(test unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI)
+  IFS=$'\n' read -r -d '' -a TASKS < <(jostle_tasks invoke && printf '\0')
+  IFS=$'\n' read -r -d '' -a VERIFY_TASKS < <(jostle_tasks verify && printf '\0')
+else
+  VERIFY_TASKS=("${TASKS[@]}")
 fi
 
 REQUIRE_OPS=""
@@ -87,7 +96,25 @@ if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
   {
     echo "date: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
-    echo "tasks: ${TASKS[*]}"
+    echo "tasks: ${VERIFY_TASKS[*]}"
+    # write_tree hashes the INDEX; a gate runs the WORKTREE. Those differed
+    # while this line was being added, so it recorded a tree that was not
+    # tested. worktree_dirty says whether they can differ, and when they do the
+    # worktree's own tree is written through a temporary index.
+    echo "write_tree: $(git write-tree 2>/dev/null || echo unknown)"
+    if git diff --quiet 2>/dev/null; then
+      echo "worktree_dirty: no"
+    else
+      echo "worktree_dirty: yes"
+      _wt_index=$(mktemp)
+      if GIT_INDEX_FILE="$_wt_index" git read-tree HEAD 2>/dev/null \
+         && GIT_INDEX_FILE="$_wt_index" git add -A . 2>/dev/null; then
+        echo "worktree_tree: $(GIT_INDEX_FILE="$_wt_index" git write-tree 2>/dev/null || echo unknown)"
+      else
+        echo "worktree_tree: unknown"
+      fi
+      rm -f "$_wt_index"
+    fi
     echo "build_state: $BUILD_STATE"
     if [ -n "${TEST_FIPS_LIB:-}" ]; then
       echo "fips_module: ${TEST_FIPS_LIB}"
@@ -97,7 +124,7 @@ if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
       echo "fips_module: UNSET"
     fi
   } > "$SNAP_DIR/run-info.txt"
-  for t in "${TASKS[@]}"; do
+  for t in "${VERIFY_TASKS[@]}"; do
     src="jostle/build/test-results/$t"
     n=$(ls -1 "$src"/TEST-*.xml 2>/dev/null | wc -l | tr -d ' ')
     if [ "$n" -eq 0 ]; then
@@ -110,4 +137,4 @@ if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
   done
 fi
 
-python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${TASKS[@]}"
+python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${VERIFY_TASKS[@]}"

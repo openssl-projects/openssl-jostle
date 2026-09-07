@@ -19,7 +19,7 @@
 #
 # Usage:
 #   bash .../run-targeted.sh AESKeyWrapTest ChunkingContractTest
-#   JOSTLE_TARGET_TASKS="unitTest25JNI" bash .../run-targeted.sh MDTest
+#   JOSTLE_TARGET_TASKS="<one task>" bash .../run-targeted.sh MDTest
 #
 # Required env:
 #   JAVA_HOME      Java 25 JDK (BC_JDK25 defaults to it)
@@ -31,6 +31,7 @@
 set -eu
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 cd "$SCRIPT_DIR/../../../.."   # repo root
+. "$SCRIPT_DIR/tasks-lib.sh"
 
 # MT-37: name the FIPS module in the record. Both 3.1.2 and 3.5.8 are supported
 # and the gate runs once per module, so a green must say which module it is.
@@ -56,7 +57,11 @@ if [ "$#" -eq 0 ]; then
 fi
 
 CLASSES=("$@")
-read -r -a TASKS <<< "${JOSTLE_TARGET_TASKS:-unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI}"
+if [ -n "${JOSTLE_TARGET_TASKS:-}" ]; then
+  read -r -a TASKS <<< "$JOSTLE_TARGET_TASKS"
+else
+  IFS=$'\n' read -r -d '' -a TASKS < <(jostle_tasks targeted && printf '\0')
+fi
 
 # One task at a time, each with its OWN --tests flags. Two measured reasons:
 #
