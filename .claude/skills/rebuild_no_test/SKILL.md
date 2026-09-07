@@ -24,13 +24,37 @@ message if either is unset.
 ```bash
 export JAVA_HOME="$BC_JDK25"                                   # must be Java 25
 export PATH="$JAVA_HOME/bin:$PATH"
-export OPENSSL_PREFIX=/Users/meganwoods/openssl/jostle/openssls/osx/arm64
+export OPENSSL_PREFIX=/Users/meganwoods/openssl/openssls/osx_3_5_8
 ```
 
-`OPENSSL_PREFIX` points at a built mainline OpenSSL 3.x tree — the repo
-convention is `../openssls/<os>/<arch>` relative to the checkout. On this
-machine `JAVA_HOME` is normally unset in fresh shells and `java` is not on
-`PATH` at all, so **always export both explicitly**; a bare `./gradlew` fails
+`OPENSSL_PREFIX` points at a built mainline OpenSSL 3.x tree. **It is a sibling
+of the checkout's PARENT, not of the checkout** — `build_osx.sh:24` derives it
+as `<repo>/../../openssls/osx_3_5_8` (note the two levels), and the directories
+are named by version, not `<os>/<arch>`. An earlier version of this skill said
+`…/jostle/openssls/osx/arm64`, which is wrong in both respects and is a path
+that does not exist.
+
+Verify before building, because `interface/build.sh` will happily start against
+a bad prefix and fail deep in cmake:
+
+```bash
+ls "$OPENSSL_PREFIX/include/openssl/opensslv.h" "$OPENSSL_PREFIX/lib/libcrypto.3.dylib"
+```
+
+**Which prefix.** Two are usable on this machine, and the choice is not
+cosmetic — it decides the libcrypto bundled into the jar:
+
+| prefix | OpenSSL |
+|---|---|
+| `/Users/meganwoods/openssl/openssls/osx_3_5_8` | **3.5.8 — matches the libcrypto currently shipped, and what the release gate ran against. Use this unless told otherwise.** |
+| `/Users/meganwoods/openssl/openssls/osx_35` | 3.6.2 |
+
+`/Users/meganwoods/openssl/openssls/osx_3_1_2` holds the FIPS *module* only —
+no libcrypto, no headers. It is a `TEST_FIPS_LIB` value, never an
+`OPENSSL_PREFIX`.
+
+On this machine `JAVA_HOME` is normally unset in fresh shells and `java` is not
+on `PATH` at all, so **always export both explicitly**; a bare `./gradlew` fails
 with "Unable to locate a Java Runtime".
 
 Do NOT set `JOSTLE_OPS_TEST` for this build. It is only for OPS
