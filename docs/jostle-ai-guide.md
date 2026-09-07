@@ -101,7 +101,10 @@ type. Use it to confirm a deployment picked up the native libraries.
 ### Set up the FIPS provider (`JSLFIPS`)
 
 `JSLFIPS` backs its services with an **externally supplied** OpenSSL FIPS module
-(e.g. the FIPS-validated OpenSSL 3.1.2 `fips.so` / `fips.dylib` / `fips.dll`).
+(the OpenSSL FIPS module's `fips.so` / `fips.dylib` / `fips.dll`). **Two
+modules are supported: 3.1.2, the CMVP-validated one, and 3.5.8.** They do not
+implement the same set — see "FIPS behavioural differences" below and
+`SERVICES.md`.
 The module is loaded by libcrypto itself — its integrity MAC is verified and its
 self-tests run before any service is available; the JVM never `System.load`s it.
 **`JSLFIPS` registers no services until configured.**
@@ -176,16 +179,47 @@ the JDK's default 128-bit DRBG.
 
 1. `Cipher.unwrap(...)` failures surface as **`InvalidKeyException`**, never `BadPaddingException` — a deliberate Bleichenbacher-channel defence.
 2. `Cipher.doFinal(...)` decrypt padding/tag failures surface as **`BadPaddingException`** (GCM: its subclass `AEADBadTagException`); size mismatches as `IllegalBlockSizeException`; short output buffers as `ShortBufferException`.
-3. Illegal state-machine transitions (e.g. `update` before `init`, `setParameter` mid-update) throw **`IllegalStateException`**, not NPE. Call the SPI in order (init → update* → doFinal/sign/verify) rather than null-guarding.
+3. `SecureRandom.reseed(params)` / `nextBytes(buf, params)` given a params type
+   the provider does not serve raise **`IllegalArgumentException`**, not
+   `UnsupportedOperationException` — the JDK reserves UOE for "the provider has
+   not overridden this method", and Jostle does override both.
+4. Illegal state-machine transitions (e.g. `update` before `init`, `setParameter` mid-update) throw **`IllegalStateException`**, not NPE. Call the SPI in order (init → update* → doFinal/sign/verify) rather than null-guarding.
 
 ### 4. Keys are bound to the provider that created them (JSL vs JSLFIPS)
 
-1. **Public keys** carry no secret material and may be used with either provider freely.
-2. **Private keys** are isolated: a `Signature`/`Cipher`/`KeyAgreement` of one provider **rejects** a private key created by the other with `InvalidKeyException`.
+1. **BOTH halves are isolated, in both directions.** A key object belongs to the
+   provider *instance* that created it. A `Signature`/`Cipher`/`KeyAgreement` of
+   one provider **rejects** a key created by the other with
+   `InvalidKeyException` — public keys included. OpenSSL binds a key to its
+   creating provider for life and serves operations on it there, so accepting a
+   foreign public key would silently do the work outside the module you asked
+   for.
+2. `KeyGenerator` surfaces raise `InvalidAlgorithmParameterException` instead,
+   because that is what `engineInit` may throw.
 3. To move a private key between `JSL` and `JSLFIPS`, encode it (`key.getEncoded()`) and decode it through the **target** provider's `KeyFactory`. Do the crossing explicitly.
 4. `SecretKey`s (raw bytes, no native residency) cross freely.
 
-### 5. AEAD parameter specs and default tag lengths
+### 5. Key and parameter sizes are OpenSSL's, not Jostle's
+
+1. **RSA key generation and import have no Jostle-side floor.** A 16384-bit
+   ceiling remains as DoS protection. `JSLFIPS` keeps a 2048-bit floor, because
+   the module enforces one.
+2. **DH parameter generation:** 512..10000 bits, **no alignment requirement**.
+   The ceiling is `OPENSSL_DH_MAX_MODULUS_BITS`.
+3. **DSA parameter generation:** any size 512..10000 on `JSL`. The ceiling is
+   `OPENSSL_DSA_MAX_MODULUS_BITS`, which OpenSSL enforces at parameter check and
+   at sign rather than at generation, so generating above it produces a
+   parameter set OpenSSL will not validate or use.
+4. **`JSLFIPS` DSA accepts only the FIPS 186-4 §4.2 pairs, {2048, 3072}**, since
+   that is what the validated modules generate. Anything else is refused at
+   `init` with `InvalidParameterException` rather than failing inside the module.
+5. Out-of-range sizes raise `InvalidParameterException` from
+   `AlgorithmParameterGenerator.init(int)`.
+
+**Accepting a 512-bit modulus is not a claim that it is safe.** It is not.
+Choosing a size is the caller's decision; the provider no longer makes it.
+
+### 6. AEAD parameter specs and default tag lengths
 
 1. GCM accepts both `GCMParameterSpec` (tag bits + nonce) and plain `IvParameterSpec`. When only an IV is given, the default tag length is **128 bits**.
 2. CCM is a **dedicated transformation** — use `"AES/CCM/NoPadding"` (likewise `"ARIA/CCM/NoPadding"`, `"SM4/CCM/NoPadding"`), not `setMode("CCM")`. Its default tag on the `IvParameterSpec` path is **64 bits** (matches BouncyCastle, differs from GCM). Pass a `GCMParameterSpec` for a specific CCM tag length.
@@ -197,11 +231,25 @@ Beyond serving a smaller algorithm set, `JSLFIPS` differs from `JSL` in ways tha
 change *caller* code. Jostle fails loud (typed exception) rather than running
 degraded:
 
-1. **RSA PKCS#1 v1.5 encryption/decryption is unavailable.** `"RSA/ECB/PKCS1Padding"` is not registered, and PKCS#1 v1.5 *decrypt* is refused at the native layer too (the 3.1.2 module lacks the implicit-rejection mitigation). Use `"RSA/ECB/OAEPPadding"` for key transport. PKCS#1 v1.5 *signatures* remain available.
+1. **RSA PKCS#1 v1.5 encryption/decryption is unavailable.** `"RSA/ECB/PKCS1Padding"` is not registered. PKCS#1 v1.5 *decrypt* is additionally refused at the native layer **on a module that lacks the implicit-rejection mitigation** — 3.1.2 does lack it and the refusal is a typed `ProviderCapabilityException`; 3.5.8 has it. Use `"RSA/ECB/OAEPPadding"` for key transport. PKCS#1 v1.5 *signatures* remain available.
 2. **DH parameter generation is refused** (`ProviderException`): the module substitutes RFC 7919 named-group constants instead of a real safe-prime search. Use named-group DH key generation instead.
 3. **DH key agreement requires the subgroup order q.** Keys built from PKCS#3 component specs (p, g, x only) fail `KeyAgreement.init` with `InvalidKeyException`. Use named-group-derived keys.
 4. **A caller-supplied `SecureRandom` is ignored** by every operation that runs inside the FIPS module (keygen, ECDSA nonces, PSS salts, OAEP seeds) — the module uses its own approved DRBG. Passing one is harmless but has no effect. (The AES `KeyGenerator` is the one nuance — see README.md "Entropy".)
-5. **Absent families** (use `JSL` if you need them): MD5, SM3, RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, DESede, Poly1305, scrypt, Ed25519/Ed448, and all post-quantum (ML-KEM, ML-DSA, SLH-DSA); plus X25519/X448 key agreement.
+5. **Absent families** (use `JSL` if you need them). Absent from **both**
+   modules: MD5, SM3, RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, Poly1305,
+   scrypt. The rest depend on which module is loaded, in **both** directions —
+   measured, not assumed:
+
+   | family | 3.1.2 | 3.5.8 |
+   |---|---|---|
+   | X25519 / X448 / XDH | served | **absent** |
+   | Ed25519 / Ed448 (`ED25519CTX` absent on both) | absent | served |
+   | ML-KEM, ML-DSA, SLH-DSA | absent | served |
+   | Triple-DES | absent | served |
+   | TLS hybrid KEMs (`X448MLKEM1024` absent on both) | absent | served |
+
+   Do not hard-code either column: ask the provider with
+   `Security.getProvider("JSLFIPS").getService(type, name) != null`.
 
 ## Algorithm inventory
 
@@ -300,7 +348,7 @@ s.initSign(kp.getPrivate()); s.update(message); byte[] sig = s.sign();
 s.initVerify(kp.getPublic()); s.update(message); boolean ok = s.verify(sig);
 ```
 
-### X25519 key agreement (JSL only — not in JSLFIPS)
+### X25519 key agreement (JSL always; JSLFIPS only on a module that serves it)
 
 ```java
 KeyPairGenerator kpg = KeyPairGenerator.getInstance("X25519", "JSL");
