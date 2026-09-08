@@ -197,6 +197,63 @@ The worked example is `AESAgreementTest.testJce_aesCbcNoPadding_updateRejectsNon
 
 Two rules follow. **When a test asserts a REFUSAL that an independent implementation does not make, check the independent implementation before pinning it** — the assertion is a claim about the contract, not about our code. And **when inverting such a test, keep the old rationale quoted in one line of the new test's javadoc**; the reasoning was persuasive enough to survive review once, so the correction is worth more than the deletion.
 
+### A registration change is a TWO-PROVIDER change
+
+**Symptom: a commit lands, its gate is green, and half the fix is missing.**
+MT-72 registered the AES-CCM and PBKDF2 OIDs in `ProvAES` and `ProvPBKDF` and
+nothing else. JSLFIPS was unchanged on both modules, so four of the six lookups
+CMS and PKCS#8 perform still failed there — measured on the shipped jar: JSL
+340 -> 343, JSLFIPS **274 -> 274**.
+
+Nothing caught it. `OidSpellingParityTest` and its FIPS twin compare the bare and
+`OID.`-prefixed spellings **within one provider**; no guard compared the OID SET
+of JSL against JSLFIPS. The whole guard family was blind to a one-provider
+registration by construction.
+
+**The rule: a registration change is a two-provider change unless the algorithm
+is FIPS-absent, and the review must show the `ProvFIPS*` footprint or say why
+there is none.** The multi-release copies are checked religiously because
+`javaN/` is a visible axis; the `provider/fips/` twin is exactly as real and has
+no compiler or test to remind you.
+
+**The guard that closes it needs two arms, because the two registration shapes
+carry the alias->primary link differently.** `JostleProvider.getService` is
+custom and returns a Service named after whatever you ASKED for, so
+`getService(type, oid).getAlgorithm()` returns the OID, not the primary — the
+first version of the cross-provider guard passed against a tree with four known
+missing rows for exactly that reason. Arm A reads the **property value** for
+alias OIDs; Arm B matches the **SPI class** for OID primaries, since those have
+no name to compare. Pin a negative control for Arm B (an OID both providers
+serve, backed by a widely-shared SPI) or its looseness goes unnoticed.
+
+### A count of zero from a filter that never ran is not a pass
+
+`jostle/build.gradle` excludes `*LimitTest*` on every unit leg (:454, :482, :513,
+:544). A targeted run of `--tests "*ECLimitTest*"` on a unit leg therefore
+matches nothing, writes **zero result files**, and reports BUILD SUCCESSFUL —
+which reads exactly like "the limit tests are clean". They had not run at all;
+they exist only on the integration legs.
+
+Same shape as the stale-XML and `strings`-cannot-see-`__LINKEDIT` cases: **a
+negative result from an instrument that cannot see the thing is
+indistinguishable from the thing's absence.** Before believing a targeted run,
+check it produced result files for the classes you named.
+
+### A probe that cannot reach the code proves nothing about it
+
+Two cells written to prove a thread-local was cleared both passed against a
+holder deliberately rewired never to clear. The probe was an unknown EC curve
+name — refused in the **Java layer** with `InvalidAlgorithmParameterException`,
+never reaching the native error funnel where the cause is attached, so no cause
+could ever appear whatever the mechanism did.
+
+**Choose the probe by measuring which failures reach the code under test**, not
+by which failure is easiest to provoke. Here: unknown curve reaches nothing;
+decoding garbage as an SPKI yields `InvalidKeySpecException <- OpenSSLException`
+and does reach it. Then assert the reach itself — the cells now call
+`assertReachedTheHandler` first, so an edit that makes the probe stop reaching
+the funnel fails loudly instead of going quiet.
+
 ### Name the second witness, or report the result UNWITNESSED
 
 **Every clean-or-green instrument result that feeds a decision names its
