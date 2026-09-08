@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.rand.UpCallFailure;
+
 public interface DefaultServiceNI
 {
     /**
@@ -66,6 +68,11 @@ public interface DefaultServiceNI
 
     default long baseErrorHandler(long code)
     {
+        // Taken and cleared at the TOP, on EVERY call including the successful
+        // ones, so a caller's up-call exception is scoped to exactly the NI call
+        // that produced it and cannot attach itself to a later, unrelated
+        // failure. Every handler spelling in the tree reaches this method.
+        Throwable upCallFailure = UpCallFailure.takeAndClear();
 
         if (code >= 0)
         {
@@ -78,7 +85,17 @@ public interface DefaultServiceNI
             case JO_SUCCESS:
                 return code;
             case JO_OPENSSL_ERROR:
-                throw new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
+            {
+                OpenSSLException ex =
+                        new OpenSSLException(String.format("OpenSSL Error: %s", OpenSSL.getOpenSSLErrors()));
+                if (upCallFailure != null)
+                {
+                    // The caller's own SecureRandom threw; that is the real
+                    // cause and the OpenSSL text is only its symptom.
+                    ex.initCause(upCallFailure);
+                }
+                throw ex;
+            }
             case JO_SPEC_HAS_NULL_KEY:
                 throw new IllegalArgumentException("key spec is null");
             case JO_KEY_SPEC_HAS_NULL_KEY:

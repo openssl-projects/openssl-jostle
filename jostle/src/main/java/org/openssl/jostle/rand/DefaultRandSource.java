@@ -154,7 +154,12 @@ public class DefaultRandSource implements RandSource
             // JVM may shut down ungracefully if anything is cased to throw during an upcall.
             // Catch and log but return error code to indicate failure and fail elsewhere.
             //
-            LOG.log(Level.SEVERE, "getInfo INFO_TYPE_ENTROPY", e);
+            // Kept at SEVERE and not downgraded: if a failed up-call ever does
+            // NOT fail its operation, this line is the only record.
+            LOG.log(Level.SEVERE, "SecureRandom up-call failed", e);
+            // Carry the caller's own exception out to whatever the enclosing
+            // operation throws; it cannot be rethrown from an up-call frame.
+            UpCallFailure.record(e);
             return ErrorCode.JO_RAND_ERROR.getCode();
         }
         return len;
