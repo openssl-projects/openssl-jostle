@@ -83,6 +83,19 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
                 throw new InvalidKeySpecException("key length must be a multiple of 8 bits");
             }
 
+            // MT-81. A PBEKeySpec subclass may carry a PRF this factory cannot
+            // read (jostle's own PBKDF2KeySpec is read at the branch below).
+            // Defaulting would ignore the parameter, so refuse; RFC 8018 A.2's
+            // SHA-1 default applies only to a plain PBEKeySpec.
+            if (forcedDigestAlgorithm == null
+                    && spec.getClass() != PBEKeySpec.class
+                    && !(spec instanceof PBKDF2KeySpec))
+            {
+                throw new InvalidKeySpecException(
+                        "this factory cannot read the PRF carried by " + spec.getClass().getName()
+                                + "; use PBKDF2withHMAC<digest>");
+            }
+
             String algo = null;
             if (spec instanceof PBKDF2KeySpec)
             {
