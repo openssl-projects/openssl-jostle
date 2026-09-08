@@ -455,6 +455,14 @@ clone fine on both — so a clone attempt there raises
 case. Nothing is gated: refusing to register a MAC that works, because one of
 its optional operations does not, would cost callers more than it saves them.
 
+**`Signature.NoneWithRSA` is listed below but cannot be used on `JSLFIPS`, by
+design.** The module has no `NONE` digest, and the registration deliberately routes
+through a path that needs one, so `initSign` / `initVerify` fails with a
+fallback-eligible `InvalidKeyException` and the non-approved raw-RSA path is never
+reached. Callers wanting raw RSA signing use the base `JSL` provider, which serves
+the name through a different class and signs normally. Pinned by
+`FIPSRSANoneWithRSASignatureTest`.
+
 **`Mac.KMAC128` / `Mac.KMAC256` are served unconditionally by both modules**,
 with no clone caveat — unlike GMAC, `EVP_MAC_CTX_dup` works for KMAC
 everywhere. What differs between modules is what they will *accept*, and it is

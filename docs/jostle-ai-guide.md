@@ -232,10 +232,15 @@ change *caller* code. Jostle fails loud (typed exception) rather than running
 degraded:
 
 1. **RSA PKCS#1 v1.5 encryption/decryption is unavailable.** `"RSA/ECB/PKCS1Padding"` is not registered. PKCS#1 v1.5 *decrypt* is additionally refused at the native layer **on a module that lacks the implicit-rejection mitigation** — 3.1.2 does lack it and the refusal is a typed `ProviderCapabilityException`; 3.5.8 has it. Use `"RSA/ECB/OAEPPadding"` for key transport. PKCS#1 v1.5 *signatures* remain available.
-2. **DH parameter generation is refused** (`ProviderException`): the module substitutes RFC 7919 named-group constants instead of a real safe-prime search. Use named-group DH key generation instead.
-3. **DH key agreement requires the subgroup order q.** Keys built from PKCS#3 component specs (p, g, x only) fail `KeyAgreement.init` with `InvalidKeyException`. Use named-group-derived keys.
-4. **A caller-supplied `SecureRandom` is ignored** by every operation that runs inside the FIPS module (keygen, ECDSA nonces, PSS salts, OAEP seeds) — the module uses its own approved DRBG. Passing one is harmless but has no effect. (The AES `KeyGenerator` is the one nuance — see README.md "Entropy".)
-5. **Absent families** (use `JSL` if you need them). Absent from **both**
+2. **`Signature.NoneWithRSA` resolves but refuses at init.** Registered, and
+   deliberately unusable: the module has no `NONE` digest, so `initSign` /
+   `initVerify` throws `InvalidKeyException` and the non-approved raw-RSA path is
+   never reached. The exception is fallback-eligible — use `JSL` for raw RSA
+   signing, or a digest-bearing name (`SHA256withRSA`, `RSASSA-PSS`) on `JSLFIPS`.
+3. **DH parameter generation is refused** (`ProviderException`): the module substitutes RFC 7919 named-group constants instead of a real safe-prime search. Use named-group DH key generation instead.
+4. **DH key agreement requires the subgroup order q.** Keys built from PKCS#3 component specs (p, g, x only) fail `KeyAgreement.init` with `InvalidKeyException`. Use named-group-derived keys.
+5. **A caller-supplied `SecureRandom` is ignored** by every operation that runs inside the FIPS module (keygen, ECDSA nonces, PSS salts, OAEP seeds) — the module uses its own approved DRBG. Passing one is harmless but has no effect. (The AES `KeyGenerator` is the one nuance — see README.md "Entropy".)
+6. **Absent families** (use `JSL` if you need them). Absent from **both**
    modules: MD5, SM3, RIPEMD, BLAKE2, ChaCha20, Camellia, ARIA, SM4, Poly1305,
    scrypt. The rest depend on which module is loaded, in **both** directions —
    measured, not assumed:
