@@ -104,8 +104,10 @@ def render_markdown(total, groups, fips_total=None, fips_groups=None):
         "> Do not edit by hand — re-run the skill to refresh it.",
         "",
         "The Jostle (`JSL`) provider registers **{0}** services across **{1}** JCA "
-        "service types. Each list is the set of algorithm names (and OID aliases) "
-        "registered for that type.".format(total, len(groups)),
+        "service types. Each list is the set of PRIMARY algorithm names registered for "
+        "that type. An OID appears only where it is registered as a PRIMARY; OIDs that "
+        "are aliases of a named algorithm are not listed, so this is not the full "
+        "OID-addressable surface.".format(total, len(groups)),
         "",
     ]
     for service_type, algorithms in groups:

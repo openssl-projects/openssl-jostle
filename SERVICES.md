@@ -9,7 +9,7 @@
 > single-module preamble. Regeneration WILL drop it — diff against the previous
 > version and splice it back.
 
-The Jostle (`JSL`) provider registers **340** services across **14** JCA service types. Each list is the set of algorithm names (and OID aliases) registered for that type.
+The Jostle (`JSL`) provider registers **343** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -43,7 +43,7 @@ The Jostle (`JSL`) provider registers **340** services across **14** JCA service
 
 1. `X.509`
 
-## Cipher (48)
+## Cipher (51)
 
 1. `1.2.392.200011.61.1.1.1.2`
 2. `1.2.392.200011.61.1.1.1.3`
@@ -56,43 +56,46 @@ The Jostle (`JSL`) provider registers **340** services across **14** JCA service
 9. `2.16.840.1.101.3.4.1.22`
 10. `2.16.840.1.101.3.4.1.25`
 11. `2.16.840.1.101.3.4.1.26`
-12. `2.16.840.1.101.3.4.1.28`
-13. `2.16.840.1.101.3.4.1.42`
-14. `2.16.840.1.101.3.4.1.45`
-15. `2.16.840.1.101.3.4.1.46`
-16. `2.16.840.1.101.3.4.1.48`
-17. `2.16.840.1.101.3.4.1.5`
-18. `2.16.840.1.101.3.4.1.6`
-19. `2.16.840.1.101.3.4.1.8`
-20. `AES`
-21. `AES/CBC/CS3PADDING`
-22. `AES/CCM/NOPADDING`
-23. `AES/CTS/NOPADDING`
-24. `AES/XTS/NOPADDING`
-25. `AES128`
-26. `AES192`
-27. `AES256`
-28. `AESWRAP`
-29. `AESWRAPINV`
-30. `AESWRAPPAD`
-31. `ARIA`
-32. `ARIA/CCM/NOPADDING`
-33. `ARIA128`
-34. `ARIA192`
-35. `ARIA256`
-36. `CAMELLIA`
-37. `CAMELLIA128`
-38. `CAMELLIA192`
-39. `CAMELLIA256`
-40. `CHACHA20`
-41. `CHACHA20-POLY1305`
-42. `DESEDE`
-43. `ML-KEM`
-44. `RSA`
-45. `RSA-KTS-KEM-KWS`
-46. `RSA/ECB/PKCS1PADDING`
-47. `SM4`
-48. `SM4/CCM/NOPADDING`
+12. `2.16.840.1.101.3.4.1.27`
+13. `2.16.840.1.101.3.4.1.28`
+14. `2.16.840.1.101.3.4.1.42`
+15. `2.16.840.1.101.3.4.1.45`
+16. `2.16.840.1.101.3.4.1.46`
+17. `2.16.840.1.101.3.4.1.47`
+18. `2.16.840.1.101.3.4.1.48`
+19. `2.16.840.1.101.3.4.1.5`
+20. `2.16.840.1.101.3.4.1.6`
+21. `2.16.840.1.101.3.4.1.7`
+22. `2.16.840.1.101.3.4.1.8`
+23. `AES`
+24. `AES/CBC/CS3PADDING`
+25. `AES/CCM/NOPADDING`
+26. `AES/CTS/NOPADDING`
+27. `AES/XTS/NOPADDING`
+28. `AES128`
+29. `AES192`
+30. `AES256`
+31. `AESWRAP`
+32. `AESWRAPINV`
+33. `AESWRAPPAD`
+34. `ARIA`
+35. `ARIA/CCM/NOPADDING`
+36. `ARIA128`
+37. `ARIA192`
+38. `ARIA256`
+39. `CAMELLIA`
+40. `CAMELLIA128`
+41. `CAMELLIA192`
+42. `CAMELLIA256`
+43. `CHACHA20`
+44. `CHACHA20-POLY1305`
+45. `DESEDE`
+46. `ML-KEM`
+47. `RSA`
+48. `RSA-KTS-KEM-KWS`
+49. `RSA/ECB/PKCS1PADDING`
+50. `SM4`
+51. `SM4/CCM/NOPADDING`
 
 ## KeyAgreement (11)
 

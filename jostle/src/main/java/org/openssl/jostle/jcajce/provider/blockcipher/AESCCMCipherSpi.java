@@ -23,6 +23,17 @@ public class AESCCMCipherSpi extends CCMCipherSpi
         super(CipherFamily.AES);
     }
 
+    /**
+     * Pinned to one AES key size, for the registrations under the NIST CCM OIDs
+     * (id-aes128-CCM and friends). Those OIDs NAME a key size, so a key of a
+     * different length is refused rather than silently performing a different
+     * algorithm under that OID's name.
+     */
+    public AESCCMCipherSpi(OSSLCipher mandatedCipher)
+    {
+        super(CipherFamily.AES, mandatedCipher);
+    }
+
     //
     // NI-binding constructor for the FIPS provider: identical behaviour,
     // bound to the FIPS interface library's CCMCipherNI.
@@ -30,5 +41,13 @@ public class AESCCMCipherSpi extends CCMCipherSpi
     public AESCCMCipherSpi(CCMCipherNI cipherNI)
     {
         super(cipherNI, CipherFamily.AES);
+    }
+
+    //
+    // NI-binding + size-pinned, for the FIPS provider's OID registrations.
+    //
+    public AESCCMCipherSpi(CCMCipherNI cipherNI, OSSLCipher mandatedCipher)
+    {
+        super(cipherNI, CipherFamily.AES, mandatedCipher);
     }
 }

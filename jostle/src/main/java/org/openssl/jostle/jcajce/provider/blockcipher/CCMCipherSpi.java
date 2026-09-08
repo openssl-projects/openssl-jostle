@@ -84,6 +84,14 @@ public class CCMCipherSpi extends CipherSpi
 
     private final CipherFamily family;
 
+    /*
+     * Set only when registered under a size-naming OID (id-aes128-CCM and
+     * friends); null keeps the length-resolving behaviour. The pin exists
+     * because resolveCipherForKeyLen derives the cipher from the key, so an
+     * AES-128 OID would otherwise accept a 256-bit key.
+     */
+    private final OSSLCipher mandatedCipher;
+
     /* Native context. */
     private CCMRef ref;
 
@@ -116,13 +124,24 @@ public class CCMCipherSpi extends CipherSpi
 
     public CCMCipherSpi(CipherFamily family)
     {
-        this(NISelector.CCMCipherNI, family);
+        this(NISelector.CCMCipherNI, family, null);
+    }
+
+    public CCMCipherSpi(CipherFamily family, OSSLCipher mandatedCipher)
+    {
+        this(NISelector.CCMCipherNI, family, mandatedCipher);
     }
 
     public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family)
     {
+        this(cipherNI, family, null);
+    }
+
+    public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family, OSSLCipher mandatedCipher)
+    {
         this.cipherNI = cipherNI;
         this.family = family;
+        this.mandatedCipher = mandatedCipher;
     }
 
 
@@ -386,8 +405,40 @@ public class CCMCipherSpi extends CipherSpi
         }
     }
 
-    /** Resolve OSSLCipher for this family + key length. */
+    /**
+     * Resolve OSSLCipher for this family + key length.
+     *
+     * <p>When this SPI was registered under a size-naming OID, the key must
+     * match that size: the OID is a statement about the algorithm, so honouring
+     * a different key would silently perform a different one. Refused with
+     * {@link InvalidKeyException}, the JCE-canonical init failure and the
+     * provider-fallback trigger.
+     */
     private OSSLCipher resolveCipherForKeyLen(int keyLen) throws InvalidKeyException
+    {
+        if (mandatedCipher != null)
+        {
+            // Checked by RE-RUNNING the length resolution below and requiring it
+            // to agree, rather than comparing against a key size of our own.
+            // OSSLCipher carries a BLOCK size, not a key size, so a "required
+            // bytes" constant here would be a second transcription of the very
+            // table this method already holds — and the two could drift. This
+            // way there is one mapping, and the pin follows any correction to it.
+            OSSLCipher byLength = resolveByLength(keyLen);
+            if (byLength != mandatedCipher)
+            {
+                throw new InvalidKeyException(
+                        mandatedCipher.name() + "-CCM was resolved by OID and requires its own key"
+                                + " size; a " + keyLen + "-byte key is " + byLength.name());
+            }
+            return mandatedCipher;
+        }
+
+        return resolveByLength(keyLen);
+    }
+
+    /** The family/key-length mapping. Sole source for both callers above. */
+    private OSSLCipher resolveByLength(int keyLen) throws InvalidKeyException
     {
         switch (family)
         {

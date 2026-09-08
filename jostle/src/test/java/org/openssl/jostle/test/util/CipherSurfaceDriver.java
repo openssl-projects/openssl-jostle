@@ -71,6 +71,18 @@ public final class CipherSurfaceDriver
                     "2.16.840.1.101.3.4.1.25", "2.16.840.1.101.3.4.1.28",
                     "2.16.840.1.101.3.4.1.45", "2.16.840.1.101.3.4.1.48"));
 
+    /**
+     * id-aes{128,192,256}-CCM. Same shape as the wrap set above and for the
+     * same reason: the OID does not spell its mode, so a substring test on the
+     * name cannot see that these need a {@link GCMParameterSpec}. Registered as
+     * pinned primaries (MT-72), so each also demands its OWN key length — which
+     * {@code CipherFamilies.AES} already derives from the arc number.
+     */
+    private static final java.util.Set<String> NIST_AES_CCM_OIDS =
+            new java.util.HashSet<String>(java.util.Arrays.asList(
+                    "2.16.840.1.101.3.4.1.7", "2.16.840.1.101.3.4.1.27",
+                    "2.16.840.1.101.3.4.1.47"));
+
     /** How many key bytes a given registered name needs. */
     public interface KeyLength
     {
@@ -206,7 +218,7 @@ public final class CipherSurfaceDriver
         {
             driveWrap(provider, name, keyAlg, kl, sr);
         }
-        else if (n.contains("CCM"))
+        else if (n.contains("CCM") || NIST_AES_CCM_OIDS.contains(n))
         {
             // The one shape that will not init without parameters —
             // deliberately, and pinned by aesCCM_initWithoutParams_rejected.

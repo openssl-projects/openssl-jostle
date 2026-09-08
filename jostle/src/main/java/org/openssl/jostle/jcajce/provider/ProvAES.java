@@ -80,7 +80,7 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap, AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.WRAP, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_wrap_pad, AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES128, OSSLMode.WRAP_PAD, provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES128", AESKeyGenerator.class.getName(), generalAesAttributes, (arg) -> new AESKeyGenerator(128));
-        provider.addAlias("KeyGenerator", "AES128", NISTObjectIdentifiers.id_aes128_ECB, NISTObjectIdentifiers.id_aes128_CBC, NISTObjectIdentifiers.id_aes128_GCM, NISTObjectIdentifiers.id_aes128_wrap, NISTObjectIdentifiers.id_aes128_wrap_pad);
+        provider.addAlias("KeyGenerator", "AES128", NISTObjectIdentifiers.id_aes128_ECB, NISTObjectIdentifiers.id_aes128_CBC, NISTObjectIdentifiers.id_aes128_GCM, NISTObjectIdentifiers.id_aes128_wrap, NISTObjectIdentifiers.id_aes128_wrap_pad, NISTObjectIdentifiers.id_aes128_CCM);
 
         provider.addAlgorithmImplementation("Cipher", "AES192", AESBlockCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.ECB, provider));
         provider.addAlias("Cipher", "AES192", NISTObjectIdentifiers.id_aes192_ECB);
@@ -89,7 +89,7 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap, AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.WRAP, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_wrap_pad, AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES192, OSSLMode.WRAP_PAD, provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES192", AESKeyGenerator.class.getName(), generalAesAttributes, (arg) -> new AESKeyGenerator(192));
-        provider.addAlias("KeyGenerator", "AES192", NISTObjectIdentifiers.id_aes192_ECB, NISTObjectIdentifiers.id_aes192_CBC, NISTObjectIdentifiers.id_aes192_GCM, NISTObjectIdentifiers.id_aes192_wrap, NISTObjectIdentifiers.id_aes192_wrap_pad);
+        provider.addAlias("KeyGenerator", "AES192", NISTObjectIdentifiers.id_aes192_ECB, NISTObjectIdentifiers.id_aes192_CBC, NISTObjectIdentifiers.id_aes192_GCM, NISTObjectIdentifiers.id_aes192_wrap, NISTObjectIdentifiers.id_aes192_wrap_pad, NISTObjectIdentifiers.id_aes192_CCM);
 
         provider.addAlgorithmImplementation("Cipher", "AES256", AESBlockCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.ECB, provider));
         provider.addAlias("Cipher", "AES256", NISTObjectIdentifiers.id_aes256_ECB);
@@ -98,7 +98,7 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap, AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.WRAP, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_wrap_pad, AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(OSSLCipher.AES256, OSSLMode.WRAP_PAD, provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES256", AESKeyGenerator.class.getName(), generalAesAttributes, (arg) -> new AESKeyGenerator(256));
-        provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad);
+        provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad, NISTObjectIdentifiers.id_aes256_CCM);
 
         // AES-GCM AlgorithmParameters, registered under the bare name "GCM" and
         // the GCM OIDs (see GCMAlgorithmParameters). Lets OID-driven callers —
@@ -142,6 +142,22 @@ class ProvAES
         // BlockCipherSpi.
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding",
                 AESCCMCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESCCMCipherSpi());
+
+        // The NIST CCM OIDs, which CMS and PKCS#8 resolve a content-encryption
+        // Cipher by. Registered as PRIMARIES rather than aliases of
+        // "AES/CCM/NoPadding" because each OID names a key size, and the bare
+        // transformation derives its cipher from the key length — an alias
+        // would make id-aes128-CCM accept a 256-bit key. The pinned
+        // constructor refuses a key of any other length.
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_CCM,
+                AESCCMCipherSpi.class.getName(), generalAesAttributes,
+                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES128));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_CCM,
+                AESCCMCipherSpi.class.getName(), generalAesAttributes,
+                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES192));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CCM,
+                AESCCMCipherSpi.class.getName(), generalAesAttributes,
+                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES256));
 
         // XTS-AES (IEEE 1619 / SP 800-38E). Registered under the explicit
         // transformation so it appears in getServices() rather than only
