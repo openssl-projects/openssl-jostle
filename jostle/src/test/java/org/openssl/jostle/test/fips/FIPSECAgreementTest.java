@@ -525,8 +525,13 @@ public class FIPSECAgreementTest
                 Assertions.assertTrue(verifyWith(alg, BC, keys.get(BC).pub, input, sigFips),
                         alg + ": the module signed, so BC must verify the result");
             }
-            catch (OpenSSLException ex)
+            catch (java.security.InvalidKeyException ex)
             {
+                // MT-76: the module's refusal now reaches callers as the
+                // JCE-canonical InvalidKeyException with the OpenSSLException
+                // preserved as the cause; the message text is unchanged.
+                Assertions.assertTrue(ex.getCause() instanceof OpenSSLException,
+                        "the OpenSSLException must be preserved as the cause, got: " + ex.getCause());
                 // The module's wording differs between the two supported
                 // versions, so both are accepted — 3.1.2 says "digest not
                 // allowed", 3.5.x says "invalid digest". Pinning only the

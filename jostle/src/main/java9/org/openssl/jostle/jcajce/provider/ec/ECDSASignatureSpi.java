@@ -76,7 +76,18 @@ public class ECDSASignatureSpi extends SignatureSpi
         {
             JOECPublicKey key = ECKeyImport.importPublic(keyFactory, publicKey);
             lastKey = key;
-            initVerifyInternal(key);
+            try
+            {
+                initVerifyInternal(key);
+            }
+            catch (OpenSSLException e)
+            {
+                // Native init failure - e.g. the loaded provider (FIPS module)
+                // refuses the digest. JCE requires initSign / initVerify to fail
+                // with InvalidKeyException, which is also the provider-fallback
+                // trigger; mirrors RSASignatureSpiBase.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
         }
         finally
         {
@@ -99,7 +110,18 @@ public class ECDSASignatureSpi extends SignatureSpi
         {
             JOECPrivateKey key = ECKeyImport.importPrivate(keyFactory, privateKey);
             lastKey = key;
-            initSignInternal(key);
+            try
+            {
+                initSignInternal(key);
+            }
+            catch (OpenSSLException e)
+            {
+                // Native init failure - e.g. the loaded provider (FIPS module)
+                // refuses the digest. JCE requires initSign / initVerify to fail
+                // with InvalidKeyException, which is also the provider-fallback
+                // trigger; mirrors RSASignatureSpiBase.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
         }
         finally
         {

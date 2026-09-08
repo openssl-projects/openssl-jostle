@@ -153,7 +153,18 @@ public class DSASignatureSpi extends SignatureSpi
         {
             JODSAPublicKey key = importPublic(publicKey);
             lastKey = key;
-            initVerifyInternal(key);
+            try
+            {
+                initVerifyInternal(key);
+            }
+            catch (OpenSSLException e)
+            {
+                // Native init failure - e.g. the loaded provider (FIPS module)
+                // refuses the digest. JCE requires initSign / initVerify to fail
+                // with InvalidKeyException, which is also the provider-fallback
+                // trigger; mirrors RSASignatureSpiBase.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
         }
         finally
         {
@@ -182,15 +193,20 @@ public class DSASignatureSpi extends SignatureSpi
             }
             catch (ProviderCapabilityException e)
             {
-                // The loaded provider verifies DSA signatures but refuses to
-                // generate them (OpenSSL's 3.5+ FIPS module gates signing
-                // behind its "sign-check" indicator). InvalidKeyException is
-                // the JCE-canonical initSign failure AND the provider-fallback
-                // trigger, so a deployment that also registers a signing-capable
-                // provider falls through to it instead of dying on a runtime
-                // exception. Not detectable before init: the same key verifies
-                // fine, and 3.1.2 signs with it.
+                // MUST precede the OpenSSLException clause - it is a subclass, and
+                // the compiler requires the narrower type first.
+                //
+                // The 3.5+ FIPS module verifies DSA but refuses to sign, behind its
+                // "sign-check" indicator. InvalidKeyException is the JCE-canonical
+                // initSign failure and the provider-fallback trigger. Not detectable
+                // before init: the same key verifies fine, and 3.1.2 signs with it.
                 throw new InvalidKeyException(e.getMessage(), e);
+            }
+            catch (OpenSSLException e)
+            {
+                // Native init failure - e.g. the module refuses the digest. Same
+                // canonical type and fallback trigger; mirrors RSASignatureSpiBase.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
             }
         }
         finally

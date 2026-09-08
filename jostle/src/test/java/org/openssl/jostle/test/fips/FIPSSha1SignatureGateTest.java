@@ -85,9 +85,9 @@ public class FIPSSha1SignatureGateTest
      * surfaces at the JCE boundary depends on the SPI: the RSA Signature SPI
      * translates the init-time refusal into the JCE-canonical, fallback-eligible
      * {@link java.security.InvalidKeyException} (preserving the
-     * {@link OpenSSLException} as the cause), whereas the EC/DSA SPIs surface the
-     * raw {@link OpenSSLException}. This helper accepts either shape and requires
-     * the underlying module "digest not allowed" message in both.
+     * {@link OpenSSLException} as the cause). Since MT-76 the EC and DSA SPIs do
+     * the same, so this helper requires that ONE shape rather than accepting
+     * either, and requires the underlying module message beneath it.
      */
     /**
      * SHA-1 signature generation is either refused naming the digest, or it
@@ -120,11 +120,18 @@ public class FIPSSha1SignatureGateTest
         }
         catch (Exception ex)
         {
-            // Unwrap the RSA InvalidKeyException down to its OpenSSLException
-            // cause; EC/DSA already are an OpenSSLException.
-            Throwable openssl = (ex instanceof OpenSSLException) ? ex : ex.getCause();
+            // MT-76: the refusal happens at initSign, and EVERY family must
+            // surface it as InvalidKeyException with the OpenSSLException as the
+            // cause. This helper used to accept either shape, which is how RSA
+            // translating and EC/DSA not went unnoticed; accepting either is
+            // what would let the inconsistency return.
+            Assertions.assertTrue(ex instanceof java.security.InvalidKeyException,
+                    sigAlg + ": the module's refusal must reach the caller as InvalidKeyException"
+                            + " - the JCE-canonical init failure and the provider-fallback"
+                            + " trigger - got: " + ex.getClass().getName());
+            Throwable openssl = ex.getCause();
             Assertions.assertTrue(openssl instanceof OpenSSLException,
-                    sigAlg + ": expected an OpenSSLException (possibly wrapped in InvalidKeyException), got: " + ex);
+                    sigAlg + ": the OpenSSLException must be preserved as the cause, got: " + openssl);
             // The module's wording changed between the two supported versions,
             // so both are pinned rather than either being matched loosely:
             //   3.1.2 : "... securitycheck: digest not allowed"
