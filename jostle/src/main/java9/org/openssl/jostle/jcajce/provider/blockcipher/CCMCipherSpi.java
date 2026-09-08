@@ -524,14 +524,8 @@ public class CCMCipherSpi extends CipherSpi
         checkEncryptionReinit();
         if (input != null && inputLen > 0)
         {
-            // Under the length test, not above it, so an empty update does not
-            // close the window - SunJCE and BouncyCastle both accept that.
-            //
-            // A TIDY, not a fix: javax.crypto.Cipher short-circuits a
-            // zero-length byte[] update and CCM does not override the
-            // ByteBuffer overload, so the old placement was unreachable with
-            // empty input from every public path. It made the source state a
-            // rule the product did not enforce.
+            // Under the length test so an empty update does not close the window.
+            // Unreachable with empty input from any public path: a tidy, not a fix.
             aadClosed = true;
             dataBuffer.write(input, inputOffset, inputLen);
         }

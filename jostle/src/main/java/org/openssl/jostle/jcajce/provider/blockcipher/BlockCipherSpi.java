@@ -1016,54 +1016,66 @@ class BlockCipherSpi extends CipherSpi
 
         synchronized (this)
         {
-            requireInitialized();
-            checkEncryptReuse();
-            int k = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
-
-            if (outputOffset + k > output.length)
+            try
             {
-                throw new ShortBufferException("output buffer too small");
-            }
+                requireInitialized();
+                checkEncryptReuse();
+                int k = blockCipherNi.getFinalSize(refWrapper.getReference(), inputLen);
 
-
-            byte[] workingInput = input;
-
-
-            if (input != null && input == output) // same array
-            {
-                if (overlap(inputOffset, inputLen, outputOffset, k))
+                if (outputOffset + k > output.length)
                 {
-                    workingInput = new byte[inputLen];
-                    System.arraycopy(input, inputOffset, workingInput, 0, inputLen);
-                    inputOffset = 0;
+                    throw new ShortBufferException("output buffer too small");
                 }
+
+
+                byte[] workingInput = input;
+
+
+                if (input != null && input == output) // same array
+                {
+                    if (overlap(inputOffset, inputLen, outputOffset, k))
+                    {
+                        workingInput = new byte[inputLen];
+                        System.arraycopy(input, inputOffset, workingInput, 0, inputLen);
+                        inputOffset = 0;
+                    }
+                }
+
+
+                int written = 0;
+
+                // Cipher.doFinal() (no-args) lands here with input=null,
+                // inputLen=0. Skip the NI.update call entirely — the EVP
+                // layer treats a zero-length update as a no-op, but the
+                // NI bridge null-checks workingInput up front and would
+                // throw NullPointerException. Only call update when there
+                // are bytes to feed.
+                if (inputLen > 0)
+                {
+                    written += blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
+                }
+
+                int code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
+
+                written += code;
+
+                if (opMode == Cipher.ENCRYPT_MODE && (osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB || osslMode == OSSLMode.POLY1305))
+                {
+                    // A successful AEAD encryption consumes the nonce; block reuse until re-init.
+                    encryptionReinitRequired = true;
+                }
+
+                return written;
             }
-
-
-            int written = 0;
-
-            // Cipher.doFinal() (no-args) lands here with input=null,
-            // inputLen=0. Skip the NI.update call entirely — the EVP
-            // layer treats a zero-length update as a no-op, but the
-            // NI bridge null-checks workingInput up front and would
-            // throw NullPointerException. Only call update when there
-            // are bytes to feed.
-            if (inputLen > 0)
+            finally
             {
-                written += blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
+                // doFinal returns the Cipher to its post-init state, so the AAD
+                // window reopens — on the FAILURE path too. A bad tag on decrypt is
+                // the ordinary case and the instance stays usable, so a reset on the
+                // success path alone leaves a stale refusal behind. CCM resets in a
+                // finally for the same reason.
+                aadClosed = false;
             }
-
-            int code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
-
-            written += code;
-
-            if (opMode == Cipher.ENCRYPT_MODE && (osslMode == OSSLMode.GCM || osslMode == OSSLMode.OCB || osslMode == OSSLMode.POLY1305))
-            {
-                // A successful AEAD encryption consumes the nonce; block reuse until re-init.
-                encryptionReinitRequired = true;
-            }
-
-            return written;
         }
     }
 

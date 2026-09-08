@@ -153,6 +153,148 @@ public class AeadAadOrderTest
                 "JCE-canonical wins where BouncyCastle diverges from the contract");
     }
 
+    /**
+     * MT-70b: {@code doFinal} returns the Cipher to its post-init state, so the
+     * AAD window must REOPEN. Otherwise the MT-70 guard turns a legal reuse into
+     * a refusal.
+     *
+     * <p>The discriminating shape needs an {@code update()} before the first
+     * {@code doFinal} — without one the flag is never set and the bug hides. A
+     * probe using only {@code updateAAD} + {@code doFinal} reports every mode
+     * healthy on the broken build.
+     *
+     * <p>Driven over every mode {@code BlockCipherSpi.isAeadMode()} covers — GCM,
+     * OCB and ChaCha20-Poly1305 — not GCM alone, and asserts the second
+     * message's PLAINTEXT rather than merely that updateAAD did not throw.
+     * Decrypt, because an encrypt reuse is refused by the nonce-reuse guard
+     * regardless. CCM is exempt: it resets its own flag in a {@code finally}
+     * after final, which is the sibling this fix copies.
+     */
+    @Test
+    public void aDecryptCipherReusedAfterDoFinalAcceptsAadAgain() throws Exception
+    {
+        for (String transformation : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding",
+                "ChaCha20-Poly1305", "AES/CCM/NoPadding"})
+        {
+            // The two messages differ in PLAINTEXT (40 vs 24 bytes) and in AAD, so
+            // the second assertion cannot pass against a stale output buffer.
+            //
+            // The NONCE is deliberately the same, and it has to be: a reused
+            // decrypt instance still holds the nonce it was initialised with, so
+            // a second message made with a different one is simply undecryptable
+            // without re-init. Measured — BouncyCastle and SunJCE both raise
+            // AEADBadTagException for that shape, so requiring a distinct nonce
+            // here would replace the property under test with a tag failure.
+            // The two ciphertexts sharing a nonce is a fixture artefact of
+            // testing decrypt reuse, not a pattern to copy.
+            byte[] key = new byte[32];
+            byte[] nonce = new byte[12];
+            byte[] aadA = new byte[]{1, 2, 3};
+            byte[] aadB = new byte[]{4, 5, 6, 7};
+            byte[] plainA = new byte[40];
+            byte[] plainB = new byte[24];
+            RANDOM.nextBytes(key);
+            RANDOM.nextBytes(nonce);
+            RANDOM.nextBytes(plainA);
+            RANDOM.nextBytes(plainB);
+
+            byte[] first = aeadEncrypt(transformation, key, nonce, aadA, plainA);
+            byte[] second = aeadEncrypt(transformation, key, nonce, aadB, plainB);
+
+            Cipher dec = Cipher.getInstance(transformation, JSL);
+            dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, keyAlgorithmFor(transformation)),
+                    specFor(transformation, nonce));
+            dec.updateAAD(aadA);
+
+            // The update() is what sets the flag; without it this test passes
+            // against the broken build.
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] partial = dec.update(first, 0, first.length - 4);
+            if (partial != null)
+            {
+                out.write(partial);
+            }
+            out.write(dec.doFinal(first, first.length - 4, 4));
+            Assertions.assertArrayEquals(plainA, out.toByteArray(), transformation + " first message");
+
+            // No re-init: that is the whole point.
+            dec.updateAAD(aadB);
+            Assertions.assertArrayEquals(plainB, dec.doFinal(second),
+                    transformation + " second message on the same instance");
+        }
+    }
+
+    /**
+     * MT-70b, failure path: a FAILED doFinal must also reopen the AAD window.
+     *
+     * <p>A bad tag on decrypt is the ordinary case, not an exotic one — it is
+     * what an attacker-supplied or corrupted message produces — and the JCE
+     * contract keeps the Cipher usable afterwards. If the reset sits only on the
+     * success path, the next operation on that instance gets a stale
+     * {@code IllegalStateException} about AAD that has nothing to do with what
+     * went wrong.
+     *
+     * <p>CCM resets in a {@code finally} for this reason; this is the cell that
+     * holds the other AEAD modes to the same behaviour.
+     */
+    @Test
+    public void aFailedDoFinalAlsoReopensTheAadWindow() throws Exception
+    {
+        for (String transformation : new String[]{"AES/GCM/NoPadding", "AES/OCB/NoPadding",
+                "ChaCha20-Poly1305", "AES/CCM/NoPadding"})
+        {
+            byte[] key = new byte[32];
+            byte[] nonce = new byte[12];
+            byte[] aad = new byte[]{1, 2, 3};
+            byte[] plaintext = new byte[40];
+            RANDOM.nextBytes(key);
+            RANDOM.nextBytes(nonce);
+            RANDOM.nextBytes(plaintext);
+
+            byte[] good = aeadEncrypt(transformation, key, nonce, aad, plaintext);
+            byte[] tampered = good.clone();
+            tampered[tampered.length - 1] ^= (byte) 0x01;   // flip a tag byte
+
+            Cipher dec = Cipher.getInstance(transformation, JSL);
+            dec.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, keyAlgorithmFor(transformation)),
+                    specFor(transformation, nonce));
+            dec.updateAAD(aad);
+            dec.update(tampered, 0, tampered.length - 4);   // sets the flag
+            Assertions.assertThrows(javax.crypto.AEADBadTagException.class,
+                    () -> dec.doFinal(tampered, tampered.length - 4, 4),
+                    transformation + ": a flipped tag byte must fail authentication");
+
+            // The instance stays usable, and the AAD window must have reopened.
+            dec.updateAAD(aad);
+            Assertions.assertArrayEquals(plaintext, dec.doFinal(good),
+                    transformation + ": a good message after a failed one");
+        }
+    }
+
+    private static byte[] aeadEncrypt(String transformation, byte[] key, byte[] nonce,
+                                      byte[] aad, byte[] plaintext) throws Exception
+    {
+        Cipher enc = Cipher.getInstance(transformation, JSL);
+        enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, keyAlgorithmFor(transformation)),
+                specFor(transformation, nonce));
+        enc.updateAAD(aad);
+        return enc.doFinal(plaintext);
+    }
+
+    private static String keyAlgorithmFor(String transformation)
+    {
+        return transformation.startsWith("ChaCha") ? "ChaCha20" : "AES";
+    }
+
+    private static java.security.spec.AlgorithmParameterSpec specFor(String transformation, byte[] nonce)
+    {
+        if (transformation.startsWith("ChaCha"))
+        {
+            return new javax.crypto.spec.IvParameterSpec(nonce);
+        }
+        return new GCMParameterSpec(transformation.contains("CCM") ? 64 : 128, nonce);
+    }
+
     private static void assertLateAadRefused(int mode) throws Exception
     {
         Cipher cipher = init("AES/GCM/NoPadding", mode);

@@ -1108,6 +1108,12 @@ class BlockCipherSpi extends CipherSpi
         }
         finally
         {
+            // doFinal returns the Cipher to its post-init state, so the AAD
+            // window reopens — on the FAILURE path too. A bad tag on decrypt is
+            // the ordinary case and the instance stays usable, so a reset on the
+            // success path alone leaves a stale refusal behind. CCM resets in a
+            // finally for the same reason.
+            aadClosed = false;
             Reference.reachabilityFence(this);
         }
     }
