@@ -498,7 +498,7 @@ public class CCMCipherSpi extends CipherSpi
         if (aadClosed)
         {
             throw new IllegalStateException(
-                    "CCM AAD must be supplied before any plaintext");
+                    "AAD must be supplied before any data");
         }
         aadBuffer.write(src, offset, len);
     }
@@ -515,7 +515,7 @@ public class CCMCipherSpi extends CipherSpi
         if (aadClosed)
         {
             throw new IllegalStateException(
-                    "CCM AAD must be supplied before any plaintext");
+                    "AAD must be supplied before any data");
         }
         int remaining = src.remaining();
         if (remaining == 0)
@@ -543,10 +543,17 @@ public class CCMCipherSpi extends CipherSpi
     {
         requireInitialised();
         checkEncryptionReinit();
-        // Any update closes the AAD window per JCE convention.
-        aadClosed = true;
         if (input != null && inputLen > 0)
         {
+            // Under the length test, not above it, so an empty update does not
+            // close the window - SunJCE and BouncyCastle both accept that.
+            //
+            // A TIDY, not a fix: javax.crypto.Cipher short-circuits a
+            // zero-length byte[] update and CCM does not override the
+            // ByteBuffer overload, so the old placement was unreachable with
+            // empty input from every public path. It made the source state a
+            // rule the product did not enforce.
+            aadClosed = true;
             dataBuffer.write(input, inputOffset, inputLen);
         }
         // CCM produces no output incrementally.

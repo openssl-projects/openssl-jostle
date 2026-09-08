@@ -62,6 +62,16 @@ class BlockCipherSpi extends CipherSpi
     // is rejected until re-init establishes a fresh nonce.
     private boolean encryptionReinitRequired;
 
+    /*
+     * True once an update has consumed data, after which updateAAD is refused
+     * for AEAD modes per Cipher.updateAAD's contract. Set where data is
+     * actually processed, never at method entry: Cipher.update(ByteBuffer,
+     * ByteBuffer) does NOT short-circuit an empty input, so an entry-set flag
+     * would close the window on a zero-length update, which SunJCE and
+     * BouncyCastle both accept.
+     */
+    private boolean aadClosed;
+
     private static int BUF_SIZE = 1024;
 
     // Instance field, not a NISelector static: the SPI is bound to whichever
@@ -591,6 +601,7 @@ class BlockCipherSpi extends CipherSpi
             this.ivBytes = iv;
             this.tagLen = tag;
             this.encryptionReinitRequired = false;
+            this.aadClosed = false;
 
             byte[] keyBytes = key.getEncoded();
             try
@@ -713,6 +724,15 @@ class BlockCipherSpi extends CipherSpi
         {
             requireInitialized();
             checkEncryptReuse();
+            if (aadClosed && isAeadMode())
+            {
+                // Gated on isAeadMode() so non-AEAD modes keep whatever they do
+                // today. Wording identical to CCMCipherSpi's, so a caller
+                // switching mode gets the same sentence for the same mistake,
+                // and "data" rather than "plaintext" because on decrypt it is
+                // ciphertext.
+                throw new IllegalStateException("AAD must be supplied before any data");
+            }
             blockCipherNi.updateAAD(refWrapper.getReference(), src, offset, len);
         }
     }
@@ -766,6 +786,10 @@ class BlockCipherSpi extends CipherSpi
         {
             requireInitialized();
             checkEncryptReuse();
+            if (inputLen > 0)
+            {
+                aadClosed = true;
+            }
             int len = blockCipherNi.getUpdateSize(refWrapper.getReference(), inputLen);
             byte[] output = new byte[len];
 
@@ -829,6 +853,10 @@ class BlockCipherSpi extends CipherSpi
             {
                 return 0;
             }
+
+            // AFTER the early return, not at method entry: this overload is the
+            // one public path that delivers an empty update to the SPI.
+            aadClosed = true;
 
             // Resolve input bytes without committing input.position() yet —
             // a thrown ShortBufferException must leave the buffer untouched.
@@ -897,6 +925,10 @@ class BlockCipherSpi extends CipherSpi
         {
             requireInitialized();
             checkEncryptReuse();
+            if (inputLen > 0)
+            {
+                aadClosed = true;
+            }
             // update's own bound, NOT engineGetOutputSize - that reports
             // update PLUS a following doFinal, so it demanded capacity this
             // call cannot use and refused correctly-sized buffers. The 3-arg

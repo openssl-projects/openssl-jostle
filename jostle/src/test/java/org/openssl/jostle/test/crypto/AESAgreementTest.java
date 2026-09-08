@@ -2921,8 +2921,12 @@ public class AESAgreementTest
         c.update(new byte[]{0x09, 0x09});            // plaintext begins -> AAD window closes
         IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
                 () -> c.updateAAD(new byte[]{0x06}));
-        Assertions.assertTrue(ex.getMessage().toLowerCase().contains("before any plaintext"),
-                "message should explain AAD must precede plaintext: " + ex.getMessage());
+        // Exact, not a substring: the wording is shared with the GCM guard in
+        // BlockCipherSpi so a caller switching mode gets the same sentence for
+        // the same mistake, and "data" rather than "plaintext" because on
+        // decrypt it is ciphertext. A contains() check would let the two SPIs
+        // drift apart again.
+        Assertions.assertEquals("AAD must be supplied before any data", ex.getMessage());
     }
 
     // -----------------------------------------------------------------
