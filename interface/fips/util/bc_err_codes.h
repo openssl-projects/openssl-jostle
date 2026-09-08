@@ -566,6 +566,14 @@
 
 
 
+
+/*
+ * The loaded provider refused an ECDH derive on a curve whose cofactor is not 1.
+ * OpenSSL's 3.5+ FIPS module requires cofactor ECDH there; jostle performs plain
+ * ECDH, and the two do not produce the same secret, so the operation cannot be
+ * silently substituted. 3.1.2 accepts plain ECDH on the same curves.
+ */
+#define JO_EC_COFACTOR_ECDH_REQUIRED -174
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

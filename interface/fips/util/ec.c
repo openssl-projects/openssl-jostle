@@ -1468,6 +1468,45 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
 }
 
 
+/*
+ * Classify a refused ECDH derive.
+ *
+ * Diagnosis-on-failure rather than a pre-check, so both interface trees stay
+ * textually identical and the branch never fires on a provider that accepts the
+ * input: the 3.1.2 FIPS module derives on these curves, 3.5.x refuses them.
+ *
+ * Asks the KEY whether its curve has a cofactor other than 1, rather than
+ * matching an ERR reason string. Any other refusal stays generic.
+ */
+static int32_t classify_ecdh_derive_failure(EVP_PKEY_CTX *pctx, int32_t generic) {
+    jo_assert(pctx != NULL);
+
+    /*
+     * Never reinterpret an OPS-injected failure: the offset identifies the call
+     * site a test drove, and swallowing it would report a capability the loaded
+     * provider may well have.
+     */
+    if (JO_ERROR_WAS_INJECTED(generic)) {
+        return generic;
+    }
+
+    /* Scoped so the probe's own noise cannot disturb the primary error report. */
+    ERR_set_mark();
+
+    EVP_PKEY *key = EVP_PKEY_CTX_get0_pkey(pctx);
+    BIGNUM *cofactor = NULL;
+    int not_one = key != NULL
+                  && 1 == EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_COFACTOR, &cofactor)
+                  && cofactor != NULL
+                  && !BN_is_one(cofactor);
+    BN_free(cofactor);
+
+    ERR_pop_to_mark();
+
+    return not_one ? JO_EC_COFACTOR_ECDH_REQUIRED : generic;
+}
+
+
 int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
                       void *rnd_src) {
     jo_assert(ctx != NULL);
@@ -1495,7 +1534,8 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
     size_t need = 0;
     if (OPS_OPENSSL_ERROR_2 1 != EVP_PKEY_derive(ctx->pctx, NULL, &need)) {
         rand_clear_java_srand_call();
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3090);
+        return classify_ecdh_derive_failure(ctx->pctx,
+                JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3090));
     }
 
     if (OPS_INT32_OVERFLOW_1 need > (size_t) INT32_MAX) {
@@ -1516,7 +1556,8 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
     size_t written = out_len;
     if (OPS_OPENSSL_ERROR_3 1 != EVP_PKEY_derive(ctx->pctx, out, &written)) {
         rand_clear_java_srand_call();
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3091);
+        return classify_ecdh_derive_failure(ctx->pctx,
+                JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3091));
     }
 
     if (OPS_INT32_OVERFLOW_2 written > (size_t) INT32_MAX) {

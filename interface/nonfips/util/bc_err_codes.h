@@ -567,6 +567,14 @@
 
 
 
+
+/*
+ * The loaded provider refused an ECDH derive on a curve whose cofactor is not 1.
+ * OpenSSL's 3.5+ FIPS module requires cofactor ECDH there; jostle performs plain
+ * ECDH, and the two do not produce the same secret, so the operation cannot be
+ * silently substituted. 3.1.2 accepts plain ECDH on the same curves.
+ */
+#define JO_EC_COFACTOR_ECDH_REQUIRED -174
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

@@ -252,6 +252,12 @@ public interface DefaultServiceNI
                 // engineInit.
                 throw new ProviderCapabilityException(
                         "PKCS#1 v1.5 decryption requires implicit rejection, which the loaded provider does not support");
+            case JO_EC_COFACTOR_ECDH_REQUIRED:
+                // Diagnosed at the derive, not pre-checked: the 3.1.2 module
+                // performs plain ECDH on these curves and only 3.5+ refuses.
+                throw new ProviderCapabilityException(
+                        "ECDH on a curve with cofactor != 1 requires cofactor ECDH, which the"
+                                + " loaded provider requires and this provider does not perform");
             case JO_DH_Q_REQUIRED:
                 // FIPS providers need q for their SP 800-56A checks, so q-less
                 // PKCS#3 keys/parameters are refused at derive-init AND at keygen

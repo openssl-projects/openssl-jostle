@@ -306,6 +306,7 @@ public enum ErrorCode
     // IllegalBlockSizeException on the wrap side.
     JO_WRAP_INPUT_LENGTH_INVALID(-173),
 
+    JO_EC_COFACTOR_ECDH_REQUIRED(-174),
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),
