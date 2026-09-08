@@ -9,7 +9,7 @@
 > single-module preamble. Regeneration WILL drop it — diff against the previous
 > version and splice it back.
 
-The Jostle (`JSL`) provider registers **343** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **346** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -149,22 +149,25 @@ The Jostle (`JSL`) provider registers **343** services across **14** JCA service
 34. `X448MLKEM1024`
 35. `XDH`
 
-## KeyGenerator (14)
+## KeyGenerator (17)
 
 1. `AES`
 2. `AES128`
 3. `AES192`
 4. `AES256`
-5. `CHACHA20`
-6. `DESEDE`
-7. `ML-KEM-1024`
-8. `ML-KEM-512`
-9. `ML-KEM-768`
-10. `MLKEM`
-11. `SECP256R1MLKEM768`
-12. `SECP384R1MLKEM1024`
-13. `X25519MLKEM768`
-14. `X448MLKEM1024`
+5. `ARIA`
+6. `CAMELLIA`
+7. `CHACHA20`
+8. `DESEDE`
+9. `ML-KEM-1024`
+10. `ML-KEM-512`
+11. `ML-KEM-768`
+12. `MLKEM`
+13. `SECP256R1MLKEM768`
+14. `SECP384R1MLKEM1024`
+15. `SM4`
+16. `X25519MLKEM768`
+17. `X448MLKEM1024`
 
 ## KeyPairGenerator (34)
 

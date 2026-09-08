@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.blockcipher.IvAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIABlockCipherSpi;
+import org.openssl.jostle.jcajce.provider.blockcipher.SymmetricKeyGenerator;
 import org.openssl.jostle.jcajce.provider.blockcipher.ARIACCMCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
@@ -34,6 +35,13 @@ class ProvARIA
     public void configure(final JostleProvider provider)
     {
         provider.addAlgorithmImplementation("Cipher", "ARIA", ARIABlockCipherSpi.class.getName(), generalAttributes, (arg) -> new ARIABlockCipherSpi(provider));
+
+        // KeyGenerator for the bare name, matching BouncyCastle, which serves
+        // ARIA with a 256-bit default. Without it a caller must build a
+        // SecretKeySpec by hand to use a cipher this provider serves.
+        provider.addAlgorithmImplementation("KeyGenerator", "ARIA",
+                SymmetricKeyGenerator.class.getName(), generalAttributes,
+                (arg) -> new SymmetricKeyGenerator("ARIA", 256, 128, 192, 256));
 
         provider.addAlgorithmImplementation("Cipher", "ARIA128", ARIABlockCipherSpi.class.getName(), generalAttributes, (arg) -> new ARIABlockCipherSpi(OSSLCipher.ARIA128, OSSLMode.ECB, provider));
         provider.addAlias("Cipher", "ARIA128", NSRIObjectIdentifiers.id_aria128_ecb);

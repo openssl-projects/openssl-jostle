@@ -144,6 +144,9 @@ public class KeyGeneratorNegativePathSurveyTest
         c.add(new Cell("AES128", "AESKeyGenerator", 128, true, true, "AES/CBC/PKCS5Padding"));
         c.add(new Cell("ChaCha20", "ChaCha20KeyGenerator", 256, false, true, null));
         c.add(new Cell("DESede", "DESedeKeyGenerator", 192, false, true, "DESede/CBC/PKCS5Padding"));
+        c.add(new Cell("ARIA", "SymmetricKeyGenerator", 256, false, true, "ARIA/CBC/PKCS5Padding"));
+        c.add(new Cell("CAMELLIA", "SymmetricKeyGenerator", 256, false, true, "CAMELLIA/CBC/PKCS5Padding"));
+        c.add(new Cell("SM4", "SymmetricKeyGenerator", 128, false, true, "SM4/CBC/PKCS5Padding"));
         c.add(new Cell("ML-KEM-512", "MLKEMKeyGenerator", 0, false, false));
         c.add(new Cell("X25519MLKEM768", "MLXKEMKeyGenerator", 0, false, false));
         return c;
