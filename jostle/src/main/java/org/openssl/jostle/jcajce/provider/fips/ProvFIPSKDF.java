@@ -40,6 +40,9 @@ class ProvFIPSKDF
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes,
                 (arg) -> new PBKDF2SecretKeyFactory(FIPSNISelector.KdfNI, null));
+        // id-PBKDF2, RFC 8018 A.2, mirroring ProvPBKDF. PBES2 / PKCS#8 / PKCS#12
+        // resolve the key-derivation SecretKeyFactory by this OID, not by name.
+        provider.addAlias("SecretKeyFactory", "PBKDF2", "1.2.840.113549.1.5.12");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA1", "SHA-1");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA224", "SHA-224");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA256", "SHA-256");

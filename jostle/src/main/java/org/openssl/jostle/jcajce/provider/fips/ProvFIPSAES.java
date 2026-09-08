@@ -101,7 +101,7 @@ class ProvFIPSAES
         provider.addAlias("Cipher", "AES128", NISTObjectIdentifiers.id_aes128_ECB);
         provider.addAlgorithmImplementation("KeyGenerator", "AES128", AESKeyGenerator.class.getName(), generalAesAttributes,
                 (arg) -> new AESKeyGenerator(128, provider.getDefaultSecureRandom()));
-        provider.addAlias("KeyGenerator", "AES128", NISTObjectIdentifiers.id_aes128_ECB, NISTObjectIdentifiers.id_aes128_CBC, NISTObjectIdentifiers.id_aes128_GCM, NISTObjectIdentifiers.id_aes128_wrap, NISTObjectIdentifiers.id_aes128_wrap_pad);
+        provider.addAlias("KeyGenerator", "AES128", NISTObjectIdentifiers.id_aes128_ECB, NISTObjectIdentifiers.id_aes128_CBC, NISTObjectIdentifiers.id_aes128_GCM, NISTObjectIdentifiers.id_aes128_wrap, NISTObjectIdentifiers.id_aes128_wrap_pad, NISTObjectIdentifiers.id_aes128_CCM);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_CBC, AESBlockCipherSpi.class.getName(), generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES128, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_GCM, AESBlockCipherSpi.class.getName(), generalAesAttributes,
@@ -116,7 +116,7 @@ class ProvFIPSAES
         provider.addAlias("Cipher", "AES192", NISTObjectIdentifiers.id_aes192_ECB);
         provider.addAlgorithmImplementation("KeyGenerator", "AES192", AESKeyGenerator.class.getName(), generalAesAttributes,
                 (arg) -> new AESKeyGenerator(192, provider.getDefaultSecureRandom()));
-        provider.addAlias("KeyGenerator", "AES192", NISTObjectIdentifiers.id_aes192_ECB, NISTObjectIdentifiers.id_aes192_CBC, NISTObjectIdentifiers.id_aes192_GCM, NISTObjectIdentifiers.id_aes192_wrap, NISTObjectIdentifiers.id_aes192_wrap_pad);
+        provider.addAlias("KeyGenerator", "AES192", NISTObjectIdentifiers.id_aes192_ECB, NISTObjectIdentifiers.id_aes192_CBC, NISTObjectIdentifiers.id_aes192_GCM, NISTObjectIdentifiers.id_aes192_wrap, NISTObjectIdentifiers.id_aes192_wrap_pad, NISTObjectIdentifiers.id_aes192_CCM);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_CBC, AESBlockCipherSpi.class.getName(), generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES192, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_GCM, AESBlockCipherSpi.class.getName(), generalAesAttributes,
@@ -131,7 +131,7 @@ class ProvFIPSAES
         provider.addAlias("Cipher", "AES256", NISTObjectIdentifiers.id_aes256_ECB);
         provider.addAlgorithmImplementation("KeyGenerator", "AES256", AESKeyGenerator.class.getName(), generalAesAttributes,
                 (arg) -> new AESKeyGenerator(256, provider.getDefaultSecureRandom()));
-        provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad);
+        provider.addAlias("KeyGenerator", "AES256", NISTObjectIdentifiers.id_aes256_ECB, NISTObjectIdentifiers.id_aes256_CBC, NISTObjectIdentifiers.id_aes256_GCM, NISTObjectIdentifiers.id_aes256_wrap, NISTObjectIdentifiers.id_aes256_wrap_pad, NISTObjectIdentifiers.id_aes256_CCM);
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CBC, AESBlockCipherSpi.class.getName(), generalAesAttributes,
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES256, OSSLMode.CBC, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_GCM, AESBlockCipherSpi.class.getName(), generalAesAttributes,
@@ -143,6 +143,20 @@ class ProvFIPSAES
 
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding", AESCCMCipherSpi.class.getName(), generalAesAttributes,
                 (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI));
+
+        // The NIST CCM OIDs, mirroring ProvAES. Registered as PRIMARIES rather
+        // than aliases of "AES/CCM/NoPadding" because each OID names a key
+        // size and the bare transformation derives its cipher from the key
+        // length; the pinned constructor refuses a key of any other length.
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_CCM,
+                AESCCMCipherSpi.class.getName(), generalAesAttributes,
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES128));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_CCM,
+                AESCCMCipherSpi.class.getName(), generalAesAttributes,
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES192));
+        provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CCM,
+                AESCCMCipherSpi.class.getName(), generalAesAttributes,
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES256));
 
         // XTS-AES (IEEE 1619 / SP 800-38E). Ungated: probed servable, with
         // identical behaviour, on both supported FIPS modules (3.1.2 and

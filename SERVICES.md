@@ -403,7 +403,7 @@ The Jostle (`JSL`) provider registers **343** services across **14** JCA service
 > supported" to the KMAC paragraph. Splice it back from the previous version and
 > re-check its counts and gating claims against both modules.
 
-The Jostle FIPS (`JSLFIPS`) provider registers **188** services against the 3.1.2 module and **274** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+The Jostle FIPS (`JSLFIPS`) provider registers **191** services against the 3.1.2 module and **277** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
 
 **Two modules are supported, and the list below is the 3.5.8 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
@@ -507,36 +507,39 @@ module it did not match — so both surface as the module's own typed refusal at
 
 1. `X.509`
 
-## Cipher (28)
+## Cipher (31)
 
 1. `1.2.840.113549.3.7`
 2. `2.16.840.1.101.3.4.1.2`
 3. `2.16.840.1.101.3.4.1.22`
 4. `2.16.840.1.101.3.4.1.25`
 5. `2.16.840.1.101.3.4.1.26`
-6. `2.16.840.1.101.3.4.1.28`
-7. `2.16.840.1.101.3.4.1.42`
-8. `2.16.840.1.101.3.4.1.45`
-9. `2.16.840.1.101.3.4.1.46`
-10. `2.16.840.1.101.3.4.1.48`
-11. `2.16.840.1.101.3.4.1.5`
-12. `2.16.840.1.101.3.4.1.6`
-13. `2.16.840.1.101.3.4.1.8`
-14. `AES`
-15. `AES/CBC/CS3PADDING`
-16. `AES/CCM/NOPADDING`
-17. `AES/CTS/NOPADDING`
-18. `AES/XTS/NOPADDING`
-19. `AES128`
-20. `AES192`
-21. `AES256`
-22. `AESWRAP`
-23. `AESWRAPINV`
-24. `AESWRAPPAD`
-25. `DESEDE`
-26. `ML-KEM`
-27. `RSA`
-28. `RSA-KTS-KEM-KWS`
+6. `2.16.840.1.101.3.4.1.27`
+7. `2.16.840.1.101.3.4.1.28`
+8. `2.16.840.1.101.3.4.1.42`
+9. `2.16.840.1.101.3.4.1.45`
+10. `2.16.840.1.101.3.4.1.46`
+11. `2.16.840.1.101.3.4.1.47`
+12. `2.16.840.1.101.3.4.1.48`
+13. `2.16.840.1.101.3.4.1.5`
+14. `2.16.840.1.101.3.4.1.6`
+15. `2.16.840.1.101.3.4.1.7`
+16. `2.16.840.1.101.3.4.1.8`
+17. `AES`
+18. `AES/CBC/CS3PADDING`
+19. `AES/CCM/NOPADDING`
+20. `AES/CTS/NOPADDING`
+21. `AES/XTS/NOPADDING`
+22. `AES128`
+23. `AES192`
+24. `AES256`
+25. `AESWRAP`
+26. `AESWRAPINV`
+27. `AESWRAPPAD`
+28. `DESEDE`
+29. `ML-KEM`
+30. `RSA`
+31. `RSA-KTS-KEM-KWS`
 
 ## KeyAgreement (8)
 

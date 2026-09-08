@@ -52,6 +52,10 @@ class ProvFIPSEC
         provider.addAlgorithmImplementation("AlgorithmParameters", "EC",
                 ECAlgorithmParameters.class.getName(), attr,
                 (arg) -> new ECAlgorithmParameters(FIPSNISelector.ECServiceNI));
+        // Mirrors ProvEC. KeyPairGenerator and KeyFactory above already carry
+        // this OID; AlgorithmParameters did not, so an OID-driven caller could
+        // decode the key and not its parameters.
+        provider.addAlias("AlgorithmParameters", "EC", "1.2.840.10045.2.1");
 
         registerEcdsaSignature(provider, attr, "SHA1withECDSA", "SHA-1", "1.2.840.10045.4.1");
         registerEcdsaSignature(provider, attr, "SHA224withECDSA", "SHA-224", "1.2.840.10045.4.3.1");
