@@ -91,6 +91,19 @@ Two boundaries worth knowing, both settled by measurement rather than argument:
 2. **Ask which side of the CHECKED/UNCHECKED line each type sits on — it decides urgency, and it reverses judgements.** A failed AES key-unwrap integrity check was first left on `OpenSSLException` as an acceptable divergence, then reversed the same day on one measured fact: `OpenSSLException` extends `RuntimeException`, so the BC-shaped `catch (BadPaddingException)` caught **nothing** on the routine attacker-data path and the error escaped to whatever sat above. Type parity reads as cosmetic until you notice that. Where the mismatched type is unchecked and the matched one is checked, the divergence is not a style difference — it is a handler that never runs.
 
 
+**Resolving a block cipher by its CBC OID yields NoPadding, matching SunJCE and
+diverging from BouncyCastle, which pads.** The OID names a cipher, not a padded
+scheme; a caller needing RFC 8018 AES-CBC-Pad semantics must ask for the
+transformation by name. Measured across JSL / BC / SunJCE for the AES, ARIA,
+Camellia and Triple-DES CBC OIDs (MT-77): SunJCE and JSL refuse a non-aligned
+input, BC pads. Kept deliberately — bc-java's own CMS layer resolves by NAME for
+exactly this reason (`EnvelopedDataHelper.CIPHER_ALG_NAMES`), so the padded-by-OID
+behaviour is a fallback even there, and only its PBE builders lack the table. The
+registrations were an omission rather than a decision — the neighbouring
+`AlgorithmParameters` comment names BC's PBES2/PKCS#8 decryptors as the intended
+consumer — but the behaviour is right, so the omission is now the documented
+position.
+
 **THE RULE HAS ONE BOUNDARY, added 2026-09-01 after a provider-wide survey measured two cases where BouncyCastle is the non-canonical side: match BouncyCastle's type UNLESS BOUNCYCASTLE DIVERGES FROM THE JCE CONTRACT.** Where BC is wrong, JCE-canonical wins and the divergence is pinned in BOTH halves.
 
 Both instances came from the same 235-cell measurement, and neither is arguable:
