@@ -100,11 +100,23 @@ public final class KeyInfoCanonicalizer
     }
 
     /**
-     * id-RSASSA-PSS OBJECT IDENTIFIER (1.2.840.113549.1.1.10) as a DER TLV.
-     * Differs from rsaEncryption (1.2.840.113549.1.1.1) only in the final byte.
+     * RSA key OBJECT IDENTIFIERs, as DER TLVs, that the native decoder will not
+     * accept as an RSA key even though the key material underneath is an
+     * ordinary RSAPublicKey / RSAPrivateKey. Each differs from rsaEncryption
+     * (1.2.840.113549.1.1.1) only in the final byte.
+     *
+     * <ul>
+     *   <li>{@code 0x0A} - id-RSASSA-PSS, 1.2.840.113549.1.1.10</li>
+     *   <li>{@code 0x07} - id-RSAES-OAEP, 1.2.840.113549.1.1.7 (RFC 4055 4.1)</li>
+     * </ul>
+     *
+     * <p>Adding another is a DATA change: append a row here and the predicate,
+     * both rewrite paths and the tests follow, because none of them names an
+     * individual OID.
      */
-    private static final byte[] ID_RSASSA_PSS_OID = {
-            0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D, 0x01, 0x01, 0x0A
+    private static final byte[][] REWRITTEN_RSA_ALG_OIDS = {
+            {0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D, 0x01, 0x01, 0x0A},
+            {0x06, 0x09, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0x0D, 0x01, 0x01, 0x07}
     };
 
     /**
@@ -138,7 +150,7 @@ public final class KeyInfoCanonicalizer
             int[] algPos = {pos[0]};
             int algEnd = readSequenceHeader(spki, algPos);  // AlgorithmIdentifier
 
-            if (!isRsaPssOid(spki, algPos[0], algEnd))
+            if (!isRsaAlgIdRewrittenForDecode(spki, algPos[0], algEnd))
             {
                 return spki;
             }
@@ -171,7 +183,7 @@ public final class KeyInfoCanonicalizer
             int[] algPos = {algStart};
             int algEnd = readSequenceHeader(pki, algPos);   // privateKeyAlgorithm
 
-            if (!isRsaPssOid(pki, algPos[0], algEnd))
+            if (!isRsaAlgIdRewrittenForDecode(pki, algPos[0], algEnd))
             {
                 return pki;
             }
@@ -284,27 +296,44 @@ public final class KeyInfoCanonicalizer
     }
 
     /**
-     * True if the AlgorithmIdentifier content spanning {@code [algContentStart, algEnd)}
-     * begins with the id-RSASSA-PSS OBJECT IDENTIFIER.
+     * True if the AlgorithmIdentifier spanning {@code [algContentStart, algEnd)}
+     * carries an RSA key OID the native decoder will not accept, so it must be
+     * swapped for rsaEncryption on the way in. The original identifier is
+     * restored whole on the way out by
+     * {@link #withSubjectPublicKeyInfoAlgId(byte[], byte[])}, parameters
+     * included, so nothing about the key's declared use is lost.
      */
-    private static boolean isRsaPssOid(byte[] data, int algContentStart, int algEnd)
+    private static boolean isRsaAlgIdRewrittenForDecode(byte[] data, int algContentStart, int algEnd)
     {
         int[] pos = {algContentStart};
         int oidStart = pos[0];
         skipTlv(data, pos);                                 // algorithm OBJECT IDENTIFIER
         int oidEnd = pos[0];
-        if (oidEnd > algEnd || oidEnd - oidStart != ID_RSASSA_PSS_OID.length)
+        if (oidEnd > algEnd)
         {
             return false;
         }
-        for (int i = 0; i < ID_RSASSA_PSS_OID.length; i++)
+        for (byte[] oid : REWRITTEN_RSA_ALG_OIDS)
         {
-            if (data[oidStart + i] != ID_RSASSA_PSS_OID[i])
+            if (oidEnd - oidStart != oid.length)
             {
-                return false;
+                continue;
+            }
+            boolean match = true;
+            for (int i = 0; i < oid.length; i++)
+            {
+                if (data[oidStart + i] != oid[i])
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match)
+            {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     /**
