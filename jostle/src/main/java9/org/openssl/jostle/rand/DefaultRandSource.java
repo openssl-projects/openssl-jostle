@@ -40,7 +40,25 @@ public class DefaultRandSource implements RandSource
     // consumer compiled against the baseline hits IllegalAccessError on JDK 9+.
     public DefaultRandSource(SecureRandom secureRandom)
     {
-        this(secureRandom, secureRandom.getParameters());
+        this(secureRandom, parametersOrNull(secureRandom));
+    }
+
+    /**
+     * A caller-supplied SecureRandom is caller data: a Spi-less subclass (the
+     * protected {@code (Spi, Provider)} constructor with nulls) throws NPE from
+     * {@code getParameters()}, and an override may throw anything. Every failure
+     * means "no parameters", which this class already tolerates.
+     */
+    private static SecureRandomParameters parametersOrNull(SecureRandom secureRandom)
+    {
+        try
+        {
+            return secureRandom.getParameters();
+        }
+        catch (RuntimeException e)
+        {
+            return null;
+        }
     }
 
     protected DefaultRandSource(SecureRandom secureRandom, SecureRandomParameters params)
@@ -263,7 +281,7 @@ public class DefaultRandSource implements RandSource
         {
             return 0;
         }
-        SecureRandomParameters params = rand.getParameters();
+        SecureRandomParameters params = parametersOrNull(rand);
         if (params instanceof DrbgParameters.Instantiation)
         {
             return ((DrbgParameters.Instantiation) params).getStrength();
