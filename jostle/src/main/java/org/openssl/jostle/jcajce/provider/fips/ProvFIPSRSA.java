@@ -118,6 +118,12 @@ class ProvFIPSRSA
         registerPssSignature(provider, attr, "SHA3-384", "SHA3-384");
         registerPssSignature(provider, attr, "SHA3-512", "SHA3-512");
 
+        // BC's spelling; the JDK has no per-digest PSS name, and there is no
+        // per-digest PSS OID. Served by mainline and both FIPS modules
+        // (fips-c-review/probes/mt95_pss_probe.java), so no gate.
+        registerPssSignature(provider, attr, "SHA512(224)", "SHA-512/224");
+        registerPssSignature(provider, attr, "SHA512(256)", "SHA-512/256");
+
         // OAEP is the ONLY approved RSA key-transport / encryption scheme for
         // this module (KTS-4, SP 800-56Br2 — see class Javadoc). PKCS#1 v1.5
         // encryption is deliberately NOT registered: it is non-approved and the

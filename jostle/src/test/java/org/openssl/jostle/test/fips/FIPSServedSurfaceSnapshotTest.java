@@ -326,6 +326,8 @@ public class FIPSServedSurfaceSnapshotTest
             "Signature.SHA384WITHRSAANDMGF1",
             "Signature.SHA512(224)WITHRSA",
             "Signature.SHA512(256)WITHRSA",
+            "Signature.SHA512(224)WITHRSAANDMGF1",
+            "Signature.SHA512(256)WITHRSAANDMGF1",
             "Signature.SHA512WITHDSA",
             "Signature.SHA512WITHECDSA",
             "Signature.SHA512WITHRSA",

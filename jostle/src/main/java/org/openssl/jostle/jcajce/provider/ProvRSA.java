@@ -114,6 +114,12 @@ class ProvRSA
         registerPssSignature(provider, attr, "SHA3-384", "SHA3-384");
         registerPssSignature(provider, attr, "SHA3-512", "SHA3-512");
 
+        // BC's spelling; the JDK has no per-digest PSS name, and there is no
+        // per-digest PSS OID. Served by mainline and both FIPS modules
+        // (fips-c-review/probes/mt95_pss_probe.java), so no gate.
+        registerPssSignature(provider, attr, "SHA512(224)", "SHA-512/224");
+        registerPssSignature(provider, attr, "SHA512(256)", "SHA-512/256");
+
         // RSA-OAEP cipher. The provider registers only the bare "RSA"
         // primary; transformation strings like
         //   "RSA/ECB/OAEPPadding"

@@ -77,6 +77,8 @@ public class FIPSRSAPSSNamedSignatureTest
             {"SHA3-256WITHRSAANDMGF1", "SHA3-256", "32"},
             {"SHA3-384WITHRSAANDMGF1", "SHA3-384", "48"},
             {"SHA3-512WITHRSAANDMGF1", "SHA3-512", "64"},
+            {"SHA512(224)WITHRSAANDMGF1", "SHA-512/224", "28"},
+            {"SHA512(256)WITHRSAANDMGF1", "SHA-512/256", "32"},
     };
 
     /**
@@ -127,6 +129,31 @@ public class FIPSRSAPSSNamedSignatureTest
         return m;
     }
 
+    /**
+     * The digest spelling for a {@link PSSParameterSpec} destined for
+     * BouncyCastle. The two providers' accepted sets are DISJOINT for the
+     * truncated SHA-512s: BC takes {@code SHA512(224)} and refuses
+     * {@code SHA-512/224}; OpenSSL takes {@code SHA-512/224} and
+     * {@code SHA512-224} and refuses {@code SHA512(224)}. So no single string
+     * serves both, and the digest column cannot also be the BC column. Every
+     * other digest here spells the same in both domains, which is why one
+     * column served nine rows before these two. BC reports its refusal as
+     * "digest algorithm for MGF should be the same as for PSS parameters",
+     * which names the wrong cause.
+     */
+    private static String bcDigest(String jcaDigest)
+    {
+        if (jcaDigest.equals("SHA-512/224"))
+        {
+            return "SHA512(224)";
+        }
+        if (jcaDigest.equals("SHA-512/256"))
+        {
+            return "SHA512(256)";
+        }
+        return jcaDigest;
+    }
+
     private static PSSParameterSpec pssSpec(String jcaDigest, int saltLen)
     {
         return new PSSParameterSpec(jcaDigest, "MGF1", new MGF1ParameterSpec(jcaDigest), saltLen, 1);
@@ -148,7 +175,8 @@ public class FIPSRSAPSSNamedSignatureTest
             String jslName = c[0];
             String jcaDigest = c[1];
             int saltLen = Integer.parseInt(c[2]);
-            PSSParameterSpec spec = pssSpec(jcaDigest, saltLen);
+            // BC-only spec: see bcDigest for why the spelling differs.
+            PSSParameterSpec spec = pssSpec(bcDigest(jcaDigest), saltLen);
             byte[] msg = randomMessage(200);
 
             // Sign with JSLFIPS named (no setParameter), verify with BC explicit params.
