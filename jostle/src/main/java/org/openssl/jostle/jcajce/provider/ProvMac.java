@@ -28,13 +28,13 @@ class ProvMac
 
     public void configure(final JostleProvider provider)
     {
-        addMac(provider, "HMAC", "SHA1", "SHA-1");
-        addMac(provider, "HMAC", "SHA224", "SHA2-224");
-        addMac(provider, "HMAC", "SHA256", "SHA2-256");
-        addMac(provider, "HMAC", "SHA384", "SHA2-384");
-        addMac(provider, "HMAC", "SHA512", "SHA2-512");
-        addMac(provider, "HMAC", "SHA512/224", "SHA2-512/224");
-        addMac(provider, "HMAC", "SHA512/256", "SHA2-512/256");
+        addMac(provider, "HMAC", "SHA1", "SHA-1", "1.2.840.113549.2.7");
+        addMac(provider, "HMAC", "SHA224", "SHA2-224", "1.2.840.113549.2.8");
+        addMac(provider, "HMAC", "SHA256", "SHA2-256", "1.2.840.113549.2.9");
+        addMac(provider, "HMAC", "SHA384", "SHA2-384", "1.2.840.113549.2.10");
+        addMac(provider, "HMAC", "SHA512", "SHA2-512", "1.2.840.113549.2.11");
+        addMac(provider, "HMAC", "SHA512/224", "SHA2-512/224", "1.2.840.113549.2.12");
+        addMac(provider, "HMAC", "SHA512/256", "SHA2-512/256", "1.2.840.113549.2.13");
 
         addMac(provider, "HMAC", "SHA3-224", "SHA3-224");
         addMac(provider, "HMAC", "SHA3-256", "SHA3-256");
@@ -120,5 +120,16 @@ class ProvMac
         String className = MacServiceSPI.class.getName();
         provider.addAlgorithmImplementation("Mac", mainName, className, generalAttributes, (arg) -> new MacServiceSPI(type, function));
         provider.addAlias("Mac", mainName, type + "-" + name, type + "/" + name);
+    }
+
+    /**
+     * As {@link #addMac}, plus the RFC 8018 B.1.1 OID. PBMAC1 and CMS callers
+     * resolve a Mac by OID and never by name, so one without its alias is
+     * unreachable to them however well it is served.
+     */
+    private void addMac(JostleProvider provider, String type, String name, String function, String oid)
+    {
+        addMac(provider, type, name, function);
+        provider.addAlias("Mac", type + name, oid);
     }
 }
