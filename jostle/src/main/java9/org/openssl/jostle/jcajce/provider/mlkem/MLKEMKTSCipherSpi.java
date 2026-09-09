@@ -17,6 +17,7 @@ import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
+import org.openssl.jostle.jcajce.provider.kts.KtsWrap;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -143,6 +144,8 @@ public class MLKEMKTSCipherSpi
 
     // KTSParameterSpec contents (read reflectively in engineInit).
     private int kekBits;
+    /** RFC 3394 (KW) or RFC 5649 (KWP), from the spec's key-algorithm name. */
+    private KtsWrap.Kind wrapKind = KtsWrap.Kind.KW;
     private byte[] otherInfo;
     private String digestName;   // null => no KDF, use the shared secret directly
     private KtsKdf.Kind kdfKind; // which family digestName belongs to; null with digestName
@@ -501,14 +504,8 @@ public class MLKEMKTSCipherSpi
     private Cipher resolveAesKeyWrap(int kekLen)
         throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException
     {
-        String oid;
-        switch (kekLen)
-        {
-        case 16: oid = NISTObjectIdentifiers.id_aes128_wrap.getId(); break;   // id-aes128-wrap
-        case 24: oid = NISTObjectIdentifiers.id_aes192_wrap.getId(); break;   // id-aes192-wrap
-        case 32: oid = NISTObjectIdentifiers.id_aes256_wrap.getId(); break;   // id-aes256-wrap
-        default: throw new InvalidKeyException("unsupported AES-KW KEK size: " + kekLen);
-        }
+        // id-aesNNN-wrap for KW, id-aesNNN-wrap-pad for KWP.
+        String oid = KtsWrap.oidFor(wrapKind, kekLen);
         Provider ownProvider = ownProvider();
         if (ownProvider == null)
         {
@@ -544,6 +541,16 @@ public class MLKEMKTSCipherSpi
         {
             Class<?> c = params.getClass();
             this.kekBits = (Integer) method(c, "getKeySize").invoke(params);
+            // The name selects RFC 3394 vs RFC 5649; refused here so an
+            // unsupported one cannot reach a key operation.
+            String keyAlgorithmName = (String) method(c, "getKeyAlgorithmName").invoke(params);
+            KtsWrap.Kind kind = KtsWrap.kindForName(keyAlgorithmName);
+            if (kind == null)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        KtsWrap.unsupportedNameMessage(keyAlgorithmName));
+            }
+            this.wrapKind = kind;
             this.otherInfo = (byte[]) method(c, "getOtherInfo").invoke(params);
             Object kdfAlgId = method(c, "getKdfAlgorithm").invoke(params);
             if (kdfAlgId == null)
