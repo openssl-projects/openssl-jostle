@@ -397,7 +397,28 @@ public class CCMCipherSpi extends CipherSpi
         }
         catch (java.security.spec.InvalidParameterSpecException e)
         {
-            throw new InvalidAlgorithmParameterException("CCM init: " + e.getMessage(), e);
+            // A foreign CCM AlgorithmParameters need not offer the GCM view --
+            // BouncyCastle's does not -- but the encoding is the same, so read
+            // it through ours rather than refusing a parameter set we can use.
+            engineInit(opmode, key, viaOurCodec(params, e), random);
+        }
+    }
+
+    private GCMParameterSpec viaOurCodec(AlgorithmParameters params,
+                                         java.security.spec.InvalidParameterSpecException cause)
+            throws InvalidAlgorithmParameterException
+    {
+        try
+        {
+            AlgorithmParameters ours =
+                    JostleAlgorithmParameters.getInstance("CCM", cipherNI.providerName());
+            ours.init(params.getEncoded());
+            return ours.getParameterSpec(GCMParameterSpec.class);
+        }
+        catch (java.io.IOException | GeneralSecurityException e)
+        {
+            // Report the original refusal; the re-read is the fallback, not the contract.
+            throw new InvalidAlgorithmParameterException("CCM init: " + cause.getMessage(), cause);
         }
     }
 
