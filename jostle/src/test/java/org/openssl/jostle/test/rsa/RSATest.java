@@ -73,6 +73,48 @@ public class RSATest
         sharedKeyPair = kpg.generateKeyPair();
     }
 
+    /**
+     * JDK spelling {@code SHA512/224withRSA} (SunRsaSign's) must be the same
+     * algorithm as BC's {@code SHA512(224)WITHRSA}. Compares signature bytes,
+     * not the SPI class, since every spelling resolves to RSASignatureSpi;
+     * PKCS#1 v1.5 is deterministic.
+     */
+    @Test
+    public void truncatedSha512_jdkSpellingSignsIdenticallyToTheBcSpelling() throws Exception
+    {
+        byte[] msg = new byte[64];
+        RANDOM.nextBytes(msg);
+
+        String[][] pairs = {
+                {"SHA512(224)withRSA", "SHA512/224withRSA"},
+                {"SHA512(256)withRSA", "SHA512/256withRSA"},
+        };
+        for (String[] pair : pairs)
+        {
+            Signature bcSpelling = Signature.getInstance(pair[0], JostleProvider.PROVIDER_NAME);
+            bcSpelling.initSign(sharedKeyPair.getPrivate());
+            bcSpelling.update(msg);
+
+            Signature jdkSpelling = Signature.getInstance(pair[1], JostleProvider.PROVIDER_NAME);
+            jdkSpelling.initSign(sharedKeyPair.getPrivate());
+            jdkSpelling.update(msg);
+
+            Assertions.assertArrayEquals(bcSpelling.sign(), jdkSpelling.sign(),
+                    pair[1] + " must be the same algorithm as " + pair[0]);
+        }
+
+        // A control: the untruncated SHA-512 signature must NOT match, or the
+        // check above would pass with every alias pointed at one digest.
+        Signature full = Signature.getInstance("SHA512withRSA", JostleProvider.PROVIDER_NAME);
+        full.initSign(sharedKeyPair.getPrivate());
+        full.update(msg);
+        Signature truncated = Signature.getInstance("SHA512/224withRSA", JostleProvider.PROVIDER_NAME);
+        truncated.initSign(sharedKeyPair.getPrivate());
+        truncated.update(msg);
+        Assertions.assertFalse(java.util.Arrays.equals(full.sign(), truncated.sign()),
+                "SHA512/224withRSA must not be an alias of SHA512withRSA");
+    }
+
 
     // -----------------------------------------------------------------
     // KeyPairGenerator

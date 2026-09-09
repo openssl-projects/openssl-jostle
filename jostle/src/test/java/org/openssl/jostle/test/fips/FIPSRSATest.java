@@ -102,6 +102,49 @@ public class FIPSRSATest
         return fipsKeyPair;
     }
 
+    /**
+     * FIPS twin: JSLFIPS has its own alias table, so the base test cannot see
+     * it. Signature bytes, not SPI class — every spelling resolves to
+     * RSASignatureSpi.
+     */
+    @Test
+    public void truncatedSha512_jdkSpellingSignsIdenticallyToTheBcSpelling()
+        throws Exception
+    {
+        KeyPair kp = keyPair();
+        byte[] msg = new byte[64];
+        RANDOM.nextBytes(msg);
+
+        String[][] pairs = {
+                {"SHA512(224)withRSA", "SHA512/224withRSA"},
+                {"SHA512(256)withRSA", "SHA512/256withRSA"},
+        };
+        for (String[] pair : pairs)
+        {
+            Signature bcSpelling = Signature.getInstance(pair[0], JostleFIPSProvider.PROVIDER_NAME);
+            bcSpelling.initSign(kp.getPrivate());
+            bcSpelling.update(msg);
+
+            Signature jdkSpelling = Signature.getInstance(pair[1], JostleFIPSProvider.PROVIDER_NAME);
+            jdkSpelling.initSign(kp.getPrivate());
+            jdkSpelling.update(msg);
+
+            Assertions.assertArrayEquals(bcSpelling.sign(), jdkSpelling.sign(),
+                    pair[1] + " must be the same algorithm as " + pair[0]);
+        }
+
+        // Control: the untruncated digest must differ, or every alias could
+        // point at one primary and the check above would still pass.
+        Signature full = Signature.getInstance("SHA512withRSA", JostleFIPSProvider.PROVIDER_NAME);
+        full.initSign(kp.getPrivate());
+        full.update(msg);
+        Signature truncated = Signature.getInstance("SHA512/224withRSA", JostleFIPSProvider.PROVIDER_NAME);
+        truncated.initSign(kp.getPrivate());
+        truncated.update(msg);
+        Assertions.assertFalse(java.util.Arrays.equals(full.sign(), truncated.sign()),
+                "SHA512/224withRSA must not be an alias of SHA512withRSA");
+    }
+
     @Test
     public void pkcs1SignaturesAgreeWithBouncyCastle()
         throws Exception

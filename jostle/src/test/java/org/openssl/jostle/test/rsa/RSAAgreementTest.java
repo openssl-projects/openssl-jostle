@@ -136,6 +136,27 @@ public class RSAAgreementTest
         return n.startsWith("OID.") ? n.substring("OID.".length()) : n;
     }
 
+    /**
+     * Name to ask BC for. The surface includes aliases, and the two JDK
+     * spellings ({@code SHA512/224withRSA}) are the same algorithm under BC's
+     * {@code SHA512(224)WITHRSA}, so translate rather than exclude — or the
+     * alias drops out of every agreement sweep while the guard counts it
+     * covered.
+     */
+    private static String bcName(String alg)
+    {
+        String n = bareName(alg);
+        if (n.equals("SHA512/224WITHRSA"))
+        {
+            return "SHA512(224)WITHRSA";
+        }
+        if (n.equals("SHA512/256WITHRSA"))
+        {
+            return "SHA512(256)WITHRSA";
+        }
+        return alg;
+    }
+
     /** PSS and MGF1 names are randomised; the rest are deterministic PKCS#1. */
     private static boolean isRandomised(String alg)
     {
@@ -192,7 +213,7 @@ public class RSAAgreementTest
                 joSign.update(msg);
                 byte[] joSig = joSign.sign();
 
-                Signature bcVerify = Signature.getInstance(alg, BC);
+                Signature bcVerify = Signature.getInstance(bcName(alg), BC);
                 if (usesSpiDefaultDigest(alg))
                 {
                     bcVerify.setParameter(PSS_SHA256);
@@ -205,7 +226,7 @@ public class RSAAgreementTest
                     continue;
                 }
 
-                Signature bcSign = Signature.getInstance(alg, BC);
+                Signature bcSign = Signature.getInstance(bcName(alg), BC);
                 if (usesSpiDefaultDigest(alg))
                 {
                     bcSign.setParameter(PSS_SHA256);
@@ -266,7 +287,7 @@ public class RSAAgreementTest
             joSign.update(msg);
             byte[] joSig = joSign.sign();
 
-            Signature bcSign = Signature.getInstance(alg, BC);
+            Signature bcSign = Signature.getInstance(bcName(alg), BC);
             bcSign.initSign(bcPrivate());
             bcSign.update(msg);
             byte[] bcSig = bcSign.sign();
@@ -323,7 +344,7 @@ public class RSAAgreementTest
                 failures.add(alg + ": JSL verified a tampered message");
             }
 
-            Signature bcVerify = Signature.getInstance(alg, BC);
+            Signature bcVerify = Signature.getInstance(bcName(alg), BC);
             if (usesSpiDefaultDigest(alg))
             {
                 bcVerify.setParameter(PSS_SHA256);

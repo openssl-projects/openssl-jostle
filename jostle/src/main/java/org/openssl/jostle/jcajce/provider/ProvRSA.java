@@ -65,6 +65,15 @@ class ProvRSA
                 "SHA384withRSA", "SHA-384", "1.2.840.113549.1.1.12");
         registerPkcs1Signature(provider, attr,
                 "SHA512withRSA", "SHA-512", "1.2.840.113549.1.1.13");
+        // BC's spelling is primary; the JDK's SHA512/224withRSA form is aliased
+        // below. Served by mainline and both FIPS modules for sign and verify
+        // (fips-c-review/probes/sha512t_rsa_probe.c), so no gate.
+        registerPkcs1Signature(provider, attr,
+                "SHA512(224)withRSA", "SHA-512/224", "1.2.840.113549.1.1.15");
+        registerPkcs1Signature(provider, attr,
+                "SHA512(256)withRSA", "SHA-512/256", "1.2.840.113549.1.1.16");
+        provider.addAlias("Signature", "SHA512(224)withRSA", "SHA512/224withRSA");
+        provider.addAlias("Signature", "SHA512(256)withRSA", "SHA512/256withRSA");
         registerPkcs1Signature(provider, attr,
                 "SHA3-224withRSA", "SHA3-224", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_224.getId());
         registerPkcs1Signature(provider, attr,

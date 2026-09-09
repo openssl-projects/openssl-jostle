@@ -82,6 +82,12 @@ class ProvFIPSRSA
         registerPkcs1Signature(provider, attr, "SHA256withRSA", "SHA-256", "1.2.840.113549.1.1.11");
         registerPkcs1Signature(provider, attr, "SHA384withRSA", "SHA-384", "1.2.840.113549.1.1.12");
         registerPkcs1Signature(provider, attr, "SHA512withRSA", "SHA-512", "1.2.840.113549.1.1.13");
+        // BC's spelling primary, JDK's SHA512/224withRSA aliased. Both modules
+        // sign and verify with these (sha512t_rsa_probe.c), so no gate.
+        registerPkcs1Signature(provider, attr, "SHA512(224)withRSA", "SHA-512/224", "1.2.840.113549.1.1.15");
+        registerPkcs1Signature(provider, attr, "SHA512(256)withRSA", "SHA-512/256", "1.2.840.113549.1.1.16");
+        provider.addAlias("Signature", "SHA512(224)withRSA", "SHA512/224withRSA");
+        provider.addAlias("Signature", "SHA512(256)withRSA", "SHA512/256withRSA");
         registerPkcs1Signature(provider, attr, "SHA3-224withRSA", "SHA3-224", "2.16.840.1.101.3.4.3.13");
         registerPkcs1Signature(provider, attr, "SHA3-256withRSA", "SHA3-256", "2.16.840.1.101.3.4.3.14");
         registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", "2.16.840.1.101.3.4.3.15");

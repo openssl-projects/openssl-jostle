@@ -199,6 +199,7 @@ public class ServedSurfaceSnapshotTest
             "Signature.SHA3-512WITHRSAANDMGF1", "Signature.SHA384WITHDSA",
             "Signature.SHA384WITHECDSA", "Signature.SHA384WITHRSA",
             "Signature.SHA384WITHRSAANDMGF1", "Signature.SHA512WITHDSA",
+            "Signature.SHA512(224)WITHRSA", "Signature.SHA512(256)WITHRSA",
             "Signature.SHA512WITHECDSA", "Signature.SHA512WITHRSA",
             "Signature.SHA512WITHRSAANDMGF1", "Signature.SLH-DSA-NONE", "Signature.SLH-DSA-PURE",
             "Signature.SLH-DSA-SHA2-128F", "Signature.SLH-DSA-SHA2-128S",

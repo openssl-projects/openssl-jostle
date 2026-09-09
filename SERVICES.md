@@ -9,7 +9,7 @@
 > single-module preamble. Regeneration WILL drop it — diff against the previous
 > version and splice it back.
 
-The Jostle (`JSL`) provider registers **346** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **348** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -326,7 +326,7 @@ The Jostle (`JSL`) provider registers **346** services across **14** JCA service
 17. `HMAC-DRBG-SHA384`
 18. `HMAC-DRBG-SHA512`
 
-## Signature (70)
+## Signature (72)
 
 1. `DET-SLH-DSA-NONE`
 2. `DET-SLH-DSA-PURE`
@@ -379,25 +379,27 @@ The Jostle (`JSL`) provider registers **346** services across **14** JCA service
 49. `SHA384WITHECDSA`
 50. `SHA384WITHRSA`
 51. `SHA384WITHRSAANDMGF1`
-52. `SHA512WITHDSA`
-53. `SHA512WITHECDSA`
-54. `SHA512WITHRSA`
-55. `SHA512WITHRSAANDMGF1`
-56. `SLH-DSA-NONE`
-57. `SLH-DSA-PURE`
-58. `SLH-DSA-SHA2-128F`
-59. `SLH-DSA-SHA2-128S`
-60. `SLH-DSA-SHA2-192F`
-61. `SLH-DSA-SHA2-192S`
-62. `SLH-DSA-SHA2-256F`
-63. `SLH-DSA-SHA2-256S`
-64. `SLH-DSA-SHAKE-128F`
-65. `SLH-DSA-SHAKE-128S`
-66. `SLH-DSA-SHAKE-192F`
-67. `SLH-DSA-SHAKE-192S`
-68. `SLH-DSA-SHAKE-256F`
-69. `SLH-DSA-SHAKE-256S`
-70. `SLHDSA`
+52. `SHA512(224)WITHRSA`
+53. `SHA512(256)WITHRSA`
+54. `SHA512WITHDSA`
+55. `SHA512WITHECDSA`
+56. `SHA512WITHRSA`
+57. `SHA512WITHRSAANDMGF1`
+58. `SLH-DSA-NONE`
+59. `SLH-DSA-PURE`
+60. `SLH-DSA-SHA2-128F`
+61. `SLH-DSA-SHA2-128S`
+62. `SLH-DSA-SHA2-192F`
+63. `SLH-DSA-SHA2-192S`
+64. `SLH-DSA-SHA2-256F`
+65. `SLH-DSA-SHA2-256S`
+66. `SLH-DSA-SHAKE-128F`
+67. `SLH-DSA-SHAKE-128S`
+68. `SLH-DSA-SHAKE-192F`
+69. `SLH-DSA-SHAKE-192S`
+70. `SLH-DSA-SHAKE-256F`
+71. `SLH-DSA-SHAKE-256S`
+72. `SLHDSA`
 
 # Jostle FIPS Provider (JSLFIPS) — Registered Services
 
@@ -406,7 +408,7 @@ The Jostle (`JSL`) provider registers **346** services across **14** JCA service
 > supported" to the KMAC paragraph. Splice it back from the previous version and
 > re-check its counts and gating claims against both modules.
 
-The Jostle FIPS (`JSLFIPS`) provider registers **191** services against the 3.1.2 module and **277** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+The Jostle FIPS (`JSLFIPS`) provider registers **193** services against the 3.1.2 module and **279** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
 
 **Two modules are supported, and the list below is the 3.5.8 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
@@ -727,7 +729,7 @@ module it did not match — so both surface as the module's own typed refusal at
 13. `HMAC-DRBG-SHA256`
 14. `HMAC-DRBG-SHA512`
 
-## Signature (68)
+## Signature (70)
 
 1. `DET-SLH-DSA-NONE`
 2. `DET-SLH-DSA-PURE`
@@ -778,22 +780,24 @@ module it did not match — so both surface as the module's own typed refusal at
 47. `SHA384WITHECDSA`
 48. `SHA384WITHRSA`
 49. `SHA384WITHRSAANDMGF1`
-50. `SHA512WITHDSA`
-51. `SHA512WITHECDSA`
-52. `SHA512WITHRSA`
-53. `SHA512WITHRSAANDMGF1`
-54. `SLH-DSA-NONE`
-55. `SLH-DSA-PURE`
-56. `SLH-DSA-SHA2-128F`
-57. `SLH-DSA-SHA2-128S`
-58. `SLH-DSA-SHA2-192F`
-59. `SLH-DSA-SHA2-192S`
-60. `SLH-DSA-SHA2-256F`
-61. `SLH-DSA-SHA2-256S`
-62. `SLH-DSA-SHAKE-128F`
-63. `SLH-DSA-SHAKE-128S`
-64. `SLH-DSA-SHAKE-192F`
-65. `SLH-DSA-SHAKE-192S`
-66. `SLH-DSA-SHAKE-256F`
-67. `SLH-DSA-SHAKE-256S`
-68. `SLHDSA`
+50. `SHA512(224)WITHRSA`
+51. `SHA512(256)WITHRSA`
+52. `SHA512WITHDSA`
+53. `SHA512WITHECDSA`
+54. `SHA512WITHRSA`
+55. `SHA512WITHRSAANDMGF1`
+56. `SLH-DSA-NONE`
+57. `SLH-DSA-PURE`
+58. `SLH-DSA-SHA2-128F`
+59. `SLH-DSA-SHA2-128S`
+60. `SLH-DSA-SHA2-192F`
+61. `SLH-DSA-SHA2-192S`
+62. `SLH-DSA-SHA2-256F`
+63. `SLH-DSA-SHA2-256S`
+64. `SLH-DSA-SHAKE-128F`
+65. `SLH-DSA-SHAKE-128S`
+66. `SLH-DSA-SHAKE-192F`
+67. `SLH-DSA-SHAKE-192S`
+68. `SLH-DSA-SHAKE-256F`
+69. `SLH-DSA-SHAKE-256S`
+70. `SLHDSA`
