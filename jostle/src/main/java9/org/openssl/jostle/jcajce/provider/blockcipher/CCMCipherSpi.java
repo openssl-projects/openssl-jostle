@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
@@ -56,6 +57,9 @@ public class CCMCipherSpi extends CipherSpi
      * the IV-only init path stays interoperable with BC.
      */
     private static final int CCM_DEFAULT_TAG_BITS = 64;
+
+    /** Nonce length generated when no parameters are supplied; BouncyCastle's. */
+    private static final int CCM_AUTO_NONCE_BYTES = 12;
 
     /** Identifies the underlying block cipher family. */
     public enum CipherFamily
@@ -220,12 +224,25 @@ public class CCMCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
-        // CCM requires a nonce; rejecting init-without-params is the JCE
-        // convention for AEAD modes. InvalidKeyException is the only
-        // checked exception this overload may throw, and surfacing it (vs
-        // an unchecked IllegalArgumentException) preserves JCE provider
-        // fallback.
-        throw new InvalidKeyException("CCM requires a GCMParameterSpec (tagLen + nonce)");
+        // BC generates a 12-byte nonce and a 64-bit tag on encrypt without a
+        // spec, so we do the same; decrypt cannot infer a nonce, so it refuses.
+        if (opmode != Cipher.ENCRYPT_MODE)
+        {
+            throw new InvalidKeyException("CCM requires a GCMParameterSpec (tagLen + nonce)");
+        }
+
+        byte[] nonce = new byte[CCM_AUTO_NONCE_BYTES];
+        SecureRandom rng = (random != null) ? random : CryptoServicesRegistrar.getSecureRandom();
+        rng.nextBytes(nonce);
+        try
+        {
+            engineInit(opmode, key, new GCMParameterSpec(CCM_DEFAULT_TAG_BITS, nonce), random);
+        }
+        catch (InvalidAlgorithmParameterException e)
+        {
+            // Unreachable: the spec is built above. Surfaced, not swallowed.
+            throw new InvalidKeyException("unable to generate CCM parameters", e);
+        }
     }
 
     @Override

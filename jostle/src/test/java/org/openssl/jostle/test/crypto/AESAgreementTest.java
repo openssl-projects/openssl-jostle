@@ -3474,19 +3474,52 @@ public class AESAgreementTest
     }
 
     /**
-     * LOW gap: init without parameters must be rejected — CCM needs a
-     * nonce + tag length.
+     * MT-82: ENCRYPT init without parameters GENERATES a nonce, and the
+     * result agrees with BouncyCastle.
+     *
+     * <p>This test previously asserted the opposite, on the rationale
+     * "init without parameters must be rejected — CCM needs a nonce + tag
+     * length". That is true of decrypt and false of encrypt: BouncyCastle
+     * generates a 12-byte nonce and a 64-bit tag in exactly this situation,
+     * and so does GCM in this very provider. The refusal was pinned as
+     * correct, which is the shape testing.md names — a test that pins a
+     * refusal an independent implementation does not make. The
+     * DECRYPT half of the old claim is kept below, where it is right.
      */
     @Test
-    public void aesCCM_initWithoutParams_rejected() throws Exception
+    public void aesCCM_initWithoutParams_generatesForEncryptRefusesForDecrypt() throws Exception
     {
         byte[] key = new byte[16];
         new SecureRandom().nextBytes(key);
-        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        SecretKeySpec sk = new SecretKeySpec(key, "AES");
+        byte[] msg = new byte[24];
+        new SecureRandom().nextBytes(msg);
+
+        Cipher jo = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        jo.init(Cipher.ENCRYPT_MODE, sk);
+        byte[] joCt = jo.doFinal(msg);
+
+        Cipher bc = Cipher.getInstance("AES/CCM/NoPadding", BouncyCastleProvider.PROVIDER_NAME);
+        bc.init(Cipher.ENCRYPT_MODE, sk);
+        byte[] bcCt = bc.doFinal(msg);
+
+        Assertions.assertEquals(bc.getIV().length, jo.getIV().length,
+                "generated nonce length must match BouncyCastle's");
+        Assertions.assertEquals(bcCt.length, joCt.length,
+                "default tag length must match BouncyCastle's");
+
+        // The generated nonce must actually describe the ciphertext.
+        Cipher dec = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, sk, jo.getParameters());
+        Assertions.assertArrayEquals(msg, dec.doFinal(joCt),
+                "generated parameters must decrypt their own ciphertext");
+
+        // Decrypt cannot invent a nonce, so the old assertion holds there.
+        Cipher d = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
         try
         {
-            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
-            Assertions.fail("CCM init without GCMParameterSpec must be rejected");
+            d.init(Cipher.DECRYPT_MODE, sk);
+            Assertions.fail("CCM decrypt without GCMParameterSpec must be rejected");
         }
         catch (InvalidKeyException expected)
         {
