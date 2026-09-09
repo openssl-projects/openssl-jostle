@@ -575,6 +575,8 @@
  * silently substituted. 3.1.2 accepts plain ECDH on the same curves.
  */
 #define JO_EC_COFACTOR_ECDH_REQUIRED -174
+/* Certificate in a path did not decode as DER X.509; validation failures use X509_V_* instead. */
+#define JO_CERT_DECODE_FAILED -175
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

@@ -76,7 +76,8 @@ public class ServedSurfaceSnapshotTest
             "AlgorithmParameters.ARIA", "AlgorithmParameters.CAMELLIA", "AlgorithmParameters.CCM",
             "AlgorithmParameters.CHACHA20-POLY1305", "AlgorithmParameters.DESEDE",
             "AlgorithmParameters.DH", "AlgorithmParameters.DSA", "AlgorithmParameters.EC",
-            "AlgorithmParameters.GCM", "AlgorithmParameters.SM4", "CertificateFactory.X.509",
+            "AlgorithmParameters.GCM", "AlgorithmParameters.SM4",
+            "CertPathBuilder.PKIX", "CertPathValidator.PKIX", "CertificateFactory.X.509",
             "Cipher.1.2.392.200011.61.1.1.1.2", "Cipher.1.2.392.200011.61.1.1.1.3",
             "Cipher.1.2.392.200011.61.1.1.1.4", "Cipher.1.2.410.200046.1.1.12",
             "Cipher.1.2.410.200046.1.1.2", "Cipher.1.2.410.200046.1.1.7",
@@ -286,6 +287,7 @@ public class ServedSurfaceSnapshotTest
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.ks.", "KSServiceAgreementTest");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.mlxkem.", "MLXKEMAgreementTest");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.wrap.", "RFC3211WrapTest");
+        CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.certpath.", "PkitsPhase1Test and the CertPath* tests");
 
         // The named remainder: registered, but with NO family agreement class.
         // Listed so the absence is a recorded decision rather than an orphan.

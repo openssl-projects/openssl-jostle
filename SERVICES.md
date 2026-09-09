@@ -9,7 +9,7 @@
 > single-module preamble. Regeneration WILL drop it — diff against the previous
 > version and splice it back.
 
-The Jostle (`JSL`) provider registers **352** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **354** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -38,6 +38,14 @@ The Jostle (`JSL`) provider registers **352** services across **14** JCA service
 18. `EC`
 19. `GCM`
 20. `SM4`
+
+## CertPathBuilder (1)
+
+1. `PKIX`
+
+## CertPathValidator (1)
+
+1. `PKIX`
 
 ## CertificateFactory (1)
 

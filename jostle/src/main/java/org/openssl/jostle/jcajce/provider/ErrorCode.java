@@ -307,6 +307,10 @@ public enum ErrorCode
     JO_WRAP_INPUT_LENGTH_INVALID(-173),
 
     JO_EC_COFACTOR_ECDH_REQUIRED(-174),
+
+    // The certification path carried a certificate that is not DER X.509.
+    // The SPI names the index, which the native side reports in outInfo[1].
+    JO_CERT_DECODE_FAILED(-175),
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),
