@@ -41,6 +41,35 @@ module-path leg, so "a modular run will tell you" means a run nobody performs,
 and a wrong entry ships silently. Deleting a package means deleting its
 `exports` / `opens` too — the count above was measured by hand, not guarded.
 
+### Touching `NISelector` loads no native library — construct the PROVIDER
+
+The Loader runs on provider construction, not on a static read of
+`NISelector`. A harness that only touches `NISelector.XServiceNI` gets
+`Loader.interfaceType == null`, `loadedLibs == []`, and every native call then
+fails with `UnsatisfiedLinkError`.
+
+Cost an hour on 2026-09-09, suspecting a JNI signature, a stale dylib and
+multi-release resolution in turn. The decisive probe was that a PRE-EXISTING
+`MDServiceJNI` failed identically — so it was not the new code. Any standalone
+probe does `new JostleProvider()` first; every real test already does.
+
+### Reflective spec reading works on the module path — measured, 2026-09-09
+
+The KTS ciphers read BouncyCastle spec types by reflection to avoid a
+compile-time dependency. Measured with jostle as `org.openssl.jostle.prov` on
+the module path, driving `Cipher.getInstance("ML-KEM").init(WRAP_MODE, …,
+KTSParameterSpec)` through `readKtsSpec`:
+
+| bcprov | jostle reads bc | package exported | result |
+|---|---|---|---|
+| named `org.bouncycastle.provider` | **false** | true | wrap SUCCEEDED |
+| automatic module | **false** | true | wrap SUCCEEDED |
+
+Core reflection adds the read edge itself and the package is exported, so
+neither `requires` nor `requires static` is needed. The candidate fix is struck
+on evidence. Nothing in the test matrix witnesses this — a module-path leg is
+queued — so re-measure rather than assume if `module-info.java` changes.
+
 ### OpenSSL is the single source of truth for fixed values — query and cache, never transcribe
 
 Jostle delegates its cryptography to OpenSSL, so OpenSSL — not Jostle — owns every fixed numeric fact about an algorithm: digest output size and block size, XOF default length, cipher block size and IV/nonce length, valid key lengths, signature length, KEM encapsulation / ciphertext / shared-secret length, MAC length, DRBG security strength and maximum request size, EC field sizes, and so on. **Do NOT re-implement any of these as a hardcoded lookup table, `switch`/`case`, `if`-ladder, enum field, or `static final` constant — especially on the Java side.** A transcribed value is a second source of truth that drifts silently: OpenSSL changes a default between releases, a custom provider overrides it, a variant's real bound differs from the number someone typed, and the divergence is invisible to every positive test because both the table and the native layer are internally self-consistent — they just disagree, and the table is wrong.

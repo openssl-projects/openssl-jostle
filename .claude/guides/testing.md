@@ -47,6 +47,14 @@ Note the last row. Divergence is NOT continuation: two EMPTY clones fed differen
 3. Cover BOTH directions of a service. `store` is not `load`; `sign` is not `verify`; `getInstance` is not `init`. Registration is not usability — `getInstance` succeeded and `init` failed for AES/OCB, `NoneWithRSA`, and bare `PKCS12`.
 4. Assert content, not occurrence. Pin the message text (see "Pin the exception message"), the OID, the algorithm identifier — not that a call returned or an exception was thrown.
 
+**A test comparing two objects must SHARE every randomised input they both
+depend on.** A helper that randomises per call gives each object a different
+value, so the comparison measures the helper rather than the property.
+Measured: `theTwoRfcsAreNotInterchangeable` stayed GREEN under sabotage because
+its `spec()` helper randomised `otherInfo` per call, so the two KTS specs
+derived different KEKs and would have differed whatever the wrap did. Draw the
+shared value once and pass it to both.
+
 **Falsification procedure — required for any test guarding a property that a plausible-but-wrong implementation would satisfy.** Prose already prescribes this for hard guards in `native-code.md` ("verify the guard works by temporarily disabling the property, confirming the test fails, then reverting"). Two additions:
 
 1. **Break the property, not the code path.** Substitute a plausible-but-wrong implementation — `EVP_MAC_CTX_dup` → `EVP_MAC_CTX_new` (hollow clone), `implicit_rejection` → 0, a preserved AlgorithmIdentifier → the normalised one. Deleting the call instead usually produces an exception, which proves nothing about the assertion.
@@ -239,6 +247,19 @@ negative result from an instrument that cannot see the thing is
 indistinguishable from the thing's absence.** Before believing a targeted run,
 check it produced result files for the classes you named.
 
+### Falsify a gate's COUNT against a known-bad input, and do it first
+
+A gate that counts legs, files or rows is an instrument, so its matcher needs
+the both-directions treatment the source lints get. Measured 2026-09-09: a
+commit gate keyed on `^(3\.|unset) ` counted 9 clean legs as **3**, because
+`3.1.2` has a digit after `3.` and not a space, and refused a good commit. It
+failed CLOSED, which is the survivable direction — an under-counting matcher
+refuses, an over-counting one or one reading a stale file COMMITS.
+
+Key on the row's SHAPE (`rc=N classes=`), not on a value prefix, and run the
+matcher against a known-BAD file as well as a known-good one before trusting
+it.
+
 ### A probe that cannot reach the code proves nothing about it
 
 Two cells written to prove a thread-local was cleared both passed against a
@@ -379,6 +400,19 @@ the reader wanted from a command that did not do the work:
    passes FAILED. Written into this guide one hour before being committed in the
    next command, by the author of the rule. Knowing the rule is not the same as
    having the habit; the habit is reading the thing's own recorded answer.
+
+5. **A `pgrep` pattern that matches its own command line never exits.** A
+   waiter running `until ! pgrep -f mt94-matrix.sh` matches the waiter's OWN
+   argv, so it spun long after the matrix wrote `END` and "still running?" kept
+   answering yes. Wait on a PID from `ps`, or on a marker in the output file.
+6. **`./gradlew --stop` reports success while daemons live**, and silently
+   no-ops when `JAVA_HOME` is unset. The tie-breaker is an OBSERVED
+   `daemon count == 0` from `ps`, never "I ran the stop command".
+7. **zsh aborts an entire command when any glob matches nothing.**
+   `rm -f a b META-INF/*.DSA` deleted NOTHING when there were no `.DSA` files,
+   and the next tool contradicted what the `rm` was believed to have done. Use
+   `find … -delete`. Third zsh-specific trap in one session, after unquoted
+   word splitting and `$?` after a pipe.
 
 The general form: **verify the state you care about, not the command you ran to
 reach it.** A negative result from an instrument that cannot see the thing is
@@ -576,6 +610,22 @@ makes a flicker RARER, and rare reads as real.** The fix is to ask the object
 for the fact (`RSAKey.getModulus().bitLength()`) rather than measure something
 derived from it, and to bucket only where nothing can be asked and the encoding
 is genuinely fixed-length.
+
+### Three guards over one provider read three different things
+
+Before adding a name to a guard's covered set, check WHICH surface that guard
+reads. They disagree, and every disagreement is silent in the reassuring
+direction. All three caught a different mistake of mine in one evening
+(2026-09-09):
+
+| guard | reads | caught |
+|---|---|---|
+| `ProviderSurfaceGuard.registeredSurface` | primaries AND aliases | MT-94: JDK-spelling aliases driven at BC, which lacks them |
+| `everyRegistered<T>IsCovered` | `getServices()` — primaries ONLY | MT-93: aliases put in the covered set, so the reverse half failed |
+| `everyRegisteredServiceIsClaimedByAFamilyPrefix` | the SPI's PACKAGE | MT-93: a new package no family guard watches |
+
+None is guessable from its name. An alias belongs in a driver list, never in a
+`covered` set compared against `getServices()`.
 
 ### Per-name completeness guards cannot see dimensions
 
@@ -1017,6 +1067,32 @@ The general rule behind both: **before trusting a green from a guard you just tr
 The unifying form: **verify the state you care about, not the command you ran
 to reach it.** Every instance above passes the "did the command return?" test
 and fails the "is the world as I assume?" test.
+
+### Clear result directories BEFORE each cycle, not once per gate
+
+`run-matrix.sh` snapshots `build/test-results/<task>` AFTER a run and never
+clears before, so a task that does not run has the PREVIOUS run's XML
+snapshotted as its evidence. Measured 2026-09-09: `integrationTest11/17/21`
+held 93/93/72 files from a killed gate, including a "Could not stop all
+services" record, and `unitTest25FFI` held 2 files from a filtered re-check —
+fresh-looking and nearly empty.
+
+Clearing once at the start is NOT enough: three cycles run the same task names,
+so a leg that dies in cycle 2 inherits cycle 1's XML. `gate3.sh` clears per
+cycle and logs the count so the log shows it happened.
+
+### After applying a patch, COUNT what it added
+
+An exit code of zero says the build compiled, not that the tree is the one you
+meant. Measured 2026-09-09: a patch script left in two background commands
+applied TWICE — two method definitions, two copies of each test, two javadoc
+lines — and one of those runs still reported `JAR_RC=0`. The tell was `grep -c`
+afterwards, nothing else.
+
+A search-and-replace whose replacement CONTAINS its anchor is idempotent-looking
+and is not: the anchor still matches next time. Count the occurrences of what
+the patch adds before building, and restore from the last reviewed tree rather
+than trying to un-apply.
 
 ### Prefer real-trigger limit tests over OPS injection when a real configuration reaches the branch
 
