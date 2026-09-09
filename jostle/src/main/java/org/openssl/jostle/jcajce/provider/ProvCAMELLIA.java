@@ -19,6 +19,7 @@ import org.openssl.jostle.util.asn1.oids.NTTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi;
 
 class ProvCAMELLIA
 {
@@ -33,6 +34,10 @@ class ProvCAMELLIA
     public void configure(final JostleProvider provider)
     {
         provider.addAlgorithmImplementation("Cipher", "CAMELLIA", CAMELLIABlockCipherSpi.class.getName(), generalAttributes, (arg) -> new CAMELLIABlockCipherSpi(provider));
+
+        // RFC 3211 password-based wrap. In scope because bcpkix can drive it
+        // and we serve Camellia CBC (Megan, 2026-09-09). JSL only.
+        provider.addAlgorithmImplementation("Cipher", "CamelliaRFC3211Wrap", RFC3211WrapCipherSpi.class.getName(), generalAttributes, (arg) -> new RFC3211WrapCipherSpi("CAMELLIA", 16, new int[]{16, 24, 32}, provider));
 
         // KeyGenerator for the bare name, matching BouncyCastle, which serves
         // CAMELLIA with a 256-bit default. Without it a caller must build a

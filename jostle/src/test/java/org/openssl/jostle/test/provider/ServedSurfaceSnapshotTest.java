@@ -91,11 +91,13 @@ public class ServedSurfaceSnapshotTest
             "Cipher.2.16.840.1.101.3.4.1.7",
             "Cipher.2.16.840.1.101.3.4.1.8", "Cipher.AES", "Cipher.AES/CBC/CS3PADDING",
             "Cipher.AES/CCM/NOPADDING", "Cipher.AES/CTS/NOPADDING", "Cipher.AES/XTS/NOPADDING",
-            "Cipher.AES128", "Cipher.AES192", "Cipher.AES256", "Cipher.AESWRAP",
+            "Cipher.AES128", "Cipher.AES192", "Cipher.AES256", "Cipher.AESRFC3211WRAP", "Cipher.AESWRAP",
             "Cipher.AESWRAPINV", "Cipher.AESWRAPPAD", "Cipher.ARIA", "Cipher.ARIA/CCM/NOPADDING",
             "Cipher.ARIA128", "Cipher.ARIA192", "Cipher.ARIA256", "Cipher.CAMELLIA",
+            "Cipher.CAMELLIARFC3211WRAP",
             "Cipher.CAMELLIA128", "Cipher.CAMELLIA192", "Cipher.CAMELLIA256", "Cipher.CHACHA20",
-            "Cipher.CHACHA20-POLY1305", "Cipher.DESEDE", "Cipher.ML-KEM", "Cipher.RSA",
+            "Cipher.CHACHA20-POLY1305", "Cipher.DESEDE", "Cipher.DESEDERFC3211WRAP",
+            "Cipher.ML-KEM", "Cipher.RSA",
             "Cipher.RSA-KTS-KEM-KWS", "Cipher.RSA/ECB/PKCS1PADDING", "Cipher.SM4",
             "Cipher.SM4/CCM/NOPADDING", "KeyAgreement.DH", "KeyAgreement.DHWITHRFC2631KDF",
             "KeyAgreement.ECDH", "KeyAgreement.ECDHWITHSHA1KDF", "KeyAgreement.ECDHWITHSHA224KDF",
@@ -158,6 +160,7 @@ public class ServedSurfaceSnapshotTest
             "SecretKeyFactory.PBKDF2WITHHMACBLAKE2B-512",
             "SecretKeyFactory.PBKDF2WITHHMACBLAKE2S-256", "SecretKeyFactory.PBKDF2WITHHMACMD5",
             "SecretKeyFactory.PBKDF2WITHHMACMD5-SHA1", "SecretKeyFactory.PBKDF2WITHHMACRIPEMD160",
+            "SecretKeyFactory.PBKDF2WITHASCII",
             "SecretKeyFactory.PBKDF2WITHHMACSHA1", "SecretKeyFactory.PBKDF2WITHHMACSHA224",
             "SecretKeyFactory.PBKDF2WITHHMACSHA256", "SecretKeyFactory.PBKDF2WITHHMACSHA3-224",
             "SecretKeyFactory.PBKDF2WITHHMACSHA3-256", "SecretKeyFactory.PBKDF2WITHHMACSHA3-384",
@@ -282,6 +285,7 @@ public class ServedSurfaceSnapshotTest
                 "AESAgreementTest and the per-cipher agreement classes");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.ks.", "KSServiceAgreementTest");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.mlxkem.", "MLXKEMAgreementTest");
+        CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.wrap.", "RFC3211WrapTest");
 
         // The named remainder: registered, but with NO family agreement class.
         // Listed so the absence is a recorded decision rather than an orphan.

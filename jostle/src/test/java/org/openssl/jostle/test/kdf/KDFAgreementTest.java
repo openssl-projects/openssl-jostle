@@ -91,6 +91,27 @@ public class KDFAgreementTest
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
 
     /** PBKDF2 PRFs BouncyCastle serves through its JCE {@code SecretKeyFactory}. */
+    /**
+     * The 8-bit password conversion: low byte of each char, not UTF-8. A
+     * separate derivation, not a spelling — see
+     * {@link #pbkdf2EightBitAgreesWithBouncyCastleAndDivergesFromUtf8()}.
+     */
+    private static final String[] PBKDF2_8BIT = {
+            "PBKDF2WITHASCII",
+    };
+
+    /**
+     * Every spelling the test DRIVES. Only the primary above goes to the
+     * completeness guard, which compares against {@code getServices()} and so
+     * sees primaries only — naming an alias there fails the guard's reverse
+     * half as an unregistered entry.
+     */
+    private static final String[] PBKDF2_8BIT_SPELLINGS = {
+            "PBKDF2WITHASCII",
+            "PBKDF2WITH8BIT",
+            "PBKDF2WITHHMACSHA1AND8BIT",
+    };
+
     private static final String[] PBKDF2_BC_JCE = {
             "PBKDF2",
             "PBKDF2WITHHMACSHA1",
@@ -293,6 +314,7 @@ public class KDFAgreementTest
         Assertions.assertNotNull(provider, "JSL provider is not registered");
 
         Set<String> covered = new TreeSet<String>();
+        covered.addAll(java.util.Arrays.asList(PBKDF2_8BIT));
         covered.addAll(java.util.Arrays.asList(PBKDF2_BC_JCE));
         covered.addAll(java.util.Arrays.asList(PBKDF2_BC_LOWLEVEL));
         covered.addAll(java.util.Arrays.asList(HKDF_ALGS));
@@ -353,6 +375,60 @@ public class KDFAgreementTest
             salt2[0] ^= 0x01;
             Assertions.assertFalse(Arrays.areEqual(jsl,
                             derive(JSL, alg, new PBEKeySpec(password, salt2, iterations, keyBits))),
+                    alg + ": changed salt produced identical key");
+        }
+    }
+
+    /**
+     * The 8-bit names agree with BC AND diverge from UTF-8 above U+007F.
+     * <p>
+     * The divergence half is the load-bearing one: on an ASCII password every
+     * PBKDF2 name in the provider agrees, so an ASCII-only test passes against
+     * a factory wired to the wrong conversion. U+00E9 and U+0141 are the two
+     * characters measured to separate them — one inside Latin-1, one above it,
+     * where the 8-bit form truncates to 0x41 rather than refusing.
+     */
+    @Test
+    public void pbkdf2EightBitAgreesWithBouncyCastleAndDivergesFromUtf8() throws Exception
+    {
+        SecureRandom sr = seededRandom("pbkdf2EightBitAgreesWithBouncyCastleAndDivergesFromUtf8");
+
+        for (String alg : PBKDF2_8BIT_SPELLINGS)
+        {
+            byte[] salt = random(16, sr);
+            int iterations = 100 + sr.nextInt(400);
+            int keyBits = (16 + sr.nextInt(32)) * 8;
+
+            char[] ascii = ("p" + new String(random(4, sr), "ISO-8859-1")
+                    .replaceAll("[^\\x20-\\x7e]", "a")).toCharArray();
+            char[] aboveAscii = ("p\u00e9q\u0141r").toCharArray();
+
+            for (char[] password : new char[][]{ascii, aboveAscii})
+            {
+                PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyBits);
+                byte[] jsl = derive(JSL, alg, spec);
+                Assertions.assertArrayEquals(derive(BC, alg, spec), jsl, alg);
+                Assertions.assertEquals(keyBits >> 3, jsl.length, alg + " key length");
+            }
+
+            // The divergence. Same inputs, UTF-8 vs 8-bit: identical on ASCII,
+            // different once a char exceeds U+007F.
+            PBEKeySpec asciiSpec = new PBEKeySpec(ascii, salt, iterations, keyBits);
+            Assertions.assertArrayEquals(derive(JSL, "PBKDF2WITHHMACSHA1", asciiSpec),
+                    derive(JSL, alg, asciiSpec),
+                    alg + ": must equal the UTF-8 form on a pure-ASCII password");
+
+            PBEKeySpec wideSpec = new PBEKeySpec(aboveAscii, salt, iterations, keyBits);
+            Assertions.assertFalse(Arrays.areEqual(derive(JSL, "PBKDF2WITHHMACSHA1", wideSpec),
+                            derive(JSL, alg, wideSpec)),
+                    alg + ": must DIFFER from the UTF-8 form above U+007F — identical output "
+                            + "means this name is wired to the UTF-8 conversion");
+
+            // Differentiator: a changed salt must change the derived key.
+            byte[] salt2 = Arrays.clone(salt);
+            salt2[0] ^= 0x01;
+            Assertions.assertFalse(Arrays.areEqual(derive(JSL, alg, wideSpec),
+                            derive(JSL, alg, new PBEKeySpec(aboveAscii, salt2, iterations, keyBits))),
                     alg + ": changed salt produced identical key");
         }
     }

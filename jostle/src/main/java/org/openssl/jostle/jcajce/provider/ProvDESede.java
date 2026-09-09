@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi;
 
 /**
  * Registers 3-key Triple DES (DES-EDE3) with JCE. Only the ECB and
@@ -62,6 +63,11 @@ class ProvDESede
         safeRegister("Cipher.DESede", () ->
                 provider.addAlgorithmImplementation("Cipher", "DESede", DESedeBlockCipherSpi.class.getName(),
                         generalAttributes, (arg) -> new DESedeBlockCipherSpi(provider)));
+
+        // RFC 3211 password-based wrap. JSL only (Megan, 2026-09-09).
+        safeRegister("Cipher.DESedeRFC3211Wrap", () ->
+                provider.addAlgorithmImplementation("Cipher", "DESedeRFC3211Wrap", RFC3211WrapCipherSpi.class.getName(),
+                        generalAttributes, (arg) -> new RFC3211WrapCipherSpi("DESede", 8, new int[]{24}, provider)));
 
         // "TripleDES" is the JCE-standard alias.
         safeRegister("Cipher.TripleDES (alias of DESede)", () ->

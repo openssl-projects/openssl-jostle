@@ -238,6 +238,7 @@ public class FIPSServedSurfaceSnapshotTest
             "SecretKeyFactory.KBKDF-HMAC-SHA384",
             "SecretKeyFactory.KBKDF-HMAC-SHA512",
             "SecretKeyFactory.PBKDF2",
+            "SecretKeyFactory.PBKDF2WITHASCII",
             "SecretKeyFactory.PBKDF2WITHHMACSHA1",
             "SecretKeyFactory.PBKDF2WITHHMACSHA224",
             "SecretKeyFactory.PBKDF2WITHHMACSHA256",

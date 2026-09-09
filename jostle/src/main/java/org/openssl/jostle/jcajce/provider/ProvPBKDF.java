@@ -47,6 +47,11 @@ class ProvPBKDF
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA384", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-384"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512"));
 
+        // A distinct derivation, not an alias — see the field javadoc on
+        // PBKDF2SecretKeyFactory. RFC 3211 CMS callers ask for the alias.
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHASCII", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-1", true));
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHASCII", "PBKDF2WITH8BIT", "PBKDF2WITHHMACSHA1AND8BIT");
+
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-224", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/224"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA512-256", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-512/256"));
 

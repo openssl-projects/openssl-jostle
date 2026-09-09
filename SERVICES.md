@@ -9,7 +9,7 @@
 > single-module preamble. Regeneration WILL drop it — diff against the previous
 > version and splice it back.
 
-The Jostle (`JSL`) provider registers **348** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **352** services across **14** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -43,7 +43,7 @@ The Jostle (`JSL`) provider registers **348** services across **14** JCA service
 
 1. `X.509`
 
-## Cipher (51)
+## Cipher (54)
 
 1. `1.2.392.200011.61.1.1.1.2`
 2. `1.2.392.200011.61.1.1.1.3`
@@ -75,27 +75,30 @@ The Jostle (`JSL`) provider registers **348** services across **14** JCA service
 28. `AES128`
 29. `AES192`
 30. `AES256`
-31. `AESWRAP`
-32. `AESWRAPINV`
-33. `AESWRAPPAD`
-34. `ARIA`
-35. `ARIA/CCM/NOPADDING`
-36. `ARIA128`
-37. `ARIA192`
-38. `ARIA256`
-39. `CAMELLIA`
-40. `CAMELLIA128`
-41. `CAMELLIA192`
-42. `CAMELLIA256`
-43. `CHACHA20`
-44. `CHACHA20-POLY1305`
-45. `DESEDE`
-46. `ML-KEM`
-47. `RSA`
-48. `RSA-KTS-KEM-KWS`
-49. `RSA/ECB/PKCS1PADDING`
-50. `SM4`
-51. `SM4/CCM/NOPADDING`
+31. `AESRFC3211WRAP`
+32. `AESWRAP`
+33. `AESWRAPINV`
+34. `AESWRAPPAD`
+35. `ARIA`
+36. `ARIA/CCM/NOPADDING`
+37. `ARIA128`
+38. `ARIA192`
+39. `ARIA256`
+40. `CAMELLIA`
+41. `CAMELLIA128`
+42. `CAMELLIA192`
+43. `CAMELLIA256`
+44. `CAMELLIARFC3211WRAP`
+45. `CHACHA20`
+46. `CHACHA20-POLY1305`
+47. `DESEDE`
+48. `DESEDERFC3211WRAP`
+49. `ML-KEM`
+50. `RSA`
+51. `RSA-KTS-KEM-KWS`
+52. `RSA/ECB/PKCS1PADDING`
+53. `SM4`
+54. `SM4/CCM/NOPADDING`
 
 ## KeyAgreement (11)
 
@@ -260,7 +263,7 @@ The Jostle (`JSL`) provider registers **348** services across **14** JCA service
 20. `SHAKE256-512`
 21. `SM3`
 
-## SecretKeyFactory (42)
+## SecretKeyFactory (43)
 
 1. `1.3.6.1.4.1.11591.4.11`
 2. `ARGON2`
@@ -276,34 +279,35 @@ The Jostle (`JSL`) provider registers **348** services across **14** JCA service
 12. `KBKDF-HMAC-SHA384`
 13. `KBKDF-HMAC-SHA512`
 14. `PBKDF2`
-15. `PBKDF2WITHHMACBLAKE2B-512`
-16. `PBKDF2WITHHMACBLAKE2S-256`
-17. `PBKDF2WITHHMACMD5`
-18. `PBKDF2WITHHMACMD5-SHA1`
-19. `PBKDF2WITHHMACRIPEMD160`
-20. `PBKDF2WITHHMACSHA1`
-21. `PBKDF2WITHHMACSHA224`
-22. `PBKDF2WITHHMACSHA256`
-23. `PBKDF2WITHHMACSHA3-224`
-24. `PBKDF2WITHHMACSHA3-256`
-25. `PBKDF2WITHHMACSHA3-384`
-26. `PBKDF2WITHHMACSHA3-512`
-27. `PBKDF2WITHHMACSHA384`
-28. `PBKDF2WITHHMACSHA512`
-29. `PBKDF2WITHHMACSHA512-224`
-30. `PBKDF2WITHHMACSHA512-256`
-31. `PBKDF2WITHHMACSM3`
-32. `SCRYPT`
-33. `SSHKDF-SHA1`
-34. `SSHKDF-SHA224`
-35. `SSHKDF-SHA256`
-36. `SSHKDF-SHA384`
-37. `SSHKDF-SHA512`
-38. `SSKDF-SHA1`
-39. `SSKDF-SHA224`
-40. `SSKDF-SHA256`
-41. `SSKDF-SHA384`
-42. `SSKDF-SHA512`
+15. `PBKDF2WITHASCII`
+16. `PBKDF2WITHHMACBLAKE2B-512`
+17. `PBKDF2WITHHMACBLAKE2S-256`
+18. `PBKDF2WITHHMACMD5`
+19. `PBKDF2WITHHMACMD5-SHA1`
+20. `PBKDF2WITHHMACRIPEMD160`
+21. `PBKDF2WITHHMACSHA1`
+22. `PBKDF2WITHHMACSHA224`
+23. `PBKDF2WITHHMACSHA256`
+24. `PBKDF2WITHHMACSHA3-224`
+25. `PBKDF2WITHHMACSHA3-256`
+26. `PBKDF2WITHHMACSHA3-384`
+27. `PBKDF2WITHHMACSHA3-512`
+28. `PBKDF2WITHHMACSHA384`
+29. `PBKDF2WITHHMACSHA512`
+30. `PBKDF2WITHHMACSHA512-224`
+31. `PBKDF2WITHHMACSHA512-256`
+32. `PBKDF2WITHHMACSM3`
+33. `SCRYPT`
+34. `SSHKDF-SHA1`
+35. `SSHKDF-SHA224`
+36. `SSHKDF-SHA256`
+37. `SSHKDF-SHA384`
+38. `SSHKDF-SHA512`
+39. `SSKDF-SHA1`
+40. `SSKDF-SHA224`
+41. `SSKDF-SHA256`
+42. `SSKDF-SHA384`
+43. `SSKDF-SHA512`
 
 ## SecureRandom (18)
 
@@ -408,7 +412,7 @@ The Jostle (`JSL`) provider registers **348** services across **14** JCA service
 > supported" to the KMAC paragraph. Splice it back from the previous version and
 > re-check its counts and gating claims against both modules.
 
-The Jostle FIPS (`JSLFIPS`) provider registers **193** services against the 3.1.2 module and **279** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+The Jostle FIPS (`JSLFIPS`) provider registers **194** services against the 3.1.2 module and **280** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
 
 **Two modules are supported, and the list below is the 3.5.8 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
@@ -676,7 +680,7 @@ module it did not match — so both surface as the module's own typed refusal at
 14. `SHAKE128-256`
 15. `SHAKE256-512`
 
-## SecretKeyFactory (33)
+## SecretKeyFactory (34)
 
 1. `HKDF-SHA256`
 2. `HKDF-SHA384`
@@ -690,27 +694,28 @@ module it did not match — so both surface as the module's own typed refusal at
 10. `KBKDF-HMAC-SHA384`
 11. `KBKDF-HMAC-SHA512`
 12. `PBKDF2`
-13. `PBKDF2WITHHMACSHA1`
-14. `PBKDF2WITHHMACSHA224`
-15. `PBKDF2WITHHMACSHA256`
-16. `PBKDF2WITHHMACSHA3-224`
-17. `PBKDF2WITHHMACSHA3-256`
-18. `PBKDF2WITHHMACSHA3-384`
-19. `PBKDF2WITHHMACSHA3-512`
-20. `PBKDF2WITHHMACSHA384`
-21. `PBKDF2WITHHMACSHA512`
-22. `PBKDF2WITHHMACSHA512-224`
-23. `PBKDF2WITHHMACSHA512-256`
-24. `SSHKDF-SHA1`
-25. `SSHKDF-SHA224`
-26. `SSHKDF-SHA256`
-27. `SSHKDF-SHA384`
-28. `SSHKDF-SHA512`
-29. `SSKDF-SHA1`
-30. `SSKDF-SHA224`
-31. `SSKDF-SHA256`
-32. `SSKDF-SHA384`
-33. `SSKDF-SHA512`
+13. `PBKDF2WITHASCII`
+14. `PBKDF2WITHHMACSHA1`
+15. `PBKDF2WITHHMACSHA224`
+16. `PBKDF2WITHHMACSHA256`
+17. `PBKDF2WITHHMACSHA3-224`
+18. `PBKDF2WITHHMACSHA3-256`
+19. `PBKDF2WITHHMACSHA3-384`
+20. `PBKDF2WITHHMACSHA3-512`
+21. `PBKDF2WITHHMACSHA384`
+22. `PBKDF2WITHHMACSHA512`
+23. `PBKDF2WITHHMACSHA512-224`
+24. `PBKDF2WITHHMACSHA512-256`
+25. `SSHKDF-SHA1`
+26. `SSHKDF-SHA224`
+27. `SSHKDF-SHA256`
+28. `SSHKDF-SHA384`
+29. `SSHKDF-SHA512`
+30. `SSKDF-SHA1`
+31. `SSKDF-SHA224`
+32. `SSKDF-SHA256`
+33. `SSKDF-SHA384`
+34. `SSKDF-SHA512`
 
 ## SecureRandom (14)
 

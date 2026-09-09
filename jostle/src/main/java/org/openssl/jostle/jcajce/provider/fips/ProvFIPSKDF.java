@@ -48,6 +48,12 @@ class ProvFIPSKDF
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA256", "SHA-256");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA384", "SHA-384");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA512", "SHA-512");
+        // Both providers: the conversion is caller-side data preparation and
+        // PBKDF2-HMAC-SHA1 is approved.
+        provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHASCII", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes,
+                (arg) -> new PBKDF2SecretKeyFactory(FIPSNISelector.KdfNI, "SHA-1", true));
+        provider.addAlias("SecretKeyFactory", "PBKDF2WITHASCII", "PBKDF2WITH8BIT", "PBKDF2WITHHMACSHA1AND8BIT");
+
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA512-224", "SHA-512/224");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA512-256", "SHA-512/256");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA3-224", "SHA3-224");

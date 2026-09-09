@@ -33,22 +33,41 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
     // FIPSNISelector for JSLFIPS).
     private final KdfNI kdfNI;
 
+    /**
+     * 8-bit password conversion (low byte of each char) rather than UTF-8; the
+     * two derive different keys for every char above U+007F. BC calls this
+     * PBKDF2WITHASCII, a misnomer — U+0141 truncates to 0x41, it is not refused.
+     */
+    private final boolean eightBitPassword;
+
     public PBKDF2SecretKeyFactory(String forcedDigestAlgorithm)
     {
         this(NISelector.KdfNI, forcedDigestAlgorithm);
+    }
+
+    public PBKDF2SecretKeyFactory(String forcedDigestAlgorithm, boolean eightBitPassword)
+    {
+        this(NISelector.KdfNI, forcedDigestAlgorithm, eightBitPassword);
     }
 
     public PBKDF2SecretKeyFactory()
     {
         this.kdfNI = NISelector.KdfNI;
         this.forcedDigestAlgorithm = null;
+        this.eightBitPassword = false;
     }
 
     public PBKDF2SecretKeyFactory(KdfNI kdfNI, String forcedDigestAlgorithm)
     {
+        this(kdfNI, forcedDigestAlgorithm, false);
+    }
+
+    public PBKDF2SecretKeyFactory(KdfNI kdfNI, String forcedDigestAlgorithm, boolean eightBitPassword)
+    {
         this.kdfNI = kdfNI;
         this.forcedDigestAlgorithm = forcedDigestAlgorithm == null
                 ? null : DigestUtil.getCanonicalDigestName(forcedDigestAlgorithm);
+        this.eightBitPassword = eightBitPassword;
     }
 
 
@@ -123,7 +142,8 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
             // the UTF-8 bytes, the char[] copy, and the derived key (JOPBEKey took
             // its own clones). The salt is not secret, so it is left as-is.
             char[] password = spec.getPassword();
-            byte[] passwordBytes = Strings.toUTF8ByteArray(password);
+            byte[] passwordBytes = eightBitPassword
+                    ? Strings.toByteArray(password) : Strings.toUTF8ByteArray(password);
             byte[] salt = spec.getSalt();
             try
             {
@@ -133,7 +153,8 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
                         spec.getIterationCount(),
                         algo, rawKey, 0, rawKey.length));
 
-                String name = "PBKDF2WithHmac" + algo + "andUTF8";
+                String name = "PBKDF2WithHmac" + algo
+                        + (eightBitPassword ? "and8BIT" : "andUTF8");
                 return new JOPBEKey(name, password, salt, spec.getIterationCount(), rawKey);
             }
             catch (IllegalArgumentException | OpenSSLException e)

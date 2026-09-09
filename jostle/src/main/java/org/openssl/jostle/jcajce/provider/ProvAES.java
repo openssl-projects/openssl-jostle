@@ -16,6 +16,7 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi;
 
 class ProvAES
 {
@@ -45,6 +46,11 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", "AES", AESBlockCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESBlockCipherSpi(provider));
         provider.addAlgorithmImplementation("KeyGenerator", "AES", AESKeyGenerator.class.getName(), generalAesAttributes, (arg) -> new AESKeyGenerator());
 
+
+        // RFC 3211 password-based wrap for CMS PasswordRecipientInfo. Not an
+        // SP 800-38F wrap and not an OpenSSL primitive, so it is Java over our
+        // own CBC; JSL only (Megan, 2026-09-09).
+        provider.addAlgorithmImplementation("Cipher", "AESRFC3211Wrap", RFC3211WrapCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new RFC3211WrapCipherSpi("AES", 16, new int[]{16, 24, 32}, provider));
 
         provider.addAlgorithmImplementation("Cipher", "AESWrap", AESBlockCipherSpi.class.getName(), wrapAesAttributes, (arg) -> new AESBlockCipherSpi(null, OSSLMode.WRAP, provider));
         provider.addAlias("Cipher", "AESWrap", "AESKW");

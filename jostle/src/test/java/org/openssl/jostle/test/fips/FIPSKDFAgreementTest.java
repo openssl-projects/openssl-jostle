@@ -93,6 +93,21 @@ public class FIPSKDFAgreementTest
      * {@code kdf/PBKdf2Test.testBCAgreement}). Compared three ways. The bare
      * "PBKDF2" defaults to HMAC-SHA1 in all three.
      */
+    /**
+     * The 8-bit password conversion. Primary only: the guard compares against
+     * {@code getServices()}, which returns no aliases.
+     */
+    private static final String[] PBKDF2_8BIT = {
+            "PBKDF2WITHASCII",
+    };
+
+    /** Every spelling driven, aliases included. */
+    private static final String[] PBKDF2_8BIT_SPELLINGS = {
+            "PBKDF2WITHASCII",
+            "PBKDF2WITH8BIT",
+            "PBKDF2WITHHMACSHA1AND8BIT",
+    };
+
     private static final String[] PBKDF2_THREE_WAY = {
             "PBKDF2",
             "PBKDF2WITHHMACSHA1",
@@ -267,6 +282,7 @@ public class FIPSKDFAgreementTest
         Provider provider = FIPSTestUtil.assumeFipsProvider();
 
         Set<String> covered = new TreeSet<String>();
+        covered.addAll(java.util.Arrays.asList(PBKDF2_8BIT));
         covered.addAll(java.util.Arrays.asList(PBKDF2_THREE_WAY));
         covered.addAll(java.util.Arrays.asList(PBKDF2_TWO_WAY));
         covered.addAll(java.util.Arrays.asList(HKDF_ALGS));
@@ -306,6 +322,39 @@ public class FIPSKDFAgreementTest
      * derived key must be byte-identical across the three implementations.
      * Differentiator: a changed salt must change the derived key.
      */
+    /**
+     * The 8-bit names, three ways, and diverging from UTF-8 above U+007F.
+     * On a pure-ASCII password every PBKDF2 name agrees, so the divergence
+     * half is what proves the factory is wired to the 8-bit conversion.
+     */
+    @Test
+    public void pbkdf2EightBitAgreesThreeWayAndDivergesFromUtf8() throws Exception
+    {
+        SecureRandom sr = seededRandom("pbkdf2EightBitAgreesThreeWayAndDivergesFromUtf8");
+
+        for (String alg : PBKDF2_8BIT_SPELLINGS)
+        {
+            byte[] salt = randomBytes(MIN_SALT_BYTES + sr.nextInt(16), sr);
+            int iterations = MIN_ITERATIONS + sr.nextInt(1024);
+            int keyBits = (16 + sr.nextInt(48)) * 8;
+            char[] aboveAscii = "p\u00e9q\u0141r".toCharArray();
+
+            PBEKeySpec spec = new PBEKeySpec(aboveAscii, salt, iterations, keyBits);
+            byte[] fips = pbkdf2(FIPS, alg, spec);
+            Assertions.assertArrayEquals(pbkdf2(JSL, alg, spec), fips, alg + ": JSLFIPS vs JSL");
+            Assertions.assertArrayEquals(pbkdf2(BC, alg, spec), fips, alg + ": JSLFIPS vs BC");
+
+            Assertions.assertFalse(Arrays.areEqual(pbkdf2(FIPS, "PBKDF2WITHHMACSHA1", spec), fips),
+                    alg + ": must DIFFER from the UTF-8 form above U+007F");
+
+            byte[] salt2 = Arrays.clone(salt);
+            salt2[0] ^= 0x01;
+            Assertions.assertFalse(Arrays.areEqual(fips,
+                            pbkdf2(FIPS, alg, new PBEKeySpec(aboveAscii, salt2, iterations, keyBits))),
+                    alg + ": changed salt produced identical key");
+        }
+    }
+
     @Test
     public void pbkdf2AgreesThreeWay() throws Exception
     {
