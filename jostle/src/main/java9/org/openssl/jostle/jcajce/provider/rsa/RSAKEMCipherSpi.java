@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -32,7 +33,6 @@ import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
@@ -91,8 +91,6 @@ public class RSAKEMCipherSpi
      */
     private static final String KEM_OP = "RSASVE";
 
-    /** X9.44 / NIST concatenation KDF (KDF3) OID - BC's default for KTS. */
-    private static final String ID_KDF_KDF3 = "1.3.133.16.840.9.44.1.2";
 
     /**
      * Upper bound on the requested KEK size, checked at init: {@code kekBits + 7}
@@ -153,45 +151,6 @@ public class RSAKEMCipherSpi
         return keyFactory.ownProviderInstance();
     }
 
-    /**
-     * Resolve the KDF digest from THIS SPI's own provider INSTANCE.
-     *
-     * <p>A bare {@code MessageDigest.getInstance(name)} resolves against the
-     * JCA provider list in order - normally SUN - so a JSLFIPS wrap derived
-     * its KEK outside the FIPS module. Which provider computed it cannot be
-     * seen in the OUTPUT: SHA-256 is SHA-256 whoever computes it, so the
-     * structural lint is the guard for the call site naming a provider at all.
-     * WHICH provider it names is behaviourally testable, but only against an
-     * instance made deliberately incapable - see
-     * {@code KtsProviderInstancePinningTest}.
-     *
-     * <p>Failure is LOUD under both providers, and in both arms: an unbound
-     * SPI has no provider to compute the digest, and a bound one that does not
-     * serve it means a broken build. A silent fall-through to another provider
-     * is the shape that hid the original defect.
-     */
-    private static MessageDigest digestFromOwnProvider(Provider ownProvider, String name)
-            throws NoSuchAlgorithmException
-    {
-        if (ownProvider == null)
-        {
-            throw new NoSuchAlgorithmException(
-                    "this cipher was constructed outside any provider, so the " + name
-                            + " KDF digest cannot be computed by it; obtain the Cipher from a "
-                            + "Jostle provider rather than constructing the SPI directly");
-        }
-        try
-        {
-            return MessageDigest.getInstance(name, ownProvider);
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new NoSuchAlgorithmException(
-                    "provider " + ownProvider.getName() + " does not serve " + name
-                            + ", so the KDF digest cannot be computed by it", e);
-        }
-    }
-
     private int opmode;
     private PKEYKeySpec keySpec;
     private RandSource randSource;
@@ -209,6 +168,7 @@ public class RSAKEMCipherSpi
     private int kekBits;
     private byte[] otherInfo;
     private String digestName;   // null => no KDF, use the shared secret directly
+    private KtsKdf.Kind kdfKind; // which family digestName belongs to; null with digestName
 
     @Override
     protected void engineSetMode(String mode)
@@ -507,50 +467,12 @@ public class RSAKEMCipherSpi
         }
         try
         {
-            return kdf3(ownProvider(), digestName, sharedSecret, otherInfo, kekBytes);
+            return KtsKdf.derive(ownProvider(), kdfKind, digestName, sharedSecret, otherInfo, kekBytes);
         }
         catch (NoSuchAlgorithmException e)
         {
             throw new InvalidKeyException("KDF digest unavailable: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * X9.44 KDF3 (NIST concatenation KDF): {@code K = Hash(counter32 ‖ Z ‖ otherInfo)}
-     * concatenated over counter = 1, 2, ... until {@code outLen} bytes are produced.
-     *
-     * <p>Byte-for-byte BouncyCastle's {@code ConcatenationKDFGenerator}, which is
-     * what makes the two providers' RSA-KEM interoperate.
-     */
-    private static byte[] kdf3(Provider ownProvider, String digestName, byte[] z, byte[] otherInfo, int outLen)
-        throws NoSuchAlgorithmException
-    {
-        MessageDigest md = digestFromOwnProvider(ownProvider, digestName);
-        byte[] out = new byte[outLen];
-        byte[] counter = new byte[4];
-        int pos = 0;
-        int i = 1;
-        while (pos < outLen)
-        {
-            counter[0] = (byte) (i >>> 24);
-            counter[1] = (byte) (i >>> 16);
-            counter[2] = (byte) (i >>> 8);
-            counter[3] = (byte) i;
-            md.update(counter);
-            md.update(z);
-            if (otherInfo != null && otherInfo.length != 0)
-            {
-                md.update(otherInfo);
-            }
-            byte[] block = md.digest();
-            int n = Math.min(block.length, outLen - pos);
-            System.arraycopy(block, 0, out, pos, n);
-            // block is KEK-derivation material — scrub each iteration.
-            Arrays.fill(block, (byte) 0);
-            pos += n;
-            i++;
-        }
-        return out;
     }
 
     /**
@@ -626,7 +548,15 @@ public class RSAKEMCipherSpi
             this.kekBits = (Integer) method(c, "getKeySize").invoke(params);
             this.otherInfo = (byte[]) method(c, "getOtherInfo").invoke(params);
             Object kdfAlgId = method(c, "getKdfAlgorithm").invoke(params);
-            this.digestName = (kdfAlgId == null) ? null : resolveKdfDigest(kdfAlgId);
+            if (kdfAlgId == null)
+            {
+                this.kdfKind = null;
+                this.digestName = null;
+            }
+            else
+            {
+                resolveKdf(kdfAlgId);
+            }
         }
         catch (InvalidAlgorithmParameterException e)
         {
@@ -660,25 +590,39 @@ public class RSAKEMCipherSpi
      * else is refused by name so the caller learns what IS supported rather than
      * getting a wrong KEK.
      */
-    private static String resolveKdfDigest(Object kdfAlgId)
+    private void resolveKdf(Object kdfAlgId)
         throws InvalidAlgorithmParameterException
     {
         try
         {
             Object alg = method(kdfAlgId.getClass(), "getAlgorithm").invoke(kdfAlgId);
             String kdfOid = String.valueOf(alg);
-            if (!ID_KDF_KDF3.equals(kdfOid))
+            KtsKdf.Kind kind = KtsKdf.kindForOid(kdfOid);
+            if (kind == null)
             {
-                throw new InvalidAlgorithmParameterException(
-                        "unsupported KDF " + kdfOid + "; RSA-KTS-KEM-KWS supports KDF3 (" + ID_KDF_KDF3 + ")");
+                throw new InvalidAlgorithmParameterException(KtsKdf.unsupportedKdfMessage(kdfOid));
             }
+            // Branch on the OID BEFORE reading parameters: HKDF names its digest
+            // in the OID and RFC 8619 requires the parameters be absent, while
+            // KDF2/KDF3 carry a digest AlgorithmIdentifier there.
             Object digParams = method(kdfAlgId.getClass(), "getParameters").invoke(kdfAlgId);
+            if (KtsKdf.Kind.HKDF == kind)
+            {
+                if (digParams != null)
+                {
+                    throw new InvalidAlgorithmParameterException(KtsKdf.hkdfParametersForbiddenMessage());
+                }
+                this.kdfKind = kind;
+                this.digestName = KtsKdf.hkdfDigestForOid(kdfOid);
+                return;
+            }
             if (digParams == null)
             {
-                throw new InvalidAlgorithmParameterException("KDF3 requires a digest AlgorithmIdentifier");
+                throw new InvalidAlgorithmParameterException(KtsKdf.digestParameterRequiredMessage());
             }
             Object digAlg = method(digParams.getClass(), "getAlgorithm").invoke(digParams);
-            return digestNameForOid(String.valueOf(digAlg));
+            this.kdfKind = kind;
+            this.digestName = digestNameForOid(String.valueOf(digAlg));
         }
         catch (InvalidAlgorithmParameterException e)
         {

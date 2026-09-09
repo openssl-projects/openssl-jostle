@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -290,18 +291,20 @@ public class MLKEMKTSCipherTest
         SecureRandom rng = seededRandom("testUnsupportedKdf_rejected");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
 
-        // KDF2 instead of KDF3 — the SPI only supports X9.44 KDF3.
-        AlgorithmIdentifier kdf2 = new AlgorithmIdentifier(
-                X9ObjectIdentifiers.id_kdf_kdf2, new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
+        // MT-73: this used KDF2, on the rationale "the SPI only supports X9.44
+        // KDF3". KDF2 is now accepted, so the probe moves to an OID nothing
+        // serves; the refusal itself still stands.
+        AlgorithmIdentifier unknownKdf = new AlgorithmIdentifier(
+                new ASN1ObjectIdentifier("1.2.3.4.5.6.7"),
+                new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
         KTSParameterSpec spec = new KTSParameterSpec.Builder("AES", 256, randomBytes(rng, 8))
-                .withKdfAlgorithm(kdf2)
+                .withKdfAlgorithm(unknownKdf)
                 .build();
 
         Cipher c = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
         InvalidAlgorithmParameterException ex = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                 () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), spec));
-        Assertions.assertTrue(ex.getMessage().contains("KDF3"),
-                "message should name the only supported KDF: " + ex.getMessage());
+        Assertions.assertEquals(KtsKdf.unsupportedKdfMessage("1.2.3.4.5.6.7"), ex.getMessage());
     }
 
     @Test

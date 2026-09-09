@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -425,16 +426,19 @@ public class RSAKEMCipherTest
     public void unsupportedKdfRejectedTyped() throws Exception
     {
         KeyPair kp = keyPair();
-        KTSParameterSpec kdf2 = new KTSParameterSpec.Builder("AESWRAP", 256)
-                .withKdfAlgorithm(new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf2,
+        // MT-73: this used KDF2 as its "unsupported" example, on the rationale
+        // that "the SPI only supports X9.44 KDF3". KDF2 is now accepted, so the
+        // probe moves to an OID nothing serves; the refusal itself still stands.
+        KTSParameterSpec unknown = new KTSParameterSpec.Builder("AESWRAP", 256)
+                .withKdfAlgorithm(new AlgorithmIdentifier(
+                        new ASN1ObjectIdentifier("1.2.3.4.5.6.7"),
                         new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256))).build();
 
         Cipher c = Cipher.getInstance(XFORM, providerName());
         InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 InvalidAlgorithmParameterException.class,
-                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), kdf2));
-        Assertions.assertTrue(e.getMessage().startsWith("unsupported KDF "), e.getMessage());
-        Assertions.assertTrue(e.getMessage().contains("KDF3"), e.getMessage());
+                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), unknown));
+        Assertions.assertEquals(KtsKdf.unsupportedKdfMessage("1.2.3.4.5.6.7"), e.getMessage());
     }
 
     @Test

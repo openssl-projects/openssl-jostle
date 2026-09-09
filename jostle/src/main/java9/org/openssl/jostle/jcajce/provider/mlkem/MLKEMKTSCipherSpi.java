@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -73,8 +74,6 @@ public class MLKEMKTSCipherSpi
     // the wrap path cannot cross-check the secret length — it relies on OpenSSL
     // filling exactly SHARED_SECRET_LEN bytes of the buffer per FIPS 203.
     private static final int SHARED_SECRET_LEN = 32;
-    // X9.44 / NIST concatenation KDF (KDF3) OID — the only KDF used by CMS here.
-    private static final String ID_KDF_KDF3 = "1.3.133.16.840.9.44.1.2";
     // Upper bound on the requested KEK size, checked at init: (kekBits + 7)
     // overflows int for kekBits near Integer.MAX_VALUE (a negative kekBytes ->
     // NegativeArraySizeException in kdf3), and an unbounded value would drive an
@@ -138,45 +137,6 @@ public class MLKEMKTSCipherSpi
         return keyFactory.ownProviderInstance();
     }
 
-    /**
-     * Resolve the KDF digest from THIS SPI's own provider INSTANCE.
-     *
-     * <p>A bare {@code MessageDigest.getInstance(name)} resolves against the
-     * JCA provider list in order - normally SUN - so a JSLFIPS wrap derived
-     * its KEK outside the FIPS module. Which provider computed it cannot be
-     * seen in the OUTPUT: SHA-256 is SHA-256 whoever computes it, so the
-     * structural lint is the guard for the call site naming a provider at all.
-     * WHICH provider it names is behaviourally testable, but only against an
-     * instance made deliberately incapable - see
-     * {@code KtsProviderInstancePinningTest}.
-     *
-     * <p>Failure is LOUD under both providers, and in both arms: an unbound
-     * SPI has no provider to compute the digest, and a bound one that does not
-     * serve it means a broken build. A silent fall-through to another provider
-     * is the shape that hid the original defect.
-     */
-    private static MessageDigest digestFromOwnProvider(Provider ownProvider, String name)
-            throws NoSuchAlgorithmException
-    {
-        if (ownProvider == null)
-        {
-            throw new NoSuchAlgorithmException(
-                    "this cipher was constructed outside any provider, so the " + name
-                            + " KDF digest cannot be computed by it; obtain the Cipher from a "
-                            + "Jostle provider rather than constructing the SPI directly");
-        }
-        try
-        {
-            return MessageDigest.getInstance(name, ownProvider);
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new NoSuchAlgorithmException(
-                    "provider " + ownProvider.getName() + " does not serve " + name
-                            + ", so the KDF digest cannot be computed by it", e);
-        }
-    }
-
     private int opmode;
     private PKEYKeySpec keySpec;
     private RandSource randSource;
@@ -185,6 +145,7 @@ public class MLKEMKTSCipherSpi
     private int kekBits;
     private byte[] otherInfo;
     private String digestName;   // null => no KDF, use the shared secret directly
+    private KtsKdf.Kind kdfKind; // which family digestName belongs to; null with digestName
 
     @Override
     protected void engineSetMode(String mode)
@@ -504,47 +465,12 @@ public class MLKEMKTSCipherSpi
         }
         try
         {
-            return kdf3(ownProvider(), digestName, sharedSecret, otherInfo, kekBytes);
+            return KtsKdf.derive(ownProvider(), kdfKind, digestName, sharedSecret, otherInfo, kekBytes);
         }
         catch (NoSuchAlgorithmException e)
         {
             throw new InvalidKeyException("KDF digest unavailable: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * X9.44 KDF3 (NIST concatenation KDF): {@code K = Hash(counter32 ‖ Z ‖ otherInfo)}
-     * concatenated over counter = 1, 2, ... until {@code outLen} bytes are produced.
-     */
-    private static byte[] kdf3(Provider ownProvider, String digestName, byte[] z, byte[] otherInfo, int outLen)
-        throws NoSuchAlgorithmException
-    {
-        MessageDigest md = digestFromOwnProvider(ownProvider, digestName);
-        byte[] out = new byte[outLen];
-        byte[] counter = new byte[4];
-        int pos = 0;
-        int i = 1;
-        while (pos < outLen)
-        {
-            counter[0] = (byte) (i >>> 24);
-            counter[1] = (byte) (i >>> 16);
-            counter[2] = (byte) (i >>> 8);
-            counter[3] = (byte) i;
-            md.update(counter);
-            md.update(z);
-            if (otherInfo != null && otherInfo.length != 0)
-            {
-                md.update(otherInfo);
-            }
-            byte[] block = md.digest();
-            int n = Math.min(block.length, outLen - pos);
-            System.arraycopy(block, 0, out, pos, n);
-            // block is KEK-derivation material — scrub each iteration.
-            Arrays.fill(block, (byte) 0);
-            pos += n;
-            i++;
-        }
-        return out;
     }
 
     /**
@@ -620,7 +546,15 @@ public class MLKEMKTSCipherSpi
             this.kekBits = (Integer) method(c, "getKeySize").invoke(params);
             this.otherInfo = (byte[]) method(c, "getOtherInfo").invoke(params);
             Object kdfAlgId = method(c, "getKdfAlgorithm").invoke(params);
-            this.digestName = (kdfAlgId == null) ? null : resolveKdfDigest(kdfAlgId);
+            if (kdfAlgId == null)
+            {
+                this.kdfKind = null;
+                this.digestName = null;
+            }
+            else
+            {
+                resolveKdf(kdfAlgId);
+            }
         }
         catch (InvalidAlgorithmParameterException e)
         {
@@ -653,7 +587,7 @@ public class MLKEMKTSCipherSpi
      * structure {@code SEQUENCE { kdfOID, SEQUENCE { digestOID } }}, mapping the
      * digest OID to a JDK {@link MessageDigest} name. Only KDF3 is supported.
      */
-    private static String resolveKdfDigest(Object kdfAlgId)
+    private void resolveKdf(Object kdfAlgId)
         throws InvalidAlgorithmParameterException
     {
         byte[] der;
@@ -666,28 +600,64 @@ public class MLKEMKTSCipherSpi
             throw new InvalidAlgorithmParameterException("unable to read KDF algorithm: " + e.getMessage(), e);
         }
 
+        String kdfOid;
+        KtsKdf.Kind kind;
+        boolean hasParams;
+        int[] pos = {0};
         try
         {
-            int[] pos = {0};
             readSequenceHeader(der, pos);          // AlgorithmIdentifier
-            String kdfOid = readOid(der, pos);     // KDF OID
-            if (!ID_KDF_KDF3.equals(kdfOid))
-            {
-                throw new InvalidAlgorithmParameterException("unsupported KDF (only X9.44 KDF3 supported): " + kdfOid);
-            }
-            readSequenceHeader(der, pos);          // digest AlgorithmIdentifier
-            String digestOid = readOid(der, pos);
-            String name = digestNameForOid(digestOid);
-            if (name == null)
-            {
-                throw new InvalidAlgorithmParameterException("unsupported KDF digest: " + digestOid);
-            }
-            return name;
+            kdfOid = readOid(der, pos);            // KDF OID
+            kind = KtsKdf.kindForOid(kdfOid);
+            // der is a standalone AlgorithmIdentifier, so nothing left after the
+            // OID means the parameters are absent.
+            hasParams = pos[0] < der.length;
         }
         catch (RuntimeException e)
         {
             throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
         }
+
+        if (kind == null)
+        {
+            throw new InvalidAlgorithmParameterException(KtsKdf.unsupportedKdfMessage(kdfOid));
+        }
+        // The OID decides the shape: HKDF names its digest in the OID and RFC
+        // 8619 requires absent parameters, while KDF2/KDF3 carry a digest
+        // AlgorithmIdentifier there. So branch before reading any parameter.
+        if (KtsKdf.Kind.HKDF == kind)
+        {
+            if (hasParams)
+            {
+                throw new InvalidAlgorithmParameterException(KtsKdf.hkdfParametersForbiddenMessage());
+            }
+            this.kdfKind = kind;
+            this.digestName = KtsKdf.hkdfDigestForOid(kdfOid);
+            return;
+        }
+        if (!hasParams)
+        {
+            throw new InvalidAlgorithmParameterException(KtsKdf.digestParameterRequiredMessage());
+        }
+
+        String name;
+        String digestOid;
+        try
+        {
+            readSequenceHeader(der, pos);          // digest AlgorithmIdentifier
+            digestOid = readOid(der, pos);
+            name = digestNameForOid(digestOid);
+        }
+        catch (RuntimeException e)
+        {
+            throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
+        }
+        if (name == null)
+        {
+            throw new InvalidAlgorithmParameterException("unsupported KDF digest: " + digestOid);
+        }
+        this.kdfKind = kind;
+        this.digestName = name;
     }
 
     private static String digestNameForOid(String oid)
