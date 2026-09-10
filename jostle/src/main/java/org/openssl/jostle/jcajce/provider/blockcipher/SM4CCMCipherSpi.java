@@ -22,4 +22,9 @@ public class SM4CCMCipherSpi extends CCMCipherSpi
     {
         super(CipherFamily.SM4);
     }
+
+    public SM4CCMCipherSpi(java.security.Provider providerInstance)
+    {
+        super(CipherFamily.SM4, providerInstance);
+    }
 }

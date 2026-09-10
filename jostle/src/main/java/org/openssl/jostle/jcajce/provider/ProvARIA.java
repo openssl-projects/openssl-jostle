@@ -57,7 +57,7 @@ class ProvARIA
 
         // ARIA/CCM — see ProvAES note on the dedicated CCM SPI.
         provider.addAlgorithmImplementation("Cipher", "ARIA/CCM/NoPadding",
-                ARIACCMCipherSpi.class.getName(), generalAttributes, (arg) -> new ARIACCMCipherSpi());
+                ARIACCMCipherSpi.class.getName(), generalAttributes, (arg) -> new ARIACCMCipherSpi(provider));
 
         // IV AlgorithmParameters under the bare family name — ARIA had NONE
         // before MT-18, so getParameters() threw IllegalStateException.

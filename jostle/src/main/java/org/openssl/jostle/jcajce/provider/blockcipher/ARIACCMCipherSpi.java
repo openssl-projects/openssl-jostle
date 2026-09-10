@@ -22,4 +22,9 @@ public class ARIACCMCipherSpi extends CCMCipherSpi
     {
         super(CipherFamily.ARIA);
     }
+
+    public ARIACCMCipherSpi(java.security.Provider providerInstance)
+    {
+        super(CipherFamily.ARIA, providerInstance);
+    }
 }

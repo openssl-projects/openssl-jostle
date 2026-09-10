@@ -142,7 +142,7 @@ class ProvFIPSAES
                 (arg) -> new AESBlockCipherSpi(FIPSNISelector.BlockCipherNI, OSSLCipher.AES256, OSSLMode.WRAP_PAD, provider));
 
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding", AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI));
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, provider));
 
         // The NIST CCM OIDs, mirroring ProvAES. Registered as PRIMARIES rather
         // than aliases of "AES/CCM/NoPadding" because each OID names a key
@@ -150,13 +150,13 @@ class ProvFIPSAES
         // length; the pinned constructor refuses a key of any other length.
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_CCM,
                 AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES128));
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES128, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_CCM,
                 AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES192));
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES192, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CCM,
                 AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES256));
+                (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, OSSLCipher.AES256, provider));
 
         // XTS-AES (IEEE 1619 / SP 800-38E). Ungated: probed servable, with
         // identical behaviour, on both supported FIPS modules (3.1.2 and

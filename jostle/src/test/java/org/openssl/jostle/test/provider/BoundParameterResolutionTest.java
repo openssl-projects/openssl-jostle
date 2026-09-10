@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.Provider;
@@ -85,5 +86,46 @@ public class BoundParameterResolutionTest
         Assertions.assertNotNull(p, "a capable instance must serve its own parameters");
         Assertions.assertEquals(JostleProvider.PROVIDER_NAME, p.getProvider().getName(),
                 "and they must come from Jostle");
+    }
+
+    /**
+     * CCM resolves its parameters from the SPI's own provider instance.
+     *
+     * <p>CCM had no instance path at all until MT-89 — it resolved by NAME
+     * through {@code JostleAlgorithmParameters}, whose fallback hands the
+     * OTHER Jostle provider's parameters to an unregistered instance. The
+     * name path is retained only for a directly-constructed SPI.
+     */
+    @Test
+    public void ccmOnAnUnregisteredInstanceResolvesItsOwnParameters() throws Exception
+    {
+        Provider unregistered = new JostleProvider();
+        Assertions.assertNotSame(unregistered, Security.getProvider(JostleProvider.PROVIDER_NAME),
+                "vacuity guard: the instance under test must not be the registered one");
+        Assertions.assertNotNull(Security.getProvider(JostleProvider.PROVIDER_NAME),
+                "the registered provider must be present, or nothing could be borrowed");
+
+        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", unregistered);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"));
+
+        AlgorithmParameters p = c.getParameters();
+        Assertions.assertNotNull(p, "an unregistered instance must still serve its own parameters");
+        Assertions.assertSame(unregistered, p.getProvider(),
+                "CCM parameters must come from the SPI's own instance");
+    }
+
+    /** The registered path is unchanged. */
+    @Test
+    public void ccmThroughTheRegistryStillResolves() throws Exception
+    {
+        Cipher c = Cipher.getInstance("AES/CCM/NoPadding", JostleProvider.PROVIDER_NAME);
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"));
+
+        AlgorithmParameters p = c.getParameters();
+        Assertions.assertNotNull(p, "the registered path must still serve parameters");
+        Assertions.assertEquals(JostleProvider.PROVIDER_NAME, p.getProvider().getName(),
+                "and they must come from Jostle");
+        Assertions.assertNotNull(p.getParameterSpec(GCMParameterSpec.class),
+                "and they must read back as the CCM nonce + ICV length");
     }
 }

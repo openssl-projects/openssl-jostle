@@ -147,7 +147,7 @@ class ProvAES
         // resolves directly to AESCCMCipherSpi rather than the generic
         // BlockCipherSpi.
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding",
-                AESCCMCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESCCMCipherSpi());
+                AESCCMCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESCCMCipherSpi(provider));
 
         // The NIST CCM OIDs, which CMS and PKCS#8 resolve a content-encryption
         // Cipher by. Registered as PRIMARIES rather than aliases of
@@ -157,13 +157,13 @@ class ProvAES
         // constructor refuses a key of any other length.
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes128_CCM,
                 AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES128));
+                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES128, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes192_CCM,
                 AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES192));
+                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES192, provider));
         provider.addAlgorithmImplementation("Cipher", NISTObjectIdentifiers.id_aes256_CCM,
                 AESCCMCipherSpi.class.getName(), generalAesAttributes,
-                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES256));
+                (arg) -> new AESCCMCipherSpi(OSSLCipher.AES256, provider));
 
         // XTS-AES (IEEE 1619 / SP 800-38E). Registered under the explicit
         // transformation so it appears in getServices() rather than only

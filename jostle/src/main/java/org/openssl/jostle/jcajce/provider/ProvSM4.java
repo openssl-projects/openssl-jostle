@@ -41,7 +41,7 @@ class ProvSM4
 
         // SM4/CCM — see ProvAES note on the dedicated CCM SPI.
         provider.addAlgorithmImplementation("Cipher", "SM4/CCM/NoPadding",
-                SM4CCMCipherSpi.class.getName(), generalAttributes, (arg) -> new SM4CCMCipherSpi());
+                SM4CCMCipherSpi.class.getName(), generalAttributes, (arg) -> new SM4CCMCipherSpi(provider));
 
         // IV AlgorithmParameters under the bare family name — SM4 had NONE
         // before MT-18, so getParameters() threw IllegalStateException.

@@ -46,6 +46,14 @@ public class CCMCipherSpi extends CipherSpi
     // FIPSNISelector.CCMCipherNI (the FIPS interface library) for JSLFIPS.
     private final CCMCipherNI cipherNI;
 
+    /**
+     * The provider INSTANCE this SPI belongs to, or null when constructed
+     * outside any provider. Read only by {@link #resolveParameters()}: CCM
+     * parameters must come from the provider that owns this cipher, not from
+     * whatever JCA order picks. The instance, not the name.
+     */
+    private final java.security.Provider providerInstance;
+
     /** CCM nonce length range, NIST SP 800-38C §6.1: 7..13 bytes. */
     private static final int CCM_MIN_NONCE_LEN = 7;
     private static final int CCM_MAX_NONCE_LEN = 13;
@@ -107,26 +115,56 @@ public class CCMCipherSpi extends CipherSpi
     private boolean encryptionReinitRequired;
 
 
+    /*
+     * The provider-taking overloads are ADDITIVE. The no-provider forms stay
+     * because a directly-constructed SPI is MT-14's legitimate unbound realm,
+     * where resolveParameters falls back to name resolution.
+     */
+
     public CCMCipherSpi(CipherFamily family)
     {
-        this(NISelector.CCMCipherNI, family, null);
+        this(NISelector.CCMCipherNI, family, null, null);
+    }
+
+    public CCMCipherSpi(CipherFamily family, java.security.Provider providerInstance)
+    {
+        this(NISelector.CCMCipherNI, family, null, providerInstance);
     }
 
     public CCMCipherSpi(CipherFamily family, OSSLCipher mandatedCipher)
     {
-        this(NISelector.CCMCipherNI, family, mandatedCipher);
+        this(NISelector.CCMCipherNI, family, mandatedCipher, null);
+    }
+
+    public CCMCipherSpi(CipherFamily family, OSSLCipher mandatedCipher,
+                        java.security.Provider providerInstance)
+    {
+        this(NISelector.CCMCipherNI, family, mandatedCipher, providerInstance);
     }
 
     public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family)
     {
-        this(cipherNI, family, null);
+        this(cipherNI, family, null, null);
+    }
+
+    public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family,
+                        java.security.Provider providerInstance)
+    {
+        this(cipherNI, family, null, providerInstance);
     }
 
     public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family, OSSLCipher mandatedCipher)
     {
+        this(cipherNI, family, mandatedCipher, null);
+    }
+
+    public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family, OSSLCipher mandatedCipher,
+                        java.security.Provider providerInstance)
+    {
         this.cipherNI = cipherNI;
         this.family = family;
         this.mandatedCipher = mandatedCipher;
+        this.providerInstance = providerInstance;
     }
 
 
@@ -211,7 +249,7 @@ public class CCMCipherSpi extends CipherSpi
         }
         try
         {
-            AlgorithmParameters params = JostleAlgorithmParameters.getInstance("CCM", cipherNI.providerName());
+            AlgorithmParameters params = resolveParameters();
             params.init(new GCMParameterSpec(tagLenBytes * 8, iv));
             return params;
         }
@@ -410,8 +448,7 @@ public class CCMCipherSpi extends CipherSpi
     {
         try
         {
-            AlgorithmParameters ours =
-                    JostleAlgorithmParameters.getInstance("CCM", cipherNI.providerName());
+            AlgorithmParameters ours = resolveParameters();
             ours.init(params.getEncoded());
             return ours.getParameterSpec(GCMParameterSpec.class);
         }
@@ -420,6 +457,28 @@ public class CCMCipherSpi extends CipherSpi
             // Report the original refusal; the re-read is the fallback, not the contract.
             throw new InvalidAlgorithmParameterException("CCM init: " + cause.getMessage(), cause);
         }
+    }
+
+    /**
+     * Resolve CCM parameters from THIS SPI's own provider instance.
+     *
+     * <p>{@code getInstance(String, Provider)} reads the provider OBJECT and
+     * never consults the {@code Security} registry, so it works whether or not
+     * that provider is registered, and a foreign provider ahead of Jostle
+     * cannot supply them. Unpinned, an unregistered JSLFIPS cipher returned
+     * parameters manufactured by JSL.
+     *
+     * <p>A directly-constructed SPI has no provider (MT-14's unbound realm)
+     * and can only resolve by name; {@link JostleAlgorithmParameters} does
+     * that, preferring the SPI's own Jostle provider.
+     */
+    private AlgorithmParameters resolveParameters() throws NoSuchAlgorithmException
+    {
+        if (providerInstance != null)
+        {
+            return AlgorithmParameters.getInstance("CCM", providerInstance);
+        }
+        return JostleAlgorithmParameters.getInstance("CCM", cipherNI.providerName());
     }
 
     /**
