@@ -197,6 +197,21 @@ A JCA transformation with `update`/`doFinal` promises that any split of the same
 
 **ONE PARAMETER MUST NOT GOVERN TWO DIMENSIONS — a legitimate constraint on one silently imposes an illegitimate one on the other.** This is what hid the ECB/CBC defect, and it is worth recognising by shape because it looks like ordinary parameterisation. `AESAgreementTest.exercise_complexUpdateDoFinal(xform, keys, top, step, ivLen, sr)` uses `step` for BOTH the message-length loop (`t += step`) and the split-point loop (`splitAt += step`). For a `NoPadding` mode the caller must pass `step = 16`, because non-aligned message lengths are genuinely illegal — a correct, necessary constraint. It then also forces split points onto 16-byte boundaries, which nothing requires and which skips the entire partial-block path. CFB gets byte-wise splits purely as a side effect of ITS lengths being unconstrained. Nobody chose the aligned-only splitting; it was inherited from an unrelated rule one parameter away. When a helper takes one knob, ask which dimensions it reaches.
 
+**The two dimensions are not always input shapes — they can be two providers'
+NAMING DOMAINS, and then the knob is a string column in a table.** MT-95:
+`RSAPSSNamedSignatureTest`'s `CASES` carries one digest column that both names
+our algorithm and builds the `PSSParameterSpec` handed to BouncyCastle, and the
+accepted spellings are DISJOINT for the truncated SHA-512s — BC takes
+`SHA512(224)` and refuses `SHA-512/224`, OpenSSL the exact reverse — so no single
+string can serve both. It survived nine rows because every earlier digest spells
+identically in both domains, and BC reports the clash as `digest algorithm for
+MGF should be the same as for PSS parameters`, naming the wrong cause entirely.
+Translate at the foreign-provider call site (`bcDigest`, as MT-94 did with
+`bcName`) rather than editing the column, and treat a red test on a new
+registration as unattributed until you have asked WHICH side refused: here the
+registration was correct throughout and name-to-name interop was clean in both
+directions.
+
 ### The input-shape restriction smell: a test that avoids a throw is a bug report
 
 **A test exercising a NARROWER input shape than the contract allows must say which of two things it is: documenting a real limitation, or working around a defect.** Unstated, the second is indistinguishable from the first, and it hardens — the next author copies the convention.
@@ -550,6 +565,33 @@ class of mistake.
 
 Keep the canary trivial and dependency-free: one that can fail for its own
 reasons stops being a wiring signal.
+
+**A canary only covers the legs whose FILTER can match its name, and the unit
+and integration filters differ.** MT-60 canaried the unit legs as
+`SourceSetNNCanaryTest`; the integration legs filter to `*LimitTest*`,
+`*IntegrationTest*` and `*OpsTest*`, which no name ending `CanaryTest` matches.
+Measured (MT-91): `src/test/java11`, `java17` and `java21` each held **zero**
+files the integration filter could match, and `integrationTest11/17/21` reported
+byte-identical **93 classes / 2445 tests / 1032 skips** — three legs at three
+JDK levels whose numbers CANNOT differ are three legs running none of their own
+classes. The `java25` pair sat at 95, its two matchable files being ordinary
+tests that merely happen to end `LimitTest` / `OpsTest`, so renaming either
+would blind that leg with nothing failing. So each source set carries a second
+canary, `SourceSetNNCanaryIntegrationTest`, named to match the integration
+filter — never widen the filter instead, which would drag every unit test onto
+those legs. Note five legs are served by four canaries: level 25 is
+`integrationTest25JNI` and `integrationTest25FFI` over one `test25` source set.
+And expect **before + 1 per leg**, never a shared literal: 11/17/21 go 93 -> 94
+while the 25 pair goes 95 -> 96, so one expected number would fail spuriously on
+one group or pass vacuously on the other.
+
+MT-91's falsification is sharper than MT-60's and worth the numbers. Re-pointing
+`integrationTest21` at `sourceSets.test17` left the leg **rc=0 with classes=94,
+tests=2446 and skip=1032 — every figure identical to the correct
+configuration**, because it swapped one canary for another that also passes on
+JDK 21. The ONLY discriminator was the name: `SourceSet17CanaryIntegrationTest`
+present, `SourceSet21CanaryIntegrationTest` absent. Where MT-60 conserved a file
+count, this conserves the entire result summary.
 
 ### A negative-path survey cannot see an OVER-refusal
 
