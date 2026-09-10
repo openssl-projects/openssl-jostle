@@ -321,4 +321,21 @@ public class RFC3211WrapTest
         Assertions.assertEquals(covered, registered,
                 "registered RFC 3211 wraps and the set this class drives must match exactly");
     }
+
+    /**
+     * The SPI refuses a null provider at construction (MT-98).
+     *
+     * <p>It has one constructor and it takes the provider, so there is no
+     * unbound realm to preserve: the inner CBC cipher and the parameters must
+     * come from the provider this SPI belongs to, never from JCA order.
+     */
+    @Test
+    public void aNullProviderIsRefusedAtConstruction()
+    {
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi(
+                        "AES", 16, new int[]{16, 24, 32}, null));
+        Assertions.assertEquals("RFC3211WrapCipherSpi requires the provider it belongs to",
+                e.getMessage());
+    }
 }

@@ -162,4 +162,74 @@ public class CertPathBuilderTest
         Assertions.assertEquals(good, builder().build(params(sel, good, bad, ca))
                 .getCertPath().getCertificates().get(0));
     }
+
+    /**
+     * The certificates in the built path are decoded by JOSTLE's X.509
+     * factory, not by whatever JCA order offers (MT-98).
+     *
+     * <p>They are the SPI's RESULT — the public key in the
+     * {@code PKIXCertPathBuilderResult} comes from the first of them — so an
+     * unpinned factory let an arbitrary provider, normally SUN, decide what we
+     * hand back. Note {@code equals} cannot see this: the wrapper delegates,
+     * so {@code buildsThePathToASelectedTarget} passed throughout.
+     */
+    @Test
+    public void theBuiltPathsCertificatesAreDecodedByJostle() throws Exception
+    {
+        X509Certificate ee = PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt");
+        X509Certificate ca = PkitsCertificates.certificate("GoodCACert.crt");
+
+        X509CertSelector sel = new X509CertSelector();
+        sel.setCertificate(ee);
+
+        CertPathBuilderResult r = builder().build(params(sel, ee, ca));
+        List<? extends java.security.cert.Certificate> built = r.getCertPath().getCertificates();
+        Assertions.assertFalse(built.isEmpty(), "vacuity guard: the build produced no path");
+
+        for (java.security.cert.Certificate c : built)
+        {
+            Assertions.assertTrue(
+                    c.getClass().getName().startsWith("org.openssl.jostle."),
+                    "a certificate in our own result was decoded elsewhere: "
+                            + c.getClass().getName());
+        }
+        Assertions.assertTrue(
+                r.getCertPath().getClass().getName().startsWith("org.openssl.jostle.")
+                        || built.get(0).getClass().getName().startsWith("org.openssl.jostle."),
+                "the CertPath must be built by the same factory that decoded its contents");
+    }
+
+    /**
+     * A builder bound to an instance that cannot serve X.509 fails loudly
+     * rather than borrowing the registered provider's factory.
+     *
+     * <p>The discriminator between an instance pin and a name pin: both
+     * providers decode the same bytes, so only a deliberately incapable
+     * instance separates them (see {@code StrippedJostleProvider}).
+     */
+    @Test
+    public void aBoundBuilderDoesNotBorrowAnX509FactoryFromTheRegistry() throws Exception
+    {
+        Assertions.assertNotNull(Security.getProvider(JostleProvider.PROVIDER_NAME),
+                "the capable provider must be registered, or the test proves nothing");
+
+        java.security.Provider stripped =
+                new org.openssl.jostle.test.provider.StrippedJostleProvider(
+                        "CertificateFactory", "X.509");
+        Assertions.assertNull(stripped.getService("CertificateFactory", "X.509"),
+                "vacuity guard: the strip must actually have removed the service");
+        Assertions.assertNotNull(stripped.getService("CertPathBuilder", "PKIX"),
+                "the stripped instance must still serve the builder itself");
+
+        X509Certificate ee = PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt");
+        X509Certificate ca = PkitsCertificates.certificate("GoodCACert.crt");
+        X509CertSelector sel = new X509CertSelector();
+        sel.setCertificate(ee);
+
+        CertPathBuilder b = CertPathBuilder.getInstance("PKIX", stripped);
+        PKIXBuilderParameters p = params(sel, ee, ca);
+        Assertions.assertThrows(CertPathBuilderException.class, () -> b.build(p),
+                "a builder bound to an instance lacking X.509 must FAIL, not borrow"
+                        + " the registered provider's factory");
+    }
 }

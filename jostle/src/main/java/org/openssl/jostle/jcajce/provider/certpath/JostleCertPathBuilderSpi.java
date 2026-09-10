@@ -12,6 +12,8 @@
 package org.openssl.jostle.jcajce.provider.certpath;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilderException;
 import java.security.cert.CertPathBuilderResult;
@@ -21,6 +23,7 @@ import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertSelector;
 import java.security.cert.CertStore;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXCertPathBuilderResult;
@@ -45,14 +48,63 @@ public class JostleCertPathBuilderSpi
 {
     private final CertPathNI ni;
 
+    /**
+     * The provider this SPI belongs to, or null when constructed outside any
+     * provider. Read only by {@link #x509Factory()}.
+     */
+    private final Provider providerInstance;
+
     public JostleCertPathBuilderSpi()
     {
-        this(org.openssl.jostle.jcajce.provider.NISelector.CertPathNI);
+        this(org.openssl.jostle.jcajce.provider.NISelector.CertPathNI, null);
+    }
+
+    public JostleCertPathBuilderSpi(Provider providerInstance)
+    {
+        this(org.openssl.jostle.jcajce.provider.NISelector.CertPathNI, providerInstance);
     }
 
     public JostleCertPathBuilderSpi(CertPathNI ni)
     {
+        this(ni, null);
+    }
+
+    public JostleCertPathBuilderSpi(CertPathNI ni, Provider providerInstance)
+    {
         this.ni = ni;
+        this.providerInstance = providerInstance;
+    }
+
+    /**
+     * The X.509 factory the built chain is decoded through.
+     *
+     * <p>The certificates it produces are this SPI's result — they carry the
+     * public key returned in the {@link PKIXCertPathBuilderResult} — so an
+     * unpinned resolution would let an arbitrary provider decide what we hand
+     * back. {@code getInstance(String, Provider)} reads the provider OBJECT
+     * and never consults the registry.
+     *
+     * <p>A directly-constructed SPI has no provider and can only resolve by
+     * name, which still refuses to reach outside Jostle.
+     */
+    private CertificateFactory x509Factory() throws CertificateException
+    {
+        if (providerInstance != null)
+        {
+            return CertificateFactory.getInstance("X.509", providerInstance);
+        }
+        try
+        {
+            return CertificateFactory.getInstance("X.509",
+                    org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+        }
+        catch (NoSuchProviderException e)
+        {
+            CertificateException ce =
+                    new CertificateException("Jostle provider is not registered");
+            ce.initCause(e);
+            throw ce;
+        }
     }
 
     @Override
@@ -208,7 +260,8 @@ public class JostleCertPathBuilderSpi
 
         try
         {
-            List<X509Certificate> built = call.builtCertificates();
+            CertificateFactory cf = x509Factory();
+            List<X509Certificate> built = call.builtCertificates(cf);
             if (built.size() < 2)
             {
                 throw new CertPathBuilderException("OpenSSL returned no usable chain");
@@ -217,7 +270,7 @@ public class JostleCertPathBuilderSpi
             List<X509Certificate> pathCerts = new ArrayList<X509Certificate>(
                     built.subList(0, built.size() - 1));
             enforceMaxPathLength(pkix, pathCerts);
-            CertPath cp = CertificateFactory.getInstance("X.509").generateCertPath(pathCerts);
+            CertPath cp = cf.generateCertPath(pathCerts);
             PKIXCertPathValidatorResult vr = new PKIXCertPathValidatorResult(
                     call.resolveAnchor(pkix), null, pathCerts.get(0).getPublicKey());
             return new PKIXCertPathBuilderResult(cp, vr.getTrustAnchor(), null,

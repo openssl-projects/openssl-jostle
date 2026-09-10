@@ -161,12 +161,18 @@ final class CertPathCall
         return new CertPathCall(der, sizes, encoded.size(), anchors, when);
     }
 
-    /** The built chain as certificates, target first, anchor last. */
-    List<java.security.cert.X509Certificate> builtCertificates()
+    /**
+     * The built chain as certificates, target first, anchor last.
+     *
+     * @param cf the caller's factory. These certificates become the SPI's
+     *           RESULT, so the provider that decodes them is the SPI's own,
+     *           not whatever JCA order offers; the SPI resolves it once and
+     *           reuses it for the CertPath.
+     */
+    List<java.security.cert.X509Certificate> builtCertificates(
+            java.security.cert.CertificateFactory cf)
             throws java.security.cert.CertificateException
     {
-        java.security.cert.CertificateFactory cf =
-                java.security.cert.CertificateFactory.getInstance("X.509");
         List<java.security.cert.X509Certificate> out =
                 new ArrayList<java.security.cert.X509Certificate>();
         for (byte[] der : builtChain())

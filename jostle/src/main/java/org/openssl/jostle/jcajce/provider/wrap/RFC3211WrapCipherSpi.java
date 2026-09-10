@@ -41,9 +41,22 @@ public class RFC3211WrapCipherSpi
     private byte[] iv;
     private SecureRandom random;
 
+    /**
+     * @param providerInstance the provider this SPI belongs to; must not be
+     *                         null. There is no unbound realm here: this is
+     *                         the only constructor, so every caller has already
+     *                         decided, and the inner CBC cipher and parameters
+     *                         must come from the same provider rather than from
+     *                         whatever JCA order picks.
+     */
     public RFC3211WrapCipherSpi(String baseCipher, int blockSize, int[] validKekLengths,
                                 Provider providerInstance)
     {
+        if (providerInstance == null)
+        {
+            throw new IllegalArgumentException(
+                    "RFC3211WrapCipherSpi requires the provider it belongs to");
+        }
         this.baseCipher = baseCipher;
         this.blockSize = blockSize;
         this.validKekLengths = Arrays.clone(validKekLengths);
@@ -96,9 +109,7 @@ public class RFC3211WrapCipherSpi
         }
         try
         {
-            AlgorithmParameters p = providerInstance == null
-                    ? AlgorithmParameters.getInstance(baseCipher)
-                    : AlgorithmParameters.getInstance(baseCipher, providerInstance);
+            AlgorithmParameters p = AlgorithmParameters.getInstance(baseCipher, providerInstance);
             p.init(new IvParameterSpec(iv));
             return p;
         }
@@ -387,9 +398,7 @@ public class RFC3211WrapCipherSpi
 
     private Cipher cbc(int mode, byte[] withIv) throws GeneralSecurityException
     {
-        Cipher c = providerInstance == null
-                ? Cipher.getInstance(baseCipher + "/CBC/NoPadding")
-                : Cipher.getInstance(baseCipher + "/CBC/NoPadding", providerInstance);
+        Cipher c = Cipher.getInstance(baseCipher + "/CBC/NoPadding", providerInstance);
         c.init(mode, new SecretKeySpec(kekBytes, baseCipher), new IvParameterSpec(withIv));
         return c;
     }

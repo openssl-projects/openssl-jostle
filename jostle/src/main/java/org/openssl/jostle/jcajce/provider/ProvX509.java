@@ -34,6 +34,6 @@ class ProvX509
                 (arg) -> new JostleCertPathValidatorSpi());
         provider.addAlgorithmImplementation("CertPathBuilder", "PKIX",
                 JostleCertPathBuilderSpi.class.getName(), attr,
-                (arg) -> new JostleCertPathBuilderSpi());
+                (arg) -> new JostleCertPathBuilderSpi(provider));
     }
 }
