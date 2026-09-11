@@ -72,16 +72,17 @@ public class PkitsPhase1Test
         }
     }
 
+    /**
+     * The shared chainer, not a naive reverse of the row. A row's certificate
+     * list includes CRL-signing certificates that are NOT path members, and
+     * reversing it put one at path index 1 — which the JDK and BouncyCastle
+     * both rightly refused while we accepted it. See
+     * {@link PkitsCertificates#chain}.
+     */
     static CertPath path(PkitsCertificates.Case c) throws Exception
     {
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        List<X509Certificate> chain = new ArrayList<X509Certificate>();
-        chain.add(PkitsCertificates.certificate(c.endEntity));
-        for (int i = c.intermediates.size() - 1; i >= 0; i--)
-        {
-            chain.add(PkitsCertificates.certificate(c.intermediates.get(i)));
-        }
-        return cf.generateCertPath(chain);
+        return CertificateFactory.getInstance("X.509")
+                .generateCertPath(PkitsCertificates.chain(c));
     }
 
     static PKIXParameters params() throws Exception

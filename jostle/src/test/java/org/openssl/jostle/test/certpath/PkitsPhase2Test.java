@@ -93,63 +93,19 @@ public class PkitsPhase2Test
     }
 
     /**
-     * The certification path, chained from the END ENTITY by SIGNATURE.
+     * The certification path, from the shared chainer.
      *
-     * <p>PKITS lists CRL-SIGNING certificates in the same bullets as the path
-     * members, so "every certificate in the row, reversed" puts a non-CA at
-     * path index 1 — measured, that failed 4.4.19 and 4.14.24/25/28/29.
-     * Selection is by WHICH KEY VERIFIED the signature, not by name: a
-     * self-issued certificate shares a subject with the real CA, so a name
-     * match picks by file order.
+     * <p>It chains from the end entity by issuer NAME plus key identifier.
+     * This class previously chained by SIGNATURE, which worked here but could
+     * not serve phase 1 — 4.1.2, 4.1.3 and 4.1.6 exist to carry broken
+     * signatures, so that chainer never reaches the anchor for them. One
+     * chainer for both phases means the sweep and the phase tests cannot
+     * disagree about what the path even is.
      */
     static CertPath path(PkitsCertificates.Case c) throws Exception
     {
-        List<X509Certificate> pool = new ArrayList<X509Certificate>();
-        for (String n : c.intermediates)
-        {
-            pool.add(PkitsCertificates.certificate(n));
-        }
-        X509Certificate anchor = PkitsCertificates.certificate(PkitsCertificates.ANCHOR);
-
-        List<X509Certificate> chain = new ArrayList<X509Certificate>();
-        X509Certificate current = PkitsCertificates.certificate(c.endEntity);
-        chain.add(current);
-        while (!signedBy(current, anchor))
-        {
-            X509Certificate issuer = null;
-            for (X509Certificate cand : pool)
-            {
-                if (!chain.contains(cand) && signedBy(current, cand))
-                {
-                    issuer = cand;
-                    break;
-                }
-            }
-            Assertions.assertNotNull(issuer,
-                    c.number + ": no supplied certificate signed "
-                            + current.getSubjectX500Principal()
-                            + " — the case table or this chaining is wrong");
-            chain.add(issuer);
-            current = issuer;
-        }
-        return CertificateFactory.getInstance("X.509").generateCertPath(chain);
-    }
-
-    private static boolean signedBy(X509Certificate cert, X509Certificate issuer)
-    {
-        if (!cert.getIssuerX500Principal().equals(issuer.getSubjectX500Principal()))
-        {
-            return false;
-        }
-        try
-        {
-            cert.verify(issuer.getPublicKey());
-            return true;
-        }
-        catch (Exception e)
-        {
-            return false;
-        }
+        return CertificateFactory.getInstance("X.509")
+                .generateCertPath(PkitsCertificates.chain(c));
     }
 
     /**

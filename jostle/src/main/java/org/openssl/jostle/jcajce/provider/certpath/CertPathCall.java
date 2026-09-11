@@ -367,18 +367,22 @@ final class CertPathCall
 
     /**
      * P4: the validator validates the path it was GIVEN. OpenSSL builds its own
-     * chain from the certificates supplied, and if that chain contains a
-     * certificate the caller did not supply, or takes them out of order, then
-     * the path verified was not the path asked about.
+     * chain from the certificates supplied; if that chain is not the caller's
+     * path, element for element, then the path verified was not the path asked
+     * about.
      * <p>
-     * The test is ordered SUBSEQUENCE, not equality, and the difference is
-     * load-bearing: a SELF-ISSUED certificate in the path may be legitimately
-     * omitted from the built chain — RFC 5280 6.1 treats self-issued
-     * certificates specially and they do not lengthen a path. Measured on
-     * PKITS 4.5.4 and 4.5.6, where the omitted certificate is self-issued
-     * (subject equals issuer) and both cases are expected to VALIDATE. Exact
-     * equality failed them, which would have been our own assertion inventing
-     * a divergence rather than OpenSSL producing one.
+     * The test is EXACT EQUALITY, anchor aside. An earlier version allowed the
+     * built chain to skip a self-issued certificate, on the reading that RFC
+     * 5280 6.1 does not let self-issued certificates lengthen a path. That was
+     * repairing a broken test fixture inside the product: PKITS 4.5.4 and 4.5.6
+     * list a CRL-SIGNING certificate alongside the path members, the harness
+     * put it at path index 1, and the skip let it through. Measured: the JDK
+     * refuses that path ("CA key usage check failed: keyCertSign bit is not
+     * set") and BouncyCastle refuses it ("Intermediate certificate lacks
+     * BasicConstraints"). Accepting a path containing a member we never
+     * validated is more lenient than either, and the JCE contract is to
+     * validate the path as given — a caller that wants a certificate left out
+     * leaves it out.
      */
     void assertBuiltChainMatches(List<? extends Certificate> certs, CertPath path)
             throws CertPathValidatorException
@@ -390,35 +394,23 @@ final class CertPathCall
         }
         // The last built element is the anchor, which the CertPath excludes.
         int builtCerts = built.size() - 1;
-        int given = 0;
+        if (builtCerts != certs.size())
+        {
+            throw new CertPathValidatorException(
+                    "OpenSSL validated a chain of " + builtCerts
+                            + " certificates for a path of " + certs.size()
+                            + "; the path is validated exactly as given",
+                    null, path, -1);
+        }
         try
         {
             for (int i = 0; i < builtCerts; i++)
             {
-                byte[] want = built.get(i);
-                boolean found = false;
-                while (given < certs.size())
-                {
-                    byte[] have = certs.get(given).getEncoded();
-                    given++;
-                    if (Arrays.areEqual(have, want))
-                    {
-                        found = true;
-                        break;
-                    }
-                    if (!isSelfIssued(certs.get(given - 1)))
-                    {
-                        throw new CertPathValidatorException(
-                                "OpenSSL skipped a certificate the path supplied at index "
-                                        + (given - 1) + ", and it is not self-issued",
-                                null, path, given - 1);
-                    }
-                }
-                if (!found)
+                if (!Arrays.areEqual(certs.get(i).getEncoded(), built.get(i)))
                 {
                     throw new CertPathValidatorException(
-                            "the chain OpenSSL built contains a certificate the path did not "
-                                    + "supply, at chain index " + i, null, path, -1);
+                            "the chain OpenSSL validated differs from the path supplied, at "
+                                    + "index " + i, null, path, i);
                 }
             }
         }
@@ -426,17 +418,6 @@ final class CertPathCall
         {
             throw new CertPathValidatorException("a certificate could not be encoded", e);
         }
-    }
-
-    /** Self-issued: subject equals issuer. RFC 5280 6.1. */
-    private static boolean isSelfIssued(Certificate cert)
-    {
-        if (!(cert instanceof java.security.cert.X509Certificate))
-        {
-            return false;
-        }
-        java.security.cert.X509Certificate x = (java.security.cert.X509Certificate) cert;
-        return x.getSubjectX500Principal().equals(x.getIssuerX500Principal());
     }
 
     /**

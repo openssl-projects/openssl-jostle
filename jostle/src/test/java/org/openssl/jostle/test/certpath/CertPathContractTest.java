@@ -349,4 +349,72 @@ public class CertPathContractTest
         public java.util.Set<String> getNonCriticalExtensionOIDs() { return delegate.getNonCriticalExtensionOIDs(); }
         public byte[] getExtensionValue(String oid) { return delegate.getExtensionValue(oid); }
     }
+
+    /**
+     * P4: the path is validated EXACTLY as given. A path carrying a
+     * certificate that is not on the end entity's chain must be REFUSED, not
+     * quietly validated with that certificate skipped.
+     *
+     * <p>The fixture is the path our own harness used to build for PKITS
+     * 4.5.6: the row lists {@code BasicSelfIssuedCRLSigningKeyCRLCert}
+     * alongside the CA, that certificate signs the row's CRLs rather than the
+     * end entity, and a naive reverse of the row put it at path index 1. We
+     * accepted it — a self-issued skip in {@code assertBuiltChainMatches} let
+     * it through — while the JDK refused it for "keyCertSign bit is not set"
+     * and BouncyCastle for "lacks BasicConstraints". Accepting a path
+     * containing a member we never validated was more lenient than either.
+     *
+     * <p>The JDK's refusal is asserted alongside ours: it is what makes this a
+     * statement about the contract rather than about our implementation, and
+     * it fails loudly if the fixture ever stops being a wrongly-built path.
+     */
+    @Test
+    public void aPathCarryingACertificateOffTheChainIsRefused() throws Exception
+    {
+        PkitsCertificates.Case c = null;
+        for (PkitsCertificates.Case cand : PkitsCertificates.cases())
+        {
+            if ("4.5.6".equals(cand.number))
+            {
+                c = cand;
+            }
+        }
+        Assertions.assertNotNull(c, "vacuity guard: 4.5.6 is not in the committed table");
+
+        // The chainer's answer: the CRL-signing certificate is NOT reached.
+        List<X509Certificate> chained = PkitsCertificates.chain(c);
+        Assertions.assertEquals(2, chained.size(),
+                "4.5.6's real path is the end entity and its CA");
+
+        // The old naive construction: every row certificate, reversed.
+        List<X509Certificate> naive = new ArrayList<X509Certificate>();
+        naive.add(PkitsCertificates.certificate(c.endEntity));
+        for (int i = c.intermediates.size() - 1; i >= 0; i--)
+        {
+            naive.add(PkitsCertificates.certificate(c.intermediates.get(i)));
+        }
+        Assertions.assertEquals(3, naive.size(), "vacuity guard: the naive path must be longer");
+        Assertions.assertFalse(chained.contains(naive.get(1)),
+                "vacuity guard: the extra certificate must be one the chain does not reach");
+
+        CertPath bad = CertificateFactory.getInstance("X.509").generateCertPath(naive);
+        PKIXParameters p = new PKIXParameters(Collections.singleton(new TrustAnchor(
+                PkitsCertificates.certificate(PkitsCertificates.ANCHOR), null)));
+        p.setRevocationEnabled(false);
+
+        Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME)
+                        .validate(bad, p),
+                "a path carrying a certificate off the chain must be refused");
+
+        // The reference: the JDK refuses the same path.
+        Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", "SUN").validate(bad, p),
+                "the JDK must refuse it too, or this fixture is not what it claims");
+
+        // The control: the CHAINED path still validates, so the refusal is
+        // about the extra certificate and not about the fixture at large.
+        CertPath good = CertificateFactory.getInstance("X.509").generateCertPath(chained);
+        CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(good, p);
+    }
 }
