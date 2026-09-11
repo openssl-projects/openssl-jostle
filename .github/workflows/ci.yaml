@@ -337,15 +337,22 @@ jobs:
 
   # jostle/src/main/java9/module-info.java has no other witness: nothing else
   # puts jostle on the module path, and the class path ignores the descriptor.
-  # Two cells because the bridge differs - JDK 17 resolves JNI, 25 resolves FFI.
-  # A separate job, not a test-posix config entry, which would multiply across
-  # all four runners.
+  # Cells by bridge - 11 and 17 resolve JNI, 25 resolves FFI - and 11 is also
+  # the lowest level the module system exists at. A separate job, not a
+  # test-posix config entry, which would multiply across all four runners; the
+  # module graph is platform-independent, so one runner is the right cost.
+  #
+  # Two instruments, deliberately: tools/check-module-path.sh is a standalone
+  # smoke check that build_osx.sh also runs, and the moduleTestNN* Gradle legs
+  # (MT-96) are the matrix's own, covering the bcprov placements, the
+  # reflective spec reads and the split-package canary. The legs exist at 11
+  # and 25 only, so 17 runs the script alone.
   test-posix-modulepath:
     needs: "build-posix"
     strategy:
       fail-fast: false
       matrix:
-        jdk: ["17", "25"]
+        jdk: ["11", "17", "25"]
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout jostle"
@@ -385,6 +392,31 @@ jobs:
           x64="JAVA_HOME_${TARGET_JDK}_X64"
           export JAVA_HOME="${!x64}"
           ./tools/check-module-path.sh
+      # The Gradle legs. BC_JDK<NN> is both the onlyIf gate and the only way
+      # Gradle's toolchain resolver can find that JDK (gradle.properties sets
+      # fromEnv with auto-detect and auto-download off), so an unset variable
+      # SKIPS the legs silently - which is why the step also asserts it is set.
+      - name: "Run the module-path test legs"
+        if: matrix.jdk != '17'
+        working-directory: "jostle"
+        env:
+          TARGET_JDK: "${{ matrix.jdk }}"
+        run: |
+          x64="JAVA_HOME_${TARGET_JDK}_X64"
+          if [ -z "${!x64:-}" ]; then
+            echo "JAVA_HOME_${TARGET_JDK}_X64 is unset; the legs would skip silently" >&2
+            exit 1
+          fi
+          echo "BC_JDK${TARGET_JDK}=${!x64}" >> "$GITHUB_ENV"
+          export "BC_JDK${TARGET_JDK}=${!x64}"
+          ./gradlew $(sed -n "s/^\(moduleTest${TARGET_JDK}[A-Za-z]*\) .*/:jostle:\1/p" \
+              .claude/skills/verify-test-matrix/scripts/tasks.list | tr '\n' ' ')
+      - name: "Publish module-path test report"
+        uses: "mikepenz/action-junit-report@v6"
+        if: (success() || failure()) && matrix.jdk != '17'
+        with:
+          check_name: "module-path - jdk${{ matrix.jdk }}"
+          report_paths: "**/build/test-results/moduleTest*/TEST-*.xml"
 
   test-posix-fips:
     needs: "build-posix"

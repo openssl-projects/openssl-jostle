@@ -979,6 +979,196 @@ tasks.register('fipsTest25') {
 }
 
 
+//
+// ===================== MT-96: module-path legs =====================
+//
+// Every other leg runs jostle on the CLASSPATH, where the module system is
+// off and module-info.java cannot be wrong in a way anything notices. These
+// run the BUILT jar on --module-path with the tests as an unnamed-module
+// consumer. Cells, declared to the tests and asserted there:
+//
+//   named      jostle MP, bcprov MP as its own explicit module
+//   automatic  jostle MP, bcprov MP as an AUTOMATIC module (UNSIGNED copy)
+//   unnamed    jostle MP, bcprov on the classpath
+//   control    both on the classpath - the falsification control
+//
+// The 25 legs also cover the bridge and native-access dimensions. See MT-96
+// in reviews/misc-tasks-plan.md.
+//
+sourceSets {
+    testModule {
+        java {
+            // NOT src/test/java: those tests import packages module-info
+            // does not export (jcajce.provider.kts, .kdf, .mlkem, .wrap).
+            srcDirs = ["src/test/module"]
+            compileClasspath += files(jar.archiveFile)
+        }
+    }
+}
+
+dependencies {
+    testModuleImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    // SPEC SOURCE only, never registered: the automatic cell's copy is
+    // unsigned, and a registered BC could answer a lookup meant for jostle.
+    testModuleImplementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
+    testModuleRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+compileTestModuleJava {
+    options.release = 11   // the lowest level these legs run at
+    dependsOn(jar)
+}
+
+//
+// An UNSIGNED, descriptor-less copy of bcprov, so an AUTOMATIC module is
+// derived from the file name. TWO removals, not one: bcprov is signed, and
+// leftover signature files fail descriptor derivation. Multi-Release must be
+// re-declared - the manifest goes with the digests, and bcprov keeps 1433
+// classes under versions/9.
+//
+tasks.register('bcprovAutomaticModuleJarUnsigned', Jar) {
+    description = 'UNSIGNED automatic-module copy of bcprov; spec source for the module legs only'
+    archiveFileName = 'bcprov-auto.jar'
+    destinationDirectory = layout.buildDirectory.dir('module-leg')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes('Multi-Release': 'true')
+    }
+    from {
+        configurations.testModuleRuntimeClasspath
+                .filter { it.name.startsWith('bcprov-jdk18on') }
+                .collect { zipTree(it) }
+    }
+    exclude 'META-INF/MANIFEST.MF'
+    exclude 'META-INF/versions/9/module-info.class'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.RSA'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.EC'
+}
+
+//
+// One Test task per cell. `iface` forces the bridge so a silent fall-back is
+// visible; `nativeAccess` decides whether --enable-native-access is passed.
+//
+def registerModuleLeg = { String name, int jdk, String cell, String iface, boolean nativeAccess ->
+    tasks.register(name, Test) {
+        group = 'verification'
+        description = "module-path leg: jdk${jdk}, bcprov=${cell}, ${iface}" +
+                (nativeAccess ? ", --enable-native-access" : "")
+
+        onlyIf { System.getenv("BC_JDK${jdk}") != null }
+        dependsOn(jar)
+        if (cell == 'automatic') {
+            dependsOn('bcprovAutomaticModuleJarUnsigned')
+        }
+
+        useJUnitPlatform()
+        testClassesDirs = sourceSets.testModule.output.classesDirs
+
+        def jarFile = jar.archiveFile.get().asFile
+        def autoJar = layout.buildDirectory.file('module-leg/bcprov-auto.jar').get().asFile
+        def isBcprov = { File f -> f.name.startsWith('bcprov-jdk18on') }
+        def withoutBcprov = sourceSets.testModule.runtimeClasspath.filter { !isBcprov(it) }
+
+        def modulePath = []
+        def addModules = 'org.openssl.jostle.prov'
+        if (cell == 'control') {
+            // On the classpath on purpose: the shape every other leg runs.
+            classpath = files(jarFile) + sourceSets.testModule.runtimeClasspath
+        } else if (cell == 'unnamed') {
+            classpath = sourceSets.testModule.runtimeClasspath
+            modulePath = [jarFile]
+        } else if (cell == 'named') {
+            classpath = withoutBcprov
+            modulePath = [jarFile, null]   // bcprov resolved below, lazily
+            addModules = 'org.openssl.jostle.prov,org.bouncycastle.provider'
+        } else if (cell == 'automatic') {
+            classpath = withoutBcprov
+            modulePath = [jarFile, autoJar]
+            addModules = 'org.openssl.jostle.prov,bcprov.auto'
+        } else {
+            throw new GradleException("unknown module-leg cell: ${cell}")
+        }
+
+        def extra = []
+        if (cell != 'control') {
+            extra += ['--module-path', '@MODULE_PATH@', '--add-modules', addModules]
+        }
+        if (nativeAccess) {
+            extra += "--enable-native-access=org.openssl.jostle.prov"
+        }
+
+        jvmArgs = extra + [
+                "-Dorg.openssl.jostle.loader.interface=${iface}".toString(),
+                "-Djostle.test.module.cell=${cell}".toString(),
+                "-Djostle.test.module.jar=${jarFile.absolutePath}".toString(),
+                "-Djostle.test.module.interface=${iface}".toString(),
+                "-Djostle.test.module.nativeaccess=${nativeAccess ? 'enabled' : 'default'}".toString(),
+                "-Dtest.java.version.prefix=${jdk}".toString(),
+                "-Dtest.java.interface_type=${iface}".toString()
+        ]
+
+        // ONE doFirst: doFirst PREPENDS, so a second block would run before
+        // this one and substitute a module path bcprov is not yet in.
+        doFirst {
+            if (cell == 'named') {
+                def bc = sourceSets.testModule.runtimeClasspath.find { isBcprov(it) }
+                if (bc == null) {
+                    throw new GradleException("bcprov is not on the testModule runtime classpath")
+                }
+                modulePath = [jarFile, bc]
+            }
+            def entries = modulePath.findAll { it != null }
+            entries.each { f ->
+                if (!f.exists()) {
+                    throw new GradleException("module path entry does not exist: ${f}")
+                }
+            }
+            def resolved = entries.collect { it.absolutePath }.join(File.pathSeparator)
+            jvmArgs = jvmArgs.collect { it == '@MODULE_PATH@' ? resolved : it }
+        }
+
+        forkEvery = 1
+        maxParallelForks = 1
+        maxHeapSize = '1536m'
+
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(jdk)
+        }
+
+        filter {
+            includeTestsMatching "org.openssl.jostle.test.module.*Test"
+        }
+    }
+}
+
+// JDK 11: JNI only, the module system's lowest level here.
+registerModuleLeg('moduleTest11Named', 11, 'named', 'jni', false)
+registerModuleLeg('moduleTest11Automatic', 11, 'automatic', 'jni', false)
+registerModuleLeg('moduleTest11Unnamed', 11, 'unnamed', 'jni', false)
+registerModuleLeg('moduleTest11Control', 11, 'control', 'jni', false)
+
+// JDK 25: FFI, the java25 layer, across the same four cells.
+registerModuleLeg('moduleTest25Named', 25, 'named', 'ffi', false)
+registerModuleLeg('moduleTest25Automatic', 25, 'automatic', 'ffi', false)
+registerModuleLeg('moduleTest25Unnamed', 25, 'unnamed', 'ffi', false)
+registerModuleLeg('moduleTest25Control', 25, 'control', 'ffi', false)
+
+// The native dimension, on the named cell only: it is about the natives, not
+// about where bcprov sits, so it does not multiply across the cells.
+registerModuleLeg('moduleTest25NamedJNI', 25, 'named', 'jni', false)
+registerModuleLeg('moduleTest25NamedNativeAccess', 25, 'named', 'ffi', true)
+
+tasks.register('moduleTest') {
+    group = 'verification'
+    description = 'every module-path leg'
+    dependsOn('moduleTest11Named', 'moduleTest11Automatic', 'moduleTest11Unnamed', 'moduleTest11Control',
+            'moduleTest25Named', 'moduleTest25Automatic', 'moduleTest25Unnamed', 'moduleTest25Control',
+            'moduleTest25NamedJNI', 'moduleTest25NamedNativeAccess')
+}
+
+
 test.dependsOn("integrationTest")
 
 

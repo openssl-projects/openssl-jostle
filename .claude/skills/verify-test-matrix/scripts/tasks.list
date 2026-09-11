@@ -33,3 +33,19 @@ unitTest25JNI         invoke,verify,targeted,fipssweep   BC_JDK25
 unitTest25FFI         invoke,verify,targeted,fipssweep   BC_JDK25
 integrationTest25JNI  invoke,verify,ops,targeted,fipssweep  BC_JDK25
 integrationTest25FFI  invoke,verify,ops,targeted,fipssweep  BC_JDK25
+
+# MT-96 module-path legs. Independent of TEST_FIPS_LIB: measured 2026-09-11
+# with the variable SET and explicitly UNSET, byte-identical output, because
+# these legs assert module structure and never register JSLFIPS. Each runs the
+# same 21 cells over the four bcprov placements; `control` is the classpath
+# shape the rest of the matrix already runs and is the falsification control.
+moduleTest11Named             invoke,verify                      BC_JDK11
+moduleTest11Automatic         invoke,verify                      BC_JDK11
+moduleTest11Unnamed           invoke,verify                      BC_JDK11
+moduleTest11Control           invoke,verify                      BC_JDK11
+moduleTest25Named             invoke,verify,targeted             BC_JDK25
+moduleTest25Automatic         invoke,verify                      BC_JDK25
+moduleTest25Unnamed           invoke,verify                      BC_JDK25
+moduleTest25Control           invoke,verify                      BC_JDK25
+moduleTest25NamedJNI          invoke,verify                      BC_JDK25
+moduleTest25NamedNativeAccess invoke,verify                      BC_JDK25
