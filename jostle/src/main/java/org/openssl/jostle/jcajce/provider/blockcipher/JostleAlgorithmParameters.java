@@ -10,50 +10,38 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
-import org.openssl.jostle.jcajce.provider.JostleProvider;
-
 import java.security.AlgorithmParameters;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 
 /**
- * Name-based resolution of an {@link AlgorithmParameters} from a Jostle
- * provider, for callers that have no provider INSTANCE to pin.
+ * Name-based resolution of an {@link AlgorithmParameters} from the SPI's OWN
+ * Jostle provider, for callers that have no provider INSTANCE to pin.
  *
- * <p>Since MT-18 the only such caller is a directly-constructed SPI (MT-14's
- * unbound realm). Everything reached through a provider resolves by instance
- * instead — see {@code BlockCipherSpi.resolveParameters}, which also records
- * why the pin matters.
+ * <p>The only such caller is a directly-constructed SPI (MT-14's unbound
+ * realm). Everything reached through a provider resolves by instance instead —
+ * see {@code BlockCipherSpi.resolveParameters}, which records why the pin
+ * matters.
  *
- * <p>The cross-Jostle fallback exists so a single-provider deployment still
- * resolves when the SPI's own provider is unregistered; both providers
- * register the same pure-Java codecs, so it is a functional no-op.
+ * <p>Resolution is to the named provider or nowhere. The fallback to the other
+ * Jostle provider was removed 2026-09-11 with zero measured reach (85
+ * registered Cipher services, none unbound); a JSLFIPS-named SPI served by JSL
+ * is the crossing MT-10 and MT-14 refuse.
  */
 final class JostleAlgorithmParameters
 {
-    /**
-     * Name of the FIPS provider. A string literal rather than a reference to
-     * {@code JostleFIPSProvider.PROVIDER_NAME} would risk drift; the constant
-     * reference is a compile-time String constant, so it does NOT trigger
-     * that class's initialisation (which performs the native FIPS load).
-     */
-    private static final String FIPS_PROVIDER_NAME =
-            org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider.PROVIDER_NAME;
-
     private JostleAlgorithmParameters()
     {
     }
 
     /**
-     * @param algorithm    a parameters algorithm both Jostle providers register
+     * @param algorithm    a parameters algorithm the named provider registers
      *                     (e.g. "CCM", "GCM").
      * @param providerName the provider the calling SPI belongs to.
-     * @return an instance from {@code providerName}, or from the other Jostle
-     * provider if that one is not registered.
-     * @throws NoSuchAlgorithmException when neither Jostle provider is
-     *                                  registered in this JVM (also covers the
-     *                                  never-expected case of a registered
-     *                                  Jostle provider lacking the algorithm).
+     * @return an instance from {@code providerName}.
+     * @throws NoSuchAlgorithmException when that provider is not registered in
+     *                                  this JVM, or does not serve the
+     *                                  algorithm.
      */
     static AlgorithmParameters getInstance(String algorithm, String providerName) throws NoSuchAlgorithmException
     {
@@ -63,19 +51,9 @@ final class JostleAlgorithmParameters
         }
         catch (NoSuchProviderException e)
         {
-            // The SPI's own provider is not registered — fall through.
-        }
-
-        String other = JostleProvider.PROVIDER_NAME.equals(providerName)
-                ? FIPS_PROVIDER_NAME : JostleProvider.PROVIDER_NAME;
-        try
-        {
-            return AlgorithmParameters.getInstance(algorithm, other);
-        }
-        catch (NoSuchProviderException e)
-        {
             throw new NoSuchAlgorithmException(
-                    "no Jostle provider registered to supply AlgorithmParameters." + algorithm, e);
+                    "provider " + providerName + " is not registered, so AlgorithmParameters."
+                            + algorithm + " cannot come from the provider this cipher belongs to", e);
         }
     }
 }

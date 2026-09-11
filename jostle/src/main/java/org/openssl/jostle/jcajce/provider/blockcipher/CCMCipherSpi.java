@@ -491,7 +491,8 @@ public class CCMCipherSpi extends CipherSpi
      *
      * <p>A directly-constructed SPI has no provider (MT-14's unbound realm)
      * and can only resolve by name; {@link JostleAlgorithmParameters} does
-     * that, preferring the SPI's own Jostle provider.
+     * that, from the SPI's own Jostle provider or nowhere. It does NOT fall
+     * back to the other Jostle provider — MT-97 removed that arm.
      */
     private AlgorithmParameters resolveParameters() throws NoSuchAlgorithmException
     {
