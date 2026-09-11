@@ -130,7 +130,7 @@ class ProvFIPSEC
         provider.addAlgorithmImplementation("KeyAgreement", name,
                 ECWithKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider), digestName,
-                        JostleFIPSProvider.PROVIDER_NAME));
+                        provider));
         provider.addAlias("KeyAgreement", name, oid);
     }
 }

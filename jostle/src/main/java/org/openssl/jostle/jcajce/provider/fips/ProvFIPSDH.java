@@ -75,7 +75,7 @@ class ProvFIPSDH
         provider.addAlgorithmImplementation("KeyAgreement", "DHWITHRFC2631KDF",
                 DHWithKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new DHWithKDFKeyAgreementSpi(FIPSNISelector.DHServiceNI, keyFactory(provider),
-                        "SHA-1", JostleFIPSProvider.PROVIDER_NAME));
+                        "SHA-1", provider));
         provider.addAlias("KeyAgreement", "DHWITHRFC2631KDF",
                 ID_ALG_ESDH, ID_ALG_SSDH);
     }

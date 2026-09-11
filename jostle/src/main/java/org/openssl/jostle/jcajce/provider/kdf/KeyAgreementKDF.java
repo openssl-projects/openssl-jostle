@@ -97,10 +97,42 @@ public final class KeyAgreementKDF
         }
     }
 
+    /**
+     * Resolve the digest from the calling SPI's provider INSTANCE where it has
+     * one, falling back to its name. {@code getInstance(String, Provider)}
+     * reads the provider object and never consults the registry, so the KDF
+     * runs in the provider the caller asked for even when a different instance
+     * answers to its name.
+     *
+     * <p>PRECEDENCE, because two arguments could disagree: the instance wins
+     * outright and {@code providerName} is read ONLY when it is null. Nothing
+     * here retains the pair, so a mismatched call cannot compute the KEK in
+     * one provider and name another in a message — unlike a class that stores
+     * both, which must derive one from the other.
+     */
+    private static MessageDigest digest(java.security.Provider ownProvider, String providerName,
+                                        String digest)
+            throws NoSuchAlgorithmException
+    {
+        if (ownProvider != null)
+        {
+            return MessageDigest.getInstance(digest, ownProvider);
+        }
+        return digest(providerName, digest);
+    }
+
     public static byte[] x942(String providerName, String digest, byte[] zz, String wrapOid, int keyLenBytes, byte[] ukm)
             throws NoSuchAlgorithmException
     {
-        MessageDigest md = digest(providerName, digest);
+        return x942(null, providerName, digest, zz, wrapOid, keyLenBytes, ukm);
+    }
+
+    /** Instance-bound form; {@code providerName} is the fallback and the message text. */
+    public static byte[] x942(java.security.Provider ownProvider, String providerName,
+                              String digest, byte[] zz, String wrapOid, int keyLenBytes, byte[] ukm)
+            throws NoSuchAlgorithmException
+    {
+        MessageDigest md = digest(ownProvider, providerName, digest);
         int digLen = md.getDigestLength();
         int blocks = (keyLenBytes + digLen - 1) / digLen;
 
@@ -128,7 +160,15 @@ public final class KeyAgreementKDF
     public static byte[] x963(String providerName, String digest, byte[] zz, int keyLenBytes, byte[] sharedInfo)
             throws NoSuchAlgorithmException
     {
-        MessageDigest md = digest(providerName, digest);
+        return x963(null, providerName, digest, zz, keyLenBytes, sharedInfo);
+    }
+
+    /** Instance-bound form; {@code providerName} is the fallback and the message text. */
+    public static byte[] x963(java.security.Provider ownProvider, String providerName,
+                              String digest, byte[] zz, int keyLenBytes, byte[] sharedInfo)
+            throws NoSuchAlgorithmException
+    {
+        MessageDigest md = digest(ownProvider, providerName, digest);
         int digLen = md.getDigestLength();
         int blocks = (keyLenBytes + digLen - 1) / digLen;
 

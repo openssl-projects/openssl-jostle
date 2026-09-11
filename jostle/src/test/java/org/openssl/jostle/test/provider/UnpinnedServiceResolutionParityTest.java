@@ -93,7 +93,14 @@ public class UnpinnedServiceResolutionParityTest
             // registered, so no foreign provider can serve through it.
             "JostleAlgorithmParameters:AlgorithmParameters",
             // Same unbound realm, reached from the generators' null-provider
-            // constructors.
+            // constructors — but NOT the same resolution. Unlike the entry
+            // above these arms name NO provider at all, so a directly
+            // constructed generator takes JCA order and may return another
+            // provider's AlgorithmParameters; measured on a bare JVM, SunJCE
+            // serves both names. The sanction stands because the realm has no
+            // instance to pin and the objects are public ASN.1 parameter
+            // codecs carrying no key material, but the reason is "nothing to
+            // pin", not "pinned by name".
             "DHAlgorithmParameterGenerator:AlgorithmParameters",
             "DSAAlgorithmParameterGenerator:AlgorithmParameters"
     )));

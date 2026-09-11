@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import org.openssl.jostle.jcajce.provider.kdf.KeyAgreementKDF;
 import org.openssl.jostle.util.Arrays;
 
@@ -47,20 +48,15 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     private byte[] ukm;
 
 
-    /**
-     * The provider this SPI belongs to, sourced from construction rather than
-     * hard-coded: the same class serves JSL and JSLFIPS, so a constant would
-     * name the wrong one for half its instances. Used to resolve the KDF
-     * digest, so the derivation runs inside the provider that owns the
-     * operation. See MT-5.
-     */
-    private final String providerName;
+    /** One fact, one field — see {@link ProviderBinding}. */
+    private final ProviderBinding binding;
+
 
     public DHWithKDFKeyAgreementSpi(String digest)
     {
         this.digest = digest;
         // The convenience constructor is the base provider's.
-        this.providerName = JostleProvider.PROVIDER_NAME;
+        this.binding = ProviderBinding.ofName(JostleProvider.PROVIDER_NAME);
     }
 
     //
@@ -71,7 +67,19 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     {
         super(dhServiceNI, keyFactory);
         this.digest = digest;
-        this.providerName = providerName;
+        this.binding = ProviderBinding.ofName(providerName);
+    }
+
+    //
+    // Provider-bound form: the KDF digest comes from the instance that owns
+    // the agreement, not from whatever answers to its name.
+    //
+    public DHWithKDFKeyAgreementSpi(DHServiceNI dhServiceNI, DHKeyFactorySpi keyFactory, String digest,
+            java.security.Provider providerInstance)
+    {
+        super(dhServiceNI, keyFactory);
+        this.digest = digest;
+        this.binding = ProviderBinding.of(providerInstance);
     }
 
     @Override
@@ -142,7 +150,7 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
             // byte-for-byte (BC's KeyAgreement surface does not odd-parity-adjust
             // the 3DES KEK; DES wrapping ignores the parity bits). An earlier
             // parity adjustment here broke BC agreement and was removed.
-            kek = KeyAgreementKDF.x942(providerName, digest, zz, algorithm, keyLen, ukm);
+            kek = KeyAgreementKDF.x942(binding.instance(), binding.name(), digest, zz, algorithm, keyLen, ukm);
             return new SecretKeySpec(kek, keyAlg);
         }
         finally

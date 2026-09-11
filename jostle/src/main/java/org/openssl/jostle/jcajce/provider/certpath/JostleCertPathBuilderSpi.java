@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.certpath;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilderException;
 import java.security.cert.CertPathBuilderResult;
@@ -49,10 +50,10 @@ public class JostleCertPathBuilderSpi
     private final CertPathNI ni;
 
     /**
-     * The provider this SPI belongs to, or null when constructed outside any
-     * provider. Read only by {@link #x509Factory()}.
+     * Which provider this SPI belongs to — instance when registered, name in
+     * MT-14's unbound realm. One fact, one field; see {@link ProviderBinding}.
      */
-    private final Provider providerInstance;
+    private final ProviderBinding binding;
 
     public JostleCertPathBuilderSpi()
     {
@@ -72,7 +73,10 @@ public class JostleCertPathBuilderSpi
     public JostleCertPathBuilderSpi(CertPathNI ni, Provider providerInstance)
     {
         this.ni = ni;
-        this.providerInstance = providerInstance;
+        this.binding = (providerInstance != null)
+                ? ProviderBinding.of(providerInstance)
+                : ProviderBinding.ofName(
+                        org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
     }
 
     /**
@@ -89,14 +93,13 @@ public class JostleCertPathBuilderSpi
      */
     private CertificateFactory x509Factory() throws CertificateException
     {
-        if (providerInstance != null)
+        if (binding.instance() != null)
         {
-            return CertificateFactory.getInstance("X.509", providerInstance);
+            return CertificateFactory.getInstance("X.509", binding.instance());
         }
         try
         {
-            return CertificateFactory.getInstance("X.509",
-                    org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+            return CertificateFactory.getInstance("X.509", binding.name());
         }
         catch (NoSuchProviderException e)
         {

@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -73,7 +74,8 @@ public class ProviderPinningParityTest
     /** JCA types whose {@code getInstance} performs or keys cryptography. */
     private static final String CRYPTO_TYPES =
             "MessageDigest|Mac|Cipher|SecretKeyFactory|KeyFactory|KeyAgreement"
-                    + "|Signature|KeyGenerator|KeyPairGenerator|SecureRandom";
+                    + "|Signature|KeyGenerator|KeyPairGenerator|SecureRandom"
+                    + "|AlgorithmParameters";
 
     private static final Pattern CALL = Pattern.compile(
             "\\b(" + CRYPTO_TYPES + ")\\s*\\.\\s*getInstance\\s*\\(([^;]*?)\\)", Pattern.DOTALL);
@@ -87,11 +89,49 @@ public class ProviderPinningParityTest
      * Sanctioned exceptions, each with the reason it is sound. An entry here
      * is a claim that the pin is CORRECT, not that the check is inconvenient.
      */
-    private static final Set<String> EXEMPT_FILES = new HashSet<String>(Arrays.asList(
-            // JSL-only by construction: there is no ProvFIPSKS, KSServiceSPI is
-            // referenced nowhere under fips/, and `ks` is on the nonfips-only
-            // sanction list in the native tree. Naming JSL is correct here.
-            "KSServiceSPI.java"));
+    /**
+     * File-level exemptions. EMPTY since 2026-09-11: {@code KSServiceSPI.java}
+     * was the only entry, on the grounds that "JSL-only by construction, so
+     * naming JSL is correct here". That answered WHICH provider and not
+     * name-versus-instance, and the gap it left was measurable — a KeyStore
+     * obtained from the JSL provider OBJECT could not read back its own
+     * entries once the name was unregistered. The SPI now carries the
+     * instance, so the exemption is gone rather than reworded.
+     */
+    private static final Set<String> EXEMPT_FILES = Collections.<String>emptySet();
+
+    /**
+     * Sites that legitimately name NO provider, keyed
+     * {@code <SimpleClassName>:<type>} so a carve-out cannot widen to a file.
+     *
+     * <p>{@code AlgorithmParameters} used to be exempt BY TYPE here, on the
+     * grounds that it is ASN.1 codec work rather than cryptography. True, and
+     * it is also why MT-89's cross-provider CCM crossing was invisible to this
+     * guard. The type is now in scope; measured, the exemption was covering
+     * exactly these two sites and nothing else.
+     */
+    private static final Set<String> ALLOWED_UNPINNED =
+            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+                    // MT-14's unbound realm, reached only from the generators'
+                    // null-provider constructors: there is no instance to pin
+                    // and the objects are public parameter codecs carrying no
+                    // key material. UnpinnedServiceResolutionParityTest owns
+                    // the sanction and records the measurement.
+                    "DHAlgorithmParameterGenerator:AlgorithmParameters",
+                    "DSAAlgorithmParameterGenerator:AlgorithmParameters")));
+
+    /**
+     * Sites that legitimately hard-code the base provider's NAME, same key
+     * shape. Each is an unbound-realm FALLBACK sitting beside an
+     * instance-pinned arm, and
+     * {@code ProviderInstancePinningParityTest} owns them: it counts the
+     * sanctioned sites and additionally requires the bound arm to still
+     * exist, which a file-level exemption here could not do. That is why
+     * {@code KSServiceSPI.java} is no longer exempt as a file.
+     */
+    private static final Set<String> ALLOWED_BASE_NAME =
+            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+                    "KSServiceSPI:KeyFactory")));
 
     @Test
     public void everyCryptoGetInstanceNamesItsOwnProvider()
@@ -129,9 +169,13 @@ public class ProviderPinningParityTest
 
                     if (args.contains("JostleProvider.PROVIDER_NAME"))
                     {
-                        hardPinned.add(where);
+                        if (!ALLOWED_BASE_NAME.contains(name.replace(".java", "") + ":" + m.group(1)))
+                        {
+                            hardPinned.add(where);
+                        }
                     }
-                    else if (!namesAProvider(args))
+                    else if (!namesAProvider(args)
+                            && !ALLOWED_UNPINNED.contains(name.replace(".java", "") + ":" + m.group(1)))
                     {
                         unpinned.add(where);
                     }

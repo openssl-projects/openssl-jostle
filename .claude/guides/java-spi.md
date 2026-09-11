@@ -98,6 +98,78 @@ Two practical constraints when caching:
 **Disambiguation from "Hard-code security-critical OpenSSL parameters" (native-code.md).** These rules sound opposite but govern opposite directions of data flow. That rule is about a value *we set* to pin a security property OpenSSL would otherwise leave to a mutable default (`implicit_rejection = 1`, the RSA padding mode, a PSS salt-length sentinel) — an **input we choose**, which must be set explicitly so the intent survives drift, and backed by a runtime hard-guard test. This rule is about a value *OpenSSL defines and reports* (a size, a strength, a limit) — an **output we read**, which must never be transcribed. The test: *are we telling OpenSSL something, or asking it something?* Telling → hard-code the value explicitly and guard it. Asking → query and cache, never tabulate. Genuinely external constants that OpenSSL does not own — JCE algorithm names, ASN.1 OID strings, a per-mode default tag length chosen for BouncyCastle parity — are outside this rule; but anything OpenSSL can be asked for must be asked, not typed.
 
 
+### One fact, one field
+
+**A value derivable from another field is COMPUTED, never stored beside it;
+two fields that must agree will eventually not.** (Megan, 2026-09-11.)
+
+The instance: MT-99's first shape gave four classes a `Provider providerInstance`
+AND a `String providerName`. Nothing reconciled them, and the pair was not
+inert — the INSTANCE decided which provider did the work while the NAME reached
+the `ProviderException` messages and the re-wrap policy comparison, so a
+divergent pair performs the operation in one provider and names another.
+Every constructor maintained the invariant separately, and one of them
+(`JSLKeyX509Certificate`'s, package-private) took both as independent arguments
+and checked nothing.
+
+Note what made it hard to see: the instance always WON, so a divergent pair
+changed no output — only the diagnostics, on a path no caller reaches today. A
+behavioural test passes against the broken shape. This is a design defect
+findable by reading and by a structural guard, and by nothing else.
+
+The fix is not to validate the pair, nor to derive one from the other in each
+constructor, but to remove the second fact: `ProviderBinding`
+(`jcajce/provider/binding/`) holds ONE field — a `Provider` or a name, never
+both — and `name()` derives the name from the instance. There is no
+constructor anywhere that accepts an instance and a name as independent
+arguments, so the disagreement is unrepresentable. Where the two genuinely
+must travel together as PARAMETERS (`KeyAgreementKDF.x942` takes both, and
+stores neither), they are computed at the point of use from the single field
+and the precedence is stated: the instance wins, the name is read only when it
+is null.
+
+**WHICH classes take a `ProviderBinding`, measured, because "some do and some
+do not" is the next reader's first question** (Megan asked it, 2026-09-11).
+36 production classes carry a provider. The boundary is whether the class must
+answer "which provider" in BOTH forms:
+
+| shape | classes | holds |
+|---|---|---|
+| instance when bound, NAME when unbound | `X509CertificateFactorySpi`, `JSLKeyX509Certificate`, `DH`/`ECWithKDFKeyAgreementSpi`, `KSServiceSPI`, `JostleCertPathBuilderSpi` | one `ProviderBinding` |
+| instance only, no name anywhere | the other 30 (key factories, key-pair generators, `RFC3211WrapCipherSpi`, `UnwrappedKeys`, `KtsKdf`, the KTS ciphers, `PKEYKeySpec`, …) | a plain `Provider` |
+
+A class that only ever needs the instance already holds one fact, and wrapping
+it buys nothing. `BlockCipherSpi` and `CCMCipherSpi` sit just inside the second
+row despite having a name fallback: their name comes from
+`blockCipherNi.providerName()` at the point of use and is never stored, so
+there is no second field to disagree.
+
+The first version of this change converted only the classes where the pair had
+just been introduced — a change-minimisation rule, not a design rule — and left
+`KSServiceSPI` and `JostleCertPathBuilderSpi` in the first row holding a raw
+`Provider`. Same shape, different treatment, no reason. If a rule cannot be
+stated as a row in a table like the one above, it is not a rule.
+
+**Refactoring hazard met on the way, worth its own sentence: an implicit
+`super()` COMPILES.** Converting the name-only constructors from `this(...)`
+delegation to direct field assignment silently dropped their
+`super(serviceNI, keyFactory)` call — javac inserts the no-argument super
+constructor and says nothing, so the SPI would have run with the default NI
+and key factory. Nothing in the suite fails: the registrations all use the
+other constructor. When you replace a `this(...)` delegation with a body,
+check what the delegate was calling before it, not only what it assigned.
+
+Guarded by `X509CertificateFactoryProviderBindingTest
+.noProviderCarryingClassHoldsTheInstanceAndTheNameApart`, which COUNTS the
+fields carrying a provider identity (`Provider`, `ProviderBinding`, or a
+`String` whose name says so) and requires at most one, and reads the SOURCE for
+the constructor half. Two traps, both hit while falsifying it: a reflective
+constructor check cannot tell `String providerName` from `String digest` and
+flagged two correct classes; and a field check demanding a `Provider` field AND
+a name field stops catching anything the moment the `Provider` field becomes a
+binding — measured, a stray `String providerName` beside the binding went
+unflagged until the check counted carriers instead.
+
 ### Review Java SPI and provider plumbing for the bug classes positive-only tests can't catch
 
 The JCE SPI surface is a contract-heavy state machine: subtle exception-type expectations, transition rules, parameter-handling defaults, and provider-fallback semantics that a positive-only roundtrip test never surfaces. Most of these bugs become visible only under specific use patterns — wrong exception type breaking provider fallback, mis-registered cipher transformations silently downgrading the digest, GC reclaiming a key handle mid-call, or a multi-release ABI drift only visible to downstream callers compiled against the older view. When reviewing Java in `jostle/src/main/java/`, `jostle/src/main/java<N>/`, and `jostle/src/test/java/`, look for these classes specifically.

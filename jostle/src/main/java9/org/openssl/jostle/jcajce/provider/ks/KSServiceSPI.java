@@ -14,6 +14,7 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.PKCS12LoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -109,12 +110,31 @@ public class KSServiceSPI
     // special strength; load/verify consume no entropy at all).
     private final RandSource randSource = DefaultRandSource.replaceWith(null, null, 128);
 
+    /**
+     * Which provider this SPI belongs to — instance when registered, name in
+     * MT-14's unbound realm. One fact, one field; see {@link ProviderBinding}.
+     *
+     * <p>Read when rebuilding a stored key or certificate chain: those objects
+     * are this keystore's RESULT, so the provider that decodes them must be
+     * the one the caller asked for. A name is re-resolvable, and a keystore
+     * obtained from an unregistered instance could not read back its own
+     * entries.
+     */
+    private final ProviderBinding binding;
+
     public KSServiceSPI()
     {
         // Bare PKCS12: modern default -- AES-256-CBC keys, AES-128-CBC certs
         // (PBES2 / PBKDF2-HMAC-SHA256), HMAC-SHA256 integrity MAC.
         this(NISelector.KSServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
-                PBE_ITERATIONS, MAC_ITERATIONS);
+                PBE_ITERATIONS, MAC_ITERATIONS, null);
+    }
+
+    /** The registered form: bound to the provider that offers this service. */
+    public KSServiceSPI(java.security.Provider providerInstance)
+    {
+        this(NISelector.KSServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
     }
 
     /**
@@ -130,18 +150,42 @@ public class KSServiceSPI
     public KSServiceSPI(KSServiceNI ksServiceNI)
     {
         this(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
-                PBE_ITERATIONS, MAC_ITERATIONS);
+                PBE_ITERATIONS, MAC_ITERATIONS, null);
+    }
+
+    /** NI-bound and provider-bound; the form a future FIPS registrar needs. */
+    public KSServiceSPI(KSServiceNI ksServiceNI, java.security.Provider providerInstance)
+    {
+        this(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
     }
 
     protected KSServiceSPI(int keyPbe, int certPbe, int macScheme, int macDigest,
                            int pbeIter, int macIter)
     {
-        this(NISelector.KSServiceNI, keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter);
+        this(NISelector.KSServiceNI, keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, null);
+    }
+
+    protected KSServiceSPI(int keyPbe, int certPbe, int macScheme, int macDigest,
+                           int pbeIter, int macIter, java.security.Provider providerInstance)
+    {
+        this(NISelector.KSServiceNI, keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter,
+                providerInstance);
     }
 
     protected KSServiceSPI(KSServiceNI ksServiceNI, int keyPbe, int certPbe, int macScheme,
                            int macDigest, int pbeIter, int macIter)
     {
+        this(ksServiceNI, keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, null);
+    }
+
+    protected KSServiceSPI(KSServiceNI ksServiceNI, int keyPbe, int certPbe, int macScheme,
+                           int macDigest, int pbeIter, int macIter,
+                           java.security.Provider providerInstance)
+    {
+        this.binding = (providerInstance != null)
+                ? ProviderBinding.of(providerInstance)
+                : ProviderBinding.ofName(JostleProvider.PROVIDER_NAME);
         this.ksServiceNI = ksServiceNI;
         this.ref = new KSReference(ksServiceNI, ksServiceNI.allocateKeyStore(BASE_TYPE), BASE_TYPE);
         this.keyPbe = keyPbe;
@@ -165,6 +209,12 @@ public class KSServiceSPI
                     PBE_ITERATIONS, MAC_ITERATIONS);
         }
 
+        public PKCS12_3DES_3DES(java.security.Provider providerInstance)
+        {
+            super(PBE_3DES, PBE_3DES, MAC_TRADITIONAL, MD_SHA1,
+                    PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
+        }
+
         public PKCS12_3DES_3DES(KSServiceNI ksServiceNI)
         {
             super(ksServiceNI, PBE_3DES, PBE_3DES, MAC_TRADITIONAL, MD_SHA1,
@@ -185,6 +235,12 @@ public class KSServiceSPI
                     PBE_ITERATIONS, MAC_ITERATIONS);
         }
 
+        public PKCS12_AES256_AES128(java.security.Provider providerInstance)
+        {
+            super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
+                    PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
+        }
+
         public PKCS12_AES256_AES128(KSServiceNI ksServiceNI)
         {
             super(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
@@ -203,6 +259,12 @@ public class KSServiceSPI
         {
             super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_PBMAC1, MD_SHA512,
                     PBE_ITERATIONS, PBMAC1_ITERATIONS);
+        }
+
+        public PKCS12_PBMAC1(java.security.Provider providerInstance)
+        {
+            super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_PBMAC1, MD_SHA512,
+                    PBE_ITERATIONS, PBMAC1_ITERATIONS, providerInstance);
         }
 
         public PKCS12_PBMAC1(KSServiceNI ksServiceNI)
@@ -989,14 +1051,19 @@ public class KSServiceSPI
 
     }
 
-    private static PrivateKey generatePrivateKey(byte[] encoded)
+    private PrivateKey generatePrivateKey(byte[] encoded)
         throws NoSuchAlgorithmException, InvalidKeySpecException
     {
         PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(encoded, 0, encoded.length);
         String algorithm = keyFactoryAlgorithm(spec.getType());
+        if (binding.instance() != null)
+        {
+            return KeyFactory.getInstance(algorithm, binding.instance())
+                    .generatePrivate(new PKCS8EncodedKeySpec(encoded));
+        }
         try
         {
-            return KeyFactory.getInstance(algorithm, JostleProvider.PROVIDER_NAME)
+            return KeyFactory.getInstance(algorithm, binding.name())
                     .generatePrivate(new PKCS8EncodedKeySpec(encoded));
         }
         catch (NoSuchProviderException e)
@@ -1149,7 +1216,7 @@ public class KSServiceSPI
         return out.toByteArray();
     }
 
-    private static Certificate[] decodeCertificateChain(byte[] encoded)
+    private Certificate[] decodeCertificateChain(byte[] encoded)
         throws CertificateException, IOException
     {
         if (encoded == null || encoded.length == 0)
@@ -1158,17 +1225,23 @@ public class KSServiceSPI
         }
 
         CertificateFactory factory;
-        try
+        if (binding.instance() != null)
         {
-            factory = CertificateFactory.getInstance("X.509",
-                    JostleProvider.PROVIDER_NAME);
+            factory = CertificateFactory.getInstance("X.509", binding.instance());
         }
-        catch (NoSuchProviderException e)
+        else
         {
-            CertificateException ce =
-                    new CertificateException("Jostle provider is not registered");
-            ce.initCause(e);
-            throw ce;
+            try
+            {
+                factory = CertificateFactory.getInstance("X.509", binding.name());
+            }
+            catch (NoSuchProviderException e)
+            {
+                CertificateException ce =
+                        new CertificateException("Jostle provider is not registered");
+                ce.initCause(e);
+                throw ce;
+            }
         }
 
         // The native side serialised the chain as concatenated DER; the X.509

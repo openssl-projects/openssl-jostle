@@ -109,31 +109,31 @@ class ProvEC
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA1KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), "SHA-1", JostleProvider.PROVIDER_NAME));
+                        keyFactory(provider), "SHA-1", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA1KDF", "1.3.133.16.840.63.0.2");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA224KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), "SHA-224", JostleProvider.PROVIDER_NAME));
+                        keyFactory(provider), "SHA-224", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA224KDF", "1.3.132.1.11.0");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA256KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), "SHA-256", JostleProvider.PROVIDER_NAME));
+                        keyFactory(provider), "SHA-256", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA256KDF", "1.3.132.1.11.1");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA384KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), "SHA-384", JostleProvider.PROVIDER_NAME));
+                        keyFactory(provider), "SHA-384", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA384KDF", "1.3.132.1.11.2");
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA512KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), "SHA-512", JostleProvider.PROVIDER_NAME));
+                        keyFactory(provider), "SHA-512", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", "1.3.132.1.11.3");
     }
 

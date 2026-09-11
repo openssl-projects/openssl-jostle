@@ -96,7 +96,7 @@ class ProvDH
         provider.addAlgorithmImplementation("KeyAgreement", "DHWITHRFC2631KDF",
                 DHWithKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new DHWithKDFKeyAgreementSpi(NISelector.DHServiceNI,
-                        keyFactory(provider), "SHA-1", JostleProvider.PROVIDER_NAME));
+                        keyFactory(provider), "SHA-1", provider));
         provider.addAlias("KeyAgreement", "DHWITHRFC2631KDF",
                 ID_ALG_ESDH, ID_ALG_SSDH);
     }

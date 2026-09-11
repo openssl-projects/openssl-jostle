@@ -63,6 +63,42 @@ shared value once and pass it to both.
 
 Revert the sabotage, rebuild, and re-verify green before declaring done. For native changes that means re-running `interface/build.sh` — the Gradle build does not recompile C.
 
+**A REFLECTIVE guard sees only the copy the JVM loaded, so it reports clean
+for every other `javaN` copy.** The multi-release trap one level up: not a
+sabotage that fails to land, but an INSTRUMENT that cannot see where the
+sabotage landed. Measured 2026-09-11 while falsifying the one-fact-one-field
+scan: a `String providerName` added to `KSServiceSPI`'s BASELINE copy left the
+reflective check green on JDK 25, because `Class.forName` had loaded the
+`java9` twin. `getDeclaredFields` and `getDeclaredConstructors` answer about
+one copy and say nothing about the rest. A source-level guard over a
+multi-release class reads EVERY level (`java`, `java9`, …) through one reader;
+reflection is for the loaded copy only, and then only as a second witness.
+Pair it with a per-class vacuity rule — a class yielding ZERO matches is an
+offence, not a pass, because that is what "the scanner is not reading this
+file" looks like.
+
+**A WRAPPER that delegates `equals`, and a KEY that compares by value, both
+blind an assertion to PROVENANCE.** `JSLKeyX509Certificate` delegates `equals`,
+so `CertPathBuilderTest.buildsThePathToASelectedTarget`'s
+`assertEquals(ee, built.get(0))` passed identically before and after MT-99 —
+the suite could never have seen a SUN factory decoding our own result. Ask the
+object which provider made it, not whether it equals something.
+
+**Generalised, and this is the sharper form (2026-09-11): where the thing under
+test is WHICH provider did the work, any earlier successful call on EQUAL
+inputs can cache the answer, and the probe then reaches nothing.** Measured
+while falsifying MT-99's `verify` pin. `X509CertImpl.verify` short-circuits
+when `verifiedPublicKey.equals(key)` AND the provider STRING matches;
+`AsymmetricKeyImpl` gives Jostle keys value equality on the encoding; and
+SUN's `X509Factory` returns the SAME instance for a repeated DER. So a control
+`verify` performed while the provider was registered cached the answer, and
+the call under test — the same certificate, a re-derived but EQUAL key, the
+same provider string — returned without resolving a Signature at all. The cell
+stayed GREEN under a sabotage that reverted the pin. The fix is ordering: run
+the cell that must reach the code FIRST, and take the control from a different
+object or a different test. A "control" in the same cell can disarm the
+discriminator, which is the opposite of what a control is for.
+
 **The multi-release trap is not confined to sabotage — it bites ORDINARY edits, and there it has no falsification step to catch it.** Rule 2 above frames `javaN/` overrides as a reason a sabotage silently fails to land. The same mechanism swallows a normal fix: MT-17 converted `ProvRand`'s registered class names in `src/main/java/`, rebuilt, and the JDK-25 probe still reported the OLD names for all 18 SecureRandom services, because `META-INF/versions/9/.../ProvRand.class` is what runs. Every source-level check said the edit had landed, and the jar's baseline entry genuinely was correct. Only a probe that measures BEHAVIOUR — enumerate the services and read what they report — showed otherwise; a source sweep would have declared the file done and shipped 18 wrong names. So before declaring any edit complete, ask whether the class has an override: `find jostle/src/main -name "<Class>.java" | grep -v src/main/java/` (for registrars, `-name "Prov*.java"` lists all of them — there are exactly two, `ProvRand` and `ProvFIPSRand`). And prefer a behavioural probe over a source grep when confirming a sweep is complete, because only the former can see which copy the JVM loads.
 
 ### Landing a check that is inert until a later flip: ADDITIVE is relative to what EXISTS
@@ -170,6 +206,30 @@ GREEN, then sabotage one site and require RED naming that site. Both halves.
 The green half is the one that gets skipped, and it is the one that catches all
 three traps above.
 
+**An exemption list must COUNT the sites it sanctions, and a FALLBACK sanction
+must name the bound arm it sits beside.** A text-keyed lint cannot tell two
+identical sites apart, so presence-only checking fails in three ways, all
+measured while falsifying `ProviderInstancePinningParityTest` (2026-09-11):
+
+1. **Stale.** An entry matching nothing reads exactly like a justified one.
+   Count 0 must fail.
+2. **Taken cover.** A NEW bad site whose text equals a sanctioned one is
+   invisible to a presence check. Turning `KeyAgreementKDF`'s instance
+   resolution back to a name produced a second site keyed identically to the
+   sanctioned fallback; only the count moved (1 -> 2).
+3. **Substituted.** Deleting the instance arm and keeping the name arm leaves
+   the count UNCHANGED. `JSLKeyX509Certificate`'s ternary was exactly that
+   shape and both the presence check and the count missed it. So a fallback
+   entry names the `<class>:<call>` that must still pin an instance, and the
+   guard fails when that bound arm disappears.
+
+Name the bound sibling EXPLICITLY rather than deriving it from the entry's own
+key: the block ciphers' fallback goes through `JostleAlgorithmParameters` while
+their bound arm calls `AlgorithmParameters`, so a derived sibling flagged two
+CORRECT sites. That over-firing was caught only by reading every line of the
+sabotaged run instead of the one line expected — the both-directions rule
+applied to the run's OUTPUT, not just to its inputs.
+
 ### Vary the chunking, and randomise the inputs
 
 Streaming algorithms (block ciphers, AEAD, digests, MACs, signatures) all have a buffering layer that absorbs partial blocks. A test that only calls `processBytes(wholeMessage, 0, len)` won't exercise the partial-block path; a test that only feeds bytes one at a time won't exercise the bulk path. Implementations have shipped where one path was right and the other returned garbage — and the native paths in this codebase deliberately buffer differently from the pure-Java paths (see "Behavioural difference vs. upstream BC" above), so the same input chunked differently is exactly the case where Java and native diverge.
@@ -261,6 +321,23 @@ Same shape as the stale-XML and `strings`-cannot-see-`__LINKEDIT` cases: **a
 negative result from an instrument that cannot see the thing is
 indistinguishable from the thing's absence.** Before believing a targeted run,
 check it produced result files for the classes you named.
+
+**A guard class a filter never SELECTED is not a guard that passed.** The
+corollary of the above, and the one that reads as success: a targeted matrix
+that omits the cross-cutting lints leaves them unrun, and their absence from
+the result summary looks exactly like their silence. Two satisfied trees were
+red at HEAD for that reason, found by an accidental full leg (MT-98). Name the
+guard classes in every targeted run and check the per-class counts.
+
+**`--tests` does NOT narrow the base `:jostle:test` task, and that task drags
+in the integration legs.** Measured 2026-09-11: `./gradlew :jostle:test --tests
+'<one class>'` ran the whole leg plus `integrationTest8/11/17/21/25` and
+`unitTest11`, taking 18m41s, because `jostle/build.gradle` gives that task its
+own `filter { includeTestsMatching "*Test*" }` block. For ten minutes it read
+as a hang. This is a DIFFERENT trap from `--tests` binding only to the LAST
+task named; both over-run rather than under-run, so the cost is time and a
+misdiagnosis rather than a false green. Target a `unitTestNN` leg when you want
+one class.
 
 ### Falsify a gate's COUNT against a known-bad input, and do it first
 
@@ -433,6 +510,13 @@ The general form: **verify the state you care about, not the command you ran to
 reach it.** A negative result from an instrument that cannot see the thing is
 indistinguishable from the thing's absence, so a wrong instrument fails silently
 and in the reassuring direction.
+
+8. **An expiry is checked against a CLOCK, not against a sense of continuity.**
+   A time-boxed authorisation lapses while you are idle, and nothing in the
+   session says so — the work still feels like one unbroken stretch. A commit
+   landed 2h07m outside its window on exactly that reasoning. Print `date`
+   immediately before the action and quote it in the report; the same
+   instrument-discipline that applies to a daemon count applies to a grant.
 
 ### Answer "which legs cover the file I touched" BEFORE choosing the verification set
 
