@@ -4,10 +4,11 @@
 > Do not edit by hand — re-run the skill to refresh it.
 >
 > **EXCEPT the JSLFIPS two-module prose** (the "Two modules are supported"
-> statement, the per-family gating notes, and the GMAC/KMAC caveats). That is
-> HAND-MAINTAINED and lives nowhere in the generator, which emits only a
-> single-module preamble. Regeneration WILL drop it — diff against the previous
-> version and splice it back.
+> statement, the per-family gating notes, and the GMAC/KMAC caveats) **and the
+> CertPathValidator / CertPathBuilder caveats below**. Those are
+> HAND-MAINTAINED and live nowhere in the generator, which emits only a
+> single-module preamble and bare algorithm lists. Regeneration WILL drop them
+> — diff against the previous version and splice them back.
 
 The Jostle (`JSL`) provider registers **356** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
@@ -46,6 +47,31 @@ The Jostle (`JSL`) provider registers **356** services across **16** JCA service
 ## CertPathValidator (1)
 
 1. `PKIX`
+
+**What PKIX path validation covers here.** Revocation IS checked: CRLs come
+from the caller's `CertStore`s and `setRevocationEnabled(true)` — the JCE
+default — checks the WHOLE path, so a certificate with no usable CRL fails
+with `UNDETERMINED_REVOCATION_STATUS` rather than passing.
+
+With revocation on the validator also reads the CertStores' CERTIFICATES,
+which an indirect CRL issuer needs — never as path members, and never ahead of
+the path's own certificates in OpenSSL's issuer search.
+
+Not covered, and refused rather than ignored so a caller never gets a green
+result for a check that never ran: policy processing (initial policy set,
+explicit policy, policy mapping and any-policy inhibition), and
+`PKIXCertPathChecker` — which is also what keeps `PKIXRevocationChecker`, and
+so OCSP, out. `getRevocationChecker()` throws `UnsupportedOperationException`.
+
+Two details a caller comparing us with the JDK will notice. The revocation
+DATE and REASON CODE are not surfaced: the JDK's exception carries a
+`CertificateRevokedException` cause holding both, ours carries
+`BasicReason.REVOKED` with no cause. And PKITS 4.14.30 — an indirect CRL
+covering the CRL issuer's own certificate — fails here where the JDK passes,
+because OpenSSL refuses the recursive CRL-path resolution it needs.
+
+Neither applies to JSLFIPS, which registers no `CertPathValidator` or
+`CertPathBuilder` at all.
 
 ## CertificateFactory (1)
 

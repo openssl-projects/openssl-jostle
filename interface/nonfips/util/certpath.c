@@ -41,6 +41,28 @@ static X509 *decode_bound(const uint8_t *der, int32_t len)
     return cert;
 }
 
+/*
+ * Same binding rule as decode_bound: X509_CRL_verify resolves the signature
+ * algorithm through the CRL's own lib ctx, so an unbound CRL would have its
+ * signature checked in the default provider under a fips=yes ctx.
+ */
+static X509_CRL *decode_bound_crl(const uint8_t *der, int32_t len)
+{
+    const unsigned char *p = der;
+    X509_CRL *crl = X509_CRL_new_ex(get_global_jostle_ossl_lib_ctx(), NULL);
+
+    if (crl == NULL)
+    {
+        return NULL;
+    }
+    if (d2i_X509_CRL(&crl, &p, (long) len) == NULL)
+    {
+        X509_CRL_free(crl);
+        return NULL;
+    }
+    return crl;
+}
+
 static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
 {
     STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(ctx);
@@ -105,14 +127,15 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
 }
 
 int32_t certpath_verify(const uint8_t *der, size_t der_len,
-                        const int32_t *sizes, int32_t count,
+                        const int32_t *sizes, int32_t count, int32_t crl_count,
                         int32_t anchor_count,
-                        int64_t time_secs, int32_t strict,
+                        int64_t time_secs, int32_t strict, int32_t revocation,
                         certpath_result *result)
 {
     X509_STORE *store = NULL;
     X509_STORE_CTX *ctx = NULL;
     STACK_OF(X509) *untrusted = NULL;
+    STACK_OF(X509_CRL) *crls = NULL;
     X509 *target = NULL;
     size_t off = 0;
     int32_t i;
@@ -123,6 +146,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     jo_assert(sizes != NULL);
     jo_assert(result != NULL);
     jo_assert(count >= 2);
+    jo_assert(crl_count >= 0);
     jo_assert(anchor_count >= 1 && anchor_count < count);
 
     memset(result, 0, sizeof(*result));
@@ -130,7 +154,8 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
 
     store = X509_STORE_new();
     untrusted = sk_X509_new_null();
-    if (store == NULL || untrusted == NULL)
+    crls = sk_X509_CRL_new_null();
+    if (store == NULL || untrusted == NULL || crls == NULL)
     {
         goto exit;
     }
@@ -175,11 +200,44 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
         }
     }
 
+    for (i = 0; i < crl_count; i++)
+    {
+        X509_CRL *crl;
+        int32_t len = sizes[count + i];
+
+        if (len <= 0 || (size_t) len > der_len - off)
+        {
+            ret = JO_INPUT_TOO_LONG_INT32;
+            goto exit;
+        }
+        crl = decode_bound_crl(der + off, len);
+        off += (size_t) len;
+        if (crl == NULL)
+        {
+            /* depth carries the CRL's index among the CRLs, so the Java
+               layer can name it; nothing else populates it on this path. */
+            result->depth = i;
+            ret = JO_CRL_DECODE_FAILED;
+            goto exit;
+        }
+        if (sk_X509_CRL_push(crls, crl) <= 0)
+        {
+            X509_CRL_free(crl);
+            goto exit;
+        }
+    }
+
     ctx = X509_STORE_CTX_new_ex(get_global_jostle_ossl_lib_ctx(), NULL);
     if (ctx == NULL || X509_STORE_CTX_init(ctx, store, target, untrusted) != 1)
     {
         goto exit;
     }
+    /*
+     * set0 by name, but X509_STORE_CTX_set0_crls only assigns and the cleanup
+     * never frees it (x509_vfy.c, 3.1.2 :2197/:2333, 3.5.8 :2384/:2523), so
+     * the stack stays OURS to free.
+     */
+    X509_STORE_CTX_set0_crls(ctx, crls);
 
     {
         X509_VERIFY_PARAM *param = X509_STORE_CTX_get0_param(ctx);
@@ -194,6 +252,18 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
         if (strict != 0)
         {
             flags |= X509_V_FLAG_X509_STRICT;
+        }
+        /*
+         * All three are load-bearing, measured over PKITS's 109 revocation
+         * cases: without CRL_CHECK_ALL the revoked INTERMEDIATE of 4.4.2 is
+         * accepted, and EXTENDED_CRL_SUPPORT decides the 9 indirect-CRL and
+         * separate-CRL-key cases.
+         */
+        if (revocation != 0)
+        {
+            flags |= X509_V_FLAG_CRL_CHECK
+                     | X509_V_FLAG_CRL_CHECK_ALL
+                     | X509_V_FLAG_EXTENDED_CRL_SUPPORT;
         }
         X509_VERIFY_PARAM_set_flags(param, flags);
         if (time_secs != CERTPATH_TIME_NOW)
@@ -222,6 +292,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
 
 exit:
     X509_STORE_CTX_free(ctx);
+    sk_X509_CRL_pop_free(crls, X509_CRL_free);
     sk_X509_pop_free(untrusted, X509_free);
     X509_STORE_free(store);
     X509_free(target);

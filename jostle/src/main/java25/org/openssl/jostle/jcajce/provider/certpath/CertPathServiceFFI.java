@@ -53,7 +53,7 @@ public class CertPathServiceFFI implements CertPathNI
     public CertPathServiceFFI(SymbolLookup lookup, String symPrefix)
     {
         // int32_t JoCertPath_verify(const uint8_t*, int32_t, const int32_t*, int32_t,
-        //                           int32_t, int32_t, int64_t, int32_t,
+        //                           int32_t, int32_t, int32_t, int64_t, int32_t, int32_t,
         //                           uint8_t*, int32_t, int32_t*, int32_t)
         verifyH = linker.downcallHandle(
                 lookup.find(symPrefix + "JoCertPath_verify").orElseThrow(),
@@ -64,9 +64,11 @@ public class CertPathServiceFFI implements CertPathNI
                         ValueLayout.ADDRESS,       // sizes
                         ValueLayout.JAVA_INT,      // sizes_len
                         ValueLayout.JAVA_INT,      // count
+                        ValueLayout.JAVA_INT,      // crl_count
                         ValueLayout.JAVA_INT,      // anchor_count
                         ValueLayout.JAVA_LONG,     // time_secs
                         ValueLayout.JAVA_INT,      // strict
+                        ValueLayout.JAVA_INT,      // revocation
                         ValueLayout.ADDRESS,       // chain_out
                         ValueLayout.JAVA_INT,      // chain_out_len
                         ValueLayout.ADDRESS,       // out_info
@@ -74,8 +76,9 @@ public class CertPathServiceFFI implements CertPathNI
     }
 
     @Override
-    public int ni_verify(byte[] der, int[] sizes, int count, int anchorCount,
-                         long timeSecs, int strict, byte[] chainOut, int[] outInfo)
+    public int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
+                         long timeSecs, int strict, int revocation,
+                         byte[] chainOut, int[] outInfo)
     {
         // A null array cannot become a MemorySegment, and MemorySegment.ofArray
         // would NPE and surface as a bare RuntimeException — the shape the FFI
@@ -99,7 +102,7 @@ public class CertPathServiceFFI implements CertPathNI
 
             int rc = (int) verifyH.invokeExact(derSeg, der.length,
                     sizesSeg, sizes.length,
-                    count, anchorCount, timeSecs, strict,
+                    count, crlCount, anchorCount, timeSecs, strict, revocation,
                     chainSeg, chainOut.length,
                     infoSeg, outInfo.length);
 

@@ -24,17 +24,19 @@
  * PARAMETERS and are range-checked against the data actually supplied.
  */
 #define MAX_CERTS 256
+#define MAX_CRLS 256
 
 int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
                           const int32_t *sizes, int32_t sizes_len,
-                          int32_t count, int32_t anchor_count,
-                          int64_t time_secs, int32_t strict,
+                          int32_t count, int32_t crl_count, int32_t anchor_count,
+                          int64_t time_secs, int32_t strict, int32_t revocation,
                           uint8_t *chain_out, int32_t chain_out_len,
                           int32_t *out_info, int32_t out_info_len)
 {
     certpath_result result;
     int32_t ret;
     int32_t i;
+    int32_t entries;
     size_t total = 0;
 
     memset(&result, 0, sizeof(result));
@@ -48,13 +50,15 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     if (der_len <= 0) {
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
-    if (count > MAX_CERTS) {
+    if (count > MAX_CERTS || crl_count > MAX_CRLS) {
         return JO_INPUT_TOO_LONG_INT32;
     }
-    if (count < 2 || anchor_count < 1 || anchor_count >= count) {
+    if (count < 2 || crl_count < 0 || anchor_count < 1 || anchor_count >= count) {
         return JO_INPUT_OUT_OF_RANGE;
     }
-    if (sizes_len < count) {
+    /* Both halves are bounded above, so the sum cannot overflow. */
+    entries = count + crl_count;
+    if (sizes_len < entries) {
         return JO_INPUT_OUT_OF_RANGE;
     }
     if (out_info_len < count + 3) {
@@ -63,7 +67,7 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     if (chain_out_len < 0) {
         return JO_OUTPUT_LEN_IS_NEGATIVE;
     }
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < entries; i++) {
         if (sizes[i] <= 0) {
             return JO_INPUT_LEN_IS_NEGATIVE;
         }
@@ -73,12 +77,12 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
         }
     }
 
-    ret = certpath_verify(der, (size_t) der_len, sizes, count, anchor_count,
-                          time_secs, strict, &result);
+    ret = certpath_verify(der, (size_t) der_len, sizes, count, crl_count, anchor_count,
+                          time_secs, strict, revocation, &result);
     if (ret != JO_SUCCESS) {
-        if (ret == JO_CERT_DECODE_FAILED) {
+        if (ret == JO_CERT_DECODE_FAILED || ret == JO_CRL_DECODE_FAILED) {
             out_info[0] = ret;
-            out_info[1] = result.depth;   /* which certificate */
+            out_info[1] = result.depth;   /* which certificate, or which CRL */
             out_info[2] = 0;
         }
         certpath_result_free(&result);

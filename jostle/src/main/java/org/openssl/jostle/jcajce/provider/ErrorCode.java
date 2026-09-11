@@ -311,6 +311,10 @@ public enum ErrorCode
     // The certification path carried a certificate that is not DER X.509.
     // The SPI names the index, which the native side reports in outInfo[1].
     JO_CERT_DECODE_FAILED(-175),
+
+    // A supplied CRL is not DER X.509. Separate from -175: the index in
+    // outInfo[1] counts CRLs, so one code for both would name the wrong file.
+    JO_CRL_DECODE_FAILED(-176),
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

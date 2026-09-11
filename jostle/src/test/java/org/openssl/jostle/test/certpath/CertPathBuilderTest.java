@@ -98,9 +98,9 @@ public class CertPathBuilderTest
         Assertions.assertThrows(CertPathBuilderException.class, () -> builder().build(p));
     }
 
-    /** P1 applies to the builder too: revocation is refused, not dropped. */
+    /** P1 applies to the builder too: revocation is honoured, not dropped. */
     @Test
-    public void revocationEnabledIsRefusedByTheBuilderToo() throws Exception
+    public void revocationEnabledWithNoCrlSuppliedFailsTheBuildRatherThanPassingIt() throws Exception
     {
         X509Certificate ee = PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt");
         X509Certificate ca = PkitsCertificates.certificate("GoodCACert.crt");
@@ -108,7 +108,12 @@ public class CertPathBuilderTest
         sel.setCertificate(ee);
         PKIXBuilderParameters p = params(sel, ee, ca);
         p.setRevocationEnabled(true);
-        Assertions.assertThrows(InvalidAlgorithmParameterException.class, () -> builder().build(p));
+        // The builder's CertStores hold certificates and no CRL, so the same
+        // path that builds with revocation off must not build with it on.
+        Assertions.assertThrows(CertPathBuilderException.class, () -> builder().build(p));
+
+        p.setRevocationEnabled(false);
+        Assertions.assertNotNull(builder().build(p), "the control: it builds without revocation");
     }
 
     /**

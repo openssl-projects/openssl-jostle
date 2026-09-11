@@ -26,12 +26,42 @@ import java.util.List;
  * expected to DIVERGE and are pinned separately, by name, in
  * {@link PkitsDivergenceTest} — they are excluded here rather than silently
  * tolerated.
+ * <p>
+ * Since phase 2 the table also carries the revocation sections, so this class
+ * SELECTS its own rows. {@link PkitsPhase2Test} asserts that the two
+ * selections partition the table exactly, which is what stops a row from
+ * being claimed twice or by neither.
  */
 public class PkitsPhase1Test
 {
     /** Documented divergences, each pinned with its reason in its own test. */
     static final List<String> PINNED_DIVERGENCES =
             java.util.Arrays.asList("4.1.5", "4.6.4");
+
+    /** The sections whose cases need no revocation processing. */
+    static final List<String> SECTIONS =
+            java.util.Arrays.asList("4.1", "4.2", "4.3", "4.5", "4.6", "4.7");
+
+    /**
+     * Revocation in disguise: these sit in phase 1's sections but their
+     * outcome turns on a CRL, so phase 2 owns them.
+     */
+    static final List<String> REVOCATION_IN_DISGUISE =
+            java.util.Arrays.asList("4.5.2", "4.5.5", "4.5.7", "4.7.4", "4.7.5");
+
+    /** The rows this class owns. */
+    static List<PkitsCertificates.Case> selected() throws Exception
+    {
+        List<PkitsCertificates.Case> out = new ArrayList<PkitsCertificates.Case>();
+        for (PkitsCertificates.Case c : PkitsCertificates.cases())
+        {
+            if (SECTIONS.contains(c.section()) && !REVOCATION_IN_DISGUISE.contains(c.number))
+            {
+                out.add(c);
+            }
+        }
+        return out;
+    }
 
     @BeforeAll
     static void before()
@@ -58,8 +88,10 @@ public class PkitsPhase1Test
     {
         PKIXParameters p = new PKIXParameters(Collections.singleton(
                 new TrustAnchor(PkitsCertificates.certificate(PkitsCertificates.ANCHOR), null)));
-        // Phase 1 has no revocation, and the SPI refuses the default rather
-        // than silently dropping it.
+        // These cases are not about revocation, so it is turned off
+        // explicitly. Since phase 2 that is an opt-out rather than the only
+        // accepted setting, and the expected outcomes below are the ones
+        // PKITS gives for the path alone.
         p.setRevocationEnabled(false);
         return p;
     }
@@ -85,8 +117,8 @@ public class PkitsPhase1Test
     @Test
     public void everyPhase1CaseAgreesWithPkits() throws Exception
     {
-        List<PkitsCertificates.Case> cases = PkitsCertificates.cases();
-        Assertions.assertEquals(50, cases.size(), "the committed case table must hold 50 rows");
+        List<PkitsCertificates.Case> cases = selected();
+        Assertions.assertEquals(50, cases.size(), "phase 1 must select 50 rows from the table");
 
         List<String> failures = new ArrayList<String>();
         int checked = 0;
@@ -123,6 +155,17 @@ public class PkitsPhase1Test
                 try
                 {
                     PkitsCertificates.der(n);
+                }
+                catch (Exception e)
+                {
+                    missing.add(c.number + " -> " + n);
+                }
+            }
+            for (String n : c.crls)
+            {
+                try
+                {
+                    PkitsCertificates.crlDer(n);
                 }
                 catch (Exception e)
                 {

@@ -23,15 +23,18 @@
  * invariants. Returns identical codes to certpath_ni_ffi.c for identical
  * inputs.
  *
- * The certificate count is bounded before any allocation: a path longer than
- * this is a caller error, not a resource question, and the bound keeps
- * count * sizeof(int32_t) far from overflow.
+ * The certificate and CRL counts are bounded SEPARATELY before any
+ * allocation: a path or CRL set longer than this is a caller error, not a
+ * resource question, and bounding each half keeps their sum — the length of
+ * the sizes array — far from int32 overflow.
  */
 #define MAX_CERTS 256
+#define MAX_CRLS 256
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPathServiceJNI_ni_1verify
-(JNIEnv *env, jobject jo, jbyteArray _der, jintArray _sizes, jint count, jint anchorCount,
- jlong timeSecs, jint strict, jbyteArray _chainOut, jintArray _outInfo)
+(JNIEnv *env, jobject jo, jbyteArray _der, jintArray _sizes, jint count, jint crlCount,
+ jint anchorCount, jlong timeSecs, jint strict, jint revocation,
+ jbyteArray _chainOut, jintArray _outInfo)
 {
     UNUSED(jo);
 
@@ -41,6 +44,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     jint *sizes = NULL;
     int32_t *native_sizes = NULL;
     certpath_result result;
+    int32_t entries;
     int32_t i;
 
     init_bytearray_ctx(&der);
@@ -57,17 +61,19 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         ret = JO_OUTPUT_IS_NULL;
         goto exit;
     }
-    if (count < 2 || anchorCount < 1 || anchorCount >= count)
+    if (count < 2 || crlCount < 0 || anchorCount < 1 || anchorCount >= count)
     {
         ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-    if (count > MAX_CERTS)
+    if (count > MAX_CERTS || crlCount > MAX_CRLS)
     {
         ret = JO_INPUT_TOO_LONG_INT32;
         goto exit;
     }
-    if ((*env)->GetArrayLength(env, _sizes) < count)
+    /* Both halves are bounded above, so the sum cannot overflow. */
+    entries = count + crlCount;
+    if ((*env)->GetArrayLength(env, _sizes) < entries)
     {
         ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
@@ -113,7 +119,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         goto exit;
     }
 
-    native_sizes = OPENSSL_malloc(sizeof(int32_t) * (size_t) count);
+    native_sizes = OPENSSL_malloc(sizeof(int32_t) * (size_t) entries);
     if (native_sizes == NULL)
     {
         ret = JO_FAIL;
@@ -121,7 +127,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     }
     {
         size_t total = 0;
-        for (i = 0; i < count; i++)
+        for (i = 0; i < entries; i++)
         {
             if (sizes[i] <= 0)
             {
@@ -138,13 +144,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         }
     }
 
-    ret = certpath_verify(der.bytearray, der.size, native_sizes, count, anchorCount,
-                          (int64_t) timeSecs, strict, &result);
+    ret = certpath_verify(der.bytearray, der.size, native_sizes, count, crlCount,
+                          anchorCount, (int64_t) timeSecs, strict, revocation, &result);
     if (ret != JO_SUCCESS)
     {
-        if (ret == JO_CERT_DECODE_FAILED)
+        if (ret == JO_CERT_DECODE_FAILED || ret == JO_CRL_DECODE_FAILED)
         {
-            /* Report WHICH certificate, so the Java layer can name it. */
+            /* Report WHICH certificate or CRL, so the Java layer can name it. */
             jint header[3];
             header[0] = (jint) ret;
             header[1] = (jint) result.depth;

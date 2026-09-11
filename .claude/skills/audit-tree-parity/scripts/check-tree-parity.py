@@ -96,6 +96,14 @@ NONFIPS_ONLY_PREFIXES = (
     "util/ks",
     "jni/ks_",
     "ffi/ks_",
+    # Certification path validation. Nonfips-only DELIBERATELY and
+    # TEMPORARILY: JSLFIPS registers no CertPathValidator or CertPathBuilder
+    # (only ProvX509 does), so a fips twin would be unreachable code. MT-86
+    # phase 2f adds FIPS certpath with its own gate - REMOVE THESE THREE
+    # ENTRIES THEN, or the twin lands unchecked.
+    "util/certpath",
+    "jni/certpath_",
+    "ffi/certpath_",
     # base-provider init/diagnostic glue with fips-tree counterparts under
     # different names (openssl_fips_{jni,ffi}.c) or no FIPS equivalent at all.
     #

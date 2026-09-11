@@ -577,6 +577,9 @@
 #define JO_EC_COFACTOR_ECDH_REQUIRED -174
 /* Certificate in a path did not decode as DER X.509; validation failures use X509_V_* instead. */
 #define JO_CERT_DECODE_FAILED -175
+/* A supplied CRL did not decode as DER X.509 CRL. Separate from -175 because
+   the index it reports counts CRLs, not certificates. */
+#define JO_CRL_DECODE_FAILED -176
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

@@ -62,23 +62,31 @@ public class CertPathContractTest
     }
 
     /**
-     * P1. isRevocationEnabled() defaults TRUE, so a caller who never asked for
-     * revocation to be dropped must not get a green result with it dropped.
+     * P1, and the withheld-CRL negative. Revocation defaults ON, the
+     * CertStores carry NO CRL, and a path whose certificates are all sound
+     * must still fail for UNDETERMINED status — a caller who never opted out
+     * must not get a green result with the check dropped.
      */
     @Test
-    public void revocationEnabledIsRefusedRatherThanSilentlySkipped() throws Exception
+    public void revocationEnabledWithNoCrlSuppliedIsUndeterminedRatherThanSilentlyPassed()
+            throws Exception
     {
         PKIXParameters p = new PKIXParameters(Collections.singleton(
                 new TrustAnchor(PkitsCertificates.certificate(PkitsCertificates.ANCHOR), null)));
         Assertions.assertTrue(p.isRevocationEnabled(), "the JCE default must still be true");
 
-        InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                InvalidAlgorithmParameterException.class,
+        CertPathValidatorException e = Assertions.assertThrows(
+                CertPathValidatorException.class,
                 () -> validator().validate(goodPath(), p));
-        Assertions.assertTrue(e.getMessage().contains("setRevocationEnabled(false)"),
-                "the message must say how to proceed: " + e.getMessage());
+        Assertions.assertEquals(
+                CertPathValidatorException.BasicReason.UNDETERMINED_REVOCATION_STATUS,
+                e.getReason(),
+                "no CRL supplied is undetermined status, not revoked: " + e.getMessage());
+        Assertions.assertTrue(e.getMessage().matches("(?s).*failed: 3 .*"),
+                "expected X509 error 3 (no CRL), got: " + e.getMessage());
 
-        // And the same path validates once the caller opts out explicitly.
+        // The control: the SAME path validates when the caller opts out, so
+        // the failure above is the revocation check and not a broken path.
         validator().validate(goodPath(), anchoredAtRoot());
     }
 
@@ -152,7 +160,46 @@ public class CertPathContractTest
         InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 InvalidAlgorithmParameterException.class,
                 () -> validator().validate(goodPath(), p));
-        Assertions.assertTrue(e.getMessage().contains("name constraints"), e.getMessage());
+        // Only the separate-BYTES form is refused: OpenSSL applies the
+        // constraints carried IN an anchor certificate (x509_vfy.c
+        // check_name_constraints, 3.1.2 :646, 3.5.8 :776).
+        Assertions.assertTrue(e.getMessage().contains("name-constraint bytes beside its certificate"),
+                e.getMessage());
+    }
+
+    /**
+     * The same hole on the certificate side, open since phase 1: a path
+     * longer than the bridge takes produced an OverflowException.
+     *
+     * <p>Probed at the boundary in both directions. One anchor plus 255 path
+     * entries is exactly the 256 ceiling and must be ACCEPTED by the
+     * parameter check — it then fails as an ordinary validation failure,
+     * which is a different exception and is what proves the check sits where
+     * it should rather than one short.
+     */
+    @Test
+    public void tooManyCertificatesIsRefusedTypedRatherThanAsAnOverflow() throws Exception
+    {
+        X509Certificate ee = PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt");
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+        CertPath atCeiling = cf.generateCertPath(
+                new ArrayList<X509Certificate>(Collections.nCopies(255, ee)));
+        CertPathValidatorException accepted = Assertions.assertThrows(
+                CertPathValidatorException.class,
+                () -> validator().validate(atCeiling, anchoredAtRoot()),
+                "1 anchor + 255 path entries is exactly 256: the parameter check must accept, "
+                        + "and the path then fails validation on its own merits");
+        Assertions.assertFalse(accepted.getMessage().contains("too many certificates"),
+                "at the ceiling this must NOT be the parameter refusal: " + accepted.getMessage());
+
+        CertPath over = cf.generateCertPath(
+                new ArrayList<X509Certificate>(Collections.nCopies(256, ee)));
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
+                () -> validator().validate(over, anchoredAtRoot()));
+        Assertions.assertTrue(e.getMessage().contains("too many certificates: 257"),
+                e.getMessage());
     }
 
     /** N1: no anchors must be refused typed, never reach the native assert. */
@@ -219,8 +266,8 @@ public class CertPathContractTest
         int[] sizes = {anchor.length, ca.length, ee.length};
         int[] info = new int[3 + 3];
 
-        int rc = NISelector.CertPathNI.ni_verify(der, sizes, 3, 1,
-                CertPathNI.TIME_NOW, 1, new byte[der.length], info);
+        int rc = NISelector.CertPathNI.ni_verify(der, sizes, 3, 0, 1,
+                CertPathNI.TIME_NOW, 1, 0, new byte[der.length], info);
 
         Assertions.assertEquals(-175, rc, "JO_CERT_DECODE_FAILED");
         Assertions.assertEquals(-175, info[0], "the code must be reported in outInfo too");

@@ -18,6 +18,7 @@ package org.openssl.jostle.jcajce.provider.certpath;
 public class CertPathServiceJNI implements CertPathNI
 {
     @Override
-    public native int ni_verify(byte[] der, int[] sizes, int count, int anchorCount,
-                                long timeSecs, int strict, byte[] chainOut, int[] outInfo);
+    public native int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
+                                long timeSecs, int strict, int revocation,
+                                byte[] chainOut, int[] outInfo);
 }

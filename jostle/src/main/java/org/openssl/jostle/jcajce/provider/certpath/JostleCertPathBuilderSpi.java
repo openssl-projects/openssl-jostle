@@ -134,6 +134,7 @@ public class JostleCertPathBuilderSpi
         }
 
         List<X509Certificate> pool = pool(pkix);
+        List<java.security.cert.X509CRL> crls = CertPathCall.crlsFrom(pkix);
         List<X509Certificate> targets = new ArrayList<X509Certificate>();
         for (X509Certificate c : pool)
         {
@@ -153,7 +154,7 @@ public class JostleCertPathBuilderSpi
         {
             try
             {
-                return buildFrom(pkix, pool, target);
+                return buildFrom(pkix, pool, target, crls);
             }
             catch (CertPathValidatorException e)
             {
@@ -234,8 +235,10 @@ public class JostleCertPathBuilderSpi
      */
     private CertPathBuilderResult buildFrom(PKIXBuilderParameters pkix,
                                             List<X509Certificate> pool,
-                                            X509Certificate target)
-            throws CertPathValidatorException, CertPathBuilderException
+                                            X509Certificate target,
+                                            List<java.security.cert.X509CRL> crls)
+            throws CertPathValidatorException, CertPathBuilderException,
+                   InvalidAlgorithmParameterException
     {
         List<X509Certificate> untrusted = new ArrayList<X509Certificate>();
         for (X509Certificate c : pool)
@@ -246,12 +249,16 @@ public class JostleCertPathBuilderSpi
             }
         }
 
-        CertPathCall call = CertPathCall.forBuild(pkix, untrusted, target);
-        int rc = ni.ni_verify(call.der, call.sizes, call.count, call.anchorCount,
-                call.timeSecs, 1, call.chainOut, call.outInfo);
+        CertPathCall call = CertPathCall.forBuild(pkix, untrusted, target, crls);
+        int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
+                call.timeSecs, 1, call.revocation, call.chainOut, call.outInfo);
         if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CERT_DECODE_FAILED.getCode())
         {
             throw new CertPathValidatorException("a supplied certificate is not valid DER X.509");
+        }
+        if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CRL_DECODE_FAILED.getCode())
+        {
+            throw new CertPathValidatorException("a supplied CRL is not valid DER X.509");
         }
         ni.baseErrorHandler(rc);
 

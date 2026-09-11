@@ -32,19 +32,30 @@ import java.util.List;
  * anchors, which must carry a certificate; {@code X509_V_FLAG_X509_STRICT},
  * always on.
  * <p>
+ * <b>Also honoured: revocation.</b> {@code isRevocationEnabled()} — which
+ * defaults to TRUE — turns on CRL checking for the WHOLE path, over the CRLs
+ * the caller's {@code CertStore}s supply. A certificate in the path with no
+ * usable CRL is an UNDETERMINED_REVOCATION_STATUS failure, not a pass.
+ * <p>
  * <b>Refused typed</b>, rather than ignored, because ignoring them would return
- * a green result for a check that never ran: revocation
- * ({@code setRevocationEnabled(false)} is required until revocation ships), any
- * initial policy set, explicit-policy / policy-mapping-inhibited /
- * any-policy-inhibited set away from their defaults, and a non-empty
- * {@code PKIXCertPathChecker} list.
+ * a green result for a check that never ran: any initial policy set,
+ * explicit-policy / policy-mapping-inhibited / any-policy-inhibited set away
+ * from their defaults, and a non-empty {@code PKIXCertPathChecker} list —
+ * which is also what keeps {@code PKIXRevocationChecker}, and so OCSP, out.
  * <p>
  * <b>Ignored, deliberately:</b> {@code sigProvider} — OpenSSL performs the
  * signature verification, so no JCA provider is consulted; the
- * {@code CertStore} list — the validator validates the path it was GIVEN and
- * builds nothing, so a store adds no certificate to it; and
  * {@code policyQualifiersRejected}, which only matters once policies are
- * processed. {@code maxPathLength} belongs to the BUILDER and is honoured
+ * processed.
+ * <p>
+ * <b>The CertStores are read, and never for path members.</b> With revocation
+ * on, their CRLs AND their certificates are handed to OpenSSL — the
+ * certificates because an indirect CRL cannot be validated without its
+ * issuer's certificate, which PKITS and real callers put in a store rather
+ * than in the path. They are marshalled as untrusted only: the built-chain
+ * check still requires the chain OpenSSL produced to be the path that was
+ * given, so a store certificate turning up IN the chain is a failure, not a
+ * silent substitution. {@code maxPathLength} belongs to the BUILDER and is honoured
  * there; this validator takes the path as given and does not choose its
  * length. The result's policy tree is {@code null}: this phase does no
  * policy processing, and a fabricated tree would be worse than none.
@@ -105,9 +116,19 @@ public class JostleCertPathValidatorSpi
             throw new CertPathValidatorException("certification path is empty");
         }
 
-        CertPathCall call = CertPathCall.build(pkix, certs);
-        int rc = ni.ni_verify(call.der, call.sizes, call.count, call.anchorCount,
-                call.timeSecs, 1, call.chainOut, call.outInfo);
+        CertPathCall call = CertPathCall.build(pkix, certs, CertPathCall.crlsFrom(pkix),
+                CertPathCall.extraCertsFrom(pkix, certs));
+        int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
+                call.timeSecs, 1, call.revocation, call.chainOut, call.outInfo);
+
+        if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CRL_DECODE_FAILED.getCode())
+        {
+            // outInfo[1] indexes the CRLs, which belong to no path element, so
+            // the exception carries -1 rather than a misleading certificate.
+            throw new CertPathValidatorException(
+                    "a supplied CRL is not valid DER X.509, at CRL index " + call.outInfo[1],
+                    null, certPath, -1);
+        }
 
         // Intercepted BEFORE baseErrorHandler, which throws IllegalStateException
         // for any code its switch does not list — the same reason the seed
