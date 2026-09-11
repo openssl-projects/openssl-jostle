@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.cert;
 
 import java.io.InputStream;
 import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.cert.CRL;
 import java.security.cert.CRLException;
 import java.security.cert.CertPath;
@@ -25,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 
 /**
  * X.509 CertificateFactory for the JSL provider.
@@ -44,7 +46,8 @@ public class X509CertificateFactorySpi
     extends CertificateFactorySpi
 {
     private final CertificateFactory delegate;
-    private final String providerName;
+    /** One fact, one field — see {@link ProviderBinding}. */
+    private final ProviderBinding binding;
     private final boolean providerBound;
 
     public X509CertificateFactorySpi()
@@ -53,6 +56,10 @@ public class X509CertificateFactorySpi
     }
 
     /**
+     * Name-only form, kept for callers outside this tree. Prefer the
+     * {@link Provider} form: a name is re-resolvable, so the keys this factory
+     * returns can come from a different instance than the caller asked for.
+     *
      * @param providerName  the Jostle provider certificates' keys are re-derived
      *                      through (see {@link JSLKeyX509Certificate}).
      * @param providerBound when true, never fall back outside {@code providerName}:
@@ -62,11 +69,43 @@ public class X509CertificateFactorySpi
      */
     public X509CertificateFactorySpi(String providerName, boolean providerBound)
     {
-        this.providerName = providerName;
+        this.binding = ProviderBinding.ofName(providerName);
         this.providerBound = providerBound;
+        this.delegate = jdkDelegate();
+    }
+
+    /**
+     * @param providerInstance the provider this factory belongs to. The
+     *                         certificates it returns carry keys decoded by
+     *                         THIS instance: a name is re-resolvable, and a key
+     *                         from another instance is refused by MT-14's
+     *                         isolation check on first use, so the factory
+     *                         would hand back what its own provider rejects.
+     * @param providerBound    see the name-only form.
+     */
+    public X509CertificateFactorySpi(Provider providerInstance, boolean providerBound)
+    {
+        if (providerInstance == null)
+        {
+            throw new IllegalArgumentException(
+                    "X509CertificateFactorySpi requires the provider it belongs to;"
+                            + " use the name-only constructor when there is none");
+        }
+        this.binding = ProviderBinding.of(providerInstance);
+        this.providerBound = providerBound;
+        this.delegate = jdkDelegate();
+    }
+
+    /**
+     * The JDK's X.509 parser, by NAME on purpose: we want whichever object
+     * answers to SUN, and naming it avoids recursing back into this factory
+     * when JSL sits highest in the search order.
+     */
+    private static CertificateFactory jdkDelegate()
+    {
         try
         {
-            this.delegate = CertificateFactory.getInstance("X.509", "SUN");
+            return CertificateFactory.getInstance("X.509", "SUN");
         }
         catch (CertificateException | NoSuchProviderException e)
         {
@@ -111,16 +150,16 @@ public class X509CertificateFactorySpi
         if (c instanceof JSLKeyX509Certificate)
         {
             JSLKeyX509Certificate wrapped = (JSLKeyX509Certificate) c;
-            if (wrapped.hasPolicy(providerName, providerBound))
+            if (wrapped.hasPolicy(binding, providerBound))
             {
                 return c;
             }
-            return new JSLKeyX509Certificate(wrapped.unwrap(), providerName, providerBound);
+            return new JSLKeyX509Certificate(wrapped.unwrap(), binding, providerBound);
         }
 
         if (c instanceof X509Certificate)
         {
-            return new JSLKeyX509Certificate((X509Certificate) c, providerName, providerBound);
+            return new JSLKeyX509Certificate((X509Certificate) c, binding, providerBound);
         }
         return c;
     }

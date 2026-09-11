@@ -41,7 +41,7 @@ class ProvFIPSX509
         final Map<String, String> attr = new HashMap<String, String>();
         provider.addAlgorithmImplementation("CertificateFactory", "X.509",
                 X509CertificateFactorySpi.class.getName(), attr,
-                (arg) -> new X509CertificateFactorySpi(JostleFIPSProvider.PROVIDER_NAME, true));
+                (arg) -> new X509CertificateFactorySpi(provider, true));
         provider.addAlias("CertificateFactory", "X.509", "X509");
     }
 }

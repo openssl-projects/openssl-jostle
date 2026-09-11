@@ -26,6 +26,7 @@ import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.security.spec.X509EncodedKeySpec;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -55,13 +56,14 @@ class JSLKeyX509Certificate
     extends X509Certificate
 {
     private final X509Certificate delegate;
-    private final String providerName;
+    /** One fact, one field — see {@link ProviderBinding}. */
+    private final ProviderBinding binding;
     private final boolean providerBound;
 
-    JSLKeyX509Certificate(X509Certificate delegate, String providerName, boolean providerBound)
+    JSLKeyX509Certificate(X509Certificate delegate, ProviderBinding binding, boolean providerBound)
     {
         this.delegate = delegate;
-        this.providerName = providerName;
+        this.binding = binding;
         this.providerBound = providerBound;
     }
 
@@ -70,10 +72,16 @@ class JSLKeyX509Certificate
      * factory's re-wrap fast-path so a certificate wrapped by one Jostle factory
      * (e.g. the lenient JSL one) is re-wrapped rather than passed through when it
      * flows into a factory with a different provider or binding.
+     *
+     * <p>Compared on provider IDENTITY where either factory has an instance:
+     * two instances of the same provider share a name, and a key made by one
+     * is refused by the other under MT-14's isolation check, so passing the
+     * wrapper through would hand the second factory keys it rejects. See
+     * {@link ProviderBinding#sameAs}.
      */
-    boolean hasPolicy(String forProvider, boolean bound)
+    boolean hasPolicy(ProviderBinding forBinding, boolean bound)
     {
-        return providerBound == bound && providerName.equals(forProvider);
+        return providerBound == bound && binding.sameAs(forBinding);
     }
 
     /**
@@ -94,7 +102,7 @@ class JSLKeyX509Certificate
             {
                 throw new ProviderException(
                     "certificate public key (" + key.getAlgorithm()
-                        + ") has no encoding to re-derive through provider " + providerName);
+                        + ") has no encoding to re-derive through provider " + binding.name());
             }
             return key;
         }
@@ -126,7 +134,7 @@ class JSLKeyX509Certificate
             // a KeyFactory exists but refused the key (e.g. an EC key on a
             // curve the FIPS module does not serve).
             throw new ProviderException(
-                "provider " + providerName
+                "provider " + binding.name()
                     + " cannot re-derive the certificate public key (algorithm "
                     + (oid != null ? oid : key.getAlgorithm())
                     + "): no KeyFactory for the algorithm, or the key was refused");
@@ -149,7 +157,15 @@ class JSLKeyX509Certificate
         }
         try
         {
-            KeyFactory kf = KeyFactory.getInstance(algorithm, providerName);
+            // The INSTANCE, not the name. getInstance(String, Provider) reads
+            // the provider object and never consults the Security registry, so
+            // the key comes from the factory the caller asked for even when
+            // that instance is unregistered or another instance answers to its
+            // name. Unpinned, the key was decoded by whoever held the name and
+            // this factory's own provider then refused it (MT-14).
+            KeyFactory kf = (binding.instance() != null)
+                    ? KeyFactory.getInstance(algorithm, binding.instance())
+                    : KeyFactory.getInstance(algorithm, binding.name());
             PublicKey imported = kf.generatePublic(new X509EncodedKeySpec(encoded));
             if (!encodingPreserved(imported, encoded))
             {
@@ -441,7 +457,14 @@ class JSLKeyX509Certificate
             // SupportedKeyClasses filtering). The delegate resolves the
             // Signature from the named provider and handles any signature
             // algorithm parameters (e.g. RSASSA-PSS) itself.
-            delegate.verify(key, providerName);
+            if (binding.instance() != null)
+            {
+                delegate.verify(key, binding.instance());
+            }
+            else
+            {
+                delegate.verify(key, binding.name());
+            }
             return;
         }
         delegate.verify(key);

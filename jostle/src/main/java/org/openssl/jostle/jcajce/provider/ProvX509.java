@@ -23,7 +23,7 @@ class ProvX509
     public void configure(final JostleProvider provider)
     {
         final Map<String, String> attr = new HashMap<String, String>();
-        provider.addAlgorithmImplementation("CertificateFactory", "X.509", X509CertificateFactorySpi.class.getName(), attr, (arg) -> new X509CertificateFactorySpi());
+        provider.addAlgorithmImplementation("CertificateFactory", "X.509", X509CertificateFactorySpi.class.getName(), attr, (arg) -> new X509CertificateFactorySpi(provider, false));
         provider.addAlias("CertificateFactory", "X.509", "X509");
 
         // PKIX certification path validation over OpenSSL's X509_verify_cert.
