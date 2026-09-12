@@ -21,7 +21,6 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
-import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -628,8 +627,17 @@ public class RSAKEMCipherSpi
                 throw new InvalidAlgorithmParameterException(KtsKdf.digestParameterRequiredMessage());
             }
             Object digAlg = method(digParams.getClass(), "getAlgorithm").invoke(digParams);
+            String digestOid = String.valueOf(digAlg);
+            // kdfKind lands before the digest resolves, as it always has; a
+            // refused init leaves it set either way.
             this.kdfKind = kind;
-            this.digestName = digestNameForOid(String.valueOf(digAlg));
+            String name = KtsKdf.rsaKtsDigestForOid(digestOid);
+            if (name == null)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        KtsKdf.unsupportedRsaKtsDigestMessage(digestOid));
+            }
+            this.digestName = name;
         }
         catch (InvalidAlgorithmParameterException e)
         {
@@ -639,25 +647,6 @@ public class RSAKEMCipherSpi
         {
             throw new InvalidAlgorithmParameterException("unable to read KDF algorithm: " + e.getMessage(), e);
         }
-    }
-
-    private static String digestNameForOid(String oid)
-        throws InvalidAlgorithmParameterException
-    {
-        if (NISTObjectIdentifiers.id_sha256.getId().equals(oid))
-        {
-            return "SHA-256";
-        }
-        if (NISTObjectIdentifiers.id_sha384.getId().equals(oid))
-        {
-            return "SHA-384";
-        }
-        if (NISTObjectIdentifiers.id_sha512.getId().equals(oid))
-        {
-            return "SHA-512";
-        }
-        throw new InvalidAlgorithmParameterException("unsupported KDF digest " + oid
-                + "; RSA-KTS-KEM-KWS supports SHA-256, SHA-384 and SHA-512");
     }
 
     // --- unsupported CipherSpi surface --------------------------------------

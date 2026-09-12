@@ -24,7 +24,6 @@ import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
-import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -650,7 +649,7 @@ public class MLKEMKTSCipherSpi
         {
             readSequenceHeader(der, pos);          // digest AlgorithmIdentifier
             digestOid = readOid(der, pos);
-            name = digestNameForOid(digestOid);
+            name = KtsKdf.mlKemKtsDigestForOid(digestOid);
         }
         catch (RuntimeException e)
         {
@@ -658,35 +657,11 @@ public class MLKEMKTSCipherSpi
         }
         if (name == null)
         {
-            throw new InvalidAlgorithmParameterException("unsupported KDF digest: " + digestOid);
+            throw new InvalidAlgorithmParameterException(
+                    KtsKdf.unsupportedMlKemKtsDigestMessage(digestOid));
         }
         this.kdfKind = kind;
         this.digestName = name;
-    }
-
-    private static String digestNameForOid(String oid)
-    {
-        if (NISTObjectIdentifiers.id_sha256.getId().equals(oid))
-        {
-            return "SHA-256";
-        }
-        if (NISTObjectIdentifiers.id_sha384.getId().equals(oid))
-        {
-            return "SHA-384";
-        }
-        if (NISTObjectIdentifiers.id_sha512.getId().equals(oid))
-        {
-            return "SHA-512";
-        }
-        if (NISTObjectIdentifiers.id_sha224.getId().equals(oid))
-        {
-            return "SHA-224";
-        }
-        if ("1.3.14.3.2.26".equals(oid))
-        {
-            return "SHA-1";
-        }
-        return null;
     }
 
     // Strength (bits) the parameter set requires of the encapsulation RNG, so
