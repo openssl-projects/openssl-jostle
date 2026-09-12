@@ -24,6 +24,22 @@ public class PkitsRevocationDivergenceTest
         }
     }
 
+    /** The refusal a provider gives, or null if it validated. */
+    private static CertPathValidatorException refusalFrom(String provider,
+                                                          PkitsCertificates.Case c) throws Exception
+    {
+        try
+        {
+            CertPathValidator.getInstance("PKIX", provider)
+                    .validate(PkitsPhase2Test.path(c), PkitsPhase2Test.params(c));
+            return null;
+        }
+        catch (CertPathValidatorException e)
+        {
+            return e;
+        }
+    }
+
     private static boolean validatesWith(String provider, PkitsCertificates.Case c) throws Exception
     {
         try
@@ -135,6 +151,86 @@ public class PkitsRevocationDivergenceTest
             PkitsCertificates.Case c = PkitsPhase2Test.find(n);
             Assertions.assertFalse(validatesWith(JostleProvider.PROVIDER_NAME, c),
                     n + " reports a revoked certificate through an indirect CRL");
+        }
+    }
+
+    /**
+     * 4.15.4: we honour delta CRLs and refuse, the JDK does not and accepts.
+     *
+     * <p>Measured from the corpus: the EE is serial 03, the base CRL lists only
+     * 02, 04 and 05, and the DELTA revokes 03 keyCompromise. So the certificate
+     * is revoked ONLY in the delta and the base does not list it at all.
+     * Without {@code X509_V_FLAG_USE_DELTAS} the delta is carried in the store
+     * and never paired with its base — {@code get_delta_sk} returns early
+     * (x509_vfy.c, 3.1.2 :1177, 3.5.8 :1326) — so nothing lists the certificate
+     * and the path is accepted. PKITS calls it invalid; we agree, the JDK
+     * does not. Note this is NOT 4.15.5's shape: no hold is involved here.
+     */
+    @Test
+    public void deltaRevocationIsSeenHereAndMissedByTheJdk() throws Exception
+    {
+        PkitsCertificates.Case c = PkitsPhase2Test.find("4.15.4");
+        Assertions.assertFalse(c.expectValid, "PKITS expects 4.15.4 to FAIL");
+
+        CertPathValidatorException e = Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME)
+                        .validate(PkitsPhase2Test.path(c), PkitsPhase2Test.params(c)));
+        Assertions.assertTrue(e.getMessage().matches("(?s).*failed: 23 .*"),
+                "expected X509 error 23 CERT_REVOKED, got: " + e.getMessage());
+        Assertions.assertEquals(CertPathValidatorException.BasicReason.REVOKED, e.getReason());
+        // Measured: the path is [EE, deltaCRL CA1] and the delta revokes the
+        // EE, so the fault is reported at index 0.
+        Assertions.assertEquals(0, e.getIndex(), "the revoked certificate is the end entity");
+
+        // The JDK half. A wrong ACCEPTANCE carries no message, so the pin is
+        // that validate returns at all.
+        Assertions.assertTrue(validatesWith("SUN", c),
+                "the JDK is expected to miss the delta and accept 4.15.4; if this fails, "
+                        + "the divergence has moved and the rationale needs re-reading");
+    }
+
+    /**
+     * 4.15.5: the mirror. The base CRL holds the certificate and the delta
+     * REMOVES it from hold, so the path is valid. We see the delta and accept;
+     * the JDK sees only the hold and refuses.
+     *
+     * <p>The JDK's message carries a zone-formatted revocation date, so it is
+     * pinned by class, reason and PREFIX — a whole-string pin fails in another
+     * timezone.
+     */
+    @Test
+    public void removalFromHoldIsSeenHereAndMissedByTheJdk() throws Exception
+    {
+        PkitsCertificates.Case c = PkitsPhase2Test.find("4.15.5");
+        Assertions.assertTrue(c.expectValid, "PKITS expects 4.15.5 to PASS");
+
+        Assertions.assertTrue(validatesWith(JostleProvider.PROVIDER_NAME, c),
+                "we honour the delta that lifts the hold, so 4.15.5 must validate");
+
+        CertPathValidatorException jdk = refusalFrom("SUN", c);
+        Assertions.assertNotNull(jdk, "the JDK is expected to refuse 4.15.5");
+        Assertions.assertEquals(CertPathValidatorException.BasicReason.REVOKED, jdk.getReason());
+        Assertions.assertTrue(
+                jdk.getMessage().startsWith("Certificate has been revoked, reason: CERTIFICATE_HOLD"),
+                "the JDK's refusal must still name the hold, got: " + jdk.getMessage());
+    }
+
+    /**
+     * A control: honouring deltas moved exactly the two rows above. The other
+     * eight cases whose store carries a delta CRL must still agree with PKITS.
+     */
+    @Test
+    public void theOtherDeltaCasesAreUnmovedByHonouringDeltas() throws Exception
+    {
+        String[] others = {"4.15.1", "4.15.2", "4.15.3", "4.15.6",
+                           "4.15.7", "4.15.8", "4.15.9", "4.15.10"};
+        for (String n : others)
+        {
+            PkitsCertificates.Case c = PkitsPhase2Test.find(n);
+            Assertions.assertEquals(c.expectValid,
+                    validatesWith(JostleProvider.PROVIDER_NAME, c),
+                    n + " must still agree with PKITS: USE_DELTAS decides 4.15.4 and "
+                            + "4.15.5 and must leave the rest of the section alone");
         }
     }
 }

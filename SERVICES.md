@@ -57,6 +57,11 @@ With revocation on the validator also reads the CertStores' CERTIFICATES,
 which an indirect CRL issuer needs — never as path members, and never ahead of
 the path's own certificates in OpenSSL's issuer search.
 
+DELTA CRLs are honoured: a delta supplied alongside its base CRL is applied,
+so a certificate the delta revokes is refused and one the delta releases from
+hold is accepted. The JDK does neither, which is a divergence a caller
+comparing the two will see on exactly those two shapes.
+
 Not covered, and refused rather than ignored so a caller never gets a green
 result for a check that never ran: policy processing (initial policy set,
 explicit policy, policy mapping and any-policy inhibition), and

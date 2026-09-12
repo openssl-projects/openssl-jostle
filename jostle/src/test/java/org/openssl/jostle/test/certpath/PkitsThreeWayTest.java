@@ -49,18 +49,6 @@ public class PkitsThreeWayTest
     private static final double BCPROV_VERSION = 1.8502;
     private static final String BCPROV_INFO = "BouncyCastle Security Provider v1.85.2";
 
-    /**
-     * Held pending the delta-CRL ruling, on every provider. The SAME list
-     * PkitsPhase2Test holds, never a copy, so that commit moves both at once.
-     * Both rows currently agree three ways while disagreeing with PKITS, so
-     * running them would assert an answer nobody defends. At the ruling they
-     * leave HELD and become FOUR FOREIGN exclusions, not ours: under
-     * X509_V_FLAG_USE_DELTAS OpenSSL gets both rows right and the JDK gets
-     * both wrong, so it is SUN and BC that then need sanctioning on each.
-     */
-    static final List<String> HELD_PENDING_DELTA_RULING =
-            PkitsPhase2Test.HELD_PENDING_DELTA_RULING;
-
     /** A single (case, provider, measured reason) sanction. */
     private static final class Exclusion
     {
@@ -122,6 +110,24 @@ public class PkitsThreeWayTest
         EXCLUSIONS.add(new Exclusion("4.14.32", BC,
                 "BC returns valid where PKITS, SUN and this provider all report the "
                         + "certificate revoked (KEY_COMPROMISE)"));
+
+        // The delta-CRL pair. We honour deltas (X509_V_FLAG_USE_DELTAS) and
+        // agree with PKITS on both; neither the JDK nor BouncyCastle does, so
+        // all four triples here are foreign. Our side is pinned against the
+        // JDK in PkitsRevocationDivergenceTest.
+        EXCLUSIONS.add(new Exclusion("4.15.4", SUN,
+                "SUN ACCEPTS a path PKITS calls invalid: the EE is revoked only in the "
+                        + "delta and the base does not list it, so without deltas nothing "
+                        + "revokes it. A wrong acceptance, so no message"));
+        EXCLUSIONS.add(new Exclusion("4.15.4", BC,
+                "BC ACCEPTS a path PKITS calls invalid, for the same reason as SUN: no "
+                        + "message, the validate simply succeeds"));
+        EXCLUSIONS.add(new Exclusion("4.15.5", SUN,
+                "SUN refuses a valid path: \"Certificate has been revoked, reason: "
+                        + "CERTIFICATE_HOLD\" — the base CRL's hold, which the delta lifts"));
+        EXCLUSIONS.add(new Exclusion("4.15.5", BC,
+                "BC refuses a valid path: \"Certificate revocation after ..., reason: "
+                        + "certificateHold\" — the base CRL's hold, which the delta lifts"));
     }
 
     @BeforeAll
@@ -222,10 +228,6 @@ public class PkitsThreeWayTest
         Map<String, Map<String, Boolean>> raw = new LinkedHashMap<String, Map<String, Boolean>>();
         for (PkitsCertificates.Case c : PkitsCertificates.cases())
         {
-            if (HELD_PENDING_DELTA_RULING.contains(c.number))
-            {
-                continue;
-            }
             Map<String, Boolean> byProvider = new LinkedHashMap<String, Boolean>();
             for (String p : PROVIDERS)
             {
@@ -283,8 +285,8 @@ public class PkitsThreeWayTest
         // provider must have been measured on every row not sanctioned for
         // it. A count that silently shrank would make the assertion above
         // pass over fewer rows with nothing to say so.
-        Assertions.assertEquals(cases.size() - HELD_PENDING_DELTA_RULING.size(), raw.size(),
-                "the sweep must cover every row that is not held");
+        Assertions.assertEquals(cases.size(), raw.size(),
+                "the sweep must cover every row in the table");
         for (String p : PROVIDERS)
         {
             int expected = raw.size() - excludedRowCount(p);
@@ -304,7 +306,7 @@ public class PkitsThreeWayTest
         int n = 0;
         for (Exclusion x : EXCLUSIONS)
         {
-            if (x.provider.equals(provider) && !HELD_PENDING_DELTA_RULING.contains(x.number))
+            if (x.provider.equals(provider))
             {
                 n++;
             }
@@ -338,18 +340,6 @@ public class PkitsThreeWayTest
                     key + " has a reason too short to be one: " + x.reason);
         }
         Assertions.assertFalse(EXCLUSIONS.isEmpty(), "the exclusion list is empty");
-
-        for (String n : HELD_PENDING_DELTA_RULING)
-        {
-            Assertions.assertTrue(known.contains(n),
-                    "a held case is not in the table: " + n);
-            for (String p : PROVIDERS)
-            {
-                Assertions.assertNull(reasonFor(n, p),
-                        n + " is HELD; it must not also carry an exclusion, and it "
-                                + "carries one for " + p);
-            }
-        }
     }
 
     /**

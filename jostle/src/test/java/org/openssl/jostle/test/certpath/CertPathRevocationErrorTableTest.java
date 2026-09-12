@@ -77,8 +77,7 @@ public class CertPathRevocationErrorTableTest
 
         for (PkitsCertificates.Case c : PkitsPhase2Test.selected())
         {
-            if (PkitsPhase2Test.HELD_PENDING_DELTA_RULING.contains(c.number)
-                    || PkitsPhase2Test.PINNED_DIVERGENCES.contains(c.number)
+            if (PkitsPhase2Test.PINNED_DIVERGENCES.contains(c.number)
                     || "4.4.8".equals(c.number))
             {
                 continue;
@@ -127,10 +126,6 @@ public class CertPathRevocationErrorTableTest
         Map<Integer, String> byCode = new HashMap<Integer, String>();
         for (PkitsCertificates.Case c : PkitsPhase2Test.selected())
         {
-            if (PkitsPhase2Test.HELD_PENDING_DELTA_RULING.contains(c.number))
-            {
-                continue;
-            }
             String ours = refusal(JostleProvider.PROVIDER_NAME, c);
             if (ours == null)
             {

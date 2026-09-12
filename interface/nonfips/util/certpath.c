@@ -254,16 +254,21 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
             flags |= X509_V_FLAG_X509_STRICT;
         }
         /*
-         * All three are load-bearing, measured over PKITS's 109 revocation
+         * All four are load-bearing, measured over PKITS's 109 revocation
          * cases: without CRL_CHECK_ALL the revoked INTERMEDIATE of 4.4.2 is
-         * accepted, and EXTENDED_CRL_SUPPORT decides the 9 indirect-CRL and
-         * separate-CRL-key cases.
+         * accepted, EXTENDED_CRL_SUPPORT decides the 9 indirect-CRL and
+         * separate-CRL-key cases, and USE_DELTAS decides 4.15.4 and 4.15.5
+         * while leaving the other eight delta rows as measured. Without
+         * USE_DELTAS, get_delta_sk returns before pairing any delta with its
+         * base CRL (x509_vfy.c, 3.1.2 :1177, 3.5.8 :1326), so a delta is
+         * carried in the store and never consulted.
          */
         if (revocation != 0)
         {
             flags |= X509_V_FLAG_CRL_CHECK
                      | X509_V_FLAG_CRL_CHECK_ALL
-                     | X509_V_FLAG_EXTENDED_CRL_SUPPORT;
+                     | X509_V_FLAG_EXTENDED_CRL_SUPPORT
+                     | X509_V_FLAG_USE_DELTAS;
         }
         X509_VERIFY_PARAM_set_flags(param, flags);
         if (time_secs != CERTPATH_TIME_NOW)

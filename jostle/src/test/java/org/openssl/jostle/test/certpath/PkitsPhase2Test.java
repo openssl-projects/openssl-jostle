@@ -30,28 +30,17 @@ import java.util.Set;
  * them, and revocation is left at its JCE default of ON.
  *
  * <h2>What is not run here, and why</h2>
- * <b>4.15.4 and 4.15.5 are HELD.</b> They are the only two cases whose outcome
- * depends on whether delta CRLs are honoured, and that is an open ruling.
- * Measured: OpenSSL under {@code X509_V_FLAG_USE_DELTAS} gets both RIGHT where
- * the JDK gets both WRONG, so honouring deltas moves us towards PKITS and away
- * from JDK parity. Until the ruling lands the flag is off and these two are
- * neither run nor pinned — an unheld case asserting today's answer would have
- * to be rewritten by the ruling either way.
- * <p>
  * <b>4.14.30 is a pinned divergence</b>, in
- * {@link PkitsRevocationDivergenceTest} with its mechanism.
+ * {@link PkitsRevocationDivergenceTest} with its mechanism. Every other row
+ * runs: delta CRLs are honoured since {@code X509_V_FLAG_USE_DELTAS} landed,
+ * which made 4.15.4 and 4.15.5 agree with PKITS and left the other eight
+ * delta rows unmoved. Those two are now JDK divergences, pinned in
+ * {@link PkitsRevocationDivergenceTest} alongside 4.14.30.
  */
 public class PkitsPhase2Test
 {
     /** The revocation sections. */
     static final List<String> SECTIONS = java.util.Arrays.asList("4.4", "4.14", "4.15");
-
-    /**
-     * Held pending the delta-CRL ruling. Named rather than counted, so the
-     * two that are missing from the sweep are the two that were meant to be.
-     */
-    static final List<String> HELD_PENDING_DELTA_RULING =
-            java.util.Arrays.asList("4.15.4", "4.15.5");
 
     /** Divergences pinned by name, each with its measured mechanism. */
     static final List<String> PINNED_DIVERGENCES = java.util.Arrays.asList("4.14.30");
@@ -186,8 +175,7 @@ public class PkitsPhase2Test
         int checked = 0;
         for (PkitsCertificates.Case c : cases)
         {
-            if (HELD_PENDING_DELTA_RULING.contains(c.number)
-                    || PINNED_DIVERGENCES.contains(c.number))
+            if (PINNED_DIVERGENCES.contains(c.number))
             {
                 continue;
             }
@@ -201,8 +189,8 @@ public class PkitsPhase2Test
                         + (got ? "" : " [" + LAST_REFUSAL.get() + "]"));
             }
         }
-        Assertions.assertEquals(68, checked,
-                "71 cases minus the 2 held for the delta ruling and the 1 pinned divergence");
+        Assertions.assertEquals(70, checked,
+                "71 cases minus the 1 pinned divergence");
         Assertions.assertTrue(failures.isEmpty(), "PKITS disagreements: " + failures);
     }
 
@@ -277,23 +265,5 @@ public class PkitsPhase2Test
         Assertions.assertTrue(distinct.size() >= 40,
                 "only " + distinct.size() + " distinct CRLs across 71 revocation cases — "
                         + "the CRL column looks truncated");
-    }
-
-    /**
-     * The held pair is held, not forgotten: both must still be in the table,
-     * so the delta ruling has something to land on.
-     */
-    @Test
-    public void theHeldDeltaCasesAreStillInTheTable() throws Exception
-    {
-        for (String n : HELD_PENDING_DELTA_RULING)
-        {
-            PkitsCertificates.Case c = find(n);
-            Assertions.assertFalse(c.crls.isEmpty(), n + " must carry its CRLs");
-        }
-        // 4.15.6 is the control: the rest of 4.15 agrees whether or not
-        // deltas are honoured, so the section is not skipped wholesale.
-        Assertions.assertFalse(validates(find("4.15.6")),
-                "4.15.6 is expected to fail whatever the delta ruling");
     }
 }
