@@ -649,7 +649,7 @@ public class MLKEMKTSCipherSpi
         {
             readSequenceHeader(der, pos);          // digest AlgorithmIdentifier
             digestOid = readOid(der, pos);
-            name = KtsKdf.mlKemKtsDigestForOid(digestOid);
+            name = KtsKdf.ktsDigestForOid(digestOid);
         }
         catch (RuntimeException e)
         {
@@ -658,7 +658,7 @@ public class MLKEMKTSCipherSpi
         if (name == null)
         {
             throw new InvalidAlgorithmParameterException(
-                    KtsKdf.unsupportedMlKemKtsDigestMessage(digestOid));
+                    KtsKdf.unsupportedKtsDigestMessage(digestOid));
         }
         this.kdfKind = kind;
         this.digestName = name;

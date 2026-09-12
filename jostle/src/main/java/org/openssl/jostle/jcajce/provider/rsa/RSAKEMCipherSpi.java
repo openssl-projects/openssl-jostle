@@ -628,11 +628,11 @@ public class RSAKEMCipherSpi
             // kdfKind lands before the digest resolves, as it always has; a
             // refused init leaves it set either way.
             this.kdfKind = kind;
-            String name = KtsKdf.rsaKtsDigestForOid(digestOid);
+            String name = KtsKdf.ktsDigestForOid(digestOid);
             if (name == null)
             {
                 throw new InvalidAlgorithmParameterException(
-                        KtsKdf.unsupportedRsaKtsDigestMessage(digestOid));
+                        KtsKdf.unsupportedKtsDigestMessage(digestOid));
             }
             this.digestName = name;
         }

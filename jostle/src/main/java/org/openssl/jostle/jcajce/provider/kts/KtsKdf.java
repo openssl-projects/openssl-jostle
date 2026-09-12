@@ -43,11 +43,11 @@ public final class KtsKdf
     private static final String ID_HKDF_SHA384 = "1.2.840.113549.1.9.16.3.29";
     private static final String ID_HKDF_SHA512 = "1.2.840.113549.1.9.16.3.30";
 
-    /** OIW, not NIST, so it has no holder in NISTObjectIdentifiers. */
-    private static final String ID_SHA1 = "1.3.14.3.2.26";
-
     /** Named in both refusal messages so the caller learns what IS accepted. */
     private static final String ACCEPTED = "KDF2, KDF3, HKDF-SHA256/384/512";
+
+    /** Likewise, for the digest an X9.44 KDF2/KDF3 parameter may name. */
+    private static final String ACCEPTED_DIGESTS = "SHA-256, SHA-512, SHAKE128, SHAKE256";
 
     private KtsKdf()
     {
@@ -106,77 +106,45 @@ public final class KtsKdf
     }
 
     /**
-     * The digest an X9.44 KDF2/KDF3 digest AlgorithmIdentifier names, as
-     * RSA-KTS-KEM-KWS reads it.
+     * The digest an X9.44 KDF2/KDF3 digest AlgorithmIdentifier names.
+     *
+     * <p>One table for both KTS ciphers, and the same set BouncyCastle accepts.
+     *
+     * <p>SHAKE is admitted at the JCA names OpenSSL serves, whose output
+     * lengths are 32 and 64 bytes — which is the KDF block length, and equals
+     * BouncyCastle's {@code SHAKEDigest(128)} / {@code (256)} so a derivation
+     * agrees with it beyond the first block. Only the bare OIDs
+     * {@code id-shake128} / {@code id-shake256} are accepted; the
+     * {@code -len} forms carry an explicit output length as a parameter, which
+     * nothing here reads, so accepting them would silently ignore it.
      *
      * @return the JCA digest name, or null when the OID names none.
      */
-    public static String rsaKtsDigestForOid(String oid)
+    public static String ktsDigestForOid(String oid)
     {
         if (NISTObjectIdentifiers.id_sha256.getId().equals(oid))
         {
             return "SHA-256";
         }
-        if (NISTObjectIdentifiers.id_sha384.getId().equals(oid))
-        {
-            return "SHA-384";
-        }
         if (NISTObjectIdentifiers.id_sha512.getId().equals(oid))
         {
             return "SHA-512";
         }
-        return null;
-    }
-
-    /**
-     * The same, as the ML-KEM KTS cipher reads it.
-     *
-     * <p>It accepts SHA-224 and SHA-1 where {@link #rsaKtsDigestForOid} does
-     * not, and its refusal is worded differently. Both divergences are as
-     * measured and are moved here unchanged, so one file carries them and a
-     * later change has one place to reconcile.
-     *
-     * @return the JCA digest name, or null when the OID names none.
-     */
-    public static String mlKemKtsDigestForOid(String oid)
-    {
-        if (NISTObjectIdentifiers.id_sha256.getId().equals(oid))
+        if (NISTObjectIdentifiers.id_shake128.getId().equals(oid))
         {
-            return "SHA-256";
+            return "SHAKE-128";
         }
-        if (NISTObjectIdentifiers.id_sha384.getId().equals(oid))
+        if (NISTObjectIdentifiers.id_shake256.getId().equals(oid))
         {
-            return "SHA-384";
-        }
-        if (NISTObjectIdentifiers.id_sha512.getId().equals(oid))
-        {
-            return "SHA-512";
-        }
-        if (NISTObjectIdentifiers.id_sha224.getId().equals(oid))
-        {
-            return "SHA-224";
-        }
-        if (ID_SHA1.equals(oid))
-        {
-            return "SHA-1";
+            return "SHAKE-256";
         }
         return null;
     }
 
-    /** RSA-KTS-KEM-KWS's refusal, which names what it does accept. */
-    public static String unsupportedRsaKtsDigestMessage(String oid)
+    /** One sentence for both ciphers, naming what IS accepted. */
+    public static String unsupportedKtsDigestMessage(String oid)
     {
-        return "unsupported KDF digest " + oid
-                + "; RSA-KTS-KEM-KWS supports SHA-256, SHA-384 and SHA-512";
-    }
-
-    /**
-     * The ML-KEM KTS cipher's refusal. Differs from the RSA one in punctuation
-     * and in naming nothing that IS accepted; unchanged here.
-     */
-    public static String unsupportedMlKemKtsDigestMessage(String oid)
-    {
-        return "unsupported KDF digest: " + oid;
+        return "unsupported KDF digest " + oid + "; supported: " + ACCEPTED_DIGESTS;
     }
 
     /** Identical in both SPIs, so a caller sees one sentence whichever it used. */

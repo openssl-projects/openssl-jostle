@@ -62,6 +62,15 @@ so a certificate the delta revokes is refused and one the delta releases from
 hold is accepted. The JDK does neither, which is a divergence a caller
 comparing the two will see on exactly those two shapes.
 
+**What the KTS ciphers accept as a KDF.** `RSA-KTS-KEM-KWS` and `ML-KEM` take
+X9.44 KDF2 and KDF3, whose digest parameter may be SHA-256, SHA-512, SHAKE128
+or SHAKE256, and RFC 8619's three HKDF OIDs, whose digest is fixed by the OID
+itself and includes SHA-384. Anything else is refused at `init`. SHAKE is
+squeezed to 32 bytes for SHAKE128 and 64 for SHAKE256 — that length is the KDF
+block length and matches BouncyCastle, so derivations agree beyond the first
+block. Only the bare `id-shake128` / `id-shake256` OIDs are taken; the `-len`
+forms carry an output length nothing here reads.
+
 Not covered, and refused rather than ignored so a caller never gets a green
 result for a check that never ran: policy processing (initial policy set,
 explicit policy, policy mapping and any-policy inhibition), and

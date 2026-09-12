@@ -83,6 +83,8 @@ public class RSAKEMCipherTest
     protected static final ASN1ObjectIdentifier[] BC_SUPPORTED_KDF3_DIGESTS = {
             NISTObjectIdentifiers.id_sha256,
             NISTObjectIdentifiers.id_sha512,
+            NISTObjectIdentifiers.id_shake128,
+            NISTObjectIdentifiers.id_shake256,
     };
 
     protected static SecureRandom seededRandom(String testName) throws Exception
@@ -171,11 +173,8 @@ public class RSAKEMCipherTest
 
         for (int kekBits : new int[]{128, 192, 256})
         {
-            // SHA-384 is deliberately absent: BouncyCastle's KdfUtil accepts only
-            // SHA-256, SHA-512, SHAKE-128 and SHAKE-256 as a KDF3 digest and
-            // refuses SHA-384 with "unrecognized digest OID". Jostle accepts it
-            // (see sha384KdfWorksButBouncyCastleCannotReadIt) - do not "fix"
-            // this loop by adding it back, the failure would be BC's.
+            // These four are the whole accepted set on both sides. SHA-384 is
+            // refused by both - see sha384KdfIsRefusedByBothProviders.
             for (ASN1ObjectIdentifier dig : BC_SUPPORTED_KDF3_DIGESTS)
             {
                 byte[] otherInfo = randomBytes(sr, sr.nextInt(24));
@@ -200,11 +199,8 @@ public class RSAKEMCipherTest
 
         for (int kekBits : new int[]{128, 192, 256})
         {
-            // SHA-384 is deliberately absent: BouncyCastle's KdfUtil accepts only
-            // SHA-256, SHA-512, SHAKE-128 and SHAKE-256 as a KDF3 digest and
-            // refuses SHA-384 with "unrecognized digest OID". Jostle accepts it
-            // (see sha384KdfWorksButBouncyCastleCannotReadIt) - do not "fix"
-            // this loop by adding it back, the failure would be BC's.
+            // These four are the whole accepted set on both sides. SHA-384 is
+            // refused by both - see sha384KdfIsRefusedByBothProviders.
             for (ASN1ObjectIdentifier dig : BC_SUPPORTED_KDF3_DIGESTS)
             {
                 byte[] otherInfo = randomBytes(sr, sr.nextInt(24));
@@ -276,29 +272,38 @@ public class RSAKEMCipherTest
     }
 
     /**
-     * SHA-384 works as a KDF3 digest through Jostle, and BouncyCastle cannot
-     * read the result. Both halves are asserted deliberately: the first so the
-     * capability is not merely registered-but-unusable, the second so the
-     * interop limit is recorded as a measured fact rather than folklore. A
-     * caller choosing SHA-384 is choosing a wrap no BC peer can open.
+     * SHA-384 is refused as an X9.44 KDF digest, and BouncyCastle refuses it
+     * too — the narrowing brought the two into agreement rather than away from
+     * it. Both halves asserted, so a drift on either side is visible.
+     *
+     * <p>The two refuse at different POINTS, measured on bcprov 1.85.2: we
+     * reject the spec at {@code init}, BC accepts it there and throws
+     * {@code InvalidKeyException} from {@code wrap}. Asserted where each
+     * actually throws, so a move of either boundary fails here.
      */
     @Test
-    public void sha384KdfWorksButBouncyCastleCannotReadIt() throws Exception
+    public void sha384KdfIsRefusedByBothProviders() throws Exception
     {
-        SecureRandom sr = seededRandom("sha384KdfWorksButBouncyCastleCannotReadIt");
+        SecureRandom sr = seededRandom("sha384KdfIsRefusedByBothProviders");
         KeyPair kp = keyPair();
         KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha384);
         SecretKey cek = randomCek(sr);
 
-        byte[] wrapped = wrap(providerName(), kp, spec, cek);
-        Assertions.assertArrayEquals(cek.getEncoded(),
-                unwrap(providerName(), kp, spec, wrapped).getEncoded(),
-                "SHA-384 must round-trip through Jostle");
+        Cipher ours = Cipher.getInstance(XFORM, providerName());
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
+                () -> ours.init(Cipher.WRAP_MODE, kp.getPublic(), spec),
+                "we must refuse SHA-384 at init");
+        Assertions.assertEquals(KtsKdf.unsupportedKtsDigestMessage(
+                NISTObjectIdentifiers.id_sha384.getId()), e.getMessage());
 
-        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                () -> unwrap(BC, kp, spec, wrapped),
-                "BouncyCastle does not support SHA-384 for KDF3");
-        Assertions.assertTrue(e.getMessage().contains("unrecognized digest OID"), e.getMessage());
+        Cipher theirs = Cipher.getInstance(XFORM, BC);
+        theirs.init(Cipher.WRAP_MODE, kp.getPublic(), spec);   // BC accepts it here
+        InvalidKeyException bc = Assertions.assertThrows(InvalidKeyException.class,
+                () -> theirs.wrap(cek),
+                "BouncyCastle must still refuse SHA-384, at wrap");
+        Assertions.assertEquals("unrecognized digest OID: "
+                + NISTObjectIdentifiers.id_sha384.getId(), bc.getMessage());
     }
 
     /** Both OIDs resolve to the same behaviour as the name. */

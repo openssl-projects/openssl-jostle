@@ -21,6 +21,7 @@ import org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.digests.SHA384Digest;
 import org.bouncycastle.crypto.digests.SHA512Digest;
+import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.bouncycastle.crypto.generators.KDF2BytesGenerator;
 import org.bouncycastle.crypto.params.KDFParameters;
 import org.bouncycastle.jcajce.spec.KTSParameterSpec;
@@ -44,22 +45,23 @@ import java.security.SecureRandom;
 import java.security.Security;
 
 /**
- * MT-73: the KTS ciphers accept KDF2 and HKDF alongside X9.44 KDF3.
+ * The KTS ciphers' KDF derivations against BouncyCastle, over all eleven KDF
+ * identifiers they accept.
  *
- * <h2>Two references, because BouncyCastle cannot supply one of the cells</h2>
+ * <p>Since the digest set was narrowed, our accepted X9.44 set is EXACTLY BC's
+ * — SHA-256, SHA-512, SHAKE128, SHAKE256 — so every row here is served by both
+ * JCE layers and every row runs cross-provider in both directions.
  *
- * <p>Measured against bcprov 1.85.2: BC's KTS ciphers accept SHA-256 and
- * SHA-512 for KDF2 and KDF3 but REFUSE SHA-384 —
- * {@code InvalidKeyException: unrecognized digest OID: 2.16.840.1.101.3.4.2.2}
- * — while accepting all three HKDF OIDs. Our {@code digestNameForOid} has
- * always accepted SHA-384, so on those two cells we are a <b>superset of BC by
- * design</b> and a parity sweep must not narrow us to match. Both ciphers show
- * the identical gap, so it lives in BC's shared KDF-digest mapping.
+ * <p>The low-level cell ({@code KDF2BytesGenerator} /
+ * {@code ConcatenationKDFGenerator} over {@code SHAKEDigest}) is kept as a
+ * SECOND witness on SHAKE, not the only one: it compares the derivation itself
+ * rather than the wrap, so it would catch a divergence that a round-trip
+ * through both providers happened to absorb.
  *
- * <p>The seven cells BC's JCE layer can serve are compared against it. The two
- * SHA-384 cells are compared against BC's LOW-LEVEL generators
- * ({@code KDF2BytesGenerator} / {@code ConcatenationKDFGenerator}), which are
- * still an independent implementation of the derivation — not self-reference.
+ * <p>SHA-384 is no longer accepted as an X9.44 digest parameter. The HKDF-SHA384
+ * OID is unaffected and still served: RFC 8619 fixes the digest in the
+ * algorithm identifier, so it is not a free parameter, and BC serves it — see
+ * the comment on that row in {@link #kdfs()}.
  */
 public class KtsKdfAgreementTest
 {
@@ -86,19 +88,24 @@ public class KtsKdfAgreementTest
         return new AlgorithmIdentifier(kdf, new AlgorithmIdentifier(digest, DERNull.INSTANCE));
     }
 
-    /** The nine KDF identifiers, and whether BC's JCE layer will serve each. */
+    /** Every KDF identifier the ciphers accept. BC's JCE layer serves them all. */
     private static Object[][] kdfs()
     {
         return new Object[][]{
-                {"KDF2-SHA256", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_sha256), true},
-                {"KDF2-SHA384", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_sha384), false},
-                {"KDF2-SHA512", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_sha512), true},
-                {"KDF3-SHA256", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_sha256), true},
-                {"KDF3-SHA384", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_sha384), false},
-                {"KDF3-SHA512", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_sha512), true},
-                {"HKDF-SHA256", new AlgorithmIdentifier(PKCSObjectIdentifiers.id_alg_hkdf_with_sha256), true},
-                {"HKDF-SHA384", new AlgorithmIdentifier(PKCSObjectIdentifiers.id_alg_hkdf_with_sha384), true},
-                {"HKDF-SHA512", new AlgorithmIdentifier(PKCSObjectIdentifiers.id_alg_hkdf_with_sha512), true},
+                {"KDF2-SHA256", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_sha256)},
+                {"KDF2-SHA512", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_sha512)},
+                {"KDF2-SHAKE128", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_shake128)},
+                {"KDF2-SHAKE256", x944(X9ObjectIdentifiers.id_kdf_kdf2, NISTObjectIdentifiers.id_shake256)},
+                {"KDF3-SHA256", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_sha256)},
+                {"KDF3-SHA512", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_sha512)},
+                {"KDF3-SHAKE128", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_shake128)},
+                {"KDF3-SHAKE256", x944(X9ObjectIdentifiers.id_kdf_kdf3, NISTObjectIdentifiers.id_shake256)},
+                {"HKDF-SHA256", new AlgorithmIdentifier(PKCSObjectIdentifiers.id_alg_hkdf_with_sha256)},
+                // SHA-384 survives HERE and nowhere else: RFC 8619 fixes the
+                // digest in the OID, so it is not the free X9.44 parameter the
+                // narrowing removed, and BC serves this OID.
+                {"HKDF-SHA384", new AlgorithmIdentifier(PKCSObjectIdentifiers.id_alg_hkdf_with_sha384)},
+                {"HKDF-SHA512", new AlgorithmIdentifier(PKCSObjectIdentifiers.id_alg_hkdf_with_sha512)},
         };
     }
 
@@ -131,13 +138,11 @@ public class KtsKdfAgreementTest
     public void rsaKtsAgreesWithBouncyCastleOnEveryKdfBothDirections() throws Exception
     {
         KeyPair kp = rsaPair();
+        int driven = 0;
         for (Object[] row : kdfs())
         {
-            if (!((Boolean) row[2]).booleanValue())
-            {
-                continue;   // BC's JCE layer refuses this one; covered below.
-            }
             String label = (String) row[0];
+            driven++;
             AlgorithmIdentifier kdf = (AlgorithmIdentifier) row[1];
             byte[] otherInfo = new byte[1 + RANDOM.nextInt(48)];
             RANDOM.nextBytes(otherInfo);
@@ -165,6 +170,8 @@ public class KtsKdfAgreementTest
                             bcUnwrap.unwrap(fromJo, "AES", Cipher.SECRET_KEY).getEncoded()),
                     label + ": BouncyCastle must unwrap Jostle's wrap");
         }
+        Assertions.assertEquals(11, driven,
+                "every KDF identifier must be driven against BC; a row silently skipped would hollow this sweep out");
     }
 
     /** The same matrix on ML-KEM-768, whose BC gap is identical. */
@@ -181,13 +188,11 @@ public class KtsKdfAgreementTest
         java.security.PrivateKey bcPriv =
                 bcKf.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(priv));
 
+        int driven = 0;
         for (Object[] row : kdfs())
         {
-            if (!((Boolean) row[2]).booleanValue())
-            {
-                continue;
-            }
             String label = (String) row[0];
+            driven++;
             AlgorithmIdentifier kdf = (AlgorithmIdentifier) row[1];
             byte[] otherInfo = new byte[1 + RANDOM.nextInt(48)];
             RANDOM.nextBytes(otherInfo);
@@ -215,15 +220,21 @@ public class KtsKdfAgreementTest
                             bcUnwrap.unwrap(fromJo, "AES", Cipher.SECRET_KEY).getEncoded()),
                     label + ": BouncyCastle must unwrap Jostle's ML-KEM wrap");
         }
+        Assertions.assertEquals(11, driven,
+                "every KDF identifier must be driven against BC; a row silently skipped would hollow this sweep out");
     }
 
     /**
-     * The two cells BC's JCE layer refuses, against BC's LOW-LEVEL generators.
-     * Independent code, so this is a real reference and not self-comparison —
-     * and it is the only evidence available for KDF2/KDF3 with SHA-384.
+     * SHAKE against BC's LOW-LEVEL generators — the second witness. The
+     * cross-provider cells above compare the WRAP; this compares the
+     * derivation itself, so it catches a divergence a round-trip through both
+     * providers would absorb.
+     *
+     * <p>One z and one otherInfo per trial, shared by all four derivations: two
+     * draws would differ whatever the KDF did.
      */
     @Test
-    public void sha384DerivationsMatchBouncyCastlesLowLevelGenerators() throws Exception
+    public void shakeDerivationsMatchBouncyCastlesLowLevelGenerators() throws Exception
     {
         Provider jsl = Security.getProvider(JSL);
         for (int trial = 0; trial < 6; trial++)
@@ -232,34 +243,38 @@ public class KtsKdfAgreementTest
             RANDOM.nextBytes(z);
             byte[] otherInfo = new byte[RANDOM.nextInt(40)];
             RANDOM.nextBytes(otherInfo);
-            int outLen = 1 + RANDOM.nextInt(160);
+            // Past one block for both: SHAKE-128 squeezes 32 bytes, SHAKE-256
+            // 64, so a shorter output would agree on the first block alone.
+            int outLen = 65 + RANDOM.nextInt(160);
 
-            byte[] ourKdf2 = KtsKdf.derive(jsl, KtsKdf.Kind.KDF2, "SHA-384", z, otherInfo, outLen);
-            byte[] bcKdf2 = new byte[outLen];
-            KDF2BytesGenerator g2 = new KDF2BytesGenerator(sha384());
-            g2.init(new KDFParameters(z, otherInfo));
-            g2.generateBytes(bcKdf2, 0, outLen);
-            Assertions.assertTrue(Arrays.areEqual(ourKdf2, bcKdf2), "KDF2-SHA384 diverged from BC");
+            for (int bits : new int[]{128, 256})
+            {
+                String name = "SHAKE-" + bits;
 
-            byte[] ourKdf3 = KtsKdf.derive(jsl, KtsKdf.Kind.KDF3, "SHA-384", z, otherInfo, outLen);
-            byte[] bcKdf3 = new byte[outLen];
-            ConcatenationKDFGenerator g3 = new ConcatenationKDFGenerator(sha384());
-            g3.init(new KDFParameters(z, otherInfo));
-            g3.generateBytes(bcKdf3, 0, outLen);
-            Assertions.assertTrue(Arrays.areEqual(ourKdf3, bcKdf3), "KDF3-SHA384 diverged from BC");
+                byte[] ourKdf2 = KtsKdf.derive(jsl, KtsKdf.Kind.KDF2, name, z, otherInfo, outLen);
+                byte[] bcKdf2 = new byte[outLen];
+                KDF2BytesGenerator g2 = new KDF2BytesGenerator(new SHAKEDigest(bits));
+                g2.init(new KDFParameters(z, otherInfo));
+                g2.generateBytes(bcKdf2, 0, outLen);
+                Assertions.assertTrue(Arrays.areEqual(ourKdf2, bcKdf2),
+                        "KDF2-" + name + " diverged from BC");
 
-            // Differentiator: the two must not be the same derivation, or the
-            // pair of assertions above would pass against one implementation
-            // wired to both kinds.
-            Assertions.assertFalse(Arrays.areEqual(ourKdf2, ourKdf3),
-                    "KDF2 and KDF3 must differ on identical inputs");
+                byte[] ourKdf3 = KtsKdf.derive(jsl, KtsKdf.Kind.KDF3, name, z, otherInfo, outLen);
+                byte[] bcKdf3 = new byte[outLen];
+                ConcatenationKDFGenerator g3 = new ConcatenationKDFGenerator(new SHAKEDigest(bits));
+                g3.init(new KDFParameters(z, otherInfo));
+                g3.generateBytes(bcKdf3, 0, outLen);
+                Assertions.assertTrue(Arrays.areEqual(ourKdf3, bcKdf3),
+                        "KDF3-" + name + " diverged from BC");
+
+                // Differentiator: one implementation wired to both kinds would
+                // satisfy the two assertions above.
+                Assertions.assertFalse(Arrays.areEqual(ourKdf2, ourKdf3),
+                        name + ": KDF2 and KDF3 must differ on identical inputs");
+            }
         }
     }
 
-    private static Digest sha384()
-    {
-        return new SHA384Digest();
-    }
 
     /** HKDF against BC's own generator, for all three digests. */
     @Test
