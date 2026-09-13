@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
@@ -117,9 +118,10 @@ public class FIPSEcCofactorEcdhTest
 
     /**
      * The weak curves, pinned as they are: the SAME curves are refused at
-     * DIFFERENT points by the two modules — keygen on 3.5.x, derive on 3.1.2.
-     * Left untyped deliberately: the module's own message already names the
-     * curve and the rule, so a typed code would add nothing.
+     * DIFFERENT points by the two modules — keygen on 3.5.x, KeyAgreement
+     * init on 3.1.2. No typed CODE was added, deliberately: the module's own
+     * message already names the curve and the rule. The point is measured
+     * per run and each point pins exactly one exception type.
      */
     @Test
     public void weakCurvesAreRefusedAtWhicheverPointTheModuleChooses() throws Exception
@@ -139,9 +141,44 @@ public class FIPSEcCofactorEcdhTest
                 continue;
             }
 
+            // Measure WHERE the module refuses, then pin ONE type for that
+            // point. A disjunction over both types could not fail. The branch
+            // is on the measured point, not a module version string, per this
+            // file's convention — see the class javadoc.
+            KeyAgreement ka = KeyAgreement.getInstance("ECDH", fips);
+            InvalidKeyException atInit = null;
+            try
+            {
+                ka.init(kp.getPrivate());
+            }
+            catch (InvalidKeyException typed)
+            {
+                atInit = typed;
+            }
+
+            if (atInit != null)
+            {
+                // 3.1.2 refuses here. InvalidKeyException is the JCE-canonical
+                // init failure and the provider-fallback trigger; the module's
+                // own text names the curve, which is what "left untyped"
+                // above means — no typed CODE, not an untyped exception.
+                Assertions.assertEquals(InvalidKeyException.class, atInit.getClass(),
+                        curve + ": an init refusal must be the canonical type exactly");
+                Assertions.assertTrue(String.valueOf(atInit.getMessage()).contains(shortName(curve)),
+                        curve + ": the refusal must name the curve; got: " + atInit.getMessage());
+                continue;
+            }
+
+            // Accepted at init, so the refusal comes later and carries the
+            // native type.
+            PublicKey peer = generate(fips, curve).getPublic();
             OpenSSLException ex = Assertions.assertThrows(OpenSSLException.class,
-                    () -> derive(fips, kp.getPrivate(), generate(fips, curve).getPublic()),
-                    curve + ": a module that mints a key on a sub-112-bit curve must refuse the derive");
+                    () ->
+                    {
+                        ka.doPhase(peer, true);
+                        ka.generateSecret();
+                    },
+                    curve + ": a module that accepts the key at init must refuse later");
             Assertions.assertTrue(String.valueOf(ex.getMessage()).contains(shortName(curve)),
                     curve + ": the refusal must name the curve; got: " + ex.getMessage());
         }

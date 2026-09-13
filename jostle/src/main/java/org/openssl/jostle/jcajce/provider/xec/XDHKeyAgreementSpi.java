@@ -118,14 +118,18 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                         privateKey.getSpec().getReference(),
                         randSource);
             }
+            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            {
+                // Carry the capability message verbatim.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
             catch (RuntimeException e)
             {
-                // A native init failure (OpenSSLException, etc.) must surface
-                // as InvalidKeyException so the JCE falls through to the next
-                // provider rather than propagating a provider-specific runtime
-                // exception that breaks the fallback contract.
+                // InvalidKeyException is the JCE-canonical init failure and the
+                // provider-fallback trigger. State what was refused, not why.
                 throw new InvalidKeyException(
-                        "XDH init: unable to initialise key agreement", e);
+                        "XDH init: the provider refused this private key: "
+                                + e.getMessage(), e);
             }
         }
     }
@@ -165,13 +169,17 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                 // unchanged rather than mislabelling it as a type mismatch.
                 throw e;
             }
+            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            {
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
             catch (RuntimeException e)
             {
-                // OpenSSL rejects a type mismatch (e.g. X25519 peer against
-                // an X448 local) at set_peer time. Translate so callers get
-                // the expected typed exception.
+                // InvalidKeyException, as BC. The message states what was
+                // refused, not why.
                 throw new InvalidKeyException(
-                        "XDH doPhase: peer key rejected (type mismatch?)", e);
+                        "XDH doPhase: the provider refused the peer key: "
+                                + e.getMessage(), e);
             }
             peerSet = true;
             return null;
@@ -186,7 +194,9 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                throw new IllegalStateException("XDH: must call doPhase before generateSecret");
+                // D5 (Megan, 2026-09-13): BC returns null here; we match it,
+                // against the JCE contract. Pinned in ExceptionTypeDivergencePinTest.
+                return null;
             }
 
             int upper = ecServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
@@ -214,7 +224,10 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                throw new IllegalStateException("XDH: must call doPhase before generateSecret");
+                // D5, as above: BC raises a raw NullPointerException here, not
+                // ShortBufferException. Pinned in ExceptionTypeDivergencePinTest.
+                throw new NullPointerException(
+                        "XDH generateSecret: doPhase has not been called");
             }
             if (sharedSecret == null)
             {
@@ -246,6 +259,13 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             throw new NoSuchAlgorithmException("algorithm name must be non-null and non-blank");
         }
         byte[] secret = engineGenerateSecret();
+        if (secret == null)
+        {
+            // D5, as above: BC raises a raw NullPointerException here. The
+            // TYPE is the parity; the message is ours.
+            throw new NullPointerException(
+                    "XDH generateSecret: doPhase has not been called");
+        }
         try
         {
             return new SecretKeySpec(secret, algorithm);

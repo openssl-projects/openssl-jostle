@@ -177,9 +177,15 @@ public class ECDHTest
         }
         catch (InvalidKeyException expected)
         {
-            // Good — curve mismatch translated to typed exception.
+            // The message carries the provider's own text verbatim instead of
+            // naming a cause we guessed. Asserting the concatenation pins that
+            // property without pinning OpenSSL's wording, which varies by
+            // version and carries a per-run hex prefix.
+            Assertions.assertNotNull(expected.getCause(),
+                    "the native failure must be preserved as the cause");
             Assertions.assertEquals(
-                    "ECDH doPhase: peer key rejected (curve mismatch?)",
+                    "ECDH doPhase: the provider refused the peer key: "
+                            + expected.getCause().getMessage(),
                     expected.getMessage());
         }
     }
@@ -253,22 +259,49 @@ public class ECDHTest
         }
     }
 
+    /**
+     * Before doPhase we follow BouncyCastle at this surface, including where
+     * BouncyCastle breaks the JCE contract. D5, ruled by Megan on 2026-09-13.
+     *
+     * <p>The contract says {@code IllegalStateException} for every overload,
+     * and {@code ShortBufferException} for an undersized buffer. Measured on
+     * BC 1.86: {@code generateSecret()} returns null and the other three raise
+     * a raw {@code NullPointerException}, the undersized buffer included. The
+     * divergence is pinned against LIVE BouncyCastle in
+     * {@code test.parity.ExceptionTypeDivergencePinTest}; this cell pins our
+     * half only, so a reader meets the behaviour here among the other
+     * state-machine guards.
+     */
     @Test
-    public void testEcdh_GenerateSecretBeforeDoPhase_isIllegalState() throws Exception
+    public void testEcdh_generateSecretBeforeDoPhase_followsBouncyCastle() throws Exception
     {
         KeyPair kp = generateKeyPair("P-256");
+
         KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         ka.init(kp.getPrivate());
-        try
-        {
-            ka.generateSecret();
-            Assertions.fail("generateSecret before doPhase must throw");
-        }
-        catch (IllegalStateException expected)
-        {
-            Assertions.assertEquals("ECDH: must call doPhase before generateSecret",
-                    expected.getMessage());
-        }
+        Assertions.assertNull(ka.generateSecret(),
+                "BC returns null here; the JCE contract says IllegalStateException");
+
+        KeyAgreement intoBuffer = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+        intoBuffer.init(kp.getPrivate());
+        Assertions.assertThrows(NullPointerException.class,
+                () -> intoBuffer.generateSecret(new byte[256], 0),
+                "BC raises a raw NullPointerException from this overload");
+
+        KeyAgreement undersized = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+        undersized.init(kp.getPrivate());
+        Assertions.assertThrows(NullPointerException.class,
+                () -> undersized.generateSecret(new byte[1], 0),
+                "an undersized buffer must not reach the ShortBufferException path,"
+                        + " because BC never reaches its own length check");
+
+        KeyAgreement named = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
+        named.init(kp.getPrivate());
+        NullPointerException npe = Assertions.assertThrows(NullPointerException.class,
+                () -> named.generateSecret("AES"),
+                "BC raises a raw NullPointerException from this overload too");
+        Assertions.assertEquals("ECDH generateSecret: doPhase has not been called",
+                npe.getMessage(), "the TYPE is the parity; the message is ours");
     }
 
     @Test

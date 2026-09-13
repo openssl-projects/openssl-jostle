@@ -445,19 +445,15 @@ public class FIPSECTest
                     expected.getMessage());
         }
 
-        // generateSecret before doPhase.
+        // generateSecret before doPhase. D5 (Megan, 2026-09-13): we follow
+        // BouncyCastle here and return null, against the JCE contract, which
+        // says IllegalStateException. The SPI is shared with JSL, so this is
+        // the same behaviour ECDHTest pins; the divergence from the contract
+        // is pinned against live BC in test.parity.ExceptionTypeDivergencePinTest.
         KeyAgreement ka2 = KeyAgreement.getInstance("ECDH", FIPS);
         ka2.init(alice.getPrivate());
-        try
-        {
-            ka2.generateSecret();
-            Assertions.fail("generateSecret before doPhase must throw");
-        }
-        catch (IllegalStateException expected)
-        {
-            Assertions.assertEquals("ECDH: must call doPhase before generateSecret",
-                    expected.getMessage());
-        }
+        Assertions.assertNull(ka2.generateSecret(),
+                "BC returns null here, and JSLFIPS must not diverge from JSL");
 
         // lastPhase=false.
         KeyAgreement ka3 = KeyAgreement.getInstance("ECDH", FIPS);
@@ -796,8 +792,13 @@ public class FIPSECTest
         }
         catch (InvalidKeyException expected)
         {
+            // As in ECDHTest: the message carries the provider's own text, so
+            // the concatenation is what is pinned and OpenSSL's wording is not.
+            Assertions.assertNotNull(expected.getCause(),
+                    "the native failure must be preserved as the cause");
             Assertions.assertEquals(
-                    "ECDH doPhase: peer key rejected (curve mismatch?)",
+                    "ECDH doPhase: the provider refused the peer key: "
+                            + expected.getCause().getMessage(),
                     expected.getMessage());
         }
     }

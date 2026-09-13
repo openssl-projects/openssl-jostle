@@ -199,8 +199,13 @@ public class XDHTest
         }
         catch (InvalidKeyException expected)
         {
+            // As in ECDHTest: the concatenation is the property, so OpenSSL's
+            // wording and its per-run hex prefix are not pinned.
+            Assertions.assertNotNull(expected.getCause(),
+                    "the native failure must be preserved as the cause");
             Assertions.assertEquals(
-                    "XDH doPhase: peer key rejected (type mismatch?)",
+                    "XDH doPhase: the provider refused the peer key: "
+                            + expected.getCause().getMessage(),
                     expected.getMessage());
         }
     }
@@ -432,22 +437,42 @@ public class XDHTest
         }
     }
 
+    /**
+     * The XDH half of D5 — see the ECDH twin in {@code ECDHTest} for the
+     * reasoning. Contract says IllegalStateException on every overload and
+     * ShortBufferException on an undersized buffer; BC 1.86 returns null then
+     * raises raw NullPointerExceptions, and we follow BC by ruling. Pinned
+     * against live BC in {@code test.parity.ExceptionTypeDivergencePinTest}.
+     */
     @Test
-    public void testXdh_generateSecretBeforeDoPhase_isIllegalState() throws Exception
+    public void testXdh_generateSecretBeforeDoPhase_followsBouncyCastle() throws Exception
     {
         KeyPair kp = joKeyPair("X25519");
+
         KeyAgreement ka = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
         ka.init(kp.getPrivate());
-        try
-        {
-            ka.generateSecret();
-            Assertions.fail("generateSecret before doPhase must throw");
-        }
-        catch (IllegalStateException expected)
-        {
-            Assertions.assertEquals("XDH: must call doPhase before generateSecret",
-                    expected.getMessage());
-        }
+        Assertions.assertNull(ka.generateSecret(),
+                "BC returns null here; the JCE contract says IllegalStateException");
+
+        KeyAgreement intoBuffer = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        intoBuffer.init(kp.getPrivate());
+        Assertions.assertThrows(NullPointerException.class,
+                () -> intoBuffer.generateSecret(new byte[256], 0),
+                "BC raises a raw NullPointerException from this overload");
+
+        KeyAgreement undersized = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        undersized.init(kp.getPrivate());
+        Assertions.assertThrows(NullPointerException.class,
+                () -> undersized.generateSecret(new byte[1], 0),
+                "an undersized buffer must not reach the ShortBufferException path");
+
+        KeyAgreement named = KeyAgreement.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        named.init(kp.getPrivate());
+        NullPointerException npe = Assertions.assertThrows(NullPointerException.class,
+                () -> named.generateSecret("AES"),
+                "BC raises a raw NullPointerException from this overload too");
+        Assertions.assertEquals("XDH generateSecret: doPhase has not been called",
+                npe.getMessage(), "the TYPE is the parity; the message is ours");
     }
 
     @Test

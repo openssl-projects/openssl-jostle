@@ -134,9 +134,25 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             peerSet = false;
 
             ensureRef();
-            ecServiceNI.kexInit(ref.getReference(),
-                    privateKey.getSpec().getReference(),
-                    randSource);
+            try
+            {
+                ecServiceNI.kexInit(ref.getReference(),
+                        privateKey.getSpec().getReference(),
+                        randSource);
+            }
+            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            {
+                // Carry the capability message verbatim.
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
+            catch (org.openssl.jostle.jcajce.provider.OpenSSLException e)
+            {
+                // InvalidKeyException is the JCE-canonical init failure and the
+                // provider-fallback trigger. State what was refused, not why.
+                throw (InvalidKeyException) new InvalidKeyException(
+                        "ECDH init: the provider refused this private key: "
+                                + e.getMessage()).initCause(e);
+            }
         }
     }
 
@@ -182,13 +198,17 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                 // mismatch.
                 throw e;
             }
+            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            {
+                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+            }
             catch (RuntimeException e)
             {
-                // OpenSSL rejects mismatched curves at set_peer time.
-                // Translate so JCE callers get the expected typed
-                // exception rather than a provider-specific runtime.
+                // InvalidKeyException, as BC. The message states what was
+                // refused, not why.
                 throw new InvalidKeyException(
-                        "ECDH doPhase: peer key rejected (curve mismatch?)", e);
+                        "ECDH doPhase: the provider refused the peer key: "
+                                + e.getMessage(), e);
             }
             peerSet = true;
             return null;
@@ -203,8 +223,9 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                throw new IllegalStateException(
-                        "ECDH: must call doPhase before generateSecret");
+                // D5 (Megan, 2026-09-13): BC returns null here; we match it,
+                // against the JCE contract. Pinned in ExceptionTypeDivergencePinTest.
+                return null;
             }
 
             int upper = ecServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
@@ -231,8 +252,10 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                throw new IllegalStateException(
-                        "ECDH: must call doPhase before generateSecret");
+                // D5, as above: BC raises a raw NullPointerException here, not
+                // ShortBufferException. Pinned in ExceptionTypeDivergencePinTest.
+                throw new NullPointerException(
+                        "ECDH generateSecret: doPhase has not been called");
             }
             if (sharedSecret == null)
             {
@@ -274,6 +297,13 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
         // requested algorithm name. Callers wanting a KDF-derived key
         // should run the bytes through a separate KDF SPI.
         byte[] secret = engineGenerateSecret();
+        if (secret == null)
+        {
+            // D5, as above: BC raises a raw NullPointerException here. The
+            // TYPE is the parity; the message is ours.
+            throw new NullPointerException(
+                    "ECDH generateSecret: doPhase has not been called");
+        }
         try
         {
             return new SecretKeySpec(secret, algorithm);
