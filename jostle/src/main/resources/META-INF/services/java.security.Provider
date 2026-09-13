@@ -1,0 +1,2 @@
+org.openssl.jostle.jcajce.provider.JostleProvider
+org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider
