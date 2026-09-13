@@ -163,7 +163,7 @@ public final class KtsKdf
      * RFC 8619 requires HKDF's parameters be absent, so a present one is
      * malformed. BouncyCastle refuses it too, but with an unchecked
      * {@code IllegalStateException("HDKF parameter support not added")}
-     * (measured, 1.85.2); {@code engineInit}'s contract names
+     * (measured, 1.86); {@code engineInit}'s contract names
      * {@code InvalidAlgorithmParameterException}, so we diverge deliberately.
      */
     public static String hkdfParametersForbiddenMessage()

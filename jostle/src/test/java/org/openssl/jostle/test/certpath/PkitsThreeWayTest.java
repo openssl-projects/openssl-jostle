@@ -46,8 +46,8 @@ public class PkitsThreeWayTest
      * release 8, so the version is read as the numeric form beside the info
      * string; neither alone is specific enough to name a release.
      */
-    private static final double BCPROV_VERSION = 1.8502;
-    private static final String BCPROV_INFO = "BouncyCastle Security Provider v1.85.2";
+    private static final double BCPROV_VERSION = 1.86;
+    private static final String BCPROV_INFO = "BouncyCastle Security Provider v1.86";
 
     /** A single (case, provider, measured reason) sanction. */
     private static final class Exclusion
@@ -150,7 +150,7 @@ public class PkitsThreeWayTest
         //   com.sun.security.enableCRLDP  JDK 25 (zulu 25.0.0)
         //       sun.security.provider.certpath.RevocationChecker:194, Boolean.getBoolean
         //       (NOT DistributionPointFetcher, which reads neither)
-        //   org.bouncycastle.x509.enableCRLDP  bcprov-jdk18on 1.85.2
+        //   org.bouncycastle.x509.enableCRLDP  bcprov-jdk18on 1.86
         //       org.bouncycastle.util.Properties holds the literal (and a
         //       META-INF/versions/9 copy); read in
         //       org.bouncycastle.jce.provider.CertPathValidatorUtilities via isOverrideSet

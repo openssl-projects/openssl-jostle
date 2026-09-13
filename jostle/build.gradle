@@ -375,7 +375,7 @@ dependencies {
     // went unnoticed here. UnpinnedServiceResolutionParityTest is the
     // compensating control and must stay; being a SOURCE lint, it cannot
     // itself be masked by anything on the classpath.
-    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
+    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.86'
     // CMS key-agreement interop tests (bcpkix carries org.bouncycastle.cms.*;
     // it depends on bcutil for the ASN.1 CMS structures).
     //
@@ -384,34 +384,34 @@ dependencies {
     // codecs against. Take them from HERE: bcprov ships same-named classes
     // under org.bouncycastle.internal.asn1.cms, an internal package with no
     // API-stability promise, and an IDE will offer that import first.
-    testImplementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
-    testImplementation 'org.bouncycastle:bcutil-jdk18on:1.85'
+    testImplementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    testImplementation 'org.bouncycastle:bcutil-jdk18on:1.86'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 
     test11Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test11Implementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
-    test11Implementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
-    test11Implementation 'org.bouncycastle:bcutil-jdk18on:1.85'
+    test11Implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+    test11Implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    test11Implementation 'org.bouncycastle:bcutil-jdk18on:1.86'
     test11RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 
     test17Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test17Implementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
-    test17Implementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
-    test17Implementation 'org.bouncycastle:bcutil-jdk18on:1.85'
+    test17Implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+    test17Implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    test17Implementation 'org.bouncycastle:bcutil-jdk18on:1.86'
     test17RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     test21Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test21Implementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
-    test21Implementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
-    test21Implementation 'org.bouncycastle:bcutil-jdk18on:1.85'
+    test21Implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+    test21Implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    test21Implementation 'org.bouncycastle:bcutil-jdk18on:1.86'
     test21RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     test25Implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    test25Implementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
-    test25Implementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
-    test25Implementation 'org.bouncycastle:bcutil-jdk18on:1.85'
+    test25Implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
+    test25Implementation 'org.bouncycastle:bcpkix-jdk18on:1.86'
+    test25Implementation 'org.bouncycastle:bcutil-jdk18on:1.86'
     test25RuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -1010,7 +1010,7 @@ dependencies {
     testModuleImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     // SPEC SOURCE only, never registered: the automatic cell's copy is
     // unsigned, and a registered BC could answer a lookup meant for jostle.
-    testModuleImplementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
+    testModuleImplementation 'org.bouncycastle:bcprov-jdk18on:1.86'
     testModuleRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

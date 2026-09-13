@@ -37,7 +37,7 @@ import java.security.Security;
  * <h2>Deliberate superset on the last two</h2>
  *
  * <p>BouncyCastle serves {@code .12} and {@code .13} (SHA-512/224 and
- * SHA-512/256) under NEITHER OID, measured against bcprov 1.85.2 — we do,
+ * SHA-512/256) under NEITHER OID, measured against bcprov 1.86 — we do,
  * because both Macs are served by name on every provider here and RFC 8018
  * B.1.1 defines the OIDs. This is a superset of BC BY DESIGN. A future parity
  * sweep must not remove them on the grounds that BC lacks them.
