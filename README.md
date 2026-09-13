@@ -32,6 +32,32 @@ instruction file.
 This section will be updated when there are published in maven central or equivalent.
 For the time being you will need to build OpenSSL Jostle before you can try it out.
 
+### Native access
+
+Jostle loads a native library, so from **JDK 24 onwards** the JVM warns unless
+native access is enabled for it. Which form you need depends on how the jar is
+loaded, not on whether the JNI or FFI bridge is in use — both call
+`System.load`.
+
+```
+# jar on --module-path
+--enable-native-access=org.openssl.jostle.prov
+
+# jar on -classpath
+--enable-native-access=ALL-UNNAMED
+```
+
+The manifest attribute `Enable-Native-Access: ALL-UNNAMED` works only for an
+executable jar launched with `java -jar`; it cannot name a module, so a
+module-path consumer must pass the flag on the command line.
+
+Without it, JDK 24 and later print a warning and run normally; a future
+release will block the call instead. JDK 17 through 23 accept the flag and have
+nothing to enforce, so it is safe to leave in a shared launch script. **JDK 11
+rejects it outright** (`Unrecognized option`) and will not start.
+
+Restricted-method behaviour is specified by JEP 472.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
@@ -391,7 +417,8 @@ Use: --fine to emit FINE level logs, --services to list provider services groupe
 
 ```
 
-NB: Java25 will emit a warning about access to restricted methods in java.lang.System.
+NB: JDK 24 and later emit a warning about access to restricted methods in
+java.lang.System. See [Native access](#native-access) for the flag that silences it.
 
 ```
 WARNING: A restricted method in java.lang.System has been called
