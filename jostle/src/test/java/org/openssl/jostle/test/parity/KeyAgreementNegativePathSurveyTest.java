@@ -31,7 +31,9 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,15 +51,26 @@ import java.util.TreeMap;
  * The observation shapes are the same as the other two surfaces, which is why
  * this shares their machinery; the fault catalogue is entirely its own.
  *
- * <h2>Two cell shapes, measured not assumed</h2>
+ * <h2>The finish FORM is a dimension, driven separately from the fault</h2>
  *
- * <p>The raw agreements (DH, ECDH, X25519, X448, XDH) answer
- * {@code generateSecret()}. The KDF-bearing ones (ECDHwithSHAnnnKDF,
- * DHwithRFC2631KDF) deliberately SEAL that method - the pre-KDF shared secret
- * must never escape, a BouncyCastle-parity property already pinned by
- * {@code KeyAgreementKDFTest} - and answer {@code generateSecret(wrapOid)}
- * instead. A cell therefore carries the algorithm name to ask for, or null for
- * the raw form.
+ * <p>JCA offers three ways to finish an agreement - {@code generateSecret()},
+ * {@code generateSecret(String)} and {@code generateSecret(byte[], int)} - and
+ * they are different code paths. Every fault that reaches a finish is therefore
+ * driven under each, and the row names which. A fault that fails at init or
+ * doPhase reaches no finish and carries no form.
+ *
+ * <p>One knob must not choose the form for every fault of a cell: that leaves
+ * the other two forms unreached with nothing saying so.
+ *
+ * <p>The KDF-bearing agreements deliberately SEAL {@code generateSecret()} -
+ * the pre-KDF shared secret must never escape, a BouncyCastle-parity property
+ * pinned by {@code KeyAgreementKDFTest}. That is now a measured row per form
+ * rather than a cell-shape assumption: a form whose baseline does not agree
+ * contributes {@code NO_BASELINE} rows and never disappears.
+ *
+ * <p>The baseline gate is per FORM, not per cell. A cell-wide gate would let a
+ * refused form destroy the rows of a working one, and the derived row count
+ * would then fail on a survey that is behaving correctly.
  *
  * <p>This was got wrong first: the shape probe tried {@code generateSecret()}
  * then {@code generateSecret("AES")}, and reported both KDF families as
@@ -75,21 +88,82 @@ public class KeyAgreementNegativePathSurveyTest
     /** id-aes256-wrap: what the KDF variants size their derived key from. */
     private static final String AES256_WRAP = "2.16.840.1.101.3.4.1.45";
 
+    /**
+     * The three JCA finish overloads. {@code NONE} is not an overload: it
+     * labels a fault that fails before any finish is reached, so its row has
+     * no form.
+     */
+    enum Form
+    {
+        NONE,
+        RAW,
+        NAMED,
+        BUFFER
+    }
+
+    /** Every form that reaches a finish, and so is driven for a baseline. */
+    private static final EnumSet<Form> DRIVEABLE =
+            EnumSet.of(Form.RAW, Form.NAMED, Form.BUFFER);
+
+    /**
+     * Capacity for the BUFFER form. The largest secret in the survey is a
+     * 2048-bit DH value at 256 bytes, so this is four times the bound. It is a
+     * capacity, not an expected size: a {@code ShortBufferException} here, or a
+     * reported length above it, is a recorded outcome and not a harness fault.
+     */
+    private static final int BUFFER_CAPACITY = 1024;
+
+    /**
+     * The fault catalogue, each carrying the forms it is driven under.
+     *
+     * <p>A fault is form-dependent only when a finish actually executes and its
+     * outcome is observed. Seven fail at init or doPhase and reach no finish;
+     * one is inherently a buffer probe. Driving all thirteen under all three
+     * forms would produce duplicates rather than coverage.
+     */
     enum Fault
     {
-        NULL_KEY_INIT,
-        WRONG_FAMILY_KEY_INIT,
-        PUBLIC_KEY_FOR_INIT,
-        FOREIGN_PARAM_SPEC_INIT,
-        DOPHASE_BEFORE_INIT,
-        GENERATE_SECRET_BEFORE_INIT,
-        GENERATE_SECRET_BEFORE_DOPHASE,
-        NULL_PUBLIC_KEY_DOPHASE,
-        WRONG_FAMILY_PUBLIC_KEY_DOPHASE,
-        OWN_PUBLIC_KEY_DOPHASE,
-        DOPHASE_NOT_LAST_THEN_GENERATE,
-        GENERATE_SECRET_TWICE,
-        SHORT_OUTPUT_GENERATE_SECRET
+        NULL_KEY_INIT(Form.NONE),
+        WRONG_FAMILY_KEY_INIT(Form.NONE),
+        PUBLIC_KEY_FOR_INIT(Form.NONE),
+        FOREIGN_PARAM_SPEC_INIT(Form.NONE),
+        DOPHASE_BEFORE_INIT(Form.NONE),
+        GENERATE_SECRET_BEFORE_INIT(Form.RAW, Form.NAMED, Form.BUFFER),
+        GENERATE_SECRET_BEFORE_DOPHASE(Form.RAW, Form.NAMED, Form.BUFFER),
+        NULL_PUBLIC_KEY_DOPHASE(Form.NONE),
+        WRONG_FAMILY_PUBLIC_KEY_DOPHASE(Form.NONE),
+        OWN_PUBLIC_KEY_DOPHASE(Form.RAW, Form.NAMED, Form.BUFFER),
+        DOPHASE_NOT_LAST_THEN_GENERATE(Form.RAW, Form.NAMED, Form.BUFFER),
+        GENERATE_SECRET_TWICE(Form.RAW, Form.NAMED, Form.BUFFER),
+        SHORT_OUTPUT_GENERATE_SECRET(Form.BUFFER);
+
+        private final EnumSet<Form> forms;
+
+        Fault(Form first, Form... rest)
+        {
+            this.forms = EnumSet.of(first, rest);
+        }
+
+        EnumSet<Form> forms()
+        {
+            return forms;
+        }
+    }
+
+    /**
+     * Rows a fully-measured cell must produce, DERIVED from the catalogue: one
+     * baseline per driveable form, plus each fault once per applicable form. A
+     * typed literal goes stale the moment a fault or a form is added, which is
+     * the defect class this dimension exists to remove.
+     */
+    private static int rowsPerCell()
+    {
+        int n = DRIVEABLE.size();
+        for (Fault f : Fault.values())
+        {
+            n += f.forms().size();
+        }
+        return n;
     }
 
     /** One agreement under survey. */
@@ -99,7 +173,11 @@ public class KeyAgreementNegativePathSurveyTest
         final String spiClass;
         final String kpgAlgorithm;
         final String bcKeyFactory;
-        /** Algorithm to ask generateSecret for, or null to use the raw form. */
+        /**
+         * Algorithm the NAMED form asks generateSecret for. ONE constant
+         * across every cell, so a NAMED divergence is attributable to the
+         * family rather than to the algorithm chosen for that row.
+         */
         final String secretAlgorithm;
 
         Cell(String name, String spiClass, String kpg, String kf, String secretAlgorithm)
@@ -132,13 +210,13 @@ public class KeyAgreementNegativePathSurveyTest
     static List<Cell> cells()
     {
         List<Cell> c = new ArrayList<Cell>();
-        c.add(new Cell("DH", "DHKeyAgreementSpi", "DH", "DH", null));
+        c.add(new Cell("DH", "DHKeyAgreementSpi", "DH", "DH", AES256_WRAP));
         c.add(new Cell("DHWITHRFC2631KDF", "DHWithKDFKeyAgreementSpi", "DH", "DH", AES256_WRAP));
-        c.add(new Cell("ECDH", "ECDHKeyAgreementSpi", "EC", "EC", null));
+        c.add(new Cell("ECDH", "ECDHKeyAgreementSpi", "EC", "EC", AES256_WRAP));
         c.add(new Cell("ECDHWITHSHA256KDF", "ECWithKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP));
-        c.add(new Cell("X25519", "XDHKeyAgreementSpi", "X25519", "X25519", null));
-        c.add(new Cell("X448", "XDHKeyAgreementSpi", "X448", "X448", null));
-        c.add(new Cell("XDH", "XDHKeyAgreementSpi", "X25519", "XDH", null));
+        c.add(new Cell("X25519", "XDHKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
+        c.add(new Cell("X448", "XDHKeyAgreementSpi", "X448", "X448", AES256_WRAP));
+        c.add(new Cell("XDH", "XDHKeyAgreementSpi", "X25519", "XDH", AES256_WRAP));
         // RFC 8418. One SPI serves all three digests, so all three are named:
         // a single cell would leave two registered names unexercised.
         c.add(new Cell("XDHwithSHA256HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
@@ -215,30 +293,89 @@ public class KeyAgreementNegativePathSurveyTest
     private static Pair foreign(Cell cell) throws Exception
     {
         return keys("EC".equals(cell.kpgAlgorithm)
-                ? new Cell("x", "x", "X25519", "X25519", null)
-                : new Cell("x", "x", "EC", "EC", null));
+                ? new Cell("x", "x", "X25519", "X25519", AES256_WRAP)
+                : new Cell("x", "x", "EC", "EC", AES256_WRAP));
     }
 
-    private static byte[] finish(KeyAgreement k, Cell cell) throws Exception
+    /**
+     * Finish under one form.
+     *
+     * <p>BUFFER hands the provider ONE oversize buffer and takes the returned
+     * length. Never sized from a prior RAW: three finishing faults have no
+     * successful RAW before them.
+     *
+     * <p>The buffer is random-filled and snapshotted, and every byte past the
+     * reported length must be unchanged. A single sentinel byte would carry a
+     * one-in-256 false-pass rate against essentially uniform output.
+     */
+    private static byte[] finish(KeyAgreement k, Cell cell, Form form, String ctx,
+            List<String> tail) throws Exception
     {
-        return cell.secretAlgorithm == null
-                ? k.generateSecret()
-                : k.generateSecret(cell.secretAlgorithm).getEncoded();
+        switch (form)
+        {
+            case RAW:
+                return k.generateSecret();
+            case NAMED:
+                return k.generateSecret(cell.secretAlgorithm).getEncoded();
+            case BUFFER:
+            {
+                byte[] buf = new byte[BUFFER_CAPACITY];
+                SR.nextBytes(buf);
+                byte[] before = buf.clone();
+                int n = k.generateSecret(buf, 0);
+                if (n < 0 || n > buf.length)
+                {
+                    tail.add(ctx + ": reported length " + n + " for a buffer of " + buf.length);
+                    return new byte[0];
+                }
+                for (int i = n; i < buf.length; i++)
+                {
+                    if (buf[i] != before[i])
+                    {
+                        tail.add(ctx + ": wrote at " + i + ", past the reported length " + n);
+                        break;
+                    }
+                }
+                return Arrays.copyOf(buf, n);
+            }
+            default:
+                throw new IllegalStateException("no finish form: " + form);
+        }
     }
 
-    private static Observation baseline(Provider p, Cell cell, Pair keys)
+    /** Both halves of a repeated finish, so the row is a function of both. */
+    private static byte[] concat(byte[] a, byte[] b)
     {
+        if (a == null)
+        {
+            return b;
+        }
+        if (b == null)
+        {
+            return a;
+        }
+        byte[] out = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
+    private static Observation baseline(Provider p, Cell cell, Pair keys, Form form,
+            List<String> tail)
+    {
+        String ctx = p.getName() + " " + cell.name + " (baseline) " + form;
         return Observer.observe(() -> {
             KeyAgreement k = KeyAgreement.getInstance(cell.name, p);
             k.init(keys.priv(p));
             k.doPhase(keys.peer(p), true);
-            return finish(k, cell);
+            return finish(k, cell, form, ctx, tail);
         });
     }
 
-    private static Observation applyFault(Provider p, Cell cell, Fault f, Pair keys) throws Exception
+    private static Observation applyFault(Provider p, Cell cell, Fault f, Form form,
+            Pair keys, List<String> tail) throws Exception
     {
         Pair other = foreign(cell);
+        String ctx = p.getName() + " " + cell.name + " " + f + " " + form;
         return Observer.observe(() -> {
             KeyAgreement k = KeyAgreement.getInstance(cell.name, p);
             switch (f)
@@ -259,10 +396,10 @@ public class KeyAgreementNegativePathSurveyTest
                     k.doPhase(keys.peer(p), true);
                     return null;
                 case GENERATE_SECRET_BEFORE_INIT:
-                    return finish(k, cell);
+                    return finish(k, cell, form, ctx, tail);
                 case GENERATE_SECRET_BEFORE_DOPHASE:
                     k.init(keys.priv(p));
-                    return finish(k, cell);
+                    return finish(k, cell, form, ctx, tail);
                 case NULL_PUBLIC_KEY_DOPHASE:
                     k.init(keys.priv(p));
                     k.doPhase(null, true);
@@ -277,20 +414,26 @@ public class KeyAgreementNegativePathSurveyTest
                     // and worth knowing about on both sides.
                     k.init(keys.priv(p));
                     k.doPhase(keys.own(p), true);
-                    return finish(k, cell);
+                    return finish(k, cell, form, ctx, tail);
                 case DOPHASE_NOT_LAST_THEN_GENERATE:
                     k.init(keys.priv(p));
                     k.doPhase(keys.peer(p), false);
-                    return finish(k, cell);
+                    return finish(k, cell, form, ctx, tail);
                 case GENERATE_SECRET_TWICE:
+                {
                     k.init(keys.priv(p));
                     k.doPhase(keys.peer(p), true);
-                    finish(k, cell);
-                    return finish(k, cell);
+                    // The row covers both results.
+                    byte[] s1 = finish(k, cell, form, ctx, tail);
+                    byte[] s2 = finish(k, cell, form, ctx, tail);
+                    return concat(s1, s2);
+                }
                 case SHORT_OUTPUT_GENERATE_SECRET:
                 {
                     k.init(keys.priv(p));
                     k.doPhase(keys.peer(p), true);
+                    // Deliberately undersized: the capacity IS the probe,
+                    // so this does not use the survey's oversize buffer.
                     byte[] out = new byte[1];
                     k.generateSecret(out, 0);
                     return out;
@@ -305,35 +448,92 @@ public class KeyAgreementNegativePathSurveyTest
     public void surveyKeyAgreementNegativePaths() throws Exception
     {
         List<String> rows = new ArrayList<String>();
+        List<String> tail = new ArrayList<String>();
         Map<ParityVerdict, Integer> tally = new EnumMap<ParityVerdict, Integer>(ParityVerdict.class);
+        Map<Form, Integer> perForm = new EnumMap<Form, Integer>(Form.class);
         int measured = 0;
+        int expectedRows = 0;
         int noBaseline = 0;
 
         for (Cell cell : cells())
         {
             Pair keys = keys(cell);
-            Observation ourBase = baseline(jsl, cell, keys);
-            Observation bcBase = baseline(bc, cell, keys);
-            ParityResult base = ExceptionParity.classify(ourBase, bcBase);
-            rows.add(row(cell, "(baseline)", base));
-            bump(tally, base.verdict());
-            if (base.verdict() == ParityVerdict.BC_ABSENT)
+
+            // One probe settles whether BouncyCastle serves the algorithm at
+            // all. getInstance decides that before any form is reached, so it
+            // is a single row and the cell contributes nothing further.
+            ParityResult raw = ExceptionParity.classify(
+                    baseline(jsl, cell, keys, Form.RAW, tail),
+                    baseline(bc, cell, keys, Form.RAW, tail));
+            if (raw.verdict() == ParityVerdict.BC_ABSENT)
             {
-                continue;
-            }
-            if (base.verdict() != ParityVerdict.MATCH_ACCEPT)
-            {
-                noBaseline++;
+                rows.add(row(cell, Form.NONE, "(baseline)", raw));
+                bump(tally, raw.verdict());
+                bumpForm(perForm, Form.NONE);
+                expectedRows += 1;
                 continue;
             }
 
+            // A baseline per FORM, and the gate is per form. A cell-wide gate
+            // would let one refused form destroy the rows of a working one.
+            Map<Form, ParityResult> bases = new EnumMap<Form, ParityResult>(Form.class);
+            int formsFailed = 0;
+            for (Form form : DRIVEABLE)
+            {
+                ParityResult b = form == Form.RAW ? raw : ExceptionParity.classify(
+                        baseline(jsl, cell, keys, form, tail),
+                        baseline(bc, cell, keys, form, tail));
+                bases.put(form, b);
+                rows.add(row(cell, form, "(baseline)", b));
+                bump(tally, b.verdict());
+                bumpForm(perForm, form);
+                if (b.verdict() != ParityVerdict.MATCH_ACCEPT)
+                {
+                    formsFailed++;
+                }
+            }
+            // No form completed an agreement, so the form-INDEPENDENT faults
+            // are gated as well: a MATCH on a cell that cannot agree at all
+            // would read as parity.
+            boolean anyForm = formsFailed < DRIVEABLE.size();
+            if (!anyForm)
+            {
+                noBaseline++;
+            }
+            expectedRows += rowsPerCell();
+
             for (Fault f : Fault.values())
             {
-                ParityResult r = ExceptionParity.classify(
-                        applyFault(jsl, cell, f, keys), applyFault(bc, cell, f, keys));
-                rows.add(row(cell, f.name(), r));
-                bump(tally, r.verdict());
-                measured++;
+                for (Form form : f.forms())
+                {
+                    ParityResult b = bases.get(form);
+                    String why = null;
+                    if (b != null && b.verdict() != ParityVerdict.MATCH_ACCEPT)
+                    {
+                        why = "baseline " + form + " was " + b.verdict();
+                    }
+                    else if (b == null && !anyForm)
+                    {
+                        why = "no form has a baseline";
+                    }
+                    if (why != null)
+                    {
+                        // Recorded, never dropped: a row that measured nothing
+                        // must not read as agreement.
+                        rows.add(row(cell, form, f.name(), new ParityResult(
+                                ParityVerdict.NO_BASELINE, "-", "-", why)));
+                        bump(tally, ParityVerdict.NO_BASELINE);
+                        bumpForm(perForm, form);
+                        continue;
+                    }
+                    ParityResult r = ExceptionParity.classify(
+                            applyFault(jsl, cell, f, form, keys, tail),
+                            applyFault(bc, cell, f, form, keys, tail));
+                    rows.add(row(cell, form, f.name(), r));
+                    bump(tally, r.verdict());
+                    bumpForm(perForm, form);
+                    measured++;
+                }
             }
         }
 
@@ -349,10 +549,31 @@ public class KeyAgreementNegativePathSurveyTest
         }
         System.out.println(sb);
 
-        Assertions.assertTrue(measured >= 60,
-                "survey measured only " + measured + " fault cells; it is not measuring the surface");
+        // A provider that writes past the length it reported is a defect in
+        // that provider, not a parity row, so it fails rather than tallies.
+        Assertions.assertTrue(tail.isEmpty(),
+                "generateSecret(byte[], int) wrote outside the length it reported: " + tail);
+
+        // DERIVED, never typed: one baseline per driveable form plus each fault
+        // once per applicable form, summed over the cells actually driven.
+        Assertions.assertEquals(expectedRows, rows.size(),
+                "survey produced " + rows.size() + " rows; the catalogue derives " + expectedRows);
+
+        // A form that produced no rows is the vacuity case - "0 rows for
+        // BUFFER" reads exactly like "BUFFER is fine".
+        for (Form form : DRIVEABLE)
+        {
+            Integer n = perForm.get(form);
+            Assertions.assertTrue(n != null && n > 0,
+                    "form " + form + " produced no rows; a form that measured nothing"
+                            + " reads exactly like a form that is fine");
+        }
+
+        Assertions.assertTrue(measured > 0,
+                "survey measured no fault cell at all; it is not measuring the surface");
         Assertions.assertTrue(noBaseline * 3 < cells().size(),
-                noBaseline + " of " + cells().size() + " agreements had no working baseline");
+                noBaseline + " of " + cells().size() + " agreements had no working baseline"
+                        + " under any form");
     }
 
     /** Every registered KeyAgreement SPI class reaches a cell. Both directions. */
@@ -424,16 +645,24 @@ public class KeyAgreementNegativePathSurveyTest
         m.put(v, n == null ? 1 : n + 1);
     }
 
-    private static String row(Cell cell, String fault, ParityResult r)
+    private static void bumpForm(Map<Form, Integer> m, Form f)
     {
-        String head = String.format("%-20s %-32s %-26s ours=%-32s bc=%-32s %s",
-                cell.name, fault, r.verdict(), simple(r.ourType()), simple(r.bcType()), r.qualifier());
+        Integer n = m.get(f);
+        m.put(f, n == null ? 1 : n + 1);
+    }
+
+    private static String row(Cell cell, Form form, String fault, ParityResult r)
+    {
+        String f = form == Form.NONE ? "-" : form.name();
+        String head = String.format("%-20s %-6s %-32s %-26s ours=%-32s bc=%-32s %s",
+                cell.name, f, fault, r.verdict(), simple(r.ourType()), simple(r.bcType()),
+                r.qualifier());
         if (!r.isDivergence())
         {
             return head;
         }
-        return head + "\n" + String.format("%-20s %-32s   ours: %s%n%-20s %-32s     bc: %s",
-                "", "", blank(r.ourMessage()), "", "", blank(r.bcMessage()));
+        return head + "\n" + String.format("%-20s %-6s %-32s   ours: %s%n%-20s %-6s %-32s     bc: %s",
+                "", "", "", blank(r.ourMessage()), "", "", "", blank(r.bcMessage()));
     }
 
     private static String blank(String s)
