@@ -598,6 +598,20 @@ public class FIPSECAgreementTest
         covered.add("KeyFactory.EC");
         covered.add("KeyPairGenerator.EC");
         covered.add("AlgorithmParameters.EC");
+        // The ITS KEM lives in the EC package but is covered by its own class,
+        // because its agreement is a wrap/unwrap recovery rather than anything
+        // this file drives. The reason is re-derived below rather than trusted,
+        // so the entry cannot outlive the class it delegates to.
+        covered.add("Cipher.ETSIKEMWITHSHA256");
+        try
+        {
+            Class.forName("org.openssl.jostle.test.fips.FIPSETSIKEMAgreementTest");
+        }
+        catch (ClassNotFoundException e)
+        {
+            Assertions.fail("Cipher.ETSIKEMWITHSHA256 is sanctioned here as covered by "
+                    + "FIPSETSIKEMAgreementTest, which no longer exists");
+        }
 
         java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
         for (java.security.Provider.Service svc : provider.getServices())

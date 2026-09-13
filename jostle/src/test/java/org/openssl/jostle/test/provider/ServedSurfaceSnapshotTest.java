@@ -98,6 +98,7 @@ public class ServedSurfaceSnapshotTest
             "Cipher.CAMELLIARFC3211WRAP",
             "Cipher.CAMELLIA128", "Cipher.CAMELLIA192", "Cipher.CAMELLIA256", "Cipher.CHACHA20",
             "Cipher.CHACHA20-POLY1305", "Cipher.DESEDE", "Cipher.DESEDERFC3211WRAP",
+            "Cipher.ETSIKEMWITHSHA256",
             "Cipher.ML-KEM", "Cipher.RSA",
             "Cipher.RSA-KTS-KEM-KWS", "Cipher.RSA/ECB/PKCS1PADDING", "Cipher.SM4",
             "Cipher.SM4/CCM/NOPADDING", "KeyAgreement.DH", "KeyAgreement.DHWITHRFC2631KDF",
@@ -278,7 +279,8 @@ public class ServedSurfaceSnapshotTest
     {
         // Families with an agreement class, keyed on that class's constant.
         CLAIMED_PREFIXES.put(CipherFamilies.DH_PREFIX, "DHAgreementTest");
-        CLAIMED_PREFIXES.put(CipherFamilies.EC_PREFIX, "ECAgreementTest");
+        CLAIMED_PREFIXES.put(CipherFamilies.EC_PREFIX,
+                "ECAgreementTest, and ETSIKEMAgreementTest for the ITS KEM Cipher");
         CLAIMED_PREFIXES.put(CipherFamilies.ED_PREFIX, "EdAgreementTest");
         CLAIMED_PREFIXES.put(CipherFamilies.RSA_PREFIX, "RSAAgreementTest");
         CLAIMED_PREFIXES.put(CipherFamilies.MLKEM_PREFIX, "MLKEMAgreementTest");

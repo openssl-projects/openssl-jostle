@@ -116,6 +116,11 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         return specNI;
     }
 
+    Asn1Ni ownAsn1Ni()
+    {
+        return asn1NI;
+    }
+
     @Override
     protected PublicKey engineGeneratePublic(KeySpec keySpec) throws InvalidKeySpecException
     {

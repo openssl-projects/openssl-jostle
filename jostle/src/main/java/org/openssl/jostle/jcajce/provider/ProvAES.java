@@ -149,6 +149,13 @@ class ProvAES
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding",
                 AESCCMCipherSpi.class.getName(), generalAesAttributes, (arg) -> new AESCCMCipherSpi(provider));
 
+        // Bare "CCM" is the name BouncyCastle's ITS data decryptor resolves a
+        // Cipher by (JcaETSIDataDecryptor: helper.createCipher("CCM")).
+        // BouncyCastle's own Cipher.CCM is AES-CCM (AES$CCM), so the alias
+        // carries the same meaning. An alias rather than a primary because
+        // both names derive the cipher from the key length.
+        provider.addAlias("Cipher", "AES/CCM/NoPadding", "CCM");
+
         // The NIST CCM OIDs, which CMS and PKCS#8 resolve a content-encryption
         // Cipher by. Registered as PRIMARIES rather than aliases of
         // "AES/CCM/NoPadding" because each OID names a key size, and the bare

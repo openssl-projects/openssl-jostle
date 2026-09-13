@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
+import org.openssl.jostle.jcajce.provider.ec.ETSIKEMCipherSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyPairGenerator;
 import org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi;
 
@@ -97,6 +98,18 @@ class ProvFIPSEC
         registerKdfAgreement(provider, attr, "ECDHWITHSHA256KDF", "SHA-256", "1.3.132.1.11.1");
         registerKdfAgreement(provider, attr, "ECDHWITHSHA384KDF", "SHA-384", "1.3.132.1.11.2");
         registerKdfAgreement(provider, attr, "ECDHWITHSHA512KDF", "SHA-512", "1.3.132.1.11.3");
+
+        // The IEEE 1609.2 (ITS) KEM, mirroring ProvEC. UNGATED, like every EC
+        // service beside it: the construction needs EC key management, ECDH
+        // derive, SHA-256 and HMAC-SHA-256, and both supported modules serve
+        // all four — so a capability gate here could never fire, while its
+        // absence-sanction would weaken the golden-surface guard. What IS
+        // module-dependent is the CURVE, and that is a per-key refusal rather
+        // than a registration question.
+        provider.addAlgorithmImplementation("Cipher", "ETSIKEMwithSHA256",
+                ETSIKEMCipherSpi.class.getName(), attr,
+                (arg) -> new ETSIKEMCipherSpi(FIPSNISelector.ECServiceNI, keyFactory(provider),
+                        "SHA-256", "HMACSHA256", provider));
     }
 
     /**

@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
+import org.openssl.jostle.jcajce.provider.ec.ETSIKEMCipherSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyPairGenerator;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
@@ -135,6 +136,16 @@ class ProvEC
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-512", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", "1.3.132.1.11.3");
+
+        // The IEEE 1609.2 (ITS) integrated-encryption KEM, under the name
+        // BouncyCastle's JceETSIKeyWrapper and JcaETSIDataDecryptor resolve a
+        // Cipher by. Wrap and unwrap only; the claim is interop with
+        // BouncyCastle rather than conformance with IEEE 1609.2, whose clause
+        // 5.3.5.1 has not been read. See ETSIKEMCipherSpi.
+        provider.addAlgorithmImplementation("Cipher", "ETSIKEMwithSHA256",
+                ETSIKEMCipherSpi.class.getName(), attr,
+                (arg) -> new ETSIKEMCipherSpi(NISelector.ECServiceNI, keyFactory(provider),
+                        "SHA-256", "HMACSHA256", provider));
     }
 
 

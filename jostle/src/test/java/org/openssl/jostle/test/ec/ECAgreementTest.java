@@ -80,7 +80,12 @@ public class ECAgreementTest
     private static final String JSL = JostleProvider.PROVIDER_NAME;
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
 
-    /** The five JCA types {@code ProvEC} registers under. */
+    /**
+     * The five JCA types this class's guard covers. {@code ProvEC} also
+     * registers one Cipher — the ITS KEM — which is deliberately outside this
+     * list because {@link ETSIKEMAgreementTest} covers it; its agreement is a
+     * wrap/unwrap recovery rather than anything driven here.
+     */
     private static final String[] GUARDED_TYPES = {
             "AlgorithmParameters", "KeyAgreement", "KeyFactory", "KeyPairGenerator", "Signature"
     };

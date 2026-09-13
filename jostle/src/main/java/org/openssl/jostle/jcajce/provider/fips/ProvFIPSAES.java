@@ -144,6 +144,10 @@ class ProvFIPSAES
         provider.addAlgorithmImplementation("Cipher", "AES/CCM/NoPadding", AESCCMCipherSpi.class.getName(), generalAesAttributes,
                 (arg) -> new AESCCMCipherSpi(FIPSNISelector.CCMCipherNI, provider));
 
+        // Bare "CCM", mirroring ProvAES — the name BouncyCastle's ITS data
+        // decryptor resolves a Cipher by, and AES-CCM in BouncyCastle too.
+        provider.addAlias("Cipher", "AES/CCM/NoPadding", "CCM");
+
         // The NIST CCM OIDs, mirroring ProvAES. Registered as PRIMARIES rather
         // than aliases of "AES/CCM/NoPadding" because each OID names a key
         // size and the bare transformation derives its cipher from the key

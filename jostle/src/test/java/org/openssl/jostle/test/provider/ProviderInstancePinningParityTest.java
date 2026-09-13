@@ -200,6 +200,9 @@ public class ProviderInstancePinningParityTest
                 "JostleCertPathBuilderSpi:CertificateFactory",
                 "unbound arm only, and CertPathBuilder is registered by JSL alone, so this names"
                         + " the SPI's own provider rather than crossing to another");
+        addFallback(m, "ETSIKEMCipherSpi:Mac:binding.name()", 1, "ETSIKEMCipherSpi:Mac",
+                "unbound arm only; the bound arm beside it pins the instance, and the ITS KEM's"
+                        + " HMAC must run in the same library as the agreement it keys");
 
         // The caller's own choice.
         add(m, "JSLKeyX509Certificate:verify:sigProvider", 2,
