@@ -194,11 +194,26 @@ public class ExceptionTypeDivergencePinTest
     private static String[] sweepBeforeDoPhase(String provider, String agreement, PrivateKey key)
             throws Exception
     {
+        return sweepBeforeDoPhase(provider, agreement, key, "AES");
+    }
+
+    /**
+     * As above, with the terminal call's algorithm named. OUR KDF agreements
+     * size their key from a CMS wrap OID and refuse the bare name "AES";
+     * BouncyCastle sizes it (measured: 32 bytes after doPhase, on the HKDF and
+     * raw agreements alike). So a cell covering one of ours passes the OID
+     * instead — the shape being pinned is the pre-doPhase refusal, and a name
+     * only our side refuses would measure our lookup rather than the state.
+     */
+    private static String[] sweepBeforeDoPhase(String provider, String agreement, PrivateKey key,
+            String terminalAlgorithm)
+            throws Exception
+    {
         return new String[]{
                 outcome(provider, agreement, key, ka -> ka.generateSecret()),
                 outcome(provider, agreement, key, ka -> ka.generateSecret(new byte[256], 0)),
                 outcome(provider, agreement, key, ka -> ka.generateSecret(new byte[1], 0)),
-                outcome(provider, agreement, key, ka -> ka.generateSecret("AES"))};
+                outcome(provider, agreement, key, ka -> ka.generateSecret(terminalAlgorithm))};
     }
 
     /** What BOTH providers do, and what the JCE contract says instead. */
@@ -298,6 +313,52 @@ public class ExceptionTypeDivergencePinTest
         Assertions.assertArrayEquals(refusedEverywhere,
                 sweepBeforeDoPhase(JostleProvider.PROVIDER_NAME, "DH", ourKp.getPrivate()),
                 "ours must refuse every overload with the contract's type");
+    }
+
+    /**
+     * RFC 8418 HKDF agreement before doPhase, and it does NOT follow the raw
+     * XDH cell above — adding a KDF changes what BouncyCastle does.
+     *
+     * <p>Its raw path returns null; its KDF path dereferences the absent secret
+     * to size the key, so {@code generateSecret()} and the two buffer forms
+     * raise {@code NullPointerException}, and the named form reaches
+     * BouncyCastle's HKDF parameter check first and raises
+     * {@code IllegalArgumentException}. Three of the four shapes therefore
+     * differ from the raw agreement's, which is why this is its own cell rather
+     * than another algorithm in the sweep.
+     *
+     * <p>The terminal call names a CMS wrap OID, not the bare "AES" the shared
+     * sweep uses: our KDF agreements size their key from the OID and refuse the
+     * bare name, which BouncyCastle accepts. "AES" would therefore measure our
+     * lookup instead of the state.
+     */
+    @Test
+    public void hkdfAgreementBeforeDoPhase_followsBouncyCastlesKdfPath()
+            throws Exception
+    {
+        String agreement = "XDHwithSHA256HKDF";
+        String aes256Wrap = "2.16.840.1.101.3.4.1.45";
+
+        KeyPair ourKp = KeyPairGenerator
+                .getInstance("X25519", JostleProvider.PROVIDER_NAME).generateKeyPair();
+        KeyPair theirKp = KeyPairGenerator
+                .getInstance("X25519", BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
+
+        String[] bcKdfPath = {
+                "threw java.lang.NullPointerException",
+                "threw java.lang.NullPointerException",
+                "threw java.lang.NullPointerException",
+                "threw java.lang.IllegalArgumentException"};
+
+        Assertions.assertArrayEquals(bcKdfPath,
+                sweepBeforeDoPhase(JostleProvider.PROVIDER_NAME, agreement,
+                        ourKp.getPrivate(), aes256Wrap),
+                agreement + ": ours must follow BouncyCastle's KDF path");
+        Assertions.assertArrayEquals(bcKdfPath,
+                sweepBeforeDoPhase(BouncyCastleProvider.PROVIDER_NAME, agreement,
+                        theirKp.getPrivate(), aes256Wrap),
+                agreement + ": BouncyCastle's half of the pin. If this fails BC has MOVED,"
+                        + " and following it may no longer be the ruling");
     }
 
     /**

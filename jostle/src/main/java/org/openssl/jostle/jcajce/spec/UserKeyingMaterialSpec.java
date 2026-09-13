@@ -23,18 +23,37 @@ import java.security.spec.AlgorithmParameterSpec;
  * <p>Mirrors {@code org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec} so a
  * caller can hand either spec to the Jostle key-agreement SPIs — the SPIs also
  * accept BouncyCastle's spec reflectively, which is what the CMS layer passes.
+ *
+ * <p>The optional <b>salt</b> is the HKDF salt for the RFC 8418 XDH schemes,
+ * carried separately from the UKM as BouncyCastle carries it, and unused by
+ * the X9.42 and X9.63 KDFs. RFC 8418 §2.2 makes the salt the UKM; BouncyCastle
+ * leaves it to the caller, so we do too. Pass the same bytes as both for the
+ * RFC's derivation.
  */
 public class UserKeyingMaterialSpec implements AlgorithmParameterSpec
 {
     private final byte[] userKeyingMaterial;
+    private final byte[] salt;
 
     public UserKeyingMaterialSpec(byte[] userKeyingMaterial)
     {
+        this(userKeyingMaterial, null);
+    }
+
+    public UserKeyingMaterialSpec(byte[] userKeyingMaterial, byte[] salt)
+    {
         this.userKeyingMaterial = Arrays.clone(userKeyingMaterial);
+        this.salt = Arrays.clone(salt);
     }
 
     public byte[] getUserKeyingMaterial()
     {
         return Arrays.clone(userKeyingMaterial);
+    }
+
+    /** The HKDF salt, or null when none was supplied. */
+    public byte[] getSalt()
+    {
+        return Arrays.clone(salt);
     }
 }

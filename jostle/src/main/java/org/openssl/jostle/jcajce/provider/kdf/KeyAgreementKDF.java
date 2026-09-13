@@ -294,6 +294,56 @@ public final class KeyAgreementKDF
                         + params.getClass().getName());
     }
 
+    /**
+     * Extract the HKDF salt from the spec a key-agreement SPI was initialised
+     * with, for the RFC 8418 XDH schemes. Accepts Jostle's
+     * {@link UserKeyingMaterialSpec}, BouncyCastle's same-named spec
+     * (reflectively, as {@link #extractUkm} does), and null. Returns null when
+     * no salt was supplied, which HKDF treats as RFC 5869's default of HashLen
+     * zero octets.
+     *
+     * <p>Separate from {@link #extractUkm} rather than folded into it because
+     * the two values are independent: every caller reads the UKM and only the
+     * HKDF schemes read the salt.
+     *
+     * <p>Spec-type validation belongs to {@link #extractUkm}, which every
+     * caller runs first, so an unreadable BouncyCastle spec here is reported
+     * rather than silently treated as salt-less — a swallowed failure would
+     * derive a different KEK and look like an interop bug.
+     */
+    public static byte[] extractSalt(AlgorithmParameterSpec params)
+            throws InvalidAlgorithmParameterException
+    {
+        if (params == null)
+        {
+            return null;
+        }
+        if (params instanceof UserKeyingMaterialSpec)
+        {
+            return ((UserKeyingMaterialSpec) params).getSalt();
+        }
+        if ("org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec".equals(params.getClass().getName()))
+        {
+            try
+            {
+                Method m = params.getClass().getMethod("getSalt");
+                return (byte[]) m.invoke(params);
+            }
+            catch (NoSuchMethodException e)
+            {
+                // A bcprov predating the salt. Salt-less is the correct
+                // reading there, and it is not an error.
+                return null;
+            }
+            catch (Exception e)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "unable to read the salt from UserKeyingMaterialSpec", e);
+            }
+        }
+        return null;
+    }
+
     // ----- X9.42 OtherInfo DER -----
 
     /**

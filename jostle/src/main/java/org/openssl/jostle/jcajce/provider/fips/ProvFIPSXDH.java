@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.jcajce.provider.xec.XDHKeyAgreementSpi;
+import org.openssl.jostle.jcajce.provider.xec.XDHWithHKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.xec.XECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.xec.XECKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -54,6 +55,12 @@ class ProvFIPSXDH
 
     private static final String X25519_OID = "1.3.101.110";   // id-X25519, RFC 8410
     private static final String X448_OID = "1.3.101.111";     // id-X448, RFC 8410
+
+    // RFC 8418 section 7: dhSinglePass-stdDH-hkdf-sha{256,384,512}-scheme,
+    // under smime-alg 1.2.840.113549.1.9.16.3.
+    private static final String HKDF_SHA256_SCHEME_OID = "1.2.840.113549.1.9.16.3.19";
+    private static final String HKDF_SHA384_SCHEME_OID = "1.2.840.113549.1.9.16.3.20";
+    private static final String HKDF_SHA512_SCHEME_OID = "1.2.840.113549.1.9.16.3.21";
 
     public void configure(final JostleFIPSProvider provider)
     {
@@ -100,6 +107,29 @@ class ProvFIPSXDH
         provider.addAlgorithmImplementation("KeyAgreement", "XDH",
                 XDHKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new XDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider)));
+
+        // RFC 8418 HKDF schemes. They follow the XDH gate above rather than
+        // carrying one of their own: HKDF is served on both modules, so
+        // whether these can run is decided entirely by whether the module
+        // serves XDH at all.
+        final String hkdfSpi = XDHWithHKDFKeyAgreementSpi.class.getName();
+        provider.addAlgorithmImplementation("KeyAgreement", "XDHwithSHA256HKDF",
+                hkdfSpi, attr,
+                (arg) -> new XDHWithHKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-256"));
+        provider.addAlias("KeyAgreement", "XDHwithSHA256HKDF", HKDF_SHA256_SCHEME_OID);
+
+        provider.addAlgorithmImplementation("KeyAgreement", "XDHwithSHA384HKDF",
+                hkdfSpi, attr,
+                (arg) -> new XDHWithHKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-384"));
+        provider.addAlias("KeyAgreement", "XDHwithSHA384HKDF", HKDF_SHA384_SCHEME_OID);
+
+        provider.addAlgorithmImplementation("KeyAgreement", "XDHwithSHA512HKDF",
+                hkdfSpi, attr,
+                (arg) -> new XDHWithHKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-512"));
+        provider.addAlias("KeyAgreement", "XDHwithSHA512HKDF", HKDF_SHA512_SCHEME_OID);
     }
 
     /**
