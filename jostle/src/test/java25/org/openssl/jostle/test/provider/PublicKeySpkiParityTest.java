@@ -30,12 +30,14 @@ import java.security.interfaces.DSAPublicKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.EdECPublicKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.XECPublicKey;
 import java.security.spec.DSAPublicKeySpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EdECPublicKeySpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.XECPublicKeySpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -73,27 +75,18 @@ import javax.crypto.spec.DHPublicKeySpec;
  * {@link #everySharedFamilyIsAccountedFor} — a fourth state is how a family
  * goes quietly unexamined.
  *
- * <p>Measured 2026-09-05: 26 shared families. 12 are cells, 14 are blocked, and
- * EC additionally carries a pinned divergence.
+ * <p>Measured 2026-09-13 against BC 1.86: 26 shared families. 14 are cells, 12
+ * are blocked, and EC additionally carries a pinned divergence.
  *
- * <h2>The blocks, with reasons</h2>
+ * <h2>The block, with its reason</h2>
  *
- * <ol>
- *   <li>X25519, X448 — {@code JOXECPublicKey} implements only
- *       {@code PublicKey}, {@code XDHKey}, {@code OSSLKey}, NOT
- *       {@code java.security.interfaces.XECPublicKey}, and
- *       {@code XECKeyFactorySpi} rejects {@code XECPublicKeySpec} as "Java 11+
- *       and out of scope". So no shared material can be extracted. Registered
- *       as a finding; the Ed families DO implement their JDK interface
- *       ({@code java15/JOEdPublicKey}), so this is an asymmetry inside jostle
- *       rather than a JDK limitation.</li>
- *   <li>SLH-DSA, all twelve — BC ships {@code SLHDSAParameterSpec} but NO
- *       {@code SLHDSAPublicKeySpec}, so BC cannot be handed raw bytes. jostle
- *       has {@code SLHDSAPublicKeySpec}; the gap is one-sided. Routing through
- *       {@code X509EncodedKeySpec} instead would put a decoder in the loop and
- *       measure acceptance rather than agreement, so it is deliberately NOT
- *       done.</li>
- * </ol>
+ * <p>SLH-DSA, all twelve — BC ships {@code SLHDSAParameterSpec} but NO
+ * {@code SLHDSAPublicKeySpec}, so BC cannot be handed raw bytes. jostle has
+ * {@code SLHDSAPublicKeySpec}; the gap is one-sided. Routing through
+ * {@code X509EncodedKeySpec} instead would put a decoder in the loop and
+ * measure acceptance rather than agreement, so it is deliberately NOT done.
+ * {@link #slhdsaBlockStillHoldsBecauseBcShipsNoPublicKeySpec} asserts the
+ * reason live, so the block cannot outlive it.
  */
 public class PublicKeySpkiParityTest
 {
@@ -102,11 +95,11 @@ public class PublicKeySpkiParityTest
 
     /** Families compared byte-for-byte. */
     private static final TreeSet<String> CELLS = new TreeSet<String>(java.util.Arrays.asList(
-            "RSA", "DSA", "DH", "EC", "ED25519", "ED448",
+            "RSA", "DSA", "DH", "EC", "ED25519", "ED448", "X25519", "X448",
             "ML-DSA-44", "ML-DSA-65", "ML-DSA-87",
             "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"));
 
-    /** Families blocked, with the reason in the class javadoc. */
+    /** The SLH-DSA families, blocked for the reason in the class javadoc. */
     private static final TreeMap<String, String> BLOCKED = new TreeMap<String, String>();
 
     /**
@@ -123,18 +116,6 @@ public class PublicKeySpkiParityTest
 
     static
     {
-        // Blocked on BC's side, not ours. Measured against BC 1.85.2 (the test
-        // classpath) and the checkout: BC's edec KeyFactorySpi.generatePublic
-        // accepts X509EncodedKeySpec, RawEncodedKeySpec and OpenSSHPublicKeySpec
-        // only — XECPublicKeySpec appears nowhere in prov — while BC's jdk1.11
-        // XDH key classes DO implement java.security.interfaces.XECPublicKey.
-        // So BC is readable through the JDK interface and not writable through
-        // the JDK spec, which is precisely the shape jostle had for Edwards
-        // before it was fixed. An encoded-route comparison would be coverage,
-        // not an encoder-agreement witness, so these stay blocked.
-        // jostle's own side is exercised by XECJdkSpecRoundTripTest.
-        BLOCKED.put("X25519", "BC 1.85.2 rejects the JDK XECPublicKeySpec (its edec KeyFactory has no such branch)");
-        BLOCKED.put("X448", "BC 1.85.2 rejects the JDK XECPublicKeySpec (its edec KeyFactory has no such branch)");
         for (String h : new String[]{"SHA2", "SHAKE"})
         {
             for (String s : new String[]{"128", "192", "256"})
@@ -276,6 +257,30 @@ public class PublicKeySpkiParityTest
             EdECPublicKey ed = (EdECPublicKey) KeyPairGenerator.getInstance(alg, jsl)
                     .generateKeyPair().getPublic();
             assertSpecBuiltAgree(alg, ed, new EdECPublicKeySpec(ed.getParams(), ed.getPoint()));
+        }
+    }
+
+    /**
+     * X25519 and X448, now a byte-equality cell.
+     *
+     * <p>These were BLOCKED twice over, for two different reasons that both
+     * expired. The class javadoc said jostle's own {@code JOXECPublicKey} did
+     * not implement {@code XECPublicKey} — fixed, and
+     * {@code XECJdkSpecRoundTripTest} is that fix's witness. The static block
+     * said BC rejected {@code XECPublicKeySpec} — true of 1.85.2, and BC 1.86
+     * accepts it. Neither reason had a guard, so both outlived their truth
+     * silently; that is what
+     * {@link #slhdsaBlockStillHoldsBecauseBcShipsNoPublicKeySpec} now prevents
+     * for the block that remains.
+     */
+    @Test
+    public void xecSpkiIdentical() throws Exception
+    {
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            XECPublicKey pub = (XECPublicKey) KeyPairGenerator.getInstance(alg, jsl)
+                    .generateKeyPair().getPublic();
+            assertSpecBuiltAgree(alg, pub, new XECPublicKeySpec(pub.getParams(), pub.getU()));
         }
     }
 
@@ -545,5 +550,30 @@ public class PublicKeySpkiParityTest
             }
         }
         return i + len;
+    }
+
+    // ---- the block guard -------------------------------------------------
+
+    /**
+     * The twelve SLH-DSA blocks assert their own reason, so the block cannot
+     * outlive it. This class previously had NO such guard: its only staleness
+     * check asks whether a family is still shared, which stays true while a
+     * stated reason quietly stops being, and that is exactly how the X25519 and
+     * X448 blocks survived both of their reasons expiring.
+     */
+    @Test
+    public void slhdsaBlockStillHoldsBecauseBcShipsNoPublicKeySpec()
+    {
+        Assertions.assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("org.bouncycastle.jcajce.spec.SLHDSAPublicKeySpec"),
+                "BC now ships SLHDSAPublicKeySpec — promote the twelve blocks to cells");
+
+        Assertions.assertDoesNotThrow(
+                () -> Class.forName("org.openssl.jostle.jcajce.spec.SLHDSAPublicKeySpec"),
+                "jostle must still have its own SLH-DSA public key spec");
+
+        // Vacuity: the guard must be protecting entries that exist.
+        Assertions.assertEquals(12, BLOCKED.size(),
+                "the block guard must cover exactly the twelve SLH-DSA families");
     }
 }

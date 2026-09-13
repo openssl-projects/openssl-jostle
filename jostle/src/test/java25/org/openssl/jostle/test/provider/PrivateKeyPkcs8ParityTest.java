@@ -73,9 +73,9 @@ import javax.crypto.spec.DHPrivateKeySpec;
  * and {@code XECPrivateKeySpec} Java 11, while {@code src/test/java} compiles
  * at release 8.
  *
- * <h2>Three disjoint states, measured 2026-09-06 against BC 1.85.2</h2>
+ * <h2>Three disjoint states, measured 2026-09-13 against BC 1.86</h2>
  *
- * <p>9 cells, 3 pinned, 14 blocked, 26 shared. A family in none of the three,
+ * <p>9 cells, 5 pinned, 12 blocked, 26 shared. A family in none of the three,
  * or in two, fails {@link #everySharedFamilyIsAccountedFor}. RSA additionally
  * carries a pin for its CRT-less spec and the six PQ cells carry the seed-form
  * pin; those are annotations on cell families, not a fourth state.
@@ -116,7 +116,7 @@ public class PrivateKeyPkcs8ParityTest
 
     /** Divergent by design; each has a pin asserting both halves. */
     private static final TreeSet<String> PINNED = new TreeSet<String>(java.util.Arrays.asList(
-            "EC", "ED25519", "ED448"));
+            "EC", "ED25519", "ED448", "X25519", "X448"));
 
     /** No shared material exists; each block guard asserts its reason live. */
     private static final TreeMap<String, String> BLOCKED = new TreeMap<String, String>();
@@ -126,8 +126,6 @@ public class PrivateKeyPkcs8ParityTest
 
     static
     {
-        BLOCKED.put("X25519", "BC 1.85.2 rejects the JDK XECPrivateKeySpec");
-        BLOCKED.put("X448", "BC 1.85.2 rejects the JDK XECPrivateKeySpec");
         for (String h : new String[]{"SHA2", "SHAKE"})
         {
             for (String s : new String[]{"128", "192", "256"})
@@ -450,6 +448,45 @@ public class PrivateKeyPkcs8ParityTest
         }
     }
 
+    /**
+     * X25519/X448 pin, the same divergence as Edwards one release later.
+     *
+     * <p>BC 1.86 began ACCEPTING {@code XECPrivateKeySpec}, which promoted the
+     * public rows to cells — but acceptance is not agreement. Measured: the
+     * AlgorithmIdentifier and the CurvePrivateKey octets are identical, and BC
+     * emits RFC 5958 v2 with the public half attached where we emit v1 without
+     * it (X25519 48B vs 83B, X448 72B vs 132B). So the whole difference is the
+     * version and the attachment, exactly as for Ed25519/Ed448, and RFC 8410
+     * section 7 permits either.
+     */
+    @Test
+    public void xecPinVersionAndAttachedPublicKey() throws Exception
+    {
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            XECPrivateKey gen = (XECPrivateKey) KeyPairGenerator.getInstance(alg, jsl)
+                    .generateKeyPair().getPrivate();
+            byte[] raw = gen.getScalar().orElseThrow(
+                    () -> new AssertionError(alg + ": generated key exposes no scalar"));
+            KeySpec spec = new XECPrivateKeySpec(new NamedParameterSpec(alg), raw);
+
+            byte[] ours = encode(jsl, alg, spec);
+            byte[] theirs = encode(bc, alg, spec);
+
+            Assertions.assertFalse(Arrays.areEqual(ours, theirs),
+                    alg + ": divergence has closed — re-measure the pin");
+            Assertions.assertEquals(0, versionOf(ours), alg + ": jostle must emit version 0");
+            Assertions.assertEquals(1, versionOf(theirs), alg + ": BC must emit version 1");
+            Assertions.assertTrue(ours.length < theirs.length,
+                    alg + ": ours must be the shorter form");
+
+            Assertions.assertArrayEquals(algIdOf(ours), algIdOf(theirs),
+                    alg + ": AlgorithmIdentifier must be identical");
+            Assertions.assertArrayEquals(privateKeyOctetsOf(ours), privateKeyOctetsOf(theirs),
+                    alg + ": the CurvePrivateKey OCTET STRING must be identical");
+        }
+    }
+
     private static int versionOf(byte[] pkcs8) throws Exception
     {
         ASN1Sequence seq = ASN1Sequence.getInstance(pkcs8);
@@ -570,26 +607,6 @@ public class PrivateKeyPkcs8ParityTest
     }
 
     // ---- the block guards ------------------------------------------------
-
-    /** BC has no {@code XECPrivateKeySpec} branch; a bcprov bump that adds one turns this red. */
-    @Test
-    public void xecBlockStillHoldsBecauseBcRejectsTheJdkSpec() throws Exception
-    {
-        for (String alg : new String[]{"X25519", "X448"})
-        {
-            XECPrivateKey gen = (XECPrivateKey) KeyPairGenerator.getInstance(alg, jsl)
-                    .generateKeyPair().getPrivate();
-            byte[] raw = gen.getScalar().orElseThrow(
-                    () -> new AssertionError(alg + ": generated key exposes no scalar"));
-            KeySpec spec = new XECPrivateKeySpec(new NamedParameterSpec(alg), raw);
-
-            Assertions.assertNotNull(encode(jsl, alg, spec), alg + ": jostle must accept the JDK spec");
-
-            Assertions.assertThrows(InvalidKeySpecException.class,
-                    () -> KeyFactory.getInstance(alg, bc).generatePrivate(spec),
-                    alg + ": BC now accepts XECPrivateKeySpec — promote this block to a cell");
-        }
-    }
 
     /** BC ships no SLH-DSA private key spec, so no shared material exists. */
     @Test

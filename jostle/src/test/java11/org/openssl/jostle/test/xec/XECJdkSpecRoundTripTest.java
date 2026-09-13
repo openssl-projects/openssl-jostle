@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.xec;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -45,18 +46,23 @@ import java.security.spec.XECPublicKeySpec;
  * multi-release jar serves that copy rather than a later one. {@code unitTest11}
  * and {@code integrationTest11} consume this source set.
  *
- * <h2>Why there is no BouncyCastle leg</h2>
+ * <h2>The BouncyCastle leg</h2>
  *
- * <p>Measured: BC 1.85.2 REJECTS {@code XECPublicKeySpec} and
- * {@code XECPrivateKeySpec} with "key spec not recognized"
- * ({@code BaseKeyFactorySpi:57} via {@code edec/KeyFactorySpi:301}), while its
- * {@code jdk1.11} XDH key classes DO implement
- * {@code java.security.interfaces.XECPublicKey}. So BC has, for XDH, exactly
- * the shape jostle had for Edwards: readable through the JDK interface, not
- * writable through the JDK spec. That is a fact about BC, not about us, and it
- * is why the X25519/X448 rows in {@code PublicKeySpkiParityTest} stay BLOCKED —
- * an encoded-route comparison would be coverage, not an encoder-agreement
- * witness.
+ * <p>BC 1.86 ACCEPTS both JDK specs: tag {@code r1rv86},
+ * {@code prov/src/main/jdk1.11/org/bouncycastle/jcajce/provider/asymmetric/edec/XDHKeys.java}
+ * branches on {@code XECPrivateKeySpec} at :220 and {@code XECPublicKeySpec} at
+ * :261. Acceptance is not agreement, though, and the two halves differ:
+ * measured, the SPKI is byte-identical, while BC's PKCS#8 attaches the public
+ * half in RFC 5958 v2 where ours is v1 without it. So the X25519/X448 rows are
+ * CELLS in {@code PublicKeySpkiParityTest} and PINS in
+ * {@code PrivateKeyPkcs8ParityTest}.
+ *
+ * <p>Dated past measurement, kept because it is why those rows were blocked:
+ * BC 1.85.2 refused both specs with "key spec not recognized"
+ * ({@code BaseKeyFactorySpi:57} via {@code edec/KeyFactorySpi:301}).
+ *
+ * <p>BC is used here as an INSTANCE and is never added to {@code Security}, so
+ * the four cells below still prove jostle serves these keys on its own.
  */
 public class XECJdkSpecRoundTripTest
 {
@@ -186,6 +192,55 @@ public class XECJdkSpecRoundTripTest
             Assertions.assertTrue(Arrays.areEqual(canonical, viaPlusP),
                     alg + ": u+p must reduce to the same key (RFC 7748 section 5"
                             + " MUST-accept), not be refused or mis-read");
+        }
+    }
+
+    /**
+     * The claim this class used to make in prose, asserted instead: BC reads
+     * the same JDK specs, and what it then emits is pinned per half.
+     *
+     * <p>The public half AGREES byte-for-byte. The private half does not, and
+     * the difference is structural rather than cryptographic — BC emits RFC
+     * 5958 v2 with the public key attached, ours v1 without it. Asserting the
+     * length inequality rather than equality is deliberate: a later BC that
+     * dropped the attachment must fail here and be re-measured, not pass
+     * quietly.
+     *
+     * <p>BC is constructed here and NOT registered, so every other cell in this
+     * class still runs with jostle as the only installed provider.
+     *
+     * <p>Both providers are handed the SAME spec object — two constructions
+     * agreeing would measure the constructions, not the encoders — and the
+     * public result is anchored to the GENERATED key's encoding, so neither
+     * provider can define correctness for itself.
+     */
+    @Test
+    public void bouncyCastleAgreesThroughTheSameJdkSpecs() throws Exception
+    {
+        Provider bc = new BouncyCastleProvider();
+
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            KeyPair kp = KeyPairGenerator.getInstance(alg, jsl).generateKeyPair();
+            XECPublicKey pub = (XECPublicKey) kp.getPublic();
+            XECPrivateKey pri = (XECPrivateKey) kp.getPrivate();
+
+            XECPublicKeySpec pubSpec = new XECPublicKeySpec(pub.getParams(), pub.getU());
+            Assertions.assertTrue(Arrays.areEqual(
+                            kp.getPublic().getEncoded(),
+                            KeyFactory.getInstance(alg, bc).generatePublic(pubSpec).getEncoded()),
+                    alg + ": BC's SPKI from XECPublicKeySpec differs from the generated key");
+
+            XECPrivateKeySpec priSpec = new XECPrivateKeySpec(
+                    pri.getParams(), pri.getScalar().orElseThrow());
+            byte[] ourPk8 = kp.getPrivate().getEncoded();
+            byte[] bcPk8 = KeyFactory.getInstance(alg, bc)
+                    .generatePrivate(priSpec).getEncoded();
+            Assertions.assertFalse(Arrays.areEqual(ourPk8, bcPk8),
+                    alg + ": the PKCS#8 divergence has closed — re-measure"
+                            + " PrivateKeyPkcs8ParityTest.xecPinVersionAndAttachedPublicKey");
+            Assertions.assertTrue(ourPk8.length < bcPk8.length,
+                    alg + ": ours must be the shorter form — BC attaches the public half");
         }
     }
 
