@@ -21,25 +21,41 @@ internal. Three cases:
    The common case.
 2. **A new public API package** — `exports <package>;`. The signal is a modular
    consumer failing "does not export …".
-3. **Reflective access from `java.base`** — `opens <package> to java.base;`.
+3. **Reflective access from `java.base`** — needs NOTHING. See below.
 
-**Case 3: only ONE of the five opened-not-exported packages has a recorded
-mechanism.** By `git log -S` on the descriptor: `mldsa`/`mlkem`/`slhdsa` were
-opened in the first descriptor (e0fb4e5, 2025-10-05) when they were the only
-algorithm packages; `rand` with SecureRandom (d2949e6); `ks` with PKCS12
-(1f55edc). No commit body gives a reason, and registration style is not it —
-`ProvMLDSA` (opened) and `ProvRSA` (not) both register only through lambdas.
+**Case 3 was wrong, and the descriptor now carries ZERO `opens`.** The rule used
+to read "reflective access from `java.base` needs `opens <package> to
+java.base;`", and SEVEN packages carried one on that basis — the five opened
+without being exported (`mldsa`, `mlkem`, `slhdsa`, `rand`, `ks`) plus the two
+that were exported as well. `java.base` is
+**exempt from the access check entirely**: `AccessibleObject.checkCanSetAccessible`
+returns true as soon as `callerModule == Object.class.getModule()`, BEFORE any
+`isExported` / `isOpen` test. So an `opens ... to java.base` never did anything,
+and all seven were removed.
 
-`rand`'s mechanism is real: the JDK declares `SecureRandomSpi implements
-Serializable`, so `RandServiceSPI` inherits it — grepping the class for
-`Serializable` finds nothing — and `ObjectOutputStream` reflectively invokes its
-PRIVATE `writeObject`, which needs `opens`. So copy a sibling only if you can
-name the mechanism; otherwise leave `opens` off until something needs it.
+The lesson generalises past this file: **a directive that grants what the callee
+already has is indistinguishable from one that is load-bearing**, because both
+produce a working build. The only way to tell them apart is to name the mechanism
+that would fail without it — and then check whether that mechanism is subject to
+the check at all.
 
-**Nothing in the test matrix witnesses this file:** `build.gradle` has no
-module-path leg, so "a modular run will tell you" means a run nobody performs,
-and a wrong entry ships silently. Deleting a package means deleting its
-`exports` / `opens` too — the count above was measured by hand, not guarded.
+`rand` is the worked example of the near-miss. The reasoning was sound as far as
+it went: the JDK declares `SecureRandomSpi implements Serializable`, so
+`RandServiceSPI` inherits it — grepping the class for `Serializable` finds
+nothing — and `ObjectOutputStream` reflectively invokes its PRIVATE
+`writeObject`. Every step true, and the conclusion still wrong, because the
+reflecting code lives in `java.base`. Naming a mechanism is necessary and not
+sufficient; ask who is doing the reflecting.
+
+**The matrix DOES witness this file now**, which is what allowed the correction.
+`build.gradle` registers module legs at two JDK levels over `src/test/module`:
+FOUR configurations at 11 (`moduleTest11Named` / `Automatic` / `Unnamed` /
+`Control`) and SIX at 25 — the same four plus `moduleTest25NamedJNI` and
+`moduleTest25NamedNativeAccess`. `ModuleOpensTest` asserts the
+behaviour rather than the descriptor: `serialisingAPqKeyRefusesOnItsNativeFieldNotOnAccess`
+pins that the refusal is about the native field, NOT about module access, so
+restoring an `opens` cannot make it pass and removing one cannot make it fail for
+the wrong reason. Deleting a package still means deleting its `exports`.
 
 ### Touching `NISelector` loads no native library — construct the PROVIDER
 

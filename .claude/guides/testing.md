@@ -1220,6 +1220,183 @@ and is not: the anchor still matches next time. Count the occurrences of what
 the patch adds before building, and restore from the last reviewed tree rather
 than trying to un-apply.
 
+### A count of ZERO needs a matcher falsified in both directions
+
+The "falsify a source-level guard's MATCHER in both directions" rule above is
+written for guards. It applies with more force to an **ad-hoc scan**, because a
+scan gets no review and its answer is usually the one you were hoping for.
+
+Measured 2026-09-13. Scanning BouncyCastle at `r1rv86` for two-argument
+`UserKeyingMaterialSpec` constructions in the shipping tree returned **zero** —
+the wanted answer, and worthless on its own. Widening the same matcher to the
+WHOLE tree found **four**, all in BC's own tests, which is what made the zero in
+main sources evidence rather than a broken pattern. Totals: 51 one-argument, 4
+two-argument.
+
+Two traps in the same scan:
+
+1. **A line-based argument counter cannot close a construction that wraps across
+   lines.** One `pg` site does. Report such a site as UNTERMINATED and resolve it
+   by hand; counting its first line as one argument is a silent miscount.
+2. **A second witness of a different shape is cheap here.** `getSalt()` had
+   exactly ONE caller in all of BC's main sources, which corroborates the
+   write-side zero from the read side. Scans are one-directional by nature — the
+   writers and the readers of a field are different searches, and agreeing is
+   worth more than either.
+
+### `grep` is SILENT on extended-ASCII, and silence reads as absence
+
+**Symptom: a type is missing from the specification, and it is on line 940.**
+The IEEE 1609.2 ASN.1 modules in the standards library are
+`Non-ISO extended-ASCII text, with CRLF line terminators`. Measured on
+`Ieee1609Dot2BaseTypes.asn`: `grep -c "::="` returns **0**, `grep -ac "::="`
+returns **82**. A search for `EciesP256EncryptedKey` found nothing while `head`
+printed the module header perfectly — so the file was plainly readable and
+plainly "did not contain" the type.
+
+Use `grep -a` for anything out of the standards library, and treat a zero-hit
+search of a file you have not `file`-checked as unmeasured. Same shape as
+`strings` being unable to see `__LINKEDIT`: the wrong instrument fails silently
+and in the reassuring direction.
+
+### `git tag --contains` is TOPOLOGY, not feature dating
+
+**Symptom: a feature is dated to the release that first contains its commit.**
+The HKDF salt on BC's `UserKeyingMaterialSpec` appears only under `r1rv86` in
+`git tag --contains`, which reads as "new in 1.86". It is not: `r1rv85v2` carries
+the two-argument constructor at :29, `getSalt()` at :50, the `edec` SPI reading it
+at :104 and `BaseAgreementSpi`'s call at :354, and the released 1.85.2 jar
+honours it. The tag answer is a branch-topology artefact.
+
+To date a feature, read the **oldest release tag whose tree actually has the
+code**, or the artefact. `--contains` answers a question about ancestry.
+
+### Cite the clone that HAS the tag, and read THROUGH the ref
+
+More than one checkout of a dependency's source can be present, and only the
+one carrying the RELEASE TAG is a citation source. A development checkout
+sitting on a branch has no such tag; its files still open, still look right, and
+its line numbers drift from the release by a few lines — so a citation taken
+from it is wrong in a way that reads as correct.
+
+Three steps, in order, before quoting `file:line`:
+
+1. Confirm the ref EXISTS in the checkout you are reading (`git tag --list
+   <tag>` there). A checkout that does not have it is not a source for that
+   version, whatever its working tree contains.
+2. Read THROUGH the ref — `git show <tag>:<path>` — never from the working
+   tree, which is whatever the branch last left behind.
+3. Pair the source read with the released ARTEFACT (`javap -c` on the jar the
+   build actually resolves) as a second witness of a different shape. The jar
+   cannot drift from itself.
+
+Which local path satisfies step 1 is machine-specific and belongs in the
+session's notes, not in this file.
+
+### A registration change moves a golden surface on the module that SERVES it
+
+The "name the guard classes in every targeted run" rule, one turn sharper. A
+registration added to both providers failed `FIPSServedSurfaceSnapshotTest`
+**only on 3.1.2** — 3.5.8 does not serve the family, so its golden is unchanged
+and the run is green there. Verifying on one module would have shipped a broken
+golden with a clean report.
+
+So: run a surface guard on **every module whose registration the change can
+reach**, and expect the gated list (`XDH_GATED` and its siblings) to need the
+same entries as `GOLDEN`, or the absence stops being sanctioned on the other
+module.
+
+### A filtered `--tests` run leaves the leg FRESH and nearly empty
+
+Recorded under the stale-XML rule as a footnote; it deserves naming. A targeted
+run REPLACES `build/test-results/<leg>/` with only the classes it matched, so a
+later reader sees recent timestamps and a handful of classes and concludes the
+leg is thin rather than filtered. Clear the directory per cycle, and record which
+classes were named alongside the counts.
+
+### A parity claim expressed as BEHAVIOUR is unmonitored by construction
+
+The drift-check rule covers a pin that TRANSCRIBES BouncyCastle into a literal:
+hoist the literal into one holder, and have a drift check measure live BC against
+it. A parity claim expressed as *behaviour* and recorded only in a comment has
+the same decay and none of the machinery.
+
+Worked example. `DHWithKDFKeyAgreementSpi` and `ECWithKDFKeyAgreementSpi` refuse
+`generateSecret()` with
+`UnsupportedOperationException("KDF can only be used when algorithm is known")`,
+commented as BC parity. Measured 2026-09-13: that string is in **neither** the
+1.86 nor the 1.85.2 jar, and `BaseAgreementSpi` :313-317 answers the call, sizing
+the key at `secret.length * 8`. The claim was true once and nothing re-checked
+it.
+
+Either put an assertion behind such a claim — a cell that drives live BC and
+requires the behaviour — or label the comment as unmonitored where it sits. A
+confident parity sentence with nothing executing behind it is the most expensive
+kind, because it reads as measured.
+
+### A refusal probe measures ONE operation
+
+**Symptom: "the weak curves can do nothing" — and verification works fine.**
+A probe that stops at the first refusal reports the refusal, not the surface.
+Measured across both FIPS modules: on the below-112-bit curves, importing both
+halves and VERIFYING succeeds; only sign and derive refuse; and only MINTING
+differs between modules. The original claim was drawn from a probe that mint
+failed first in, so everything after it was inferred rather than measured.
+
+Enumerate the operations the surface offers and drive each independently. A
+probe whose cells are ordered will attribute the first failure to all of them.
+
+### A negative result is INFORMATION — record the agreement, not just the difference
+
+The counterpart to the rule above. Having measured both modules on the weak
+curves, the finding that 3.1.2 and 3.5.8 **agree** on verify-only and differ only
+at mint is what made the test unconditional in three cells out of four. An
+investigation that records only the differences throws away the reason most of
+the code needs no gate, and the next reader re-derives it or adds a gate that
+does nothing.
+
+### A stale REASON outlives the state it described
+
+**Symptom: a tally is pre-judged from a reason that has since been fixed.**
+A condition predicted XEC parity tallies of 11/3/12/26; measured, they are
+**9/5/12/26**, because BC's XEC private PKCS#8 is now RFC 5958 v2 with the public
+key attached. The prediction came from a reason that had been true.
+
+Prediction before measurement is still right — it is what makes a surprise
+legible. But state which instrument and which tree-state produced it, and re-read
+the reason rather than the conclusion when the numbers move.
+
+### A BLOCKED list needs a reason-guard, exactly as an exemption list does
+
+The exemption-list rules above require a count, and a fallback entry to name its
+bound sibling. A **blocked** list has the same failure and is easier to miss:
+`PublicKeySpkiParityTest`'s BLOCKED entries carried no reason-guard, so when 1.86
+began accepting XEC specs the entries went stale in silence — the test stayed
+green because blocked entries are not driven. It was caught only by
+`PrivateKeyPkcs8ParityTest` :576, a different file measuring the other half.
+
+Every blocked entry re-derives its reason each run, so the entry cannot outlive
+it, and a now-working case fails by name instead of resting.
+
+### A multi-leg Gradle invocation stops at the FIRST failure
+
+Naming several legs in one command does not run them all: the first failing leg
+ends the invocation and the later legs never execute, leaving their result
+directories holding whatever was there before. Combined with the stale-XML rule
+above, that is a leg reporting green from a previous run while it did not run at
+all. Drive legs one invocation each and record each rc, or pass `--continue` and
+still check every leg's result directory mtime.
+
+**[UNMEASURED in this session — rule stated from the reviewer's report; add the
+numbers before relying on the detail.]**
+
+### A wrapper's exit code, once more: the notification is not the log
+
+Recorded above in three forms; a fourth was measured 2026-09-12 on the BC census
+run, where the task notification reported **exit 0** while the log held
+**RC=1** for a compile failure. The rule is unchanged and the habit is the point:
+read the thing's own recorded answer, not the wrapper that carried it.
+
 ### Prefer real-trigger limit tests over OPS injection when a real configuration reaches the branch
 
 When an error branch is genuinely reachable in a supported configuration — the validated FIPS module really lacks the implicit-rejection parameter, really rejects q-less DH keys at derive-init, really substitutes named groups in paramgen — pin it with a limit test against that real configuration (`FIPSRSAPKCS1CipherLimitTest` / `FIPSDHLimitTest` assert the raw code AND the typed exception with exact message, no fault injection). A real-trigger test is strictly stronger than an OPS test: it proves both that the branch behaves correctly and that the real environment actually takes it. Keep the OPS variant too where the branch is instrumented — it covers the tree whose real configuration never reaches the branch (the base provider supports implicit rejection, so only injection exercises the probe there) — but where a branch is reachable in only one tree, the real-trigger test in that tree is the load-bearing one and a synthetic OPS twin in the other is optional. OPS remains the only option for branches no supported configuration reaches (allocation failures, mid-sequence OpenSSL errors).
