@@ -4,13 +4,8 @@ module org.openssl.jostle.prov {
     provides java.security.Provider with org.openssl.jostle.jcajce.provider.JostleProvider,
             org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
-    opens org.openssl.jostle.jcajce.provider.mldsa to java.base;
-    opens org.openssl.jostle.jcajce.provider.mlkem to java.base;
-    opens org.openssl.jostle.jcajce.provider.rand to java.base;
-    opens org.openssl.jostle.jcajce.provider.slhdsa to java.base;
-    opens org.openssl.jostle.jcajce.provider.ks to java.base;
-    opens org.openssl.jostle.jcajce.provider to java.base;
-    opens org.openssl.jostle.jcajce.provider.fips to java.base;
+    // No opens: java.base is exempt from the setAccessible check, so an opens
+    // qualified to it grants nothing. Seven such clauses were removed.
 
 
     exports org.openssl.jostle;
