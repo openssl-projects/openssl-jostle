@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
+import org.openssl.jostle.jcajce.provider.agreement.NamedSharedSecret;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -274,7 +275,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
         }
         try
         {
-            return new SecretKeySpec(secret, algorithm);
+            return NamedSharedSecret.fromSharedSecret(secret, algorithm);
         }
         catch (IllegalArgumentException e)
         {

@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.dh;
 
+import org.openssl.jostle.jcajce.provider.agreement.NamedSharedSecret;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -328,9 +329,22 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                     "algorithm name must be non-null and non-blank");
         }
         byte[] secret = engineGenerateSecret();
+        if (secret != null && "TlsPremasterSecret".equals(algorithm))
+        {
+            // JSSE reads this as a positive integer, so the padding to
+            // the prime length that the agreement applies comes off.
+            byte[] trimmed = NamedSharedSecret.trimLeadingZeroes(secret);
+            if (trimmed != secret)
+            {
+                // Only a COPY may be cleared. Clearing unconditionally wipes
+                // the key itself on every secret that needs no trimming.
+                Arrays.clear(secret);
+            }
+            secret = trimmed;
+        }
         try
         {
-            return new SecretKeySpec(secret, algorithm);
+            return NamedSharedSecret.fromSharedSecret(secret, algorithm);
         }
         catch (IllegalArgumentException e)
         {

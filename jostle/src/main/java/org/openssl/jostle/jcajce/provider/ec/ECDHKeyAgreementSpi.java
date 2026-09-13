@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
+import org.openssl.jostle.jcajce.provider.agreement.NamedSharedSecret;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -293,9 +294,8 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             throw new NoSuchAlgorithmException(
                     "algorithm name must be non-null and non-blank");
         }
-        // Wrap the raw shared secret as a SecretKeySpec under the
-        // requested algorithm name. Callers wanting a KDF-derived key
-        // should run the bytes through a separate KDF SPI.
+        // The named algorithm fixes the key length; the secret is sized
+        // to it, not labelled with it.
         byte[] secret = engineGenerateSecret();
         if (secret == null)
         {
@@ -306,7 +306,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
         }
         try
         {
-            return new SecretKeySpec(secret, algorithm);
+            return NamedSharedSecret.fromSharedSecret(secret, algorithm);
         }
         catch (IllegalArgumentException e)
         {
