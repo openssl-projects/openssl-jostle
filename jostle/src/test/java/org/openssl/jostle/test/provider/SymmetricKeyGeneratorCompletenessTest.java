@@ -53,6 +53,8 @@ public class SymmetricKeyGeneratorCompletenessTest
         s.add("RSA");
         s.add("RSA-KTS-KEM-KWS");
         s.add("ML-KEM");
+        // Wraps under an EC key pair; it takes no symmetric key to generate.
+        s.add("ETSIKEMWITHSHA256");
         // Uses a ChaCha20 key; KeyGenerator.ChaCha20 is the generator for it.
         s.add("CHACHA20-POLY1305");
         NO_KEY_GENERATOR = Collections.unmodifiableSet(s);

@@ -139,6 +139,11 @@ public class KeyAgreementNegativePathSurveyTest
         c.add(new Cell("X25519", "XDHKeyAgreementSpi", "X25519", "X25519", null));
         c.add(new Cell("X448", "XDHKeyAgreementSpi", "X448", "X448", null));
         c.add(new Cell("XDH", "XDHKeyAgreementSpi", "X25519", "XDH", null));
+        // RFC 8418. One SPI serves all three digests, so all three are named:
+        // a single cell would leave two registered names unexercised.
+        c.add(new Cell("XDHwithSHA256HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
+        c.add(new Cell("XDHwithSHA384HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
+        c.add(new Cell("XDHwithSHA512HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
         return c;
     }
 
