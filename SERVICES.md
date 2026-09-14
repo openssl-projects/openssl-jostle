@@ -10,14 +10,14 @@
 > single-module preamble and bare algorithm lists. Regeneration WILL drop them
 > — diff against the previous version and splice them back.
 
-The Jostle (`JSL`) provider registers **356** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **361** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
 1. `DH`
 2. `DSA`
 
-## AlgorithmParameters (20)
+## AlgorithmParameters (21)
 
 1. `2.16.840.1.101.3.4.1.2`
 2. `2.16.840.1.101.3.4.1.22`
@@ -38,7 +38,8 @@ The Jostle (`JSL`) provider registers **356** services across **16** JCA service
 17. `DSA`
 18. `EC`
 19. `GCM`
-20. `SM4`
+20. `RSASSA-PSS`
+21. `SM4`
 
 ## CertPathBuilder (1)
 
@@ -91,7 +92,7 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 
 1. `X.509`
 
-## Cipher (54)
+## Cipher (55)
 
 1. `1.2.392.200011.61.1.1.1.2`
 2. `1.2.392.200011.61.1.1.1.3`
@@ -141,14 +142,15 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 46. `CHACHA20-POLY1305`
 47. `DESEDE`
 48. `DESEDERFC3211WRAP`
-49. `ML-KEM`
-50. `RSA`
-51. `RSA-KTS-KEM-KWS`
-52. `RSA/ECB/PKCS1PADDING`
-53. `SM4`
-54. `SM4/CCM/NOPADDING`
+49. `ETSIKEMWITHSHA256`
+50. `ML-KEM`
+51. `RSA`
+52. `RSA-KTS-KEM-KWS`
+53. `RSA/ECB/PKCS1PADDING`
+54. `SM4`
+55. `SM4/CCM/NOPADDING`
 
-## KeyAgreement (11)
+## KeyAgreement (14)
 
 1. `DH`
 2. `DHWITHRFC2631KDF`
@@ -161,6 +163,9 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 9. `X25519`
 10. `X448`
 11. `XDH`
+12. `XDHWITHSHA256HKDF`
+13. `XDHWITHSHA384HKDF`
+14. `XDHWITHSHA512HKDF`
 
 ## KeyFactory (35)
 
@@ -462,7 +467,7 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 > supported" to the KMAC paragraph. Splice it back from the previous version and
 > re-check its counts and gating claims against both modules.
 
-The Jostle FIPS (`JSLFIPS`) provider registers **196** services against the 3.1.2 module and **282** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+The Jostle FIPS (`JSLFIPS`) provider registers **201** services against the 3.1.2 module and **284** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
 
 **Two modules are supported, and the list below is the 3.5.8 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
@@ -543,7 +548,7 @@ module it did not match — so both surface as the module's own typed refusal at
 1. `DH`
 2. `DSA`
 
-## AlgorithmParameters (16)
+## AlgorithmParameters (17)
 
 1. `2.16.840.1.101.3.4.1.2`
 2. `2.16.840.1.101.3.4.1.22`
@@ -561,12 +566,13 @@ module it did not match — so both surface as the module's own typed refusal at
 14. `DSA`
 15. `EC`
 16. `GCM`
+17. `RSASSA-PSS`
 
 ## CertificateFactory (1)
 
 1. `X.509`
 
-## Cipher (31)
+## Cipher (32)
 
 1. `1.2.840.113549.3.7`
 2. `2.16.840.1.101.3.4.1.2`
@@ -596,9 +602,10 @@ module it did not match — so both surface as the module's own typed refusal at
 26. `AESWRAPINV`
 27. `AESWRAPPAD`
 28. `DESEDE`
-29. `ML-KEM`
-30. `RSA`
-31. `RSA-KTS-KEM-KWS`
+29. `ETSIKEMWITHSHA256`
+30. `ML-KEM`
+31. `RSA`
+32. `RSA-KTS-KEM-KWS`
 
 ## KeyAgreement (8)
 
