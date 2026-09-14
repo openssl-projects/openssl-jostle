@@ -71,6 +71,8 @@ public class FIPSServedSurfaceSnapshotTest
             "AlgorithmParameters.DSA",
             "AlgorithmParameters.EC",
             "AlgorithmParameters.GCM",
+            // RFC 4055 RSASSA-PSS-params. Pure ASN.1, no operation.
+            "AlgorithmParameters.RSASSA-PSS",
             "CertificateFactory.X.509",
             "Cipher.1.2.840.113549.3.7",   // Triple-DES, capability-gated (see TDES_GATED)
             "Cipher.2.16.840.1.101.3.4.1.2",

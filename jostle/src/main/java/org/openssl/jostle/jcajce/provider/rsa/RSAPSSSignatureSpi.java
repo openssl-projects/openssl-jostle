@@ -11,11 +11,18 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
+import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.ProviderException;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 
@@ -49,7 +56,20 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     private int saltLen = -1;
 
 
-    public RSAPSSSignatureSpi() {}
+    /**
+     * Digest output sizes, asked of the interface library rather than
+     * tabulated. Keyed by digest name, which is what the size is a property
+     * of; the two libraries agree on every digest they both serve.
+     */
+    private static final NativeLengthCache<String> DIGEST_LENGTHS = new NativeLengthCache<String>();
+
+    /** Resolves the salt length the native sentinel stands for. May be null. */
+    private final MDServiceNI mdServiceNI;
+
+    public RSAPSSSignatureSpi()
+    {
+        this.mdServiceNI = NISelector.MDServiceNI;
+    }
 
     /**
      * Per-digest constructor for the named {@code SHAxxxWITHRSAANDMGF1} /
@@ -61,6 +81,7 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
      */
     public RSAPSSSignatureSpi(String digest)
     {
+        this.mdServiceNI = NISelector.MDServiceNI;
         this.digestName = digest;
         this.mgf1Digest = digest;
         this.saltLen = -1;
@@ -70,14 +91,18 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     // NI-binding constructors for the FIPS provider: identical behaviour,
     // bound to the FIPS interface library's RSAServiceNI.
     //
-    public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, RSAKeyFactorySpi keyFactory)
+    public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, MDServiceNI mdServiceNI,
+                              RSAKeyFactorySpi keyFactory)
     {
         super(rsaServiceNI, keyFactory);
+        this.mdServiceNI = mdServiceNI;
     }
 
-    public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, RSAKeyFactorySpi keyFactory, String digest)
+    public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, MDServiceNI mdServiceNI,
+                              RSAKeyFactorySpi keyFactory, String digest)
     {
         super(rsaServiceNI, keyFactory);
+        this.mdServiceNI = mdServiceNI;
         this.digestName = digest;
         this.mgf1Digest = digest;
         this.saltLen = -1;
@@ -185,5 +210,87 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
                 RSAServiceNI.PADDING_PSS,
                 mgf1Digest,
                 saltLen);
+    }
+
+    /**
+     * The parameters this instance will actually sign under.
+     *
+     * <p>Must not return null: the JDK's TLS SignatureScheme disables every
+     * rsa_pss_* scheme when this throws or returns nothing.
+     *
+     * <p>Resolved through this SPI's own provider instance, never a name and
+     * never JCA search order. An unbound SPI (direct construction) has no
+     * provider to resolve through and reports null.
+     */
+    @Override
+    protected AlgorithmParameters engineGetParameters()
+    {
+        Provider provider = keyFactory == null ? null : keyFactory.ownProviderInstance();
+        if (provider == null)
+        {
+            return null;
+        }
+        int salt = effectiveSaltLength();
+        if (salt < 0)
+        {
+            return null;
+        }
+        try
+        {
+            AlgorithmParameters params = AlgorithmParameters.getInstance("RSASSA-PSS", provider);
+            params.init(RSAPSSAlgorithmParameters.specFor(digestName, mgf1Digest, salt));
+            return params;
+        }
+        catch (NoSuchAlgorithmException | InvalidParameterSpecException e)
+        {
+            throw new ProviderException("unable to encode RSASSA-PSS parameters", e);
+        }
+    }
+
+    /**
+     * Salt length as a concrete byte count. {@code saltLen} carries the native
+     * sentinel -1 for RSA_PSS_SALTLEN_DIGEST, so the digest is asked how long
+     * it is. Returns -1 when the library cannot answer for this digest.
+     */
+    private int effectiveSaltLength()
+    {
+        if (saltLen >= 0)
+        {
+            return saltLen;
+        }
+        if (mdServiceNI == null)
+        {
+            return -1;
+        }
+        int cached = DIGEST_LENGTHS.get(digestName);
+        if (cached != NativeLengthCache.UNKNOWN)
+        {
+            return cached;
+        }
+        long ref = 0;
+        try
+        {
+            ref = mdServiceNI.allocateDigest(digestName, 0);
+            int len = mdServiceNI.getDigestOutputLen(ref);
+            if (len <= 0)
+            {
+                return -1;
+            }
+            DIGEST_LENGTHS.cache(digestName, len);
+            return len;
+        }
+        catch (RuntimeException e)
+        {
+            // A digest this library cannot fetch means we cannot state the
+            // salt length; the caller gets null rather than a wrong number.
+            return -1;
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                mdServiceNI.dispose(ref);
+            }
+        }
     }
 }

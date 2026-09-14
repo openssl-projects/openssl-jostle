@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import java.security.AlgorithmParameters;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -339,5 +340,17 @@ abstract class RSASignatureSpiBase extends SignatureSpi
             super(reference, name, new Disposer(rsaServiceNI, reference));
         }
 
+    }
+
+    /**
+     * No parameters. Matching SunRsaSign, SunEC, SUN and BouncyCastle, which
+     * all answer null here; the inherited SignatureSpi default throws, and a
+     * caller reading it back to build an AlgorithmIdentifier then fails on an
+     * unchecked exception.
+     */
+    @Override
+    protected AlgorithmParameters engineGetParameters()
+    {
+        return null;
     }
 }

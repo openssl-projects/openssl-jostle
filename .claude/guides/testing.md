@@ -339,6 +339,23 @@ task named; both over-run rather than under-run, so the cost is time and a
 misdiagnosis rather than a false green. Target a `unitTestNN` leg when you want
 one class.
 
+**A test that mutates GLOBAL JVM state is a cross-class flake the unit legs
+cannot see, and the base leg's class population is the instrument that catches
+it.** Measured 2026-09-14: a cell that emptied the `Security` provider registry
+to prove RSA-PSS works without the JDK providers left it empty, and three
+unrelated classes scheduled into the same process seconds later — `RSATest`,
+`SLHDSATest`, `XDHTest` — failed 20 tests with `SHA1PRNG SecureRandom not
+available`, because their seeded-random helper needs SUN. The same tree had
+already passed `unitTest8`, `unitTest25JNI` and `unitTest25FFI` TWICE; they
+passed by luck of class ordering, since the damage only fires when the
+scheduler puts a victim after the mutator in the same JVM. `forkEvery = 1` does
+NOT contain it, and reasoning that it does from the build file rather than from
+a run is how the claim got written into the test's javadoc in the first place.
+So: snapshot the state before touching it, restore it unconditionally in an
+`@AfterEach`, and ASSERT the restoration (by name AND position, since
+`addProvider` appends where `insertProviderAt` preserves precedence) so a
+partial restore is itself red.
+
 ### Falsify a gate's COUNT against a known-bad input, and do it first
 
 A gate that counts legs, files or rows is an instrument, so its matcher needs

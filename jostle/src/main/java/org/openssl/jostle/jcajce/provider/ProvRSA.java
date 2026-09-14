@@ -97,8 +97,20 @@ class ProvRSA
         // RSASSA-PSS — parameters carried via PSSParameterSpec.
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 RSAPSSSignatureSpi.class.getName(), attr,
-                (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI, keyFactory(provider)));
+                (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI,
+                        NISelector.MDServiceNI, keyFactory(provider)));
         provider.addAlias("Signature", "RSASSA-PSS", PKCSObjectIdentifiers.id_RSASSA_PSS.getId());
+
+        // RFC 4055 RSASSA-PSS-params. Without this a caller pinned to this
+        // provider cannot encode or decode the AlgorithmIdentifier parameters,
+        // and Signature.getParameters() has nothing of ours to return — which
+        // makes the JDK's TLS stack disable every rsa_pss_* scheme. BC's PSS
+        // and RSAPSS spellings are aliased so a BC-shaped caller resolves here.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "RSASSA-PSS",
+                RSAPSSAlgorithmParameters.class.getName(), attr,
+                (arg) -> new RSAPSSAlgorithmParameters());
+        provider.addAlias("AlgorithmParameters", "RSASSA-PSS",
+                PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "PSS", "RSAPSS");
 
         // Per-digest RSASSA-PSS convenience names. BouncyCastle's PKIX/CMS layer
         // derives "<digest>WITHRSAANDMGF1" from an id-RSASSA-PSS AlgorithmIdentifier
@@ -187,7 +199,7 @@ class ProvRSA
         provider.addAlgorithmImplementation("Signature", mgf1Name,
                 RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI,
-                        keyFactory(provider), opensslDigest));
+                        NISelector.MDServiceNI, keyFactory(provider), opensslDigest));
         provider.addAlias("Signature", mgf1Name, digestJcaName + "WITHRSASSA-PSS");
     }
 

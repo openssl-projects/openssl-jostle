@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import java.security.AlgorithmParameters;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -408,5 +409,17 @@ public class SLHDSASignatureSpi extends SignatureSpi
     public String toString()
     {
         return "SLHDSASignature(" + (ref != null ? ref.getReference() : "null") + ")" + (lastKey != null ? "[" + lastKey.toString() + "]" : "[]");
+    }
+
+    /**
+     * No parameters. Matching SunRsaSign, SunEC, SUN and BouncyCastle, which
+     * all answer null here; the inherited SignatureSpi default throws, and a
+     * caller reading it back to build an AlgorithmIdentifier then fails on an
+     * unchecked exception.
+     */
+    @Override
+    protected AlgorithmParameters engineGetParameters()
+    {
+        return null;
     }
 }

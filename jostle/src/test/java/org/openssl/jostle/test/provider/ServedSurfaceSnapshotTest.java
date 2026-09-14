@@ -76,7 +76,10 @@ public class ServedSurfaceSnapshotTest
             "AlgorithmParameters.ARIA", "AlgorithmParameters.CAMELLIA", "AlgorithmParameters.CCM",
             "AlgorithmParameters.CHACHA20-POLY1305", "AlgorithmParameters.DESEDE",
             "AlgorithmParameters.DH", "AlgorithmParameters.DSA", "AlgorithmParameters.EC",
-            "AlgorithmParameters.GCM", "AlgorithmParameters.SM4",
+            "AlgorithmParameters.GCM",
+            // RFC 4055 RSASSA-PSS-params. Pure ASN.1, no operation.
+            "AlgorithmParameters.RSASSA-PSS",
+            "AlgorithmParameters.SM4",
             "CertPathBuilder.PKIX", "CertPathValidator.PKIX", "CertificateFactory.X.509",
             "Cipher.1.2.392.200011.61.1.1.1.2", "Cipher.1.2.392.200011.61.1.1.1.3",
             "Cipher.1.2.392.200011.61.1.1.1.4", "Cipher.1.2.410.200046.1.1.12",

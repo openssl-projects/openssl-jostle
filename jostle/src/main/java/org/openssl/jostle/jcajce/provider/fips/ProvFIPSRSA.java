@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAKEMCipherSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyPairGenerator;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherSpi;
+import org.openssl.jostle.jcajce.provider.rsa.RSAPSSAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPSSSignatureSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSASignatureSpi;
 
@@ -108,8 +109,18 @@ class ProvFIPSRSA
 
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 RSAPSSSignatureSpi.class.getName(), attr,
-                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider)));
+                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI,
+                        FIPSNISelector.MDServiceNI, keyFactory(provider)));
         provider.addAlias("Signature", "RSASSA-PSS", PKCSObjectIdentifiers.id_RSASSA_PSS.getId());
+
+        // RFC 4055 RSASSA-PSS-params — pure ASN.1, no module operation, so it
+        // is registered unconditionally. A registration change is a
+        // two-provider change; see the note in ProvRSA.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "RSASSA-PSS",
+                RSAPSSAlgorithmParameters.class.getName(), attr,
+                (arg) -> new RSAPSSAlgorithmParameters());
+        provider.addAlias("AlgorithmParameters", "RSASSA-PSS",
+                PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "PSS", "RSAPSS");
 
         registerPssSignature(provider, attr, "SHA1", "SHA-1");
         registerPssSignature(provider, attr, "SHA224", "SHA-224");
@@ -185,8 +196,8 @@ class ProvFIPSRSA
         String mgf1Name = digestJcaName + "WITHRSAANDMGF1";
         provider.addAlgorithmImplementation("Signature", mgf1Name,
                 RSAPSSSignatureSpi.class.getName(), attr,
-                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider),
-                        opensslDigest));
+                (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI,
+                        FIPSNISelector.MDServiceNI, keyFactory(provider), opensslDigest));
         // BouncyCastle's PKIX/CMS layer derives <digest>WITHRSASSA-PSS as the
         // fallback Signature name from an id-RSASSA-PSS AlgorithmIdentifier;
         // register the alias so RSASSA-PSS verification resolves under JSLFIPS

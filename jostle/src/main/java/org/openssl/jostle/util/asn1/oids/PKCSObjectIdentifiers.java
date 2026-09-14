@@ -44,6 +44,11 @@ public interface PKCSObjectIdentifiers
     ASN1ObjectIdentifier sha1WithRSAEncryption = pkcs_1.branch("5").intern();
 
     /**
+     * 1.2.840.113549.1.1.8 -- id-mgf1, RFC 8017 line 3749
+     */
+    ASN1ObjectIdentifier id_mgf1 = pkcs_1.branch("8").intern();
+
+    /**
      * 1.2.840.113549.1.1.10 -- id-RSASSA-PSS, RFC 8017 line 3325
      */
     ASN1ObjectIdentifier id_RSASSA_PSS = pkcs_1.branch("10").intern();

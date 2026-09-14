@@ -26,6 +26,8 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -58,13 +60,14 @@ import javax.crypto.spec.IvParameterSpec;
  *
  * <h2>Why it reads the LIVE provider</h2>
  *
- * <p>A hard-coded list of twenty names cannot catch the twenty-first. The
+ * <p>A hard-coded list of twenty-one names cannot catch the twenty-second. The
  * names come from {@code provider.getServices()}, and a name whose SPI class
  * has no spec maker below FAILS the test rather than being skipped — so the
  * next never-constructed name cannot hide the way these four did.
  *
- * <p>Twenty names are only SEVEN SPI classes, so there are seven makers, not
- * twenty. Measured: CBC 3 names, CCM 4, GCM 4, Iv 6, DH 1, DSA 1, EC 1.
+ * <p>Twenty-one names are only EIGHT SPI classes, so there are eight makers,
+ * not twenty-one. Measured: CBC 3 names, CCM 4, GCM 4, Iv 6, DH 1, DSA 1,
+ * EC 1, RSA-PSS 1.
  */
 public class AlgorithmParametersNameCompleteSmokeTest
 {
@@ -95,7 +98,7 @@ public class AlgorithmParametersNameCompleteSmokeTest
 
     /**
      * The spec to init a name with, chosen by its SPI class rather than its
-     * name — seven makers for twenty names. Returns null when the class is
+     * name — eight makers for twenty-one names. Returns null when the class is
      * unknown, which the caller turns into a FAILURE.
      */
     private static AlgorithmParameterSpec specFor(String spiClass)
@@ -128,6 +131,13 @@ public class AlgorithmParametersNameCompleteSmokeTest
         {
             return new ECGenParameterSpec("secp256r1");
         }
+        if (spiClass.endsWith("RSAPSSAlgorithmParameters"))
+        {
+            // Non-DEFAULT in every field, so the encode exercises all four
+            // rather than collapsing to the two-byte empty SEQUENCE.
+            return new PSSParameterSpec("SHA-256", "MGF1",
+                    MGF1ParameterSpec.SHA256, 32, 1);
+        }
         return null;
     }
 
@@ -136,7 +146,7 @@ public class AlgorithmParametersNameCompleteSmokeTest
      * the SPI class that serves it — primaries AND aliases.
      *
      * <p>Aliases are included because "name-complete" has to mean what a
-     * caller can ask for. Measured on JSL: 20 primaries and 18 aliases, 38 in
+     * caller can ask for. Measured on JSL: 21 primaries and 22 aliases, 43 in
      * all. The aliases are not a rounding error — they include every
      * {@code OID.}-prefixed form of the nine AES OIDs, the bare DSA/EC/DH
      * OIDs, {@code DIFFIEHELLMAN}, and the ChaCha20-Poly1305 OID.
@@ -313,7 +323,7 @@ public class AlgorithmParametersNameCompleteSmokeTest
 
         Assertions.assertTrue(failures.isEmpty(),
                 "BC round-trip failures:\n  " + String.join("\n  ", failures));
-        // Vacuity floor. Measured: 38 names resolve on JSL and BC registers 25
+        // Vacuity floor. Measured: 43 names resolve on JSL and BC registers 25
         // of them, so 20 leaves headroom for BC to drop a few without making
         // this brittle, while still failing if the comparison collapses. The
         // floor was 15 when the sweep was primaries-only; aliases raised the
