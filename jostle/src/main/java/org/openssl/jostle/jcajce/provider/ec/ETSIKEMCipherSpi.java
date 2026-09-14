@@ -46,6 +46,7 @@ import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 /**
  * The IEEE 1609.2 (ITS) integrated-encryption KEM, registered as
@@ -94,7 +95,7 @@ public class ETSIKEMCipherSpi extends CipherSpi
     private static final int MAC_LENGTH = 16;
 
     /** id-ecPublicKey, the SubjectPublicKeyInfo algorithm for an EC point. */
-    private static final String ID_EC_PUBLIC_KEY = "1.2.840.10045.2.1";
+    private static final String ID_EC_PUBLIC_KEY = X9ObjectIdentifiers.id_ecPublicKey.getId();
 
     private final ECServiceNI ecServiceNI;
     private final ECKeyFactorySpi keyFactory;

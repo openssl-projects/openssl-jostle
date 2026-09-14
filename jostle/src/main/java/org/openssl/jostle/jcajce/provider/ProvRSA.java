@@ -15,13 +15,15 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.ISOIECObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 class ProvRSA
 {
     /** ISO 18033-2 {@code id-kem-rsa}, the OID CMS names in KEMRecipientInfo.kem. */
-    static final String ID_KEM_RSA = "1.0.18033.2.2.4";
+    static final String ID_KEM_RSA = ISOIECObjectIdentifiers.id_kem_rsa.getId();
     /** PKCS-arc {@code id-rsa-KEM}, used when an RSA-KEM SPKI names the cipher (RFC 9690 s3.3). */
-    static final String ID_RSA_KEM = "1.2.840.113549.1.9.16.3.14";
+    static final String ID_RSA_KEM = PKCSObjectIdentifiers.id_rsa_KEM.getId();
 
     public void configure(final JostleProvider provider)
     {
@@ -35,13 +37,13 @@ class ProvRSA
                 RSAKeyPairGenerator.class.getName(), attr,
                 (arg) -> new RSAKeyPairGenerator(
                         NISelector.RSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, provider));
-        provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
+        provider.addAlias("KeyPairGenerator", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         // KeyFactory.
         provider.addAlgorithmImplementation("KeyFactory", "RSA",
                 RSAKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
-        provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
+        provider.addAlias("KeyFactory", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
         // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
         // 1.2.840.113549.1.1.10, not rsaEncryption, and the JCA name for it is
         // "RSASSA-PSS". The RSA KeyFactory decodes that SPKI form correctly
@@ -49,29 +51,29 @@ class ProvRSA
         // by either got NoSuchAlgorithmException, and the provider-bound
         // CertificateFactory's OID-keyed key re-derivation failed loud
         // (JSLKeyX509Certificate), surfacing to TLS as bad_certificate(42).
-        provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.10", "RSASSA-PSS");
+        provider.addAlias("KeyFactory", "RSA", PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "RSASSA-PSS");
 
         // PKCS#1 v1.5 Signature variants. MD5 is registered for legacy
         // interop only — callers should prefer SHA-2 / SHA-3 family.
         registerPkcs1Signature(provider, attr,
-                "MD5withRSA", "MD5", "1.2.840.113549.1.1.4");
+                "MD5withRSA", "MD5", PKCSObjectIdentifiers.md5WithRSAEncryption.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA1withRSA", "SHA-1", "1.2.840.113549.1.1.5");
+                "SHA1withRSA", "SHA-1", PKCSObjectIdentifiers.sha1WithRSAEncryption.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA224withRSA", "SHA-224", "1.2.840.113549.1.1.14");
+                "SHA224withRSA", "SHA-224", PKCSObjectIdentifiers.sha224WithRSAEncryption.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA256withRSA", "SHA-256", "1.2.840.113549.1.1.11");
+                "SHA256withRSA", "SHA-256", PKCSObjectIdentifiers.sha256WithRSAEncryption.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA384withRSA", "SHA-384", "1.2.840.113549.1.1.12");
+                "SHA384withRSA", "SHA-384", PKCSObjectIdentifiers.sha384WithRSAEncryption.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA512withRSA", "SHA-512", "1.2.840.113549.1.1.13");
+                "SHA512withRSA", "SHA-512", PKCSObjectIdentifiers.sha512WithRSAEncryption.getId());
         // BC's spelling is primary; the JDK's SHA512/224withRSA form is aliased
         // below. Served by mainline and both FIPS modules for sign and verify
         // (fips-c-review/probes/sha512t_rsa_probe.c), so no gate.
         registerPkcs1Signature(provider, attr,
-                "SHA512(224)withRSA", "SHA-512/224", "1.2.840.113549.1.1.15");
+                "SHA512(224)withRSA", "SHA-512/224", PKCSObjectIdentifiers.sha512_224WithRSAEncryption.getId());
         registerPkcs1Signature(provider, attr,
-                "SHA512(256)withRSA", "SHA-512/256", "1.2.840.113549.1.1.16");
+                "SHA512(256)withRSA", "SHA-512/256", PKCSObjectIdentifiers.sha512_256WithRSAEncryption.getId());
         provider.addAlias("Signature", "SHA512(224)withRSA", "SHA512/224withRSA");
         provider.addAlias("Signature", "SHA512(256)withRSA", "SHA512/256withRSA");
         registerPkcs1Signature(provider, attr,
@@ -96,7 +98,7 @@ class ProvRSA
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(NISelector.RSAServiceNI, keyFactory(provider)));
-        provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
+        provider.addAlias("Signature", "RSASSA-PSS", PKCSObjectIdentifiers.id_RSASSA_PSS.getId());
 
         // Per-digest RSASSA-PSS convenience names. BouncyCastle's PKIX/CMS layer
         // derives "<digest>WITHRSAANDMGF1" from an id-RSASSA-PSS AlgorithmIdentifier
@@ -139,7 +141,7 @@ class ProvRSA
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 RSAOAEPCipherSpi.class.getName(), cipherAttr,
                 (arg) -> new RSAOAEPCipherSpi(NISelector.RSAOAEPCipherNI, keyFactory(provider)));
-        provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
+        provider.addAlias("Cipher", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         // RSA-PKCS#1 v1.5 cipher. Registered as a separate primary
         // ("RSA/ECB/PKCS1Padding") so the JCE name parser dispatches

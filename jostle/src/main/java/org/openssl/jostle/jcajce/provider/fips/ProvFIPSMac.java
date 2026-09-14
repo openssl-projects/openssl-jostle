@@ -14,6 +14,8 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceSPI;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * Mac registrations for the FIPS provider: the subset of ProvMac's MACs the
@@ -36,13 +38,13 @@ class ProvFIPSMac
 
     public void configure(final JostleFIPSProvider provider)
     {
-        addMac(provider, "HMAC", "SHA1", "SHA-1", "1.2.840.113549.2.7");
-        addMac(provider, "HMAC", "SHA224", "SHA2-224", "1.2.840.113549.2.8");
-        addMac(provider, "HMAC", "SHA256", "SHA2-256", "1.2.840.113549.2.9");
-        addMac(provider, "HMAC", "SHA384", "SHA2-384", "1.2.840.113549.2.10");
-        addMac(provider, "HMAC", "SHA512", "SHA2-512", "1.2.840.113549.2.11");
-        addMac(provider, "HMAC", "SHA512/224", "SHA2-512/224", "1.2.840.113549.2.12");
-        addMac(provider, "HMAC", "SHA512/256", "SHA2-512/256", "1.2.840.113549.2.13");
+        addMac(provider, "HMAC", "SHA1", "SHA-1", PKCSObjectIdentifiers.id_hmacWithSHA1.getId());
+        addMac(provider, "HMAC", "SHA224", "SHA2-224", PKCSObjectIdentifiers.id_hmacWithSHA224.getId());
+        addMac(provider, "HMAC", "SHA256", "SHA2-256", PKCSObjectIdentifiers.id_hmacWithSHA256.getId());
+        addMac(provider, "HMAC", "SHA384", "SHA2-384", PKCSObjectIdentifiers.id_hmacWithSHA384.getId());
+        addMac(provider, "HMAC", "SHA512", "SHA2-512", PKCSObjectIdentifiers.id_hmacWithSHA512.getId());
+        addMac(provider, "HMAC", "SHA512/224", "SHA2-512/224", PKCSObjectIdentifiers.id_hmacWithSHA512_224.getId());
+        addMac(provider, "HMAC", "SHA512/256", "SHA2-512/256", PKCSObjectIdentifiers.id_hmacWithSHA512_256.getId());
 
         addMac(provider, "HMAC", "SHA3-224", "SHA3-224");
         addMac(provider, "HMAC", "SHA3-256", "SHA3-256");
@@ -109,11 +111,11 @@ class ProvFIPSMac
         provider.addAlias("Mac", mainName, osslName);
         if ("128".equals(size))
         {
-            provider.addAlias("Mac", mainName, "2.16.840.1.101.3.4.2.19", "2.16.840.1.101.3.4.2.21");
+            provider.addAlias("Mac", mainName, NISTObjectIdentifiers.id_KmacWithSHAKE128.getId(), NISTObjectIdentifiers.id_Kmac128.getId());
         }
         else
         {
-            provider.addAlias("Mac", mainName, "2.16.840.1.101.3.4.2.20", "2.16.840.1.101.3.4.2.22");
+            provider.addAlias("Mac", mainName, NISTObjectIdentifiers.id_KmacWithSHAKE256.getId(), NISTObjectIdentifiers.id_Kmac256.getId());
         }
     }
 

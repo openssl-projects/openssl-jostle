@@ -17,6 +17,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.CryptoProObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.GMObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.KISAObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.NTTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.OIWObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * Sizes a shared secret to the key algorithm a caller names.
@@ -62,7 +69,7 @@ public final class NamedSharedSecret
     private static final Map<String, String> OID_NAMES = new HashMap<String, String>();
 
     /** Every identifier under this arc answers "AES", sized or not. */
-    private static final String AES_ARC = "2.16.840.1.101.3.4.1";
+    private static final String AES_ARC = NISTObjectIdentifiers.aes.getId();
 
     static
     {
@@ -72,57 +79,72 @@ public final class NamedSharedSecret
         NAME_SIZES.put("BLOWFISH", 16);
         NAME_SIZES.put("SM4", 16);
 
-        // ---- sizes. Enumerated; .8, .9, .28, .29, .48 and .49 are absent.
-        for (int i = 1; i <= 7; i++)
-        {
-            OID_SIZES.put(AES_ARC + "." + i, 16);
-            OID_SIZES.put(AES_ARC + "." + (i + 20), 24);
-            OID_SIZES.put(AES_ARC + "." + (i + 40), 32);
-        }
-        OID_SIZES.put("1.2.392.200011.61.1.1.3.2", 16);
-        OID_SIZES.put("1.2.392.200011.61.1.1.3.3", 24);
-        OID_SIZES.put("1.2.392.200011.61.1.1.3.4", 32);
-        OID_SIZES.put("1.2.410.200004.7.1.1.1", 16);
-        OID_SIZES.put("1.2.156.10197.1.104.2", 16);
-        OID_SIZES.put("1.2.156.10197.1.104.8", 16);
-        OID_SIZES.put("1.2.156.10197.1.104.9", 16);
-        OID_SIZES.put("1.2.156.10197.1.104.11", 16);
-        OID_SIZES.put("1.2.156.10197.1.104.12", 16);
-        OID_SIZES.put("1.2.643.2.2.21", 32);
-        OID_SIZES.put("1.2.643.2.2.13.0", 32);
-        OID_SIZES.put("1.2.643.2.2.13.1", 32);
-        OID_SIZES.put("1.2.840.113549.1.9.16.3.6", 24);
-        OID_SIZES.put("1.2.840.113549.3.7", 24);
-        OID_SIZES.put("1.3.14.3.2.7", 8);
-        OID_SIZES.put("1.2.840.113549.2.7", 20);
-        OID_SIZES.put("1.2.840.113549.2.9", 32);
-        OID_SIZES.put("1.2.840.113549.2.10", 48);
-        OID_SIZES.put("1.2.840.113549.2.11", 64);
+        // ---- sizes. Enumerated; wrap_pad and GMAC are named, never sized.
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_ECB.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_CBC.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_OFB.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_CFB.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_wrap.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_GCM.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes128_CCM.getId(), 16);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_ECB.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_CBC.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_OFB.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_CFB.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_wrap.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_GCM.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes192_CCM.getId(), 24);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_ECB.getId(), 32);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_CBC.getId(), 32);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_OFB.getId(), 32);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_CFB.getId(), 32);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_wrap.getId(), 32);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_GCM.getId(), 32);
+        OID_SIZES.put(NISTObjectIdentifiers.id_aes256_CCM.getId(), 32);
+        OID_SIZES.put(NTTObjectIdentifiers.id_camellia128_wrap.getId(), 16);
+        OID_SIZES.put(NTTObjectIdentifiers.id_camellia192_wrap.getId(), 24);
+        OID_SIZES.put(NTTObjectIdentifiers.id_camellia256_wrap.getId(), 32);
+        OID_SIZES.put(KISAObjectIdentifiers.id_npki_app_cmsSeed_wrap.getId(), 16);
+        OID_SIZES.put(GMObjectIdentifiers.sms4_cbc.getId(), 16);
+        OID_SIZES.put(GMObjectIdentifiers.sms4_gcm.getId(), 16);
+        OID_SIZES.put(GMObjectIdentifiers.sms4_ccm.getId(), 16);
+        OID_SIZES.put(GMObjectIdentifiers.sms4_wrap.getId(), 16);
+        OID_SIZES.put(GMObjectIdentifiers.sms4_wrap_pad.getId(), 16);
+        OID_SIZES.put(CryptoProObjectIdentifiers.gostR28147_gcfb.getId(), 32);
+        OID_SIZES.put(CryptoProObjectIdentifiers.id_Gost28147_89_None_KeyWrap.getId(), 32);
+        OID_SIZES.put(CryptoProObjectIdentifiers.id_Gost28147_89_CryptoPro_KeyWrap.getId(), 32);
+        OID_SIZES.put(PKCSObjectIdentifiers.id_alg_CMS3DESwrap.getId(), 24);
+        OID_SIZES.put(PKCSObjectIdentifiers.des_EDE3_CBC.getId(), 24);
+        OID_SIZES.put(OIWObjectIdentifiers.desCBC.getId(), 8);
+        OID_SIZES.put(PKCSObjectIdentifiers.id_hmacWithSHA1.getId(), 20);
+        OID_SIZES.put(PKCSObjectIdentifiers.id_hmacWithSHA256.getId(), 32);
+        OID_SIZES.put(PKCSObjectIdentifiers.id_hmacWithSHA384.getId(), 48);
+        OID_SIZES.put(PKCSObjectIdentifiers.id_hmacWithSHA512.getId(), 64);
 
         // ---- names. Wider than the sizes: an identifier here but not above
         // yields the WHOLE secret under this name.
-        OID_NAMES.put("1.2.392.200011.61.1.1.1.2", "Camellia");
-        OID_NAMES.put("1.2.392.200011.61.1.1.1.3", "Camellia");
-        OID_NAMES.put("1.2.392.200011.61.1.1.1.4", "Camellia");
-        OID_NAMES.put("1.2.392.200011.61.1.1.3.2", "Camellia");
-        OID_NAMES.put("1.2.392.200011.61.1.1.3.3", "Camellia");
-        OID_NAMES.put("1.2.392.200011.61.1.1.3.4", "Camellia");
-        OID_NAMES.put("1.2.410.200004.7.1.1.1", "SEED");
-        OID_NAMES.put("1.2.410.200004.1.4", "SEED");
-        OID_NAMES.put("1.2.156.10197.1.104.2", "SM4");
-        OID_NAMES.put("1.2.156.10197.1.104.8", "SM4");
-        OID_NAMES.put("1.2.156.10197.1.104.9", "SM4");
-        OID_NAMES.put("1.2.156.10197.1.104.11", "SM4");
-        OID_NAMES.put("1.2.156.10197.1.104.12", "SM4");
-        OID_NAMES.put("1.2.643.2.2.21", "GOST28147");
-        OID_NAMES.put("1.2.840.113549.1.9.16.3.6", "DESede");
-        OID_NAMES.put("1.2.840.113549.3.7", "DESede");
-        OID_NAMES.put("1.3.14.3.2.7", "DES");
-        OID_NAMES.put("1.2.840.113549.2.7", "HmacSHA1");
-        OID_NAMES.put("1.2.840.113549.2.8", "HmacSHA224");
-        OID_NAMES.put("1.2.840.113549.2.9", "HmacSHA256");
-        OID_NAMES.put("1.2.840.113549.2.10", "HmacSHA384");
-        OID_NAMES.put("1.2.840.113549.2.11", "HmacSHA512");
+        OID_NAMES.put(NTTObjectIdentifiers.id_camellia128_cbc.getId(), "Camellia");
+        OID_NAMES.put(NTTObjectIdentifiers.id_camellia192_cbc.getId(), "Camellia");
+        OID_NAMES.put(NTTObjectIdentifiers.id_camellia256_cbc.getId(), "Camellia");
+        OID_NAMES.put(NTTObjectIdentifiers.id_camellia128_wrap.getId(), "Camellia");
+        OID_NAMES.put(NTTObjectIdentifiers.id_camellia192_wrap.getId(), "Camellia");
+        OID_NAMES.put(NTTObjectIdentifiers.id_camellia256_wrap.getId(), "Camellia");
+        OID_NAMES.put(KISAObjectIdentifiers.id_npki_app_cmsSeed_wrap.getId(), "SEED");
+        OID_NAMES.put(KISAObjectIdentifiers.id_seedCBC.getId(), "SEED");
+        OID_NAMES.put(GMObjectIdentifiers.sms4_cbc.getId(), "SM4");
+        OID_NAMES.put(GMObjectIdentifiers.sms4_gcm.getId(), "SM4");
+        OID_NAMES.put(GMObjectIdentifiers.sms4_ccm.getId(), "SM4");
+        OID_NAMES.put(GMObjectIdentifiers.sms4_wrap.getId(), "SM4");
+        OID_NAMES.put(GMObjectIdentifiers.sms4_wrap_pad.getId(), "SM4");
+        OID_NAMES.put(CryptoProObjectIdentifiers.gostR28147_gcfb.getId(), "GOST28147");
+        OID_NAMES.put(PKCSObjectIdentifiers.id_alg_CMS3DESwrap.getId(), "DESede");
+        OID_NAMES.put(PKCSObjectIdentifiers.des_EDE3_CBC.getId(), "DESede");
+        OID_NAMES.put(OIWObjectIdentifiers.desCBC.getId(), "DES");
+        OID_NAMES.put(PKCSObjectIdentifiers.id_hmacWithSHA1.getId(), "HmacSHA1");
+        OID_NAMES.put(PKCSObjectIdentifiers.id_hmacWithSHA224.getId(), "HmacSHA224");
+        OID_NAMES.put(PKCSObjectIdentifiers.id_hmacWithSHA256.getId(), "HmacSHA256");
+        OID_NAMES.put(PKCSObjectIdentifiers.id_hmacWithSHA384.getId(), "HmacSHA384");
+        OID_NAMES.put(PKCSObjectIdentifiers.id_hmacWithSHA512.getId(), "HmacSHA512");
         // The two GOST KeyWraps are deliberately absent: sized, never named.
     }
 

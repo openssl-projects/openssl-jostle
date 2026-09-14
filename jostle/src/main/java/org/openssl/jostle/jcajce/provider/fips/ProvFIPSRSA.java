@@ -19,6 +19,9 @@ import org.openssl.jostle.jcajce.provider.rsa.RSASignatureSpi;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.ISOIECObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * RSA registrations for the FIPS provider, bound to the FIPS interface
@@ -62,12 +65,12 @@ class ProvFIPSRSA
                 (arg) -> new RSAKeyPairGenerator(
                         FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
                         FIPS_RSA_MIN_KEY_SIZE_BITS, provider));
-        provider.addAlias("KeyPairGenerator", "RSA", "1.2.840.113549.1.1.1");
+        provider.addAlias("KeyPairGenerator", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         provider.addAlgorithmImplementation("KeyFactory", "RSA",
                 RSAKeyFactorySpi.class.getName(), attr,
                 (arg) -> keyFactory(provider));
-        provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.1");
+        provider.addAlias("KeyFactory", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
         // id-RSASSA-PSS SPKI. A PSS-PSS certificate's key carries OID
         // 1.2.840.113549.1.1.10, not rsaEncryption, and the JCA name for it is
         // "RSASSA-PSS". The RSA KeyFactory decodes that SPKI form correctly
@@ -75,23 +78,23 @@ class ProvFIPSRSA
         // by either got NoSuchAlgorithmException, and the provider-bound
         // CertificateFactory's OID-keyed key re-derivation failed loud
         // (JSLKeyX509Certificate), surfacing to TLS as bad_certificate(42).
-        provider.addAlias("KeyFactory", "RSA", "1.2.840.113549.1.1.10", "RSASSA-PSS");
+        provider.addAlias("KeyFactory", "RSA", PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "RSASSA-PSS");
 
-        registerPkcs1Signature(provider, attr, "SHA1withRSA", "SHA-1", "1.2.840.113549.1.1.5");
-        registerPkcs1Signature(provider, attr, "SHA224withRSA", "SHA-224", "1.2.840.113549.1.1.14");
-        registerPkcs1Signature(provider, attr, "SHA256withRSA", "SHA-256", "1.2.840.113549.1.1.11");
-        registerPkcs1Signature(provider, attr, "SHA384withRSA", "SHA-384", "1.2.840.113549.1.1.12");
-        registerPkcs1Signature(provider, attr, "SHA512withRSA", "SHA-512", "1.2.840.113549.1.1.13");
+        registerPkcs1Signature(provider, attr, "SHA1withRSA", "SHA-1", PKCSObjectIdentifiers.sha1WithRSAEncryption.getId());
+        registerPkcs1Signature(provider, attr, "SHA224withRSA", "SHA-224", PKCSObjectIdentifiers.sha224WithRSAEncryption.getId());
+        registerPkcs1Signature(provider, attr, "SHA256withRSA", "SHA-256", PKCSObjectIdentifiers.sha256WithRSAEncryption.getId());
+        registerPkcs1Signature(provider, attr, "SHA384withRSA", "SHA-384", PKCSObjectIdentifiers.sha384WithRSAEncryption.getId());
+        registerPkcs1Signature(provider, attr, "SHA512withRSA", "SHA-512", PKCSObjectIdentifiers.sha512WithRSAEncryption.getId());
         // BC's spelling primary, JDK's SHA512/224withRSA aliased. Both modules
         // sign and verify with these (sha512t_rsa_probe.c), so no gate.
-        registerPkcs1Signature(provider, attr, "SHA512(224)withRSA", "SHA-512/224", "1.2.840.113549.1.1.15");
-        registerPkcs1Signature(provider, attr, "SHA512(256)withRSA", "SHA-512/256", "1.2.840.113549.1.1.16");
+        registerPkcs1Signature(provider, attr, "SHA512(224)withRSA", "SHA-512/224", PKCSObjectIdentifiers.sha512_224WithRSAEncryption.getId());
+        registerPkcs1Signature(provider, attr, "SHA512(256)withRSA", "SHA-512/256", PKCSObjectIdentifiers.sha512_256WithRSAEncryption.getId());
         provider.addAlias("Signature", "SHA512(224)withRSA", "SHA512/224withRSA");
         provider.addAlias("Signature", "SHA512(256)withRSA", "SHA512/256withRSA");
-        registerPkcs1Signature(provider, attr, "SHA3-224withRSA", "SHA3-224", "2.16.840.1.101.3.4.3.13");
-        registerPkcs1Signature(provider, attr, "SHA3-256withRSA", "SHA3-256", "2.16.840.1.101.3.4.3.14");
-        registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", "2.16.840.1.101.3.4.3.15");
-        registerPkcs1Signature(provider, attr, "SHA3-512withRSA", "SHA3-512", "2.16.840.1.101.3.4.3.16");
+        registerPkcs1Signature(provider, attr, "SHA3-224withRSA", "SHA3-224", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_224.getId());
+        registerPkcs1Signature(provider, attr, "SHA3-256withRSA", "SHA3-256", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_256.getId());
+        registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_384.getId());
+        registerPkcs1Signature(provider, attr, "SHA3-512withRSA", "SHA3-512", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId());
 
         // Registered by constructing the base RSASignatureSpi with digest
         // "NONE" (the PKCS#1 v1.5 digest path), NOT the raw RSASignatureSpi.None
@@ -106,7 +109,7 @@ class ProvFIPSRSA
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 RSAPSSSignatureSpi.class.getName(), attr,
                 (arg) -> new RSAPSSSignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider)));
-        provider.addAlias("Signature", "RSASSA-PSS", "1.2.840.113549.1.1.10");
+        provider.addAlias("Signature", "RSASSA-PSS", PKCSObjectIdentifiers.id_RSASSA_PSS.getId());
 
         registerPssSignature(provider, attr, "SHA1", "SHA-1");
         registerPssSignature(provider, attr, "SHA224", "SHA-224");
@@ -133,7 +136,7 @@ class ProvFIPSRSA
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 RSAOAEPCipherSpi.class.getName(), cipherAttr,
                 (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory(provider)));
-        provider.addAlias("Cipher", "RSA", "1.2.840.113549.1.1.1");
+        provider.addAlias("Cipher", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         // RSA-KEM key transport (ISO 18033-2 / RFC 9690). Ungated: RSASVE
         // encapsulate/decapsulate works on both supported modules at 2048 and
@@ -149,7 +152,7 @@ class ProvFIPSRSA
                 RSAKEMCipherSpi.class.getName(), ktsAttr,
                 (arg) -> new RSAKEMCipherSpi(keyFactory(provider), FIPSNISelector.SpecNI));
         provider.addAlias("Cipher", "RSA-KTS-KEM-KWS",
-                "1.0.18033.2.2.4", "1.2.840.113549.1.9.16.3.14");
+                ISOIECObjectIdentifiers.id_kem_rsa.getId(), PKCSObjectIdentifiers.id_rsa_KEM.getId());
     }
 
     /**

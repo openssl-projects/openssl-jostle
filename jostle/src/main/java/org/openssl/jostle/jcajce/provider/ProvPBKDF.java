@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.kdf.PBKDF2SecretKeyFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 class ProvPBKDF
 {
@@ -40,7 +41,7 @@ class ProvPBKDF
         // oids package is EXPORTED, so a new interface there is new public API,
         // and one OID does not warrant it. Matches the existing practice for
         // one-off OIDs (ProvEC's "1.3.132.1.12", ProvScryptKDF's scrypt OID).
-        provider.addAlias("SecretKeyFactory", "PBKDF2", "1.2.840.113549.1.5.12");
+        provider.addAlias("SecretKeyFactory", "PBKDF2", PKCSObjectIdentifiers.id_PBKDF2.getId());
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA1", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-1"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA224", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-224"));
         provider.addAlgorithmImplementation("SecretKeyFactory", "PBKDF2WITHHMACSHA256", PBKDF2SecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new PBKDF2SecretKeyFactory("SHA-256"));

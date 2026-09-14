@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * Registers 3-key Triple DES (DES-EDE3) with JCE. Only the ECB and
@@ -46,7 +47,7 @@ class ProvDESede
      * Registering the OID as a Cipher alias lets PKCS#8 / PKCS#12
      * parsing routines that look up a cipher by OID find this impl.
      */
-    private static final String DES_EDE3_CBC_OID = "1.2.840.113549.3.7";
+    private static final String DES_EDE3_CBC_OID = PKCSObjectIdentifiers.des_EDE3_CBC.getId();
 
     public void configure(final JostleProvider provider)
     {

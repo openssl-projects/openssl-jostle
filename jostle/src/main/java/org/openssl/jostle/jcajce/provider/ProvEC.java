@@ -21,6 +21,8 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.SECObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 class ProvEC
 {
@@ -30,7 +32,7 @@ class ProvEC
      * X.509 SubjectPublicKeyInfo and PKCS#8 PrivateKeyInfo for any EC
      * key, regardless of curve.
      */
-    private static final String EC_PUBLIC_KEY_OID = "1.2.840.10045.2.1";
+    private static final String EC_PUBLIC_KEY_OID = X9ObjectIdentifiers.id_ecPublicKey.getId();
 
 
     public void configure(final JostleProvider provider)
@@ -65,15 +67,15 @@ class ProvEC
         // is fixed at SPI construction time — no AlgorithmParameter
         // negotiation is needed.
         registerEcdsaSignature(provider, attr,
-                "SHA1withECDSA", "SHA-1", "1.2.840.10045.4.1");
+                "SHA1withECDSA", "SHA-1", X9ObjectIdentifiers.ecdsa_with_SHA1.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA224withECDSA", "SHA-224", "1.2.840.10045.4.3.1");
+                "SHA224withECDSA", "SHA-224", X9ObjectIdentifiers.ecdsa_with_SHA224.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA256withECDSA", "SHA-256", "1.2.840.10045.4.3.2");
+                "SHA256withECDSA", "SHA-256", X9ObjectIdentifiers.ecdsa_with_SHA256.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA384withECDSA", "SHA-384", "1.2.840.10045.4.3.3");
+                "SHA384withECDSA", "SHA-384", X9ObjectIdentifiers.ecdsa_with_SHA384.getId());
         registerEcdsaSignature(provider, attr,
-                "SHA512withECDSA", "SHA-512", "1.2.840.10045.4.3.4");
+                "SHA512withECDSA", "SHA-512", X9ObjectIdentifiers.ecdsa_with_SHA512.getId());
         registerEcdsaSignature(provider, attr,
                 "SHA3-224withECDSA", "SHA3-224", NISTObjectIdentifiers.id_ecdsa_with_sha3_224.getId());
         registerEcdsaSignature(provider, attr,
@@ -99,7 +101,7 @@ class ProvEC
         provider.addAlgorithmImplementation("KeyAgreement", "ECDH",
                 ECDHKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider)));
-        provider.addAlias("KeyAgreement", "ECDH", "1.3.132.1.12");
+        provider.addAlias("KeyAgreement", "ECDH", SECObjectIdentifiers.ecdh.getId());
 
         // CMS EC key agreement with the X9.63 KDF (dhSinglePass-stdDH-sha*kdf-
         // scheme). One registration per digest; the scheme OID aliases onto it
@@ -111,31 +113,31 @@ class ProvEC
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-1", provider));
-        provider.addAlias("KeyAgreement", "ECDHWITHSHA1KDF", "1.3.133.16.840.63.0.2");
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA1KDF", X9ObjectIdentifiers.dhSinglePass_stdDH_sha1kdf_scheme.getId());
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA224KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-224", provider));
-        provider.addAlias("KeyAgreement", "ECDHWITHSHA224KDF", "1.3.132.1.11.0");
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA224KDF", SECObjectIdentifiers.dhSinglePass_stdDH_sha224kdf_scheme.getId());
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA256KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-256", provider));
-        provider.addAlias("KeyAgreement", "ECDHWITHSHA256KDF", "1.3.132.1.11.1");
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA256KDF", SECObjectIdentifiers.dhSinglePass_stdDH_sha256kdf_scheme.getId());
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA384KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-384", provider));
-        provider.addAlias("KeyAgreement", "ECDHWITHSHA384KDF", "1.3.132.1.11.2");
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA384KDF", SECObjectIdentifiers.dhSinglePass_stdDH_sha384kdf_scheme.getId());
 
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA512KDF",
                 ecKdfSpi, attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-512", provider));
-        provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", "1.3.132.1.11.3");
+        provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", SECObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme.getId());
 
         // The IEEE 1609.2 (ITS) integrated-encryption KEM, under the name
         // BouncyCastle's JceETSIKeyWrapper and JcaETSIDataDecryptor resolve a

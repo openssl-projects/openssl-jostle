@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.kdf.ScryptSecretKeyFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.MiscObjectIdentifiers;
 
 class ProvScryptKDF
 {
@@ -24,7 +25,7 @@ class ProvScryptKDF
     public void configure(final JostleProvider provider)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "SCRYPT", ScryptSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
-        provider.addAlgorithmImplementation("SecretKeyFactory", "1.3.6.1.4.1.11591.4.11", ScryptSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
+        provider.addAlgorithmImplementation("SecretKeyFactory", MiscObjectIdentifiers.id_scrypt.getId(), ScryptSecretKeyFactory.class.getName(), generalKDFAttributes, (arg) -> new ScryptSecretKeyFactory());
 
     }
 }

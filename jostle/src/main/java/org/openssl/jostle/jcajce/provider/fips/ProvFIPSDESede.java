@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * 3-key Triple DES (DES-EDE3) registrations for the FIPS provider, mirroring
@@ -63,7 +64,7 @@ class ProvFIPSDESede
     /**
      * PKCS#9 OID for {@code des-EDE3-CBC}, as in {@code ProvDESede}.
      */
-    private static final String DES_EDE3_CBC_OID = "1.2.840.113549.3.7";
+    private static final String DES_EDE3_CBC_OID = PKCSObjectIdentifiers.des_EDE3_CBC.getId();
 
 
     private static final Map<String, String> generalAttributes = new HashMap<String, String>();

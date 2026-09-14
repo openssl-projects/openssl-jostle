@@ -18,6 +18,8 @@ import org.openssl.jostle.jcajce.provider.dsa.DSASignatureSpi;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 /**
  * DSA registrations for the FIPS provider, mirroring ProvDSA's surface bound
@@ -28,8 +30,8 @@ import java.util.Map;
 class ProvFIPSDSA
 {
 
-    private static final String ID_DSA_OID = "1.2.840.10040.4.1";
-    private static final String ID_DSA_WITH_SHA1_OID = "1.2.840.10040.4.3";
+    private static final String ID_DSA_OID = X9ObjectIdentifiers.id_dsa.getId();
+    private static final String ID_DSA_WITH_SHA1_OID = X9ObjectIdentifiers.id_dsa_with_sha1.getId();
 
     /**
      * The FIPS 186-4 &sect;4.2 (L, N) moduli the validated modules generate.
@@ -70,14 +72,14 @@ class ProvFIPSDSA
         provider.addAlias("AlgorithmParameterGenerator", "DSA", ID_DSA_OID);
 
         registerDsaSignature(provider, attr, "SHA1withDSA", "SHA-1", ID_DSA_WITH_SHA1_OID);
-        registerDsaSignature(provider, attr, "SHA224withDSA", "SHA-224", "2.16.840.1.101.3.4.3.1");
-        registerDsaSignature(provider, attr, "SHA256withDSA", "SHA-256", "2.16.840.1.101.3.4.3.2");
-        registerDsaSignature(provider, attr, "SHA384withDSA", "SHA-384", "2.16.840.1.101.3.4.3.3");
-        registerDsaSignature(provider, attr, "SHA512withDSA", "SHA-512", "2.16.840.1.101.3.4.3.4");
-        registerDsaSignature(provider, attr, "SHA3-224withDSA", "SHA3-224", "2.16.840.1.101.3.4.3.5");
-        registerDsaSignature(provider, attr, "SHA3-256withDSA", "SHA3-256", "2.16.840.1.101.3.4.3.6");
-        registerDsaSignature(provider, attr, "SHA3-384withDSA", "SHA3-384", "2.16.840.1.101.3.4.3.7");
-        registerDsaSignature(provider, attr, "SHA3-512withDSA", "SHA3-512", "2.16.840.1.101.3.4.3.8");
+        registerDsaSignature(provider, attr, "SHA224withDSA", "SHA-224", NISTObjectIdentifiers.dsa_with_sha224.getId());
+        registerDsaSignature(provider, attr, "SHA256withDSA", "SHA-256", NISTObjectIdentifiers.dsa_with_sha256.getId());
+        registerDsaSignature(provider, attr, "SHA384withDSA", "SHA-384", NISTObjectIdentifiers.dsa_with_sha384.getId());
+        registerDsaSignature(provider, attr, "SHA512withDSA", "SHA-512", NISTObjectIdentifiers.dsa_with_sha512.getId());
+        registerDsaSignature(provider, attr, "SHA3-224withDSA", "SHA3-224", NISTObjectIdentifiers.id_dsa_with_sha3_224.getId());
+        registerDsaSignature(provider, attr, "SHA3-256withDSA", "SHA3-256", NISTObjectIdentifiers.id_dsa_with_sha3_256.getId());
+        registerDsaSignature(provider, attr, "SHA3-384withDSA", "SHA3-384", NISTObjectIdentifiers.id_dsa_with_sha3_384.getId());
+        registerDsaSignature(provider, attr, "SHA3-512withDSA", "SHA3-512", NISTObjectIdentifiers.id_dsa_with_sha3_512.getId());
 
         provider.addAlgorithmImplementation("Signature", "NoneWithDSA",
                 DSASignatureSpi.class.getName(), attr,

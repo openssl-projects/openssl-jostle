@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * Registers ChaCha20 (RFC 8439 raw stream cipher), ChaCha20-Poly1305 (RFC 8439
@@ -30,7 +31,7 @@ class ProvChaCha20
     private static final Logger LOG = Logger.getLogger(ProvChaCha20.class.getName());
 
     /** RFC 8103 / PKCS arc {@code id-alg-AEADChaCha20Poly1305}, the OID BouncyCastle aliases. */
-    private static final String ID_ALG_AEAD_CHACHA20_POLY1305 = "1.2.840.113549.1.9.16.3.18";
+    private static final String ID_ALG_AEAD_CHACHA20_POLY1305 = PKCSObjectIdentifiers.id_alg_AEADChaCha20Poly1305.getId();
 
     private static final Map<String, String> generalAttributes = new HashMap<String, String>();
 
@@ -46,7 +47,7 @@ class ProvChaCha20
      * OID-driven consumers resolve these implementations. No JOID class hosts
      * it, so it is an inline constant (the ProvDESede precedent).
      */
-    private static final String CHACHA20_POLY1305_OID = "1.2.840.113549.1.9.16.3.18";
+    private static final String CHACHA20_POLY1305_OID = PKCSObjectIdentifiers.id_alg_AEADChaCha20Poly1305.getId();
 
     public void configure(final JostleProvider provider)
     {

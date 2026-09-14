@@ -17,6 +17,8 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 // TODO make these strings this is too rigid
 public enum OSSLKeyType
@@ -47,8 +49,8 @@ public enum OSSLKeyType
     Ed25519ph(22,"Ed25519ph","ED25519PH"),
     ED448ph(23,  "Ed448ph","ED448PH"),
     ED448(24, "Ed448", "ED448"),
-    RSA(25, "RSA", "1.2.840.113549.1.1.1"),
-    EC(26, "EC", "1.2.840.10045.2.1"),
+    RSA(25, "RSA", PKCSObjectIdentifiers.rsaEncryption.getId()),
+    EC(26, "EC", X9ObjectIdentifiers.id_ecPublicKey.getId()),
     // XDH key agreement (RFC 8410). First alias is the OpenSSL EVP_PKEY
     // type name (what EVP_PKEY_get0_type_name returns), so decode-by-name
     // through PKEYKeySpec(long) maps to these.
@@ -56,11 +58,11 @@ public enum OSSLKeyType
     X448(28, "X448", EdECObjectIdentifiers.id_X448.getId(), "id-X448"),
     // First alias is the OpenSSL EVP_PKEY type name (what
     // EVP_PKEY_get0_type_name returns); the OID is id-dsa (X9.57).
-    DSA(29, "DSA", "1.2.840.10040.4.1"),
+    DSA(29, "DSA", X9ObjectIdentifiers.id_dsa.getId()),
     // Finite-field Diffie-Hellman. "DH" is the PKCS#3 EVP_PKEY type
     // name, "DHX" the X9.42 variant — both map to the same Jostle key
     // type. OIDs: PKCS#3 dhKeyAgreement and X9.42 dhpublicnumber.
-    DH(30, "DH", "DHX", "1.2.840.113549.1.3.1", "1.2.840.10046.2.1"),
+    DH(30, "DH", "DHX", PKCSObjectIdentifiers.dhKeyAgreement.getId(), X9ObjectIdentifiers.dhpublicnumber.getId()),
     // The TLS hybrid KEMs (draft-ietf-tls-ecdhe-mlkem). The first alias is the
     // OpenSSL EVP_PKEY type name, which is also the IANA TLS group name — these
     // are not names we get to normalise, and there are no OIDs: OpenSSL's

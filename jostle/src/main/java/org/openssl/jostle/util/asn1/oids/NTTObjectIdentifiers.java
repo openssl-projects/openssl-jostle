@@ -20,28 +20,28 @@ import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 public interface NTTObjectIdentifiers
 {
     /**
-     * id-camellia128-cbc; OID 1.2.392.200011.61.1.1.1.2
+     * 1.2.392.200011.61.1.1.1.2 -- id-camellia128-cbc, RFC 3657 line 127
      */
     static final ASN1ObjectIdentifier id_camellia128_cbc = new ASN1ObjectIdentifier("1.2.392.200011.61.1.1.1.2");
     /**
-     * id-camellia192-cbc; OID 1.2.392.200011.61.1.1.1.3
+     * 1.2.392.200011.61.1.1.1.3 -- id-camellia192-cbc, RFC 3657 line 132
      */
     static final ASN1ObjectIdentifier id_camellia192_cbc = new ASN1ObjectIdentifier("1.2.392.200011.61.1.1.1.3");
     /**
-     * id-camellia256-cbc; OID 1.2.392.200011.61.1.1.1.4
+     * 1.2.392.200011.61.1.1.1.4 -- id-camellia256-cbc, RFC 3657 line 137
      */
     static final ASN1ObjectIdentifier id_camellia256_cbc = new ASN1ObjectIdentifier("1.2.392.200011.61.1.1.1.4");
 
     /**
-     * id-camellia128-wrap; OID 1.2.392.200011.61.1.1.3.2
+     * 1.2.392.200011.61.1.1.3.2 -- id-camellia128-wrap, RFC 3657 line 161
      */
     static final ASN1ObjectIdentifier id_camellia128_wrap = new ASN1ObjectIdentifier("1.2.392.200011.61.1.1.3.2");
     /**
-     * id-camellia192-wrap; OID 1.2.392.200011.61.1.1.3.3
+     * 1.2.392.200011.61.1.1.3.3 -- id-camellia192-wrap, RFC 3657 line 175
      */
     static final ASN1ObjectIdentifier id_camellia192_wrap = new ASN1ObjectIdentifier("1.2.392.200011.61.1.1.3.3");
     /**
-     * id-camellia256-wrap; OID 1.2.392.200011.61.1.1.3.4
+     * 1.2.392.200011.61.1.1.3.4 -- id-camellia256-wrap, RFC 3657 line 180
      */
     static final ASN1ObjectIdentifier id_camellia256_wrap = new ASN1ObjectIdentifier("1.2.392.200011.61.1.1.3.4");
 }

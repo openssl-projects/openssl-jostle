@@ -19,6 +19,8 @@ import org.openssl.jostle.jcajce.provider.dh.DHWithKDFKeyAgreementSpi;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 /**
  * DH registrations for the FIPS provider, mirroring ProvDH's surface bound
@@ -28,10 +30,10 @@ import java.util.Map;
 class ProvFIPSDH
 {
 
-    private static final String PKCS3_DH_OID = "1.2.840.113549.1.3.1";
-    private static final String X942_DH_OID = "1.2.840.10046.2.1";
-    private static final String ID_ALG_ESDH = "1.2.840.113549.1.9.16.3.5";
-    private static final String ID_ALG_SSDH = "1.2.840.113549.1.9.16.3.10";
+    private static final String PKCS3_DH_OID = PKCSObjectIdentifiers.dhKeyAgreement.getId();
+    private static final String X942_DH_OID = X9ObjectIdentifiers.dhpublicnumber.getId();
+    private static final String ID_ALG_ESDH = PKCSObjectIdentifiers.id_alg_ESDH.getId();
+    private static final String ID_ALG_SSDH = PKCSObjectIdentifiers.id_alg_SSDH.getId();
 
     public void configure(final JostleFIPSProvider provider)
     {

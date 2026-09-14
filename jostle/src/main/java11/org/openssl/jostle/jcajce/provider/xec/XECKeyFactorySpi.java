@@ -33,6 +33,7 @@ import java.security.spec.NamedParameterSpec;
 import java.security.spec.XECPrivateKeySpec;
 import java.security.spec.XECPublicKeySpec;
 import org.openssl.jostle.util.asn1.Der;
+import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
 
 /**
  * KeyFactorySpi for X25519 / X448. Supports the encoded key-spec forms:
@@ -309,7 +310,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
     /** RFC 8410 section 3 curve OIDs. */
     private static String curveOid(OSSLKeyType type)
     {
-        return XECMontgomery.isX448(type) ? "1.3.101.111" : "1.3.101.110";
+        return XECMontgomery.isX448(type) ? EdECObjectIdentifiers.id_X448.getId() : EdECObjectIdentifiers.id_X25519.getId();
     }
 
     /** Map the JDK's {@link NamedParameterSpec} to jostle's key type. */

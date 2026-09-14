@@ -12,6 +12,8 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 import org.openssl.jostle.util.io.ExposedByteArrayOutputStream;
 import java.lang.reflect.Method;
@@ -215,24 +217,28 @@ public final class KeyAgreementKDF
      */
     public static int wrapKeyLenBytes(String alg)
     {
-        switch (alg)
-        {
         // AES key wrap (NIST), plain and padded — 128 / 192 / 256.
-        case "2.16.840.1.101.3.4.1.5":   // aes128-wrap
-        case "2.16.840.1.101.3.4.1.8":   // aes128-wrap-pad
+        if (NISTObjectIdentifiers.id_aes128_wrap.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes128_wrap_pad.getId().equals(alg))
+        {
             return 16;
-        case "2.16.840.1.101.3.4.1.25":  // aes192-wrap
-        case "2.16.840.1.101.3.4.1.28":  // aes192-wrap-pad
-            return 24;
-        case "2.16.840.1.101.3.4.1.45":  // aes256-wrap
-        case "2.16.840.1.101.3.4.1.48":  // aes256-wrap-pad
-            return 32;
-        // RFC 3217 / CMS 3-key Triple-DES key wrap.
-        case "1.2.840.113549.1.9.16.3.6":
-            return 24;
-        default:
-            return -1;
         }
+        if (NISTObjectIdentifiers.id_aes192_wrap.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes192_wrap_pad.getId().equals(alg))
+        {
+            return 24;
+        }
+        if (NISTObjectIdentifiers.id_aes256_wrap.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes256_wrap_pad.getId().equals(alg))
+        {
+            return 32;
+        }
+        // RFC 3217 / CMS 3-key Triple-DES key wrap.
+        if (PKCSObjectIdentifiers.id_alg_CMS3DESwrap.getId().equals(alg))
+        {
+            return 24;
+        }
+        return -1;
     }
 
     /**
@@ -242,20 +248,20 @@ public final class KeyAgreementKDF
      */
     public static String wrapKeyAlgName(String alg)
     {
-        switch (alg)
+        if (NISTObjectIdentifiers.id_aes128_wrap.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes128_wrap_pad.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes192_wrap.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes192_wrap_pad.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes256_wrap.getId().equals(alg)
+                || NISTObjectIdentifiers.id_aes256_wrap_pad.getId().equals(alg))
         {
-        case "2.16.840.1.101.3.4.1.5":
-        case "2.16.840.1.101.3.4.1.8":
-        case "2.16.840.1.101.3.4.1.25":
-        case "2.16.840.1.101.3.4.1.28":
-        case "2.16.840.1.101.3.4.1.45":
-        case "2.16.840.1.101.3.4.1.48":
             return "AES";
-        case "1.2.840.113549.1.9.16.3.6":
-            return "DESede";
-        default:
-            return null;
         }
+        if (PKCSObjectIdentifiers.id_alg_CMS3DESwrap.getId().equals(alg))
+        {
+            return "DESede";
+        }
+        return null;
     }
 
     /**

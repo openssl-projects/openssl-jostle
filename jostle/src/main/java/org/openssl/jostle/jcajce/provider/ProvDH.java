@@ -19,6 +19,8 @@ import org.openssl.jostle.jcajce.provider.dh.DHWithKDFKeyAgreementSpi;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 class ProvDH
 {
@@ -28,21 +30,21 @@ class ProvDH
      * SubjectPublicKeyInfo and PKCS#8 PrivateKeyInfo for DH keys as
      * OpenSSL emits them.
      */
-    private static final String PKCS3_DH_OID = "1.2.840.113549.1.3.1";
+    private static final String PKCS3_DH_OID = PKCSObjectIdentifiers.dhKeyAgreement.getId();
 
     /**
      * X9.42 dhpublicnumber OID — the X9.42/RFC 2631 form some stacks
      * (CMS key agreement) use for DH SPKIs.
      */
-    private static final String X942_DH_OID = "1.2.840.10046.2.1";
+    private static final String X942_DH_OID = X9ObjectIdentifiers.dhpublicnumber.getId();
 
     /**
      * CMS key-agreement-with-KDF OIDs (RFC 3370 / RFC 2631). Both map to the
      * X9.42 SHA-1 KDF over the DH shared secret ({@code DHwithRFC2631KDF});
      * ESDH is ephemeral-static, SSDH static-static — the KDF is identical.
      */
-    private static final String ID_ALG_ESDH = "1.2.840.113549.1.9.16.3.5";
-    private static final String ID_ALG_SSDH = "1.2.840.113549.1.9.16.3.10";
+    private static final String ID_ALG_ESDH = PKCSObjectIdentifiers.id_alg_ESDH.getId();
+    private static final String ID_ALG_SSDH = PKCSObjectIdentifiers.id_alg_SSDH.getId();
 
 
     public void configure(final JostleProvider provider)

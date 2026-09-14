@@ -18,6 +18,8 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * Registers the XDH (X25519 / X448) KeyAgreement, KeyPairGenerator and
@@ -32,14 +34,14 @@ import java.util.Map;
 class ProvXDH
 {
 
-    private static final String X25519_OID = "1.3.101.110";   // id-X25519, RFC 8410
-    private static final String X448_OID = "1.3.101.111";     // id-X448, RFC 8410
+    private static final String X25519_OID = EdECObjectIdentifiers.id_X25519.getId();   // id-X25519, RFC 8410
+    private static final String X448_OID = EdECObjectIdentifiers.id_X448.getId();     // id-X448, RFC 8410
 
     // RFC 8418 section 7: dhSinglePass-stdDH-hkdf-sha{256,384,512}-scheme,
     // under smime-alg 1.2.840.113549.1.9.16.3.
-    private static final String HKDF_SHA256_SCHEME_OID = "1.2.840.113549.1.9.16.3.19";
-    private static final String HKDF_SHA384_SCHEME_OID = "1.2.840.113549.1.9.16.3.20";
-    private static final String HKDF_SHA512_SCHEME_OID = "1.2.840.113549.1.9.16.3.21";
+    private static final String HKDF_SHA256_SCHEME_OID = PKCSObjectIdentifiers.dhSinglePass_stdDH_hkdf_sha256_scheme.getId();
+    private static final String HKDF_SHA384_SCHEME_OID = PKCSObjectIdentifiers.dhSinglePass_stdDH_hkdf_sha384_scheme.getId();
+    private static final String HKDF_SHA512_SCHEME_OID = PKCSObjectIdentifiers.dhSinglePass_stdDH_hkdf_sha512_scheme.getId();
 
     public void configure(final JostleProvider provider)
     {

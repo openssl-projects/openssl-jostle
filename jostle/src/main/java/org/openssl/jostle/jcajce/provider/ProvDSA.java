@@ -19,6 +19,7 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 class ProvDSA
 {
@@ -27,10 +28,10 @@ class ProvDSA
      * id-dsa OID (X9.57) — used as the ASN.1 algorithm identifier in
      * X.509 SubjectPublicKeyInfo and PKCS#8 PrivateKeyInfo for DSA keys.
      */
-    private static final String ID_DSA_OID = "1.2.840.10040.4.1";
+    private static final String ID_DSA_OID = X9ObjectIdentifiers.id_dsa.getId();
 
     /** id-dsa-with-sha1 (X9.57). */
-    private static final String ID_DSA_WITH_SHA1_OID = "1.2.840.10040.4.3";
+    private static final String ID_DSA_WITH_SHA1_OID = X9ObjectIdentifiers.id_dsa_with_sha1.getId();
 
 
     public void configure(final JostleProvider provider)

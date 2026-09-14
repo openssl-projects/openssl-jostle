@@ -19,6 +19,8 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 /**
  * The key-derivation functions the KTS ciphers accept, and the derivations
@@ -34,14 +36,14 @@ import java.security.Provider;
 public final class KtsKdf
 {
     /** X9.44 KDF2. Its AlgorithmIdentifier carries a digest AlgorithmIdentifier. */
-    public static final String ID_KDF_KDF2 = "1.3.133.16.840.9.44.1.1";
+    public static final String ID_KDF_KDF2 = X9ObjectIdentifiers.id_kdf_kdf2.getId();
 
     /** X9.44 KDF3 (NIST concatenation KDF). Same parameter shape as KDF2. */
-    public static final String ID_KDF_KDF3 = "1.3.133.16.840.9.44.1.2";
+    public static final String ID_KDF_KDF3 = X9ObjectIdentifiers.id_kdf_kdf3.getId();
 
-    private static final String ID_HKDF_SHA256 = "1.2.840.113549.1.9.16.3.28";
-    private static final String ID_HKDF_SHA384 = "1.2.840.113549.1.9.16.3.29";
-    private static final String ID_HKDF_SHA512 = "1.2.840.113549.1.9.16.3.30";
+    private static final String ID_HKDF_SHA256 = PKCSObjectIdentifiers.id_alg_hkdf_with_sha256.getId();
+    private static final String ID_HKDF_SHA384 = PKCSObjectIdentifiers.id_alg_hkdf_with_sha384.getId();
+    private static final String ID_HKDF_SHA512 = PKCSObjectIdentifiers.id_alg_hkdf_with_sha512.getId();
 
     /** Named in both refusal messages so the caller learns what IS accepted. */
     private static final String ACCEPTED = "KDF2, KDF3, HKDF-SHA256/384/512";

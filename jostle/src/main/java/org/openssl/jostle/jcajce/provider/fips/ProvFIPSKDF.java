@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.kdf.SSKDFSecretKeyFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 /**
  * KDF registrations for the FIPS provider: PBKDF2 over the approved HMACs,
@@ -42,7 +43,7 @@ class ProvFIPSKDF
                 (arg) -> new PBKDF2SecretKeyFactory(FIPSNISelector.KdfNI, null));
         // id-PBKDF2, RFC 8018 A.2, mirroring ProvPBKDF. PBES2 / PKCS#8 / PKCS#12
         // resolve the key-derivation SecretKeyFactory by this OID, not by name.
-        provider.addAlias("SecretKeyFactory", "PBKDF2", "1.2.840.113549.1.5.12");
+        provider.addAlias("SecretKeyFactory", "PBKDF2", PKCSObjectIdentifiers.id_PBKDF2.getId());
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA1", "SHA-1");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA224", "SHA-224");
         registerPbkdf2(provider, "PBKDF2WITHHMACSHA256", "SHA-256");
