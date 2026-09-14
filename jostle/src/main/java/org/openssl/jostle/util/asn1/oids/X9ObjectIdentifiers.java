@@ -69,7 +69,7 @@ public interface X9ObjectIdentifiers
     ASN1ObjectIdentifier ecdsa_with_SHA1 = id_ecSigType.branch("1").intern();
 
     /**
-     * 1.2.840.10045.4.3 -- ecdsa-with-SHA2 arc label, RFC 5758 line 230, within the ecdsa-with-SHA224 definition
+     * 1.2.840.10045.4.3 -- ecdsa-with-SHA2 arc label, RFC 5758 line 232, within the ecdsa-with-SHA224 definition
      */
     ASN1ObjectIdentifier ecdsa_with_SHA2 = id_ecSigType.branch("3").intern();
 

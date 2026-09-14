@@ -6,7 +6,7 @@ plugins {
 
 def String deriveOSGIVersion(String prjVersion) {
     if (prjVersion.contains("-SNAPSHOT")) {
-        // Snapshots always extend to fourth level and terminate with time in seconds since epoch.
+        // Snapshots always extend to fourth level and terminate with whole DAYS since epoch.
         prjVersion = prjVersion.replace("-SNAPSHOT", "");
         while (prjVersion.count(".") < 2) {
             prjVersion = prjVersion + ".0";

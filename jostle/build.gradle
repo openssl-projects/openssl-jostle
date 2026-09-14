@@ -271,10 +271,19 @@ publishing {
                         url = 'https://www.apache.org/licenses/LICENSE-2.0'
                     }
                 }
+                // The two copyright-holding groups named in AUTHORS.md. Individual
+                // contributors are deliberately not listed here: AUTHORS.md is the
+                // copyright list and points at the revision history for the rest.
                 developers {
                     developer {
-                        id = 'openssl'                    // TODO: real developer/org metadata
-                        name = 'OpenSSL Jostle Authors'
+                        id = 'openssl'
+                        name = 'OpenSSL Software Services, Inc.'
+                        url = 'https://www.openssl.org'
+                    }
+                    developer {
+                        id = 'bouncycastle'
+                        name = 'Legion of the Bouncy Castle Inc.'
+                        url = 'https://www.bouncycastle.org'
                     }
                 }
                 scm {

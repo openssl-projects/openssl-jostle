@@ -32,6 +32,40 @@ instruction file.
 This section will be updated when there are published in maven central or equivalent.
 For the time being you will need to build OpenSSL Jostle before you can try it out.
 
+### Depending on a published build
+
+The published coordinate is **POM-packaged** and carries no classifier-less main
+jar, so a bare dependency resolves to the POM alone and puts nothing on the path.
+The payload is a per-architecture bundle — each a self-contained multi-release
+jar holding that architecture's native libraries for every supported OS — so a
+consumer must name the classifier for the architecture it runs on, `x86_64` or
+`aarch64`:
+
+```groovy
+dependencies {
+    implementation 'org.openssl.jostle:openssl-jostle:0.1:aarch64'
+}
+```
+
+```xml
+<dependency>
+  <groupId>org.openssl.jostle</groupId>
+  <artifactId>openssl-jostle</artifactId>
+  <version>0.1</version>
+  <classifier>aarch64</classifier>
+</dependency>
+```
+
+A modular consumer puts that bundle on `--module-path` and requires
+`org.openssl.jostle.prov`; the module descriptor lives in `META-INF/versions/9`,
+so the module path needs **JDK 11 or later**. Add the native-access flag in the
+module form — see below, and note the manifest attribute cannot stand in for it
+on the module path:
+
+```
+--enable-native-access=org.openssl.jostle.prov
+```
+
 ### Native access
 
 Jostle loads a native library, so from **JDK 24 onwards** the JVM warns unless

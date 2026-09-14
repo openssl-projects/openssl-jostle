@@ -396,6 +396,8 @@ jobs:
       # Gradle's toolchain resolver can find that JDK (gradle.properties sets
       # fromEnv with auto-detect and auto-download off), so an unset variable
       # SKIPS the legs silently - which is why the step also asserts it is set.
+      # Skips 17: build.gradle registers module legs at 11 and 25 only, so the sed
+      # below yields no tasks at 17. 17 stays in the matrix for check-module-path.
       - name: "Run the module-path test legs"
         if: matrix.jdk != '17'
         working-directory: "jostle"
