@@ -104,6 +104,11 @@ public interface PKCSObjectIdentifiers
     ASN1ObjectIdentifier id_PBKDF2 = pkcs_5.branch("12").intern();
 
     /**
+     * 1.2.840.113549.1.5.13 -- id-PBES2, RFC 8018 line 1418
+     */
+    ASN1ObjectIdentifier id_PBES2 = pkcs_5.branch("13").intern();
+
+    /**
      * 1.2.840.113549.1.7 -- pkcs7, RFC 5652 line 377
      *
      * <p>Cited to RFC 5652 (CMS) rather than RFC 2315, which defined these
