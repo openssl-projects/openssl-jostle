@@ -461,6 +461,20 @@ count drifts from the list the moment a row is added or dropped:
 | `X509CRL` | `getIssuerX500Principal` |
 | `X509CRLEntry` | `getRevocationReason`, `getCertificateIssuer` (returns `null` unconditionally) |
 
+**A second category needs overriding for a DIFFERENT reason, and missing it is
+worse on a FIPS deployment.** `X509Certificate.verify(PublicKey, Provider)` and
+`X509CRL.verify(PublicKey, Provider)` are concrete but do NOT re-parse — they
+build a `Signature` from the object's own `getSigAlgName()` /
+`getSigAlgParams()`. On a **null** `sigProvider` they call
+`Signature.getInstance(sigName)` with no provider at all, so JCA order decides,
+and a JSLFIPS certificate verifies in whatever provider sorts first. Override
+both and route the null arm through the binding, never through JCA order.
+
+So the inherited surface is EIGHT re-parses plus TWO unpinned verifies. A paper
+that counts them together says ten and a table that lists only the re-parses
+says eight; both are right, about different questions, and saying which is the
+whole point of splitting them here.
+
 `X509CRL.hashCode` LOOKS like one and is not — it calls plain
 `crl.getEncoded()`, exactly as `Certificate.equals` does. Check the
 implementation, not the shape.
