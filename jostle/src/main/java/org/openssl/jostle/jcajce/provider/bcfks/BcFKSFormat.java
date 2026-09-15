@@ -440,4 +440,71 @@ final class BcFKSFormat
         seq.requireEnd("trailing bytes in SecretKeyData");
         return new SecretKeyData(oid, keyBytes);
     }
+
+    // ---- Writing ---------------------------------------------------------
+    // Mirrors the parse methods above field for field; every structure here
+    // has its reader immediately above it.
+
+    /** {@code ObjectStore}: the CHOICE element's raw TLV, followed by the integrity check TLV. */
+    static byte[] writeObjectStore(byte[] storeDataTlv, byte[] integrityCheckTlv)
+    {
+        return Der.sequence(storeDataTlv, integrityCheckTlv);
+    }
+
+    /** {@code PbkdMacIntegrityCheck}. */
+    static byte[] writePbkdMacIntegrityCheck(byte[] macAlgorithmTlv, byte[] pbkdAlgorithmTlv, byte[] mac)
+    {
+        return Der.sequence(macAlgorithmTlv, pbkdAlgorithmTlv, Der.octetString(mac));
+    }
+
+    // EncryptedObjectStoreData has no writer of its own: its wire shape is
+    // SEQUENCE { AlgorithmIdentifier, OCTET STRING }, identical to {@link
+    // Der#encryptedPrivateKeyInfo} -- BcFKSKeyStoreSpi.encryptEntry builds it
+    // directly, the same way parseEncryptedSecretKeyData reuses the reader.
+
+    /**
+     * {@code ObjectStoreData}. {@code entryTlvs} are complete {@link #writeObjectData}
+     * encodings; {@code comment} may be {@code null} to omit the OPTIONAL field.
+     */
+    static byte[] writeObjectStoreData(byte[] integrityAlgorithmTlv, Date creationDate, Date lastModifiedDate,
+                                        byte[][] entryTlvs, String comment)
+    {
+        byte[] version = Der.integer(1);
+        byte[] entriesSeq = Der.sequence(entryTlvs);
+        return comment == null
+                ? Der.sequence(version, integrityAlgorithmTlv, Der.generalizedTime(creationDate),
+                        Der.generalizedTime(lastModifiedDate), entriesSeq)
+                : Der.sequence(version, integrityAlgorithmTlv, Der.generalizedTime(creationDate),
+                        Der.generalizedTime(lastModifiedDate), entriesSeq, Der.utf8String(comment));
+    }
+
+    /** {@code ObjectData}. {@code comment} may be {@code null} to omit the OPTIONAL field. */
+    static byte[] writeObjectData(int type, String identifier, Date creationDate, Date lastModifiedDate,
+                                   byte[] data, String comment)
+    {
+        byte[] typeTlv = Der.integer(type);
+        byte[] idTlv = Der.utf8String(identifier);
+        byte[] dataTlv = Der.octetString(data);
+        return comment == null
+                ? Der.sequence(typeTlv, idTlv, Der.generalizedTime(creationDate),
+                        Der.generalizedTime(lastModifiedDate), dataTlv)
+                : Der.sequence(typeTlv, idTlv, Der.generalizedTime(creationDate),
+                        Der.generalizedTime(lastModifiedDate), dataTlv, Der.utf8String(comment));
+    }
+
+    /**
+     * {@code EncryptedPrivateKeyData}. {@code encryptedPrivateKeyInfoTlv} is a
+     * complete {@link Der#encryptedPrivateKeyInfo} encoding;
+     * {@code certificateChainTlvs} are raw, already-encoded X.509 TLVs.
+     */
+    static byte[] writeEncryptedPrivateKeyData(byte[] encryptedPrivateKeyInfoTlv, byte[][] certificateChainTlvs)
+    {
+        return Der.sequence(encryptedPrivateKeyInfoTlv, Der.sequence(certificateChainTlvs));
+    }
+
+    /** {@code SecretKeyData}. */
+    static byte[] writeSecretKeyData(String keyAlgorithmOid, byte[] keyBytes)
+    {
+        return Der.sequence(Der.objectIdentifier(keyAlgorithmOid), Der.octetString(keyBytes));
+    }
 }

@@ -63,6 +63,7 @@ public final class Der
     public static final int BIT_STRING = 0x03;
     public static final int UTF8_STRING = 0x0C;
     public static final int GENERALIZED_TIME = 0x18;
+    public static final int NULL = 0x05;
 
     /**
      * First octet of a constructed, context-specific tag numbered {@code n}
@@ -420,6 +421,16 @@ public final class Der
     public static byte[] utf8String(String s)
     {
         return tlv(UTF8_STRING, s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The NULL TLV (X.690 8.8): a zero-length content octet. Used for the
+     * explicit {@code parameters} field HMAC {@code AlgorithmIdentifier}s
+     * conventionally carry, rather than omitting the field.
+     */
+    public static byte[] nullValue()
+    {
+        return tlv(NULL, new byte[0]);
     }
 
     /**

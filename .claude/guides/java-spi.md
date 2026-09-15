@@ -549,3 +549,37 @@ SPI fields and fails naming the class and field that holds a base NI. Prefer it
 to any behavioural probe, because behaviour cannot see the difference — a
 key-shaped assertion cannot, once `getPublicKey()` rebuilds through the owning
 provider's KeyFactory rather than through the NI.
+
+### BCFKS is a standalone keystore, read and write, on both providers
+
+`org.openssl.jostle.jcajce.provider.bcfks.BcFKSKeyStoreSpi` is a from-scratch
+DER read AND write of BouncyCastle's `.bcfks` file format
+(`BcFKSFormat` for the wire structures, `Der` for the codec) — no BC type
+anywhere in the implementation; interop with BC is file-level only, measured
+at test time against bcprov 1.86. It takes every NI by constructor (per the
+rule above); `ProvBCFKS` registers it on `JSL` with base NIs and scrypt
+served, `ProvFIPSBCFKS` registers it on `JSLFIPS` with FIPS NIs and
+`memoryHardKdfNI` passed as `null` — the module has no scrypt.
+
+**Write never selects scrypt**, on either provider: every fresh KDF this
+class writes is PBKDF2-HMAC-SHA512 (`freshPbkdf2AlgorithmIdentifier`), so the
+JSLFIPS scrypt refusal is a READ-side-only concern (a store some other writer
+produced with an `id-scrypt` KDF) and needs no write-side gate. `deriveKey`'s
+javadoc holds the KDF parameter conventions this format uses; they are not
+restated here or in `SERVICES.md`.
+
+**One encryption helper serves three wire shapes.** `EncryptedObjectStoreData`,
+`EncryptedPrivateKeyInfo` and `EncryptedSecretKeyData` are all
+`SEQUENCE { AlgorithmIdentifier, OCTET STRING }` — `encryptEntry` builds that
+shape once and every write site (`engineStore`, the private-key branch and the
+secret-key branch of `engineSetKeyEntry`) calls it with a different
+`BytePasswordKdf.PURPOSE_*`. It is package-visible, matching `deriveKey`'s
+precedent, so a test can build a valid type-3/4 entry payload the same way
+this class does, for driving BC's own byte[]-form `setKeyEntry`.
+
+**Types 3 and 4 (PROTECTED_PRIVATE_KEY / PROTECTED_SECRET_KEY) are the
+caller's bytes, stored verbatim — never re-derived, never re-encrypted.**
+`engineSetKeyEntry(alias, byte[], chain)` validates only that a non-null
+chain's bytes parse as a well-formed `EncryptedPrivateKeyInfo`; with a null
+chain the bytes are opaque and unchecked, matching BC's own contract exactly
+(BC applies no validation there either).

@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
 import org.openssl.jostle.util.asn1.Der;
 
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
@@ -179,13 +181,23 @@ public class BcFKSKeyStoreSpiTest
     }
 
     @Test
-    public void writeOperationsAreRefused() throws Exception
+    public void writeOperationsRequireAProvider_regression() throws Exception
     {
-        KeyStore store = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        // An unbound SPI (direct construction, no provider) has nothing to
+        // resolve Cipher/Mac/SecureRandom through, so a write that needs
+        // encryption refuses typed rather than reaching for JCA search
+        // order. (The byte[]-form setKeyEntry needs no provider at all --
+        // it stores caller-supplied bytes verbatim, matching BC -- so it is
+        // not part of this contract and is covered by
+        // protectedEntryTypesWrittenByBcLoadThroughOurs_regression instead.)
+        BcFKSKeyStoreSpi unbound = new BcFKSKeyStoreSpi(null);
+        SecretKey key = new SecretKeySpec(new byte[16], "AES");
+
         Assertions.assertThrows(KeyStoreException.class,
-                () -> store.setCertificateEntry("x", store.getCertificate("trusted")));
-        Assertions.assertThrows(KeyStoreException.class, () -> store.deleteEntry("trusted"));
-        Assertions.assertThrows(IOException.class, () -> store.store(new java.io.ByteArrayOutputStream(), testPassword));
+                () -> unbound.engineSetKeyEntry("x", key, testPassword, null));
+        unbound.engineLoad(null, null);
+        Assertions.assertThrows(IOException.class,
+                () -> unbound.engineStore(new ByteArrayOutputStream(), testPassword));
     }
 
     /** Pin every OID this reader claims to recognise against the exact JCA name. */
@@ -496,5 +508,362 @@ public class BcFKSKeyStoreSpiTest
         byte[] storeData = Der.sequence(Der.integer(1), macAlgId, time, time, Der.sequence());
         byte[] objectStore = Der.sequence(storeData, pbkdMac);
         assertSameExceptionClass(objectStore, testPassword);
+    }
+
+    // ---- Write path ----------------------------------------------------
+    // Real key material throughout: extracted from the KWP fixture BC itself
+    // wrote (BcFKSFixtures.KWP_KEY_STORE), never freshly generated -- avoids
+    // pulling a certificate builder into the test tree for material this
+    // fixture already provides, verified.
+
+    private static KeyStore freshStore(char[] storePassword) throws Exception
+    {
+        KeyStore ks = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+        ks.load(null, storePassword);
+        return ks;
+    }
+
+    @Test
+    public void writeThenReadRoundTrip_regression() throws Exception
+    {
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        PrivateKey privKey = (PrivateKey) src.getKey("privkey", testPassword);
+        Certificate[] chain = src.getCertificateChain("privkey");
+        SecretKey secret1 = (SecretKey) src.getKey("secret1", "secretPwd1".toCharArray());
+        Certificate trustedCert = src.getCertificate("trusted");
+
+        char[] storePw = "round-trip store password".toCharArray();
+        char[] keyPw = "round-trip key password".toCharArray();
+
+        KeyStore fresh = freshStore(storePw);
+        fresh.setKeyEntry("mykey", privKey, keyPw, chain);
+        fresh.setKeyEntry("mysecret", secret1, keyPw, null);
+        fresh.setCertificateEntry("mycert", trustedCert);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(out, storePw);
+
+        KeyStore reloaded = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+        reloaded.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+
+        Assertions.assertEquals(3, reloaded.size());
+        Assertions.assertArrayEquals(privKey.getEncoded(), reloaded.getKey("mykey", keyPw).getEncoded());
+        Certificate[] reloadedChain = reloaded.getCertificateChain("mykey");
+        Assertions.assertEquals(chain.length, reloadedChain.length);
+        for (int i = 0; i < chain.length; i++)
+        {
+            Assertions.assertArrayEquals(chain[i].getEncoded(), reloadedChain[i].getEncoded());
+        }
+        Key reloadedSecret = reloaded.getKey("mysecret", keyPw);
+        Assertions.assertArrayEquals(secret1.getEncoded(), reloadedSecret.getEncoded());
+        Assertions.assertEquals(secret1.getAlgorithm(), reloadedSecret.getAlgorithm());
+        Assertions.assertArrayEquals(trustedCert.getEncoded(), reloaded.getCertificate("mycert").getEncoded());
+    }
+
+    /** Direction: Jostle writes, BouncyCastle 1.86 reads. */
+    @Test
+    public void ourWrittenStoreInteropsWithBouncyCastle_regression() throws Exception
+    {
+        ensureBcProvider();
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        PrivateKey privKey = (PrivateKey) src.getKey("privkey", testPassword);
+        Certificate[] chain = src.getCertificateChain("privkey");
+        SecretKey secret1 = (SecretKey) src.getKey("secret1", "secretPwd1".toCharArray());
+        Certificate trustedCert = src.getCertificate("trusted");
+
+        char[] storePw = "interop store password".toCharArray();
+        char[] keyPw = "interop key password".toCharArray();
+
+        KeyStore fresh = freshStore(storePw);
+        fresh.setKeyEntry("mykey", privKey, keyPw, chain);
+        fresh.setKeyEntry("mysecret", secret1, keyPw, null);
+        fresh.setCertificateEntry("mycert", trustedCert);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(out, storePw);
+
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+
+        Assertions.assertEquals(3, bc.size());
+        Assertions.assertArrayEquals(privKey.getEncoded(), bc.getKey("mykey", keyPw).getEncoded());
+        Certificate[] bcChain = bc.getCertificateChain("mykey");
+        Assertions.assertEquals(chain.length, bcChain.length);
+        for (int i = 0; i < chain.length; i++)
+        {
+            Assertions.assertArrayEquals(chain[i].getEncoded(), bcChain[i].getEncoded());
+        }
+        Assertions.assertArrayEquals(secret1.getEncoded(), bc.getKey("mysecret", keyPw).getEncoded());
+        Assertions.assertArrayEquals(trustedCert.getEncoded(), bc.getCertificate("mycert").getEncoded());
+
+        Assertions.assertEquals(16, storeEncryptionCcmIcvBytes(out.toByteArray()));
+    }
+
+    /** The store-encryption CCM tag length this class wrote, read back off the wire. */
+    private static int storeEncryptionCcmIcvBytes(byte[] storeBytes) throws Exception
+    {
+        BcFKSFormat.ObjectStore store = BcFKSFormat.parseObjectStore(storeBytes);
+        BcFKSFormat.EncryptedObjectStoreData enc = BcFKSFormat.parseEncryptedObjectStoreData(store.storeDataRaw);
+        Der.Pbes2Params pbes2 = new Der.Reader(enc.encryptionAlgorithm.parameters).readPbes2Params("PBES2-params");
+        return new Der.Reader(pbes2.encryptionScheme.parameters).readCcmParameters("CCMParameters").icvBytes;
+    }
+
+    /**
+     * Measured, not asserted: BC's own writer, given no explicit parameters,
+     * takes whatever its Cipher defaults to for AES-256-CCM's tag -- an
+     * 8-octet (64-bit) tag, not the 16 this class writes. Both interoperate
+     * (the sibling test above proves BC reads our 16-octet tag; this proves
+     * we read BC's 8-octet one).
+     */
+    @Test
+    public void bcsDefaultCcmTagLengthDivergesFromOurs_regression() throws Exception
+    {
+        ensureBcProvider();
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(null, "bc default tag password".toCharArray());
+        bc.setCertificateEntry("cert", load(BcFKSFixtures.KWP_KEY_STORE, testPassword).getCertificate("trusted"));
+        ByteArrayOutputStream bcOut = new ByteArrayOutputStream();
+        bc.store(bcOut, "bc default tag password".toCharArray());
+
+        Assertions.assertEquals(8, storeEncryptionCcmIcvBytes(bcOut.toByteArray()));
+
+        // And ours still reads it.
+        KeyStore ours = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+        ours.load(new ByteArrayInputStream(bcOut.toByteArray()), "bc default tag password".toCharArray());
+        Assertions.assertEquals(1, ours.size());
+    }
+
+    /**
+     * Direction: BouncyCastle 1.86 writes (the KWP fixture), Jostle reads,
+     * deletes one entry, re-writes, BouncyCastle reads again -- the
+     * checkStore delete-then-restore round trip (BCFKSStoreTest r1rv86
+     * :1414).
+     */
+    @Test
+    public void bcWrittenStoreLoadsThroughOursDeletesAndRestoresThroughBc_regression() throws Exception
+    {
+        ensureBcProvider();
+        char[] storePw = testPassword;
+        KeyStore ours = load(BcFKSFixtures.KWP_KEY_STORE, storePw);
+        Assertions.assertEquals(4, ours.size());
+
+        ours.deleteEntry("secret2");
+        Assertions.assertEquals(3, ours.size());
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ours.store(out, storePw);
+
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+
+        Assertions.assertEquals(3, bc.size());
+        Assertions.assertFalse(bc.containsAlias("secret2"));
+
+        SecretKey bcSecret1 = (SecretKey) bc.getKey("secret1", "secretPwd1".toCharArray());
+        Assertions.assertEquals("AES", bcSecret1.getAlgorithm());
+        Key bcPriv = bc.getKey("privkey", storePw);
+        Assertions.assertTrue(bcPriv instanceof RSAPrivateCrtKey);
+        Assertions.assertEquals(2, bc.getCertificateChain("privkey").length);
+        Assertions.assertNotNull(bc.getCertificate("trusted"));
+    }
+
+    /**
+     * Measured, not hardcoded: the same wrong-password failure on a store
+     * BC itself wrote is the reference for what BC says about our store.
+     */
+    @Test
+    public void wrongStorePasswordOnOurWrittenFileMatchesBcsMessage_regression() throws Exception
+    {
+        ensureBcProvider();
+        char[] storePw = "correct store password".toCharArray();
+        char[] wrongPw = "wrong store password".toCharArray();
+        Certificate trustedCert = load(BcFKSFixtures.KWP_KEY_STORE, testPassword).getCertificate("trusted");
+
+        KeyStore ours = freshStore(storePw);
+        ours.setCertificateEntry("cert", trustedCert);
+        ByteArrayOutputStream oursOut = new ByteArrayOutputStream();
+        ours.store(oursOut, storePw);
+
+        KeyStore bcWriter = KeyStore.getInstance("BCFKS", "BC");
+        bcWriter.load(null, storePw);
+        bcWriter.setCertificateEntry("cert", trustedCert);
+        ByteArrayOutputStream bcOut = new ByteArrayOutputStream();
+        bcWriter.store(bcOut, storePw);
+
+        KeyStore bcReaderOfOurs = KeyStore.getInstance("BCFKS", "BC");
+        IOException oursUnderBc = Assertions.assertThrows(IOException.class,
+                () -> bcReaderOfOurs.load(new ByteArrayInputStream(oursOut.toByteArray()), wrongPw));
+
+        KeyStore bcReaderOfBc = KeyStore.getInstance("BCFKS", "BC");
+        IOException bcUnderBc = Assertions.assertThrows(IOException.class,
+                () -> bcReaderOfBc.load(new ByteArrayInputStream(bcOut.toByteArray()), wrongPw));
+
+        Assertions.assertEquals(bcUnderBc.getMessage(), oursUnderBc.getMessage());
+    }
+
+    @Test
+    public void wrongPerKeyPasswordFailsUnrecoverableBothSides_regression() throws Exception
+    {
+        ensureBcProvider();
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        PrivateKey privKey = (PrivateKey) src.getKey("privkey", testPassword);
+        Certificate[] chain = src.getCertificateChain("privkey");
+
+        char[] storePw = "wrong-key-pw store password".toCharArray();
+        char[] keyPw = "correct key password".toCharArray();
+        char[] wrongKeyPw = "wrong key password".toCharArray();
+
+        KeyStore fresh = freshStore(storePw);
+        fresh.setKeyEntry("mykey", privKey, keyPw, chain);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(out, storePw);
+
+        KeyStore reloadedOurs = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+        reloadedOurs.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+        Assertions.assertThrows(UnrecoverableKeyException.class,
+                () -> reloadedOurs.getKey("mykey", wrongKeyPw));
+
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+        Assertions.assertThrows(UnrecoverableKeyException.class, () -> bc.getKey("mykey", wrongKeyPw));
+    }
+
+    // ---- Write-path negative cells, exception TYPE measured against BC ----
+
+    private static Class<? extends Throwable> captureSetKeyEntryExceptionClass(KeyStore ks, Key key, char[] pw,
+                                                                                 Certificate[] chain)
+    {
+        try
+        {
+            ks.setKeyEntry("x", key, pw, chain);
+        }
+        catch (Exception e)
+        {
+            return e.getClass();
+        }
+        Assertions.fail(ks.getProvider().getName() + " did not refuse an entry it should have refused");
+        return null;
+    }
+
+    private static Class<? extends Throwable> captureSetCertExceptionClass(KeyStore ks, String alias,
+                                                                             Certificate cert)
+    {
+        try
+        {
+            ks.setCertificateEntry(alias, cert);
+        }
+        catch (Exception e)
+        {
+            return e.getClass();
+        }
+        Assertions.fail(ks.getProvider().getName() + " did not refuse an entry it should have refused");
+        return null;
+    }
+
+    @Test
+    public void setKeyEntryPrivateKeyWithoutChainMatchesBcExceptionType_regression() throws Exception
+    {
+        ensureBcProvider();
+        PrivateKey privKey = (PrivateKey) load(BcFKSFixtures.KWP_KEY_STORE, testPassword)
+                .getKey("privkey", testPassword);
+        char[] pw = "x".toCharArray();
+
+        KeyStore ours = freshStore(pw);
+        Class<? extends Throwable> oursType = captureSetKeyEntryExceptionClass(ours, privKey, pw, null);
+
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(null, pw);
+        Class<? extends Throwable> bcType = captureSetKeyEntryExceptionClass(bc, privKey, pw, null);
+
+        Assertions.assertEquals(bcType, oursType);
+    }
+
+    @Test
+    public void setKeyEntrySecretKeyWithChainMatchesBcExceptionType_regression() throws Exception
+    {
+        ensureBcProvider();
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        SecretKey secret1 = (SecretKey) src.getKey("secret1", "secretPwd1".toCharArray());
+        Certificate[] chain = new Certificate[]{src.getCertificate("trusted")};
+        char[] pw = "x".toCharArray();
+
+        KeyStore ours = freshStore(pw);
+        Class<? extends Throwable> oursType = captureSetKeyEntryExceptionClass(ours, secret1, pw, chain);
+
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(null, pw);
+        Class<? extends Throwable> bcType = captureSetKeyEntryExceptionClass(bc, secret1, pw, chain);
+
+        Assertions.assertEquals(bcType, oursType);
+    }
+
+    @Test
+    public void setCertificateEntryOverExistingKeyAliasMatchesBcExceptionType_regression() throws Exception
+    {
+        ensureBcProvider();
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        SecretKey secret1 = (SecretKey) src.getKey("secret1", "secretPwd1".toCharArray());
+        Certificate trustedCert = src.getCertificate("trusted");
+        char[] pw = "x".toCharArray();
+
+        KeyStore ours = freshStore(pw);
+        ours.setKeyEntry("k", secret1, pw, null);
+        Class<? extends Throwable> oursType = captureSetCertExceptionClass(ours, "k", trustedCert);
+
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(null, pw);
+        bc.setKeyEntry("k", secret1, pw, null);
+        Class<? extends Throwable> bcType = captureSetCertExceptionClass(bc, "k", trustedCert);
+
+        Assertions.assertEquals(bcType, oursType);
+    }
+
+    /**
+     * Entry types 3 (PROTECTED_PRIVATE_KEY) and 4 (PROTECTED_SECRET_KEY) are
+     * only reachable through the byte[]-form {@code setKeyEntry}. BC writes
+     * the container; the entry payloads are built with our own {@code
+     * encryptEntry} (the same helper {@code engineSetKeyEntry} uses), so
+     * this proves our READ-side type-3/4 dispatch against a real BC-written
+     * file, not just our own writer's shape.
+     */
+    @Test
+    public void protectedEntryTypesWrittenByBcLoadThroughOurs_regression() throws Exception
+    {
+        ensureBcProvider();
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, testPassword);
+        PrivateKey privKey = (PrivateKey) src.getKey("privkey", testPassword);
+        Certificate[] chain = src.getCertificateChain("privkey");
+        SecretKey secret1 = (SecretKey) src.getKey("secret1", "secretPwd1".toCharArray());
+
+        char[] entryPw = "protected entry password".toCharArray();
+
+        BcFKSKeyStoreSpi ourSpi = new BcFKSKeyStoreSpi(Security.getProvider(JostleProvider.PROVIDER_NAME));
+        byte[] protectedPrivateKeyBytes = ourSpi.encryptEntry(privKey.getEncoded(),
+                BytePasswordKdf.PURPOSE_PRIVATE_KEY_ENCRYPTION, entryPw);
+        byte[] secretKeyDataBytes = BcFKSFormat.writeSecretKeyData(
+                BcFKSKeyStoreSpi.secretKeyAlgorithmOid(secret1.getAlgorithm()), secret1.getEncoded());
+        byte[] protectedSecretKeyBytes = ourSpi.encryptEntry(secretKeyDataBytes,
+                BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION, entryPw);
+
+        char[] storePw = "protected store password".toCharArray();
+        KeyStore bc = KeyStore.getInstance("BCFKS", "BC");
+        bc.load(null, storePw);
+        bc.setKeyEntry("protectedPriv", protectedPrivateKeyBytes, chain);
+        bc.setKeyEntry("protectedSecret", protectedSecretKeyBytes, null);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        bc.store(out, storePw);
+
+        KeyStore ours = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+        ours.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+
+        Assertions.assertTrue(ours.isKeyEntry("protectedPriv"));
+        Key recoveredPriv = ours.getKey("protectedPriv", entryPw);
+        Assertions.assertArrayEquals(privKey.getEncoded(), recoveredPriv.getEncoded());
+        Assertions.assertEquals(chain.length, ours.getCertificateChain("protectedPriv").length);
+
+        Assertions.assertTrue(ours.isKeyEntry("protectedSecret"));
+        Key recoveredSecret = ours.getKey("protectedSecret", entryPw);
+        Assertions.assertArrayEquals(secret1.getEncoded(), recoveredSecret.getEncoded());
     }
 }

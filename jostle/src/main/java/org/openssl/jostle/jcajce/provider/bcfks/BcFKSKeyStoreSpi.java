@@ -29,12 +29,14 @@ import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -45,8 +47,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.PrivateKey;
+import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
@@ -55,16 +59,16 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
- * BCFKS keystore read path: a standalone Jostle implementation of the file
- * format BouncyCastle defines (r1rv86,
+ * BCFKS keystore, read and write: a standalone Jostle implementation of the
+ * file format BouncyCastle defines (r1rv86,
  * {@code prov/.../keystore/bcfks/BcFKSKeyStoreSpi.java}), over {@link
  * BcFKSFormat} and this provider's own registered services. No BouncyCastle
- * type appears anywhere in this class; interop with BC is file-level only
- * (BC writes, we read). Write support is not implemented yet.
+ * type appears anywhere in this class; interop with BC is file-level only.
  *
  * <p><b>Per-entry passwords.</b> {@code engineGetKey(alias, password)}
  * derives the entry's decryption key with THAT password under {@code
@@ -76,6 +80,17 @@ import java.util.NoSuchElementException;
  * BCFKSStoreTest's kwpKeyStore fixture), so entries are kept as raw, encrypted
  * {@link BcFKSFormat.ObjectData} until the caller asks for one by name and
  * password -- never decoded at load time.
+ *
+ * <p><b>Write defaults.</b> Every write derives with PBKDF2-HMAC-SHA512, a
+ * fresh 64-byte salt, and {@link #storeIterationCount()} iterations (BC's own
+ * defaults). Entry and store data both encrypt under AES-256-CCM with a
+ * 128-bit (16-octet) tag -- BC's own writer, given no explicit parameters,
+ * takes whatever its underlying Cipher defaults to and every BC-written
+ * fixture in this tree carries a 64-bit (8-octet) tag instead; both lengths
+ * load in both implementations, and 16 octets is the stronger of the two, so
+ * that is what this class writes. The store's integrity MAC is HMAC-SHA512
+ * with a 64-byte key. {@code engineStore} always writes the store encrypted
+ * -- BCFKS has no plaintext-store writer path, matching BC.
  */
 public class BcFKSKeyStoreSpi
     extends KeyStoreSpi
@@ -157,6 +172,46 @@ public class BcFKSKeyStoreSpi
         catch (NumberFormatException e)
         {
             return DEFAULT_MAX_SCRYPT_MEMORY;
+        }
+    }
+
+    // ---- Write-side caps and defaults, measured against BcFKSKeyStoreSpi.java
+    // (r1rv86 :116, :1669-1687). BC's own default PBKDF2 iteration count for
+    // everything it writes (the MAC key, the store-encryption key, every entry
+    // key) -- 50 * 1024 = 51,200 -- clamped, like the read-side cap, against a
+    // property rather than left fixed.
+
+    static final String STORE_IT_COUNT_PROPERTY = "org.openssl.jostle.bcfks.store_it_count";
+    static final int DEFAULT_STORE_IT_COUNT = 50 * 1024;
+
+    private static final int PBKDF2_SALT_BYTES = 64;
+    private static final int ENTRY_KEY_BYTES = 32;
+    private static final int MAC_KEY_BYTES = 64;
+    private static final int CCM_NONCE_BYTES = 12;
+    // 16-octet tag; BC's own writer emits 8 by default (measured from its
+    // fixtures), either loads in both implementations.
+    private static final int CCM_ICV_BYTES = 16;
+
+    /**
+     * The iteration count to write with -- {@link #DEFAULT_STORE_IT_COUNT}
+     * unless {@link #STORE_IT_COUNT_PROPERTY} names a usable value, clamped to
+     * {@code 1..}{@link #maxIterationCount()} so an operator cannot configure
+     * a store that its own read-side cap then refuses to open.
+     */
+    static int storeIterationCount()
+    {
+        try
+        {
+            int configured = Properties.asInteger(STORE_IT_COUNT_PROPERTY, DEFAULT_STORE_IT_COUNT);
+            if (configured < 1 || configured > maxIterationCount())
+            {
+                return DEFAULT_STORE_IT_COUNT;
+            }
+            return configured;
+        }
+        catch (NumberFormatException e)
+        {
+            return DEFAULT_STORE_IT_COUNT;
         }
     }
 
@@ -406,6 +461,81 @@ public class BcFKSKeyStoreSpi
         }
     }
 
+    // ---- Encryption (PBES2: PBKDF2-HMAC-SHA512 + AES-256-CCM) --------------
+
+    /**
+     * This provider's own {@code SecureRandom} service, resolved through the
+     * owning provider instance -- the no-foreign-provider-delegation rule
+     * applies to randomness the same as it does to Cipher/Mac/KeyFactory.
+     */
+    private SecureRandom secureRandom() throws NoSuchAlgorithmException
+    {
+        return SecureRandom.getInstance("DEFAULT", providerInstance);
+    }
+
+    /**
+     * A fresh PBKDF2-HMAC-SHA512 {@code AlgorithmIdentifier}: a random
+     * {@value #PBKDF2_SALT_BYTES}-byte salt from this provider's own
+     * SecureRandom, {@link #storeIterationCount()} iterations, and an
+     * explicit {@code keyLength}. Built by encoding the TLV and reading it
+     * straight back through {@link Der.Reader#readAlgorithmIdentifier} -- the
+     * structure {@link #deriveKey} derives from is then byte-identical to
+     * what gets embedded in the file, by construction rather than by
+     * agreement between two separate encodings.
+     */
+    private Der.AlgorithmIdentifier freshPbkdf2AlgorithmIdentifier(int keyLength)
+        throws NoSuchAlgorithmException, IOException
+    {
+        byte[] salt = new byte[PBKDF2_SALT_BYTES];
+        secureRandom().nextBytes(salt);
+        byte[] prfTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_hmacWithSHA512.getId(), Der.nullValue());
+        byte[] paramsTlv = Der.pbkdf2Params(salt, storeIterationCount(), keyLength, prfTlv);
+        byte[] fullTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_PBKDF2.getId(), paramsTlv);
+        return new Der.Reader(fullTlv).readAlgorithmIdentifier("PBKDF2-params");
+    }
+
+    /**
+     * Encrypts {@code plaintext} under a fresh PBES2/PBKDF2-HMAC-SHA512/AES-256-CCM
+     * key, and returns the complete {@code SEQUENCE { AlgorithmIdentifier,
+     * OCTET STRING }} wrapper -- the shape shared by {@code
+     * EncryptedObjectStoreData}, {@code EncryptedPrivateKeyInfo} and {@code
+     * EncryptedSecretKeyData}, so this one method serves all three write
+     * sites. {@code purpose} is one of {@code BytePasswordKdf.PURPOSE_*}.
+     *
+     * <p>Package-visible so a test can build a valid, standalone type-3/4
+     * (PROTECTED_PRIVATE_KEY / PROTECTED_SECRET_KEY) entry payload the same
+     * way this class does, for driving BC's own byte[]-form {@code
+     * setKeyEntry} -- matching {@link #deriveKey}'s precedent.
+     */
+    byte[] encryptEntry(byte[] plaintext, String purpose, char[] password)
+        throws GeneralSecurityException, IOException
+    {
+        Der.AlgorithmIdentifier pbkdf2AlgId = freshPbkdf2AlgorithmIdentifier(ENTRY_KEY_BYTES);
+        byte[] key = deriveKey(pbkdf2AlgId, purpose, password, ENTRY_KEY_BYTES);
+        try
+        {
+            byte[] nonce = new byte[CCM_NONCE_BYTES];
+            secureRandom().nextBytes(nonce);
+
+            requireProvider("encrypt an entry");
+            Cipher cipher = Cipher.getInstance(NISTObjectIdentifiers.id_aes256_CCM.getId(), providerInstance);
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
+                    new GCMParameterSpec(CCM_ICV_BYTES * 8, nonce));
+            byte[] ciphertext = cipher.doFinal(plaintext);
+
+            byte[] pbkdf2FullTlv = Der.algorithmIdentifier(pbkdf2AlgId.oid, pbkdf2AlgId.parameters);
+            byte[] ccmAlgIdTlv = Der.algorithmIdentifier(NISTObjectIdentifiers.id_aes256_CCM.getId(),
+                    Der.ccmParameters(nonce, CCM_ICV_BYTES));
+            byte[] pbes2ParamsTlv = Der.pbes2Params(pbkdf2FullTlv, ccmAlgIdTlv);
+            byte[] pbes2AlgIdTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_PBES2.getId(), pbes2ParamsTlv);
+            return Der.encryptedPrivateKeyInfo(pbes2AlgIdTlv, ciphertext);
+        }
+        finally
+        {
+            Arrays.clear(key);
+        }
+    }
+
     // ---- Secret-key algorithm OID vocabulary --------------------------------
     // BC's own write side (BcFKSKeyStoreSpi.java :124-156) uses an equivalent
     // hand-written table: JCA has no generic "name a symmetric algorithm from
@@ -493,6 +623,88 @@ public class BcFKSKeyStoreSpi
         if (NISTObjectIdentifiers.id_hmacWithSHA3_512.getId().equals(oid))
         {
             return "HmacSHA3-512";
+        }
+        return null;
+    }
+
+    /**
+     * Inverse of {@link #secretKeyAlgorithmName}: the wire OID for a JCA
+     * secret key algorithm name, measured against BC's own {@code oidMap}
+     * (BcFKSKeyStoreSpi.java, r1rv86 :124-156) restricted to the same 15
+     * names {@link #secretKeyAlgorithmName} recognises on read.
+     */
+    static String secretKeyAlgorithmOid(String jcaAlgorithm) throws KeyStoreException
+    {
+        String upper = jcaAlgorithm.toUpperCase(Locale.ROOT);
+        if (upper.contains("AES"))
+        {
+            return NISTObjectIdentifiers.aes.getId();
+        }
+        if ("DESEDE".equals(upper) || "TRIPLEDES".equals(upper) || "TDEA".equals(upper))
+        {
+            return OIWObjectIdentifiers.desEDE.getId();
+        }
+        if ("KMAC128".equals(upper))
+        {
+            return NISTObjectIdentifiers.id_Kmac128.getId();
+        }
+        if ("KMAC256".equals(upper))
+        {
+            return NISTObjectIdentifiers.id_Kmac256.getId();
+        }
+        String hmacOid = hmacOidForName(upper);
+        if (hmacOid != null)
+        {
+            return hmacOid;
+        }
+        throw new KeyStoreException("BCFKS KeyStore: unrecognized secret key algorithm for storage: " + jcaAlgorithm);
+    }
+
+    private static String hmacOidForName(String upper)
+    {
+        if ("HMACSHA1".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA1.getId();
+        }
+        if ("HMACSHA224".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA224.getId();
+        }
+        if ("HMACSHA256".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA256.getId();
+        }
+        if ("HMACSHA384".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA384.getId();
+        }
+        if ("HMACSHA512".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA512.getId();
+        }
+        if ("HMACSHA512/224".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA512_224.getId();
+        }
+        if ("HMACSHA512/256".equals(upper))
+        {
+            return PKCSObjectIdentifiers.id_hmacWithSHA512_256.getId();
+        }
+        if ("HMACSHA3-224".equals(upper))
+        {
+            return NISTObjectIdentifiers.id_hmacWithSHA3_224.getId();
+        }
+        if ("HMACSHA3-256".equals(upper))
+        {
+            return NISTObjectIdentifiers.id_hmacWithSHA3_256.getId();
+        }
+        if ("HMACSHA3-384".equals(upper))
+        {
+            return NISTObjectIdentifiers.id_hmacWithSHA3_384.getId();
+        }
+        if ("HMACSHA3-512".equals(upper))
+        {
+            return NISTObjectIdentifiers.id_hmacWithSHA3_512.getId();
         }
         return null;
     }
@@ -775,31 +987,187 @@ public class BcFKSKeyStoreSpi
         return entry != null ? entry.lastModifiedDate : null;
     }
 
+    /** The existing entry's own creation date, or {@code fallback} for a fresh alias. */
+    private Date existingCreationDate(String alias, Date fallback)
+    {
+        BcFKSFormat.ObjectData existing = entries.get(alias);
+        return existing != null ? existing.creationDate : fallback;
+    }
+
+    private static byte[][] encodeCertificateChain(Certificate[] chain) throws CertificateEncodingException
+    {
+        byte[][] tlvs = new byte[chain.length][];
+        for (int i = 0; i < chain.length; i++)
+        {
+            tlvs[i] = chain[i].getEncoded();
+        }
+        return tlvs;
+    }
+
     @Override
     public void engineSetKeyEntry(String alias, Key key, char[] password, Certificate[] chain)
         throws KeyStoreException
     {
-        throw new KeyStoreException("write operations are not supported by this reader");
+        if (providerInstance == null)
+        {
+            throw new KeyStoreException("this keystore was constructed outside any provider, so it cannot "
+                    + "store a key; obtain the KeyStore from a Jostle provider rather than constructing "
+                    + "the SPI directly");
+        }
+
+        Date now = new Date();
+        Date created = existingCreationDate(alias, now);
+
+        if (key instanceof PrivateKey)
+        {
+            if (chain == null)
+            {
+                throw new KeyStoreException("BCFKS KeyStore requires a certificate chain for private key storage.");
+            }
+            byte[] encodedKey = key.getEncoded();
+            try
+            {
+                byte[] encryptedInfoTlv = encryptEntry(encodedKey, BytePasswordKdf.PURPOSE_PRIVATE_KEY_ENCRYPTION,
+                        password);
+                byte[][] certTlvs = encodeCertificateChain(chain);
+                byte[] data = BcFKSFormat.writeEncryptedPrivateKeyData(encryptedInfoTlv, certTlvs);
+                entries.put(alias, new BcFKSFormat.ObjectData(BcFKSFormat.ObjectData.TYPE_PRIVATE_KEY, alias,
+                        created, now, data, null));
+            }
+            catch (Exception e)
+            {
+                throw new KeyStoreException("BCFKS KeyStore exception storing private key: " + e.getMessage(), e);
+            }
+            finally
+            {
+                Arrays.clear(encodedKey);
+            }
+        }
+        else if (key instanceof SecretKey)
+        {
+            if (chain != null)
+            {
+                throw new KeyStoreException("BCFKS KeyStore cannot store certificate chain with secret key.");
+            }
+            byte[] encodedKey = key.getEncoded();
+            try
+            {
+                String oid = secretKeyAlgorithmOid(key.getAlgorithm());
+                byte[] secretKeyDataBytes = BcFKSFormat.writeSecretKeyData(oid, encodedKey);
+                byte[] data = encryptEntry(secretKeyDataBytes, BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION,
+                        password);
+                entries.put(alias, new BcFKSFormat.ObjectData(BcFKSFormat.ObjectData.TYPE_SECRET_KEY, alias,
+                        created, now, data, null));
+            }
+            catch (KeyStoreException e)
+            {
+                throw e;
+            }
+            catch (Exception e)
+            {
+                throw new KeyStoreException("BCFKS KeyStore exception storing secret key: " + e.getMessage(), e);
+            }
+            finally
+            {
+                Arrays.clear(encodedKey);
+            }
+        }
+        else
+        {
+            throw new KeyStoreException("BCFKS KeyStore unable to recognize key.");
+        }
+
+        lastModifiedDate = now;
     }
 
+    /**
+     * The caller supplies already-encrypted bytes. With a chain, they must be
+     * a well-formed {@code EncryptedPrivateKeyInfo} -- validated, then stored
+     * VERBATIM as type 3 (PROTECTED_PRIVATE_KEY), never re-derived. Without
+     * one, the bytes are opaque and stored as type 4 (PROTECTED_SECRET_KEY)
+     * exactly as given, matching BC's own {@code engineSetKeyEntry(byte[])}.
+     */
     @Override
     public void engineSetKeyEntry(String alias, byte[] key, Certificate[] chain)
         throws KeyStoreException
     {
-        throw new KeyStoreException("write operations are not supported by this reader");
+        Date now = new Date();
+        Date created = existingCreationDate(alias, now);
+
+        if (chain != null)
+        {
+            try
+            {
+                new Der.Reader(key).readEncryptedPrivateKeyInfo("EncryptedPrivateKeyInfo");
+            }
+            catch (IOException e)
+            {
+                throw new KeyStoreException(
+                        "BCFKS KeyStore private key encoding must be an EncryptedPrivateKeyInfo: "
+                                + e.getMessage(), e);
+            }
+            try
+            {
+                byte[][] certTlvs = encodeCertificateChain(chain);
+                byte[] data = BcFKSFormat.writeEncryptedPrivateKeyData(key, certTlvs);
+                entries.put(alias, new BcFKSFormat.ObjectData(BcFKSFormat.ObjectData.TYPE_PROTECTED_PRIVATE_KEY,
+                        alias, created, now, data, null));
+            }
+            catch (CertificateEncodingException e)
+            {
+                throw new KeyStoreException(
+                        "BCFKS KeyStore exception storing protected private key: " + e.getMessage(), e);
+            }
+        }
+        else
+        {
+            // Opaque and stored verbatim (matching BC), but as our OWN copy
+            // -- a caller mutating its buffer afterwards must not change the
+            // entry.
+            entries.put(alias, new BcFKSFormat.ObjectData(BcFKSFormat.ObjectData.TYPE_PROTECTED_SECRET_KEY,
+                    alias, created, now, Arrays.clone(key), null));
+        }
+
+        lastModifiedDate = now;
     }
 
     @Override
     public void engineSetCertificateEntry(String alias, Certificate cert)
         throws KeyStoreException
     {
-        throw new KeyStoreException("write operations are not supported by this reader");
+        BcFKSFormat.ObjectData entry = entries.get(alias);
+        Date now = new Date();
+        Date created = now;
+
+        if (entry != null)
+        {
+            if (entry.type != BcFKSFormat.ObjectData.TYPE_CERTIFICATE)
+            {
+                throw new KeyStoreException("BCFKS KeyStore already has a key entry with alias " + alias);
+            }
+            created = entry.creationDate;
+        }
+
+        try
+        {
+            entries.put(alias, new BcFKSFormat.ObjectData(BcFKSFormat.ObjectData.TYPE_CERTIFICATE, alias,
+                    created, now, cert.getEncoded(), null));
+        }
+        catch (CertificateEncodingException e)
+        {
+            throw new KeyStoreException("BCFKS KeyStore unable to handle certificate: " + e.getMessage(), e);
+        }
+
+        lastModifiedDate = now;
     }
 
     @Override
     public void engineDeleteEntry(String alias) throws KeyStoreException
     {
-        throw new KeyStoreException("write operations are not supported by this reader");
+        if (entries.remove(alias) != null)
+        {
+            lastModifiedDate = new Date();
+        }
     }
 
     @Override
@@ -875,10 +1243,66 @@ public class BcFKSKeyStoreSpi
         return null;
     }
 
+    /**
+     * Always writes the store encrypted, matching BC -- BCFKS has no
+     * plaintext-store writer path. The whole-store PBES2/AES-256-CCM
+     * encryption and the integrity MAC each get their own fresh salt.
+     */
     @Override
     public void engineStore(OutputStream stream, char[] password)
         throws IOException, NoSuchAlgorithmException, CertificateException
     {
-        throw new IOException("write operations are not supported by this reader");
+        if (creationDate == null)
+        {
+            throw new IOException("KeyStore not initialized");
+        }
+        if (providerInstance == null)
+        {
+            throw new IOException("this keystore was constructed outside any provider, so it cannot "
+                    + "store; obtain the KeyStore from a Jostle provider rather than constructing the "
+                    + "SPI directly");
+        }
+
+        byte[][] entryTlvs = new byte[entries.size()][];
+        int i = 0;
+        for (BcFKSFormat.ObjectData entry : entries.values())
+        {
+            entryTlvs[i++] = BcFKSFormat.writeObjectData(entry.type, entry.identifier, entry.creationDate,
+                    entry.lastModifiedDate, entry.data, entry.comment);
+        }
+
+        byte[] hmacAlgorithmTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_hmacWithSHA512.getId(),
+                Der.nullValue());
+        Der.AlgorithmIdentifier hmacAlgorithmId = new Der.Reader(hmacAlgorithmTlv).readAlgorithmIdentifier("macAlgorithm");
+        byte[] storeDataDer = BcFKSFormat.writeObjectStoreData(hmacAlgorithmTlv, creationDate, lastModifiedDate,
+                entryTlvs, null);
+
+        byte[] encryptedStoreDataTlv;
+        try
+        {
+            encryptedStoreDataTlv = encryptEntry(storeDataDer, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, password);
+        }
+        catch (GeneralSecurityException e)
+        {
+            throw new IOException("BCFKS KeyStore: unable to encrypt store: " + e.getMessage(), e);
+        }
+
+        Der.AlgorithmIdentifier macPbkdAlgId = freshPbkdf2AlgorithmIdentifier(MAC_KEY_BYTES);
+        byte[] macKey = deriveKey(macPbkdAlgId, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, password, MAC_KEY_BYTES);
+        byte[] mac;
+        try
+        {
+            mac = computeMac(hmacAlgorithmId, macKey, encryptedStoreDataTlv);
+        }
+        finally
+        {
+            Arrays.clear(macKey);
+        }
+
+        byte[] macPbkdFullTlv = Der.algorithmIdentifier(macPbkdAlgId.oid, macPbkdAlgId.parameters);
+        byte[] integrityCheckTlv = BcFKSFormat.writePbkdMacIntegrityCheck(hmacAlgorithmTlv, macPbkdFullTlv, mac);
+
+        stream.write(BcFKSFormat.writeObjectStore(encryptedStoreDataTlv, integrityCheckTlv));
+        stream.flush();
     }
 }

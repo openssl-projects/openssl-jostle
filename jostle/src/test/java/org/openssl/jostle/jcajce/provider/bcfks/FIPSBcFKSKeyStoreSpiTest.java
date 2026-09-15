@@ -20,8 +20,11 @@ import org.openssl.jostle.test.TestUtil;
 
 import javax.crypto.SecretKey;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.security.Key;
 import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.security.interfaces.RSAPrivateCrtKey;
 
 /**
@@ -97,5 +100,41 @@ public class FIPSBcFKSKeyStoreSpiTest
         java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
                 () -> store.load(new ByteArrayInputStream(scryptStore), BcFKSKeyStoreSpiTest.testPassword));
         Assertions.assertEquals("BCFKS store uses scrypt, which this provider does not serve", e.getMessage());
+    }
+
+    /**
+     * The write path needs only PBKDF2, HMAC-SHA512, AES-CCM and X.509 -- all
+     * baseline FIPS module services -- so it works under JSLFIPS exactly as
+     * under JSL. Same key material as {@link
+     * BcFKSKeyStoreSpiTest#writeThenReadRoundTrip_regression}, round-tripped
+     * through JSLFIPS start to finish.
+     */
+    @Test
+    public void writeThenReadRoundTripUnderFips_regression() throws Exception
+    {
+        JostleFIPSProvider provider = TestUtil.addFipsProvider();
+        KeyStore src = load(BcFKSFixtures.KWP_KEY_STORE, BcFKSKeyStoreSpiTest.testPassword);
+        PrivateKey privKey = (PrivateKey) src.getKey("privkey", BcFKSKeyStoreSpiTest.testPassword);
+        Certificate[] chain = src.getCertificateChain("privkey");
+        SecretKey secret1 = (SecretKey) src.getKey("secret1", "secretPwd1".toCharArray());
+
+        char[] storePw = "fips round-trip store password".toCharArray();
+        char[] keyPw = "fips round-trip key password".toCharArray();
+
+        KeyStore fresh = KeyStore.getInstance("BCFKS", provider.getName());
+        fresh.load(null, storePw);
+        fresh.setKeyEntry("mykey", privKey, keyPw, chain);
+        fresh.setKeyEntry("mysecret", secret1, keyPw, null);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(out, storePw);
+
+        KeyStore reloaded = KeyStore.getInstance("BCFKS", provider.getName());
+        reloaded.load(new ByteArrayInputStream(out.toByteArray()), storePw);
+
+        Assertions.assertEquals(2, reloaded.size());
+        Assertions.assertArrayEquals(privKey.getEncoded(), reloaded.getKey("mykey", keyPw).getEncoded());
+        Key reloadedSecret = reloaded.getKey("mysecret", keyPw);
+        Assertions.assertArrayEquals(secret1.getEncoded(), reloadedSecret.getEncoded());
     }
 }
