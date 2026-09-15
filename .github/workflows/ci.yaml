@@ -1001,3 +1001,102 @@ jobs:
         with:
           check_name: "windows-2025 - ${{ matrix.config.name }} - module ${{ matrix.module }}"
           report_paths: "**/build/test-results/**/TEST-*.xml"
+
+  package-x86_64:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
+    needs: ["build-posix", "build-windows", "test-posix", "test-posix-shipped", "test-windows"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Download Linux x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-ubuntu-latest"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download macOS x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-macos-15-intel"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download Windows x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Build x86_64 bundle"
+        working-directory: "jostle"
+        # Slim per-arch bundle; archClassifier stops it colliding with the
+        # aarch64 one and applies to the main jar only.
+        # A tag is a release: version from the tag (v1.0.0 or 1.0.0) plus the
+        # -sources/-javadoc jars Maven Central requires. Otherwise VERSION is
+        # empty, gradle.properties decides, and the name carries -SNAPSHOT.
+        # GITHUB_REF_* as env vars, not ${{ }}: a tag name is push-controlled.
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TASKS="jar sourcesJar javadocJar"
+          else
+            VERSION=""
+            TASKS="jar"
+          fi
+          ./gradlew $TASKS -ParchClassifier=x86_64 ${VERSION:+-Pversion="$VERSION"}
+      - name: "Upload x86_64 bundle"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "jostle-jar-x86_64"
+          path: "jostle/jostle/build/libs/*.jar"
+          if-no-files-found: "error"
+          retention-days: 7
+
+  package-aarch64:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
+    # No arm64 Windows native, so nothing Windows-side ends up in this bundle.
+    needs: ["build-posix", "test-posix", "test-posix-shipped"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Download Linux aarch64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-ubuntu-24.04-arm"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download macOS arm64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-macos-15"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Build aarch64 bundle"
+        working-directory: "jostle"
+        # See the x86_64 job above for the classifier and tag/snapshot rules.
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TASKS="jar sourcesJar javadocJar"
+          else
+            VERSION=""
+            TASKS="jar"
+          fi
+          ./gradlew $TASKS -ParchClassifier=aarch64 ${VERSION:+-Pversion="$VERSION"}
+      - name: "Upload aarch64 bundle"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "jostle-jar-aarch64"
+          path: "jostle/jostle/build/libs/*.jar"
+          if-no-files-found: "error"
+          retention-days: 7
