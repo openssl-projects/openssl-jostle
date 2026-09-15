@@ -10,6 +10,7 @@
  */
 package org.openssl.jostle.jcajce.provider.bcfks;
 
+import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
@@ -26,12 +27,18 @@ import org.openssl.jostle.util.asn1.oids.MiscObjectIdentifiers;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 import org.openssl.jostle.util.asn1.oids.OIWObjectIdentifiers;
 import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
+import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
+import javax.crypto.interfaces.PBEKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,18 +48,24 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactory;
+import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.KeyStoreSpi;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.Signature;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.security.interfaces.DSAKey;
+import java.security.interfaces.ECKey;
+import java.security.interfaces.RSAKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
@@ -104,6 +117,39 @@ public class BcFKSKeyStoreSpi
     private final Map<String, BcFKSFormat.ObjectData> entries = new LinkedHashMap<String, BcFKSFormat.ObjectData>();
     private Date creationDate;
     private Date lastModifiedDate;
+
+    // ---- LoadStoreParameter-driven state -----------------------------------
+    // Mirrors BC's own design: these persist on the INSTANCE once set by a
+    // BCFKSLoadStoreParameter load or store, so a plain engineLoad(InputStream,
+    // char[]) reaching a signature-checked store on the SAME instance can
+    // still verify it, and a following plain engineStore(OutputStream, char[])
+    // reuses whatever options were last configured.
+
+    /** Set only via {@link BCFKSLoadStoreParameter#getStoreVerificationKey()}. */
+    private PublicKey signatureVerificationKey;
+    /** Set only via {@link BCFKSLoadStoreParameter#getChainValidator()}. */
+    private BCFKSLoadStoreParameter.ChainValidator chainValidator;
+
+    private BCFKSLoadStoreParameter.EncryptionAlgorithm storeEncryptionAlgorithm =
+            BCFKSLoadStoreParameter.EncryptionAlgorithm.AES256_CCM;
+    private BCFKSLoadStoreParameter.MacAlgorithm storeMacAlgorithm =
+            BCFKSLoadStoreParameter.MacAlgorithm.HmacSHA512;
+    /** {@code null} means the PBKDF2 defaults ({@link #freshKdfAlgorithmIdentifier}). */
+    private BCFKSLoadStoreParameter.PBKDFConfig storePBKDFConfig;
+    /** Non-null selects a {@code SignatureCheck} over the default {@code PbkdMacIntegrityCheck}. */
+    private PrivateKey storeSigningKey;
+    private Certificate[] storeCertificates;
+    private BCFKSLoadStoreParameter.SignatureAlgorithm storeSignatureAlgorithm;
+
+    /**
+     * The MAC's own KDF algorithm from the MOST RECENT successful load --
+     * {@code null} for a signature-checked store, an unset/failed/empty
+     * load, or before any load. Compared against a following {@code
+     * BCFKSLoadStoreParameter}'s {@link #storePBKDFConfig} (see {@link
+     * #requireSimilarPbkd}), matching BC's own {@code isSimilarHmacPbkd}
+     * check over its equivalent {@code hmacPkbdAlgorithm} field.
+     */
+    private Der.AlgorithmIdentifier loadedPbkdAlgorithm;
 
     /** Base-provider convenience constructor: base NIs throughout, scrypt served. */
     public BcFKSKeyStoreSpi(Provider providerInstance)
@@ -474,24 +520,91 @@ public class BcFKSKeyStoreSpi
     }
 
     /**
-     * A fresh PBKDF2-HMAC-SHA512 {@code AlgorithmIdentifier}: a random
-     * {@value #PBKDF2_SALT_BYTES}-byte salt from this provider's own
-     * SecureRandom, {@link #storeIterationCount()} iterations, and an
-     * explicit {@code keyLength}. Built by encoding the TLV and reading it
-     * straight back through {@link Der.Reader#readAlgorithmIdentifier} -- the
-     * structure {@link #deriveKey} derives from is then byte-identical to
-     * what gets embedded in the file, by construction rather than by
-     * agreement between two separate encodings.
+     * A fresh PBKDF2-HMAC-{SHA512|SHA3-512} {@code AlgorithmIdentifier}: a
+     * random {@value #PBKDF2_SALT_BYTES}-byte (or configured) salt from this
+     * provider's own SecureRandom, {@link #storeIterationCount()} (or
+     * configured) iterations, and an explicit {@code keyLength}. Built by
+     * encoding the TLV and reading it straight back through {@link
+     * Der.Reader#readAlgorithmIdentifier} -- the structure {@link
+     * #deriveKey} derives from is then byte-identical to what gets embedded
+     * in the file, by construction rather than by agreement between two
+     * separate encodings.
      */
     private Der.AlgorithmIdentifier freshPbkdf2AlgorithmIdentifier(int keyLength)
         throws NoSuchAlgorithmException, IOException
     {
-        byte[] salt = new byte[PBKDF2_SALT_BYTES];
+        BCFKSLoadStoreParameter.PBKDF2Config config =
+                storePBKDFConfig instanceof BCFKSLoadStoreParameter.PBKDF2Config
+                        ? (BCFKSLoadStoreParameter.PBKDF2Config) storePBKDFConfig
+                        : null;
+        int saltBytes = config != null ? config.getSaltLength() : PBKDF2_SALT_BYTES;
+        int iterationCount = config != null ? config.getIterationCount() : storeIterationCount();
+        String prfOid = config != null && config.getPrf() == BCFKSLoadStoreParameter.PBKDF2Config.PRF.SHA3_512
+                ? NISTObjectIdentifiers.id_hmacWithSHA3_512.getId()
+                : PKCSObjectIdentifiers.id_hmacWithSHA512.getId();
+
+        byte[] salt = new byte[saltBytes];
         secureRandom().nextBytes(salt);
-        byte[] prfTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_hmacWithSHA512.getId(), Der.nullValue());
-        byte[] paramsTlv = Der.pbkdf2Params(salt, storeIterationCount(), keyLength, prfTlv);
+        byte[] prfTlv = Der.algorithmIdentifier(prfOid, Der.nullValue());
+        byte[] paramsTlv = Der.pbkdf2Params(salt, iterationCount, keyLength, prfTlv);
         byte[] fullTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_PBKDF2.getId(), paramsTlv);
         return new Der.Reader(fullTlv).readAlgorithmIdentifier("PBKDF2-params");
+    }
+
+    /**
+     * A fresh scrypt {@code AlgorithmIdentifier}, JSL only -- refused typed
+     * before any derivation, same message family as the read-side refusal
+     * ({@link #deriveKey}). KDF parameters follow {@link #deriveKey}'s
+     * conventions.
+     */
+    private Der.AlgorithmIdentifier freshScryptAlgorithmIdentifier(BCFKSLoadStoreParameter.ScryptConfig config,
+                                                                     int keyLength)
+        throws NoSuchAlgorithmException, IOException
+    {
+        if (memoryHardKdfNI == null)
+        {
+            throw new IOException("BCFKS store cannot write scrypt, which this provider does not serve");
+        }
+        byte[] salt = new byte[config.getSaltLength()];
+        secureRandom().nextBytes(salt);
+        byte[] paramsTlv = Der.scryptParams(salt, config.getCostParameter(), config.getBlockSize(),
+                config.getBlockSize(), keyLength);
+        byte[] fullTlv = Der.algorithmIdentifier(MiscObjectIdentifiers.id_scrypt.getId(), paramsTlv);
+        return new Der.Reader(fullTlv).readAlgorithmIdentifier("scrypt-params");
+    }
+
+    /**
+     * Dispatches to {@link #freshPbkdf2AlgorithmIdentifier} or {@link
+     * #freshScryptAlgorithmIdentifier} per {@link #storePBKDFConfig}.
+     */
+    private Der.AlgorithmIdentifier freshKdfAlgorithmIdentifier(int keyLength)
+        throws NoSuchAlgorithmException, IOException
+    {
+        if (storePBKDFConfig instanceof BCFKSLoadStoreParameter.ScryptConfig)
+        {
+            return freshScryptAlgorithmIdentifier((BCFKSLoadStoreParameter.ScryptConfig) storePBKDFConfig, keyLength);
+        }
+        return freshPbkdf2AlgorithmIdentifier(keyLength);
+    }
+
+    /**
+     * Refuses a {@link #storePBKDFConfig} the read-side caps would refuse,
+     * BEFORE any derivation -- reusing {@link #validateIterationCount} /
+     * {@link #validateScryptParams} directly, so the message is identical to
+     * what a subsequent load would say. A no-op when no config was given.
+     */
+    private void validateWriteKdfConfig() throws IOException
+    {
+        if (storePBKDFConfig instanceof BCFKSLoadStoreParameter.PBKDF2Config)
+        {
+            validateIterationCount(((BCFKSLoadStoreParameter.PBKDF2Config) storePBKDFConfig).getIterationCount());
+        }
+        else if (storePBKDFConfig instanceof BCFKSLoadStoreParameter.ScryptConfig)
+        {
+            BCFKSLoadStoreParameter.ScryptConfig config = (BCFKSLoadStoreParameter.ScryptConfig) storePBKDFConfig;
+            validateScryptParams(config.getCostParameter(), config.getBlockSize(),
+                    config.getParallelizationParameter());
+        }
     }
 
     /**
@@ -510,23 +623,35 @@ public class BcFKSKeyStoreSpi
     byte[] encryptEntry(byte[] plaintext, String purpose, char[] password)
         throws GeneralSecurityException, IOException
     {
-        Der.AlgorithmIdentifier pbkdf2AlgId = freshPbkdf2AlgorithmIdentifier(ENTRY_KEY_BYTES);
-        byte[] key = deriveKey(pbkdf2AlgId, purpose, password, ENTRY_KEY_BYTES);
+        Der.AlgorithmIdentifier kdfAlgId = freshKdfAlgorithmIdentifier(ENTRY_KEY_BYTES);
+        byte[] key = deriveKey(kdfAlgId, purpose, password, ENTRY_KEY_BYTES);
         try
         {
-            byte[] nonce = new byte[CCM_NONCE_BYTES];
-            secureRandom().nextBytes(nonce);
-
             requireProvider("encrypt an entry");
-            Cipher cipher = Cipher.getInstance(NISTObjectIdentifiers.id_aes256_CCM.getId(), providerInstance);
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
-                    new GCMParameterSpec(CCM_ICV_BYTES * 8, nonce));
-            byte[] ciphertext = cipher.doFinal(plaintext);
+            byte[] kdfFullTlv = Der.algorithmIdentifier(kdfAlgId.oid, kdfAlgId.parameters);
+            byte[] encryptionSchemeTlv;
+            byte[] ciphertext;
 
-            byte[] pbkdf2FullTlv = Der.algorithmIdentifier(pbkdf2AlgId.oid, pbkdf2AlgId.parameters);
-            byte[] ccmAlgIdTlv = Der.algorithmIdentifier(NISTObjectIdentifiers.id_aes256_CCM.getId(),
-                    Der.ccmParameters(nonce, CCM_ICV_BYTES));
-            byte[] pbes2ParamsTlv = Der.pbes2Params(pbkdf2FullTlv, ccmAlgIdTlv);
+            if (storeEncryptionAlgorithm == BCFKSLoadStoreParameter.EncryptionAlgorithm.AES256_KWP)
+            {
+                Cipher cipher = Cipher.getInstance(NISTObjectIdentifiers.id_aes256_wrap_pad.getId(), providerInstance);
+                cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
+                ciphertext = cipher.doFinal(plaintext);
+                encryptionSchemeTlv = Der.algorithmIdentifier(NISTObjectIdentifiers.id_aes256_wrap_pad.getId(), null);
+            }
+            else
+            {
+                byte[] nonce = new byte[CCM_NONCE_BYTES];
+                secureRandom().nextBytes(nonce);
+                Cipher cipher = Cipher.getInstance(NISTObjectIdentifiers.id_aes256_CCM.getId(), providerInstance);
+                cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
+                        new GCMParameterSpec(CCM_ICV_BYTES * 8, nonce));
+                ciphertext = cipher.doFinal(plaintext);
+                encryptionSchemeTlv = Der.algorithmIdentifier(NISTObjectIdentifiers.id_aes256_CCM.getId(),
+                        Der.ccmParameters(nonce, CCM_ICV_BYTES));
+            }
+
+            byte[] pbes2ParamsTlv = Der.pbes2Params(kdfFullTlv, encryptionSchemeTlv);
             byte[] pbes2AlgIdTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_PBES2.getId(), pbes2ParamsTlv);
             return Der.encryptedPrivateKeyInfo(pbes2AlgIdTlv, ciphertext);
         }
@@ -709,6 +834,292 @@ public class BcFKSKeyStoreSpi
         return null;
     }
 
+    // ---- PbkdKeyData password encoding --------------------------------------
+    // Distinct from BytePasswordKdf.pkcs12PasswordToBytes: PbkdKeyData.password
+    // carries a PBEKey's OWN password (not a purpose-salted derivation input),
+    // and BC's own writer/reader for this one field omit the NUL terminator
+    // pkcs12PasswordToBytes appends (measured: BcFKSKeyStoreSpi.java, r1rv86,
+    // charsToBytes/bytesToChars).
+
+    private static byte[] charsToBytes(char[] chars)
+    {
+        if (chars == null)
+        {
+            return new byte[0];
+        }
+        byte[] bytes = new byte[chars.length * 2];
+        for (int i = 0; i != chars.length; i++)
+        {
+            bytes[2 * i] = (byte) (chars[i] >>> 8);
+            bytes[2 * i + 1] = (byte) chars[i];
+        }
+        return bytes;
+    }
+
+    private static char[] bytesToChars(byte[] bytes)
+    {
+        if (bytes == null || bytes.length == 0)
+        {
+            return new char[0];
+        }
+        char[] chars = new char[bytes.length / 2];
+        for (int i = 0; i != chars.length; i++)
+        {
+            chars[i] = (char) (((bytes[2 * i] & 0xff) << 8) | (bytes[2 * i + 1] & 0xff));
+        }
+        return chars;
+    }
+
+    // ---- Signature integrity check (SignatureCheck) -------------------------
+
+    private String macOidForStoreMacAlgorithm()
+    {
+        return storeMacAlgorithm == BCFKSLoadStoreParameter.MacAlgorithm.HmacSHA3_512
+                ? NISTObjectIdentifiers.id_hmacWithSHA3_512.getId()
+                : PKCSObjectIdentifiers.id_hmacWithSHA512.getId();
+    }
+
+    private static String signatureAlgorithmJcaName(BCFKSLoadStoreParameter.SignatureAlgorithm alg)
+    {
+        switch (alg)
+        {
+        case SHA512withRSA:
+            return "SHA512WITHRSA";
+        case SHA512withECDSA:
+            return "SHA512WITHECDSA";
+        case SHA512withDSA:
+            return "SHA512WITHDSA";
+        case SHA3_512withRSA:
+            return "SHA3-512WITHRSA";
+        case SHA3_512withECDSA:
+            return "SHA3-512WITHECDSA";
+        case SHA3_512withDSA:
+            return "SHA3-512WITHDSA";
+        default:
+            throw new IllegalStateException("unhandled signature algorithm: " + alg);
+        }
+    }
+
+    /**
+     * RSA-with-hash forms carry an explicit NULL parameters field; the
+     * ECDSA/DSA forms carry none, per each family's own convention (RFC 8017
+     * s A.2.4 for the RSA forms; RFC 5480 / FIPS 186 leave the DSA/ECDSA
+     * forms parameter-less).
+     */
+    private static byte[] signatureAlgorithmIdentifierTlv(BCFKSLoadStoreParameter.SignatureAlgorithm alg)
+    {
+        switch (alg)
+        {
+        case SHA512withRSA:
+            return Der.algorithmIdentifier(PKCSObjectIdentifiers.sha512WithRSAEncryption.getId(), Der.nullValue());
+        case SHA512withECDSA:
+            return Der.algorithmIdentifier(X9ObjectIdentifiers.ecdsa_with_SHA512.getId(), null);
+        case SHA512withDSA:
+            return Der.algorithmIdentifier(NISTObjectIdentifiers.dsa_with_sha512.getId(), null);
+        case SHA3_512withRSA:
+            return Der.algorithmIdentifier(
+                    NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId(), Der.nullValue());
+        case SHA3_512withECDSA:
+            return Der.algorithmIdentifier(NISTObjectIdentifiers.id_ecdsa_with_sha3_512.getId(), null);
+        case SHA3_512withDSA:
+            return Der.algorithmIdentifier(NISTObjectIdentifiers.id_dsa_with_sha3_512.getId(), null);
+        default:
+            throw new IllegalStateException("unhandled signature algorithm: " + alg);
+        }
+    }
+
+    /** Inverse of {@link #signatureAlgorithmIdentifierTlv}: the wire OID to a registered JCA Signature name. */
+    private static String signatureAlgorithmNameForOid(String oid) throws IOException
+    {
+        if (PKCSObjectIdentifiers.sha512WithRSAEncryption.getId().equals(oid))
+        {
+            return "SHA512WITHRSA";
+        }
+        if (X9ObjectIdentifiers.ecdsa_with_SHA512.getId().equals(oid))
+        {
+            return "SHA512WITHECDSA";
+        }
+        if (NISTObjectIdentifiers.dsa_with_sha512.getId().equals(oid))
+        {
+            return "SHA512WITHDSA";
+        }
+        if (NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId().equals(oid))
+        {
+            return "SHA3-512WITHRSA";
+        }
+        if (NISTObjectIdentifiers.id_ecdsa_with_sha3_512.getId().equals(oid))
+        {
+            return "SHA3-512WITHECDSA";
+        }
+        if (NISTObjectIdentifiers.id_dsa_with_sha3_512.getId().equals(oid))
+        {
+            return "SHA3-512WITHDSA";
+        }
+        throw new IOException("BCFKS KeyStore: unrecognized signature algorithm: " + oid);
+    }
+
+    /**
+     * Refused typed before any signing work -- BEFORE {@link
+     * #signatureAlgorithmIdentifierTlv} is even called, since that throws
+     * unchecked on a null algorithm. BC has no distinct "unset" case of its
+     * own: its Builder always defaults {@code storeSignatureAlgorithm} to
+     * {@code SHA512withECDSA}, so an RSA or DSA signing key with no explicit
+     * override there hits BC's OWN family-mismatch path
+     * ({@code generateSignatureAlgId}, r1rv86, whole method) and gets the
+     * same {@code IOException} type this method throws for both cases.
+     */
+    private void requireSignatureAlgorithmMatchesKey() throws IOException
+    {
+        if (storeSignatureAlgorithm == null)
+        {
+            throw new IOException("BCFKS KeyStore: no signature algorithm specified for the signing key");
+        }
+        boolean matches;
+        switch (storeSignatureAlgorithm)
+        {
+        case SHA512withRSA:
+        case SHA3_512withRSA:
+            matches = storeSigningKey instanceof RSAKey;
+            break;
+        case SHA512withECDSA:
+        case SHA3_512withECDSA:
+            matches = storeSigningKey instanceof ECKey;
+            break;
+        case SHA512withDSA:
+        case SHA3_512withDSA:
+            matches = storeSigningKey instanceof DSAKey;
+            break;
+        default:
+            matches = false;
+        }
+        if (!matches)
+        {
+            throw new IOException("BCFKS KeyStore: signature algorithm " + storeSignatureAlgorithm
+                    + " does not match the signing key type");
+        }
+    }
+
+    /**
+     * Verifies a {@code SignatureCheck} over {@code content} (the raw,
+     * encrypted storeData TLV -- the same bytes a {@code PbkdMac} covers).
+     * Uses {@link #chainValidator} against the store's own embedded
+     * certificates when set, else {@link #signatureVerificationKey}; neither
+     * set is a typed refusal, matching BC's own null-verificationKey path
+     * (verifySig against a null key fails GeneralSecurityException, wrapped
+     * as IOException there too).
+     */
+    private void verifySignatureCheck(BcFKSFormat.SignatureCheck sigCheck, byte[] content) throws IOException
+    {
+        requireProvider("verify the store's signature");
+        try
+        {
+            PublicKey verifyKey;
+            if (chainValidator != null)
+            {
+                if (sigCheck.certificates == null)
+                {
+                    throw new IOException("BCFKS KeyStore: chain validator specified but no certificates in store");
+                }
+                Certificate[] chain = new Certificate[sigCheck.certificates.length];
+                for (int i = 0; i < chain.length; i++)
+                {
+                    chain[i] = decodeCertificate(sigCheck.certificates[i]);
+                }
+                if (!chainValidator.isValid(chain))
+                {
+                    throw new IOException("BCFKS KeyStore: certificate chain in key store signature not valid");
+                }
+                verifyKey = chain[0].getPublicKey();
+            }
+            else if (signatureVerificationKey != null)
+            {
+                verifyKey = signatureVerificationKey;
+            }
+            else
+            {
+                throw new IOException("BCFKS KeyStore: signature integrity check requires a PublicKey or a "
+                        + "chain validator; load through BCFKSLoadStoreParameter");
+            }
+
+            Signature sig = Signature.getInstance(
+                    signatureAlgorithmNameForOid(sigCheck.signatureAlgorithm.oid), providerInstance);
+            sig.initVerify(verifyKey);
+            sig.update(content);
+            if (!sig.verify(sigCheck.signatureValue))
+            {
+                throw new IOException("BCFKS KeyStore corrupted: signature calculation failed");
+            }
+        }
+        catch (GeneralSecurityException e)
+        {
+            throw new IOException("BCFKS KeyStore: error verifying signature: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Signs {@code content} under {@link #storeSigningKey} /
+     * {@link #storeSignatureAlgorithm}, embedding {@link #storeCertificates}
+     * if given, and returns the {@code [0] EXPLICIT SignatureCheck} TLV.
+     */
+    private byte[] buildSignatureCheckTlv(byte[] content) throws GeneralSecurityException, IOException
+    {
+        requireProvider("sign the store");
+        Signature sig = Signature.getInstance(signatureAlgorithmJcaName(storeSignatureAlgorithm), providerInstance);
+        sig.initSign(storeSigningKey);
+        sig.update(content);
+        byte[] signatureValue = sig.sign();
+
+        byte[] sigAlgTlv = signatureAlgorithmIdentifierTlv(storeSignatureAlgorithm);
+        byte[][] certTlvs = storeCertificates == null ? null : encodeCertificateChain(storeCertificates);
+        byte[] signatureCheckTlv = BcFKSFormat.writeSignatureCheck(sigAlgTlv, certTlvs, signatureValue);
+        return Der.explicit(0, signatureCheckTlv);
+    }
+
+    // ---- Protection-parameter password extraction ---------------------------
+    // Matches KSServiceSPI's own precedent: PasswordProtection and
+    // CallbackHandlerProtection are both honoured; anything else refuses
+    // typed rather than guessing.
+
+    private static char[] passwordFromProtection(KeyStore.ProtectionParameter protection)
+        throws NoSuchAlgorithmException
+    {
+        if (protection == null)
+        {
+            return null;
+        }
+        if (protection instanceof KeyStore.PasswordProtection)
+        {
+            return ((KeyStore.PasswordProtection) protection).getPassword();
+        }
+        if (protection instanceof KeyStore.CallbackHandlerProtection)
+        {
+            CallbackHandler handler = ((KeyStore.CallbackHandlerProtection) protection).getCallbackHandler();
+            PasswordCallback callback = new PasswordCallback("Password: ", false);
+            try
+            {
+                handler.handle(new Callback[]{callback});
+                char[] password = callback.getPassword();
+                if (password == null)
+                {
+                    throw new NoSuchAlgorithmException("No password provided");
+                }
+                return password;
+            }
+            catch (UnsupportedCallbackException | IOException e)
+            {
+                NoSuchAlgorithmException nsae = new NoSuchAlgorithmException("Could not obtain password");
+                nsae.initCause(e);
+                throw nsae;
+            }
+            finally
+            {
+                callback.clearPassword();
+            }
+        }
+        throw new NoSuchAlgorithmException(
+                "ProtectionParameter must be PasswordProtection or CallbackHandlerProtection");
+    }
+
     // ---- engineLoad ------------------------------------------------------
 
     @Override
@@ -718,6 +1129,7 @@ public class BcFKSKeyStoreSpi
         entries.clear();
         creationDate = null;
         lastModifiedDate = null;
+        loadedPbkdAlgorithm = null;
 
         if (stream == null)
         {
@@ -733,25 +1145,29 @@ public class BcFKSKeyStoreSpi
         {
             store = BcFKSFormat.parseObjectStore(whole);
 
-            if (store.integrityCheck.pbkdMac == null)
+            if (store.integrityCheck.pbkdMac != null)
             {
-                throw new IOException("BCFKS signature integrity checks are not implemented");
+                BcFKSFormat.PbkdMac pbkdMac = store.integrityCheck.pbkdMac;
+                byte[] macKey = deriveKey(pbkdMac.pbkdAlgorithm, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK,
+                        password, null);
+                byte[] actualMac;
+                try
+                {
+                    actualMac = computeMac(pbkdMac.macAlgorithm, macKey, store.storeDataRaw);
+                }
+                finally
+                {
+                    Arrays.clear(macKey);
+                }
+                if (!MessageDigest.isEqual(actualMac, pbkdMac.mac))
+                {
+                    throw new IOException("BCFKS KeyStore corrupted: MAC calculation failed");
+                }
+                loadedPbkdAlgorithm = pbkdMac.pbkdAlgorithm;
             }
-            BcFKSFormat.PbkdMac pbkdMac = store.integrityCheck.pbkdMac;
-            byte[] macKey = deriveKey(pbkdMac.pbkdAlgorithm, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK,
-                    password, null);
-            byte[] actualMac;
-            try
+            else
             {
-                actualMac = computeMac(pbkdMac.macAlgorithm, macKey, store.storeDataRaw);
-            }
-            finally
-            {
-                Arrays.clear(macKey);
-            }
-            if (!MessageDigest.isEqual(actualMac, pbkdMac.mac))
-            {
-                throw new IOException("BCFKS KeyStore corrupted: MAC calculation failed");
+                verifySignatureCheck(store.integrityCheck.signatureCheck, store.storeDataRaw);
             }
 
             byte[] storeDataBytes;
@@ -775,6 +1191,7 @@ public class BcFKSKeyStoreSpi
             // contract (checkInvalidLoadForPassword, r1rv86).
             entries.clear();
             creationDate = lastModifiedDate = null;
+            loadedPbkdAlgorithm = null;
             throw e;
         }
 
@@ -784,6 +1201,143 @@ public class BcFKSKeyStoreSpi
         {
             entries.put(entry.identifier, entry);
         }
+    }
+
+    /**
+     * Applies every write-side option a {@code BCFKSLoadStoreParameter}
+     * names, persisting on the instance for whichever store call follows --
+     * matching BC's own stateful design (its {@code hmacAlgorithm} /
+     * {@code hmacPkbdAlgorithm} / {@code storeEncryptionAlgorithm} fields).
+     */
+    private void applyWriteOptions(BCFKSLoadStoreParameter param)
+    {
+        storeEncryptionAlgorithm = param.getStoreEncryptionAlgorithm();
+        storeMacAlgorithm = param.getStoreMacAlgorithm();
+        storePBKDFConfig = param.getStorePBKDFConfig();
+        storeSigningKey = param.getStoreSigningKey();
+        storeCertificates = param.getStoreCertificates();
+        storeSignatureAlgorithm = param.getStoreSignatureAlgorithm();
+    }
+
+    /**
+     * Only {@link BCFKSLoadStoreParameter} is accepted -- never BC's own
+     * class (a standalone Jostle implementation; interop is file-level
+     * only). {@code null} loads an empty store, matching both BC's own
+     * engineLoad(LoadStoreParameter) and KSServiceSPI's precedent (the JCA
+     * contract itself says the parameter "may be null") -- the
+     * null-tolerance is a LOAD-only convention; {@link
+     * #engineStore(KeyStore.LoadStoreParameter)} refuses {@code null}, since
+     * there is nothing to store to.
+     */
+    @Override
+    public void engineLoad(KeyStore.LoadStoreParameter param)
+        throws IOException, NoSuchAlgorithmException, CertificateException
+    {
+        if (param == null)
+        {
+            engineLoad(null, null);
+            return;
+        }
+        if (!(param instanceof BCFKSLoadStoreParameter))
+        {
+            throw new IllegalArgumentException("no support for 'param' of type " + param.getClass().getName());
+        }
+        BCFKSLoadStoreParameter bcParam = (BCFKSLoadStoreParameter) param;
+        applyWriteOptions(bcParam);
+        signatureVerificationKey = bcParam.getStoreVerificationKey();
+        chainValidator = bcParam.getChainValidator();
+
+        engineLoad(bcParam.getInputStream(), passwordFromProtection(bcParam.getProtectionParameter()));
+
+        if (bcParam.getInputStream() != null && bcParam.getStorePBKDFConfig() != null)
+        {
+            requireSimilarPbkd(bcParam.getStorePBKDFConfig());
+        }
+    }
+
+    /**
+     * Refuses when the caller's {@code storePBKDFConfig} does not describe
+     * the KDF the just-loaded store's MAC actually uses -- algorithm,
+     * saltLength, and (PBKDF2) iterationCount or (scrypt) costParameter /
+     * blockSize / the ENCODED parallelizationParameter, compared exactly as
+     * written on the wire. Matching BC's own {@code isSimilarHmacPbkd}
+     * (r1rv86, whole method). A signature-checked store has no {@link
+     * #loadedPbkdAlgorithm} to compare against and is silently exempt --
+     * the caller named a PBKDF for a store that has none.
+     */
+    private void requireSimilarPbkd(BCFKSLoadStoreParameter.PBKDFConfig config) throws IOException
+    {
+        if (loadedPbkdAlgorithm == null)
+        {
+            return;
+        }
+        boolean similar;
+        if (config instanceof BCFKSLoadStoreParameter.ScryptConfig)
+        {
+            BCFKSLoadStoreParameter.ScryptConfig scryptConfig = (BCFKSLoadStoreParameter.ScryptConfig) config;
+            if (!MiscObjectIdentifiers.id_scrypt.getId().equals(loadedPbkdAlgorithm.oid))
+            {
+                similar = false;
+            }
+            else
+            {
+                Der.ScryptParams params =
+                        new Der.Reader(loadedPbkdAlgorithm.parameters).readScryptParams("scrypt-params");
+                similar = params.salt.length == scryptConfig.getSaltLength()
+                        && params.costParameter == scryptConfig.getCostParameter()
+                        && params.blockSize == scryptConfig.getBlockSize()
+                        && params.parallelizationParameter == scryptConfig.getParallelizationParameter();
+            }
+        }
+        else if (config instanceof BCFKSLoadStoreParameter.PBKDF2Config)
+        {
+            BCFKSLoadStoreParameter.PBKDF2Config pbkdf2Config = (BCFKSLoadStoreParameter.PBKDF2Config) config;
+            if (!PKCSObjectIdentifiers.id_PBKDF2.getId().equals(loadedPbkdAlgorithm.oid))
+            {
+                similar = false;
+            }
+            else
+            {
+                Der.Pbkdf2Params params =
+                        new Der.Reader(loadedPbkdAlgorithm.parameters).readPbkdf2Params("PBKDF2-params");
+                similar = params.salt.length == pbkdf2Config.getSaltLength()
+                        && params.iterationCount == pbkdf2Config.getIterationCount();
+            }
+        }
+        else
+        {
+            similar = false;
+        }
+        if (!similar)
+        {
+            throw new IOException("BCFKS KeyStore: configuration parameters do not match existing store");
+        }
+    }
+
+    /**
+     * {@code null} refuses typed, unlike the load half -- there is no
+     * output stream to fall back to. Otherwise the same acceptance rule as
+     * {@link #engineLoad(KeyStore.LoadStoreParameter)}.
+     */
+    @Override
+    public void engineStore(KeyStore.LoadStoreParameter param)
+        throws IOException, NoSuchAlgorithmException, CertificateException
+    {
+        if (!(param instanceof BCFKSLoadStoreParameter))
+        {
+            throw new IllegalArgumentException(param == null
+                    ? "'param' arg cannot be null"
+                    : "no support for 'param' of type " + param.getClass().getName());
+        }
+        BCFKSLoadStoreParameter bcParam = (BCFKSLoadStoreParameter) param;
+        applyWriteOptions(bcParam);
+
+        OutputStream stream = bcParam.getOutputStream();
+        if (stream == null)
+        {
+            throw new IllegalArgumentException("output stream is required");
+        }
+        engineStore(stream, passwordFromProtection(bcParam.getProtectionParameter()));
     }
 
     // ---- Entry decode ------------------------------------------------------
@@ -871,6 +1425,31 @@ public class BcFKSKeyStoreSpi
         }
     }
 
+    /**
+     * Decrypts and decodes a PBKDF_KEY (type 5) entry into a {@link PBEKey}
+     * carrying its FULL stored identity -- algorithm, the key's own
+     * password, salt, iteration count, derived bytes -- not just the derived
+     * key. {@code EncryptedSecretKeyData}-shaped, same as a plain secret key
+     * entry; the DECRYPTED payload is {@code PbkdKeyData} instead of {@code
+     * SecretKeyData}.
+     */
+    private PBEKey decodePbkdfKeyEntry(BcFKSFormat.ObjectData entry, char[] password) throws Exception
+    {
+        Der.EncryptedPrivateKeyInfo encData = BcFKSFormat.parseEncryptedSecretKeyData(entry.data);
+        byte[] pbkdKeyDataBytes = decrypt(encData.encryptionAlgorithm,
+                BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION, password, encData.encryptedData);
+        try
+        {
+            BcFKSFormat.PbkdKeyData keyData = BcFKSFormat.parsePbkdKeyData(pbkdKeyDataBytes);
+            return BytePasswordKdf.pbeKey(keyData.keyAlgorithm, bytesToChars(keyData.password), keyData.salt,
+                    keyData.iterationCount, keyData.encoded);
+        }
+        finally
+        {
+            Arrays.clear(pbkdKeyDataBytes);
+        }
+    }
+
     // ---- Entry-type classification ------------------------------------------
     // BC treats PROTECTED_PRIVATE_KEY (3) exactly as PRIVATE_KEY (1) and
     // PROTECTED_SECRET_KEY (4) exactly as SECRET_KEY (2) in engineGetKey,
@@ -908,10 +1487,10 @@ public class BcFKSKeyStoreSpi
             // divergence, not replicated.
             return null;
         }
-        if (!isPrivateKeyEntryType(entry.type) && !isSecretKeyEntryType(entry.type))
+        if (!isPrivateKeyEntryType(entry.type) && !isSecretKeyEntryType(entry.type)
+                && entry.type != BcFKSFormat.ObjectData.TYPE_PBKDF_KEY)
         {
-            // Type 5 (PBKDF_KEY) is not implemented yet; anything else is
-            // unrecognised. BC's own type and wording for both cases.
+            // Anything else is unrecognised. BC's own type and wording.
             throw new UnrecoverableKeyException(
                     "BCFKS KeyStore unable to recover key (" + alias + "): type not recognized");
         }
@@ -921,6 +1500,10 @@ public class BcFKSKeyStoreSpi
             {
                 Object[] result = decodePrivateKeyEntry(entry, password);
                 return (PrivateKey) result[0];
+            }
+            if (entry.type == BcFKSFormat.ObjectData.TYPE_PBKDF_KEY)
+            {
+                return decodePbkdfKeyEntry(entry, password);
             }
             return decodeSecretKeyEntry(entry, password);
         }
@@ -1037,6 +1620,36 @@ public class BcFKSKeyStoreSpi
             catch (Exception e)
             {
                 throw new KeyStoreException("BCFKS KeyStore exception storing private key: " + e.getMessage(), e);
+            }
+            finally
+            {
+                Arrays.clear(encodedKey);
+            }
+        }
+        else if (key instanceof PBEKey)
+        {
+            // Checked BEFORE SecretKey: javax.crypto.interfaces.PBEKey
+            // extends SecretKey, and BC's own engineSetKeyEntry checks the
+            // more specific type first too.
+            if (chain != null)
+            {
+                throw new KeyStoreException("BCFKS KeyStore cannot store certificate chain with PBE key.");
+            }
+            PBEKey pbeKey = (PBEKey) key;
+            byte[] encodedKey = key.getEncoded();
+            try
+            {
+                byte[] pbkdKeyDataBytes = BcFKSFormat.writePbkdKeyData(pbeKey.getAlgorithm(),
+                        charsToBytes(pbeKey.getPassword()), pbeKey.getSalt(), pbeKey.getIterationCount(),
+                        encodedKey);
+                byte[] data = encryptEntry(pbkdKeyDataBytes, BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION,
+                        password);
+                entries.put(alias, new BcFKSFormat.ObjectData(BcFKSFormat.ObjectData.TYPE_PBKDF_KEY, alias,
+                        created, now, data, null));
+            }
+            catch (Exception e)
+            {
+                throw new KeyStoreException("BCFKS KeyStore exception storing PBE key: " + e.getMessage(), e);
             }
             finally
             {
@@ -1209,6 +1822,10 @@ public class BcFKSKeyStoreSpi
     @Override
     public boolean engineIsKeyEntry(String alias)
     {
+        // A PBKDF_KEY (type 5) entry is deliberately NOT reported here, even
+        // though engineGetKey recovers it -- matching BC's own
+        // engineIsKeyEntry exactly, which omits PBKDF_KEY from its type
+        // check while engineGetKey serves it.
         BcFKSFormat.ObjectData entry = entries.get(alias);
         return entry != null && (isPrivateKeyEntryType(entry.type) || isSecretKeyEntryType(entry.type));
     }
@@ -1245,8 +1862,13 @@ public class BcFKSKeyStoreSpi
 
     /**
      * Always writes the store encrypted, matching BC -- BCFKS has no
-     * plaintext-store writer path. The whole-store PBES2/AES-256-CCM
-     * encryption and the integrity MAC each get their own fresh salt.
+     * plaintext-store writer path. The whole-store PBES2 encryption and the
+     * integrity check (MAC, or a signature when {@link #storeSigningKey} is
+     * set -- via {@link #engineLoad(KeyStore.LoadStoreParameter)} or {@link
+     * #engineStore(KeyStore.LoadStoreParameter)}) each get their own fresh
+     * salt/nonce. {@code ObjectStoreData.integrityAlgorithm} carries whichever
+     * algorithm identifier protects the store -- the MAC's, or the
+     * signature's -- matching BC's own {@code getEncryptedObjectStoreData}.
      */
     @Override
     public void engineStore(OutputStream stream, char[] password)
@@ -1262,6 +1884,11 @@ public class BcFKSKeyStoreSpi
                     + "store; obtain the KeyStore from a Jostle provider rather than constructing the "
                     + "SPI directly");
         }
+        // Stricter than BC, deliberately: BC lets a caller configure a
+        // PBKDF the read-side caps would refuse and only discovers that on
+        // the NEXT load. Reusing the read-side validators means the store
+        // written here always re-opens.
+        validateWriteKdfConfig();
 
         byte[][] entryTlvs = new byte[entries.size()][];
         int i = 0;
@@ -1271,10 +1898,15 @@ public class BcFKSKeyStoreSpi
                     entry.lastModifiedDate, entry.data, entry.comment);
         }
 
-        byte[] hmacAlgorithmTlv = Der.algorithmIdentifier(PKCSObjectIdentifiers.id_hmacWithSHA512.getId(),
-                Der.nullValue());
-        Der.AlgorithmIdentifier hmacAlgorithmId = new Der.Reader(hmacAlgorithmTlv).readAlgorithmIdentifier("macAlgorithm");
-        byte[] storeDataDer = BcFKSFormat.writeObjectStoreData(hmacAlgorithmTlv, creationDate, lastModifiedDate,
+        boolean signed = storeSigningKey != null;
+        if (signed)
+        {
+            requireSignatureAlgorithmMatchesKey();
+        }
+        byte[] integrityAlgorithmTlv = signed
+                ? signatureAlgorithmIdentifierTlv(storeSignatureAlgorithm)
+                : Der.algorithmIdentifier(macOidForStoreMacAlgorithm(), Der.nullValue());
+        byte[] storeDataDer = BcFKSFormat.writeObjectStoreData(integrityAlgorithmTlv, creationDate, lastModifiedDate,
                 entryTlvs, null);
 
         byte[] encryptedStoreDataTlv;
@@ -1287,20 +1919,36 @@ public class BcFKSKeyStoreSpi
             throw new IOException("BCFKS KeyStore: unable to encrypt store: " + e.getMessage(), e);
         }
 
-        Der.AlgorithmIdentifier macPbkdAlgId = freshPbkdf2AlgorithmIdentifier(MAC_KEY_BYTES);
-        byte[] macKey = deriveKey(macPbkdAlgId, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, password, MAC_KEY_BYTES);
-        byte[] mac;
-        try
+        byte[] integrityCheckTlv;
+        if (signed)
         {
-            mac = computeMac(hmacAlgorithmId, macKey, encryptedStoreDataTlv);
+            try
+            {
+                integrityCheckTlv = buildSignatureCheckTlv(encryptedStoreDataTlv);
+            }
+            catch (GeneralSecurityException e)
+            {
+                throw new IOException("BCFKS KeyStore: unable to sign store: " + e.getMessage(), e);
+            }
         }
-        finally
+        else
         {
-            Arrays.clear(macKey);
+            Der.AlgorithmIdentifier hmacAlgorithmId =
+                    new Der.Reader(integrityAlgorithmTlv).readAlgorithmIdentifier("macAlgorithm");
+            Der.AlgorithmIdentifier macPbkdAlgId = freshKdfAlgorithmIdentifier(MAC_KEY_BYTES);
+            byte[] macKey = deriveKey(macPbkdAlgId, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, password, MAC_KEY_BYTES);
+            byte[] mac;
+            try
+            {
+                mac = computeMac(hmacAlgorithmId, macKey, encryptedStoreDataTlv);
+            }
+            finally
+            {
+                Arrays.clear(macKey);
+            }
+            byte[] macPbkdFullTlv = Der.algorithmIdentifier(macPbkdAlgId.oid, macPbkdAlgId.parameters);
+            integrityCheckTlv = BcFKSFormat.writePbkdMacIntegrityCheck(integrityAlgorithmTlv, macPbkdFullTlv, mac);
         }
-
-        byte[] macPbkdFullTlv = Der.algorithmIdentifier(macPbkdAlgId.oid, macPbkdAlgId.parameters);
-        byte[] integrityCheckTlv = BcFKSFormat.writePbkdMacIntegrityCheck(hmacAlgorithmTlv, macPbkdFullTlv, mac);
 
         stream.write(BcFKSFormat.writeObjectStore(encryptedStoreDataTlv, integrityCheckTlv));
         stream.flush();

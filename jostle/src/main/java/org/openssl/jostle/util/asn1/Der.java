@@ -67,9 +67,9 @@ public final class Der
 
     /**
      * First octet of a constructed, context-specific tag numbered {@code n}
-     * (0..30): {@code 0xA0 | n}. Used for {@code [n] EXPLICIT} fields, the
-     * only tagging form this codec writes or reads — BCFKS's one tagged
-     * field, {@code SignatureCheck.certificates}, is {@code [0] EXPLICIT}.
+     * (0..30): {@code 0xA0 | n}. Used for {@code [n] EXPLICIT} fields --
+     * {@code SignatureCheck.certificates} and {@code ObjectStoreIntegrityCheck}'s
+     * {@code [0] SignatureCheck} arm are both {@code [0] EXPLICIT}.
      *
      * @throws IllegalArgumentException if {@code n} is outside 0..30 (31
      *         is the high-tag-number form, which none of this codec's
@@ -82,6 +82,27 @@ public final class Der
             throw new IllegalArgumentException("tag number out of range: " + n);
         }
         return 0xA0 | n;
+    }
+
+    /**
+     * First octet of a primitive, context-specific tag numbered {@code n}
+     * (0..30): {@code 0x80 | n}. Used for {@code [n] IMPLICIT} fields --
+     * {@code PbkdKeyData}'s {@code salt}/{@code iterationCount}/{@code encoded}
+     * fields are all {@code [n] IMPLICIT}. Unlike EXPLICIT, an IMPLICIT tag
+     * replaces the underlying type's own tag rather than wrapping it, so the
+     * content octets are exactly what the underlying type (OCTET STRING,
+     * INTEGER) would encode -- only the tag byte differs.
+     *
+     * @throws IllegalArgumentException if {@code n} is outside 0..30, per
+     *         {@link #explicitTag}.
+     */
+    static int implicitTag(int n)
+    {
+        if (n < 0 || n > 30)
+        {
+            throw new IllegalArgumentException("tag number out of range: " + n);
+        }
+        return 0x80 | n;
     }
 
     private Der()
@@ -133,15 +154,24 @@ public final class Der
     /** A non-negative INTEGER TLV. */
     public static byte[] integer(BigInteger v)
     {
-        // BigInteger.toByteArray is already the minimal two's-complement form
-        // DER wants, including the leading 0x00 when the top bit would be set.
-        return tlv(INTEGER, v.toByteArray());
+        return tlv(INTEGER, integerContent(v));
     }
 
     /** A small non-negative INTEGER TLV. */
     public static byte[] integer(int v)
     {
         return integer(BigInteger.valueOf(v));
+    }
+
+    /**
+     * An INTEGER's content octets alone -- the minimal two's-complement form
+     * DER wants, including the leading 0x00 when the top bit would be set.
+     * Shared by {@link #integer(BigInteger)} and {@link #implicitInteger},
+     * whose tag differs but whose content encoding does not.
+     */
+    private static byte[] integerContent(BigInteger v)
+    {
+        return v.toByteArray();
     }
 
     /**
@@ -456,12 +486,26 @@ public final class Der
 
     /**
      * Wrap one complete inner TLV as {@code [tagNo] EXPLICIT}: a constructed
-     * context-specific tag whose content is the inner encoding verbatim. The
-     * only tagging form this codec writes.
+     * context-specific tag whose content is the inner encoding verbatim.
      */
     public static byte[] explicit(int tagNo, byte[] innerTlv)
     {
         return tlv(explicitTag(tagNo), innerTlv);
+    }
+
+    /**
+     * An OCTET STRING's value as {@code [tagNo] IMPLICIT}: the tag replaces
+     * OCTET STRING's own, the content octets are unchanged.
+     */
+    public static byte[] implicitOctetString(int tagNo, byte[] v)
+    {
+        return tlv(implicitTag(tagNo), v);
+    }
+
+    /** An INTEGER's value as {@code [tagNo] IMPLICIT}. */
+    public static byte[] implicitInteger(int tagNo, int v)
+    {
+        return tlv(implicitTag(tagNo), integerContent(BigInteger.valueOf(v)));
     }
 
     /**
@@ -771,7 +815,18 @@ public final class Der
         /** Read a non-negative INTEGER's value. */
         public BigInteger readInteger(String what) throws IOException
         {
-            byte[] content = readTLV(INTEGER, what).remaining();
+            return parseIntegerContent(readTLV(INTEGER, what).remaining(), what);
+        }
+
+        /**
+         * The shared validation {@link #readInteger} and {@link
+         * #readImplicitInteger} both need -- non-negative, minimally
+         * encoded -- applied to already-extracted content octets, since an
+         * IMPLICIT INTEGER's content encoding is identical to a plain one's;
+         * only the tag differs, and the caller has already checked that.
+         */
+        private static BigInteger parseIntegerContent(byte[] content, String what) throws IOException
+        {
             if (content.length == 0)
             {
                 throw new IOException("empty INTEGER in " + what);
@@ -792,6 +847,30 @@ public final class Der
                 throw new IOException("negative INTEGER in " + what);
             }
             return v;
+        }
+
+        /**
+         * An OCTET STRING's content read via {@code [tagNo] IMPLICIT} instead
+         * of its own tag.
+         */
+        public byte[] readImplicitOctetString(int tagNo, String what) throws IOException
+        {
+            return readTLV(implicitTag(tagNo), what).remaining();
+        }
+
+        /**
+         * An INTEGER read via {@code [tagNo] IMPLICIT} instead of its own
+         * tag, bounded to fit a non-negative {@code int} exactly as {@link
+         * #readSmallInteger} bounds a plain one.
+         */
+        public int readImplicitSmallInteger(int tagNo, String what) throws IOException
+        {
+            BigInteger v = parseIntegerContent(readTLV(implicitTag(tagNo), what).remaining(), what);
+            if (v.bitLength() > 31)
+            {
+                throw new IOException("INTEGER out of range in " + what);
+            }
+            return v.intValue();
         }
 
         /** Read an INTEGER that must fit in a non-negative int. */

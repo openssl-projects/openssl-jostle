@@ -21,9 +21,9 @@ import java.util.Date;
 /**
  * Round-trip and falsification coverage for the structure codecs {@link Der}
  * gained for BCFKS: BIT STRING, UTF8String, GeneralizedTime, {@code [n]
- * EXPLICIT} tagging, AlgorithmIdentifier, CCMParameters (RFC 5084),
- * EncryptedPrivateKeyInfo (RFC 5958), PBES2-params and PBKDF2-params
- * (RFC 8018 A.2/A.4), and scrypt-params (RFC 7914 s7).
+ * EXPLICIT} and {@code [n] IMPLICIT} tagging, AlgorithmIdentifier,
+ * CCMParameters (RFC 5084), EncryptedPrivateKeyInfo (RFC 5958), PBES2-params
+ * and PBKDF2-params (RFC 8018 A.2/A.4), and scrypt-params (RFC 7914 s7).
  *
  * <p>Dotted OID literals per the project convention: tests keep the literal,
  * main source uses the {@code oids} constants.
@@ -178,6 +178,57 @@ public class DerStructureCodecTest
     {
         byte[] wrapped = Der.explicit(0, Der.sequence());
         Assertions.assertThrows(IOException.class, () -> new Der.Reader(wrapped).readExplicit(1, "test"));
+    }
+
+    // ---- [n] IMPLICIT ----------------------------------------------------
+
+    @Test
+    public void implicitOctetStringRoundTrips() throws Exception
+    {
+        byte[] wrapped = Der.implicitOctetString(2, new byte[]{7, 8, 9});
+        Assertions.assertEquals(0x82, wrapped[0] & 0xFF, "primitive context tag [2]");
+        byte[] content = new Der.Reader(wrapped).readImplicitOctetString(2, "test");
+        Assertions.assertArrayEquals(new byte[]{7, 8, 9}, content);
+    }
+
+    @Test
+    public void implicitIntegerRoundTrips() throws Exception
+    {
+        byte[] wrapped = Der.implicitInteger(1, 12345);
+        Assertions.assertEquals(0x81, wrapped[0] & 0xFF, "primitive context tag [1]");
+        int value = new Der.Reader(wrapped).readImplicitSmallInteger(1, "test");
+        Assertions.assertEquals(12345, value);
+    }
+
+    @Test
+    public void implicitTagOutOfRangeIsRejected()
+    {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> Der.implicitOctetString(31, new byte[]{1}));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> Der.implicitOctetString(-1, new byte[]{1}));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> Der.implicitInteger(31, 1));
+    }
+
+    @Test
+    public void implicitTagMismatchIsRejected() throws Exception
+    {
+        byte[] wrappedOctets = Der.implicitOctetString(0, new byte[]{1, 2, 3});
+        Assertions.assertThrows(IOException.class,
+                () -> new Der.Reader(wrappedOctets).readImplicitOctetString(1, "test"));
+        byte[] wrappedInt = Der.implicitInteger(0, 5);
+        Assertions.assertThrows(IOException.class,
+                () -> new Der.Reader(wrappedInt).readImplicitSmallInteger(1, "test"));
+    }
+
+    @Test
+    public void implicitIntegerOversizedIsRejected()
+    {
+        // A 33-bit magnitude -- beyond readImplicitSmallInteger's 31-bit bound.
+        // Built by hand (0x80: primitive context tag [0]) since
+        // Der.implicitInteger's int parameter cannot express it.
+        byte[] content = java.math.BigInteger.ONE.shiftLeft(32).toByteArray();
+        byte[] wrapped = Der.tlv(0x80, content);
+        Assertions.assertThrows(IOException.class,
+                () -> new Der.Reader(wrapped).readImplicitSmallInteger(0, "test"));
     }
 
     // ---- AlgorithmIdentifier ---------------------------------------------

@@ -124,17 +124,41 @@ final class BcFKSFormat
 
     /**
      * {@code ObjectStoreIntegrityCheck ::= CHOICE { PbkdMacIntegrityCheck,
-     * [0] EXPLICIT SignatureCheck }}. Only the MAC half is parsed — signature
-     * checks are not implemented yet; a {@code [0]} tag here is recognised
-     * and refused typed, not silently misread as something else.
+     * [0] EXPLICIT SignatureCheck }}. Exactly one field is non-{@code null}.
      */
     static final class IntegrityCheck
     {
+        /** {@code null} when the store uses a signature check instead. */
         final PbkdMac pbkdMac;
+        /** {@code null} when the store uses a PBKD-MAC check instead. */
+        final SignatureCheck signatureCheck;
 
-        IntegrityCheck(PbkdMac pbkdMac)
+        IntegrityCheck(PbkdMac pbkdMac, SignatureCheck signatureCheck)
         {
             this.pbkdMac = pbkdMac;
+            this.signatureCheck = signatureCheck;
+        }
+    }
+
+    /**
+     * {@code SignatureCheck ::= SEQUENCE { signatureAlgorithm
+     * AlgorithmIdentifier, certificates [0] EXPLICIT SEQUENCE OF Certificate
+     * OPTIONAL, signatureValue BIT STRING }}
+     * (org.bouncycastle.asn1.bc.SignatureCheck, r1rv86, whole file --
+     * 97 lines, one CHOICE arm).
+     */
+    static final class SignatureCheck
+    {
+        final Der.AlgorithmIdentifier signatureAlgorithm;
+        /** Each element is one complete Certificate TLV, raw (unparsed); {@code null} when absent. */
+        final byte[][] certificates;
+        final byte[] signatureValue;
+
+        SignatureCheck(Der.AlgorithmIdentifier signatureAlgorithm, byte[][] certificates, byte[] signatureValue)
+        {
+            this.signatureAlgorithm = signatureAlgorithm;
+            this.certificates = certificates;
+            this.signatureValue = signatureValue;
         }
     }
 
@@ -295,12 +319,30 @@ final class BcFKSFormat
             Der.AlgorithmIdentifier pbkdAlgorithm = mac.readAlgorithmIdentifier("pbkdAlgorithm");
             byte[] macValue = mac.readTLV(Der.OCTET_STRING, "mac").remaining();
             mac.requireEnd("trailing bytes in PbkdMacIntegrityCheck");
-            return new IntegrityCheck(new PbkdMac(macAlgorithm, pbkdAlgorithm, macValue));
+            return new IntegrityCheck(new PbkdMac(macAlgorithm, pbkdAlgorithm, macValue), null);
         }
         if (tag == EXPLICIT_0_TAG)
         {
-            // [0] EXPLICIT SignatureCheck -- a recognised CHOICE arm, not yet implemented.
-            throw new IOException("BCFKS signature integrity checks are not implemented");
+            Der.Reader scWrapper = outer.readExplicit(0, "SignatureCheck");
+            Der.Reader sc = scWrapper.readTLV(Der.SEQUENCE, "SignatureCheck");
+            scWrapper.requireEnd("trailing bytes in SignatureCheck wrapper");
+            Der.AlgorithmIdentifier signatureAlgorithm = sc.readAlgorithmIdentifier("signatureAlgorithm");
+            byte[][] certificates = null;
+            if (!sc.atEnd() && sc.peekTag() == EXPLICIT_0_TAG)
+            {
+                Der.Reader certsWrapper = sc.readExplicit(0, "certificates");
+                Der.Reader certSeq = certsWrapper.readTLV(Der.SEQUENCE, "certificates");
+                certsWrapper.requireEnd("trailing bytes in certificates wrapper");
+                List<byte[]> list = new ArrayList<byte[]>();
+                while (!certSeq.atEnd())
+                {
+                    list.add(certSeq.readEncodedTLV(certSeq.peekTag(), "certificate"));
+                }
+                certificates = list.toArray(new byte[0][]);
+            }
+            byte[] signatureValue = sc.readBitString("signatureValue");
+            sc.requireEnd("trailing bytes in SignatureCheck");
+            return new IntegrityCheck(null, new SignatureCheck(signatureAlgorithm, certificates, signatureValue));
         }
         throw new IOException("BCFKS KeyStore: unrecognised integrity check");
     }
@@ -441,6 +483,76 @@ final class BcFKSFormat
         return new SecretKeyData(oid, keyBytes);
     }
 
+    /**
+     * {@code PbkdKeyData ::= SEQUENCE { keyAlgorithm UTF8String, password
+     * OCTET STRING, salt [0] IMPLICIT OCTET STRING OPTIONAL, iterationCount
+     * [1] IMPLICIT INTEGER OPTIONAL, encoded [2] IMPLICIT OCTET STRING
+     * OPTIONAL }} (org.bouncycastle.asn1.bc.PbkdKeyData, r1rv86, whole file
+     * -- carries a {@code javax.crypto.interfaces.PBEKey}'s full identity,
+     * not just its derived bytes: algorithm, the PBE key's OWN password
+     * (distinct from the entry's protection password), salt, iteration
+     * count and the derived key). The DECRYPTED payload inside an {@code
+     * EncryptedSecretKeyData} for a type-5 (PBKDF_KEY) entry.
+     */
+    static final class PbkdKeyData
+    {
+        final String keyAlgorithm;
+        final byte[] password;
+        /** {@code null} when the OPTIONAL field was absent. */
+        final byte[] salt;
+        /** {@code 0} when the OPTIONAL field was absent, matching BC's own {@code getIterationCount()}. */
+        final int iterationCount;
+        /** {@code null} when the OPTIONAL field was absent. */
+        final byte[] encoded;
+
+        PbkdKeyData(String keyAlgorithm, byte[] password, byte[] salt, int iterationCount, byte[] encoded)
+        {
+            this.keyAlgorithm = keyAlgorithm;
+            this.password = password;
+            this.salt = salt;
+            this.iterationCount = iterationCount;
+            this.encoded = encoded;
+        }
+    }
+
+    /** [0]/[1]/[2] IMPLICIT's first octets: primitive context-specific tags 0/1/2. */
+    private static final int IMPLICIT_0_TAG = 0x80;
+    private static final int IMPLICIT_1_TAG = 0x81;
+    private static final int IMPLICIT_2_TAG = 0x82;
+
+    static PbkdKeyData parsePbkdKeyData(byte[] der) throws IOException
+    {
+        Der.Reader seq = new Der.Reader(der).readTLV(Der.SEQUENCE, "PbkdKeyData");
+        String keyAlgorithm = seq.readUTF8String("keyAlgorithm");
+        byte[] password = seq.readTLV(Der.OCTET_STRING, "password").remaining();
+
+        byte[] salt = null;
+        int iterationCount = 0;
+        byte[] encoded = null;
+        while (!seq.atEnd())
+        {
+            int tag = seq.peekTag();
+            if (tag == IMPLICIT_0_TAG)
+            {
+                salt = seq.readImplicitOctetString(0, "salt");
+            }
+            else if (tag == IMPLICIT_1_TAG)
+            {
+                iterationCount = seq.readImplicitSmallInteger(1, "iterationCount");
+            }
+            else if (tag == IMPLICIT_2_TAG)
+            {
+                encoded = seq.readImplicitOctetString(2, "encoded");
+            }
+            else
+            {
+                throw new IOException("PbkdKeyData: unrecognised field tag 0x" + Integer.toHexString(tag));
+            }
+        }
+        seq.requireEnd("trailing bytes in PbkdKeyData");
+        return new PbkdKeyData(keyAlgorithm, password, salt, iterationCount, encoded);
+    }
+
     // ---- Writing ---------------------------------------------------------
     // Mirrors the parse methods above field for field; every structure here
     // has its reader immediately above it.
@@ -506,5 +618,44 @@ final class BcFKSFormat
     static byte[] writeSecretKeyData(String keyAlgorithmOid, byte[] keyBytes)
     {
         return Der.sequence(Der.objectIdentifier(keyAlgorithmOid), Der.octetString(keyBytes));
+    }
+
+    /**
+     * {@code SignatureCheck}. {@code certificateTlvs} may be {@code null} to
+     * omit the OPTIONAL field.
+     */
+    static byte[] writeSignatureCheck(byte[] signatureAlgorithmTlv, byte[][] certificateTlvs, byte[] signatureValue)
+    {
+        byte[] sigBits = Der.bitString(signatureValue);
+        return certificateTlvs == null
+                ? Der.sequence(signatureAlgorithmTlv, sigBits)
+                : Der.sequence(signatureAlgorithmTlv, Der.explicit(0, Der.sequence(certificateTlvs)), sigBits);
+    }
+
+    /**
+     * {@code PbkdKeyData}. Any of {@code salt}, {@code iterationCount <= 0}
+     * or {@code encoded} may be absent, matching {@link Der.Reader
+     * #readImplicitSmallInteger}'s "0 means absent" reading of BC's own
+     * {@code getIterationCount()} contract.
+     */
+    static byte[] writePbkdKeyData(String keyAlgorithm, byte[] password, byte[] salt, int iterationCount,
+                                    byte[] encoded)
+    {
+        List<byte[]> parts = new ArrayList<byte[]>();
+        parts.add(Der.utf8String(keyAlgorithm));
+        parts.add(Der.octetString(password));
+        if (salt != null)
+        {
+            parts.add(Der.implicitOctetString(0, salt));
+        }
+        if (iterationCount > 0)
+        {
+            parts.add(Der.implicitInteger(1, iterationCount));
+        }
+        if (encoded != null)
+        {
+            parts.add(Der.implicitOctetString(2, encoded));
+        }
+        return Der.sequence(parts.toArray(new byte[0][]));
     }
 }

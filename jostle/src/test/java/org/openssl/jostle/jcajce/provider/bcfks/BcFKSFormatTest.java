@@ -141,7 +141,7 @@ public class BcFKSFormatTest
     }
 
     @Test
-    public void signatureIntegrityCheckIsRecognisedAndRefused() throws Exception
+    public void signatureIntegrityCheckIsRecognisedAndParsed() throws Exception
     {
         byte[] macAlgIdTlv = Der.algorithmIdentifier(
                 "1.2.840.113549.2.11", new byte[]{0x05, 0x00});
@@ -149,13 +149,44 @@ public class BcFKSFormatTest
         byte[] storeData = Der.sequence(
                 Der.integer(1), macAlgIdTlv, time, time,
                 Der.sequence());
-        // [0] EXPLICIT SignatureCheck -- a minimal but well-formed wrapper.
+        // [0] EXPLICIT SignatureCheck -- a minimal but well-formed wrapper,
+        // no certificates field.
         byte[] sigAlgIdTlv = macAlgIdTlv;
-        byte[] signatureValue = Der.bitString(new byte[]{1, 2, 3});
-        byte[] signatureCheck = Der.sequence(sigAlgIdTlv, signatureValue);
+        byte[] signatureValue = new byte[]{1, 2, 3};
+        byte[] signatureCheck = Der.sequence(sigAlgIdTlv, Der.bitString(signatureValue));
         byte[] tagged = Der.explicit(0, signatureCheck);
         byte[] objectStore = Der.sequence(storeData, tagged);
 
-        Assertions.assertThrows(IOException.class, () -> BcFKSFormat.parseObjectStore(objectStore));
+        BcFKSFormat.ObjectStore store = BcFKSFormat.parseObjectStore(objectStore);
+        Assertions.assertNull(store.integrityCheck.pbkdMac);
+        Assertions.assertNotNull(store.integrityCheck.signatureCheck);
+        Assertions.assertEquals("1.2.840.113549.2.11", store.integrityCheck.signatureCheck.signatureAlgorithm.oid);
+        Assertions.assertNull(store.integrityCheck.signatureCheck.certificates);
+        Assertions.assertArrayEquals(signatureValue, store.integrityCheck.signatureCheck.signatureValue);
+    }
+
+    /** As above, but with the OPTIONAL certificates field present. */
+    @Test
+    public void signatureIntegrityCheckWithCertificatesIsRecognisedAndParsed() throws Exception
+    {
+        byte[] macAlgIdTlv = Der.algorithmIdentifier(
+                "1.2.840.113549.2.11", new byte[]{0x05, 0x00});
+        byte[] time = Der.generalizedTime(new Date(0L));
+        byte[] storeData = Der.sequence(
+                Der.integer(1), macAlgIdTlv, time, time,
+                Der.sequence());
+        byte[] sigAlgIdTlv = macAlgIdTlv;
+        byte[] signatureValue = new byte[]{4, 5, 6};
+        // Not a real certificate -- BcFKSFormat treats it as an opaque TLV.
+        byte[] fakeCert = Der.sequence(Der.integer(7));
+        byte[] certsTlv = Der.explicit(0, Der.sequence(fakeCert));
+        byte[] signatureCheck = Der.sequence(sigAlgIdTlv, certsTlv, Der.bitString(signatureValue));
+        byte[] tagged = Der.explicit(0, signatureCheck);
+        byte[] objectStore = Der.sequence(storeData, tagged);
+
+        BcFKSFormat.ObjectStore store = BcFKSFormat.parseObjectStore(objectStore);
+        Assertions.assertNotNull(store.integrityCheck.signatureCheck.certificates);
+        Assertions.assertEquals(1, store.integrityCheck.signatureCheck.certificates.length);
+        Assertions.assertArrayEquals(fakeCert, store.integrityCheck.signatureCheck.certificates[0]);
     }
 }

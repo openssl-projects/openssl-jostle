@@ -9,6 +9,8 @@
  */
 package org.openssl.jostle.jcajce.provider.kdf;
 
+import javax.crypto.interfaces.PBEKey;
+
 /**
  * PBKDF2 / scrypt derivation from an already-computed byte[] password,
  * shared by {@link PBKDF2SecretKeyFactory}, {@link ScryptSecretKeyFactory},
@@ -96,5 +98,18 @@ public final class BytePasswordKdf
                                int n, int r, int p, byte[] out, int outOffset, int outLen)
     {
         kdfNI.handleErrorCodes(kdfNI.scrypt(passwordBytes, salt, n, r, p, out, outOffset, outLen));
+    }
+
+    /**
+     * A {@link PBEKey} carrying exactly the given identity -- algorithm,
+     * password, salt, iteration count and derived bytes -- with no
+     * derivation of its own. {@link JOPBEKey}'s constructor is
+     * package-private; this is the one public door into it, for BCFKS's
+     * type-5 (PBKDF_KEY) entries, which store and recover a PBEKey's full
+     * identity rather than just its derived bytes.
+     */
+    public static PBEKey pbeKey(String algorithm, char[] password, byte[] salt, int iterationCount, byte[] rawKey)
+    {
+        return new JOPBEKey(algorithm, password, salt, iterationCount, rawKey);
     }
 }

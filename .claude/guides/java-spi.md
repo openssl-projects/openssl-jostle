@@ -583,3 +583,13 @@ caller's bytes, stored verbatim — never re-derived, never re-encrypted.**
 chain's bytes parse as a well-formed `EncryptedPrivateKeyInfo`; with a null
 chain the bytes are opaque and unchecked, matching BC's own contract exactly
 (BC applies no validation there either).
+
+**`LoadStoreParameter` is `org.openssl.jostle.jcajce.BCFKSLoadStoreParameter`
+only — BC's own class of the same name is refused typed, `IllegalArgumentException`,
+same as `null`.** A standalone Jostle implementation; no BC type appears
+anywhere. It selects the store's encryption algorithm (AES-256-CCM or -KWP),
+MAC algorithm (HMAC-SHA512 or -SHA3-512), PBKDF config (our own `PBKDF2Config`
+or `ScryptConfig`, JSL only), embedded certificates, and signature algorithm
+for a `SignatureCheck` in place of the default MAC. Options set via a load
+persist on the instance for a following plain `engineStore(OutputStream,
+char[])` call, mirroring BC's own stateful design.
