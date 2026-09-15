@@ -183,6 +183,7 @@ public class JostleProvider
         new ProvMac().configure(this);
         new ProvX509().configure(this);
         new ProvKS().configure(this);
+        new ProvBCFKS().configure(this);
     }
 
     void addAttribute(String type, String name, String attributeName, String attributeValue)

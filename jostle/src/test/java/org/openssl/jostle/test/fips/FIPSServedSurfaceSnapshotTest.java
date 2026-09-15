@@ -202,6 +202,7 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.X25519MLKEM768",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
             "KeyPairGenerator.X448",
             "KeyPairGenerator.X448MLKEM1024",   // hybrid KEM, capability-gated per VARIANT (see HYBRID_GATED)
+            "KeyStore.BCFKS",   // PBKDF2, HMAC, AES-CCM/KWP, X.509, KeyFactory -- no FIPS-absent KDF
             "Mac.AESCMAC",
             "Mac.AESGMAC",
             "Mac.HMACSHA1",
