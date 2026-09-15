@@ -44,23 +44,45 @@ jobs:
         run: |
           ./gradlew :jostle:checkstyleMain :jostle:checkstyleNohttp
 
+  # Builds what ships, in both variants: native-* (instrumented, for the test
+  # matrix) and native-shipped-* (what the package jobs publish).
+  # manylinux_2_28 pins the shipped .so's glibc floor at 2.28 -- on a stock
+  # runner it would inherit that runner's glibc and fail to load on RHEL 8/9 or
+  # Debian 11/12. A lower floor is forward-compatible, so it still runs here.
   build-posix:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - "ubuntu-latest"
-          - "ubuntu-24.04-arm"
-          - "macos-15"
-          - "macos-15-intel"
+        include:
+          - runner: "ubuntu-latest"
+            image: "quay.io/pypa/manylinux_2_28_x86_64"
+            tag: "manylinux_2_28"
+          - runner: "ubuntu-24.04-arm"
+            image: "quay.io/pypa/manylinux_2_28_aarch64"
+            tag: "manylinux_2_28"
+          - runner: "macos-15"
+            image: ""
+            tag: "macos14.0"
+          - runner: "macos-15-intel"
+            image: ""
+            tag: "macos14.0"
     runs-on: ${{ matrix.runner }}
+    # Linux-only, so the macOS legs opt out with an empty value (runner#266).
+    container: ${{ matrix.image }}
+    env:
+      # Minimum macOS the shipped dylib loads on. Ignored on Linux.
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
     steps:
+      - name: "Install build dependencies"
+        if: matrix.image != ''
+        run: |
+          dnf install -y perl-Time-Piece perl-IPC-Cmd
       - name: "Cache OpenSSL build"
         id: "cache-openssl"
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.5.8-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-${{ matrix.tag }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
@@ -126,30 +148,17 @@ jobs:
           if-no-files-found: "error"
           retention-days: 1
       # ----- the SHIPPED library -----
-      # Everything above is built with JOSTLE_OPS_TEST, which is right: it is
-      # the only way the ~40 *OpsTest classes run at all (the OPS_* macros
-      # expand to nothing otherwise, and every one of them assumption-skips
-      # while the suite still reports green).
-      #
-      # But that left no test job anywhere exercising the library we actually
-      # ship. release-build.yaml builds it uninstrumented and runs no tests.
-      # The OPS build is very nearly a superset - `OPS_X cond` expands to
-      # `is_ops_set(N) || cond`, which with no flag set is just `cond` - but
-      # "very nearly" was carrying the whole argument, and the OPS build also
-      # exports the operations-test entry points, so it is not the same
-      # artifact.
-      #
-      # One runner, rebuilt from the OpenSSL already built in this job, so the
-      # cost is a single C compile. Consumed by test-posix-shipped.
+      # The pass above is instrumented so the ~40 *OpsTest classes run at all;
+      # it also exports the ops entry points, so it is not what we publish.
+      # build.sh fully rebuilds over the same path. CMakeLists tests PRESENCE
+      # of JOSTLE_OPS_TEST, so this pass must omit it, not set it false.
       - name: "Rebuild the interface WITHOUT ops instrumentation"
-        if: matrix.runner == 'ubuntu-latest'
         working-directory: "jostle"
         env:
           OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
         run: |
           ./interface/build.sh
       - name: "Upload shipped native libraries"
-        if: matrix.runner == 'ubuntu-latest'
         uses: "actions/upload-artifact@v7"
         with:
           name: "native-shipped-${{ matrix.runner }}"
@@ -184,7 +193,7 @@ jobs:
           # change. Without it the step is skipped on a hit and the old tree is
           # restored, so a config that was never staged silently goes missing
           # and every FIPS class dies with a bare ProviderException.
-          key: "openssl-fips-v2-3.5.8+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-fips-v2-3.5.8+3.1.2-${{ matrix.tag }}-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "bash"
@@ -528,10 +537,9 @@ jobs:
 
   # The shipped library, which no other job tests.
   #
-  # Every other test job runs against the JOSTLE_OPS_TEST build (see the
-  # "SHIPPED library" note in build-posix). That is the right default - it is
-  # what makes the *OpsTest classes run - but it means the uninstrumented
-  # artifact that release-build.yaml produces had no test coverage at all.
+  # Every other test job runs the instrumented build, which leaves the
+  # uninstrumented library untested. This runs the exact artifact
+  # package-x86_64 ships; its manylinux glibc floor is below this runner's.
   #
   # Deliberately narrow, because this covers a difference in the BUILD, not in
   # the platform or the module: one runner, one module configuration, JNI and
@@ -644,7 +652,7 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.5.8-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-hybridcrt-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
@@ -664,7 +672,8 @@ jobs:
           rem own test programs, which are the bulk of the build. install_sw
           rem does not install them either, so the cached dist is unchanged and
           rem the key needs no bump.
-          perl Configure VC-WIN64A no-tests --prefix=${{ github.workspace }}\openssl\dist
+          rem HYBRIDCRT links the UCRT: no VC redistributable needed.
+          perl Configure VC-WIN64A-HYBRIDCRT no-tests --prefix=${{ github.workspace }}\openssl\dist
           nmake
           nmake install_sw
       - name: "Arrange OpenSSL layout for CMake (lib64)"
@@ -725,6 +734,23 @@ jobs:
           path: "jostle/jostle/src/main/resources/native"
           if-no-files-found: "error"
           retention-days: 1
+      # ----- the SHIPPED library ----- (see the POSIX job; omit the flag,
+      # do not set it false -- CMakeLists tests presence, not value)
+      - name: "Rebuild the interface WITHOUT ops instrumentation"
+        working-directory: "jostle"
+        shell: "cmd"
+        env:
+          OPENSSL_PREFIX: "${{ github.workspace }}\\openssl\\dist"
+        run: |
+          call "%VCVARS%"
+          call interface\build.bat
+      - name: "Upload shipped native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-shipped-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
       # ----- FIPS modules (both supported versions, enable-fips) -----
       # Mirrors the POSIX job: JSLFIPS ships ONE build that must serve the
       # CMVP-validated 3.1.2 module (cert #4985) and a 3.5.x one, and they
@@ -744,7 +770,7 @@ jobs:
           # change. Without it the step is skipped on a hit and the old tree is
           # restored, so a config that was never staged silently goes missing
           # and every FIPS class dies with a bare ProviderException.
-          key: "openssl-fips-v2-3.5.8+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-fips-v2-3.5.8+3.1.2-hybridcrt-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "cmd"
