@@ -293,3 +293,74 @@ The `d2i` family consumes exactly one TLV and advances the input pointer past it
 4. **Do NOT exempt an accumulating mode from the length minimum — enumerate what that minimum was protecting first.** Wraps have no cipher-block minimum, so exempting them looks right and OpenSSL does enforce the real RFC rules. But `accum` stays NULL until the first non-empty append, and the XTS/CTS minimum was the only thing preventing a zero-length total from reaching `ctx->accum->data`: the exemption produced a **JVM SIGSEGV reachable from pure Java with a zero-byte wrap**. Guarding the pointer alone then made EVP treat the zero-length update as a no-op and return SUCCESS WITH AN EMPTY RESULT — a wrap that silently produced nothing. The fix is a mode-aware minimum at final (`is_wrap_mode ? 1 : cipher_block_size`, the 1 being RFC 5649's real KWP minimum), leaving KW's multiple-of-8-at-least-16 to OpenSSL, whose accept and reject decisions were then measured identical to BouncyCastle's across thirteen lengths. **A check's stated purpose is not the full list of its duties.**
 
 Test it against an INDEPENDENT implementation, never against a one-shot call of your own code: "chunked equals one-shot" is satisfied by an implementation that is uniformly wrong. `AESXTSTest` compares every split against a from-spec IEEE 1619 reference built on the JDK's AES/ECB and anchored to the published Vector 4.
+
+### Decode X.509 into the PROVIDER's lib ctx, or the signature check runs elsewhere
+
+`d2i_X509` on a `X509_new()` object binds that certificate to the DEFAULT lib
+ctx. `X509_verify` then resolves the signature algorithm through the
+CERTIFICATE's lib ctx, not the store ctx's — so under a `fips=yes` ctx the
+verification happens in mainline's default provider. Correct-looking crypto from
+the wrong library, and invisible to every functional test for any algorithm both
+implement identically.
+
+Decode with `X509_new_ex(get_global_jostle_ossl_lib_ctx(), NULL)` followed by
+`d2i_X509(&cert, …)`, and the same for `X509_CRL_new_ex` /`d2i_X509_CRL`, at
+EVERY decode site — `certpath.c`'s `decode_bound` / `decode_bound_crl` and
+`x509.c`'s `x509_cert_decode` are the references. In the FIPS tree the accessor
+spells `get_global_jostle_fips_ossl_lib_ctx`, so a site that compiles at all is
+bound to the right one (the base name is declared nowhere in that tree).
+
+The failure is silent, so it is guarded structurally rather than behaviourally:
+this is the same class as the `loaderLookup` defect, one layer down.
+
+### OPS coverage is a RATCHET, and a flag with no test is a branch that never ran
+
+An `OPS_*` macro added to C with no test driving it costs a branch and has never
+executed. `OpsCoverageParityTest` pairs every (file, flag) in the C trees with
+the `// Exercises <path>` annotations in `*OpsTest` classes and fails on a NEW
+uncovered pair; a baselined pair that BECOMES covered also fails, so the list
+shrinks as work lands and cannot outlive its reason. Measured when written: 628
+pairs, 149 uncovered, overwhelmingly FIPS-tree families with no `FIPS*OpsTest`
+mirror.
+
+Two instrument traps, both hit writing it, both failing in the reassuring
+direction:
+
+1. **`OPS_[A-Z_]+_\d+` silently misses `OPS_INT32_OVERFLOW_*`**, because `INT32`
+   contains digits and `[A-Z_]` cannot match them. An ad-hoc grep reported four
+   instrumented `x509.c` sites as absent. List the families explicitly.
+2. **A path capture of `interface/\S+` swallows trailing punctuation** —
+   `// Exercises …/x509.c, offset 7002` arrives as `…/x509.c,` and matches no
+   file. Stop the capture at the extension.
+
+Both are why the guard carries vacuity floors on pairs-found and
+annotated-files-found rather than trusting a clean result.
+
+### Where the return is not `JO_OPENSSL_ERROR`, OPS discriminates by FLAG and takes no offset
+
+`OPS_OFFSET_*` subtracts from `JO_OPENSSL_ERROR`, so a site returning anything
+else — `JO_FAIL`, `JO_CERT_DECODE_FAILED` — has nothing to subtract from and an
+offset there would make the number mean something it does not. Such sites carry
+the flag alone and the test names the site by the FLAG it sets, asserting the
+call went from success to that code. `certpath.c` is entirely of this shape (its
+banner says so) and `x509.c`'s `d2i` arms are the mixed case: offsets elsewhere
+in the file, none on those two.
+
+Two consequences. **Put the positive control FIRST in the cell**, since the code
+alone cannot distinguish the injected failure from a natural one — the fixture
+must be proven good before the flag is blamed. And **choose flags DISJOINT from
+any file in the same call path**: flags are a process-global bitmask, and a
+certification-path call re-parses its result through the X.509 factory, so
+`certpath.c` deliberately uses `OPENSSL_ERROR_7-12` and `FAILED_ACCESS_4-6`
+where `x509.c` uses `1-6` and `1-3`. A shared flag fires in both files at once
+and the test cannot say which it drove.
+
+### A helper that writes N elements checks the array length ITSELF
+
+`fill_int_arrays` in `x509_ni_jni.c` took `GetIntArrayElements` and wrote `n`
+ints without checking the array's length, on the grounds that every caller
+checks first. Every caller did. That makes the helper's memory-safety an
+invariant maintained in a DIFFERENT function, which the next caller is free to
+break, and the failure mode is the measured JVM SIGBUS rather than an exception.
+Check the length in the helper, BEFORE the pointer is taken — the same rule as
+the `err` out-array, and the cost is one comparison.

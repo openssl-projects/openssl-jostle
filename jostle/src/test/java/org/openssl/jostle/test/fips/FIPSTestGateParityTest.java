@@ -83,6 +83,14 @@ public class FIPSTestGateParityTest
             // guards that keep the FIPS suite honest on exactly those legs.
             "FIPSTestNamingParityTest.java",
             "FIPSTestGateParityTest.java",
+            // FIPSNativeBindingIsolationTest carries a MIRROR cell over the
+            // BASE provider — "no JSL service holds a FIPS binding" — which is
+            // the control for its FIPS cell and must run on the ordinary
+            // non-FIPS legs, where a wrongly-wired base provider is exactly as
+            // possible. A class-level gate would skip the control on every leg
+            // that can still run it. Its FIPS cell gates itself through
+            // assumeFipsProvider().
+            "FIPSNativeBindingIsolationTest.java",
             // Same category, one layer out: FIPSJniSymbolRenameParityTest reads
             // interface/fips/jni/*.c and the *FIPSJNI sources as TEXT, checking
             // that every FIPS native has its #define rename. It needs no module

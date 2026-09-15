@@ -1417,3 +1417,58 @@ read the thing's own recorded answer, not the wrapper that carried it.
 ### Prefer real-trigger limit tests over OPS injection when a real configuration reaches the branch
 
 When an error branch is genuinely reachable in a supported configuration — the validated FIPS module really lacks the implicit-rejection parameter, really rejects q-less DH keys at derive-init, really substitutes named groups in paramgen — pin it with a limit test against that real configuration (`FIPSRSAPKCS1CipherLimitTest` / `FIPSDHLimitTest` assert the raw code AND the typed exception with exact message, no fault injection). A real-trigger test is strictly stronger than an OPS test: it proves both that the branch behaves correctly and that the real environment actually takes it. Keep the OPS variant too where the branch is instrumented — it covers the tree whose real configuration never reaches the branch (the base provider supports implicit rejection, so only injection exercises the probe there) — but where a branch is reachable in only one tree, the real-trigger test in that tree is the load-bearing one and a synthetic OPS twin in the other is optional. OPS remains the only option for branches no supported configuration reaches (allocation failures, mid-sequence OpenSSL errors).
+
+### A sweep comparing an INHERITED default against its own source parser measures nothing
+
+**Symptom: a whole column of green rows, and the feature they cover is absent.**
+`X509Certificate` carries CONCRETE implementations that re-parse the encoding
+through `sun.security.x509`. Inherit one and the accessor answers from SUN — so
+a sweep comparing "our" `getSubjectAlternativeNames` against SUN's compared
+SUN's parser with itself. Every row was green by construction, and the overrides
+were simply missing.
+
+The general form: before reading a comparison as evidence, name the SOURCE of
+each side. Two sides sharing one source agree perfectly and prove nothing — the
+same fault as a parity check over two copies of one transcription, one layer up.
+For an abstract JCA base class, list its non-abstract methods and ask which of
+them re-parse, BEFORE writing the sweep.
+
+### A guard a filter never SELECTED is not a guard that passed — twice in one arc
+
+Already recorded once. It recurred twice on the same work item and both cost
+real defects, so the procedure matters more than the principle:
+
+1. `ProviderNameParityTest`, `ErrArrayLengthGuardParityTest` and three other
+   lints were never named in any targeted `--tests` run, so a `providerName()`
+   omission and a JNI helper writing past an unchecked array length both sat
+   green for days.
+2. `ObjectIdentifierProvenanceTest` was RED AT HEAD for the same reason — 43 OID
+   literals — and only a FULL leg surfaced it. Every filtered run had omitted
+   the class, and its absence from the result summary reads exactly like
+   silence.
+
+**Run a full leg before believing a tree is clean, and never conclude "green"
+from a run whose filter you wrote.** A targeted run answers about the classes
+you named and nothing else, and the classes you did not name are precisely the
+ones a new defect lands in.
+
+### One message pin fired on ONE module only
+
+`FIPSX509CertificateFactoryTest.ed25519Cert_getPublicKey_matchesModuleCapability`
+pins a message reached only where the module does NOT serve Ed25519 — 3.1.2. A
+message change verified on 3.5.8 alone is green there and red on the other
+module, which is where a CI job or a colleague finds it. Run every module whose
+registration or capability the change can reach; it is the same rule as the
+surface-guard one and it fires for message pins too.
+
+### `*OpsTest` classes are EXCLUDED from the unit legs and need an OPS build
+
+Two independent reasons a green run says nothing about them, and they compound:
+the unit legs filter `*OpsTest` out entirely, and against a plain (non-
+instrumented) native build every OPS cell assumption-skips. So an OPS test can
+be reported green by a unit leg that never ran it, and green by an integration
+leg that ran it as a skip.
+
+When reporting OPS coverage, state the BUILD (`nm -gU … | grep set_ops_test`,
+0 = plain) and the leg, and check `skip=0` in the result XML. A result with
+`tests=N skipped=N` is not coverage.

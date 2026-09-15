@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi;
 
 import java.util.HashMap;
@@ -41,7 +42,8 @@ class ProvFIPSX509
         final Map<String, String> attr = new HashMap<String, String>();
         provider.addAlgorithmImplementation("CertificateFactory", "X.509",
                 X509CertificateFactorySpi.class.getName(), attr,
-                (arg) -> new X509CertificateFactorySpi(provider, true));
+                (arg) -> new X509CertificateFactorySpi(FIPSNISelector.X509NI,
+                        ProviderBinding.of(provider)));
         provider.addAlias("CertificateFactory", "X.509", "X509");
     }
 }

@@ -41,9 +41,11 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.cert.CertPath;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509CRLEntry;
+import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -494,5 +496,302 @@ public class X509CertificateFactoryTest
         Collection<? extends java.security.cert.CRL> crls =
                 cf.generateCRLs(new ByteArrayInputStream(crlDer()));
         Assertions.assertEquals(1, crls.size());
+    }
+
+    // -----------------------------------------------------------------
+    // Bounds and refusals
+    // -----------------------------------------------------------------
+
+    /**
+     * The member cap refuses at cap+1 and accepts at cap, on BOTH the PkiPath
+     * and PKCS7 decoders. Both halves matter: a cap that refuses everything
+     * would pass a refusal-only assertion.
+     */
+    @Test
+    public void certPathMemberCap_refusesOverAndAcceptsAt() throws Exception
+    {
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
+        X509Certificate one = parse(rsaCertDer());
+
+        String prop = org.openssl.jostle.jcajce.provider.cert.X509NI.MAX_MEMBERS_PROPERTY;
+        String restore = System.getProperty(prop);
+        try
+        {
+            // A small cap, so the test does not build 4096 certificates to
+            // prove a bound that is a property precisely so it can move.
+            System.setProperty(prop, "3");
+
+            for (String encoding : new String[]{ "PkiPath", "PKCS7" })
+            {
+                byte[] atCap = cf.generateCertPath(repeat(one, 3)).getEncoded(encoding);
+                Assertions.assertEquals(3,
+                        cf.generateCertPath(new ByteArrayInputStream(atCap), encoding)
+                                .getCertificates().size(),
+                        encoding + ": exactly the cap must be accepted");
+
+                System.setProperty(prop, "4");
+                byte[] overCap = cf.generateCertPath(repeat(one, 4)).getEncoded(encoding);
+                System.setProperty(prop, "3");
+
+                CertificateException e = Assertions.assertThrows(CertificateException.class,
+                        () -> cf.generateCertPath(new ByteArrayInputStream(overCap), encoding),
+                        encoding + ": one over the cap must be refused");
+                Assertions.assertTrue(e.getMessage().contains(prop),
+                        "the refusal must name the property, so a deployment can raise it: "
+                                + e.getMessage());
+            }
+
+            // And the List form, which allocates nothing from a stream.
+            CertificateException e = Assertions.assertThrows(CertificateException.class,
+                    () -> cf.generateCertPath(repeat(one, 4)));
+            Assertions.assertTrue(e.getMessage().contains(prop), e.getMessage());
+            Assertions.assertEquals(3, cf.generateCertPath(repeat(one, 3)).getCertificates().size());
+        }
+        finally
+        {
+            if (restore == null)
+            {
+                System.clearProperty(prop);
+            }
+            else
+            {
+                System.setProperty(prop, restore);
+            }
+        }
+    }
+
+    private static List<Certificate> repeat(X509Certificate c, int n)
+    {
+        List<Certificate> out = new ArrayList<Certificate>(n);
+        for (int i = 0; i < n; i++)
+        {
+            out.add(c);
+        }
+        return out;
+    }
+
+    /**
+     * A null list member is refused TYPED and named by position — neither
+     * reference's behaviour, and deliberately so: SUN raises a bare
+     * NullPointerException, BouncyCastle accepts the null silently.
+     */
+    @Test
+    public void generateCertPath_nullMemberIsRefusedTypedAndByPosition() throws Exception
+    {
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
+        List<Certificate> list = new ArrayList<Certificate>();
+        list.add(parse(rsaCertDer()));
+        list.add(null);
+
+        CertificateException e = Assertions.assertThrows(CertificateException.class,
+                () -> cf.generateCertPath(list));
+        Assertions.assertEquals(
+                "certificate list contains a null element at position 1", e.getMessage());
+    }
+
+    /**
+     * {@code getIssuerDN().equals} is SYMMETRIC. It was not: the wrapper
+     * equalled a bare X500Principal that could never equal it back, which
+     * breaks the equals contract and misbehaves in any collection comparing
+     * the other way round. Both directions asserted, because only the second
+     * one failed.
+     */
+    @Test
+    public void issuerDnEqualityIsSymmetric() throws Exception
+    {
+        X509Certificate cert = parse(rsaCertDer());
+        Principal dn = cert.getIssuerDN();
+        javax.security.auth.x500.X500Principal principal = cert.getIssuerX500Principal();
+
+        Assertions.assertEquals(dn, parse(rsaCertDer()).getIssuerDN(),
+                "two wrappers over the same name must be equal");
+        Assertions.assertEquals(dn.hashCode(), parse(rsaCertDer()).getIssuerDN().hashCode());
+
+        Assertions.assertFalse(dn.equals(principal),
+                "must not equal a bare X500Principal, which cannot equal it back");
+        Assertions.assertFalse(principal.equals(dn),
+                "the other direction — this is the half that makes it symmetric");
+    }
+
+    /**
+     * An INDIRECT CRL may carry ONE serial under TWO issuers (RFC 5280 5.3.3),
+     * and a serial-only index silently keeps whichever entry came last.
+     *
+     * <p>Measured before it was pinned, on a CRL carrying serial 4242 both
+     * under its own issuer and, via certificateIssuer, under another CA: SUN
+     * and BouncyCastle both answer {@code getRevokedCertificate(serial)} with
+     * the entry under the CRL's OWN issuer. Ours answered with the OTHER one —
+     * a divergence from both references, and the reason the index is keyed on
+     * (effective issuer, serial).
+     */
+    @Test
+    public void indirectCrl_sameSerialUnderTwoIssuers_isNotCollapsed() throws Exception
+    {
+        byte[] der = indirectCrlDer();
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
+        X509CRL crl = (X509CRL) cf.generateCRL(new ByteArrayInputStream(der));
+
+        Assertions.assertEquals(2, crl.getRevokedCertificates().size(),
+                "both entries must survive; a serial-only index keeps one");
+
+        // The no-issuer overload means the CRL's own issuer, as both references do.
+        X509CRLEntry own = crl.getRevokedCertificate(INDIRECT_SERIAL);
+        Assertions.assertNotNull(own);
+        Assertions.assertNull(own.getCertificateIssuer(),
+                "must be the entry under the CRL's own issuer, not the delegated one");
+
+        // Control: the same bytes through SUN agree, so this pins a contract
+        // rather than our own reading of one.
+        X509CRL sun = (X509CRL) CertificateFactory.getInstance("X.509", "SUN")
+                .generateCRL(new ByteArrayInputStream(der));
+        Assertions.assertNull(sun.getRevokedCertificate(INDIRECT_SERIAL).getCertificateIssuer());
+    }
+
+    private static final java.math.BigInteger INDIRECT_SERIAL = java.math.BigInteger.valueOf(4242);
+
+    /**
+     * A v2 indirect CRL whose two entries share {@link #INDIRECT_SERIAL}, the
+     * second delegated to another CA by a certificateIssuer extension. Built
+     * with bcprov's ASN.1 layer as test scaffolding only.
+     */
+    private static byte[] indirectCrlDer() throws Exception
+    {
+        java.security.KeyPairGenerator g =
+                java.security.KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        g.initialize(2048);
+        java.security.KeyPair kp = g.generateKeyPair();
+
+        org.bouncycastle.asn1.ASN1EncodableVector entries =
+                new org.bouncycastle.asn1.ASN1EncodableVector();
+
+        org.bouncycastle.asn1.ASN1EncodableVector e1 =
+                new org.bouncycastle.asn1.ASN1EncodableVector();
+        e1.add(new org.bouncycastle.asn1.ASN1Integer(INDIRECT_SERIAL));
+        e1.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1600000000000L)));
+        entries.add(new org.bouncycastle.asn1.DERSequence(e1));
+
+        org.bouncycastle.asn1.x509.GeneralNames gn = new org.bouncycastle.asn1.x509.GeneralNames(
+                new org.bouncycastle.asn1.x509.GeneralName(
+                        org.bouncycastle.asn1.x509.GeneralName.directoryName,
+                        new org.bouncycastle.asn1.x500.X500Name("CN=Other CA")));
+        org.bouncycastle.asn1.x509.ExtensionsGenerator eg =
+                new org.bouncycastle.asn1.x509.ExtensionsGenerator();
+        eg.addExtension(org.bouncycastle.asn1.x509.Extension.certificateIssuer, true, gn);
+        org.bouncycastle.asn1.ASN1EncodableVector e2 =
+                new org.bouncycastle.asn1.ASN1EncodableVector();
+        e2.add(new org.bouncycastle.asn1.ASN1Integer(INDIRECT_SERIAL));
+        e2.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1600000001000L)));
+        e2.add(eg.generate());
+        entries.add(new org.bouncycastle.asn1.DERSequence(e2));
+
+        org.bouncycastle.asn1.x509.AlgorithmIdentifier alg =
+                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
+                        new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.2.840.113549.1.1.11"),
+                        org.bouncycastle.asn1.DERNull.INSTANCE);
+
+        org.bouncycastle.asn1.ASN1EncodableVector tbs =
+                new org.bouncycastle.asn1.ASN1EncodableVector();
+        tbs.add(new org.bouncycastle.asn1.ASN1Integer(1));
+        tbs.add(alg);
+        tbs.add(new org.bouncycastle.asn1.x500.X500Name("CN=CRL Issuer"));
+        tbs.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1600000000000L)));
+        tbs.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1900000000000L)));
+        tbs.add(new org.bouncycastle.asn1.DERSequence(entries));
+        org.bouncycastle.asn1.x509.ExtensionsGenerator crlExt =
+                new org.bouncycastle.asn1.x509.ExtensionsGenerator();
+        crlExt.addExtension(org.bouncycastle.asn1.x509.Extension.issuingDistributionPoint, true,
+                new org.bouncycastle.asn1.x509.IssuingDistributionPoint(null, false, true));
+        tbs.add(new org.bouncycastle.asn1.DERTaggedObject(true, 0, crlExt.generate()));
+        org.bouncycastle.asn1.DERSequence tbsSeq = new org.bouncycastle.asn1.DERSequence(tbs);
+
+        java.security.Signature sig =
+                java.security.Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        sig.initSign(kp.getPrivate());
+        sig.update(tbsSeq.getEncoded(org.bouncycastle.asn1.ASN1Encoding.DER));
+
+        org.bouncycastle.asn1.ASN1EncodableVector crl =
+                new org.bouncycastle.asn1.ASN1EncodableVector();
+        crl.add(tbsSeq);
+        crl.add(alg);
+        crl.add(new org.bouncycastle.asn1.DERBitString(sig.sign()));
+        return new org.bouncycastle.asn1.DERSequence(crl)
+                .getEncoded(org.bouncycastle.asn1.ASN1Encoding.DER);
+    }
+
+    /**
+     * {@code getRevocationReason} is OURS, not the inherited default.
+     *
+     * <p>The base class implementation re-parses {@code getEncoded()} through
+     * {@code sun.security.x509.X509CRLEntryImpl}, so inheriting it would have
+     * the reason read by the JDK while every other field on the entry is read
+     * by OpenSSL — a second parser inside one object, and the exact shape this
+     * whole work removes.
+     *
+     * <p>Swept over the committed PKITS CRL corpus against SUN rather than
+     * pinned to one vector: measured 173 CRLs, 32 comparable entries, four
+     * distinct reason codes, zero disagreements. The vacuity floors matter
+     * because most PKITS CRLs revoke nothing — a corpus walk that found no
+     * reasons at all would otherwise pass.
+     */
+    @Test
+    public void crlEntryRevocationReason_agreesWithSunAcrossTheCorpus() throws Exception
+    {
+        CertificateFactory jsl = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
+        CertificateFactory sun = CertificateFactory.getInstance("X.509", "SUN");
+
+        java.io.File dir = new java.io.File("src/test/resources/pkits/crls");
+        if (!dir.isDirectory())
+        {
+            dir = new java.io.File("jostle/src/test/resources/pkits/crls");
+        }
+        Assertions.assertTrue(dir.isDirectory(), "PKITS CRL corpus not found at " + dir);
+
+        int compared = 0;
+        java.util.Set<String> distinctReasons = new java.util.TreeSet<String>();
+        for (java.io.File f : dir.listFiles())
+        {
+            byte[] der = java.nio.file.Files.readAllBytes(f.toPath());
+            X509CRL ours;
+            X509CRL theirs;
+            try
+            {
+                ours = (X509CRL) jsl.generateCRL(new ByteArrayInputStream(der));
+                theirs = (X509CRL) sun.generateCRL(new ByteArrayInputStream(der));
+            }
+            catch (Exception notACrl)
+            {
+                continue;
+            }
+            java.util.Set<? extends X509CRLEntry> theirEntries = theirs.getRevokedCertificates();
+            if (theirEntries == null)
+            {
+                continue;
+            }
+            for (X509CRLEntry their : theirEntries)
+            {
+                X509CRLEntry our = ours.getRevokedCertificate(their.getSerialNumber());
+                if (our == null)
+                {
+                    // Delegated to another issuer on an indirect CRL, so the
+                    // serial-only overload correctly does not find it here.
+                    continue;
+                }
+                java.security.cert.CRLReason mine = our.getRevocationReason();
+                Assertions.assertEquals(their.getRevocationReason(), mine,
+                        f.getName() + " serial " + their.getSerialNumber());
+                compared++;
+                if (mine != null)
+                {
+                    distinctReasons.add(mine.name());
+                }
+            }
+        }
+
+        Assertions.assertTrue(compared >= 25,
+                "only " + compared + " entries compared — the corpus walk is not reaching them,"
+                        + " and a zero-entry sweep would pass while measuring nothing");
+        Assertions.assertTrue(distinctReasons.size() >= 3,
+                "only " + distinctReasons + " reason codes seen — the sweep must exercise more"
+                        + " than one arm of the enum mapping");
     }
 }

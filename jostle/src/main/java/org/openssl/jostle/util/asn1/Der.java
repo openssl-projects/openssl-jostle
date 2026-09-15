@@ -468,6 +468,25 @@ public final class Der
             return content;
         }
 
+        /**
+         * Read one TLV of the expected tag and return its COMPLETE encoding,
+         * tag and length octets included.
+         *
+         * <p>{@link #readTLV} hands back the CONTENT, which is what a field
+         * decoder wants. A container whose members are themselves whole
+         * encodings — the certificates in a PkiPath or a PKCS#7 bag — needs the
+         * bytes back exactly as they lay on the wire, so that re-parsing them
+         * cannot depend on this class having understood them.
+         */
+        public byte[] readEncodedTLV(int expectedTag, String what) throws IOException
+        {
+            int start = pos;
+            readTLV(expectedTag, what);
+            byte[] out = new byte[pos - start];
+            System.arraycopy(buf, start, out, 0, out.length);
+            return out;
+        }
+
         /** Remaining content bytes as a fresh array. */
         public byte[] remaining()
         {

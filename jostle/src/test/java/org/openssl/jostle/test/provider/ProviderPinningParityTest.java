@@ -77,8 +77,20 @@ public class ProviderPinningParityTest
                     + "|Signature|KeyGenerator|KeyPairGenerator|SecureRandom"
                     + "|AlgorithmParameters";
 
+    /**
+     * Matches up to the OPEN parenthesis only; the argument text is then read
+     * by {@link #balancedArgs}, which counts nesting.
+     *
+     * <p>The previous form captured {@code ([^;]*?)\)}, a lazy run to the
+     * first {@code )}. That is the unbalanced-capture trap: for
+     * {@code Signature.getInstance(getSigAlgName(), sigProvider)} it captured
+     * {@code getSigAlgName(} and stopped, so the second argument was invisible
+     * and six CORRECTLY PINNED sites were reported as unpinned. A guard that
+     * over-fires gets exempted into uselessness, so this is a defect in the
+     * guard and not a style preference.
+     */
     private static final Pattern CALL = Pattern.compile(
-            "\\b(" + CRYPTO_TYPES + ")\\s*\\.\\s*getInstance\\s*\\(([^;]*?)\\)", Pattern.DOTALL);
+            "\\b(" + CRYPTO_TYPES + ")\\s*\\.\\s*getInstance\\s*\\(", Pattern.DOTALL);
 
     private static final Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
     private static final Pattern LINE_COMMENT = Pattern.compile("//[^\\n]*");
@@ -163,7 +175,14 @@ public class ProviderPinningParityTest
                 while (m.find())
                 {
                     callsChecked++;
-                    String args = m.group(2);
+                    String args = balancedArgs(code, m.end());
+                    if (args == null)
+                    {
+                        // Unterminated call: report rather than silently
+                        // counting it as pinned.
+                        Assertions.fail("unterminated getInstance( in " + name
+                                + " — the scanner cannot classify it, so it must not pass");
+                    }
                     String where = name + ":" + (code.substring(0, m.start()).split("\n", -1).length)
                             + "  " + m.group(1) + ".getInstance(" + oneLine(args) + ")";
 
@@ -202,6 +221,37 @@ public class ProviderPinningParityTest
                         + "a JSLFIPS operation performed in the base library. Take the provider "
                         + "name by constructor, as the NI already is:\n  "
                         + String.join("\n  ", hardPinned));
+    }
+
+    /**
+     * The argument text between {@code open} and its MATCHING close paren, or
+     * null when the call is unterminated. Nested calls, arrays and generics
+     * are counted rather than stopped at.
+     */
+    private static String balancedArgs(String code, int open)
+    {
+        int depth = 1;
+        for (int i = open; i != code.length(); i++)
+        {
+            char c = code.charAt(i);
+            if (c == '(')
+            {
+                depth++;
+            }
+            else if (c == ')')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return code.substring(open, i);
+                }
+            }
+            else if (c == ';' && depth == 1)
+            {
+                return null;
+            }
+        }
+        return null;
     }
 
     /** Does the argument list name a provider (a String or a Provider object)? */

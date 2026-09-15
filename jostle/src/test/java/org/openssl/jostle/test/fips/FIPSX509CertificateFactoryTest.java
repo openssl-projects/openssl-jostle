@@ -230,10 +230,12 @@ public class FIPSX509CertificateFactoryTest
             }
             catch (ProviderException e)
             {
+                // The NO-KEYFACTORY arm; see the split noted on the sibling
+                // cells. Only 3.1.2 reaches this, which is why it survived a
+                // green run on 3.5.8 alone.
                 Assertions.assertEquals(
-                        "provider " + FIPS
-                                + " cannot re-derive the certificate public key (algorithm "
-                                + ED25519_OID + "): no KeyFactory for the algorithm, or the key was refused",
+                        "provider " + FIPS + " serves no KeyFactory for certificate public key"
+                                + " algorithm " + ED25519_OID,
                         e.getMessage());
             }
         }
@@ -291,10 +293,13 @@ public class FIPSX509CertificateFactoryTest
         }
         catch (ProviderException e)
         {
+            // The NO-KEYFACTORY arm. The single combined message this used to
+            // pin has been split in two, because it asserted "malformed" for
+            // keys that were nothing of the kind; the sibling cell below pins
+            // the other arm, so the two are no longer interchangeable.
             Assertions.assertEquals(
-                    "provider " + FIPS
-                            + " cannot re-derive the certificate public key (algorithm "
-                            + expectedOid + "): no KeyFactory for the algorithm, or the key was refused",
+                    "provider " + FIPS + " serves no KeyFactory for certificate public key"
+                            + " algorithm " + expectedOid,
                     e.getMessage());
         }
     }
@@ -407,25 +412,39 @@ public class FIPSX509CertificateFactoryTest
         }
         catch (ProviderException e)
         {
+            // The KEY-REFUSED arm, and a DIFFERENT one from the cell above:
+            // JSLFIPS does register an EC KeyFactory, which then refuses
+            // secp256k1. The old wording called this "malformed
+            // SubjectPublicKeyInfo", which named the wrong cause outright —
+            // the SPKI is perfectly well formed.
             Assertions.assertEquals(
-                    "provider " + FIPS
-                            + " cannot re-derive the certificate public key (algorithm "
-                            + EC_PUBKEY_OID + "): no KeyFactory for the algorithm, or the key was refused",
+                    "provider " + FIPS + " could not rebuild the certificate public key"
+                            + " (algorithm " + EC_PUBKEY_OID + "): the SubjectPublicKeyInfo is"
+                            + " malformed, or this provider refuses the key",
                     e.getMessage());
         }
     }
 
     /**
-     * The third arm of the fail-loud branch: a key with NO encoding at all.
-     * {@code Key.getEncoded()} is specified as nullable ("...or null if this
-     * key does not support encoding") and HSM/PKCS#11-backed keys exercise
-     * that permission in the wild. A SUN-parsed certificate always yields an
-     * encodable key, but {@code generateCertPath(List)} accepts CALLER-supplied
-     * certificate objects and the factory wraps any {@link X509Certificate} —
-     * so an HSM-flavoured implementation whose key refuses to encode is a
-     * reachable input. Provider-bound, that must fail loud (nothing can be
+     * INVERTED, 2026-09-15. An un-encodable KEY object does NOT prevent a path
+     * member being rebuilt, because the SubjectPublicKeyInfo comes from the
+     * CERTIFICATE's encoding and never from the caller's key object.
+     *
+     * <p>The original rationale, kept because it was persuasive enough to pass
+     * review once: "Provider-bound, that must fail loud (nothing can be
      * re-derived from a key that will not encode); the lenient JSL factory
-     * returns the caller's key unchanged.
+     * returns the caller's key unchanged." Both halves are now measurably
+     * false. The premise held only while the factory re-derived from
+     * {@code getPublicKey().getEncoded()}; it re-parses the certificate DER
+     * instead, so the key object is never consulted — and the lenient/loud
+     * policy split went with the SUN delegate, there being no JDK key left to
+     * fall back to.
+     *
+     * <p>{@code Key.getEncoded()} is still specified as nullable and HSM-backed
+     * keys still exercise that permission, so the input remains reachable and
+     * worth a cell — it simply has a different, better answer. The genuinely
+     * unrebuildable case is a certificate whose OWN encoding is absent, which
+     * the sibling cell below pins.
      */
     @Test
     public void nullEncodedKeyCert_failsLoudOnFips_passesThroughOnJsl() throws Exception
@@ -435,29 +454,51 @@ public class FIPSX509CertificateFactoryTest
         X509Certificate real = parseFips(selfSigned(generate("EC", 256), "SHA256withECDSA", SHA256_ECDSA_OID));
         X509Certificate hsmStyle = new NullEncodedKeyCertificate(real);
 
-        CertificateFactory fips = CertificateFactory.getInstance("X.509", FIPS);
-        X509Certificate bound = (X509Certificate) fips
-                .generateCertPath(java.util.Collections.singletonList(hsmStyle))
-                .getCertificates().get(0);
-        try
+        for (String providerName : new String[]{ FIPS, JSL })
         {
-            bound.getPublicKey();
-            Assertions.fail("expected ProviderException for a key with no encoding");
-        }
-        catch (ProviderException e)
-        {
-            Assertions.assertEquals(
-                    "certificate public key (EC) has no encoding to re-derive through provider " + FIPS,
-                    e.getMessage());
-        }
+            X509Certificate bound = (X509Certificate) CertificateFactory
+                    .getInstance("X.509", providerName)
+                    .generateCertPath(java.util.Collections.singletonList(hsmStyle))
+                    .getCertificates().get(0);
 
-        // Lenient regression pair: JSL hands the caller's key back unchanged.
-        CertificateFactory jsl = CertificateFactory.getInstance("X.509", JSL);
-        X509Certificate lenient = (X509Certificate) jsl
-                .generateCertPath(java.util.Collections.singletonList(hsmStyle))
-                .getCertificates().get(0);
-        Assertions.assertNull(lenient.getPublicKey().getEncoded(),
-                "the lenient factory must return the un-encodable key as-is");
+            PublicKey rebuilt = bound.getPublicKey();
+            Assertions.assertNotNull(rebuilt,
+                    "the SPKI comes from the certificate, so an un-encodable KEY cannot block it");
+            Assertions.assertNotNull(rebuilt.getEncoded(),
+                    "the rebuilt key encodes even though the caller's key did not");
+            Assertions.assertTrue(rebuilt.getClass().getName().startsWith("org.openssl.jostle"),
+                    "path member must carry a key from " + providerName);
+        }
+    }
+
+    /**
+     * The case that genuinely cannot be rebuilt: the CERTIFICATE itself has no
+     * encoding, so there is no SubjectPublicKeyInfo to read. Refused at
+     * {@code generateCertPath}, where the caller can still act on it, rather
+     * than deferred to whoever later asks the path member for its key.
+     */
+    @Test
+    public void certificateWithNoEncodingIsRefusedByGenerateCertPath() throws Exception
+    {
+        X509Certificate real = parseFips(selfSigned(generate("EC", 256), "SHA256withECDSA", SHA256_ECDSA_OID));
+        X509Certificate unencodable = new NullEncodedKeyCertificate(real)
+        {
+            @Override
+            public byte[] getEncoded()
+            {
+                return null;
+            }
+        };
+
+        java.security.cert.CertificateException e = Assertions.assertThrows(
+                java.security.cert.CertificateException.class,
+                () -> CertificateFactory.getInstance("X.509", FIPS)
+                        .generateCertPath(java.util.Collections.singletonList(unencodable)));
+
+        Assertions.assertEquals(
+                "certificate in the list does not support encoding, so it cannot be"
+                        + " rebuilt through provider " + FIPS,
+                e.getMessage());
     }
 
     /**
@@ -465,7 +506,7 @@ public class FIPSX509CertificateFactoryTest
      * shape an HSM/PKCS#11-backed certificate object presents. Everything
      * structural delegates to a real parsed certificate.
      */
-    private static final class NullEncodedKeyCertificate extends X509Certificate
+    private static class NullEncodedKeyCertificate extends X509Certificate
     {
         private final X509Certificate delegate;
 

@@ -439,7 +439,16 @@ public class DHKeyAgreementTest
         ka.doPhase(b.getPublic(), true);
         SecretKey key = ka.generateSecret("TlsPremasterSecret");
         Assertions.assertEquals("TlsPremasterSecret", key.getAlgorithm());
-        Assertions.assertEquals(256, key.getEncoded().length);
+        // The FIPS twin of this cell asserted 256 unconditionally and fired on
+        // an FFI leg: TlsPremasterSecret is read as a positive integer, so
+        // leading zero octets come off (RFC 5246 8.1.2, and the JDK the same)
+        // and the length is 255 about once in 256 runs. This sibling had the
+        // identical shape and had simply not been unlucky yet.
+        byte[] encodedSecret = key.getEncoded();
+        Assertions.assertTrue(encodedSecret.length <= 256 && encodedSecret.length >= 250,
+                "expected at most the 256-byte prime length, got " + encodedSecret.length);
+        Assertions.assertNotEquals(0, encodedSecret[0],
+                "a leading zero octet must have been stripped");
     }
 
     @Test

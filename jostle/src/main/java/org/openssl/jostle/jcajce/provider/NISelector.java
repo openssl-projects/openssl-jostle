@@ -23,7 +23,9 @@ import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceJNI;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceJNI;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.certpath.CertPathNI;
+import org.openssl.jostle.jcajce.provider.cert.X509ServiceJNI;
 import org.openssl.jostle.jcajce.provider.certpath.CertPathServiceJNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceJNI;
@@ -88,6 +90,7 @@ public class NISelector
     public static final DSAServiceNI DSAServiceNI;
     public static final DHServiceNI DHServiceNI;
     public static final CertPathNI CertPathNI;
+    public static final X509NI X509NI;
     public static final XECServiceNI XECServiceNI;
     public static final MacServiceNI MacServiceNI;
     public static final RandServiceNI RandServiceNI;
@@ -117,6 +120,7 @@ public class NISelector
         DSAServiceNI = new DSAServiceJNI();
         DHServiceNI = new DHServiceJNI();
         CertPathNI = new CertPathServiceJNI();
+        X509NI = new X509ServiceJNI();
         XECServiceNI = new XECServiceJNI();
         MacServiceNI = new MacServiceJNI();
         RandServiceNI = new RandServiceJNI();

@@ -112,7 +112,18 @@ public class ProviderInstancePinningParityTest
     private static final String VERIFY_SCOPE = "/jcajce/provider/cert/";
 
     /** JSLKeyX509Certificate's three provider-taking verify sites, plus room. */
-    private static final int VERIFY_SITES_FLOOR = 4;
+    /**
+     * The verify arm no longer has a floor, and the reason is a design change
+     * rather than a weakening. Certificate verification used to DELEGATE —
+     * {@code cert.verify(key, provider)} inside the wrapper over a foreign
+     * certificate — which is what those 4 sites were. That wrapper is deleted
+     * with the SUN parsing delegate, and our own certificate now builds its
+     * Signature itself, so there is no two-argument {@code .verify(} left in
+     * the package for the arm to count. The arm still SCANS, so a
+     * re-introduced delegation is still checked; what moved is the vacuity
+     * floor, onto the sites that replaced those 4 one-for-one.
+     */
+    private static final int CERT_BOUND_RESOLUTION_FLOOR = 4;
 
     /**
      * Argument texts that ARE a provider instance. All four are measured in
@@ -171,9 +182,12 @@ public class ProviderInstancePinningParityTest
 
         // Deliberately FOREIGN: the name is the correct reference, because we
         // want whichever object answers to it rather than one of ours.
-        add(m, "X509CertificateFactorySpi:CertificateFactory:\"SUN\"", 1,
-                "the JDK's X.509 parser; naming SUN also stops us recursing into this factory"
-                        + " when JSL sorts first in the search order");
+        //
+        // The X509CertificateFactorySpi:CertificateFactory:"SUN" entry that
+        // used to sit here is GONE, and its removal is the point rather than
+        // housekeeping: the factory no longer delegates X.509 parsing to the
+        // JDK at all, so there is no SUN resolution left to sanction. The
+        // count check is what surfaced it — the entry still read as justified.
         add(m, "ECKeyFactorySpi:KeyFactory:\"SunEC\"", 1,
                 "so the encoded bytes do not vary with the caller's installed provider list");
 
@@ -186,9 +200,13 @@ public class ProviderInstancePinningParityTest
                 "unbound arm only, java and java9; the bound arm above it pins the instance");
         addFallback(m, "CCMCipherSpi:JostleAlgorithmParameters:cipherNI.providerName()", 2, "CCMCipherSpi:AlgorithmParameters",
                 "unbound arm only, java and java9; the bound arm above it pins the instance");
-        addFallback(m, "JSLKeyX509Certificate:KeyFactory:binding.name()", 1, "JSLKeyX509Certificate:KeyFactory",
+        // JSLKeyX509Certificate was the wrapper over a foreign certificate and
+        // is deleted with the SUN parsing delegate. CertKeys does both of its
+        // resolutions now — the key rebuild and the verifying Signature — so
+        // its two entries replace that class's two, one for one.
+        addFallback(m, "CertKeys:KeyFactory:binding.name()", 1, "CertKeys:KeyFactory",
                 "reached only from the factory's public name-only constructor");
-        addFallback(m, "JSLKeyX509Certificate:verify:binding.name()", 1, "JSLKeyX509Certificate:verify",
+        addFallback(m, "CertKeys:Signature:binding.name()", 1, "CertKeys:Signature",
                 "reached only from the factory's public name-only constructor");
         addFallback(m, "KeyAgreementKDF:MessageDigest:providerName", 1, "KeyAgreementKDF:MessageDigest",
                 "reached only from the agreement SPIs' convenience constructor");
@@ -205,8 +223,24 @@ public class ProviderInstancePinningParityTest
                         + " HMAC must run in the same library as the agreement it keys");
 
         // The caller's own choice.
-        add(m, "JSLKeyX509Certificate:verify:sigProvider", 2,
-                "the two-argument verify overloads; the caller named a provider and we honour it");
+        add(m, "JOX509Certificate:Signature:sigProvider", 2,
+                "the two-argument verify overloads; the caller named a provider and we honour it."
+                        + " Two sites and not one because the String and the Provider overload"
+                        + " spell the argument identically, which a text-keyed lint cannot tell"
+                        + " apart — the count is what keeps a third from hiding behind them");
+        add(m, "JOX509CRL:Signature:sigProvider", 2,
+                "as above, the CRL's two verify overloads");
+
+        // Instance-derived, not name-derived: the guard sees a call it cannot
+        // classify, but getProvider() returns the Provider OBJECT the verifier
+        // was built from, which is the strongest pinning available here — the
+        // parameters must be decoded by the same provider that will consume
+        // them.
+        add(m, "JOX509Certificate:AlgorithmParameters:verifier.getProvider()", 1,
+                "the signature parameters are decoded on the verifying Signature's own provider"
+                        + " instance");
+        add(m, "JOX509CRL:AlgorithmParameters:verifier.getProvider()", 1,
+                "as above, for the CRL");
 
         // Not a provider argument at all.
         add(m, "ThreadLocalSecureRandomProvider:SecureRandom:DrbgParameters.instantiation", 2,
@@ -242,6 +276,7 @@ public class ProviderInstancePinningParityTest
         int scanned = 0;
         int considered = 0;
         int verifySites = 0;
+        int certResolutions = 0;
 
         for (Path root : roots)
         {
@@ -262,6 +297,10 @@ public class ProviderInstancePinningParityTest
                         continue;
                     }
                     considered++;
+                    if (certPackage)
+                    {
+                        certResolutions++;
+                    }
                     check(cls, m.group(1), args.get(1), findings, allowedHits, boundSites);
                 }
 
@@ -288,10 +327,12 @@ public class ProviderInstancePinningParityTest
                 "only " + scanned + " production sources scanned — the walk is not reaching the tree");
         Assertions.assertTrue(considered > 20,
                 "only " + considered + " provider-taking calls seen — the pattern has drifted");
-        Assertions.assertTrue(verifySites >= VERIFY_SITES_FLOOR,
-                "the verify arm found " + verifySites + " sites under " + VERIFY_SCOPE
-                        + ", fewer than the " + VERIFY_SITES_FLOOR + " known ones — the scope is"
-                        + " looking in the wrong place and would report 0 findings from nowhere");
+        Assertions.assertTrue(certResolutions >= CERT_BOUND_RESOLUTION_FLOOR,
+                "found " + certResolutions + " provider-taking resolutions under " + VERIFY_SCOPE
+                        + ", fewer than the " + CERT_BOUND_RESOLUTION_FLOOR + " known ones — the"
+                        + " scope is looking in the wrong place and would report 0 findings from"
+                        + " nowhere. Certificate key rebuild and signature resolution both go"
+                        + " through CertKeys, so this cannot legitimately reach zero.");
 
         Assertions.assertTrue(findings.isEmpty(),
                 "these resolutions name their provider by NAME where an instance is reachable ("

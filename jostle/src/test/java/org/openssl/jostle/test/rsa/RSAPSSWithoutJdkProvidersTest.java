@@ -37,10 +37,6 @@ import java.security.spec.PSSParameterSpec;
  * providers — or filtered them with {@code jdk.security.providers.filter} —
  * lost the ability to encode or decode PSS parameters entirely.
  *
- * <p>Scoped to PSS deliberately. The X.509 CertificateFactory still resolves
- * the JDK parser by name in its constructor, so the certificate path does NOT
- * survive this treatment; that is tracked separately and is not what this
- * class measures.
  *
  * <p>It empties the GLOBAL provider registry, and restores it in an
  * {@code @AfterEach} that runs whatever the test does. The restore is not

@@ -580,6 +580,30 @@
    the index it reports counts CRLs, not certificates. */
 #define JO_CRL_DECODE_FAILED -176
 /*
+ * An extension is present but could not be decoded, occurs more than once, or
+ * declares more bits than we will represent. Distinct from -175 because the
+ * certificate's STRUCTURE decoded: reporting it as a certificate decode
+ * failure would send a reader looking in the wrong place. X509_get_ext_d2i
+ * returns NULL for absent, undecodable AND duplicated alike, so reading its
+ * NULL as "absent" would make a malformed certificate report "not a CA" or
+ * "no key usage" -- constraints silently dropped rather than refused.
+ */
+#define JO_CERT_EXTENSION_INVALID -177
+/*
+ * The X509 handle a caller passed is 0. Its own code rather than a borrowed
+ * one, matching JO_SIGNER_CTX_IS_NULL and the other per-family handle codes,
+ * so a limit test can pin the message and a reader knows which handle was
+ * null.
+ */
+#define JO_CERT_CTX_IS_NULL -178
+/*
+ * The input exceeds the certificate ceiling the caller passed. Distinct from
+ * JO_INPUT_TOO_LONG_INT32, which says "will not fit an int32" -- a different
+ * and much larger bound. The Java arm names the property that moves this one,
+ * because a refusal a deployment cannot act on is a refusal it cannot fix.
+ */
+#define JO_CERT_TOO_LARGE -179
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config

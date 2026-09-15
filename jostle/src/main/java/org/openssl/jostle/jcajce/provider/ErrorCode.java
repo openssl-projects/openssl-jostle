@@ -315,6 +315,19 @@ public enum ErrorCode
     // A supplied CRL is not DER X.509. Separate from -175: the index in
     // outInfo[1] counts CRLs, so one code for both would name the wrong file.
     JO_CRL_DECODE_FAILED(-176),
+
+
+    // An extension is present but undecodable, occurs more than once, or
+    // declares more keyUsage bits than are carried. Distinct from -175 because
+    // the certificate's STRUCTURE decoded.
+    JO_CERT_EXTENSION_INVALID(-177),
+
+    // The X509 handle passed to an X.509 entry point was 0.
+    JO_CERT_CTX_IS_NULL(-178),
+
+    // The input exceeds the configured certificate ceiling.
+    JO_CERT_TOO_LARGE(-179),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

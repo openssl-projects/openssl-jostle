@@ -10,45 +10,52 @@
 
 package org.openssl.jostle.jcajce.provider.cert;
 
+import org.openssl.jostle.jcajce.provider.CertificateParseException;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
-import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.cert.CRL;
 import java.security.cert.CRLException;
 import java.security.cert.CertPath;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateFactorySpi;
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
-import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
-
 /**
- * X.509 CertificateFactory for the JSL provider.
+ * X.509 CertificateFactory, parsing over OpenSSL.
  *
- * <p>Parsing X.509 certificates / CRLs / CertPaths is ASN.1 structure work, not a
- * cryptographic operation, so this delegates to the JDK's built-in "SUN" X.509
- * factory rather than re-implementing it. It exists so that consumers (notably the
- * PKIX/CMS layer's {@code JcaX509CertificateConverter} and the various
- * {@code setProvider("JSL")} helpers) can resolve {@code CertificateFactory.X.509}
- * against the JSL provider.</p>
+ * <p>Nothing here delegates to another provider. The previous implementation
+ * resolved {@code CertificateFactory.getInstance("X.509", "SUN")} in its
+ * CONSTRUCTOR, so on a JVM with the JDK providers removed the service could
+ * not even be created — the failure arrived at {@code getInstance} rather than
+ * at the operation.
  *
- * <p>The delegate is fetched explicitly from the {@code SUN} provider to avoid
- * recursing back into this factory if JSL happens to be highest in the provider
- * search order.</p>
+ * <p><b>Non-DER input is accepted and normalised to DER.</b> See
+ * {@link JOX509Certificate} for what that means to a caller.
+ *
+ * <p>This phase serves certificates from DER. CRLs, CertPaths and the PEM and
+ * PKCS#7 container formats are not yet served by this implementation and
+ * refuse typed rather than silently returning nothing.
  */
 public class X509CertificateFactorySpi
     extends CertificateFactorySpi
 {
-    private final CertificateFactory delegate;
-    /** One fact, one field — see {@link ProviderBinding}. */
+    /** One fact, one field — an instance or a name, never both. */
     private final ProviderBinding binding;
-    private final boolean providerBound;
+    private final X509NI ni;
 
     public X509CertificateFactorySpi()
     {
@@ -56,31 +63,31 @@ public class X509CertificateFactorySpi
     }
 
     /**
-     * Name-only form, kept for callers outside this tree. Prefer the
-     * {@link Provider} form: a name is re-resolvable, so the keys this factory
-     * returns can come from a different instance than the caller asked for.
+     * Name-only form, kept because it is public API and an out-of-tree caller
+     * may hold it. It keeps NAME resolution, which is all it ever had: the
+     * provider is looked up when a key is built, so a caller that swaps what
+     * the name points at gets the new one. Prefer the {@link Provider} form.
      *
-     * @param providerName  the Jostle provider certificates' keys are re-derived
-     *                      through (see {@link JSLKeyX509Certificate}).
-     * @param providerBound when true, never fall back outside {@code providerName}:
-     *                      key re-derivation failure is a loud error instead of a
-     *                      JDK-key fallback, and one-argument verify is pinned to
-     *                      the provider. Used by the FIPS registration.
+     * @param providerName  the Jostle provider certificates' keys are rebuilt
+     *                      through
+     * @param providerBound retained for the registrations; the distinction it
+     *                      used to carry — fall back to a JDK key, or fail
+     *                      loud — no longer exists, because nothing delegates
+     *                      to the JDK and so there is no JDK key to fall back
+     *                      to.
      */
     public X509CertificateFactorySpi(String providerName, boolean providerBound)
     {
-        this.binding = ProviderBinding.ofName(providerName);
-        this.providerBound = providerBound;
-        this.delegate = jdkDelegate();
+        this(NISelector.X509NI, ProviderBinding.ofName(providerName));
     }
 
     /**
      * @param providerInstance the provider this factory belongs to. The
-     *                         certificates it returns carry keys decoded by
-     *                         THIS instance: a name is re-resolvable, and a key
-     *                         from another instance is refused by MT-14's
-     *                         isolation check on first use, so the factory
-     *                         would hand back what its own provider rejects.
+     *                         certificates it returns rebuild their public keys
+     *                         through THIS instance: a name is re-resolvable,
+     *                         and a key from another instance is refused by the
+     *                         isolation check on first use, so a name-resolved
+     *                         factory hands back what its own provider rejects.
      * @param providerBound    see the name-only form.
      */
     public X509CertificateFactorySpi(Provider providerInstance, boolean providerBound)
@@ -92,148 +99,508 @@ public class X509CertificateFactorySpi
                             + " use the name-only constructor when there is none");
         }
         this.binding = ProviderBinding.of(providerInstance);
-        this.providerBound = providerBound;
-        this.delegate = jdkDelegate();
+        this.ni = NISelector.X509NI;
     }
 
     /**
-     * The JDK's X.509 parser, by NAME on purpose: we want whichever object
-     * answers to SUN, and naming it avoids recursing back into this factory
-     * when JSL sits highest in the search order.
+     * The form the registrations use: the NI is a CONSTRUCTOR ARGUMENT, never
+     * a static read.
+     *
+     * <p>An SPI that reaches {@code NISelector} in its body is welded to the
+     * BASE interface library and its lib ctx, so it can never serve JSLFIPS.
+     * This class was first written that way and the consequence was not
+     * theoretical: on a FIPS-only run it aborted the JVM at
+     * {@code get_global_jostle_ossl_lib_ctx}'s assert, because the base lib
+     * ctx had never been initialised. On a JVM where both were initialised it
+     * would instead have parsed in the wrong library and returned keys from
+     * the wrong provider, with no symptom at all.
      */
-    private static CertificateFactory jdkDelegate()
+    public X509CertificateFactorySpi(X509NI ni, ProviderBinding binding)
     {
-        try
+        if (ni == null || binding == null)
         {
-            return CertificateFactory.getInstance("X.509", "SUN");
+            throw new IllegalArgumentException(
+                    "X509CertificateFactorySpi requires its NI and its provider binding");
         }
-        catch (CertificateException | NoSuchProviderException e)
-        {
-            throw new IllegalStateException("unable to obtain a JDK X.509 CertificateFactory: " + e.getMessage(), e);
-        }
+        this.ni = ni;
+        this.binding = binding;
     }
 
     public Certificate engineGenerateCertificate(InputStream inStream)
         throws CertificateException
     {
-        return wrap(delegate.generateCertificate(inStream));
+        if (inStream == null)
+        {
+            throw new CertificateException("Missing input stream");
+        }
+        byte[] der = readOne(inStream, X509NI.maxCertificateBytes());
+        if (der == null)
+        {
+            throw new CertificateException("Empty input");
+        }
+        return parse(der);
     }
 
     public Collection<? extends Certificate> engineGenerateCertificates(InputStream inStream)
         throws CertificateException
     {
-        Collection<? extends Certificate> certs = delegate.generateCertificates(inStream);
-        if (certs == null || certs.isEmpty())
+        if (inStream == null)
         {
-            return certs;
+            throw new CertificateException("Missing input stream");
         }
-        List<Certificate> wrapped = new ArrayList<>(certs.size());
-        for (Certificate c : certs)
+        List<Certificate> out = new ArrayList<Certificate>();
+        while (true)
         {
-            wrapped.add(wrap(c));
+            byte[] der;
+            try
+            {
+                der = readOne(inStream, X509NI.maxCertificateBytes());
+            }
+            catch (CertificateException unreadable)
+            {
+                // Measured on both references: trailing garbage AFTER at least
+                // one certificate returns what was parsed, and only a FIRST
+                // object that cannot be read throws. An earlier draft threw in
+                // both cases, which would have refused a stream the JDK and
+                // BouncyCastle both accept.
+                if (out.isEmpty())
+                {
+                    throw unreadable;
+                }
+                break;
+            }
+            if (der == null)
+            {
+                break;
+            }
+            if (out.size() + 1 > X509NI.maxMembers())
+            {
+                // Before the parse, so the cap costs nothing to enforce and
+                // nothing is allocated for the member that breaks it.
+                throw new CertificateException("certificate stream carries more than " + X509NI.maxMembers()
+                        + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
+            }
+            out.add(parse(der));
         }
-        return wrapped;
+        // An empty stream yields an EMPTY COLLECTION, not an exception — the
+        // opposite of the singular form above, and what both references do.
+        return Collections.unmodifiableList(out);
     }
 
     /**
-     * Re-wrap an X.509 certificate so its getPublicKey() returns a key from this
-     * factory's provider (its Signature SPIs require their own key types).
-     * Non-X.509 results pass through.
+     * Read exactly one DER object from the stream, leaving the remainder.
+     *
+     * <p>Reading one object and stopping is the JCA contract: measured, both
+     * the JDK and BouncyCastle leave the stream positioned immediately after
+     * the certificate, so a caller can read a concatenated series. That is the
+     * OPPOSITE of the whole-blob decoders elsewhere in the tree, which refuse
+     * trailing data — and each site says which contract it serves.
+     *
+     * @return the object's octets, or null at end of stream
      */
-    private Certificate wrap(Certificate c)
+    private byte[] readOne(InputStream in, int ceiling)
+        throws CertificateException
     {
-        // Fast-path: already wrapped with this factory's policy — return
-        // unchanged. A wrapper carrying a different provider or binding (e.g. a
-        // lenient JSL-wrapped cert flowing into the provider-bound FIPS factory
-        // via engineGenerateCertPath(List)) is re-wrapped from its delegate so
-        // this factory's policy always governs what it returns.
-        if (c instanceof JSLKeyX509Certificate)
+        try
         {
-            JSLKeyX509Certificate wrapped = (JSLKeyX509Certificate) c;
-            if (wrapped.hasPolicy(binding, providerBound))
+            int first = in.read();
+            if (first < 0)
             {
-                return c;
+                return null;
             }
-            return new JSLKeyX509Certificate(wrapped.unwrap(), binding, providerBound);
-        }
+            if (first != 0x30)
+            {
+                throw new CertificateException(
+                        "expected a DER SEQUENCE; this phase does not read PEM");
+            }
+            ByteArrayOutputStream header = new ByteArrayOutputStream();
+            header.write(first);
 
-        if (c instanceof X509Certificate)
-        {
-            return new JSLKeyX509Certificate((X509Certificate) c, binding, providerBound);
+            int l = in.read();
+            if (l < 0)
+            {
+                throw new CertificateException("Incomplete BER/DER data");
+            }
+            header.write(l);
+
+            long contentLen;
+            if ((l & 0x80) == 0)
+            {
+                contentLen = l;
+            }
+            else
+            {
+                int n = l & 0x7F;
+                if (n == 0)
+                {
+                    throw new CertificateException(
+                            "indefinite length is not read by this phase");
+                }
+                if (n > 4)
+                {
+                    throw new CertificateException("unsupported DER length");
+                }
+                contentLen = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    int b = in.read();
+                    if (b < 0)
+                    {
+                        throw new CertificateException("Incomplete BER/DER data");
+                    }
+                    header.write(b);
+                    contentLen = (contentLen << 8) | b;
+                }
+            }
+
+            if (contentLen > ceiling)
+            {
+                throw new CertificateParseException(
+                        "object exceeds the configured ceiling; raise "
+                                + (ceiling == X509NI.maxCertificateBytes()
+                                   ? X509NI.MAX_CERT_BYTES_PROPERTY
+                                   : X509NI.MAX_CONTAINER_BYTES_PROPERTY));
+            }
+
+            byte[] head = header.toByteArray();
+            byte[] out = new byte[head.length + (int) contentLen];
+            System.arraycopy(head, 0, out, 0, head.length);
+            int got = 0;
+            while (got < contentLen)
+            {
+                int r = in.read(out, head.length + got, (int) contentLen - got);
+                if (r < 0)
+                {
+                    throw new CertificateException("Incomplete BER/DER data");
+                }
+                got += r;
+            }
+            return out;
         }
-        return c;
+        catch (IOException e)
+        {
+            throw new CertificateException("Could not parse certificate: " + e, e);
+        }
+    }
+
+    private Certificate parse(byte[] der)
+        throws CertificateException
+    {
+        long ref = 0;
+        try
+        {
+            int[] consumed = new int[1];
+            ref = ni.allocate(der, 0, der.length, X509NI.maxCertificateBytes(), consumed);
+
+            int blobLen = ni.fieldsLen(ref);
+            byte[] blob = new byte[blobLen];
+            int[] sizes = new int[X509NI.SLOT_COUNT];
+            int[] info = new int[X509NI.INFO_COUNT];
+            ni.fields(ref, blob, sizes, info);
+
+            int extCount = info[X509NI.INFO_EXT_COUNT];
+            byte[] extBlob = new byte[0];
+            int[] oidSizes = new int[0];
+            int[] valSizes = new int[0];
+            int[] critical = new int[0];
+            if (extCount > 0)
+            {
+                // Skipped entirely when there are none: zero-length arrays are
+                // a capacity the native side refuses, and a certificate with
+                // no extensions is a legitimate v1.
+                extBlob = new byte[ni.extensionsLen(ref)];
+                oidSizes = new int[extCount];
+                valSizes = new int[extCount];
+                critical = new int[extCount];
+                ni.extensions(ref, extBlob, oidSizes, valSizes, critical);
+            }
+
+            return new JOX509Certificate(binding, blob, sizes, info,
+                    extBlob, oidSizes, valSizes, critical);
+        }
+        catch (CertificateParseException e)
+        {
+            // The NI's typed runtime refusal becomes the JCE-canonical checked
+            // one at the parse boundary, which is where both the JDK and
+            // BouncyCastle raise for the same inputs.
+            throw new CertificateParsingException(e.getMessage(), e);
+        }
+        catch (OpenSSLException e)
+        {
+            // Everything else the NI can raise is still a RuntimeException,
+            // and generateCertificate's contract is CertificateException. An
+            // OpenSSL failure or an injected fault would otherwise escape as
+            // an unchecked throw past every caller's catch.
+            throw new CertificateException("could not parse certificate: " + e.getMessage(), e);
+        }
+        catch (IllegalArgumentException | IllegalStateException e)
+        {
+            // The limit arms — a null handle, an out-of-range length — reach
+            // here only through a programming error on our side, but they must
+            // not escape unchecked either.
+            throw new CertificateException("could not parse certificate: " + e.getMessage(), e);
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                // The certificate object keeps no native handle — every field
+                // was copied out above — so the handle is freed here rather
+                // than left to the disposal daemon.
+                ni.dispose(ref);
+            }
+        }
     }
 
     public CRL engineGenerateCRL(InputStream inStream)
         throws CRLException
     {
-        return delegate.generateCRL(inStream);
+        if (inStream == null)
+        {
+            throw new CRLException("Missing input stream");
+        }
+        byte[] der;
+        try
+        {
+            der = readOne(inStream, X509NI.maxContainerBytes());
+        }
+        catch (CertificateException e)
+        {
+            throw new CRLException(e.getMessage(), e);
+        }
+        if (der == null)
+        {
+            throw new CRLException("Empty input");
+        }
+        return parseCrl(der);
     }
 
     public Collection<? extends CRL> engineGenerateCRLs(InputStream inStream)
         throws CRLException
     {
-        return delegate.generateCRLs(inStream);
+        if (inStream == null)
+        {
+            throw new CRLException("Missing input stream");
+        }
+        List<CRL> out = new ArrayList<CRL>();
+        while (true)
+        {
+            byte[] der;
+            try
+            {
+                der = readOne(inStream, X509NI.maxContainerBytes());
+            }
+            catch (CertificateException unreadable)
+            {
+                // Same rule as the certificate collection: only a FIRST object
+                // that cannot be read throws.
+                if (out.isEmpty())
+                {
+                    throw new CRLException(unreadable.getMessage(), unreadable);
+                }
+                break;
+            }
+            if (der == null)
+            {
+                break;
+            }
+            if (out.size() + 1 > X509NI.maxMembers())
+            {
+                // Before the parse, so the cap costs nothing to enforce and
+                // nothing is allocated for the member that breaks it.
+                throw new CRLException("CRL stream carries more than " + X509NI.maxMembers()
+                        + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
+            }
+            out.add(parseCrl(der));
+        }
+        return Collections.unmodifiableList(out);
     }
 
-    // The three engineGenerateCertPath overloads below rebuild the path from
-    // wrapped certificates via delegate.generateCertPath(List). This relies on
-    // the SUN delegate's CertPath retaining the supplied Certificate instances
-    // verbatim in getCertificates() — sun.security.provider.certpath.X509CertPath
-    // stores the list as-is rather than re-parsing — so the JSL wrappers survive
-    // and getPublicKey() yields JSL keys. testGenerateCertPath_* guard this; if a
-    // future delegate re-parsed instead, those tests would fail loudly.
+    private CRL parseCrl(byte[] der)
+        throws CRLException
+    {
+        long ref = 0;
+        try
+        {
+            int[] consumed = new int[1];
+            ref = ni.allocateCrl(der, 0, der.length, X509NI.maxContainerBytes(), consumed);
+
+            int blobLen = ni.crlFieldsLen(ref);
+            byte[] blob = new byte[blobLen];
+            int[] sizes = new int[X509NI.CRL_SLOT_COUNT];
+            int[] info = new int[X509NI.CRL_INFO_COUNT];
+            ni.crlFields(ref, blob, sizes, info);
+
+            int extCount = info[X509NI.CRL_INFO_EXT_COUNT];
+            byte[] extBlob = new byte[0];
+            int[] oidSizes = new int[0];
+            int[] valSizes = new int[0];
+            int[] critical = new int[0];
+            if (extCount > 0)
+            {
+                extBlob = new byte[ni.crlExtensionsLen(ref)];
+                oidSizes = new int[extCount];
+                valSizes = new int[extCount];
+                critical = new int[extCount];
+                ni.crlExtensions(ref, extBlob, oidSizes, valSizes, critical);
+            }
+
+            int entryCount = info[X509NI.CRL_INFO_ENTRY_COUNT];
+            byte[] entryBlob = new byte[0];
+            int[] entrySizes = new int[0];
+            int[] entryDates = new int[0];
+            if (entryCount > 0)
+            {
+                entryBlob = new byte[ni.crlEntriesLen(ref)];
+                entrySizes = new int[entryCount];
+                entryDates = new int[2 * entryCount];
+                ni.crlEntries(ref, entryBlob, entrySizes, entryDates);
+            }
+
+            return new JOX509CRL(binding, blob, sizes, info,
+                    extBlob, oidSizes, valSizes, critical,
+                    entryBlob, entrySizes, entryDates);
+        }
+        catch (CertificateParseException e)
+        {
+            throw new CRLException(e.getMessage(), e);
+        }
+        catch (OpenSSLException | IllegalArgumentException | IllegalStateException e)
+        {
+            throw new CRLException("could not parse CRL: " + e.getMessage(), e);
+        }
+        finally
+        {
+            if (ref != 0)
+            {
+                ni.disposeCrl(ref);
+            }
+        }
+    }
+
     public CertPath engineGenerateCertPath(InputStream inStream)
         throws CertificateException
     {
-        CertPath parsed = delegate.generateCertPath(inStream);
-        List<? extends Certificate> certs = parsed.getCertificates();
-        if (certs == null || certs.isEmpty())
-        {
-            return parsed;
-        }
-        List<Certificate> wrapped = new ArrayList<>(certs.size());
-        for (Certificate c : certs)
-        {
-            wrapped.add(wrap(c));
-        }
-        return delegate.generateCertPath(wrapped);
+        return engineGenerateCertPath(inStream, JOCertPath.PKI_PATH);
     }
 
     public CertPath engineGenerateCertPath(InputStream inStream, String encoding)
         throws CertificateException
     {
-        CertPath parsed = delegate.generateCertPath(inStream, encoding);
-        List<? extends Certificate> certs = parsed.getCertificates();
-        if (certs == null || certs.isEmpty())
+        if (inStream == null)
         {
-            return parsed;
+            throw new CertificateException("missing input stream");
         }
-        List<Certificate> wrapped = new ArrayList<>(certs.size());
-        for (Certificate c : certs)
+        boolean pkiPath = JOCertPath.PKI_PATH.equals(encoding);
+        if (!pkiPath && !JOCertPath.PKCS7.equals(encoding))
         {
-            wrapped.add(wrap(c));
+            throw new CertificateException("unsupported encoding: " + encoding);
         }
-        return delegate.generateCertPath(wrapped);
+
+        // One container, bounded by the container ceiling rather than the
+        // certificate one: a path is many certificates.
+        byte[] der = readOne(inStream, X509NI.maxContainerBytes());
+
+        List<byte[]> members;
+        try
+        {
+            members = pkiPath ? JOCertPath.decodePkiPath(der) : JOCertPath.decodePkcs7(der);
+        }
+        catch (IOException e)
+        {
+            throw new CertificateException("could not parse " + encoding + ": " + e.getMessage(), e);
+        }
+
+        List<X509Certificate> certs = new ArrayList<X509Certificate>(members.size());
+        for (byte[] member : members)
+        {
+            // Through our own parser, so every member of the path is ours and
+            // answers with our keys — the whole point of the exercise.
+            certs.add((X509Certificate) parse(member));
+        }
+        return new JOCertPath(certs);
     }
 
     public CertPath engineGenerateCertPath(List<? extends Certificate> certificates)
         throws CertificateException
     {
-        if (certificates == null || certificates.isEmpty())
+        if (certificates == null)
         {
-            return delegate.generateCertPath(certificates);
+            throw new CertificateException("certificate list is null");
         }
-        List<Certificate> wrapped = new ArrayList<>(certificates.size());
+        if (certificates.size() > X509NI.maxMembers())
+        {
+            throw new CertificateException("certificate list carries more than "
+                    + X509NI.maxMembers() + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
+        }
+        List<X509Certificate> certs = new ArrayList<X509Certificate>(certificates.size());
+        int position = 0;
         for (Certificate c : certificates)
         {
-            wrapped.add(wrap(c));
+            if (c == null)
+            {
+                // A TYPED refusal naming the position, which is NEITHER
+                // reference's behaviour: SUN raises a bare
+                // NullPointerException and BouncyCastle accepts the null
+                // silently. SUN's NPE is the defect side and BC's acceptance
+                // only defers the failure to whoever reads the path, so this
+                // is a deliberate divergence from both.
+                throw new CertificateException(
+                        "certificate list contains a null element at position " + position);
+            }
+            if (!(c instanceof X509Certificate))
+            {
+                throw new CertificateException(
+                        "certificate list contains a non-X.509 certificate at position "
+                                + position + ": " + c.getType());
+            }
+            certs.add(rebind((X509Certificate) c));
+            position++;
         }
-        return delegate.generateCertPath(wrapped);
+        return new JOCertPath(certs);
     }
 
-    public java.util.Iterator<String> engineGetCertPathEncodings()
+    /**
+     * A path member that belongs to THIS factory's provider, re-parsing it
+     * when it does not.
+     *
+     * <p>SUN takes the caller's objects as given; we do not, and the reason is
+     * MT-14 rather than tidiness. A key belongs to the provider INSTANCE that
+     * created it and is refused by any other on first use, so a path built by
+     * one instance out of another's certificates carries keys its own provider
+     * rejects — the same defect as an {@code unwrap} returning a key its
+     * unwrapping provider refuses. Re-parsing costs a decode and makes the path
+     * uniformly ours.
+     *
+     * <p>The fast path compares provider IDENTITY, never the name: two
+     * instances share a name, which is exactly the case this has to separate.
+     */
+    private X509Certificate rebind(X509Certificate c)
+        throws CertificateException
     {
-        return delegate.getCertPathEncodings();
+        if (c instanceof JOX509Certificate
+                && binding.sameAs(((JOX509Certificate) c).binding()))
+        {
+            return c;
+        }
+        byte[] der = c.getEncoded();
+        if (der == null)
+        {
+            throw new CertificateException(
+                    "certificate in the list does not support encoding, so it cannot be"
+                            + " rebuilt through provider " + binding.name());
+        }
+        return (X509Certificate) parse(der);
+    }
+
+    /**
+     * The encodings a CertPath of ours would carry. A CONSTANT: it is a
+     * property of the FORMAT rather than of any parser, this method declares no
+     * checked exception, and the JDK serves exactly these two in this order.
+     * BouncyCastle additionally serves PEM; that divergence is deliberate.
+     */
+    public Iterator<String> engineGetCertPathEncodings()
+    {
+        return JOCertPath.encodings().iterator();
     }
 }

@@ -16,6 +16,7 @@
 #include "../util/bc_err_codes.h"
 #include "../util/certpath.h"
 #include "../util/jo_assert.h"
+#include "../util/ops.h"
 
 /*
  * JNI bridge for certification path validation. Every user-supplied pointer is
@@ -30,6 +31,13 @@
  */
 #define MAX_CERTS 256
 #define MAX_CRLS 256
+
+/*
+ * OPS flags here are 4, 5 and 6 of the FAILED_ACCESS family, chosen disjoint
+ * from x509_ni_jni.c's 1-3: the Java layer re-parses a built path through the
+ * X.509 factory, so a shared flag would fire in both bridges during one
+ * certification-path call and a test could not say which one it drove.
+ */
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPathServiceJNI_ni_1verify
 (JNIEnv *env, jobject jo, jbyteArray _der, jintArray _sizes, jint count, jint crlCount,
@@ -84,7 +92,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         goto exit;
     }
 
-    if (!load_bytearray_ctx(&der, env, _der))
+    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&der, env, _der))
     {
         ret = JO_FAILED_ACCESS_INPUT;
         goto exit;
@@ -101,7 +109,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         ret = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
-    if (!load_bytearray_ctx(&chainOut, env, _chainOut))
+    if (OPS_FAILED_ACCESS_5 !load_bytearray_ctx(&chainOut, env, _chainOut))
     {
         ret = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
@@ -113,7 +121,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     }
 
     sizes = (*env)->GetIntArrayElements(env, _sizes, NULL);
-    if (sizes == NULL)
+    if (OPS_FAILED_ACCESS_6 sizes == NULL)
     {
         ret = JO_FAILED_ACCESS_INPUT;
         goto exit;

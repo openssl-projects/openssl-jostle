@@ -169,12 +169,26 @@ fi
 
 echo
 echo "################ pass 2: JOSTLE_OPS_TEST=1 (fault injection) ################"
+OPS_BUILD_START=$(date +%s)
 JOSTLE_OPS_TEST=1 ./interface/build.sh > /tmp/jostle-pass2-build.log 2>&1 || {
   echo "OPS native build failed; see /tmp/jostle-pass2-build.log" >&2; exit 1; }
+OPS_BUILD_SEC=$(( $(date +%s) - OPS_BUILD_START ))
 # --require-ops turns "the OpsTest classes skipped" into a hard failure here:
 # on this pass they have no excuse.
+OPS_RUN_START=$(date +%s)
 JOSTLE_REQUIRE_OPS=1 bash "$SCRIPT_DIR/run-matrix.sh" $(jostle_tasks ops)
 P2=$?
+OPS_RUN_SEC=$(( $(date +%s) - OPS_RUN_START ))
+
+# The machine-readable record. Emitted whatever P2 was, because a FAIL
+# verdict is exactly what an aggregator needs to see; its own exit status is
+# folded in below so a record that says FAIL cannot sit under a green run.
+python3 "$SCRIPT_DIR/ops-record.py" $(jostle_tasks ops) "$OPS_BUILD_SEC" "$OPS_RUN_SEC"
+OPS_RECORD_RC=$?
+if [ "$P2" -eq 0 ] && [ "$OPS_RECORD_RC" -ne 0 ]; then
+  echo "pass 2 returned 0 but the OPS record verdict is FAIL - treating as FAIL" >&2
+  P2="$OPS_RECORD_RC"
+fi
 
 echo
 echo "################ two-pass summary ################"

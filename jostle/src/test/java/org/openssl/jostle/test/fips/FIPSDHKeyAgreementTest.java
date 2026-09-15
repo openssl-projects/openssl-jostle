@@ -414,13 +414,26 @@ public class FIPSDHKeyAgreementTest
         KeyPair a = generateKeyPair();
         KeyPair b = generateKeyPair();
 
-        // Named algorithm: right algorithm + p-length (256 bytes for ffdhe2048).
+        // Named algorithm: right algorithm, and the p-length for ffdhe2048 MINUS
+        // any leading zero octets. TlsPremasterSecret is read as a positive
+        // integer, so the agreement's padding to the prime length comes off —
+        // RFC 5246 8.1.2 requires it and the JDK does the same.
+        //
+        // The length is therefore 256 only USUALLY. A shared secret whose top
+        // octet is zero yields 255, about once in 256 runs, and this cell
+        // asserted 256 unconditionally until one of those runs turned up on an
+        // FFI leg. Assert the PROPERTY — no leading zero, never longer than the
+        // prime — rather than the usual value.
         KeyAgreement kaNamed = KeyAgreement.getInstance("DH", FIPS);
         kaNamed.init(a.getPrivate());
         kaNamed.doPhase(b.getPublic(), true);
         SecretKey key = kaNamed.generateSecret("TlsPremasterSecret");
         Assertions.assertEquals("TlsPremasterSecret", key.getAlgorithm());
-        Assertions.assertEquals(256, key.getEncoded().length);
+        byte[] encodedSecret = key.getEncoded();
+        Assertions.assertTrue(encodedSecret.length <= 256 && encodedSecret.length >= 250,
+                "expected at most the 256-byte prime length, got " + encodedSecret.length);
+        Assertions.assertNotEquals(0, encodedSecret[0],
+                "a leading zero octet must have been stripped");
 
         // Blank name: NoSuchAlgorithmException with the fixed message.
         KeyAgreement kaBlank = KeyAgreement.getInstance("DH", FIPS);

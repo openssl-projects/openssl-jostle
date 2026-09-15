@@ -104,6 +104,25 @@ public interface PKCSObjectIdentifiers
     ASN1ObjectIdentifier id_PBKDF2 = pkcs_5.branch("12").intern();
 
     /**
+     * 1.2.840.113549.1.7 -- pkcs7, RFC 5652 line 377
+     *
+     * <p>Cited to RFC 5652 (CMS) rather than RFC 2315, which defined these
+     * first: the citation rule is library-only, and RFC 2315 is not in the
+     * standards library. CMS carries the same arcs under the same pkcs7 node.
+     */
+    ASN1ObjectIdentifier pkcs_7 = new ASN1ObjectIdentifier("1.2.840.113549.1.7").intern();
+
+    /**
+     * 1.2.840.113549.1.7.1 -- id-data, RFC 5652 line 377
+     */
+    ASN1ObjectIdentifier data = pkcs_7.branch("1").intern();
+
+    /**
+     * 1.2.840.113549.1.7.2 -- id-signedData, RFC 5652 line 484
+     */
+    ASN1ObjectIdentifier signedData = pkcs_7.branch("2").intern();
+
+    /**
      * 1.2.840.113549.1.9 -- pkcs-9, RFC 2985 line 1262
      */
     ASN1ObjectIdentifier pkcs_9 = new ASN1ObjectIdentifier("1.2.840.113549.1.9").intern();

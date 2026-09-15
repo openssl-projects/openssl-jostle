@@ -10,7 +10,9 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.certpath.JostleCertPathBuilderSpi;
 import org.openssl.jostle.jcajce.provider.certpath.JostleCertPathValidatorSpi;
 
@@ -23,7 +25,8 @@ class ProvX509
     public void configure(final JostleProvider provider)
     {
         final Map<String, String> attr = new HashMap<String, String>();
-        provider.addAlgorithmImplementation("CertificateFactory", "X.509", X509CertificateFactorySpi.class.getName(), attr, (arg) -> new X509CertificateFactorySpi(provider, false));
+        provider.addAlgorithmImplementation("CertificateFactory", "X.509", X509CertificateFactorySpi.class.getName(), attr, (arg) -> new X509CertificateFactorySpi(NISelector.X509NI,
+                        ProviderBinding.of(provider)));
         provider.addAlias("CertificateFactory", "X.509", "X509");
 
         // PKIX certification path validation over OpenSSL's X509_verify_cert.

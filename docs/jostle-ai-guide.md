@@ -225,6 +225,28 @@ Choosing a size is the caller's decision; the provider no longer makes it.
 2. CCM is a **dedicated transformation** — use `"AES/CCM/NoPadding"` (likewise `"ARIA/CCM/NoPadding"`, `"SM4/CCM/NoPadding"`), not `setMode("CCM")`. Its default tag on the `IvParameterSpec` path is **64 bits** (matches BouncyCastle, differs from GCM). Pass a `GCMParameterSpec` for a specific CCM tag length.
 3. GCM/OCB enforce a nonce-reuse guard: after one successful encryption the instance rejects further data until re-init. Re-init with a fresh nonce per message.
 
+### 7. X.509 parsing is ours, and two consequences surprise people
+
+1. **Non-DER input is NORMALISED, so a byte fingerprint and object equality can
+   disagree.** `getEncoded()` returns the certificate re-encoded as DER — not
+   the bytes you supplied. For a DER input they are identical (measured on 578
+   files); for a BER input they are not. **BouncyCastle does the same; the JDK
+   does NOT — it keeps the bytes it was given**, and with an indefinite length
+   inside the TBS it then fails to verify its own certificate. So this is a
+   deliberate divergence from the JDK, not a universal convention. If you are
+   caching or comparing certificates by a hash of their encoding, hash
+   `getEncoded()` rather than the bytes you read, or two equal certificates will
+   fingerprint differently.
+
+2. **A DSA certificate whose key inherits its parameters PARSES, and then its
+   key refuses.** RFC 3279 §2.3.2 lets a DSA `SubjectPublicKeyInfo` omit the
+   parameters and inherit the issuer's. Such a certificate reads normally —
+   subject, issuer, validity, extensions all work — but `getPublicKey()` throws
+   `ProviderException` naming the inheritance, because the key cannot be built
+   from the certificate alone. Catch `ProviderException` around `getPublicKey()`
+   if you process certificates from arbitrary sources; do not assume a
+   successful parse implies a usable key.
+
 ## FIPS (`JSLFIPS`) behavioural differences
 
 Beyond serving a smaller algorithm set, `JSLFIPS` differs from `JSL` in ways that

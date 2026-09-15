@@ -18,6 +18,23 @@
 #include "rand/jostle_lib_ctx.h"
 
 /*
+ * OPS fault injection for this file uses FLAGS ONLY — no offset block, and
+ * that is deliberate rather than an omission. Every site below returns
+ * JO_FAIL, which is not JO_OPENSSL_ERROR, so an OPS_OFFSET_* would have
+ * nothing to subtract from and the number it produced would mean something it
+ * does not. Tests therefore name a site by the FLAG they set, exactly as the
+ * d2i arms in x509.c do. Do not "fix" the missing offsets.
+ *
+ * The flags are chosen DISJOINT from x509.c's (which uses OPENSSL_ERROR_1-6
+ * and FAILED_ACCESS_1-3): a certification-path call re-parses its result
+ * through the X.509 factory, so a shared flag would fire in both files during
+ * one operation and the test could not say which.
+ *
+ * Every site is an allocation failure or a mid-sequence OpenSSL failure that
+ * no supported configuration reaches, which is what OPS is for.
+ */
+
+/*
  * Every certificate is decoded into an X509_new_ex object bound to the global
  * lib ctx. X509_verify resolves the signature algorithm through the
  * CERTIFICATE's lib ctx, not the store ctx's, so an unbound certificate would
@@ -81,7 +98,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     }
 
     result->chain_sizes = OPENSSL_malloc(sizeof(int32_t) * (size_t) n);
-    if (result->chain_sizes == NULL)
+    if (OPS_OPENSSL_ERROR_10 result->chain_sizes == NULL)
     {
         return JO_FAIL;
     }
@@ -89,7 +106,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     for (i = 0; i < n; i++)
     {
         int len = i2d_X509(sk_X509_value(chain, i), NULL);
-        if (len <= 0)
+        if (OPS_OPENSSL_ERROR_11 len <= 0)
         {
             OPENSSL_free(result->chain_sizes);
             result->chain_sizes = NULL;
@@ -100,7 +117,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     }
 
     result->chain_der = OPENSSL_malloc(total);
-    if (result->chain_der == NULL)
+    if (OPS_OPENSSL_ERROR_12 result->chain_der == NULL)
     {
         OPENSSL_free(result->chain_sizes);
         result->chain_sizes = NULL;
@@ -155,7 +172,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     store = X509_STORE_new();
     untrusted = sk_X509_new_null();
     crls = sk_X509_CRL_new_null();
-    if (store == NULL || untrusted == NULL || crls == NULL)
+    if (OPS_FAILED_CREATE_1 store == NULL || untrusted == NULL || crls == NULL)
     {
         goto exit;
     }
@@ -182,7 +199,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
 
         if (i < anchor_count)
         {
-            if (X509_STORE_add_cert(store, cert) != 1)
+            if (OPS_OPENSSL_ERROR_7 X509_STORE_add_cert(store, cert) != 1)
             {
                 X509_free(cert);
                 goto exit;
@@ -193,7 +210,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
         {
             target = cert;
         }
-        else if (sk_X509_push(untrusted, cert) <= 0)
+        else if (OPS_OPENSSL_ERROR_8 sk_X509_push(untrusted, cert) <= 0)
         {
             X509_free(cert);
             goto exit;
@@ -220,7 +237,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
             ret = JO_CRL_DECODE_FAILED;
             goto exit;
         }
-        if (sk_X509_CRL_push(crls, crl) <= 0)
+        if (OPS_OPENSSL_ERROR_9 sk_X509_CRL_push(crls, crl) <= 0)
         {
             X509_CRL_free(crl);
             goto exit;
@@ -228,7 +245,8 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     }
 
     ctx = X509_STORE_CTX_new_ex(get_global_jostle_ossl_lib_ctx(), NULL);
-    if (ctx == NULL || X509_STORE_CTX_init(ctx, store, target, untrusted) != 1)
+    if (OPS_FAILED_CREATE_2 ctx == NULL
+        || X509_STORE_CTX_init(ctx, store, target, untrusted) != 1)
     {
         goto exit;
     }

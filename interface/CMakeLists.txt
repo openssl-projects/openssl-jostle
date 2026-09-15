@@ -85,6 +85,8 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 #
 set(FIPS_UTIL_SOURCES
         fips/util/jo_assert.h
+        fips/util/x509.h
+        fips/util/x509.c
         # capability.{h,c} is an ordinary twin - both providers need the fetch
         # probe. capability_fips.{h,c} holds the two probes that only mean
         # something against a loaded module.
@@ -164,6 +166,7 @@ set(FIPS_JNI_GLUE_SOURCES
         fips/jni/rand_fips_jni.c
         fips/jni/spec_fips_jni.c
         fips/jni/asn1_fips_jni.c
+        fips/jni/x509_fips_jni.c
         fips/jni/rsa_fips_jni.c
         fips/jni/rsa_oaep_fips_jni.c
         fips/jni/rsa_pkcs1_fips_jni.c
@@ -195,6 +198,7 @@ set(FIPS_JNI_GLUE_SOURCES
 #
 set(FIPS_FFI_GLUE_SOURCES
         fips/ffi/md_fips_ffi.c
+        fips/ffi/x509_ni_fips_ffi.c
         fips/ffi/rand_fips_ffi.c
         fips/ffi/mac_fips_ffi.c
         fips/ffi/ffi.h
@@ -278,6 +282,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/certpath.c
+            nonfips/util/x509.c
         nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
             nonfips/util/block_cipher_ctx.c
@@ -324,6 +329,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/jni/dsa_ni_jni.c
             nonfips/jni/dh_ni_jni.c
             nonfips/jni/certpath_ni_jni.c
+            nonfips/jni/x509_ni_jni.c
         nonfips/jni/xec_ni_jni.c
             nonfips/util/edec.h
             nonfips/util/edec.c
@@ -396,6 +402,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/certpath.c
+            nonfips/util/x509.c
         nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
             nonfips/util/block_cipher_ctx.c
@@ -437,6 +444,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/ffi/dsa_ni_ffi.c
             nonfips/ffi/dh_ni_ffi.c
             nonfips/ffi/certpath_ni_ffi.c
+            nonfips/ffi/x509_ni_ffi.c
         nonfips/ffi/xec_ni_ffi.c
             nonfips/util/edec.h
             nonfips/util/edec.c
@@ -569,6 +577,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/certpath.c
+            nonfips/util/x509.c
         nonfips/util/encapdecap.c
             nonfips/util/ctr_u128_t.h
             nonfips/util/ctr_u128_t.c
@@ -608,6 +617,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/jni/dsa_ni_jni.c
             nonfips/jni/dh_ni_jni.c
             nonfips/jni/certpath_ni_jni.c
+            nonfips/jni/x509_ni_jni.c
         nonfips/jni/xec_ni_jni.c
             nonfips/util/edec.h
             nonfips/util/edec.c
@@ -675,6 +685,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/certpath.c
+            nonfips/util/x509.c
         nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
             nonfips/util/block_cipher_ctx.c
@@ -732,6 +743,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/ffi/dsa_ni_ffi.c
             nonfips/ffi/dh_ni_ffi.c
             nonfips/ffi/certpath_ni_ffi.c
+            nonfips/ffi/x509_ni_ffi.c
         nonfips/ffi/xec_ni_ffi.c
     )
 
@@ -826,6 +838,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/certpath.c
+            nonfips/util/x509.c
         nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
             nonfips/util/block_cipher_ctx.c
@@ -872,6 +885,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/jni/dsa_ni_jni.c
             nonfips/jni/dh_ni_jni.c
             nonfips/jni/certpath_ni_jni.c
+            nonfips/jni/x509_ni_jni.c
         nonfips/jni/xec_ni_jni.c
             nonfips/util/edec.h
             nonfips/util/edec.c
@@ -934,6 +948,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/capability.c
             nonfips/util/encapdecap.h
             nonfips/util/certpath.c
+            nonfips/util/x509.c
         nonfips/util/encapdecap.c
             nonfips/util/block_cipher_ctx.h
             nonfips/util/block_cipher_ctx.c
@@ -991,6 +1006,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/ffi/dsa_ni_ffi.c
             nonfips/ffi/dh_ni_ffi.c
             nonfips/ffi/certpath_ni_ffi.c
+            nonfips/ffi/x509_ni_ffi.c
         nonfips/ffi/xec_ni_ffi.c
 
     )

@@ -204,7 +204,12 @@ public class X509CertificateFactoryProviderBindingTest
     {
         String[] classes = {
                 "org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi",
-                "org.openssl.jostle.jcajce.provider.cert.JSLKeyX509Certificate",
+                // JSLKeyX509Certificate was the wrapper over a foreign
+                // certificate and is deleted with the SUN delegate. The two
+                // classes that now carry a provider identity in this package
+                // take its place, so the guard watches more than it did.
+                "org.openssl.jostle.jcajce.provider.cert.JOX509Certificate",
+                "org.openssl.jostle.jcajce.provider.cert.JOX509CRL",
                 "org.openssl.jostle.jcajce.provider.dh.DHWithKDFKeyAgreementSpi",
                 "org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi",
                 "org.openssl.jostle.jcajce.provider.ks.KSServiceSPI",

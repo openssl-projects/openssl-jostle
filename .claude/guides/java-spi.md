@@ -443,3 +443,95 @@ Use the right exception type for each surface — JCE specifies different types 
 `RSAKeyPairGenerator` is the canonical reference: `MAX_KEY_SIZE_BITS = 16384` (DoS protection), a lower bound of 1 that is a sanity check rather than a security floor, and an odd-public-exponent check (even `e` shares a factor of 2 with `phi(n)` and produces a structurally broken key). **There is deliberately no minimum key size** — MT-66 removed it so the loaded module decides what it will generate, and a provider refusing what the module would accept is the defect that removal fixed; the message reads `[1, 16384]`. Where a bound IS project policy rather than the module's to decide, codify it as a `private static final` constant with a Javadoc comment naming the rationale.
 
 A shared private helper (e.g. `validateKeySize(int)` returning a non-null error message or null) keeps the wrap-in-correct-exception logic at the call site, avoiding the trap of a single helper that throws a checked exception that the `int`-only surface can't propagate.
+
+### A JCA abstract base class can carry a SECOND parser — override every non-abstract method that re-parses
+
+**Symptom: a field is decoded by the JDK's parser inside an object your own
+parser built, and the sweep comparing them measures nothing.**
+
+`java.security.cert.X509Certificate` and `X509CRL` are not pure interfaces.
+These CONCRETE methods re-parse the encoding through `sun.security.x509`,
+independently of whatever the subclass did. NAME them rather than counting — a
+count drifts from the list the moment a row is added or dropped:
+
+| class | method |
+|---|---|
+| `X509Certificate` | `getIssuerX500Principal`, `getSubjectX500Principal` |
+| `X509Certificate` | `getExtendedKeyUsage`, `getSubjectAlternativeNames`, `getIssuerAlternativeNames` |
+| `X509CRL` | `getIssuerX500Principal` |
+| `X509CRLEntry` | `getRevocationReason`, `getCertificateIssuer` (returns `null` unconditionally) |
+
+`X509CRL.hashCode` LOOKS like one and is not — it calls plain
+`crl.getEncoded()`, exactly as `Certificate.equals` does. Check the
+implementation, not the shape.
+
+`getRevocationReason` is the one that got missed: it was overridden only after
+this entry was written, because a COUNT said the set was complete while the
+LIST said otherwise. That is the argument for the table.
+Inherit them and those accessors answer from SUN while every other accessor
+answers from yours — and the whole point of parsing it yourself is lost for
+exactly the fields with the most structure.
+
+**The sweep that should have caught it was VACUOUS**: comparing our
+`getSubjectAlternativeNames` against SUN's compared SUN's parser with itself,
+so the rows were green by construction. A comparison is only a comparison when
+the two sides have different sources — the same rule as any parity check.
+
+Once overridden, the renderings diverge and must be chosen per method, not
+per class: the JDK renders a SAN `directoryName` UNSPACED (`CN=x,OU=y`, via
+`X500Principal.getName()`) while rendering `getIssuerDN()` SPACED
+(`CN=x, OU=y`, via `toString()`). Two conventions inside one implementation, so
+match each separately rather than picking one and being wrong half the time.
+
+When subclassing any JCA abstract class, list its non-abstract methods first and
+ask of each whether it re-parses.
+
+### Stream-reading and blob-decoding have OPPOSITE trailing-data contracts
+
+`generateCertificate(InputStream)` reads ONE object, leaves the stream
+positioned after it, and does NOT object to what follows — measured on SUN and
+BouncyCastle, both of which return the second certificate on the next call.
+That is the exact opposite of `JO_DER_TRAILING_DATA`, which our PKCS#8 and SPKI
+decoders raise because they decode a whole blob.
+
+Both behaviours are correct and both must exist. The comment at each site says
+WHICH contract it serves, because the two are one line apart in shape and a
+reader who assumes the wrong one "fixes" a conformant parser. Related: the
+plural forms return what they parsed when garbage follows at least one object,
+and throw only when the FIRST object is unreadable.
+
+### The deprecated DN getters return a Principal whose rendering is pinned, and its `equals` must stay SYMMETRIC
+
+`getIssuerDN()` / `getSubjectDN()` return `java.security.Principal`. Matching
+SUN means `getName()` and `toString()` both render as `X500Principal.toString()`
+— the SPACED form — which is NOT what `X500Principal.getName()` gives.
+
+The wrapper's `equals` compares wrapper-to-wrapper ONLY. An arm accepting a bare
+`X500Principal` reads as helpful and breaks the contract: we would equal a
+principal that can never equal us, because `X500Principal.equals` knows nothing
+of the wrapper, and asymmetric equality misbehaves in any collection comparing
+the other way. Assert BOTH directions — only the second one fails.
+
+Name such a wrapper something no other library uses. `X500Name` is taken by both
+`sun.security.x509` and `org.bouncycastle.asn1.x500`, so a third leaves a reader
+of a stack trace guessing; ours is `JcaDistinguishedName`.
+
+### Every SPI takes its NI by CONSTRUCTOR, and the FIPS registrar passes the FIPS one
+
+An SPI whose body reads `NISelector.<X>NI` is welded to the base interface
+library and its lib ctx, so it can never serve JSLFIPS. Take the NI as a
+constructor argument, and have `ProvFIPS*` pass `FIPSNISelector.<X>NI`.
+
+The consequence of getting it wrong is not theoretical and not subtle in the
+same way twice: `X509CertificateFactorySpi` was first written with the static
+read, and on a FIPS-only run it ABORTED THE JVM at
+`get_global_jostle_ossl_lib_ctx`'s assert, because the base lib ctx had never
+been initialised. On a JVM where both are initialised it would instead have
+parsed in the wrong library and returned keys from the wrong provider, with no
+symptom at all — which is the case a test has to catch.
+
+`FIPSNativeBindingIsolationTest` is that guard: it walks each JSLFIPS service's
+SPI fields and fails naming the class and field that holds a base NI. Prefer it
+to any behavioural probe, because behaviour cannot see the difference — a
+key-shaped assertion cannot, once `getPublicKey()` rebuilds through the owning
+provider's KeyFactory rather than through the NI.

@@ -30,6 +30,7 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
@@ -52,6 +53,7 @@ public class FIPSNISelector
     public static final RandServiceNI RandServiceNI;
     public static final SpecNI SpecNI;
     public static final Asn1Ni Asn1NI;
+    public static final X509NI X509NI;
     public static final RSAServiceNI RSAServiceNI;
     public static final RSAOAEPCipherNI RSAOAEPCipherNI;
     public static final RSAPKCS1CipherNI RSAPKCS1CipherNI;
@@ -85,6 +87,7 @@ public class FIPSNISelector
         RandServiceNI = new RandServiceFIPSJNI();
         SpecNI = new SpecFIPSJNI();
         Asn1NI = new Asn1FIPSJNI();
+        X509NI = new X509ServiceFIPSJNI();
         RSAServiceNI = new RSAServiceFIPSJNI();
         RSAOAEPCipherNI = new RSAOAEPCipherFIPSJNI();
         RSAPKCS1CipherNI = new RSAPKCS1CipherFIPSJNI();

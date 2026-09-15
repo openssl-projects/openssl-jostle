@@ -64,6 +64,64 @@ public class ObjectIdentifierProvenanceTest
         BC_CLASSES.put("EdECObjectIdentifiers", "org.bouncycastle.internal.asn1.edec.EdECObjectIdentifiers");
         BC_CLASSES.put("NSRIObjectIdentifiers", "org.bouncycastle.internal.asn1.nsri.NSRIObjectIdentifiers");
         BC_CLASSES.put("NTTObjectIdentifiers", "org.bouncycastle.internal.asn1.ntt.NTTObjectIdentifiers");
+        // Ours groups the id-ce arcs in one class; BouncyCastle keeps them as
+        // fields of Extension under DIFFERENT names, so this entry needs the
+        // alias map below. Without the entry the nineteen new constants were
+        // covered by the literal lint alone -- neither the javadoc-vs-computed
+        // check nor the BouncyCastle oracle saw them, which is exactly the
+        // "not seeing the package" shape the vacuity floors exist for.
+        BC_CLASSES.put("X509ObjectIdentifiers", "org.bouncycastle.asn1.x509.Extension");
+    }
+
+    /**
+     * {@code OurClass.ourField -> BouncyCastle's field name}, for the one class
+     * whose names deliberately do not follow BouncyCastle's.
+     *
+     * <p>Read from the tagged clone at {@code r1rv86},
+     * {@code core/src/main/java/org/bouncycastle/asn1/x509/Extension.java},
+     * lines 36-136 -- through the ref, not the working tree.
+     */
+    private static final Map<String, String> BC_FIELD_ALIASES = new LinkedHashMap<String, String>();
+
+    static
+    {
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_keyUsage", "keyUsage");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_subjectAltName", "subjectAlternativeName");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_issuerAltName", "issuerAlternativeName");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_basicConstraints", "basicConstraints");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_cRLNumber", "cRLNumber");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_cRLReasons", "reasonCode");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_invalidityDate", "invalidityDate");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_deltaCRLIndicator", "deltaCRLIndicator");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_issuingDistributionPoint", "issuingDistributionPoint");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_certificateIssuer", "certificateIssuer");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_nameConstraints", "nameConstraints");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_cRLDistributionPoints", "cRLDistributionPoints");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_certificatePolicies", "certificatePolicies");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_policyMappings", "policyMappings");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_authorityKeyIdentifier", "authorityKeyIdentifier");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_policyConstraints", "policyConstraints");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_extKeyUsage", "extendedKeyUsage");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_freshestCRL", "freshestCRL");
+        BC_FIELD_ALIASES.put("X509ObjectIdentifiers.id_ce_inhibitAnyPolicy", "inhibitAnyPolicy");
+    }
+
+    /**
+     * Constants with NO BouncyCastle field this check can read, each with the
+     * reason. An entry here is not "unchecked": see the reason.
+     */
+    private static final Map<String, String> BC_UNREADABLE = new LinkedHashMap<String, String>();
+
+    static
+    {
+        // BouncyCastle's own id_ce is PACKAGE-PRIVATE (r1rv86,
+        // core/src/main/java/org/bouncycastle/asn1/x509/X509ObjectIdentifiers.java:144
+        // -- "static final", no "public"), so getField cannot reach it and
+        // setAccessible across a module boundary is not a reasonable thing for
+        // a lint to do. Its value is implied rather than unverified: all
+        // nineteen id-ce constants BRANCH from it and all nineteen are compared
+        // against BouncyCastle above, so a wrong id_ce fails nineteen rows.
+        BC_UNREADABLE.put("X509ObjectIdentifiers.id_ce", "BouncyCastle's id_ce is package-private");
     }
 
     private static final String OIDS_PACKAGE = "org/openssl/jostle/util/asn1/oids";
@@ -141,6 +199,8 @@ public class ObjectIdentifierProvenanceTest
         throws Exception
     {
         List<String> problems = new ArrayList<String>();
+        java.util.Set<String> aliasesSeen = new java.util.LinkedHashSet<String>();
+        java.util.Set<String> unreadableSeen = new java.util.LinkedHashSet<String>();
         int checked = 0;
 
         for (Map.Entry<String, String> e : BC_CLASSES.entrySet())
@@ -150,15 +210,29 @@ public class ObjectIdentifierProvenanceTest
 
             for (Field f : ours.getDeclaredFields())
             {
+                String qualified = e.getKey() + "." + f.getName();
+                if (BC_UNREADABLE.containsKey(qualified))
+                {
+                    unreadableSeen.add(qualified);
+                    continue;
+                }
+                String bcName = BC_FIELD_ALIASES.get(qualified);
+                if (bcName != null)
+                {
+                    aliasesSeen.add(qualified);
+                }
+                else
+                {
+                    bcName = f.getName();
+                }
                 Field bc;
                 try
                 {
-                    bc = theirs.getField(f.getName());
+                    bc = theirs.getField(bcName);
                 }
                 catch (NoSuchFieldException missing)
                 {
-                    problems.add(e.getKey() + "." + f.getName()
-                            + " has no field of that name in " + e.getValue());
+                    problems.add(qualified + " has no field \"" + bcName + "\" in " + e.getValue());
                     continue;
                 }
                 String mine = idOf(f.get(null));
@@ -176,6 +250,14 @@ public class ObjectIdentifierProvenanceTest
                 + String.join("\n  ", problems));
         Assertions.assertTrue(checked >= 200,
                 "only " + checked + " constants compared -- the sweep is not reaching the package");
+
+        // An alias or an exemption that matches nothing reads exactly like a
+        // justified one, so every entry must have been CONSUMED this run.
+        Assertions.assertEquals(BC_FIELD_ALIASES.keySet(), aliasesSeen,
+                "stale or unconsumed BouncyCastle field aliases -- an entry matching no field of"
+                        + " ours has outlived the constant it translated");
+        Assertions.assertEquals(BC_UNREADABLE.keySet(), unreadableSeen,
+                "stale BC_UNREADABLE entries -- delete any whose constant is gone");
     }
 
     /**
