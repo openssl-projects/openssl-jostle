@@ -37,6 +37,7 @@
 #define JoEC_kexInit                   JoFIPS_JoEC_kexInit
 #define JoEC_kexSetPeer                JoFIPS_JoEC_kexSetPeer
 #define JoEC_makePrivateFromComponents JoFIPS_JoEC_makePrivateFromComponents
+#define JoEC_makePublicFromComponents  JoFIPS_JoEC_makePublicFromComponents
 #define JoEC_sign                      JoFIPS_JoEC_sign
 #define JoEC_update                    JoFIPS_JoEC_update
 #define JoEC_verify                    JoFIPS_JoEC_verify

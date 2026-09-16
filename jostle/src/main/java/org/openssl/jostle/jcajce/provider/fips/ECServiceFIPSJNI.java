@@ -34,6 +34,10 @@ class ECServiceFIPSJNI implements ECServiceNI
                                                     int[] err, RandSource rndSource);
 
     @Override
+    public native long ni_makePublicFromComponents(String curveName, byte[] pointUncompressed,
+                                                   int[] err, RandSource rndSource);
+
+    @Override
     public native int ni_getComponent(long specRef, int component, byte[] out);
 
     @Override

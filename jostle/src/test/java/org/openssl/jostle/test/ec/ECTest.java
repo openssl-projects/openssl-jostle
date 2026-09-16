@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.util.Arrays;
 
 import java.math.BigInteger;
@@ -1150,5 +1151,99 @@ public class ECTest
             Assertions.assertFalse(bcTv.verify(joSig),
                     curve + ": BC verified a tampered message");
         }
+    }
+
+    // ---------------------------------------------------------------
+    // ECPublicKeySpec negative paths (makePublicFromComponents refusals)
+    // ---------------------------------------------------------------
+
+    @Test
+    public void testGeneratePublic_pointAtInfinity_throwsInvalidKeySpecException() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        ECPublicKey pub = (ECPublicKey) kpg.generateKeyPair().getPublic();
+
+        // The JDK's ECPublicKeySpec constructor refuses POINT_INFINITY
+        // directly, so a subclass overriding getW() after construction is
+        // the only way a caller can present it — exactly what a direct-SPI
+        // or hand-rolled KeySpec caller can do.
+        ECPublicKeySpec spec = new ECPublicKeySpec(pub.getW(), pub.getParams())
+        {
+            @Override
+            public ECPoint getW()
+            {
+                return ECPoint.POINT_INFINITY;
+            }
+        };
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        InvalidKeySpecException ex = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(spec));
+        Assertions.assertNotNull(ex);
+    }
+
+    @Test
+    public void testMakePublicFromComponents_ni_pointAtInfinity_refusedTyped()
+    {
+        // Direct NI caller, not bound by ECPublicKeySpec's constructor: the
+        // SEC 1 encoding of the identity element is a single 0x00 byte. A
+        // real (non-OPS-injected) OpenSSL refusal along this path maps to
+        // OpenSSLException per DefaultServiceNI.baseErrorHandler's
+        // JO_OPENSSL_ERROR arm; the message text is volatile, so prefix-match.
+        ECServiceNI ec = NISelector.ECServiceNI;
+        org.openssl.jostle.jcajce.provider.OpenSSLException ex = Assertions.assertThrows(
+                org.openssl.jostle.jcajce.provider.OpenSSLException.class,
+                () -> ec.makePublicFromComponents("P-256", new byte[]{0x00},
+                        org.openssl.jostle.rand.DefaultRandSource.wrap(new SecureRandom())));
+        Assertions.assertTrue(ex.getMessage().startsWith("OpenSSL Error:"), ex.getMessage());
+    }
+
+    @Test
+    public void testGeneratePublic_coordinateExceedsFieldSize_throwsInvalidKeySpecException() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        ECPublicKey pub = (ECPublicKey) kpg.generateKeyPair().getPublic();
+
+        int fieldBits = pub.getParams().getCurve().getField().getFieldSize();
+        // Far larger than any coordinate this curve can produce — the
+        // Java-side unsignedMagnitudeBE bound check must refuse this
+        // before it ever reaches native code.
+        BigInteger tooLarge = BigInteger.ONE.shiftLeft(fieldBits + 64);
+        ECPoint badPoint = new ECPoint(tooLarge, pub.getW().getAffineY());
+        ECPublicKeySpec spec = new ECPublicKeySpec(badPoint, pub.getParams());
+
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(InvalidKeySpecException.class, () -> kf.generatePublic(spec));
+    }
+
+    @Test
+    public void testGeneratePublic_pointNotOnCurve_throwsInvalidKeySpecException() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("P-256"));
+        ECPublicKey pub = (ECPublicKey) kpg.generateKeyPair().getPublic();
+
+        ECPoint valid = pub.getW();
+        ECPoint flipped = new ECPoint(valid.getAffineX(), valid.getAffineY().xor(BigInteger.ONE));
+        ECPublicKeySpec spec = new ECPublicKeySpec(flipped, pub.getParams());
+
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(InvalidKeySpecException.class, () -> kf.generatePublic(spec));
+    }
+
+    @Test
+    public void testGeneratePublic_paramsMatchNoBuiltinCurve_throwsInvalidKeySpecException() throws Exception
+    {
+        // A field prime that does not correspond to any curve OpenSSL knows.
+        ECFieldFp field = new ECFieldFp(BigInteger.valueOf(2).pow(61).subtract(BigInteger.ONE));
+        EllipticCurve curve = new EllipticCurve(field, BigInteger.ONE, BigInteger.ONE);
+        ECPoint generator = new ECPoint(BigInteger.ONE, BigInteger.ONE);
+        ECParameterSpec bogusParams = new ECParameterSpec(
+                curve, generator, BigInteger.valueOf(2).pow(60), 1);
+        ECPublicKeySpec spec = new ECPublicKeySpec(generator, bogusParams);
+
+        KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        Assertions.assertThrows(InvalidKeySpecException.class, () -> kf.generatePublic(spec));
     }
 }

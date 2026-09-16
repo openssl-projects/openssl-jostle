@@ -881,6 +881,119 @@ exit:
 }
 
 
+int32_t ec_make_public_from_components(key_spec *spec,
+                                       const char *curve_name,
+                                       const uint8_t *point_oct,
+                                       size_t point_len,
+                                       void *rnd_src) {
+    // Bridge-validated inputs: pointer null checks AND point length
+    // bounds (zero-length, > INT32_MAX) are done by both JNI and FFI
+    // bridges before this util function runs. Util asserts as
+    // invariants — if any of these fire, the bridge skipped a check.
+    jo_assert(spec != NULL);
+    jo_assert(curve_name != NULL);
+    jo_assert(point_oct != NULL);
+    jo_assert(point_len > 0 && point_len <= (size_t) INT32_MAX);
+    jo_assert(rnd_src != NULL);
+
+    // EVP_PKEY_public_check below scalar-multiplies the point with
+    // blinding to confirm it lies in the correct subgroup, which
+    // consumes RAND — same rationale as ec_make_private_from_components
+    // and ec_kex_set_peer.
+    rand_set_java_srand_call(rnd_src);
+    ERR_clear_error();
+
+    int32_t ret_code = JO_FAIL;
+    OSSL_PARAM_BLD *bld = NULL;
+    OSSL_PARAM *params = NULL;
+    EVP_PKEY_CTX *pctx = NULL;
+    EVP_PKEY_CTX *cctx = NULL;
+    EVP_PKEY *pkey = NULL;
+
+    bld = OSSL_PARAM_BLD_new();
+    if (OPS_OPENSSL_ERROR_1 bld == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3120);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_2 1 != OSSL_PARAM_BLD_push_utf8_string(
+            bld, OSSL_PKEY_PARAM_GROUP_NAME, curve_name, 0)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(3121);
+        goto exit;
+    }
+
+    // No private key, no group derivation, no point multiplication —
+    // the caller-supplied point is stored exactly as given and
+    // validated below by EVP_PKEY_public_check.
+    if (OPS_OPENSSL_ERROR_3 1 != OSSL_PARAM_BLD_push_octet_string(
+            bld, OSSL_PKEY_PARAM_PUB_KEY, point_oct, point_len)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3122);
+        goto exit;
+    }
+
+    params = OSSL_PARAM_BLD_to_param(bld);
+    if (OPS_OPENSSL_ERROR_4 params == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3123);
+        goto exit;
+    }
+
+    pctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(),
+                                      "EC", NULL);
+    if (OPS_OPENSSL_ERROR_5 pctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(3124);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_6 1 != EVP_PKEY_fromdata_init(pctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3125);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_7 1 != EVP_PKEY_fromdata(pctx, &pkey,
+                                                   EVP_PKEY_PUBLIC_KEY, params)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_7(3126);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_8 pkey == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(3127);
+        goto exit;
+    }
+
+    cctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(),
+                                      pkey, NULL);
+    if (OPS_OPENSSL_ERROR_9 cctx == NULL) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(3128);
+        goto exit;
+    }
+
+    // Full public-key validation: on curve, correct subgroup order. A
+    // point that survives the raw import above but fails this check
+    // is refused here rather than silently accepted.
+    if (OPS_OPENSSL_ERROR_10 1 != EVP_PKEY_public_check(cctx)) {
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(3129);
+        goto exit;
+    }
+
+    // Replace any prior key on the spec, then transfer ownership.
+    if (spec->key != NULL) {
+        EVP_PKEY_free(spec->key);
+    }
+    spec->key = pkey;
+    pkey = NULL;
+    ret_code = JO_SUCCESS;
+
+exit:
+    OSSL_PARAM_free(params);
+    OSSL_PARAM_BLD_free(bld);
+    EVP_PKEY_CTX_free(cctx);
+    EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_free(pkey);
+    rand_clear_java_srand_call();
+    return ret_code;
+}
+
+
 // =============================================================
 // Sign / verify session
 // =============================================================

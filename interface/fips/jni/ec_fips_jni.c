@@ -27,6 +27,7 @@
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1kexInit                  Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1kexInit
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1kexSetPeer               Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1kexSetPeer
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1makePrivateFromComponents Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1makePrivateFromComponents
+#define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1makePublicFromComponents  Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1makePublicFromComponents
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1sign                     Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1sign
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1update                   Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1update
 #define Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1verify                   Java_org_openssl_jostle_jcajce_provider_fips_ECServiceFIPSJNI_ni_1verify

@@ -180,16 +180,12 @@ public class ProviderInstancePinningParityTest
     {
         Map<String, Sanction> m = new LinkedHashMap<String, Sanction>();
 
-        // Deliberately FOREIGN: the name is the correct reference, because we
-        // want whichever object answers to it rather than one of ours.
-        //
-        // The X509CertificateFactorySpi:CertificateFactory:"SUN" entry that
-        // used to sit here is GONE, and its removal is the point rather than
-        // housekeeping: the factory no longer delegates X.509 parsing to the
-        // JDK at all, so there is no SUN resolution left to sanction. The
-        // count check is what surfaced it — the entry still read as justified.
-        add(m, "ECKeyFactorySpi:KeyFactory:\"SunEC\"", 1,
-                "so the encoded bytes do not vary with the caller's installed provider list");
+        // The X509CertificateFactorySpi:CertificateFactory:"SUN" and
+        // ECKeyFactorySpi:KeyFactory:"SunEC" entries that used to sit here
+        // are GONE: no foreign-provider sanctions remain. Their removal is
+        // the point rather than housekeeping — neither factory delegates to
+        // a JDK provider any more, so there is no foreign resolution left to
+        // sanction. The count check is what surfaces a reintroduction.
 
         // MT-14's unbound realm: a directly-constructed SPI has no instance,
         // so its own provider BY NAME is the maximum pinning available. Each

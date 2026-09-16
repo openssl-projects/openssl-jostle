@@ -25,12 +25,10 @@ import org.openssl.jostle.util.asn1.ASN1Encoder;
 import java.math.BigInteger;
 
 import java.security.Key;
-import java.security.KeyFactory;
 import java.security.KeyFactorySpi;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.spec.ECPoint;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
@@ -41,32 +39,12 @@ import java.security.spec.X509EncodedKeySpec;
 /**
  * KeyFactorySpi for EC. Supports the following key-spec forms:
  * <ol>
- *   <li>{@link X509EncodedKeySpec} for public keys — decoded via the
- *       generic {@link ASN1Encoder} into a Jostle {@code EVP_PKEY};</li>
- *   <li>{@link PKCS8EncodedKeySpec} for private keys — same path;</li>
- *   <li>{@link ECPublicKeySpec} for public keys — the BigInteger
- *       components are encoded to X.509 SubjectPublicKeyInfo via the
- *       JDK's SunEC provider and then decoded as in (1);</li>
- *   <li>{@link ECPrivateKeySpec} for private keys — the scalar is
- *       passed directly to a dedicated EC entry point that computes
- *       the public point Q = d·G and calls {@code EVP_PKEY_fromdata}
- *       with {@code OSSL_PKEY_PARAM_GROUP_NAME} +
- *       {@code OSSL_PKEY_PARAM_PRIV_KEY} +
- *       {@code OSSL_PKEY_PARAM_PUB_KEY}. This avoids the
- *       SunEC-encode → OpenSSL-decode round-trip, which is fragile
- *       because OpenSSL's PKCS#8 decoder rejects some SunEC
- *       emissions ("unknown public key type"). The fromdata import
- *       stores exactly what it is given (it does NOT derive the public
- *       half), so the C side performs the blinded point multiplication
- *       itself — which consumes RAND, hence the {@link RandSource}
- *       from {@code CryptoServicesRegistrar}.</li>
+ *   <li>{@link X509EncodedKeySpec} — public key, decoded via {@link ASN1Encoder};</li>
+ *   <li>{@link PKCS8EncodedKeySpec} — private key, decoded via {@link ASN1Encoder};</li>
+ *   <li>{@link ECPublicKeySpec} — public key, built natively from its point;</li>
+ *   <li>{@link ECPrivateKeySpec} — private key, built natively from its scalar.</li>
  * </ol>
- *
- * <p>Delegating only the public-key BigInteger-to-DER step to SunEC
- * (always present in a JDK) lets us reuse the existing OpenSSL-side
- * decoded-form path without maintaining a separate Java DER builder.
- * The private-key path stays inside our own EC bridge to dodge the
- * cross-provider PKCS#8 fragility.
+ * Raw-component forms are built natively; encoded forms decode.
  */
 public class ECKeyFactorySpi extends KeyFactorySpi
 {
@@ -143,23 +121,11 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         }
         if (keySpec instanceof ECPublicKeySpec)
         {
-            // Raw component spec: delegate the X.509 SubjectPublicKeyInfo
-            // encoding to the JDK's SunEC provider, then route the bytes
-            // through our existing decoded-form path. SunEC ships with
-            // every JDK so there's no extra runtime dependency, and it
-            // handles the OID/parameter encoding the same way OpenSSL's
-            // SPKI parser expects.
-            byte[] encoded = encodeViaSunEC((ECPublicKeySpec) keySpec);
-            try
-            {
-                PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
-                requireEC(spec);
-                return new JOECPublicKey(ecServiceNI, asn1NI, spec);
-            }
-            catch (RuntimeException e)
-            {
-                throw new InvalidKeySpecException("unable to decode EC public key", e);
-            }
+            // Component-form public key: build the EVP_PKEY directly from
+            // the point via the EC-specific makePublicFromComponents entry
+            // point — no JDK provider dependency, and no encode/decode
+            // round-trip.
+            return generatePublicFromComponents((ECPublicKeySpec) keySpec);
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use X509EncodedKeySpec or ECPublicKeySpec.");
@@ -190,14 +156,8 @@ public class ECKeyFactorySpi extends KeyFactorySpi
         }
         if (keySpec instanceof ECPrivateKeySpec)
         {
-            // Component-form private key: build the EVP_PKEY directly
-            // from the scalar via the EC-specific
-            // makePrivateFromComponents entry point. We deliberately
-            // avoid a SunEC-encode → OpenSSL-decode round-trip here
-            // because OpenSSL's PKCS#8 decoder rejects some SunEC
-            // emissions ("unknown public key type"); the components
-            // path uses EVP_PKEY_fromdata, which OpenSSL accepts
-            // unconditionally.
+            // Component-form private key: components path uses
+            // EVP_PKEY_fromdata.
             return generatePrivateFromComponents(
                     (ECPrivateKeySpec) keySpec);
         }
@@ -310,30 +270,64 @@ public class ECKeyFactorySpi extends KeyFactorySpi
 
 
     /**
-     * Convert an {@link ECPublicKeySpec} to its X.509 SubjectPublicKeyInfo
-     * encoding via SunEC. We pick SunEC explicitly (rather than a generic
-     * {@code KeyFactory.getInstance("EC")}) so the output bytes don't
-     * vary across the user's installed providers.
+     * Build a Jostle EC public key from a raw {@link ECPublicKeySpec}:
+     * curve resolved by name, point as SEC 1 uncompressed, validated
+     * natively.
      */
-    private static byte[] encodeViaSunEC(ECPublicKeySpec spec) throws InvalidKeySpecException
+    private PublicKey generatePublicFromComponents(ECPublicKeySpec spec)
+            throws InvalidKeySpecException
     {
+        if (spec.getW() == null)
+        {
+            throw new InvalidKeySpecException("ECPublicKeySpec point is null");
+        }
+        if (spec.getParams() == null)
+        {
+            throw new InvalidKeySpecException("ECPublicKeySpec params are null");
+        }
+        // Reachable through a getW() override; the constructor alone does
+        // not foreclose it.
+        if (ECPoint.POINT_INFINITY.equals(spec.getW()))
+        {
+            throw new InvalidKeySpecException("EC public point is the point at infinity");
+        }
+
+        String curveName = ECComponents.findCurveName(ecServiceNI, spec.getParams());
+        if (curveName == null)
+        {
+            throw new InvalidKeySpecException(
+                    "unable to resolve ECParameterSpec to a known OpenSSL curve");
+        }
+
+        int fieldBits = spec.getParams().getCurve().getField().getFieldSize();
+        int curveBytes = (fieldBits + 7) / 8;
+        // Bound: curveName above only resolves to a real builtin curve, so
+        // curveBytes <= ECServiceNI.MAX_FIELD_BITS / 8 = 512, point.length
+        // <= 1025; unsignedMagnitudeBE refuses negative or over-length
+        // coordinates typed.
+        byte[] xBE = unsignedMagnitudeBE(spec.getW().getAffineX(), curveBytes);
+        byte[] yBE = unsignedMagnitudeBE(spec.getW().getAffineY(), curveBytes);
+        byte[] point = new byte[1 + 2 * curveBytes];
+        point[0] = 0x04;
+        System.arraycopy(xBE, 0, point, 1, curveBytes);
+        System.arraycopy(yBE, 0, point, 1 + curveBytes, curveBytes);
+
         try
         {
-            KeyFactory kf = KeyFactory.getInstance("EC", "SunEC");
-            PublicKey sunPub = kf.generatePublic(spec);
-            byte[] encoded = sunPub.getEncoded();
-            if (encoded == null)
-            {
-                throw new InvalidKeySpecException(
-                        "SunEC produced a public key without an X.509 encoding");
-            }
-            return encoded;
+            long ref = ecServiceNI.makePublicFromComponents(
+                    curveName, point,
+                    DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+            PKEYKeySpec pkSpec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC, providerInstance);
+            return new JOECPublicKey(ecServiceNI, asn1NI, pkSpec);
         }
-        catch (NoSuchAlgorithmException | NoSuchProviderException e)
+        catch (RuntimeException e)
         {
-            // SunEC ships with every JDK; absence here is unusual.
+            // A native rejection of the point (e.g. not on the curve, or
+            // wrong subgroup order) surfaces as OpenSSLException /
+            // IllegalArgumentException; the KeyFactory contract requires
+            // InvalidKeySpecException, matching the private-spec branch.
             throw new InvalidKeySpecException(
-                    "ECPublicKeySpec support requires the SunEC provider", e);
+                    "unable to build EC public key from components", e);
         }
     }
 

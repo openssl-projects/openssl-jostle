@@ -108,6 +108,17 @@ import java.security.Security;
  *   3111    256        get_bn_component                  defensive BN_num_bytes &lt; 0
  *   3112    272        get_bn_component                  defensive BN_bn2bin &lt; 0
  *
+ *   3120    914        ec_make_public_from_components    OSSL_PARAM_BLD_new == NULL
+ *   3121    919        ec_make_public_from_components    OSSL_PARAM_BLD_push_utf8_string(GROUP_NAME) failed
+ *   3122    928        ec_make_public_from_components    OSSL_PARAM_BLD_push_octet_string(PUB_KEY) failed
+ *   3123    935        ec_make_public_from_components    OSSL_PARAM_BLD_to_param == NULL
+ *   3124    942        ec_make_public_from_components    EVP_PKEY_CTX_new_from_name == NULL
+ *   3125    947        ec_make_public_from_components    EVP_PKEY_fromdata_init failed
+ *   3126    952        ec_make_public_from_components    EVP_PKEY_fromdata failed
+ *   3127    958        ec_make_public_from_components    pkey == NULL after fromdata
+ *   3128    965        ec_make_public_from_components    EVP_PKEY_CTX_new_from_pkey == NULL
+ *   3129    973        ec_make_public_from_components    EVP_PKEY_public_check failed
+ *
  *   --      209        get_curve_name_component          name_len &gt; INT32_MAX (flag INT32_OVERFLOW_1, returns JO_OUTPUT_TOO_LONG_INT32)
  *   --      837        ec_ctx_sign                       sig_len &gt; INT32_MAX  (flag INT32_OVERFLOW_1, returns JO_OUTPUT_TOO_LONG_INT32)
  *   --      1083       ec_kex_derive (probe path)        need    &gt; INT32_MAX (flag INT32_OVERFLOW_1, returns JO_OUTPUT_TOO_LONG_INT32)
@@ -587,6 +598,221 @@ public class ECOpsTest
                 err, TestUtil.RNDSrc);
         Assertions.assertEquals(0L, ref);
         Assertions.assertEquals(errorAt(3026), err[0]);
+    }
+
+
+    // -----------------------------------------------------------------
+    // ec_make_public_from_components
+    // -----------------------------------------------------------------
+
+    /** A genuinely valid P-256 uncompressed point (0x04 || X || Y). */
+    private static byte[] samplePoint()
+    {
+        return new byte[]{
+                (byte) 0x04, (byte) 0x99, (byte) 0xde, (byte) 0x60, (byte) 0x83, (byte) 0x0a, (byte) 0xa7,
+                (byte) 0x89, (byte) 0x53, (byte) 0xd1, (byte) 0xe9, (byte) 0xa6, (byte) 0xbb, (byte) 0xc5,
+                (byte) 0x39, (byte) 0x22, (byte) 0x64, (byte) 0xca, (byte) 0x8b, (byte) 0x00, (byte) 0xf7,
+                (byte) 0x48, (byte) 0xc1, (byte) 0x4a, (byte) 0xc3, (byte) 0xa2, (byte) 0xbc, (byte) 0x92,
+                (byte) 0x3f, (byte) 0xe1, (byte) 0x28, (byte) 0x37, (byte) 0xf9, (byte) 0xcf, (byte) 0x9e,
+                (byte) 0x96, (byte) 0x7b, (byte) 0xa7, (byte) 0x7e, (byte) 0x92, (byte) 0xba, (byte) 0x9d,
+                (byte) 0x9c, (byte) 0xf0, (byte) 0x45, (byte) 0x60, (byte) 0xe8, (byte) 0x97, (byte) 0xa0,
+                (byte) 0x90, (byte) 0xed, (byte) 0xb2, (byte) 0x67, (byte) 0xb7, (byte) 0x75, (byte) 0xcc,
+                (byte) 0xdd, (byte) 0x46, (byte) 0x46, (byte) 0x46, (byte) 0xe3, (byte) 0xdd, (byte) 0xb5,
+                (byte) 0x51, (byte) 0xf4
+        };
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:914} (offset 3120) — fault-injects the
+     * {@code OSSL_PARAM_BLD_new == NULL} branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_paramBldNew_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:914
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3120), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:919} (offset 3121) — fault-injects the
+     * {@code OSSL_PARAM_BLD_push_utf8_string} (group name) failure branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_pushGroupName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:919
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3121), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:928} (offset 3122) — fault-injects the
+     * {@code OSSL_PARAM_BLD_push_octet_string} (public key) failure branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_pushPubKey_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:928
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3122), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:935} (offset 3123) — fault-injects the
+     * {@code OSSL_PARAM_BLD_to_param == NULL} branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_bldToParam_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:935
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3123), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:942} (offset 3124) — fault-injects the
+     * {@code EVP_PKEY_CTX_new_from_name == NULL} branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_ctxNewFromName_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:942
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3124), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:947} (offset 3125) — fault-injects the
+     * {@code EVP_PKEY_fromdata_init} failure branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_fromdataInit_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:947
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3125), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:952} (offset 3126) — fault-injects the
+     * {@code EVP_PKEY_fromdata} failure branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_fromdata_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:952
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3126), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:958} (offset 3127) — fault-injects the
+     * post-fromdata {@code pkey == NULL} sanity check inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}). Every
+     * earlier call runs for real (a genuinely valid point on a genuinely valid
+     * curve), so this is the ONE site where {@code fromdata} must succeed for
+     * the flag to be reached at all.
+     */
+    @Test
+    public void ec_makePublic_pkeyNull_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:958
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3127), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:965} (offset 3128) — fault-injects the
+     * {@code EVP_PKEY_CTX_new_from_pkey == NULL} branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_ctxNewFromPkey_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:965
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3128), err[0]);
+    }
+
+    /**
+     * Target: {@code interface/nonfips/util/ec.c:973} (offset 3129) — fault-injects the
+     * {@code EVP_PKEY_public_check} failure branch inside
+     * {@code ec_make_public_from_components} (defined at {@code ec.c:884}).
+     */
+    @Test
+    public void ec_makePublic_publicCheck_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        OpenSSL.getOpenSSLErrors();
+        // Exercises interface/nonfips/util/ec.c:973
+        ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
+
+        int[] err = new int[1];
+        long ref = ec.ni_makePublicFromComponents("P-256", samplePoint(), err, TestUtil.RNDSrc);
+        Assertions.assertEquals(0L, ref);
+        Assertions.assertEquals(errorAt(3129), err[0]);
     }
 
 

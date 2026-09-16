@@ -42,6 +42,7 @@ public class ECServiceFFI implements ECServiceNI
     private final MethodHandle curveSupportedH;
     private final MethodHandle generateKeyPairH;
     private final MethodHandle makePrivateFromComponentsH;
+    private final MethodHandle makePublicFromComponentsH;
     private final MethodHandle getComponentH;
     private final MethodHandle getCurveComponentH;
     private final MethodHandle findCurveNameH;
@@ -108,6 +109,20 @@ public class ECServiceFFI implements ECServiceNI
                         ValueLayout.ADDRESS,    // curve_name
                         ValueLayout.ADDRESS,    // scalar bytes
                         ValueLayout.JAVA_LONG,  // scalar_size
+                        ValueLayout.ADDRESS,    // err out
+                        ValueLayout.ADDRESS));  // rnd_src upcall
+
+        // JoEC_makePublicFromComponents(curve_name, point, point_size,
+        //                               err_out, rnd_src) -> key_spec*
+        // NON-critical: EVP_PKEY_public_check makes a Java RAND upcall
+        // during its point-blinded scalar mul, same rationale as the
+        // private-components handle above.
+        makePublicFromComponentsH = bind(lookup, symPrefix + "JoEC_makePublicFromComponents",
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS,    // returns key_spec*
+                        ValueLayout.ADDRESS,    // curve_name
+                        ValueLayout.ADDRESS,    // point bytes
+                        ValueLayout.JAVA_LONG,  // point_size
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
@@ -374,6 +389,44 @@ public class ECServiceFFI implements ECServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFI EC_makePrivateFromComponents", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public long ni_makePublicFromComponents(String curveName, byte[] pointUncompressed,
+                                            int[] err, RandSource rndSource)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            // The handle is non-critical (entropy upcall must run)
+            // so heap segments aren't legal — copy the point into a
+            // confined-arena native segment.
+            MemorySegment pointSeg;
+            long pointSize;
+            if (pointUncompressed == null)
+            {
+                pointSeg = MemorySegment.NULL;
+                pointSize = 0L;
+            }
+            else
+            {
+                pointSeg = a.allocate(pointUncompressed.length);
+                pointSeg.asByteBuffer().put(pointUncompressed);
+                pointSize = pointUncompressed.length;
+            }
+            // No scrub on close: the point is public, unlike the private
+            // scalar above.
+            MemorySegment ref = (MemorySegment) makePublicFromComponentsH.invokeExact(
+                    nativeString(a, curveName), pointSeg, pointSize,
+                    errSeg, entropyStub(a, rndSource));
+            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+            return ref.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFI EC_makePublicFromComponents", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

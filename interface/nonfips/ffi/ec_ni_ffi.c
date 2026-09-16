@@ -108,6 +108,50 @@ key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
 }
 
 
+key_spec *JoEC_makePublicFromComponents(const char *curve_name,
+                                        uint8_t *point, size_t point_size,
+                                        int32_t *ret_val,
+                                        void *rnd_src) {
+    jo_assert(ret_val != NULL);
+    *ret_val = JO_FAIL;
+
+    if (curve_name == NULL) {
+        *ret_val = JO_NAME_IS_NULL;
+        return NULL;
+    }
+    if (point == NULL) {
+        *ret_val = JO_INPUT_IS_NULL;
+        return NULL;
+    }
+    if (rnd_src == NULL) {
+        *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+    // Bridge validates point length so the util layer can trust the
+    // value. Empty point is meaningless; >INT32_MAX would wrap when
+    // the util layer casts to int32_t.
+    if (point_size == 0) {
+        *ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        return NULL;
+    }
+    if (point_size > (size_t) INT32_MAX) {
+        *ret_val = JO_INPUT_TOO_LONG_INT32;
+        return NULL;
+    }
+
+    key_spec *spec = create_spec();
+    *ret_val = ec_make_public_from_components(spec, curve_name,
+                                              point, point_size,
+                                              rnd_src);
+
+    if (*ret_val != JO_SUCCESS) {
+        free_key_spec(spec);
+        spec = NULL;
+    }
+    return spec;
+}
+
+
 // =============================================================
 // Component getter
 // =============================================================

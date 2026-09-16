@@ -549,3 +549,14 @@ SPI fields and fails naming the class and field that holds a base NI. Prefer it
 to any behavioural probe, because behaviour cannot see the difference — a
 key-shaped assertion cannot, once `getPublicKey()` rebuilds through the owning
 provider's KeyFactory rather than through the NI.
+
+### Production code never resolves a service from a non-Jostle provider
+
+A raw `ECPublicKeySpec` is built natively — `ECKeyFactorySpi` resolves the
+curve name, encodes the point as SEC 1 uncompressed, and calls
+`ECServiceNI.makePublicFromComponents`, the public-only twin of the existing
+private-components entry point — never a JDK KeyFactory. Unbound
+`AlgorithmParameterGenerator`s (constructed directly, no provider) resolve
+their `AlgorithmParameters` by their own service NI's `providerName()`, never
+bare registry order. Production code names no JDK provider anywhere, guarded
+by `NoJdkProviderNamesInProductionTest`.

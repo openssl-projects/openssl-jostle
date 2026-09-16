@@ -173,6 +173,82 @@ exit:
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
+ * Method:    ni_makePublicFromComponents
+ * Signature: (Ljava/lang/String;[B[ILorg/openssl/jostle/rand/RandSource;)J
+ *
+ * Constructs a Jostle key_spec for an EC public key from a curve name
+ * plus the SEC 1 uncompressed point. EVP_PKEY_public_check
+ * scalar-multiplies the point with point-blinded multiplication, so
+ * the bridge uses non-critical bytearray access — upcalls into the
+ * Java RAND source must be allowed during the underlying
+ * ec_make_public_from_components.
+ */
+JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1makePublicFromComponents
+(JNIEnv *env, jobject jo, jstring _curveName, jbyteArray _point,
+ jintArray err_out, jobject rnd_src) {
+    UNUSED(jo);
+    jo_assert(err_out != NULL);
+
+    jint ret_val = JO_FAIL;
+    key_spec *spec = NULL;
+    const char *curve_name = NULL;
+    java_bytearray_ctx point;
+    init_bytearray_ctx(&point);
+
+    if (_curveName == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+    if (_point == NULL) {
+        ret_val = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    curve_name = (*env)->GetStringUTFChars(env, _curveName, NULL);
+    if (OPS_FAILED_ACCESS_2 curve_name == NULL) {
+        ret_val = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&point, env, _point)) {
+        ret_val = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+    // Bridge validates point length so the util layer can trust the
+    // value (jsize is int32_t, so point.size > INT32_MAX is structurally
+    // impossible from JNI — only the zero-length case needs an explicit
+    // check here; the FFI bridge additionally guards against >INT32_MAX).
+    if (point.size == 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    spec = create_spec();
+    ret_val = ec_make_public_from_components(spec, curve_name,
+                                             point.bytearray, point.size,
+                                             rnd_src);
+
+    if (ret_val != JO_SUCCESS) {
+        free_key_spec(spec);
+        spec = NULL;
+    }
+
+exit:
+    release_bytearray_ctx(&point);
+    if (curve_name != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _curveName, curve_name);
+    }
+    (*env)->SetIntArrayRegion(env, err_out, 0, 1, &ret_val);
+    return (jlong) spec;
+}
+
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
  * Method:    ni_getComponent
  * Signature: (JI[B)I
  */

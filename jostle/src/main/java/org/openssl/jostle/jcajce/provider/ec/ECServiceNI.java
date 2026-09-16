@@ -74,6 +74,16 @@ public interface ECServiceNI extends DefaultServiceNI
     long ni_makePrivateFromComponents(String curveName, byte[] scalarBE,
                                       int[] err, RandSource rndSource);
 
+    /**
+     * Construct an EC key_spec for the given curve from its SEC 1
+     * uncompressed public point ({@code 0x04 || X || Y}). Validated with
+     * {@code EVP_PKEY_public_check} (on curve, correct subgroup order),
+     * which does a point-blinded scalar mul, so a non-NULL RandSource is
+     * required even though this builds a public-only key.
+     */
+    long ni_makePublicFromComponents(String curveName, byte[] pointUncompressed,
+                                     int[] err, RandSource rndSource);
+
     int ni_getComponent(long specRef, int component, byte[] out);
 
     /**
@@ -175,6 +185,15 @@ public interface ECServiceNI extends DefaultServiceNI
     {
         int[] err = new int[1];
         long r = ni_makePrivateFromComponents(curveName, scalarBE, err, rndSource);
+        handleErrors(err[0]);
+        return r;
+    }
+
+    default long makePublicFromComponents(String curveName, byte[] pointUncompressed,
+                                          RandSource rndSource)
+    {
+        int[] err = new int[1];
+        long r = ni_makePublicFromComponents(curveName, pointUncompressed, err, rndSource);
         handleErrors(err[0]);
         return r;
     }

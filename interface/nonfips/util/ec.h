@@ -205,6 +205,33 @@ int32_t ec_make_private_from_components(key_spec *spec,
                                         void *rnd_src);
 
 
+/*
+ * Build an EC public key from its raw SEC 1 uncompressed point plus a
+ * curve name. {@code spec->key} is set on success; on failure the
+ * {@code spec} is left unchanged and an error code is returned.
+ *
+ *   curve_name: OpenSSL group name (e.g. "P-256"). MUST be non-NULL.
+ *               Callers SHOULD pre-validate via ec_curve_supported().
+ *   point_oct:  the SEC 1 uncompressed point, 0x04 || X || Y, each
+ *               coordinate (field_bits+7)/8 bytes. MUST be non-NULL.
+ *   point_len:  number of bytes in point_oct. MUST be > 0.
+ *   rnd_src:    RandSource. Required because EVP_PKEY_public_check
+ *               below scalar-multiplies the point with blinding,
+ *               which consumes RAND.
+ *
+ * Imports via OSSL_PARAM_BLD + EVP_PKEY_fromdata with EVP_PKEY_PUBLIC_KEY
+ * selection — no scalar, no group derivation, no point multiplication —
+ * then validates the result with EVP_PKEY_public_check (on curve,
+ * correct subgroup order): a point that survives the raw import but
+ * fails that check is refused here rather than silently accepted.
+ */
+int32_t ec_make_public_from_components(key_spec *spec,
+                                       const char *curve_name,
+                                       const uint8_t *point_oct,
+                                       size_t point_len,
+                                       void *rnd_src);
+
+
 // =============================================================
 // Sign / verify session
 // =============================================================
