@@ -22,7 +22,6 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
-import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -342,14 +341,8 @@ public class MLDSASignatureSpi extends SignatureSpi
             return;
         }
 
-        byte[] context = SpecUtil.getContextFrom(params);
-        if (context != null)
-        {
-            algorithmParameterSpec = new ContextParameterSpec(context);
-            reInit();
-            return;
-        }
-
+        // The JDK defines no ML-DSA context spec; Jostle's own is the only
+        // one accepted.
         throw new InvalidAlgorithmParameterException("unknown AlgorithmParameterSpec");
     }
 

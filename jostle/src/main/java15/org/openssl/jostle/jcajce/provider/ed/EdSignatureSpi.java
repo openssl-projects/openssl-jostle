@@ -22,7 +22,6 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
-import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -338,10 +337,17 @@ public class EdSignatureSpi extends SignatureSpi
             return;
         }
 
-        byte[] context = SpecUtil.getContextFrom(params);
-        if (context != null)
+        // java.security.spec.EdDSAParameterSpec exists from JDK 15.
+        if (params instanceof java.security.spec.EdDSAParameterSpec)
         {
-            algorithmParameterSpec = new ContextParameterSpec(context);
+            java.security.spec.EdDSAParameterSpec edSpec = (java.security.spec.EdDSAParameterSpec) params;
+            if (edSpec.isPrehash())
+            {
+                throw new InvalidAlgorithmParameterException("prehash EdDSA is not supported");
+            }
+            algorithmParameterSpec = edSpec.getContext().isPresent()
+                    ? new ContextParameterSpec(edSpec.getContext().get())
+                    : null;
             reInit();
             return;
         }

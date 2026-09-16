@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
-import org.openssl.jostle.jcajce.util.SpecUtil;
+import org.openssl.jostle.jcajce.util.JdkSpecs;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Strings;
@@ -152,8 +152,8 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         }
 
         // Resolve the parameter-set name: use the name directly for our own
-        // MLDSAParameterSpec, otherwise reflect on getName() so a foreign spec
-        // (e.g. BouncyCastle's MLDSAParameterSpec) is accepted too.
+        // MLDSAParameterSpec, otherwise accept the JDK's NamedParameterSpec
+        // (Java 11+; see JdkSpecs).
         String specName;
         if (params instanceof MLDSAParameterSpec)
         {
@@ -161,8 +161,8 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         }
         else
         {
-            String reflected = SpecUtil.getNameFrom(params);
-            specName = (reflected == null) ? null : Strings.toUpperCase(reflected);
+            String named = JdkSpecs.namedParameterSpecName(params);
+            specName = (named == null) ? null : Strings.toUpperCase(named);
         }
 
         OSSLKeyType newType = (specName == null) ? null : paramToTypeMap.get(specName);

@@ -22,7 +22,6 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
-import org.openssl.jostle.jcajce.util.SpecUtil;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -325,14 +324,6 @@ public class EdSignatureSpi extends SignatureSpi
         if (params instanceof ContextParameterSpec)
         {
             algorithmParameterSpec = params;
-            reInit();
-            return;
-        }
-
-        byte[] context = SpecUtil.getContextFrom(params);
-        if (context != null)
-        {
-            algorithmParameterSpec = new ContextParameterSpec(context);
             reInit();
             return;
         }

@@ -179,8 +179,16 @@ public class EdDSATest
     }
 
 
+    /**
+     * D50/C46: a spec whose only structural resemblance to a context spec is
+     * a reflectively-discoverable {@code getContext()} method is no longer
+     * accepted — the reflective read is gone, so a spec that is neither our
+     * own {@link ContextParameterSpec} nor (from JDK 15) the JDK's own
+     * {@code EdDSAParameterSpec} is refused typed, same as any other unknown
+     * spec.
+     */
     @Test
-    public void testCustomParameterSpec() throws Exception
+    public void testCustomParameterSpecRefused() throws Exception
     {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EDDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(EdDSAParameterSpec.ED25519);
@@ -192,7 +200,8 @@ public class EdDSATest
 
         Signature signature = Signature.getInstance("ED25519CTX", JostleProvider.PROVIDER_NAME);
         signature.initSign(keyPair.getPrivate());
-        signature.setParameter(customSpec);
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class, () -> signature.setParameter(customSpec),
+                "a custom spec exposing only getContext() reflectively must be refused");
 
         try
         {
@@ -659,10 +668,11 @@ public class EdDSATest
     }
 
 
+    /** A custom getContext()-bearing spec is refused on both the signer and the verifier. */
     @Test
-    public void testSignVerifyWithCustomContextAndReuse() throws Exception
+    public void testCustomContextSpecRefusedOnSignerAndVerifier() throws Exception
     {
-        SecureRandom sr = seededRandom("testSignVerifyWithCustomContextAndReuse");
+        SecureRandom sr = seededRandom("testCustomContextSpecRefusedOnSignerAndVerifier");
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EdDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(EdDSAParameterSpec.ED25519);
         KeyPair keyPair = keyGen.generateKeyPair();
@@ -670,46 +680,17 @@ public class EdDSATest
         byte[] ctx = new byte[64];
         sr.nextBytes(ctx);
 
-        byte[] message = new byte[1025];
-        sr.nextBytes(message);
-
-
-        //
-        // Take first signature on a fresh instance that is fully set up
-        //
         Signature signature = Signature.getInstance("ED25519CTX", JostleProvider.PROVIDER_NAME);
         signature.initSign(keyPair.getPrivate());
-        signature.setParameter(new EdDSATest.TestAlgorithmParameterSpec(ctx));
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> signature.setParameter(new EdDSATest.TestAlgorithmParameterSpec(ctx)),
+                "a custom spec exposing only getContext() reflectively must be refused");
 
-        signature.update(message);
-        byte[] firstSignature = signature.sign();
-
-        //
-        // Signer should have reset
-        //
-        signature.update(message);
-        byte[] secondSignature = signature.sign();
-
-        //
-        // Set up verifier, it should verify second signature
-        //
         Signature verifier = Signature.getInstance("Ed25519Ctx", JostleProvider.PROVIDER_NAME);
         verifier.initVerify(keyPair.getPublic());
-        verifier.setParameter(new EdDSATest.TestAlgorithmParameterSpec(ctx));
-        verifier.update(message);
-        Assertions.assertTrue(verifier.verify(secondSignature));
-
-        //
-        // Verifier should have reset
-        //
-        verifier.update(message);
-        Assertions.assertTrue(verifier.verify(firstSignature));
-
-
-        // Vandalise message
-        message[0] ^= 1;
-        verifier.update(message);
-        Assertions.assertFalse(verifier.verify(firstSignature));
+        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> verifier.setParameter(new EdDSATest.TestAlgorithmParameterSpec(ctx)),
+                "a custom spec exposing only getContext() reflectively must be refused");
     }
 
 

@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
-import org.openssl.jostle.jcajce.util.SpecUtil;
+import org.openssl.jostle.jcajce.util.JdkSpecs;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
@@ -123,7 +123,8 @@ public class MLXKEMKeyPairGenerator extends KeyPairGenerator
         }
         else
         {
-            specName = SpecUtil.getNameFrom(params);
+            // The JDK's NamedParameterSpec (Java 11+; see JdkSpecs).
+            specName = JdkSpecs.namedParameterSpecName(params);
         }
 
         if (specName == null || !specName.equalsIgnoreCase(parameterSpec.getName()))
