@@ -14,11 +14,11 @@ package org.openssl.jostle.test.crypto;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -53,11 +53,11 @@ public class KtsStreamingRefusalTest
         }
     }
 
-    private static KTSParameterSpec kts()
+    private static KTSParameterSpec kts() throws java.io.IOException
     {
         return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3,
-                        new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)))
+                        new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)).getEncoded())
                 .build();
     }
 

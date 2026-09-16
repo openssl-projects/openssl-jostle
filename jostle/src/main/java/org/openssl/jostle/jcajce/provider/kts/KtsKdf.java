@@ -11,10 +11,13 @@
 package org.openssl.jostle.jcajce.provider.kts;
 
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.asn1.Der;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -84,6 +87,88 @@ public final class KtsKdf
             return Kind.HKDF;
         }
         return null;
+    }
+
+    /** The family a KDF's DER {@code AlgorithmIdentifier} resolved to, and the digest it names. */
+    public static final class Resolved
+    {
+        public final Kind kind;
+        public final String digestName;
+
+        private Resolved(Kind kind, String digestName)
+        {
+            this.kind = kind;
+            this.digestName = digestName;
+        }
+    }
+
+    /**
+     * Parse a KDF {@code AlgorithmIdentifier}'s DER encoding — as
+     * {@link org.openssl.jostle.jcajce.spec.KTSParameterSpec#getKdfAlgorithm()}
+     * returns it — and resolve which KDF family and digest it names.
+     *
+     * <p>RFC 8619 requires an HKDF OID's parameters be absent; X9.44 KDF2/KDF3
+     * require a digest {@code AlgorithmIdentifier} parameter. The OID decides
+     * which shape applies, so it is read before any parameter.
+     */
+    public static Resolved resolve(byte[] derAlgorithmIdentifier)
+        throws InvalidAlgorithmParameterException
+    {
+        String kdfOid;
+        Kind kind;
+        boolean hasParams;
+        Der.Reader content;
+        try
+        {
+            Der.Reader top = new Der.Reader(derAlgorithmIdentifier);
+            content = top.readTLV(Der.SEQUENCE, "KDF AlgorithmIdentifier");
+            top.requireEnd("trailing data after KDF AlgorithmIdentifier");
+            kdfOid = content.readObjectIdentifier("KDF OID");
+            hasParams = !content.atEnd();
+        }
+        catch (IOException e)
+        {
+            throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
+        }
+        kind = kindForOid(kdfOid);
+        if (kind == null)
+        {
+            throw new InvalidAlgorithmParameterException(unsupportedKdfMessage(kdfOid));
+        }
+        if (Kind.HKDF == kind)
+        {
+            if (hasParams)
+            {
+                throw new InvalidAlgorithmParameterException(hkdfParametersForbiddenMessage());
+            }
+            return new Resolved(kind, hkdfDigestForOid(kdfOid));
+        }
+        if (!hasParams)
+        {
+            throw new InvalidAlgorithmParameterException(digestParameterRequiredMessage());
+        }
+
+        String digestOid;
+        try
+        {
+            Der.Reader digestContent = content.readTLV(Der.SEQUENCE, "digest AlgorithmIdentifier");
+            digestOid = digestContent.readObjectIdentifier("digest OID");
+            // Not digestContent.requireEnd(): a digest AlgorithmIdentifier may
+            // legitimately carry NULL parameters after its OID. But nothing
+            // follows the digest AlgorithmIdentifier itself inside the KDF
+            // AlgorithmIdentifier's own SEQUENCE.
+            content.requireEnd("trailing data after digest AlgorithmIdentifier");
+        }
+        catch (IOException e)
+        {
+            throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
+        }
+        String name = ktsDigestForOid(digestOid);
+        if (name == null)
+        {
+            throw new InvalidAlgorithmParameterException(unsupportedKtsDigestMessage(digestOid));
+        }
+        return new Resolved(kind, name);
     }
 
     /**

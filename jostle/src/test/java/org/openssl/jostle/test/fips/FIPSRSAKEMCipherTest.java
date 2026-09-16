@@ -11,7 +11,6 @@
 package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -82,7 +81,7 @@ public class FIPSRSAKEMCipherTest
     public void interoperatesWithTheBaseProviderBothDirections() throws Exception
     {
         SecureRandom sr = seededRandom("interoperatesWithTheBaseProviderBothDirections");
-        KTSParameterSpec spec = kdf3Spec(256, randomBytes(sr, 12), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, randomBytes(sr, 12), NISTObjectIdentifiers.id_sha256);
 
         KeyGenerator kg = KeyGenerator.getInstance("AES");
         kg.init(256, sr);
@@ -133,7 +132,7 @@ public class FIPSRSAKEMCipherTest
         Cipher u = Cipher.getInstance(XFORM, JostleFIPSProvider.PROVIDER_NAME);
         InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
                 () -> u.init(Cipher.UNWRAP_MODE, jslKp.getPrivate(),
-                        kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256)));
+                        kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256).forProvider(JostleFIPSProvider.PROVIDER_NAME)));
         Assertions.assertEquals(
                 "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory",
                 e.getMessage());
@@ -142,7 +141,7 @@ public class FIPSRSAKEMCipherTest
         Cipher w = Cipher.getInstance(XFORM, JostleFIPSProvider.PROVIDER_NAME);
         InvalidKeyException pub = Assertions.assertThrows(InvalidKeyException.class,
                 () -> w.init(Cipher.WRAP_MODE, jslKp.getPublic(),
-                        kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256)));
+                        kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256).forProvider(JostleFIPSProvider.PROVIDER_NAME)));
         Assertions.assertEquals(
                 "public key was created by a different Jostle provider instance; encode it "
                         + "with getEncoded() and decode it through this provider's KeyFactory",
@@ -153,7 +152,7 @@ public class FIPSRSAKEMCipherTest
         Cipher ok = Cipher.getInstance(XFORM, JostleFIPSProvider.PROVIDER_NAME);
         Assertions.assertDoesNotThrow(() -> ok.init(Cipher.WRAP_MODE,
                 FIPSTestUtil.crossPublic(jslKp.getPublic(), "RSA", JostleFIPSProvider.PROVIDER_NAME),
-                kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256)));
+                kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256).forProvider(JostleFIPSProvider.PROVIDER_NAME)));
     }
 
     /**

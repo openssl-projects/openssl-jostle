@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.jcajce.provider.kts.KtsWrap;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
@@ -28,7 +29,6 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 import java.lang.ref.Reference;
-import java.lang.reflect.Method;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -67,8 +67,9 @@ import java.security.spec.AlgorithmParameterSpec;
  * derives its KEK from {@code r} zero-padded to the modulus length; OpenSSL's
  * RSASVE returns exactly that (measured on mainline and both FIPS modules,
  * {@code fips-c-review/probes/rsakem_probe.c}), so the two agree given the same
- * KDF and wrap parameters. The {@code KTSParameterSpec} is read reflectively so
- * this provider keeps no compile-time BouncyCastle dependency.
+ * KDF and wrap parameters. The {@link AlgorithmParameterSpec} this cipher
+ * accepts is {@link org.openssl.jostle.jcajce.spec.KTSParameterSpec}; any
+ * other spec is refused typed.
  */
 public class RSAKEMCipherSpi
     extends CipherSpi
@@ -164,7 +165,7 @@ public class RSAKEMCipherSpi
      */
     private int modLen;
 
-    // KTSParameterSpec contents (read reflectively in engineInit).
+    // KTSParameterSpec contents (read directly in engineInit).
     private int kekBits;
     /** RFC 3394 (KW) or RFC 5649 (KWP), from the spec's key-algorithm name. */
     private KtsWrap.Kind wrapKind = KtsWrap.Kind.KW;
@@ -529,7 +530,7 @@ public class RSAKEMCipherSpi
         return c;
     }
 
-    // --- KTSParameterSpec via reflection (no compile-time BC dependency) -----
+    // --- KTSParameterSpec, read directly ------------------------------------
 
     private void readKtsSpec(AlgorithmParameterSpec params)
         throws InvalidAlgorithmParameterException
@@ -538,114 +539,39 @@ public class RSAKEMCipherSpi
         {
             throw new InvalidAlgorithmParameterException("a KTSParameterSpec is required");
         }
-        try
+        if (!(params instanceof KTSParameterSpec))
         {
-            Class<?> c = params.getClass();
-            this.kekBits = (Integer) method(c, "getKeySize").invoke(params);
-            // The name selects RFC 3394 vs RFC 5649; refused here so an
-            // unsupported one cannot reach a key operation.
-            String keyAlgorithmName = (String) method(c, "getKeyAlgorithmName").invoke(params);
-            KtsWrap.Kind kind = KtsWrap.kindForName(keyAlgorithmName);
-            if (kind == null)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        KtsWrap.unsupportedNameMessage(keyAlgorithmName));
-            }
-            this.wrapKind = kind;
-            this.otherInfo = (byte[]) method(c, "getOtherInfo").invoke(params);
-            Object kdfAlgId = method(c, "getKdfAlgorithm").invoke(params);
-            if (kdfAlgId == null)
-            {
-                this.kdfKind = null;
-                this.digestName = null;
-            }
-            else
-            {
-                resolveKdf(kdfAlgId);
-            }
+            throw new InvalidAlgorithmParameterException("unsupported parameter spec "
+                    + params.getClass().getName() + "; use org.openssl.jostle.jcajce.spec.KTSParameterSpec");
         }
-        catch (InvalidAlgorithmParameterException e)
+        KTSParameterSpec spec = (KTSParameterSpec) params;
+        this.kekBits = spec.getKeySize();
+        // The name selects RFC 3394 vs RFC 5649; refused here so an
+        // unsupported one cannot reach a key operation.
+        String keyAlgorithmName = spec.getKeyAlgorithmName();
+        KtsWrap.Kind kind = KtsWrap.kindForName(keyAlgorithmName);
+        if (kind == null)
         {
-            throw e;
+            throw new InvalidAlgorithmParameterException(
+                    KtsWrap.unsupportedNameMessage(keyAlgorithmName));
         }
-        catch (NoSuchMethodException e)
+        this.wrapKind = kind;
+        this.otherInfo = spec.getOtherInfo();
+        byte[] kdfAlgorithm = spec.getKdfAlgorithm();
+        if (kdfAlgorithm == null)
         {
-            throw new InvalidAlgorithmParameterException("unsupported parameter spec " + params.getClass().getName(), e);
+            this.kdfKind = null;
+            this.digestName = null;
         }
-        catch (ReflectiveOperationException e)
+        else
         {
-            throw new InvalidAlgorithmParameterException("unable to read KTSParameterSpec: " + e.getMessage(), e);
+            KtsKdf.Resolved resolved = KtsKdf.resolve(kdfAlgorithm);
+            this.kdfKind = resolved.kind;
+            this.digestName = resolved.digestName;
         }
         if (kekBits <= 0 || kekBits > MAX_KEK_BITS)
         {
             throw new InvalidAlgorithmParameterException("invalid KEK size: " + kekBits);
-        }
-    }
-
-    private static Method method(Class<?> c, String name)
-        throws NoSuchMethodException
-    {
-        Method m = c.getMethod(name);
-        m.setAccessible(true);
-        return m;
-    }
-
-    /**
-     * Resolve the digest name from the spec's KDF AlgorithmIdentifier. Only KDF3
-     * is supported, matching the ML-KEM KTS cipher and BC's default; anything
-     * else is refused by name so the caller learns what IS supported rather than
-     * getting a wrong KEK.
-     */
-    private void resolveKdf(Object kdfAlgId)
-        throws InvalidAlgorithmParameterException
-    {
-        try
-        {
-            Object alg = method(kdfAlgId.getClass(), "getAlgorithm").invoke(kdfAlgId);
-            String kdfOid = String.valueOf(alg);
-            KtsKdf.Kind kind = KtsKdf.kindForOid(kdfOid);
-            if (kind == null)
-            {
-                throw new InvalidAlgorithmParameterException(KtsKdf.unsupportedKdfMessage(kdfOid));
-            }
-            // Branch on the OID BEFORE reading parameters: HKDF names its digest
-            // in the OID and RFC 8619 requires the parameters be absent, while
-            // KDF2/KDF3 carry a digest AlgorithmIdentifier there.
-            Object digParams = method(kdfAlgId.getClass(), "getParameters").invoke(kdfAlgId);
-            if (KtsKdf.Kind.HKDF == kind)
-            {
-                if (digParams != null)
-                {
-                    throw new InvalidAlgorithmParameterException(KtsKdf.hkdfParametersForbiddenMessage());
-                }
-                this.kdfKind = kind;
-                this.digestName = KtsKdf.hkdfDigestForOid(kdfOid);
-                return;
-            }
-            if (digParams == null)
-            {
-                throw new InvalidAlgorithmParameterException(KtsKdf.digestParameterRequiredMessage());
-            }
-            Object digAlg = method(digParams.getClass(), "getAlgorithm").invoke(digParams);
-            String digestOid = String.valueOf(digAlg);
-            // kdfKind lands before the digest resolves, as it always has; a
-            // refused init leaves it set either way.
-            this.kdfKind = kind;
-            String name = KtsKdf.ktsDigestForOid(digestOid);
-            if (name == null)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        KtsKdf.unsupportedKtsDigestMessage(digestOid));
-            }
-            this.digestName = name;
-        }
-        catch (InvalidAlgorithmParameterException e)
-        {
-            throw e;
-        }
-        catch (ReflectiveOperationException e)
-        {
-            throw new InvalidAlgorithmParameterException("unable to read KDF algorithm: " + e.getMessage(), e);
         }
     }
 

@@ -18,8 +18,8 @@ import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.Assertions;
@@ -101,10 +101,11 @@ public class ForeignKeyKemEcXdhTest
     // ----- ML-KEM KTS -----
 
     private static KTSParameterSpec ktsKdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
+        throws java.io.IOException
     {
         return new KTSParameterSpec.Builder("AES", keyBits, otherInfo)
                 .withKdfAlgorithm(new AlgorithmIdentifier(
-                        X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid)))
+                        X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid)).getEncoded())
                 .build();
     }
 

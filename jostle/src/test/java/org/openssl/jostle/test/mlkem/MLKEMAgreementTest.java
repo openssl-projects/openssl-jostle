@@ -12,14 +12,16 @@
 package org.openssl.jostle.test.mlkem;
 
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jcajce.spec.KEMExtractSpec;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.test.util.CipherFamilies;
@@ -69,12 +71,24 @@ public class MLKEMAgreementTest
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    /** The KDF3/SHA-256 configuration BC's own MLKEMCipherSpi resolves to. */
-    private static final KTSParameterSpec KTS_KDF3_SHA256 = new KTSParameterSpec.Builder("AES", 256)
-            .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                    org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
-                    new org.bouncycastle.asn1.x509.AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)))
-            .build();
+    /**
+     * The KDF3/SHA-256 KDF AlgorithmIdentifier BC's own MLKEMCipherSpi resolves
+     * to. BC and Jostle now each accept only their own spec type directly, so
+     * this is built into the provider-appropriate spec at each call site via
+     * {@link #kts(String)}.
+     */
+    private static final AlgorithmIdentifier KDF3_SHA256 = new AlgorithmIdentifier(
+            X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
+
+    private static java.security.spec.AlgorithmParameterSpec kts(String provider) throws java.io.IOException
+    {
+        if (BC.equals(provider))
+        {
+            return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
+                    .withKdfAlgorithm(KDF3_SHA256).build();
+        }
+        return new KTSParameterSpec.Builder("AES", 256).withKdfAlgorithm(KDF3_SHA256.getEncoded()).build();
+    }
 
     private static SecureRandom seededRandom(String testName) throws Exception
     {
@@ -240,7 +254,6 @@ public class MLKEMAgreementTest
         for (String paramSet : PARAM_SETS)
         {
             KeyPair kp = keyPair(JSL, paramSet);
-            KTSParameterSpec spec = KTS_KDF3_SHA256;
 
             byte[] cekBytes = new byte[32];
             sr.nextBytes(cekBytes);
@@ -248,22 +261,22 @@ public class MLKEMAgreementTest
 
             // JSL wraps, BC unwraps.
             Cipher joWrap = Cipher.getInstance("ML-KEM", JSL);
-            joWrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+            joWrap.init(Cipher.WRAP_MODE, kp.getPublic(), kts(JSL));
             byte[] wrapped = joWrap.wrap(cek);
 
             Cipher bcUnwrap = Cipher.getInstance("ML-KEM", BC);
-            bcUnwrap.init(Cipher.UNWRAP_MODE, importPrivate(BC, kp.getPrivate()), spec);
+            bcUnwrap.init(Cipher.UNWRAP_MODE, importPrivate(BC, kp.getPrivate()), kts(BC));
             Key viaBc = bcUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
             Assertions.assertTrue(Arrays.areEqual(cekBytes, viaBc.getEncoded()),
                     paramSet + ": BC could not recover a JSL-wrapped CEK");
 
             // BC wraps, JSL unwraps.
             Cipher bcWrap = Cipher.getInstance("ML-KEM", BC);
-            bcWrap.init(Cipher.WRAP_MODE, importPublic(BC, kp.getPublic()), spec);
+            bcWrap.init(Cipher.WRAP_MODE, importPublic(BC, kp.getPublic()), kts(BC));
             byte[] bcWrapped = bcWrap.wrap(cek);
 
             Cipher joUnwrap = Cipher.getInstance("ML-KEM", JSL);
-            joUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+            joUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), kts(JSL));
             Key viaJsl = joUnwrap.unwrap(bcWrapped, "AES", Cipher.SECRET_KEY);
             Assertions.assertTrue(Arrays.areEqual(cekBytes, viaJsl.getEncoded()),
                     paramSet + ": JSL could not recover a BC-wrapped CEK");
@@ -380,10 +393,10 @@ public class MLKEMAgreementTest
                             new SecureRandom().nextBytes(cekBytes);
                             SecretKeySpec cek = new SecretKeySpec(cekBytes, "AES");
                             Cipher w = Cipher.getInstance(alg, JSL);
-                            w.init(Cipher.WRAP_MODE, kp.getPublic(), KTS_KDF3_SHA256);
+                            w.init(Cipher.WRAP_MODE, kp.getPublic(), kts(JSL));
                             byte[] wrapped = w.wrap(cek);
                             Cipher u = Cipher.getInstance(alg, JSL);
-                            u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), KTS_KDF3_SHA256);
+                            u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), kts(JSL));
                             Assertions.assertTrue(Arrays.areEqual(cekBytes,
                                     u.unwrap(wrapped, "AES", Cipher.SECRET_KEY).getEncoded()), alg);
                         }

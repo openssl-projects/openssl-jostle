@@ -14,7 +14,6 @@ import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jcajce.spec.KEMExtractSpec;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
@@ -71,6 +71,24 @@ public class FIPSMLKEMAgreementTest
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         sr.setSeed(seed);
         return sr;
+    }
+
+    /**
+     * The KDF3/SHA-256 KDF AlgorithmIdentifier BC's own MLKEMCipherSpi resolves
+     * to, built into the provider-appropriate spec type at each call site — BC
+     * and Jostle now each accept only their own spec type directly.
+     */
+    private static final AlgorithmIdentifier KDF3_SHA256 = new AlgorithmIdentifier(
+            X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
+
+    private static java.security.spec.AlgorithmParameterSpec kts(String provider) throws java.io.IOException
+    {
+        if (BC.equals(provider))
+        {
+            return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
+                    .withKdfAlgorithm(KDF3_SHA256).build();
+        }
+        return new KTSParameterSpec.Builder("AES", 256).withKdfAlgorithm(KDF3_SHA256.getEncoded()).build();
     }
 
     /** Class-level gate, so a test added later is gated too. */
@@ -198,31 +216,27 @@ public class FIPSMLKEMAgreementTest
         for (String paramSet : PARAM_SETS)
         {
             KeyPair kp = KeyPairGenerator.getInstance(paramSet, FIPS).generateKeyPair();
-            KTSParameterSpec spec = new KTSParameterSpec.Builder("AES", 256)
-                    .withKdfAlgorithm(new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3,
-                            new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)))
-                    .build();
 
             byte[] cekBytes = new byte[32];
             sr.nextBytes(cekBytes);
             SecretKeySpec cek = new SecretKeySpec(cekBytes, "AES");
 
             Cipher fipsWrap = Cipher.getInstance("ML-KEM", FIPS);
-            fipsWrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+            fipsWrap.init(Cipher.WRAP_MODE, kp.getPublic(), kts(FIPS));
             byte[] wrapped = fipsWrap.wrap(cek);
 
             Cipher bcUnwrap = Cipher.getInstance("ML-KEM", BC);
-            bcUnwrap.init(Cipher.UNWRAP_MODE, importPrivate(BC, kp.getPrivate()), spec);
+            bcUnwrap.init(Cipher.UNWRAP_MODE, importPrivate(BC, kp.getPrivate()), kts(BC));
             Key viaBc = bcUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
             Assertions.assertTrue(Arrays.areEqual(cekBytes, viaBc.getEncoded()),
                     paramSet + ": BC could not recover a JSLFIPS-wrapped CEK");
 
             Cipher bcWrap = Cipher.getInstance("ML-KEM", BC);
-            bcWrap.init(Cipher.WRAP_MODE, importPublic(BC, kp.getPublic()), spec);
+            bcWrap.init(Cipher.WRAP_MODE, importPublic(BC, kp.getPublic()), kts(BC));
             byte[] bcWrapped = bcWrap.wrap(cek);
 
             Cipher fipsUnwrap = Cipher.getInstance("ML-KEM", FIPS);
-            fipsUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+            fipsUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), kts(FIPS));
             Key viaFips = fipsUnwrap.unwrap(bcWrapped, "AES", Cipher.SECRET_KEY);
             Assertions.assertTrue(Arrays.areEqual(cekBytes, viaFips.getEncoded()),
                     paramSet + ": JSLFIPS could not recover a BC-wrapped CEK");
@@ -333,15 +347,11 @@ public class FIPSMLKEMAgreementTest
                             byte[] cekBytes = new byte[32];
                             sr.nextBytes(cekBytes);
                             SecretKeySpec cek = new SecretKeySpec(cekBytes, "AES");
-                            KTSParameterSpec spec = new KTSParameterSpec.Builder("AES", 256)
-                                    .withKdfAlgorithm(new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3,
-                                            new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)))
-                                    .build();
                             Cipher w = Cipher.getInstance(alg, FIPS);
-                            w.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+                            w.init(Cipher.WRAP_MODE, kp.getPublic(), kts(FIPS));
                             byte[] wrapped = w.wrap(cek);
                             Cipher u = Cipher.getInstance(alg, FIPS);
-                            u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+                            u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), kts(FIPS));
                             Assertions.assertTrue(Arrays.areEqual(cekBytes,
                                     u.unwrap(wrapped, "AES", Cipher.SECRET_KEY).getEncoded()), alg);
                         }

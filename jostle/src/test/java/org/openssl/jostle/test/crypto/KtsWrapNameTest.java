@@ -11,12 +11,12 @@
 package org.openssl.jostle.test.crypto;
 
 import org.bouncycastle.crypto.DataLengthException;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -44,7 +44,7 @@ import java.security.spec.X509EncodedKeySpec;
  * apart. Only a non-multiple of 8 separates them: KW refuses, KWP pads to 32.
  *
  * <p>Accepted set: {@code AESWRAP}, {@code AES}, {@code AES-KWP}, matched
- * case-insensitively; a null name means KW.
+ * case-insensitively; a null name is refused by the Builder (see below).
  *
  * <p>Four divergences from BouncyCastle are pinned here, all measured against
  * bcprov 1.85.2:
@@ -54,11 +54,16 @@ import java.security.spec.X509EncodedKeySpec;
  * <li>On an unknown name BC throws unchecked {@code UnsupportedOperationException}
  * from {@code wrap()}; we throw checked {@code InvalidAlgorithmParameterException}
  * from {@code init}.</li>
- * <li>On a null name BC throws {@code NullPointerException}; we use KW.</li>
+ * <li>Our Builder refuses a null name typed ({@code IllegalArgumentException});
+ * BC's accepts it and throws {@code NullPointerException} from {@code wrap()}.</li>
  * <li>On a CEK length KW cannot carry, BC throws unchecked
  * {@code DataLengthException}; we throw checked
  * {@code IllegalBlockSizeException}.</li>
  * </ol>
+ *
+ * <p>BC and Jostle each accept only their own spec type directly (no more
+ * reflection), so a cross-provider cell builds each provider's own spec from
+ * the same content via {@link KtsSpec#forProvider(String)}.
  */
 public class KtsWrapNameTest
 {
@@ -90,11 +95,41 @@ public class KtsWrapNameTest
         }
     }
 
-    private static KTSParameterSpec spec(String keyAlgorithmName)
+    /**
+     * Provider-agnostic description of a KTSParameterSpec. BC and Jostle each
+     * accept only their OWN spec type directly, so a single spec object cannot
+     * drive both providers — this descriptor builds the right one, from the
+     * same content, at {@link #forProvider(String)} time. No KDF override is
+     * ever built here (every cell uses the default), so unlike the KDF-bearing
+     * descriptors elsewhere this one need not declare {@code IOException}.
+     */
+    private static final class KtsSpec
+    {
+        private final String keyAlgorithmName;
+        private final byte[] otherInfo;
+
+        KtsSpec(String keyAlgorithmName, byte[] otherInfo)
+        {
+            this.keyAlgorithmName = keyAlgorithmName;
+            this.otherInfo = otherInfo;
+        }
+
+        java.security.spec.AlgorithmParameterSpec forProvider(String provider)
+        {
+            if (BC.equals(provider))
+            {
+                return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
+                        keyAlgorithmName, 256, otherInfo).build();
+            }
+            return new KTSParameterSpec.Builder(keyAlgorithmName, 256, otherInfo).build();
+        }
+    }
+
+    private static KtsSpec spec(String keyAlgorithmName)
     {
         byte[] otherInfo = new byte[1 + RANDOM.nextInt(32)];
         RANDOM.nextBytes(otherInfo);
-        return new KTSParameterSpec.Builder(keyAlgorithmName, 256, otherInfo).build();
+        return new KtsSpec(keyAlgorithmName, otherInfo);
     }
 
     private static SecretKeySpec cek(int len)
@@ -111,18 +146,18 @@ public class KtsWrapNameTest
         return kpg.generateKeyPair();
     }
 
-    /** Wrap through one provider, recover through the other, on one shared spec. */
+    /** Wrap through one provider, recover through the other, on one shared spec content. */
     private static void recoversAcross(String xform, PublicKey pub, PrivateKey priv,
                                        String wrapProv, String unwrapProv,
-                                       KTSParameterSpec spec, SecretKeySpec key, String label)
+                                       KtsSpec spec, SecretKeySpec key, String label)
         throws Exception
     {
         Cipher w = Cipher.getInstance(xform, wrapProv);
-        w.init(Cipher.WRAP_MODE, pub, spec, RANDOM);
+        w.init(Cipher.WRAP_MODE, pub, spec.forProvider(wrapProv), RANDOM);
         byte[] blob = w.wrap(key);
 
         Cipher u = Cipher.getInstance(xform, unwrapProv);
-        u.init(Cipher.UNWRAP_MODE, priv, spec, RANDOM);
+        u.init(Cipher.UNWRAP_MODE, priv, spec.forProvider(unwrapProv), RANDOM);
         byte[] back = u.unwrap(blob, "HMACSHA1", Cipher.SECRET_KEY).getEncoded();
 
         Assertions.assertTrue(Arrays.areEqual(key.getEncoded(), back),
@@ -140,7 +175,7 @@ public class KtsWrapNameTest
         for (String name : new String[]{"AES-KWP", "aes-kwp"})
         {
             SecretKeySpec key = cek(DISCRIMINATING_CEK_BYTES);
-            KTSParameterSpec s = spec(name);
+            KtsSpec s = spec(name);
             recoversAcross(RSA_KTS, kp.getPublic(), kp.getPrivate(), BC, JSL, s, key, name);
             recoversAcross(RSA_KTS, kp.getPublic(), kp.getPrivate(), JSL, BC, s, key, name);
         }
@@ -157,26 +192,26 @@ public class KtsWrapNameTest
         PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded()));
 
         SecretKeySpec key = cek(DISCRIMINATING_CEK_BYTES);
-        KTSParameterSpec s = spec("AES-KWP");
+        KtsSpec s = spec("AES-KWP");
 
         // BC serves the transformation under the parameter-set name, we serve
         // the family name; same OID underneath.
         Cipher w = Cipher.getInstance("ML-KEM-768", BC);
-        w.init(Cipher.WRAP_MODE, bcPub, s, RANDOM);
+        w.init(Cipher.WRAP_MODE, bcPub, s.forProvider(BC), RANDOM);
         byte[] fromBc = w.wrap(key);
 
         Cipher u = Cipher.getInstance("ML-KEM", JSL);
-        u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), s, RANDOM);
+        u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), s.forProvider(JSL), RANDOM);
         Assertions.assertTrue(
                 Arrays.areEqual(key.getEncoded(), u.unwrap(fromBc, "HMACSHA1", Cipher.SECRET_KEY).getEncoded()),
                 "ML-KEM AES-KWP: Jostle must unwrap BouncyCastle's wrap");
 
         Cipher w2 = Cipher.getInstance("ML-KEM", JSL);
-        w2.init(Cipher.WRAP_MODE, kp.getPublic(), s, RANDOM);
+        w2.init(Cipher.WRAP_MODE, kp.getPublic(), s.forProvider(JSL), RANDOM);
         byte[] fromJo = w2.wrap(key);
 
         Cipher u2 = Cipher.getInstance("ML-KEM-768", BC);
-        u2.init(Cipher.UNWRAP_MODE, bcPriv, s, RANDOM);
+        u2.init(Cipher.UNWRAP_MODE, bcPriv, s.forProvider(BC), RANDOM);
         Assertions.assertTrue(
                 Arrays.areEqual(key.getEncoded(), u2.unwrap(fromJo, "HMACSHA1", Cipher.SECRET_KEY).getEncoded()),
                 "ML-KEM AES-KWP: BouncyCastle must unwrap Jostle's wrap");
@@ -201,12 +236,12 @@ public class KtsWrapNameTest
             SecretKeySpec key = cek(DISCRIMINATING_CEK_BYTES);
 
             Cipher jo = Cipher.getInstance(RSA_KTS, JSL);
-            jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name), RANDOM);
+            jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name).forProvider(JSL), RANDOM);
             Assertions.assertThrows(IllegalBlockSizeException.class, () -> jo.wrap(key),
                     name + ": KW must refuse a CEK that is not a multiple of 8");
 
             Cipher bc = Cipher.getInstance(RSA_KTS, BC);
-            bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name), RANDOM);
+            bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name).forProvider(BC), RANDOM);
             DataLengthException e = Assertions.assertThrows(DataLengthException.class, () -> bc.wrap(key),
                     name + ": BouncyCastle must refuse it too, or the input was not illegal");
             Assertions.assertEquals("wrap data must be a multiple of 8 bytes", e.getMessage());
@@ -225,34 +260,27 @@ public class KtsWrapNameTest
         for (String name : new String[]{"AESWRAP", "AES", "AES-KWP", "AESWrap"})
         {
             SecretKeySpec key = cek(NON_DISCRIMINATING_CEK_BYTES);
-            KTSParameterSpec s = spec(name);
+            KtsSpec s = spec(name);
             recoversAcross(RSA_KTS, kp.getPublic(), kp.getPrivate(), JSL, JSL, s, key, name);
             recoversAcross(RSA_KTS, kp.getPublic(), kp.getPrivate(), JSL, BC, s, key, name);
         }
     }
 
     /**
-     * A null name means AES-KW for us; BouncyCastle raises
-     * {@code NullPointerException} on the same spec, pinned so a bcprov bump
-     * that fixes it is visible.
+     * Our Builder refuses a null name typed ({@code IllegalArgumentException});
+     * BC's accepts it and throws {@code NullPointerException} from {@code wrap()}.
      */
     @Test
-    public void aNullNameMeansAesKwForUsAndNpesInBouncyCastle() throws Exception
+    public void aNullNameIsRefusedByOurBuilderAndNpesInBouncyCastle() throws Exception
     {
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new KTSParameterSpec.Builder(null, 256),
+                "our own Builder must refuse a null key-algorithm name immediately");
+
         KeyPair kp = rsaPair();
-
         SecretKeySpec aligned = cek(NON_DISCRIMINATING_CEK_BYTES);
-        recoversAcross(RSA_KTS, kp.getPublic(), kp.getPrivate(), JSL, JSL, spec(null), aligned, "null name");
-
-        // ...and it is KW, not KWP: the 20-byte CEK is refused.
-        SecretKeySpec odd = cek(DISCRIMINATING_CEK_BYTES);
-        Cipher jo = Cipher.getInstance(RSA_KTS, JSL);
-        jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(null), RANDOM);
-        Assertions.assertThrows(IllegalBlockSizeException.class, () -> jo.wrap(odd),
-                "a null name must select KW, which cannot carry 20 bytes");
-
         Cipher bc = Cipher.getInstance(RSA_KTS, BC);
-        bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec(null), RANDOM);
+        bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec(null).forProvider(BC), RANDOM);
         Assertions.assertThrows(NullPointerException.class, () -> bc.wrap(aligned),
                 "pinning BouncyCastle's NPE on a null key-algorithm name (bcprov 1.85.2)");
     }
@@ -271,7 +299,7 @@ public class KtsWrapNameTest
             Cipher jo = Cipher.getInstance(RSA_KTS, JSL);
             InvalidAlgorithmParameterException e = Assertions.assertThrows(
                     InvalidAlgorithmParameterException.class,
-                    () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name), RANDOM),
+                    () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name).forProvider(JSL), RANDOM),
                     name + ": an unsupported key-algorithm name must be refused at init");
             Assertions.assertEquals("unsupported key algorithm name: " + name + " " + ACCEPTED,
                     e.getMessage(), name + ": refusal message");
@@ -293,7 +321,7 @@ public class KtsWrapNameTest
             Cipher jo = Cipher.getInstance("ML-KEM", JSL);
             InvalidAlgorithmParameterException e = Assertions.assertThrows(
                     InvalidAlgorithmParameterException.class,
-                    () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name), RANDOM),
+                    () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name).forProvider(JSL), RANDOM),
                     name + ": ML-KEM must refuse an unsupported name at init");
             Assertions.assertEquals("unsupported key algorithm name: " + name + " " + ACCEPTED,
                     e.getMessage(), name + ": ML-KEM refusal message");
@@ -314,7 +342,7 @@ public class KtsWrapNameTest
 
         Cipher bc = Cipher.getInstance(RSA_KTS, BC);
         Assertions.assertDoesNotThrow(
-                () -> bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec("NOSUCHWRAP"), RANDOM),
+                () -> bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec("NOSUCHWRAP").forProvider(BC), RANDOM),
                 "BouncyCastle accepts an unknown name at init (pinned, bcprov 1.85.2)");
         UnsupportedOperationException bcEx = Assertions.assertThrows(
                 UnsupportedOperationException.class, () -> bc.wrap(key),
@@ -323,7 +351,7 @@ public class KtsWrapNameTest
 
         Cipher jo = Cipher.getInstance(RSA_KTS, JSL);
         Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec("NOSUCHWRAP"), RANDOM),
+                () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec("NOSUCHWRAP").forProvider(JSL), RANDOM),
                 "we refuse at init, checked");
     }
 
@@ -340,13 +368,13 @@ public class KtsWrapNameTest
         {
             Cipher bc = Cipher.getInstance(RSA_KTS, BC);
             Assertions.assertDoesNotThrow(
-                    () -> bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name), RANDOM),
+                    () -> bc.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name).forProvider(BC), RANDOM),
                     name + ": BouncyCastle accepts this name (pinned, bcprov 1.85.2)");
 
             Cipher jo = Cipher.getInstance(RSA_KTS, JSL);
             InvalidAlgorithmParameterException e = Assertions.assertThrows(
                     InvalidAlgorithmParameterException.class,
-                    () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name), RANDOM),
+                    () -> jo.init(Cipher.WRAP_MODE, kp.getPublic(), spec(name).forProvider(JSL), RANDOM),
                     name + ": we serve AES only");
             Assertions.assertEquals("unsupported key algorithm name: " + name + " " + ACCEPTED,
                     e.getMessage());

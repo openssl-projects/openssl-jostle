@@ -13,7 +13,7 @@ package org.openssl.jostle.test.provider;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -269,12 +269,12 @@ public class ProviderPinningLoudFailureTest
     }
 
     /** A 256-bit KEK derived by KDF3/SHA-256 — what all four arms drive. */
-    private static KTSParameterSpec ktsSpec()
+    private static KTSParameterSpec ktsSpec() throws java.io.IOException
     {
         return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(
                         X9ObjectIdentifiers.id_kdf_kdf3,
-                        new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)))
+                        new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)).getEncoded())
                 .build();
     }
 

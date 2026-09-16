@@ -15,13 +15,13 @@ import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -45,12 +45,14 @@ import java.security.spec.X509EncodedKeySpec;
  * used on the CMS KEMRecipientInfo path (RFC 9629).
  * <p>
  * The wire format produced by wrap is {@code encapsulation ‖ AES-KW(KDF3(secret), cek)};
- * unwrap is the inverse. The {@code AlgorithmParameterSpec} is BouncyCastle's
- * {@code KTSParameterSpec} (read reflectively by the SPI), so these tests build it
- * with the same configuration the SPI hardcodes — plain AES key-wrap (RFC 3394,
- * the {@code "AES"} wrapper name) and X9.44 KDF3 — which is exactly the
+ * unwrap is the inverse. The {@code AlgorithmParameterSpec} the SPI accepts is
+ * {@link org.openssl.jostle.jcajce.spec.KTSParameterSpec}, built here with the
+ * same configuration the SPI hardcodes — plain AES key-wrap (RFC 3394, the
+ * {@code "AES"} wrapper name) and X9.44 KDF3 — which is exactly the
  * configuration BC's own {@code MLKEMCipherSpi} resolves to via {@code WrapUtil}.
- * That alignment is what makes the cross-provider agreement tests meaningful.
+ * That alignment is what makes the cross-provider agreement tests meaningful;
+ * where a test drives BOTH providers, {@link KtsSpec#forProvider(String)}
+ * builds each provider's own spec type from the same content.
  */
 public class MLKEMKTSCipherTest
 {
@@ -94,18 +96,52 @@ public class MLKEMKTSCipherTest
 
     /**
      * The X9.44 KDF3 AlgorithmIdentifier {@code SEQUENCE { kdf3-OID, SEQUENCE { digestOID } }}
-     * BC's KTSParameterSpec carries and the SPI parses reflectively.
+     * a KTSParameterSpec carries.
      */
     private static AlgorithmIdentifier kdf3(ASN1ObjectIdentifier digestOid)
     {
         return new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid));
     }
 
-    private static KTSParameterSpec ktsKdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
+    /**
+     * Provider-agnostic description of a KTSParameterSpec. BC and Jostle each
+     * accept only their OWN spec type directly, so a single spec object cannot
+     * drive both providers — this descriptor builds the right one, from the
+     * same content, at {@link #forProvider(String)} time.
+     */
+    private static final class KtsSpec
     {
-        return new KTSParameterSpec.Builder("AES", keyBits, otherInfo)
-                .withKdfAlgorithm(kdf3(digestOid))
-                .build();
+        private final String keyAlgorithmName;
+        private final int keySizeInBits;
+        private final byte[] otherInfo;
+        /** null means {@code withNoKdf()}. */
+        private final AlgorithmIdentifier kdf;
+
+        KtsSpec(String keyAlgorithmName, int keySizeInBits, byte[] otherInfo, AlgorithmIdentifier kdf)
+        {
+            this.keyAlgorithmName = keyAlgorithmName;
+            this.keySizeInBits = keySizeInBits;
+            this.otherInfo = otherInfo;
+            this.kdf = kdf;
+        }
+
+        java.security.spec.AlgorithmParameterSpec forProvider(String provider) throws java.io.IOException
+        {
+            if (BouncyCastleProvider.PROVIDER_NAME.equals(provider))
+            {
+                org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder b =
+                        new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
+                                keyAlgorithmName, keySizeInBits, otherInfo);
+                return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf).build();
+            }
+            KTSParameterSpec.Builder b = new KTSParameterSpec.Builder(keyAlgorithmName, keySizeInBits, otherInfo);
+            return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf.getEncoded()).build();
+        }
+    }
+
+    private static KtsSpec ktsKdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
+    {
+        return new KtsSpec("AES", keyBits, otherInfo, kdf3(digestOid));
     }
 
     private static SecretKeySpec randomAesKey(SecureRandom rng, int lenBytes)
@@ -150,15 +186,15 @@ public class MLKEMKTSCipherTest
                 for (int cekLen : new int[]{16, 24, 32})
                 {
                     byte[] otherInfo = randomBytes(rng, 1 + rng.nextInt(40));
-                    KTSParameterSpec spec = ktsKdf3Spec(kekBits, otherInfo, NISTObjectIdentifiers.id_sha256);
+                    KtsSpec spec = ktsKdf3Spec(kekBits, otherInfo, NISTObjectIdentifiers.id_sha256);
                     SecretKeySpec cek = randomAesKey(rng, cekLen);
 
                     Cipher wrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-                    wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+                    wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
                     byte[] wrapped = wrap.wrap(cek);
 
                     Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-                    unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+                    unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
                     Key recovered = unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 
                     Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded(),
@@ -177,17 +213,15 @@ public class MLKEMKTSCipherTest
 
         // withNoKdf(): the 32-byte ML-KEM shared secret is used directly as the
         // KEK, so the KEK size must not exceed 256 bits.
-        KTSParameterSpec spec = new KTSParameterSpec.Builder("AES", 256, randomBytes(rng, 16))
-                .withNoKdf()
-                .build();
+        KtsSpec spec = new KtsSpec("AES", 256, randomBytes(rng, 16), null);
         SecretKeySpec cek = randomAesKey(rng, 16);
 
         Cipher wrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         byte[] wrapped = wrap.wrap(cek);
 
         Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         Key recovered = unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 
         Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded());
@@ -202,15 +236,15 @@ public class MLKEMKTSCipherTest
         for (int i = 0; i < KPG_NAMES.length; i++)
         {
             KeyPair kp = jostleKeyPair(KPG_NAMES[i]);
-            KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+            KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
             SecretKeySpec cek = randomAesKey(rng, 16);
 
             Cipher wrap = Cipher.getInstance(KEM_OIDS[i], JostleProvider.PROVIDER_NAME);
-            wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+            wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
             byte[] wrapped = wrap.wrap(cek);
 
             Cipher unwrap = Cipher.getInstance(KEM_OIDS[i], JostleProvider.PROVIDER_NAME);
-            unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+            unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
             Key recovered = unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 
             Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded(), KEM_OIDS[i]);
@@ -226,10 +260,10 @@ public class MLKEMKTSCipherTest
     {
         SecureRandom rng = seededRandom("testTamperedEncapsulation_rejected");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
-        KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
 
         Cipher wrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         byte[] wrapped = wrap.wrap(randomAesKey(rng, 16));
 
         // Flip a byte inside the ML-KEM encapsulation (the leading region). ML-KEM
@@ -238,7 +272,7 @@ public class MLKEMKTSCipherTest
         wrapped[0] ^= 0x01;
 
         Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         byte[] frozen = wrapped;
         // Must be InvalidKeyException — the unwrap boundary must not surface a
         // BadPaddingException (Bleichenbacher channel; see java-spi.md). The type
@@ -253,10 +287,10 @@ public class MLKEMKTSCipherTest
     {
         SecureRandom rng = seededRandom("testTamperedWrappedKey_rejected");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
-        KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
 
         Cipher wrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         byte[] wrapped = wrap.wrap(randomAesKey(rng, 16));
 
         // The last byte is in the AES-KW region (well past the 1088-byte ML-KEM-768
@@ -264,7 +298,7 @@ public class MLKEMKTSCipherTest
         wrapped[wrapped.length - 1] ^= 0x01;
 
         Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         byte[] frozen = wrapped;
         Assertions.assertThrows(InvalidKeyException.class,
                 () -> unwrap.unwrap(frozen, "AES", Cipher.SECRET_KEY));
@@ -275,10 +309,10 @@ public class MLKEMKTSCipherTest
     {
         SecureRandom rng = seededRandom("testTruncatedInput_rejected");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
-        KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
 
         Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
 
         InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
                 () -> unwrap.unwrap(new byte[10], "AES", Cipher.SECRET_KEY));
@@ -297,13 +331,11 @@ public class MLKEMKTSCipherTest
         AlgorithmIdentifier unknownKdf = new AlgorithmIdentifier(
                 new ASN1ObjectIdentifier("1.2.3.4.5.6.7"),
                 new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
-        KTSParameterSpec spec = new KTSParameterSpec.Builder("AES", 256, randomBytes(rng, 8))
-                .withKdfAlgorithm(unknownKdf)
-                .build();
+        KtsSpec spec = new KtsSpec("AES", 256, randomBytes(rng, 8), unknownKdf);
 
         Cipher c = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
         InvalidAlgorithmParameterException ex = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), spec));
+                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME)));
         Assertions.assertEquals(KtsKdf.unsupportedKdfMessage("1.2.3.4.5.6.7"), ex.getMessage());
     }
 
@@ -332,10 +364,10 @@ public class MLKEMKTSCipherTest
     {
         SecureRandom rng = seededRandom("testWrapModeRequiresPublicKey");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
-        KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
         Cipher c = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
         Assertions.assertThrows(InvalidKeyException.class,
-                () -> c.init(Cipher.WRAP_MODE, kp.getPrivate(), spec));
+                () -> c.init(Cipher.WRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME)));
     }
 
     @Test
@@ -343,10 +375,10 @@ public class MLKEMKTSCipherTest
     {
         SecureRandom rng = seededRandom("testUnwrapModeRequiresPrivateKey");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
-        KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
         Cipher c = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
         Assertions.assertThrows(InvalidKeyException.class,
-                () -> c.init(Cipher.UNWRAP_MODE, kp.getPublic(), spec));
+                () -> c.init(Cipher.UNWRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME)));
     }
 
     // ----------------------------------------------------------------------
@@ -358,11 +390,11 @@ public class MLKEMKTSCipherTest
     {
         SecureRandom rng = seededRandom("testReuse_randomisedOutput_andRoundTrip");
         KeyPair kp = jostleKeyPair("ML-KEM-768");
-        KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 8), NISTObjectIdentifiers.id_sha256);
         SecretKeySpec cek = randomAesKey(rng, 16);
 
         Cipher wrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
 
         // Two wraps of the SAME CEK on the SAME instance must differ — ML-KEM
         // encapsulation is randomised per call, so a frozen/cached encapsulation
@@ -372,7 +404,7 @@ public class MLKEMKTSCipherTest
         Assertions.assertFalse(Arrays.areEqual(w1, w2), "reused wrap cipher produced identical output");
 
         Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         Assertions.assertArrayEquals(cek.getEncoded(), unwrap.unwrap(w1, "AES", Cipher.SECRET_KEY).getEncoded());
         Assertions.assertArrayEquals(cek.getEncoded(), unwrap.unwrap(w2, "AES", Cipher.SECRET_KEY).getEncoded());
     }
@@ -390,15 +422,15 @@ public class MLKEMKTSCipherTest
         {
             KeyPair kp = jostleKeyPair("ML-KEM-768");
             PrivateKey bcPriv = bcImportPrivate(kp);
-            KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 1 + rng.nextInt(32)), NISTObjectIdentifiers.id_sha256);
+            KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 1 + rng.nextInt(32)), NISTObjectIdentifiers.id_sha256);
             SecretKeySpec cek = randomAesKey(rng, 16 + 8 * rng.nextInt(3));
 
             Cipher jslWrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-            jslWrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+            jslWrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
             byte[] wrapped = jslWrap.wrap(cek);
 
             Cipher bcUnwrap = Cipher.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
-            bcUnwrap.init(Cipher.UNWRAP_MODE, bcPriv, spec);
+            bcUnwrap.init(Cipher.UNWRAP_MODE, bcPriv, spec.forProvider(BouncyCastleProvider.PROVIDER_NAME));
             Key recovered = bcUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 
             Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded(),
@@ -415,15 +447,15 @@ public class MLKEMKTSCipherTest
         {
             KeyPair kp = jostleKeyPair("ML-KEM-768");
             PublicKey bcPub = bcImportPublic(kp);
-            KTSParameterSpec spec = ktsKdf3Spec(256, randomBytes(rng, 1 + rng.nextInt(32)), NISTObjectIdentifiers.id_sha256);
+            KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 1 + rng.nextInt(32)), NISTObjectIdentifiers.id_sha256);
             SecretKeySpec cek = randomAesKey(rng, 16 + 8 * rng.nextInt(3));
 
             Cipher bcWrap = Cipher.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
-            bcWrap.init(Cipher.WRAP_MODE, bcPub, spec);
+            bcWrap.init(Cipher.WRAP_MODE, bcPub, spec.forProvider(BouncyCastleProvider.PROVIDER_NAME));
             byte[] wrapped = bcWrap.wrap(cek);
 
             Cipher jslUnwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-            jslUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+            jslUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
             Key recovered = jslUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 
             Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded(),

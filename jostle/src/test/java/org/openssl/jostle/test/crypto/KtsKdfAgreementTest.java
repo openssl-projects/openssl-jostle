@@ -24,13 +24,13 @@ import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.bouncycastle.crypto.generators.KDF2BytesGenerator;
 import org.bouncycastle.crypto.params.KDFParameters;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -123,9 +123,17 @@ public class KtsKdfAgreementTest
         return kg.generateKey();
     }
 
-    private static KTSParameterSpec spec(AlgorithmIdentifier kdf, byte[] otherInfo)
+    /** For driving BouncyCastle's own Cipher — BC's spec type, not ours. */
+    private static org.bouncycastle.jcajce.spec.KTSParameterSpec bcSpec(AlgorithmIdentifier kdf, byte[] otherInfo)
     {
-        return new KTSParameterSpec.Builder("AESWRAP", 256, otherInfo).withKdfAlgorithm(kdf).build();
+        return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AESWRAP", 256, otherInfo)
+                .withKdfAlgorithm(kdf).build();
+    }
+
+    /** For driving Jostle's Cipher — the same kdf/otherInfo, our own spec type. */
+    private static KTSParameterSpec spec(AlgorithmIdentifier kdf, byte[] otherInfo) throws java.io.IOException
+    {
+        return new KTSParameterSpec.Builder("AESWRAP", 256, otherInfo).withKdfAlgorithm(kdf.getEncoded()).build();
     }
 
     /**
@@ -149,7 +157,7 @@ public class KtsKdfAgreementTest
             SecretKey key = cek();
 
             Cipher bcWrap = Cipher.getInstance("RSA-KTS-KEM-KWS", BC);
-            bcWrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec(kdf, otherInfo), RANDOM);
+            bcWrap.init(Cipher.WRAP_MODE, kp.getPublic(), bcSpec(kdf, otherInfo), RANDOM);
             byte[] fromBc = bcWrap.wrap(key);
 
             Cipher joUnwrap = Cipher.getInstance("RSA-KTS-KEM-KWS", JSL);
@@ -164,7 +172,7 @@ public class KtsKdfAgreementTest
             byte[] fromJo = joWrap.wrap(key);
 
             Cipher bcUnwrap = Cipher.getInstance("RSA-KTS-KEM-KWS", BC);
-            bcUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec(kdf, otherInfo), RANDOM);
+            bcUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), bcSpec(kdf, otherInfo), RANDOM);
             Assertions.assertTrue(
                     Arrays.areEqual(key.getEncoded(),
                             bcUnwrap.unwrap(fromJo, "AES", Cipher.SECRET_KEY).getEncoded()),
@@ -199,7 +207,7 @@ public class KtsKdfAgreementTest
             SecretKey key = cek();
 
             Cipher bcWrap = Cipher.getInstance("ML-KEM-768", BC);
-            bcWrap.init(Cipher.WRAP_MODE, bcPub, spec(kdf, otherInfo), RANDOM);
+            bcWrap.init(Cipher.WRAP_MODE, bcPub, bcSpec(kdf, otherInfo), RANDOM);
             byte[] fromBc = bcWrap.wrap(key);
 
             Cipher joUnwrap = Cipher.getInstance("ML-KEM", JSL);
@@ -214,7 +222,7 @@ public class KtsKdfAgreementTest
             byte[] fromJo = joWrap.wrap(key);
 
             Cipher bcUnwrap = Cipher.getInstance("ML-KEM-768", BC);
-            bcUnwrap.init(Cipher.UNWRAP_MODE, bcPriv, spec(kdf, otherInfo), RANDOM);
+            bcUnwrap.init(Cipher.UNWRAP_MODE, bcPriv, bcSpec(kdf, otherInfo), RANDOM);
             Assertions.assertTrue(
                     Arrays.areEqual(key.getEncoded(),
                             bcUnwrap.unwrap(fromJo, "AES", Cipher.SECRET_KEY).getEncoded()),

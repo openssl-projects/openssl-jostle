@@ -17,11 +17,11 @@ import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.crypto.digests.SHAKEDigest;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -95,11 +95,11 @@ public class KtsKdfDigestPinTest
                 + "; supported: SHA-256, SHA-512, SHAKE128, SHAKE256";
     }
 
-    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest, byte[] otherInfo)
+    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest, byte[] otherInfo) throws java.io.IOException
     {
         AlgorithmIdentifier kdf = new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf2,
                 new AlgorithmIdentifier(digest, DERNull.INSTANCE));
-        return new KTSParameterSpec.Builder("AESWRAP", 256, otherInfo).withKdfAlgorithm(kdf).build();
+        return new KTSParameterSpec.Builder("AESWRAP", 256, otherInfo).withKdfAlgorithm(kdf.getEncoded()).build();
     }
 
     /**
@@ -107,7 +107,7 @@ public class KtsKdfDigestPinTest
      * otherInfo feeds the KEK, so two draws would differ whatever the digest
      * did and the comparison would pass vacuously.
      */
-    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest)
+    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest) throws java.io.IOException
     {
         byte[] otherInfo = new byte[16];
         RANDOM.nextBytes(otherInfo);

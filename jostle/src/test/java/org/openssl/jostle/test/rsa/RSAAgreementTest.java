@@ -675,12 +675,12 @@ public class RSAAgreementTest
             sr.nextBytes(cekBytes);
             javax.crypto.spec.SecretKeySpec cek =
                     new javax.crypto.spec.SecretKeySpec(cekBytes, "AES");
-            org.bouncycastle.jcajce.spec.KTSParameterSpec spec =
-                    new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
+            org.openssl.jostle.jcajce.spec.KTSParameterSpec spec =
+                    new org.openssl.jostle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
                             .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
                                     org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
                                     new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)))
+                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)).getEncoded())
                             .build();
 
             Cipher w = Cipher.getInstance(alg, JSL);

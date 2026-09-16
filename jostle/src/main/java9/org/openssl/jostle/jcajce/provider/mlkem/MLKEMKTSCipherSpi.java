@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.mlkem;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.provider.NISelector;
@@ -23,7 +24,6 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
-import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherSpi;
@@ -31,11 +31,9 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 import java.lang.ref.Reference;
-import java.lang.reflect.Method;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
@@ -55,10 +53,9 @@ import java.security.spec.AlgorithmParameterSpec;
  * {@code encapsulation ‖ wrappedKey}; unwrap is the inverse, splitting at the
  * fixed encapsulation length for the key's parameter set.
  * <p>
- * The {@link AlgorithmParameterSpec} BC supplies is its
- * {@code org.bouncycastle.jcajce.spec.KTSParameterSpec}. To keep this provider
- * free of any compile-time BouncyCastle dependency the spec is read reflectively
- * ({@code getKeyAlgorithmName}/{@code getKeySize}/{@code getOtherInfo}/{@code getKdfAlgorithm}).
+ * The {@link AlgorithmParameterSpec} this cipher accepts is
+ * {@link org.openssl.jostle.jcajce.spec.KTSParameterSpec}; any other spec is
+ * refused typed.
  */
 public class MLKEMKTSCipherSpi
     extends CipherSpi
@@ -141,7 +138,7 @@ public class MLKEMKTSCipherSpi
     private PKEYKeySpec keySpec;
     private RandSource randSource;
 
-    // KTSParameterSpec contents (read reflectively in engineInit).
+    // KTSParameterSpec contents (read directly in engineInit).
     private int kekBits;
     /** RFC 3394 (KW) or RFC 5649 (KWP), from the spec's key-algorithm name. */
     private KtsWrap.Kind wrapKind = KtsWrap.Kind.KW;
@@ -527,7 +524,7 @@ public class MLKEMKTSCipherSpi
         return c;
     }
 
-    // --- KTSParameterSpec via reflection (no compile-time BC dependency) -----
+    // --- KTSParameterSpec, read directly ------------------------------------
 
     private void readKtsSpec(AlgorithmParameterSpec params)
         throws InvalidAlgorithmParameterException
@@ -536,135 +533,40 @@ public class MLKEMKTSCipherSpi
         {
             throw new InvalidAlgorithmParameterException("a KTSParameterSpec is required");
         }
-        try
+        if (!(params instanceof KTSParameterSpec))
         {
-            Class<?> c = params.getClass();
-            this.kekBits = (Integer) method(c, "getKeySize").invoke(params);
-            // The name selects RFC 3394 vs RFC 5649; refused here so an
-            // unsupported one cannot reach a key operation.
-            String keyAlgorithmName = (String) method(c, "getKeyAlgorithmName").invoke(params);
-            KtsWrap.Kind kind = KtsWrap.kindForName(keyAlgorithmName);
-            if (kind == null)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        KtsWrap.unsupportedNameMessage(keyAlgorithmName));
-            }
-            this.wrapKind = kind;
-            this.otherInfo = (byte[]) method(c, "getOtherInfo").invoke(params);
-            Object kdfAlgId = method(c, "getKdfAlgorithm").invoke(params);
-            if (kdfAlgId == null)
-            {
-                this.kdfKind = null;
-                this.digestName = null;
-            }
-            else
-            {
-                resolveKdf(kdfAlgId);
-            }
+            throw new InvalidAlgorithmParameterException("unsupported parameter spec "
+                    + params.getClass().getName() + "; use org.openssl.jostle.jcajce.spec.KTSParameterSpec");
         }
-        catch (InvalidAlgorithmParameterException e)
+        KTSParameterSpec spec = (KTSParameterSpec) params;
+        this.kekBits = spec.getKeySize();
+        // The name selects RFC 3394 vs RFC 5649; refused here so an
+        // unsupported one cannot reach a key operation.
+        String keyAlgorithmName = spec.getKeyAlgorithmName();
+        KtsWrap.Kind kind = KtsWrap.kindForName(keyAlgorithmName);
+        if (kind == null)
         {
-            throw e;
+            throw new InvalidAlgorithmParameterException(
+                    KtsWrap.unsupportedNameMessage(keyAlgorithmName));
         }
-        catch (NoSuchMethodException e)
+        this.wrapKind = kind;
+        this.otherInfo = spec.getOtherInfo();
+        byte[] kdfAlgorithm = spec.getKdfAlgorithm();
+        if (kdfAlgorithm == null)
         {
-            throw new InvalidAlgorithmParameterException("unsupported parameter spec " + params.getClass().getName(), e);
+            this.kdfKind = null;
+            this.digestName = null;
         }
-        catch (ReflectiveOperationException e)
+        else
         {
-            throw new InvalidAlgorithmParameterException("unable to read KTSParameterSpec: " + e.getMessage(), e);
+            KtsKdf.Resolved resolved = KtsKdf.resolve(kdfAlgorithm);
+            this.kdfKind = resolved.kind;
+            this.digestName = resolved.digestName;
         }
         if (kekBits <= 0 || kekBits > MAX_KEK_BITS)
         {
             throw new InvalidAlgorithmParameterException("invalid KEK size: " + kekBits);
         }
-    }
-
-    private static Method method(Class<?> c, String name)
-        throws NoSuchMethodException
-    {
-        Method m = c.getMethod(name);
-        m.setAccessible(true);
-        return m;
-    }
-
-    /**
-     * Reflectively DER-encode the KDF {@code AlgorithmIdentifier} and extract its
-     * structure {@code SEQUENCE { kdfOID, SEQUENCE { digestOID } }}, mapping the
-     * digest OID to a JDK {@link MessageDigest} name. Only KDF3 is supported.
-     */
-    private void resolveKdf(Object kdfAlgId)
-        throws InvalidAlgorithmParameterException
-    {
-        byte[] der;
-        try
-        {
-            der = (byte[]) kdfAlgId.getClass().getMethod("getEncoded").invoke(kdfAlgId);
-        }
-        catch (ReflectiveOperationException e)
-        {
-            throw new InvalidAlgorithmParameterException("unable to read KDF algorithm: " + e.getMessage(), e);
-        }
-
-        String kdfOid;
-        KtsKdf.Kind kind;
-        boolean hasParams;
-        int[] pos = {0};
-        try
-        {
-            readSequenceHeader(der, pos);          // AlgorithmIdentifier
-            kdfOid = readOid(der, pos);            // KDF OID
-            kind = KtsKdf.kindForOid(kdfOid);
-            // der is a standalone AlgorithmIdentifier, so nothing left after the
-            // OID means the parameters are absent.
-            hasParams = pos[0] < der.length;
-        }
-        catch (RuntimeException e)
-        {
-            throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
-        }
-
-        if (kind == null)
-        {
-            throw new InvalidAlgorithmParameterException(KtsKdf.unsupportedKdfMessage(kdfOid));
-        }
-        // The OID decides the shape: HKDF names its digest in the OID and RFC
-        // 8619 requires absent parameters, while KDF2/KDF3 carry a digest
-        // AlgorithmIdentifier there. So branch before reading any parameter.
-        if (KtsKdf.Kind.HKDF == kind)
-        {
-            if (hasParams)
-            {
-                throw new InvalidAlgorithmParameterException(KtsKdf.hkdfParametersForbiddenMessage());
-            }
-            this.kdfKind = kind;
-            this.digestName = KtsKdf.hkdfDigestForOid(kdfOid);
-            return;
-        }
-        if (!hasParams)
-        {
-            throw new InvalidAlgorithmParameterException(KtsKdf.digestParameterRequiredMessage());
-        }
-
-        String name;
-        String digestOid;
-        try
-        {
-            readSequenceHeader(der, pos);          // digest AlgorithmIdentifier
-            digestOid = readOid(der, pos);
-            name = KtsKdf.ktsDigestForOid(digestOid);
-        }
-        catch (RuntimeException e)
-        {
-            throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
-        }
-        if (name == null)
-        {
-            throw new InvalidAlgorithmParameterException(
-                    KtsKdf.unsupportedKtsDigestMessage(digestOid));
-        }
-        this.kdfKind = kind;
-        this.digestName = name;
     }
 
     // Strength (bits) the parameter set requires of the encapsulation RNG, so
@@ -699,65 +601,6 @@ public class MLKEMKTSCipherSpi
         return probed;
     }
 
-    // --- minimal DER helpers (single-byte tags) ------------------------------
-
-    private static void readSequenceHeader(byte[] data, int[] pos)
-    {
-        if (pos[0] >= data.length || (data[pos[0]++] & 0xFF) != 0x30)
-        {
-            throw new IllegalArgumentException("expected SEQUENCE");
-        }
-        readLength(data, pos);
-    }
-
-    private static String readOid(byte[] data, int[] pos)
-    {
-        if (pos[0] >= data.length || (data[pos[0]++] & 0xFF) != 0x06)
-        {
-            throw new IllegalArgumentException("expected OBJECT IDENTIFIER");
-        }
-        int len = readLength(data, pos);
-        int off = pos[0];
-        // fromContents validates the range and the base-128 contents encoding
-        // (minimal sub-identifiers, no dangling continuation bit, length cap),
-        // throwing IllegalArgumentException on any malformation; resolveKdfDigest
-        // maps that to InvalidAlgorithmParameterException.
-        ASN1ObjectIdentifier oid = ASN1ObjectIdentifier.fromContents(data, off, len);
-        pos[0] += len;
-        return oid.getId();
-    }
-
-    private static int readLength(byte[] data, int[] pos)
-    {
-        if (pos[0] >= data.length)
-        {
-            throw new IllegalArgumentException("truncated length");
-        }
-        int b = data[pos[0]++] & 0xFF;
-        if ((b & 0x80) == 0)
-        {
-            return b;
-        }
-        int count = b & 0x7F;
-        if (count == 0 || count > 4)
-        {
-            throw new IllegalArgumentException("unsupported length");
-        }
-        int len = 0;
-        for (int i = 0; i < count; i++)
-        {
-            if (pos[0] >= data.length)
-            {
-                throw new IllegalArgumentException("truncated length");
-            }
-            len = (len << 8) | (data[pos[0]++] & 0xFF);
-        }
-        if (len < 0)
-        {
-            throw new IllegalArgumentException("length out of range");
-        }
-        return len;
-    }
 
     // --- unused streaming entry points --------------------------------------
 

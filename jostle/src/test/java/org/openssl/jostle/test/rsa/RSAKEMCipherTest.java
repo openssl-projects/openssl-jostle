@@ -14,13 +14,13 @@ import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
-import org.bouncycastle.jcajce.spec.KTSParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -138,7 +138,8 @@ public class RSAKEMCipherTest
         try
         {
             Cipher c = Cipher.getInstance(XFORM, providerName());
-            c.init(Cipher.UNWRAP_MODE, kp.getPrivate(), kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256));
+            c.init(Cipher.UNWRAP_MODE, kp.getPrivate(),
+                    kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256).forProvider(providerName()));
             return true;
         }
         catch (InvalidKeyException e)
@@ -147,12 +148,47 @@ public class RSAKEMCipherTest
         }
     }
 
-    protected static KTSParameterSpec kdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
+    /**
+     * Provider-agnostic description of a KTSParameterSpec. BC and Jostle each
+     * accept only their OWN spec type directly (no more reflection), so a
+     * single spec object cannot drive both providers any more — this
+     * descriptor builds the right one, from the same content, at
+     * {@link #forProvider(String)} time.
+     */
+    protected static final class KtsSpec
     {
-        return new KTSParameterSpec.Builder("AESWRAP", keyBits, otherInfo)
-                .withKdfAlgorithm(new AlgorithmIdentifier(
-                        X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid)))
-                .build();
+        private final String keyAlgorithmName;
+        private final int keySizeInBits;
+        private final byte[] otherInfo;
+        /** null means {@code withNoKdf()}. */
+        private final AlgorithmIdentifier kdf;
+
+        KtsSpec(String keyAlgorithmName, int keySizeInBits, byte[] otherInfo, AlgorithmIdentifier kdf)
+        {
+            this.keyAlgorithmName = keyAlgorithmName;
+            this.keySizeInBits = keySizeInBits;
+            this.otherInfo = otherInfo;
+            this.kdf = kdf;
+        }
+
+        public java.security.spec.AlgorithmParameterSpec forProvider(String provider) throws java.io.IOException
+        {
+            if (BC.equals(provider))
+            {
+                org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder b =
+                        new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
+                                keyAlgorithmName, keySizeInBits, otherInfo);
+                return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf).build();
+            }
+            KTSParameterSpec.Builder b = new KTSParameterSpec.Builder(keyAlgorithmName, keySizeInBits, otherInfo);
+            return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf.getEncoded()).build();
+        }
+    }
+
+    protected static KtsSpec kdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
+    {
+        return new KtsSpec("AESWRAP", keyBits, otherInfo,
+                new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid)));
     }
 
 
@@ -178,7 +214,7 @@ public class RSAKEMCipherTest
             for (ASN1ObjectIdentifier dig : BC_SUPPORTED_KDF3_DIGESTS)
             {
                 byte[] otherInfo = randomBytes(sr, sr.nextInt(24));
-                KTSParameterSpec spec = kdf3Spec(kekBits, otherInfo, dig);
+                KtsSpec spec = kdf3Spec(kekBits, otherInfo, dig);
                 SecretKey cek = randomCek(sr);
 
                 byte[] wrapped = wrap(providerName(), kp, spec, cek);
@@ -204,7 +240,7 @@ public class RSAKEMCipherTest
             for (ASN1ObjectIdentifier dig : BC_SUPPORTED_KDF3_DIGESTS)
             {
                 byte[] otherInfo = randomBytes(sr, sr.nextInt(24));
-                KTSParameterSpec spec = kdf3Spec(kekBits, otherInfo, dig);
+                KtsSpec spec = kdf3Spec(kekBits, otherInfo, dig);
                 SecretKey cek = randomCek(sr);
 
                 byte[] wrapped = wrap(BC, kp, spec, cek);
@@ -229,8 +265,7 @@ public class RSAKEMCipherTest
 
         for (int kekBits : new int[]{128, 192, 256})
         {
-            KTSParameterSpec spec = new KTSParameterSpec.Builder("AESWRAP", kekBits)
-                    .withNoKdf().build();
+            KtsSpec spec = new KtsSpec("AESWRAP", kekBits, null, null);
             SecretKey cek = randomCek(sr);
 
             Assertions.assertArrayEquals(cek.getEncoded(),
@@ -258,8 +293,8 @@ public class RSAKEMCipherTest
         byte[] infoA = randomBytes(sr, 20);
         byte[] infoB = randomBytes(sr, 20);
 
-        KTSParameterSpec specA = kdf3Spec(256, infoA, NISTObjectIdentifiers.id_sha256);
-        KTSParameterSpec specB = kdf3Spec(256, infoB, NISTObjectIdentifiers.id_sha256);
+        KtsSpec specA = kdf3Spec(256, infoA, NISTObjectIdentifiers.id_sha256);
+        KtsSpec specB = kdf3Spec(256, infoB, NISTObjectIdentifiers.id_sha256);
 
         // Cross-decoding with the wrong otherInfo must fail: a different KEK
         // means the AES-KW integrity check rejects.
@@ -286,19 +321,19 @@ public class RSAKEMCipherTest
     {
         SecureRandom sr = seededRandom("sha384KdfIsRefusedByBothProviders");
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha384);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha384);
         SecretKey cek = randomCek(sr);
 
         Cipher ours = Cipher.getInstance(XFORM, providerName());
         InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 InvalidAlgorithmParameterException.class,
-                () -> ours.init(Cipher.WRAP_MODE, kp.getPublic(), spec),
+                () -> ours.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(providerName())),
                 "we must refuse SHA-384 at init");
         Assertions.assertEquals(KtsKdf.unsupportedKtsDigestMessage(
                 NISTObjectIdentifiers.id_sha384.getId()), e.getMessage());
 
         Cipher theirs = Cipher.getInstance(XFORM, BC);
-        theirs.init(Cipher.WRAP_MODE, kp.getPublic(), spec);   // BC accepts it here
+        theirs.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(BC));   // BC accepts it here
         InvalidKeyException bc = Assertions.assertThrows(InvalidKeyException.class,
                 () -> theirs.wrap(cek),
                 "BouncyCastle must still refuse SHA-384, at wrap");
@@ -312,13 +347,13 @@ public class RSAKEMCipherTest
     {
         SecureRandom sr = seededRandom("bothOidsBehaveAsTheName");
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
         SecretKey cek = randomCek(sr);
 
         for (String name : new String[]{ID_KEM_RSA, ID_RSA_KEM})
         {
             Cipher w = Cipher.getInstance(name, providerName());
-            w.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+            w.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(providerName()));
             byte[] wrapped = w.wrap(cek);
 
             // Unwrap through the NAME, so the OID and the name must be the same SPI.
@@ -349,7 +384,7 @@ public class RSAKEMCipherTest
     {
         SecureRandom sr = seededRandom("tamperedInputIsRejectedTyped");
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
         SecretKey cek = randomCek(sr);
         byte[] wrapped = wrap(providerName(), kp, spec, cek);
 
@@ -374,10 +409,10 @@ public class RSAKEMCipherTest
     public void truncatedInputRejectedTyped() throws Exception
     {
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
 
         Cipher u = Cipher.getInstance(XFORM, providerName());
-        u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(providerName()));
         InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
                 () -> u.unwrap(new byte[8], "AES", Cipher.SECRET_KEY));
         Assertions.assertEquals("input shorter than RSA-KEM encapsulation", e.getMessage());
@@ -397,16 +432,16 @@ public class RSAKEMCipherTest
     public void wrongKeyDirectionRejectedTyped() throws Exception
     {
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
 
         Cipher w = Cipher.getInstance(XFORM, providerName());
         InvalidKeyException e1 = Assertions.assertThrows(InvalidKeyException.class,
-                () -> w.init(Cipher.WRAP_MODE, kp.getPrivate(), spec));
+                () -> w.init(Cipher.WRAP_MODE, kp.getPrivate(), spec.forProvider(providerName())));
         Assertions.assertEquals("WRAP_MODE requires an RSA public key", e1.getMessage());
 
         Cipher u = Cipher.getInstance(XFORM, providerName());
         InvalidKeyException e2 = Assertions.assertThrows(InvalidKeyException.class,
-                () -> u.init(Cipher.UNWRAP_MODE, kp.getPublic(), spec));
+                () -> u.init(Cipher.UNWRAP_MODE, kp.getPublic(), spec.forProvider(providerName())));
         Assertions.assertEquals("UNWRAP_MODE requires an RSA private key", e2.getMessage());
     }
 
@@ -414,14 +449,14 @@ public class RSAKEMCipherTest
     public void encryptAndDecryptModesRejected() throws Exception
     {
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
 
         for (int mode : new int[]{Cipher.ENCRYPT_MODE, Cipher.DECRYPT_MODE})
         {
             Cipher c = Cipher.getInstance(XFORM, providerName());
             InvalidAlgorithmParameterException e = Assertions.assertThrows(
                     InvalidAlgorithmParameterException.class,
-                    () -> c.init(mode, kp.getPublic(), spec));
+                    () -> c.init(mode, kp.getPublic(), spec.forProvider(providerName())));
             Assertions.assertEquals("RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE", e.getMessage());
         }
     }
@@ -434,15 +469,14 @@ public class RSAKEMCipherTest
         // MT-73: this used KDF2 as its "unsupported" example, on the rationale
         // that "the SPI only supports X9.44 KDF3". KDF2 is now accepted, so the
         // probe moves to an OID nothing serves; the refusal itself still stands.
-        KTSParameterSpec unknown = new KTSParameterSpec.Builder("AESWRAP", 256)
-                .withKdfAlgorithm(new AlgorithmIdentifier(
-                        new ASN1ObjectIdentifier("1.2.3.4.5.6.7"),
-                        new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256))).build();
+        KtsSpec unknown = new KtsSpec("AESWRAP", 256, null, new AlgorithmIdentifier(
+                new ASN1ObjectIdentifier("1.2.3.4.5.6.7"),
+                new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256)));
 
         Cipher c = Cipher.getInstance(XFORM, providerName());
         InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 InvalidAlgorithmParameterException.class,
-                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), unknown));
+                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), unknown.forProvider(providerName())));
         Assertions.assertEquals(KtsKdf.unsupportedKdfMessage("1.2.3.4.5.6.7"), e.getMessage());
     }
 
@@ -450,12 +484,12 @@ public class RSAKEMCipherTest
     public void unsupportedKdfDigestRejectedTyped() throws Exception
     {
         KeyPair kp = keyPair();
-        KTSParameterSpec sha1 = kdf3Spec(256, null, new ASN1ObjectIdentifier("1.3.14.3.2.26"));
+        KtsSpec sha1 = kdf3Spec(256, null, new ASN1ObjectIdentifier("1.3.14.3.2.26"));
 
         Cipher c = Cipher.getInstance(XFORM, providerName());
         InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 InvalidAlgorithmParameterException.class,
-                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), sha1));
+                () -> c.init(Cipher.WRAP_MODE, kp.getPublic(), sha1.forProvider(providerName())));
         Assertions.assertTrue(e.getMessage().startsWith("unsupported KDF digest "), e.getMessage());
     }
 
@@ -463,9 +497,9 @@ public class RSAKEMCipherTest
     public void streamingSurfaceRejected() throws Exception
     {
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
         Cipher c = Cipher.getInstance(XFORM, providerName());
-        c.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(providerName()));
 
         Assertions.assertThrows(IllegalStateException.class, () -> c.update(new byte[16]));
         Assertions.assertThrows(IllegalStateException.class, () -> c.doFinal(new byte[16]));
@@ -487,11 +521,11 @@ public class RSAKEMCipherTest
     {
         SecureRandom sr = seededRandom("repeatedWrapsAreRandomisedAndBothValid");
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
         SecretKey cek = randomCek(sr);
 
         Cipher w = Cipher.getInstance(XFORM, providerName());
-        w.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
+        w.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(providerName()));
         byte[] first = w.wrap(cek);
         byte[] second = w.wrap(cek);
 
@@ -512,12 +546,12 @@ public class RSAKEMCipherTest
     {
         SecureRandom sr = seededRandom("failureThenSuccessOnOneInstance");
         KeyPair kp = keyPair();
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
         SecretKey cek = randomCek(sr);
         byte[] good = wrap(providerName(), kp, spec, cek);
 
         Cipher u = Cipher.getInstance(XFORM, providerName());
-        u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        u.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(providerName()));
 
         byte[] bad = Arrays.clone(good);
         bad[bad.length - 1] ^= (byte) 0x01;
@@ -538,7 +572,7 @@ public class RSAKEMCipherTest
         kpg.initialize(3072);
         KeyPair kp = kpg.generateKeyPair();
 
-        KTSParameterSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
+        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256);
         SecretKey cek = randomCek(sr);
 
         byte[] wrapped = wrap(providerName(), kp, spec, cek);
@@ -585,7 +619,7 @@ public class RSAKEMCipherTest
         return kg.generateKey();
     }
 
-    protected byte[] wrap(String provider, KeyPair kp, KTSParameterSpec spec, SecretKey cek)
+    protected byte[] wrap(String provider, KeyPair kp, KtsSpec spec, SecretKey cek)
         throws Exception
     {
         return wrap(provider, kp.getPublic(), spec, cek);
@@ -596,26 +630,26 @@ public class RSAKEMCipherTest
      * do not share key objects and the public half has to be re-decoded before
      * use — so the wrapping key is not the one in the caller's KeyPair.
      */
-    protected byte[] wrap(String provider, java.security.PublicKey pub, KTSParameterSpec spec, SecretKey cek)
+    protected byte[] wrap(String provider, java.security.PublicKey pub, KtsSpec spec, SecretKey cek)
         throws Exception
     {
         Cipher c = Cipher.getInstance(XFORM, provider);
-        c.init(Cipher.WRAP_MODE, pub, spec);
+        c.init(Cipher.WRAP_MODE, pub, spec.forProvider(provider));
         return c.wrap(cek);
     }
 
-    protected Key unwrap(String provider, KeyPair kp, KTSParameterSpec spec, byte[] wrapped)
+    protected Key unwrap(String provider, KeyPair kp, KtsSpec spec, byte[] wrapped)
         throws Exception
     {
         return unwrap(provider, kp.getPrivate(), spec, wrapped);
     }
 
-    /** Key-level overload; see {@link #wrap(String, java.security.PublicKey, KTSParameterSpec, SecretKey)}. */
-    protected Key unwrap(String provider, java.security.PrivateKey priv, KTSParameterSpec spec, byte[] wrapped)
+    /** Key-level overload; see {@link #wrap(String, java.security.PublicKey, KtsSpec, SecretKey)}. */
+    protected Key unwrap(String provider, java.security.PrivateKey priv, KtsSpec spec, byte[] wrapped)
         throws Exception
     {
         Cipher c = Cipher.getInstance(XFORM, provider);
-        c.init(Cipher.UNWRAP_MODE, priv, spec);
+        c.init(Cipher.UNWRAP_MODE, priv, spec.forProvider(provider));
         return c.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
     }
 }

@@ -339,12 +339,12 @@ public class FIPSKeyIsolationTest
             // The KTS cipher validates its parameter spec before looking at
             // the key, so a bare init(UNWRAP_MODE, key) fails on the missing
             // spec and never reaches the isolation check.
-            org.bouncycastle.jcajce.spec.KTSParameterSpec kts =
-                    new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256, new byte[16])
+            org.openssl.jostle.jcajce.spec.KTSParameterSpec kts =
+                    new org.openssl.jostle.jcajce.spec.KTSParameterSpec.Builder("AES", 256, new byte[16])
                             .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
                                     org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
                                     new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)))
+                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)).getEncoded())
                             .build();
             PrivKeyOp mlkemOp = (p, k) ->
                     javax.crypto.Cipher.getInstance("ML-KEM", p)
