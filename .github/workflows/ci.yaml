@@ -44,23 +44,45 @@ jobs:
         run: |
           ./gradlew :jostle:checkstyleMain :jostle:checkstyleNohttp
 
+  # Builds what ships, in both variants: native-* (instrumented, for the test
+  # matrix) and native-shipped-* (what the package jobs publish).
+  # manylinux_2_28 pins the shipped .so's glibc floor at 2.28 -- on a stock
+  # runner it would inherit that runner's glibc and fail to load on RHEL 8/9 or
+  # Debian 11/12. A lower floor is forward-compatible, so it still runs here.
   build-posix:
     strategy:
       fail-fast: false
       matrix:
-        runner:
-          - "ubuntu-latest"
-          - "ubuntu-24.04-arm"
-          - "macos-15"
-          - "macos-15-intel"
+        include:
+          - runner: "ubuntu-latest"
+            image: "quay.io/pypa/manylinux_2_28_x86_64"
+            tag: "manylinux_2_28"
+          - runner: "ubuntu-24.04-arm"
+            image: "quay.io/pypa/manylinux_2_28_aarch64"
+            tag: "manylinux_2_28"
+          - runner: "macos-15"
+            image: ""
+            tag: "macos14.0"
+          - runner: "macos-15-intel"
+            image: ""
+            tag: "macos14.0"
     runs-on: ${{ matrix.runner }}
+    # Linux-only, so the macOS legs opt out with an empty value (runner#266).
+    container: ${{ matrix.image }}
+    env:
+      # Minimum macOS the shipped dylib loads on. Ignored on Linux.
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
     steps:
+      - name: "Install build dependencies"
+        if: matrix.image != ''
+        run: |
+          dnf install -y perl-Time-Piece perl-IPC-Cmd perl-Digest-SHA
       - name: "Cache OpenSSL build"
         id: "cache-openssl"
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.5.8-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-${{ matrix.tag }}-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
@@ -126,30 +148,17 @@ jobs:
           if-no-files-found: "error"
           retention-days: 1
       # ----- the SHIPPED library -----
-      # Everything above is built with JOSTLE_OPS_TEST, which is right: it is
-      # the only way the ~40 *OpsTest classes run at all (the OPS_* macros
-      # expand to nothing otherwise, and every one of them assumption-skips
-      # while the suite still reports green).
-      #
-      # But that left no test job anywhere exercising the library we actually
-      # ship. release-build.yaml builds it uninstrumented and runs no tests.
-      # The OPS build is very nearly a superset - `OPS_X cond` expands to
-      # `is_ops_set(N) || cond`, which with no flag set is just `cond` - but
-      # "very nearly" was carrying the whole argument, and the OPS build also
-      # exports the operations-test entry points, so it is not the same
-      # artifact.
-      #
-      # One runner, rebuilt from the OpenSSL already built in this job, so the
-      # cost is a single C compile. Consumed by test-posix-shipped.
+      # The pass above is instrumented so the ~40 *OpsTest classes run at all;
+      # it also exports the ops entry points, so it is not what we publish.
+      # build.sh fully rebuilds over the same path. CMakeLists tests PRESENCE
+      # of JOSTLE_OPS_TEST, so this pass must omit it, not set it false.
       - name: "Rebuild the interface WITHOUT ops instrumentation"
-        if: matrix.runner == 'ubuntu-latest'
         working-directory: "jostle"
         env:
           OPENSSL_PREFIX: "${{ github.workspace }}/openssl/dist"
         run: |
           ./interface/build.sh
       - name: "Upload shipped native libraries"
-        if: matrix.runner == 'ubuntu-latest'
         uses: "actions/upload-artifact@v7"
         with:
           name: "native-shipped-${{ matrix.runner }}"
@@ -184,13 +193,13 @@ jobs:
           # change. Without it the step is skipped on a hit and the old tree is
           # restored, so a config that was never staged silently goes missing
           # and every FIPS class dies with a bare ProviderException.
-          key: "openssl-fips-v2-3.5.8+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-fips-v2-3.5.8+3.1.2-${{ matrix.tag }}-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "bash"
         run: |
           set -eu
-          out="${{ github.workspace }}/fips-out"
+          out="$GITHUB_WORKSPACE/fips-out"
           # Bounded -j. A bare "make -j" is UNLIMITED: make forks every ready
           # target at once and OpenSSL has thousands, which exhausts the
           # process table on the macOS arm64 runner ("posix_spawn failed:
@@ -198,7 +207,7 @@ jobs:
           # made that reliably fatal instead of merely latent.
           jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
           for ver in 3.5.8 3.1.2; do
-            src="${{ github.workspace }}/openssl-fips-$ver"
+            src="$GITHUB_WORKSPACE/openssl-fips-$ver"
             rm -rf "$src"
             git clone --depth 1 --branch "openssl-$ver" \
               https://github.com/openssl/openssl.git "$src"
@@ -251,7 +260,7 @@ jobs:
               cat "$out/$ver-default/fipsmodule.cnf"
             fi
             ls -l "$out/$ver"
-            cd "${{ github.workspace }}"
+            cd "$GITHUB_WORKSPACE"
             rm -rf "$src"
           done
       - name: "Upload FIPS modules"
@@ -528,10 +537,9 @@ jobs:
 
   # The shipped library, which no other job tests.
   #
-  # Every other test job runs against the JOSTLE_OPS_TEST build (see the
-  # "SHIPPED library" note in build-posix). That is the right default - it is
-  # what makes the *OpsTest classes run - but it means the uninstrumented
-  # artifact that release-build.yaml produces had no test coverage at all.
+  # Every other test job runs the instrumented build, which leaves the
+  # uninstrumented library untested. This runs the exact artifact
+  # package-x86_64 ships; its manylinux glibc floor is below this runner's.
   #
   # Deliberately narrow, because this covers a difference in the BUILD, not in
   # the platform or the module: one runner, one module configuration, JNI and
@@ -644,7 +652,7 @@ jobs:
         uses: "actions/cache@v6"
         with:
           path: "openssl/dist"
-          key: "openssl-3.5.8-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-3.5.8-hybridcrt-${{ runner.arch }}"
       - name: "Checkout openssl"
         if: steps.cache-openssl.outputs.cache-hit != 'true'
         uses: "actions/checkout@v7"
@@ -664,7 +672,8 @@ jobs:
           rem own test programs, which are the bulk of the build. install_sw
           rem does not install them either, so the cached dist is unchanged and
           rem the key needs no bump.
-          perl Configure VC-WIN64A no-tests --prefix=${{ github.workspace }}\openssl\dist
+          rem HYBRIDCRT links the UCRT: no VC redistributable needed.
+          perl Configure VC-WIN64A-HYBRIDCRT no-tests --prefix=${{ github.workspace }}\openssl\dist
           nmake
           nmake install_sw
       - name: "Arrange OpenSSL layout for CMake (lib64)"
@@ -725,6 +734,23 @@ jobs:
           path: "jostle/jostle/src/main/resources/native"
           if-no-files-found: "error"
           retention-days: 1
+      # ----- the SHIPPED library ----- (see the POSIX job; omit the flag,
+      # do not set it false -- CMakeLists tests presence, not value)
+      - name: "Rebuild the interface WITHOUT ops instrumentation"
+        working-directory: "jostle"
+        shell: "cmd"
+        env:
+          OPENSSL_PREFIX: "${{ github.workspace }}\\openssl\\dist"
+        run: |
+          call "%VCVARS%"
+          call interface\build.bat
+      - name: "Upload shipped native libraries"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "native-shipped-${{ matrix.runner }}"
+          path: "jostle/jostle/src/main/resources/native"
+          if-no-files-found: "error"
+          retention-days: 1
       # ----- FIPS modules (both supported versions, enable-fips) -----
       # Mirrors the POSIX job: JSLFIPS ships ONE build that must serve the
       # CMVP-validated 3.1.2 module (cert #4985) and a 3.5.x one, and they
@@ -744,7 +770,7 @@ jobs:
           # change. Without it the step is skipped on a hit and the old tree is
           # restored, so a config that was never staged silently goes missing
           # and every FIPS class dies with a bare ProviderException.
-          key: "openssl-fips-v2-3.5.8+3.1.2-${{ runner.os }}-${{ runner.arch }}"
+          key: "openssl-fips-v2-3.5.8+3.1.2-hybridcrt-${{ runner.arch }}"
       - name: "Build both FIPS modules"
         if: steps.cache-fips.outputs.cache-hit != 'true'
         shell: "cmd"
@@ -975,3 +1001,102 @@ jobs:
         with:
           check_name: "windows-2025 - ${{ matrix.config.name }} - module ${{ matrix.module }}"
           report_paths: "**/build/test-results/**/TEST-*.xml"
+
+  package-x86_64:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
+    needs: ["build-posix", "build-windows", "test-posix", "test-posix-shipped", "test-windows"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Download Linux x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-ubuntu-latest"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download macOS x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-macos-15-intel"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download Windows x86_64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-windows-2025"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Build x86_64 bundle"
+        working-directory: "jostle"
+        # Slim per-arch bundle; archClassifier stops it colliding with the
+        # aarch64 one and applies to the main jar only.
+        # A tag is a release: version from the tag (v1.0.0 or 1.0.0) plus the
+        # -sources/-javadoc jars Maven Central requires. Otherwise VERSION is
+        # empty, gradle.properties decides, and the name carries -SNAPSHOT.
+        # GITHUB_REF_* as env vars, not ${{ }}: a tag name is push-controlled.
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TASKS="jar sourcesJar javadocJar"
+          else
+            VERSION=""
+            TASKS="jar"
+          fi
+          ./gradlew $TASKS -ParchClassifier=x86_64 ${VERSION:+-Pversion="$VERSION"}
+      - name: "Upload x86_64 bundle"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "jostle-jar-x86_64"
+          path: "jostle/jostle/build/libs/*.jar"
+          if-no-files-found: "error"
+          retention-days: 7
+
+  package-aarch64:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
+    # No arm64 Windows native, so nothing Windows-side ends up in this bundle.
+    needs: ["build-posix", "test-posix", "test-posix-shipped"]
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - uses: "actions/setup-java@v5"
+        with:
+          distribution: "corretto"
+          java-version: '25'
+      - name: "Download Linux aarch64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-ubuntu-24.04-arm"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Download macOS arm64 native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "native-shipped-macos-15"
+          path: "jostle/jostle/src/main/resources/native"
+      - name: "Build aarch64 bundle"
+        working-directory: "jostle"
+        # See the x86_64 job above for the classifier and tag/snapshot rules.
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TASKS="jar sourcesJar javadocJar"
+          else
+            VERSION=""
+            TASKS="jar"
+          fi
+          ./gradlew $TASKS -ParchClassifier=aarch64 ${VERSION:+-Pversion="$VERSION"}
+      - name: "Upload aarch64 bundle"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "jostle-jar-aarch64"
+          path: "jostle/jostle/build/libs/*.jar"
+          if-no-files-found: "error"
+          retention-days: 7
