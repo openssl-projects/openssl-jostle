@@ -147,11 +147,11 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
             // Resolve from THIS generator's own provider. getInstance(String,
             // Provider) reads the provider OBJECT and never consults the
             // Security registry, so a foreign provider ahead of Jostle cannot
-            // supply the parameters. A directly-constructed generator has no
-            // provider to pin and falls back to registry order.
+            // supply the parameters. Unbound: own provider by name, never
+            // registry order.
             AlgorithmParameters params = providerInstance != null
                     ? AlgorithmParameters.getInstance("DH", providerInstance)
-                    : AlgorithmParameters.getInstance("DH");
+                    : AlgorithmParameters.getInstance("DH", dhServiceNI.providerName());
             params.init(spec);
             return params;
         }

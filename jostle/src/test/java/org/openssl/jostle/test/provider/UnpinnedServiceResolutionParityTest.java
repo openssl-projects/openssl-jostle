@@ -91,18 +91,12 @@ public class UnpinnedServiceResolutionParityTest
             // instance, so name resolution is the maximum pinning available.
             // Resolves Jostle-by-name only and throws if no Jostle provider is
             // registered, so no foreign provider can serve through it.
-            "JostleAlgorithmParameters:AlgorithmParameters",
-            // Same unbound realm, reached from the generators' null-provider
-            // constructors — but NOT the same resolution. Unlike the entry
-            // above these arms name NO provider at all, so a directly
-            // constructed generator takes JCA order and may return another
-            // provider's AlgorithmParameters; measured on a bare JVM, SunJCE
-            // serves both names. The sanction stands because the realm has no
-            // instance to pin and the objects are public ASN.1 parameter
-            // codecs carrying no key material, but the reason is "nothing to
-            // pin", not "pinned by name".
-            "DHAlgorithmParameterGenerator:AlgorithmParameters",
-            "DSAAlgorithmParameterGenerator:AlgorithmParameters"
+            "JostleAlgorithmParameters:AlgorithmParameters"
+            // The DHAlgorithmParameterGenerator / DSAAlgorithmParameterGenerator
+            // entries that used to sit here are GONE: the generators' unbound
+            // arm now resolves AlgorithmParameters by their own service NI's
+            // providerName(), matching JostleAlgorithmParameters's convention
+            // above — no foreign-provider resolution remains to sanction.
     )));
 
     @Test
@@ -196,7 +190,8 @@ public class UnpinnedServiceResolutionParityTest
         return STRING_LITERAL.matcher(noComments).replaceAll("\"\"");
     }
 
-    private static List<Path> mainSourceRoots()
+    /** Package-private: shared with NoJdkProviderNamesInProductionTest. */
+    static List<Path> mainSourceRoots()
     {
         String[] bases = {"src/main", "jostle/src/main"};
         String[] levels = {"java", "java9", "java11", "java15", "java17", "java21", "java25"};
