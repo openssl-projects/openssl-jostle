@@ -196,6 +196,10 @@ public class ProviderInstancePinningParityTest
                 "unbound arm only, java and java9; the bound arm above it pins the instance");
         addFallback(m, "CCMCipherSpi:JostleAlgorithmParameters:cipherNI.providerName()", 2, "CCMCipherSpi:AlgorithmParameters",
                 "unbound arm only, java and java9; the bound arm above it pins the instance");
+        addFallback(m, "DHAlgorithmParameterGenerator:AlgorithmParameters:dhServiceNI.providerName()", 1, "DHAlgorithmParameterGenerator:AlgorithmParameters",
+                "unbound arm only; the bound arm above it pins the instance");
+        addFallback(m, "DSAAlgorithmParameterGenerator:AlgorithmParameters:dsaServiceNI.providerName()", 1, "DSAAlgorithmParameterGenerator:AlgorithmParameters",
+                "unbound arm only; the bound arm above it pins the instance");
         // JSLKeyX509Certificate was the wrapper over a foreign certificate and
         // is deleted with the SUN parsing delegate. CertKeys does both of its
         // resolutions now — the key rebuild and the verifying Signature — so
