@@ -69,22 +69,14 @@ multi-release resolution in turn. The decisive probe was that a PRE-EXISTING
 `MDServiceJNI` failed identically — so it was not the new code. Any standalone
 probe does `new JostleProvider()` first; every real test already does.
 
-### Reflective spec reading works on the module path — measured, 2026-09-09
+### Production accepts only Jostle spec types; foreign specs are refused typed
 
-The KTS ciphers read BouncyCastle spec types by reflection to avoid a
-compile-time dependency. Measured with jostle as `org.openssl.jostle.prov` on
-the module path, driving `Cipher.getInstance("ML-KEM").init(WRAP_MODE, …,
-KTSParameterSpec)` through `readKtsSpec`:
-
-| bcprov | jostle reads bc | package exported | result |
-|---|---|---|---|
-| named `org.bouncycastle.provider` | **false** | true | wrap SUCCEEDED |
-| automatic module | **false** | true | wrap SUCCEEDED |
-
-Core reflection adds the read edge itself and the package is exported, so
-neither `requires` nor `requires static` is needed. The candidate fix is struck
-on evidence. Nothing in the test matrix witnesses this — a module-path leg is
-queued — so re-measure rather than assume if `module-info.java` changes.
+Every SPI taking an `AlgorithmParameterSpec` accepts Jostle's own spec classes plus, at their
+multi-release entry level, the matching JDK type by `instanceof` (`NamedParameterSpec` at
+`java11`, `EdDSAParameterSpec` at `java15` — see `JdkSpecs`, `EdSignatureSpi`). BC's own specs
+and any other foreign spec are refused typed, naming the Jostle class, never read reflectively.
+`NoReflectiveSpecAccessInProductionTest` enforces no reflection in production (`Loader.java`'s
+one `Class.forName` excepted) and no `org.bouncycastle` literal; tests use BC freely (D50, C43-C47).
 
 ### OpenSSL is the single source of truth for fixed values — query and cache, never transcribe
 

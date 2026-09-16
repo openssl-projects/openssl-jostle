@@ -42,7 +42,7 @@ public class DisposalDaemon
     private static final Thread disposalThread;
 
     private static final long cleanupDelay;
-    private static final String CLEANUP_DELAY_PROP = "org.bouncycastle.native.cleanup_delay";
+    private static final String CLEANUP_DELAY_PROP = "org.openssl.jostle.native.cleanup_delay";
 
 
     static

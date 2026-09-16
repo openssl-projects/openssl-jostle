@@ -21,11 +21,6 @@ import java.util.*;
  */
 public class Properties
 {
-    /**
-     * If set the provider will attempt, where possible, to behave the same way as the oracle one.
-     */
-    public static final String EMULATE_ORACLE = "org.bouncycastle.emulate.oracle";
-
     private Properties()
     {
     }
