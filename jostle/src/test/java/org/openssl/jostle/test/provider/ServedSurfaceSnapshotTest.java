@@ -143,7 +143,7 @@ public class ServedSurfaceSnapshotTest
             "KeyPairGenerator.SLH-DSA-SHAKE-192S", "KeyPairGenerator.SLH-DSA-SHAKE-256F",
             "KeyPairGenerator.SLH-DSA-SHAKE-256S", "KeyPairGenerator.SLHDSA",
             "KeyPairGenerator.X25519", "KeyPairGenerator.X25519MLKEM768", "KeyPairGenerator.X448",
-            "KeyPairGenerator.X448MLKEM1024", "KeyStore.PKCS12", "KeyStore.PKCS12-3DES-3DES",
+            "KeyPairGenerator.X448MLKEM1024", "KeyStore.BCFKS", "KeyStore.PKCS12", "KeyStore.PKCS12-3DES-3DES",
             "KeyStore.PKCS12-AES256-AES128", "KeyStore.PKCS12-PBMAC1", "Mac.AESCMAC",
             "Mac.AESGMAC", "Mac.HMACMD5", "Mac.HMACMD5SHA1", "Mac.HMACRIPEMD160", "Mac.HMACSHA1",
             "Mac.HMACSHA224", "Mac.HMACSHA256", "Mac.HMACSHA3-224", "Mac.HMACSHA3-256",
@@ -294,6 +294,7 @@ public class ServedSurfaceSnapshotTest
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.blockcipher.",
                 "AESAgreementTest and the per-cipher agreement classes");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.ks.", "KSServiceAgreementTest");
+        CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.bcfks.", "BcFKSKeyStoreSpiTest");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.mlxkem.", "MLXKEMAgreementTest");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.wrap.", "RFC3211WrapTest");
         CLAIMED_PREFIXES.put("org.openssl.jostle.jcajce.provider.certpath.", "PkitsPhase1Test and the CertPath* tests");

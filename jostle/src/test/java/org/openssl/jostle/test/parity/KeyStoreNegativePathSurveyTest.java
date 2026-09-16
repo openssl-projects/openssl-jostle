@@ -132,8 +132,9 @@ public class KeyStoreNegativePathSurveyTest
 
     /**
      * Every live name has a reference, so PINNED and BLOCKED are empty HERE -
-     * established by measurement, not assumed: BouncyCastle serves all four.
-     * The tri-state is still carried because {@link #nameAccountingIsComplete()}
+     * established by measurement, not assumed: BouncyCastle serves all five
+     * (BCFKS is BC's own format, so BC serves it by construction). The
+     * tri-state is still carried because {@link #nameAccountingIsComplete()}
      * is what makes an empty PINNED set a MEASURED fact rather than an omission,
      * and because a name added later may have no reference at all.
      */
@@ -325,10 +326,10 @@ public class KeyStoreNegativePathSurveyTest
                         jdk == null ? Observation.absent() : applyFault(jdk, name, f)));
             }
         }
-        // Absolute floor, per SurveyReport's class note: four names times
+        // Absolute floor, per SurveyReport's class note: five names times
         // fourteen faults. Absolute so that discovery silently returning fewer
         // names cannot shrink the floor with it.
-        report.assertMeasured(56, names.size(), 0);
+        report.assertMeasured(70, names.size(), 0);
     }
 
     /**
@@ -508,8 +509,8 @@ public class KeyStoreNegativePathSurveyTest
         Assertions.assertEquals(live.size(), cell.size() + PINNED.size() + BLOCKED.size(),
                 "tri-state tally does not equal the live KeyStore count; live=" + live
                         + " cell=" + cell + " pinned=" + PINNED + " blocked=" + BLOCKED);
-        Assertions.assertEquals(4, live.size(),
-                "expected four registered KeyStore names, found " + live);
+        Assertions.assertEquals(5, live.size(),
+                "expected five registered KeyStore names, found " + live);
         // Measured, not assumed: BouncyCastle serves every one, which is why
         // PINNED is empty. If a future name has no reference it belongs in
         // PINNED, and this assertion is what will say so.

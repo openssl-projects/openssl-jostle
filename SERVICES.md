@@ -10,7 +10,7 @@
 > single-module preamble and bare algorithm lists. Regeneration WILL drop them
 > — diff against the previous version and splice them back.
 
-The Jostle (`JSL`) provider registers **361** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **362** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -262,12 +262,13 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 33. `X448`
 34. `X448MLKEM1024`
 
-## KeyStore (4)
+## KeyStore (5)
 
-1. `PKCS12`
-2. `PKCS12-3DES-3DES`
-3. `PKCS12-AES256-AES128`
-4. `PKCS12-PBMAC1`
+1. `BCFKS`
+2. `PKCS12`
+3. `PKCS12-3DES-3DES`
+4. `PKCS12-AES256-AES128`
+5. `PKCS12-PBMAC1`
 
 ## Mac (20)
 
@@ -467,7 +468,7 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 > supported" to the KMAC paragraph. Splice it back from the previous version and
 > re-check its counts and gating claims against both modules.
 
-The Jostle FIPS (`JSLFIPS`) provider registers **201** services against the 3.1.2 module and **284** against 3.5.8, across **13** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+The Jostle FIPS (`JSLFIPS`) provider registers **202** services against the 3.1.2 module and **285** against 3.5.8, across **14** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
 
 **Two modules are supported, and the list below is the 3.5.8 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
@@ -540,6 +541,14 @@ default-configured module accepts keys from 4 bytes and outputs from 1. Neither
 bound is pre-checked by Jostle — a hard-coded range would be wrong on whichever
 module it did not match — so both surface as the module's own typed refusal at
 `init`.
+
+**`KeyStore.BCFKS` is served unconditionally by both modules, and scrypt-KDF'd
+stores are refused typed rather than routed into the base library.** PBKDF2,
+HMAC, AES-CCM/KWP, X.509 decode and KeyFactory rebuild are all baseline module
+capabilities present on both 3.1.2 and 3.5.8, so the registration itself does
+not gate on a module fetch. Neither module serves scrypt at all, so a store
+using it fails `load` with a typed `IOException` naming the reason, never a
+silent fall-through to the base provider's KDF.
 
 **Approval is not asserted here.** Whether a particular operation is FIPS-*approved* is a compliance determination against the module's security policy (CMVP cert #4985 for OpenSSL FIPS 3.1.2), and it belongs to the operator. This provider does not make it, for three reasons: the module does not enforce its own validated envelope; OpenSSL 3.1.2 exposes no runtime approved-mode indicator; and the policy's non-approved entries are usage-scoped — HMAC key length, HKDF key length, X9.63 KDF PRF choice, RSA primitive modulus size — which no registration surface can express. Deployments needing an enforced restriction should use the JVM's own `jdk.security.providers.filter`.
 
@@ -700,6 +709,10 @@ module it did not match — so both surface as the module's own typed refusal at
 29. `SLH-DSA-SHAKE-256S`
 30. `SLHDSA`
 31. `X25519MLKEM768`
+
+## KeyStore (1)
+
+1. `BCFKS`
 
 ## Mac (15)
 

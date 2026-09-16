@@ -147,11 +147,8 @@ public class PBKDF2SecretKeyFactory extends SecretKeyFactorySpi
             byte[] salt = spec.getSalt();
             try
             {
-                kdfNI.handleErrorCodes(kdfNI.pbkdf2(
-                        passwordBytes,
-                        salt,
-                        spec.getIterationCount(),
-                        algo, rawKey, 0, rawKey.length));
+                BytePasswordKdf.pbkdf2(kdfNI, passwordBytes, salt, spec.getIterationCount(),
+                        algo, rawKey, 0, rawKey.length);
 
                 String name = "PBKDF2WithHmac" + algo
                         + (eightBitPassword ? "and8BIT" : "andUTF8");

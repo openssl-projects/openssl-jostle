@@ -15,6 +15,14 @@ import org.openssl.jostle.util.Properties;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * Minimal DER reader/writer for the parameter codecs in
@@ -52,6 +60,50 @@ public final class Der
     public static final int INTEGER = 0x02;
     public static final int OCTET_STRING = 0x04;
     public static final int OBJECT_IDENTIFIER = 0x06;
+    public static final int BIT_STRING = 0x03;
+    public static final int UTF8_STRING = 0x0C;
+    public static final int GENERALIZED_TIME = 0x18;
+    public static final int NULL = 0x05;
+
+    /**
+     * First octet of a constructed, context-specific tag numbered {@code n}
+     * (0..30): {@code 0xA0 | n}. Used for {@code [n] EXPLICIT} fields --
+     * {@code SignatureCheck.certificates} and {@code ObjectStoreIntegrityCheck}'s
+     * {@code [0] SignatureCheck} arm are both {@code [0] EXPLICIT}.
+     *
+     * @throws IllegalArgumentException if {@code n} is outside 0..30 (31
+     *         is the high-tag-number form, which none of this codec's
+     *         structures use).
+     */
+    static int explicitTag(int n)
+    {
+        if (n < 0 || n > 30)
+        {
+            throw new IllegalArgumentException("tag number out of range: " + n);
+        }
+        return 0xA0 | n;
+    }
+
+    /**
+     * First octet of a primitive, context-specific tag numbered {@code n}
+     * (0..30): {@code 0x80 | n}. Used for {@code [n] IMPLICIT} fields --
+     * {@code PbkdKeyData}'s {@code salt}/{@code iterationCount}/{@code encoded}
+     * fields are all {@code [n] IMPLICIT}. Unlike EXPLICIT, an IMPLICIT tag
+     * replaces the underlying type's own tag rather than wrapping it, so the
+     * content octets are exactly what the underlying type (OCTET STRING,
+     * INTEGER) would encode -- only the tag byte differs.
+     *
+     * @throws IllegalArgumentException if {@code n} is outside 0..30, per
+     *         {@link #explicitTag}.
+     */
+    static int implicitTag(int n)
+    {
+        if (n < 0 || n > 30)
+        {
+            throw new IllegalArgumentException("tag number out of range: " + n);
+        }
+        return 0x80 | n;
+    }
 
     private Der()
     {
@@ -102,15 +154,24 @@ public final class Der
     /** A non-negative INTEGER TLV. */
     public static byte[] integer(BigInteger v)
     {
-        // BigInteger.toByteArray is already the minimal two's-complement form
-        // DER wants, including the leading 0x00 when the top bit would be set.
-        return tlv(INTEGER, v.toByteArray());
+        return tlv(INTEGER, integerContent(v));
     }
 
     /** A small non-negative INTEGER TLV. */
     public static byte[] integer(int v)
     {
         return integer(BigInteger.valueOf(v));
+    }
+
+    /**
+     * An INTEGER's content octets alone -- the minimal two's-complement form
+     * DER wants, including the leading 0x00 when the top bit would be set.
+     * Shared by {@link #integer(BigInteger)} and {@link #implicitInteger},
+     * whose tag differs but whose content encoding does not.
+     */
+    private static byte[] integerContent(BigInteger v)
+    {
+        return v.toByteArray();
     }
 
     /**
@@ -186,6 +247,10 @@ public final class Der
         switch (tag)
         {
         case OCTET_STRING:
+        case BIT_STRING:
+        case UTF8_STRING:
+            // BIT STRING and UTF8String share the octet-string ceiling;
+            // BCFKS's widest uses are far under it.
             return usableOr(MAX_OCTET_STRING_PROPERTY, DEFAULT_MAX_OCTET_STRING_BYTES);
         case INTEGER:
             return usableOr(MAX_INTEGER_PROPERTY, DEFAULT_MAX_INTEGER_BYTES);
@@ -366,6 +431,182 @@ public final class Der
             off += i.length;
         }
         return tlv(SEQUENCE, body);
+    }
+
+    /**
+     * A byte-aligned BIT STRING: one leading zero octet (unused-bit count),
+     * then the content. Every BIT STRING this codec writes — a signature
+     * value — is a whole number of bytes, so no other unused-bit count is
+     * needed and none is accepted on read.
+     */
+    public static byte[] bitString(byte[] content)
+    {
+        byte[] withUnusedBits = new byte[content.length + 1];
+        withUnusedBits[0] = 0;
+        System.arraycopy(content, 0, withUnusedBits, 1, content.length);
+        return tlv(BIT_STRING, withUnusedBits);
+    }
+
+    /** A UTF8String TLV, encoded per {@link StandardCharsets#UTF_8}. */
+    public static byte[] utf8String(String s)
+    {
+        return tlv(UTF8_STRING, s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The NULL TLV (X.690 8.8): a zero-length content octet. Used for the
+     * explicit {@code parameters} field HMAC {@code AlgorithmIdentifier}s
+     * conventionally carry, rather than omitting the field.
+     */
+    public static byte[] nullValue()
+    {
+        return tlv(NULL, new byte[0]);
+    }
+
+    /**
+     * A GeneralizedTime TLV in DER canonical form: {@code YYYYMMDDHHMMSSZ},
+     * UTC, no fractional seconds (X.690 11.7). Matches the form BouncyCastle
+     * writes (r1rv86,
+     * core/src/main/java/org/bouncycastle/asn1/ASN1GeneralizedTime.java:141-148,
+     * {@code new SimpleDateFormat("yyyyMMddHHmmss'Z'")} under a fixed
+     * {@code SimpleTimeZone(0, "Z")}).
+     *
+     * <p>The formatter's {@code Locale} is forced to {@code Locale.ENGLISH}
+     * rather than left at the JVM default, for the same reason BouncyCastle's
+     * own (Date, Locale) overload documents: a non-Gregorian default calendar
+     * (Thai Buddhist, Japanese Imperial) would format the wrong year.
+     */
+    public static byte[] generalizedTime(Date d)
+    {
+        SimpleDateFormat fmt =
+                new SimpleDateFormat("yyyyMMddHHmmss'Z'", Locale.ENGLISH);
+        fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return tlv(GENERALIZED_TIME, fmt.format(d).getBytes(StandardCharsets.US_ASCII));
+    }
+
+    /**
+     * Wrap one complete inner TLV as {@code [tagNo] EXPLICIT}: a constructed
+     * context-specific tag whose content is the inner encoding verbatim.
+     */
+    public static byte[] explicit(int tagNo, byte[] innerTlv)
+    {
+        return tlv(explicitTag(tagNo), innerTlv);
+    }
+
+    /**
+     * An OCTET STRING's value as {@code [tagNo] IMPLICIT}: the tag replaces
+     * OCTET STRING's own, the content octets are unchanged.
+     */
+    public static byte[] implicitOctetString(int tagNo, byte[] v)
+    {
+        return tlv(implicitTag(tagNo), v);
+    }
+
+    /** An INTEGER's value as {@code [tagNo] IMPLICIT}. */
+    public static byte[] implicitInteger(int tagNo, int v)
+    {
+        return tlv(implicitTag(tagNo), integerContent(BigInteger.valueOf(v)));
+    }
+
+    /**
+     * {@code AlgorithmIdentifier ::= SEQUENCE { algorithm OBJECT IDENTIFIER,
+     * parameters ANY DEFINED BY algorithm OPTIONAL }}. {@code params} is the
+     * complete encoded parameters TLV (opaque to this codec — interpreting
+     * it is the specific algorithm's job), or {@code null} to omit the field.
+     */
+    public static byte[] algorithmIdentifier(String oid, byte[] params)
+    {
+        byte[] oidTlv = objectIdentifier(oid);
+        return params == null ? sequence(oidTlv) : sequence(oidTlv, params);
+    }
+
+    /**
+     * RFC 5084 line 485 (s3.2): {@code CCMParameters ::= SEQUENCE { aes-nonce OCTET
+     * STRING (SIZE(7..13)), aes-ICVlen AES-CCM-ICVlen DEFAULT 12 }}. Per DER,
+     * the ICV length is omitted when it is the default. Range checks are the
+     * caller's — this is a codec, not a validator — matching every other
+     * writer in this class.
+     */
+    public static byte[] ccmParameters(byte[] nonce, int icvBytes)
+    {
+        byte[] nonceTlv = octetString(nonce);
+        return icvBytes == 12 ? sequence(nonceTlv) : sequence(nonceTlv, integer(icvBytes));
+    }
+
+    /**
+     * RFC 5958 s2 (line 267): {@code EncryptedPrivateKeyInfo ::= SEQUENCE {
+     * encryptionAlgorithm AlgorithmIdentifier, encryptedData OCTET STRING }}.
+     * {@code algorithmIdentifierTlv} is a complete {@link #algorithmIdentifier}
+     * encoding.
+     */
+    public static byte[] encryptedPrivateKeyInfo(byte[] algorithmIdentifierTlv, byte[] encryptedData)
+    {
+        return sequence(algorithmIdentifierTlv, octetString(encryptedData));
+    }
+
+    /**
+     * RFC 8018 A.4 (line 1423): {@code PBES2-params ::= SEQUENCE {
+     * keyDerivationFunc AlgorithmIdentifier, encryptionScheme
+     * AlgorithmIdentifier }}. Both arguments are complete
+     * {@link #algorithmIdentifier} encodings.
+     */
+    public static byte[] pbes2Params(byte[] keyDerivationFuncTlv, byte[] encryptionSchemeTlv)
+    {
+        return sequence(keyDerivationFuncTlv, encryptionSchemeTlv);
+    }
+
+    /**
+     * RFC 8018 A.2 (line 1272): {@code PBKDF2-params ::= SEQUENCE { salt
+     * OCTET STRING, iterationCount INTEGER, keyLength INTEGER OPTIONAL, prf
+     * AlgorithmIdentifier DEFAULT algid-hmacWithSHA1 }}. This codec writes
+     * only the {@code specified OCTET STRING} salt CHOICE — the
+     * {@code otherSource AlgorithmIdentifier} CHOICE has no BCFKS writer and
+     * is out of scope. {@code prfTlv} is a complete
+     * {@link #algorithmIdentifier} encoding, or {@code null} to omit it (the
+     * DEFAULT then applies on read, per the caller's own convention — this
+     * codec does not interpret DEFAULT).
+     *
+     * @param keyLength content octets of the derived key, or {@code null} to
+     *                  omit the OPTIONAL field.
+     */
+    public static byte[] pbkdf2Params(byte[] salt, int iterationCount, Integer keyLength, byte[] prfTlv)
+    {
+        List<byte[]> parts = new ArrayList<byte[]>();
+        parts.add(octetString(salt));
+        parts.add(integer(iterationCount));
+        if (keyLength != null)
+        {
+            parts.add(integer(keyLength.intValue()));
+        }
+        if (prfTlv != null)
+        {
+            parts.add(prfTlv);
+        }
+        return sequence(parts.toArray(new byte[0][]));
+    }
+
+    /**
+     * RFC 7914 s7 (line 416): {@code scrypt-params ::= SEQUENCE { salt OCTET
+     * STRING, costParameter INTEGER (1..MAX), blockSize INTEGER (1..MAX),
+     * parallelizationParameter INTEGER (1..MAX), keyLength INTEGER (1..MAX)
+     * OPTIONAL }}.
+     *
+     * @param keyLength content octets of the derived key, or {@code null} to
+     *                  omit the OPTIONAL field.
+     */
+    public static byte[] scryptParams(byte[] salt, long costParameter, int blockSize,
+                                       int parallelizationParameter, Integer keyLength)
+    {
+        List<byte[]> parts = new ArrayList<byte[]>();
+        parts.add(octetString(salt));
+        parts.add(integer(BigInteger.valueOf(costParameter)));
+        parts.add(integer(blockSize));
+        parts.add(integer(parallelizationParameter));
+        if (keyLength != null)
+        {
+            parts.add(integer(keyLength.intValue()));
+        }
+        return sequence(parts.toArray(new byte[0][]));
     }
 
     /** Reader over one definite-length region. */
@@ -574,7 +815,18 @@ public final class Der
         /** Read a non-negative INTEGER's value. */
         public BigInteger readInteger(String what) throws IOException
         {
-            byte[] content = readTLV(INTEGER, what).remaining();
+            return parseIntegerContent(readTLV(INTEGER, what).remaining(), what);
+        }
+
+        /**
+         * The shared validation {@link #readInteger} and {@link
+         * #readImplicitInteger} both need -- non-negative, minimally
+         * encoded -- applied to already-extracted content octets, since an
+         * IMPLICIT INTEGER's content encoding is identical to a plain one's;
+         * only the tag differs, and the caller has already checked that.
+         */
+        private static BigInteger parseIntegerContent(byte[] content, String what) throws IOException
+        {
             if (content.length == 0)
             {
                 throw new IOException("empty INTEGER in " + what);
@@ -597,6 +849,30 @@ public final class Der
             return v;
         }
 
+        /**
+         * An OCTET STRING's content read via {@code [tagNo] IMPLICIT} instead
+         * of its own tag.
+         */
+        public byte[] readImplicitOctetString(int tagNo, String what) throws IOException
+        {
+            return readTLV(implicitTag(tagNo), what).remaining();
+        }
+
+        /**
+         * An INTEGER read via {@code [tagNo] IMPLICIT} instead of its own
+         * tag, bounded to fit a non-negative {@code int} exactly as {@link
+         * #readSmallInteger} bounds a plain one.
+         */
+        public int readImplicitSmallInteger(int tagNo, String what) throws IOException
+        {
+            BigInteger v = parseIntegerContent(readTLV(implicitTag(tagNo), what).remaining(), what);
+            if (v.bitLength() > 31)
+            {
+                throw new IOException("INTEGER out of range in " + what);
+            }
+            return v.intValue();
+        }
+
         /** Read an INTEGER that must fit in a non-negative int. */
         public int readSmallInteger(String what) throws IOException
         {
@@ -606,6 +882,293 @@ public final class Der
                 throw new IOException("INTEGER out of range in " + what);
             }
             return v.intValue();
+        }
+
+        /**
+         * A byte-aligned BIT STRING's content, with the leading unused-bit
+         * count validated as zero. Every BIT STRING BCFKS reads (a signature
+         * value) is a whole number of bytes; anything else is refused rather
+         * than silently masked, since a nonzero unused-bit count on a value
+         * this codec treats as opaque bytes would silently drop bits.
+         */
+        public byte[] readBitString(String what) throws IOException
+        {
+            byte[] raw = readTLV(BIT_STRING, what).remaining();
+            if (raw.length == 0)
+            {
+                throw new IOException("empty BIT STRING in " + what);
+            }
+            if (raw[0] != 0)
+            {
+                throw new IOException("non-byte-aligned BIT STRING in " + what);
+            }
+            byte[] content = new byte[raw.length - 1];
+            System.arraycopy(raw, 1, content, 0, content.length);
+            return content;
+        }
+
+        /** A UTF8String's content, decoded as UTF-8. */
+        public String readUTF8String(String what) throws IOException
+        {
+            byte[] content = readTLV(UTF8_STRING, what).remaining();
+            return new String(content, StandardCharsets.UTF_8);
+        }
+
+        /**
+         * A GeneralizedTime in DER canonical form: exactly
+         * {@code YYYYMMDDHHMMSSZ} (15 octets, no fractional seconds, UTC).
+         * Any other form — a local-time suffix, a UTC offset, fractional
+         * seconds, a non-canonical length — is refused rather than guessed
+         * at; this codec only needs to read what {@link #generalizedTime}
+         * (and BouncyCastle, per its javadoc) write.
+         */
+        public Date readGeneralizedTime(String what) throws IOException
+        {
+            byte[] content = readTLV(GENERALIZED_TIME, what).remaining();
+            if (content.length != 15)
+            {
+                throw new IOException(
+                        "GeneralizedTime must be exactly 15 octets (YYYYMMDDHHMMSSZ) in " + what);
+            }
+            String text = new String(content, StandardCharsets.US_ASCII);
+            for (int i = 0; i < 14; i++)
+            {
+                char c = text.charAt(i);
+                if (c < '0' || c > '9')
+                {
+                    throw new IOException("malformed GeneralizedTime in " + what);
+                }
+            }
+            if (text.charAt(14) != 'Z')
+            {
+                throw new IOException("GeneralizedTime must end with Z in " + what);
+            }
+            SimpleDateFormat fmt =
+                    new SimpleDateFormat("yyyyMMddHHmmss'Z'", Locale.ENGLISH);
+            fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
+            fmt.setLenient(false);
+            try
+            {
+                return fmt.parse(text);
+            }
+            catch (ParseException e)
+            {
+                throw new IOException("malformed GeneralizedTime in " + what, e);
+            }
+        }
+
+        /**
+         * Read {@code [tagNo] EXPLICIT}: a constructed context-specific tag,
+         * returning a Reader over its one inner TLV.
+         */
+        public Reader readExplicit(int tagNo, String what) throws IOException
+        {
+            return readTLV(explicitTag(tagNo), what);
+        }
+
+        /**
+         * {@code AlgorithmIdentifier ::= SEQUENCE { algorithm OBJECT
+         * IDENTIFIER, parameters ANY DEFINED BY algorithm OPTIONAL }}. The
+         * parameters field, when present, is captured as its complete raw
+         * TLV — this codec does not know how to interpret every algorithm's
+         * parameters, so it hands the caller the bytes to decode themselves.
+         */
+        public AlgorithmIdentifier readAlgorithmIdentifier(String what) throws IOException
+        {
+            Reader seq = readTLV(SEQUENCE, what);
+            String oid = seq.readObjectIdentifier(what + " algorithm");
+            byte[] params = null;
+            if (!seq.atEnd())
+            {
+                int tag = seq.peekTag();
+                params = seq.readEncodedTLV(tag, what + " parameters");
+            }
+            seq.requireEnd("trailing bytes in " + what);
+            return new AlgorithmIdentifier(oid, params);
+        }
+
+        /**
+         * RFC 5084 line 485 (s3.2): {@code CCMParameters}. The nonce length (7..13) and
+         * ICV length (4,6,8,10,12,14,16) are NOT range-checked here — those
+         * are the CCM cipher's own bounds, and this codec is a container
+         * reader, not a validator, matching {@link #readAlgorithmIdentifier}.
+         */
+        public CcmParameters readCcmParameters(String what) throws IOException
+        {
+            Reader seq = readTLV(SEQUENCE, what);
+            byte[] nonce = seq.readTLV(OCTET_STRING, what + " aes-nonce").remaining();
+            int icvBytes = 12;
+            if (!seq.atEnd())
+            {
+                icvBytes = seq.readSmallInteger(what + " aes-ICVlen");
+            }
+            seq.requireEnd("trailing bytes in " + what);
+            return new CcmParameters(nonce, icvBytes);
+        }
+
+        /** RFC 5958 s2 (line 267): {@code EncryptedPrivateKeyInfo}. */
+        public EncryptedPrivateKeyInfo readEncryptedPrivateKeyInfo(String what) throws IOException
+        {
+            Reader seq = readTLV(SEQUENCE, what);
+            AlgorithmIdentifier algId = seq.readAlgorithmIdentifier(what + " encryptionAlgorithm");
+            byte[] encryptedData = seq.readTLV(OCTET_STRING, what + " encryptedData").remaining();
+            seq.requireEnd("trailing bytes in " + what);
+            return new EncryptedPrivateKeyInfo(algId, encryptedData);
+        }
+
+        /** RFC 8018 A.4 (line 1423): {@code PBES2-params}. */
+        public Pbes2Params readPbes2Params(String what) throws IOException
+        {
+            Reader seq = readTLV(SEQUENCE, what);
+            AlgorithmIdentifier kdf = seq.readAlgorithmIdentifier(what + " keyDerivationFunc");
+            AlgorithmIdentifier enc = seq.readAlgorithmIdentifier(what + " encryptionScheme");
+            seq.requireEnd("trailing bytes in " + what);
+            return new Pbes2Params(kdf, enc);
+        }
+
+        /**
+         * RFC 8018 A.2 (line 1272): {@code PBKDF2-params}. Reads only the
+         * {@code specified OCTET STRING} salt CHOICE, matching
+         * {@link #pbkdf2Params} — the {@code otherSource AlgorithmIdentifier}
+         * CHOICE has no writer and is refused (as a tag mismatch on the salt
+         * field) rather than silently accepted.
+         */
+        public Pbkdf2Params readPbkdf2Params(String what) throws IOException
+        {
+            Reader seq = readTLV(SEQUENCE, what);
+            byte[] salt = seq.readTLV(OCTET_STRING, what + " salt").remaining();
+            int iterationCount = seq.readSmallInteger(what + " iterationCount");
+            Integer keyLength = null;
+            AlgorithmIdentifier prf = null;
+            if (!seq.atEnd() && seq.peekTag() == INTEGER)
+            {
+                keyLength = Integer.valueOf(seq.readSmallInteger(what + " keyLength"));
+            }
+            if (!seq.atEnd())
+            {
+                prf = seq.readAlgorithmIdentifier(what + " prf");
+            }
+            seq.requireEnd("trailing bytes in " + what);
+            return new Pbkdf2Params(salt, iterationCount, keyLength, prf);
+        }
+
+        /** RFC 7914 s7 (line 416): {@code scrypt-params}. */
+        public ScryptParams readScryptParams(String what) throws IOException
+        {
+            Reader seq = readTLV(SEQUENCE, what);
+            byte[] salt = seq.readTLV(OCTET_STRING, what + " salt").remaining();
+            BigInteger costBig = seq.readInteger(what + " costParameter");
+            long costParameter;
+            try
+            {
+                costParameter = costBig.longValueExact();
+            }
+            catch (ArithmeticException e)
+            {
+                throw new IOException("costParameter out of range in " + what, e);
+            }
+            int blockSize = seq.readSmallInteger(what + " blockSize");
+            int parallelizationParameter = seq.readSmallInteger(what + " parallelizationParameter");
+            Integer keyLength = null;
+            if (!seq.atEnd())
+            {
+                keyLength = Integer.valueOf(seq.readSmallInteger(what + " keyLength"));
+            }
+            seq.requireEnd("trailing bytes in " + what);
+            return new ScryptParams(salt, costParameter, blockSize, parallelizationParameter, keyLength);
+        }
+    }
+
+    /** {@code AlgorithmIdentifier}: an OID plus its opaque parameters TLV (or none). */
+    public static final class AlgorithmIdentifier
+    {
+        public final String oid;
+        /** The complete parameters TLV, or {@code null} when the field was absent. */
+        public final byte[] parameters;
+
+        AlgorithmIdentifier(String oid, byte[] parameters)
+        {
+            this.oid = oid;
+            this.parameters = parameters;
+        }
+    }
+
+    /** RFC 5084 {@code CCMParameters}. */
+    public static final class CcmParameters
+    {
+        public final byte[] nonce;
+        public final int icvBytes;
+
+        CcmParameters(byte[] nonce, int icvBytes)
+        {
+            this.nonce = nonce;
+            this.icvBytes = icvBytes;
+        }
+    }
+
+    /** RFC 5958 {@code EncryptedPrivateKeyInfo}. */
+    public static final class EncryptedPrivateKeyInfo
+    {
+        public final AlgorithmIdentifier encryptionAlgorithm;
+        public final byte[] encryptedData;
+
+        EncryptedPrivateKeyInfo(AlgorithmIdentifier encryptionAlgorithm, byte[] encryptedData)
+        {
+            this.encryptionAlgorithm = encryptionAlgorithm;
+            this.encryptedData = encryptedData;
+        }
+    }
+
+    /** RFC 8018 A.4 {@code PBES2-params}. */
+    public static final class Pbes2Params
+    {
+        public final AlgorithmIdentifier keyDerivationFunc;
+        public final AlgorithmIdentifier encryptionScheme;
+
+        Pbes2Params(AlgorithmIdentifier keyDerivationFunc, AlgorithmIdentifier encryptionScheme)
+        {
+            this.keyDerivationFunc = keyDerivationFunc;
+            this.encryptionScheme = encryptionScheme;
+        }
+    }
+
+    /** RFC 8018 A.2 {@code PBKDF2-params} (specified-salt CHOICE only). */
+    public static final class Pbkdf2Params
+    {
+        public final byte[] salt;
+        public final int iterationCount;
+        /** {@code null} when the OPTIONAL field was absent. */
+        public final Integer keyLength;
+        /** {@code null} when absent (the DEFAULT hmacWithSHA1 then applies). */
+        public final AlgorithmIdentifier prf;
+
+        Pbkdf2Params(byte[] salt, int iterationCount, Integer keyLength, AlgorithmIdentifier prf)
+        {
+            this.salt = salt;
+            this.iterationCount = iterationCount;
+            this.keyLength = keyLength;
+            this.prf = prf;
+        }
+    }
+
+    /** RFC 7914 s7 {@code scrypt-params}. */
+    public static final class ScryptParams
+    {
+        public final byte[] salt;
+        public final long costParameter;
+        public final int blockSize;
+        public final int parallelizationParameter;
+        /** {@code null} when the OPTIONAL field was absent. */
+        public final Integer keyLength;
+
+        ScryptParams(byte[] salt, long costParameter, int blockSize,
+                     int parallelizationParameter, Integer keyLength)
+        {
+            this.salt = salt;
+            this.costParameter = costParameter;
+            this.blockSize = blockSize;
+            this.parallelizationParameter = parallelizationParameter;
+            this.keyLength = keyLength;
         }
     }
 }

@@ -311,6 +311,10 @@ public final class JostleFIPSProvider
         // from parsed certificates stay inside the FIPS boundary (fail-loud on
         // algorithms the module does not serve). See ProvFIPSX509.
         new ProvFIPSX509().configure(this);
+        // BCFKS needs only PBKDF2, HMAC, AES-CCM/KWP, X.509 and KeyFactory --
+        // all served above -- so unlike PKCS#12 it is not blocked on a
+        // FIPS-absent KDF. See ProvFIPSBCFKS.
+        new ProvFIPSBCFKS().configure(this);
         // A deployment needing to restrict this provider's surface should use the
         // JVM's own mechanism (jdk.security.providers.filter) rather than expect
         // JSLFIPS to withhold what the module implements.

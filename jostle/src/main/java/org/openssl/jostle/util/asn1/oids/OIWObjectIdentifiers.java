@@ -28,6 +28,13 @@ public interface OIWObjectIdentifiers
     ASN1ObjectIdentifier desCBC = new ASN1ObjectIdentifier("1.3.14.3.2.7").intern();
 
     /**
+     * 1.3.14.3.2.17 -- desEDE, BC r1rv86
+     * core/src/main/java/org/bouncycastle/internal/asn1/oiw/OIWObjectIdentifiers.java:30
+     * -- the standards library holds no OIW registration document for this arc.
+     */
+    ASN1ObjectIdentifier desEDE = new ASN1ObjectIdentifier("1.3.14.3.2.17").intern();
+
+    /**
      * 1.3.14.3.2.26 -- id-sha1, RFC 8017 line 3560
      */
     ASN1ObjectIdentifier idSHA1 = new ASN1ObjectIdentifier("1.3.14.3.2.26").intern();

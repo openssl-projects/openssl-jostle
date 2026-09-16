@@ -108,13 +108,8 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         byte[] passwordBytes = Strings.toUTF8ByteArray(password);
         try
         {
-            kdfNI.handleErrorCodes(kdfNI.scrypt(
-                    passwordBytes,
-                    salt,
-                    costParameter,
-                    blockSize,
-                    parallelizationParameter,
-                    rawKey, 0, rawKey.length));
+            BytePasswordKdf.scrypt(kdfNI, passwordBytes, salt, costParameter, blockSize,
+                    parallelizationParameter, rawKey, 0, rawKey.length);
 
             return new JOScryptKey("ScryptWithUTF8", password, salt, costParameter, blockSize, parallelizationParameter, rawKey);
         }

@@ -38,10 +38,10 @@ class ProvMac
         addMac(provider, "HMAC", "SHA512/224", "SHA2-512/224", PKCSObjectIdentifiers.id_hmacWithSHA512_224.getId());
         addMac(provider, "HMAC", "SHA512/256", "SHA2-512/256", PKCSObjectIdentifiers.id_hmacWithSHA512_256.getId());
 
-        addMac(provider, "HMAC", "SHA3-224", "SHA3-224");
-        addMac(provider, "HMAC", "SHA3-256", "SHA3-256");
-        addMac(provider, "HMAC", "SHA3-384", "SHA3-384");
-        addMac(provider, "HMAC", "SHA3-512", "SHA3-512");
+        addMac(provider, "HMAC", "SHA3-224", "SHA3-224", NISTObjectIdentifiers.id_hmacWithSHA3_224.getId());
+        addMac(provider, "HMAC", "SHA3-256", "SHA3-256", NISTObjectIdentifiers.id_hmacWithSHA3_256.getId());
+        addMac(provider, "HMAC", "SHA3-384", "SHA3-384", NISTObjectIdentifiers.id_hmacWithSHA3_384.getId());
+        addMac(provider, "HMAC", "SHA3-512", "SHA3-512", NISTObjectIdentifiers.id_hmacWithSHA3_512.getId());
 
         addMac(provider, "HMAC", "SM3", "SM3");
         addMac(provider, "HMAC", "MD5", "MD5");
