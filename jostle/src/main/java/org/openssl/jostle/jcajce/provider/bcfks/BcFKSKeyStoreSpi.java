@@ -190,6 +190,12 @@ public class BcFKSKeyStoreSpi
     static final String MAX_SCRYPT_MEMORY_PROPERTY = "org.openssl.jostle.bcfks.max_scrypt_memory";
     static final long DEFAULT_MAX_SCRYPT_MEMORY = 1L << 30;
 
+    /**
+     * Default true writes p equal to r so releases up to 1.86 read the
+     * store; false writes the configured p.
+     */
+    static final String SCRYPT_P_EQ_R_PROPERTY = "org.openssl.jostle.bcfks.scrypt_p_eq_r";
+
     private static long maxIterationCount()
     {
         try
@@ -301,7 +307,11 @@ public class BcFKSKeyStoreSpi
                     + ") greater than " + MAX_SCRYPT_BLOCK_SIZE);
         }
         long maxMemory = maxScryptMemory();
-        if (costParameter > maxMemory / (128L * blockSize))
+        // scrypt allocates ~128*N*r bytes and ~128*r*p bytes (RFC 7914):
+        // bound N and the parallelization parameter separately against the
+        // same cap, so the original N-only limit is unchanged.
+        long maxCost = maxMemory / (128L * blockSize);
+        if (costParameter > maxCost || parallelizationParameter > maxCost)
         {
             throw new IOException("BCFKS KeyStore: scrypt cost parameters require more than "
                     + maxMemory + " bytes");
@@ -311,12 +321,12 @@ public class BcFKSKeyStoreSpi
     // ---- Key derivation ------------------------------------------------
 
     /**
-     * BCFKS scrypt derivations use a parallelization parameter equal to the
-     * block size; the encoded {@code parallelizationParameter} is read and
-     * bounded but the block size governs derivation.
+     * scrypt derives with the encoded parallelization parameter; stores
+     * written by BouncyCastle releases up to 1.86 derived with the block
+     * size in its place and are retried under that convention on load.
      */
     byte[] deriveKey(Der.AlgorithmIdentifier pbkdAlgorithm, String purpose, char[] password,
-                      Integer defaultKeyLength)
+                      Integer defaultKeyLength, boolean legacyScryptParallelization)
         throws IOException
     {
         byte[] derivationPassword = BytePasswordKdf.derivationPassword(password, purpose);
@@ -329,8 +339,8 @@ public class BcFKSKeyStoreSpi
                     throw new IOException("BCFKS store uses scrypt, which this provider does not serve");
                 }
                 Der.ScryptParams params = new Der.Reader(pbkdAlgorithm.parameters).readScryptParams("scrypt-params");
-                int parallelizationParameter = params.parallelizationParameter;
-                validateScryptParams(params.costParameter, params.blockSize, parallelizationParameter);
+                int p = legacyScryptParallelization ? params.blockSize : params.parallelizationParameter;
+                validateScryptParams(params.costParameter, params.blockSize, p);
                 int keyLength = params.keyLength != null
                         ? validateKeyLength(params.keyLength.intValue())
                         : requireDefault(defaultKeyLength, "scrypt-params");
@@ -340,7 +350,7 @@ public class BcFKSKeyStoreSpi
                 }
                 byte[] out = new byte[keyLength];
                 BytePasswordKdf.scrypt(memoryHardKdfNI, derivationPassword, params.salt,
-                        (int) params.costParameter, params.blockSize, params.blockSize, out, 0, out.length);
+                        (int) params.costParameter, params.blockSize, p, out, 0, out.length);
                 return out;
             }
             if (PKCSObjectIdentifiers.id_PBKDF2.getId().equals(pbkdAlgorithm.oid))
@@ -372,6 +382,22 @@ public class BcFKSKeyStoreSpi
             throw new IOException("BCFKS KeyStore: no keyLength found in " + what);
         }
         return defaultKeyLength.intValue();
+    }
+
+    /**
+     * True when the block size and the encoded parallelization parameter
+     * would give different keys, so a store written by a release up to
+     * 1.86 (which derived with the block size in the parallelization
+     * parameter's place) is worth a retry.
+     */
+    static boolean hasLegacyScryptAlternative(Der.AlgorithmIdentifier pbkdAlgorithm) throws IOException
+    {
+        if (!MiscObjectIdentifiers.id_scrypt.getId().equals(pbkdAlgorithm.oid))
+        {
+            return false;
+        }
+        Der.ScryptParams params = new Der.Reader(pbkdAlgorithm.parameters).readScryptParams("scrypt-params");
+        return params.blockSize != params.parallelizationParameter;
     }
 
     /** PRF / MAC HMAC OIDs this reader recognises, to our own digest-name convention. */
@@ -461,7 +487,7 @@ public class BcFKSKeyStoreSpi
     // ---- Decryption (PBES2: PBKDF2/scrypt + AES-CCM/AES-256-KWP) -----------
 
     private byte[] decrypt(Der.AlgorithmIdentifier encryptionAlgorithm, String purpose, char[] password,
-                            byte[] ciphertext)
+                            byte[] ciphertext, boolean legacyScryptParallelization)
         throws IOException
     {
         if (!PKCSObjectIdentifiers.id_PBES2.getId().equals(encryptionAlgorithm.oid))
@@ -472,7 +498,7 @@ public class BcFKSKeyStoreSpi
         // 32: BC's own default (decryptData :1554) when the PBES2 KDF params
         // omit keyLength. The MAC derivation keeps null -- BC passes -1 there,
         // no default, the wire keyLength is required.
-        byte[] key = deriveKey(pbes2.keyDerivationFunc, purpose, password, 32);
+        byte[] key = deriveKey(pbes2.keyDerivationFunc, purpose, password, 32, legacyScryptParallelization);
         try
         {
             String encOid = pbes2.encryptionScheme.oid;
@@ -551,11 +577,19 @@ public class BcFKSKeyStoreSpi
         return new Der.Reader(fullTlv).readAlgorithmIdentifier("PBKDF2-params");
     }
 
+    /** The parallelization parameter to write; see {@link #SCRYPT_P_EQ_R_PROPERTY}. */
+    private static int writtenParallelization(BCFKSLoadStoreParameter.ScryptConfig config)
+    {
+        return Properties.isOverrideSet(SCRYPT_P_EQ_R_PROPERTY, true)
+                ? config.getBlockSize() : config.getParallelizationParameter();
+    }
+
     /**
      * A fresh scrypt {@code AlgorithmIdentifier}, JSL only -- refused typed
      * before any derivation, same message family as the read-side refusal
      * ({@link #deriveKey}). KDF parameters follow {@link #deriveKey}'s
-     * conventions.
+     * conventions; the parallelization parameter written is {@link
+     * #writtenParallelization}.
      */
     private Der.AlgorithmIdentifier freshScryptAlgorithmIdentifier(BCFKSLoadStoreParameter.ScryptConfig config,
                                                                      int keyLength)
@@ -568,7 +602,7 @@ public class BcFKSKeyStoreSpi
         byte[] salt = new byte[config.getSaltLength()];
         secureRandom().nextBytes(salt);
         byte[] paramsTlv = Der.scryptParams(salt, config.getCostParameter(), config.getBlockSize(),
-                config.getBlockSize(), keyLength);
+                writtenParallelization(config), keyLength);
         byte[] fullTlv = Der.algorithmIdentifier(MiscObjectIdentifiers.id_scrypt.getId(), paramsTlv);
         return new Der.Reader(fullTlv).readAlgorithmIdentifier("scrypt-params");
     }
@@ -603,7 +637,7 @@ public class BcFKSKeyStoreSpi
         {
             BCFKSLoadStoreParameter.ScryptConfig config = (BCFKSLoadStoreParameter.ScryptConfig) storePBKDFConfig;
             validateScryptParams(config.getCostParameter(), config.getBlockSize(),
-                    config.getParallelizationParameter());
+                    writtenParallelization(config));
         }
     }
 
@@ -624,7 +658,7 @@ public class BcFKSKeyStoreSpi
         throws GeneralSecurityException, IOException
     {
         Der.AlgorithmIdentifier kdfAlgId = freshKdfAlgorithmIdentifier(ENTRY_KEY_BYTES);
-        byte[] key = deriveKey(kdfAlgId, purpose, password, ENTRY_KEY_BYTES);
+        byte[] key = deriveKey(kdfAlgId, purpose, password, ENTRY_KEY_BYTES, false);
         try
         {
             requireProvider("encrypt an entry");
@@ -1120,6 +1154,53 @@ public class BcFKSKeyStoreSpi
                 "ProtectionParameter must be PasswordProtection or CallbackHandlerProtection");
     }
 
+    /**
+     * {@code legacyKnown} is the MAC-settled convention, or {@code null} for
+     * a signature-checked store (no MAC) -- tries the encoded parameter
+     * first, retries under the legacy one, reports the FIRST failure.
+     */
+    private byte[] decryptStoreData(BcFKSFormat.EncryptedObjectStoreData enc, char[] password, Boolean legacyKnown)
+        throws IOException
+    {
+        if (legacyKnown != null)
+        {
+            return decrypt(enc.encryptionAlgorithm, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, password,
+                    enc.encryptedContent, legacyKnown.booleanValue());
+        }
+        try
+        {
+            return decrypt(enc.encryptionAlgorithm, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, password,
+                    enc.encryptedContent, false);
+        }
+        catch (IOException firstFailure)
+        {
+            boolean hasAlternative;
+            try
+            {
+                Der.Pbes2Params pbes2 = new Der.Reader(enc.encryptionAlgorithm.parameters)
+                        .readPbes2Params("PBES2-params");
+                hasAlternative = hasLegacyScryptAlternative(pbes2.keyDerivationFunc);
+            }
+            catch (IOException e)
+            {
+                throw firstFailure;
+            }
+            if (!hasAlternative)
+            {
+                throw firstFailure;
+            }
+            try
+            {
+                return decrypt(enc.encryptionAlgorithm, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, password,
+                        enc.encryptedContent, true);
+            }
+            catch (IOException retryFailure)
+            {
+                throw firstFailure;
+            }
+        }
+    }
+
     // ---- engineLoad ------------------------------------------------------
 
     @Override
@@ -1145,11 +1226,14 @@ public class BcFKSKeyStoreSpi
         {
             store = BcFKSFormat.parseObjectStore(whole);
 
+            // Which scrypt convention the MAC check settled; a signature-
+            // checked store has no MAC, so decryptStoreData retries itself.
+            boolean legacyScrypt = false;
             if (store.integrityCheck.pbkdMac != null)
             {
                 BcFKSFormat.PbkdMac pbkdMac = store.integrityCheck.pbkdMac;
                 byte[] macKey = deriveKey(pbkdMac.pbkdAlgorithm, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK,
-                        password, null);
+                        password, null, false);
                 byte[] actualMac;
                 try
                 {
@@ -1161,7 +1245,28 @@ public class BcFKSKeyStoreSpi
                 }
                 if (!MessageDigest.isEqual(actualMac, pbkdMac.mac))
                 {
-                    throw new IOException("BCFKS KeyStore corrupted: MAC calculation failed");
+                    // Releases up to 1.86 derived with the block size where
+                    // RFC 7914 has the parallelization parameter: retry that convention.
+                    if (!hasLegacyScryptAlternative(pbkdMac.pbkdAlgorithm))
+                    {
+                        throw new IOException("BCFKS KeyStore corrupted: MAC calculation failed");
+                    }
+                    byte[] legacyMacKey = deriveKey(pbkdMac.pbkdAlgorithm, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK,
+                            password, null, true);
+                    byte[] legacyActualMac;
+                    try
+                    {
+                        legacyActualMac = computeMac(pbkdMac.macAlgorithm, legacyMacKey, store.storeDataRaw);
+                    }
+                    finally
+                    {
+                        Arrays.clear(legacyMacKey);
+                    }
+                    if (!MessageDigest.isEqual(legacyActualMac, pbkdMac.mac))
+                    {
+                        throw new IOException("BCFKS KeyStore corrupted: MAC calculation failed");
+                    }
+                    legacyScrypt = true;
                 }
                 loadedPbkdAlgorithm = pbkdMac.pbkdAlgorithm;
             }
@@ -1175,8 +1280,8 @@ public class BcFKSKeyStoreSpi
             {
                 BcFKSFormat.EncryptedObjectStoreData enc =
                         BcFKSFormat.parseEncryptedObjectStoreData(store.storeDataRaw);
-                storeDataBytes = decrypt(enc.encryptionAlgorithm, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION,
-                        password, enc.encryptedContent);
+                storeDataBytes = decryptStoreData(enc, password,
+                        store.integrityCheck.pbkdMac != null ? Boolean.valueOf(legacyScrypt) : null);
             }
             else
             {
@@ -1283,10 +1388,14 @@ public class BcFKSKeyStoreSpi
             {
                 Der.ScryptParams params =
                         new Der.Reader(loadedPbkdAlgorithm.parameters).readScryptParams("scrypt-params");
+                // A store written with p equal to r carries the block size
+                // whatever p was configured -- accept either spelling of
+                // the same configuration.
                 similar = params.salt.length == scryptConfig.getSaltLength()
                         && params.costParameter == scryptConfig.getCostParameter()
                         && params.blockSize == scryptConfig.getBlockSize()
-                        && params.parallelizationParameter == scryptConfig.getParallelizationParameter();
+                        && (params.parallelizationParameter == scryptConfig.getParallelizationParameter()
+                                || params.parallelizationParameter == params.blockSize);
             }
         }
         else if (config instanceof BCFKSLoadStoreParameter.PBKDF2Config)
@@ -1389,7 +1498,8 @@ public class BcFKSKeyStoreSpi
     {
         BcFKSFormat.EncryptedPrivateKeyData encData = BcFKSFormat.parseEncryptedPrivateKeyData(entry.data);
         byte[] pkcs8 = decrypt(encData.encryptedPrivateKeyInfo.encryptionAlgorithm,
-                BytePasswordKdf.PURPOSE_PRIVATE_KEY_ENCRYPTION, password, encData.encryptedPrivateKeyInfo.encryptedData);
+                BytePasswordKdf.PURPOSE_PRIVATE_KEY_ENCRYPTION, password,
+                encData.encryptedPrivateKeyInfo.encryptedData, false);
         PrivateKey key;
         try
         {
@@ -1412,7 +1522,7 @@ public class BcFKSKeyStoreSpi
     {
         Der.EncryptedPrivateKeyInfo encData = BcFKSFormat.parseEncryptedSecretKeyData(entry.data);
         byte[] secretKeyDataBytes = decrypt(encData.encryptionAlgorithm,
-                BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION, password, encData.encryptedData);
+                BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION, password, encData.encryptedData, false);
         try
         {
             BcFKSFormat.SecretKeyData keyData = BcFKSFormat.parseSecretKeyData(secretKeyDataBytes);
@@ -1437,7 +1547,7 @@ public class BcFKSKeyStoreSpi
     {
         Der.EncryptedPrivateKeyInfo encData = BcFKSFormat.parseEncryptedSecretKeyData(entry.data);
         byte[] pbkdKeyDataBytes = decrypt(encData.encryptionAlgorithm,
-                BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION, password, encData.encryptedData);
+                BytePasswordKdf.PURPOSE_SECRET_KEY_ENCRYPTION, password, encData.encryptedData, false);
         try
         {
             BcFKSFormat.PbkdKeyData keyData = BcFKSFormat.parsePbkdKeyData(pbkdKeyDataBytes);
@@ -1936,7 +2046,8 @@ public class BcFKSKeyStoreSpi
             Der.AlgorithmIdentifier hmacAlgorithmId =
                     new Der.Reader(integrityAlgorithmTlv).readAlgorithmIdentifier("macAlgorithm");
             Der.AlgorithmIdentifier macPbkdAlgId = freshKdfAlgorithmIdentifier(MAC_KEY_BYTES);
-            byte[] macKey = deriveKey(macPbkdAlgId, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, password, MAC_KEY_BYTES);
+            byte[] macKey = deriveKey(macPbkdAlgId, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, password,
+                    MAC_KEY_BYTES, false);
             byte[] mac;
             try
             {

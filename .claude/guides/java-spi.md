@@ -568,6 +568,13 @@ produced with an `id-scrypt` KDF) and needs no write-side gate. `deriveKey`'s
 javadoc holds the KDF parameter conventions this format uses; they are not
 restated here or in `SERVICES.md`.
 
+**scrypt derives with the ENCODED parallelization parameter, never a fixed
+choice.** `org.openssl.jostle.bcfks.scrypt_p_eq_r` (default true) controls
+what a `ScryptConfig` write ENCODES — p equal to the block size, or the
+configured p — and a load whose MAC (or, for a signature-checked store, whose
+decryption) fails under the encoded parameter retries once under the legacy
+convention (p := block size), matching a BouncyCastle release up to 1.86.
+
 **One encryption helper serves three wire shapes.** `EncryptedObjectStoreData`,
 `EncryptedPrivateKeyInfo` and `EncryptedSecretKeyData` are all
 `SEQUENCE { AlgorithmIdentifier, OCTET STRING }` — `encryptEntry` builds that

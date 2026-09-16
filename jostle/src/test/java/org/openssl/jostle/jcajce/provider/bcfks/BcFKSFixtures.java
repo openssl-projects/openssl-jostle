@@ -159,6 +159,43 @@ final class BcFKSFixtures
             "QAAgFAMAwGCCqGSIb3DQILBQAEQBLCR5e4teCd8JX0xJbGadSCFaO1oEehyXSZrnKahsYJ7yTHqJTvlcWvqTiwn7Gud/SJmMXPQkZC" +
             "SQhMQ5k+xZ4=");
 
+    // bc-java 0bd9d2bae5 BCFKSStoreTest.java:85-93. Written by BC 1.86 with
+    // N=1024, r=8, p=1: up to that release the block size was passed where
+    // RFC 7914 has the parallelization parameter, so this only opens under
+    // that convention. Entry "seckey" = 000102030405060708090a0b0c0d0e0f,
+    // password "hello world".
+    static final byte[] LEGACY_SCRYPT_KEY_STORE = Base64.getDecoder().decode(
+        "MIICJjCCAZ0wXwYJKoZIhvcNAQUNMFIwMAYJKwYBBAHaRwQLMCMEFNNP1KhyD/fiwwQ45qBnNtX/ZSxWAgIEAAIBCAIBAQIBIDAeBglghkgBZQ" +
+            "MEAS8wEQQMYZ+qgQjkDkV6JIGWAgEIBIIBOIX2t8xGZ3QGc5RnRPITEAbmWBNdiPmM7YD6PzljGmwrs4/IdajHZtELUr4LI3Rps+oHVxo3V4" +
+            "+YwjLIw0iBKz3wiXO69iMoNuVAGLTFOYyr1s0lpY8R9pAcOLsKyeQgCtxg9CDr1mgNVynmR/MSOlJycsc3xSAAFhl5F8jc67oCLMmst4xx09" +
+            "4THIpk5F0PO+6/OVVI5X48E7Yv5oz8VkwwggDGO/KQrC1TQDReBbxdLyAcnZceGO71pNlAvRg5J7lKi4qO5FkTg4PJy32autRqZKJn+U5oYT" +
+            "wDj7zFPMHbKEVtvGzr5Zbh+e5X7OkOkcANyEygbyAvN1u/DQ8pwFhfqGajIWy2mZpSk3SJho5Uh/5WjVQ604dskyaEz7UCII5UNv06f3D5Ou" +
+            "jw5IJhGDfpO6Mu3ox0AjCBgjAMBggqhkiG9w0CCwUAMDAGCSsGAQQB2kcECzAjBBRT/v5SZ1Zk7uXdnBaiY0f4kdWWXAICBAACAQgCAQECAU" +
+            "AEQCIaST6IdxaX6n7Q5vciPd/huBfVuRyG8nLzDkPT2j412HR+AzuR46i/UjCVGSSHx7TyokAnMW8aZ84BgPi1FC0=");
+
+    // bc-java 0bd9d2bae5 BCFKSStoreTest.java:94-104. Same store as
+    // LEGACY_SCRYPT_KEY_STORE, integrity-checked with a SignatureCheck (no
+    // MAC to settle the legacy-vs-encoded convention, so the decrypt-level
+    // retry is what this exercises) -- verify with
+    // LEGACY_SCRYPT_SIGNED_KEY_STORE_PUB.
+    static final byte[] LEGACY_SCRYPT_SIGNED_KEY_STORE = Base64.getDecoder().decode(
+        "MIIDITCCAZswXwYJKoZIhvcNAQUNMFIwMAYJKwYBBAHaRwQLMCMEFF2Y5CpDqmcfBqTWCT7ipFo1BZemAgIEAAIBCAIBAQIBIDAeBglghkgBZQ" +
+            "MEAS8wEQQMFskoc+K4ETOddKRRAgEIBIIBNlLkf9fdsCGqpEw+nuwohy0W3iE9U2YyPTEud4uU/ZvIVbwoDQE3OZjA0Usdeo0rCcS0nHM4ud" +
+            "kq82qaYHfi9KLRMM4zkmX4yFs79QNeY10TxZETbawqu7u9/eThkB4Cg+Kl45E3JxiHVOM6qNy4blQcIVtlLKkLUrkcDzz3RmYR+1ZgA/0hZw" +
+            "SBE5QG9HBdhGT6T/qdkzNPfigpQb+oICl4XFFrTwEFAgRqbZrwXyRJS4D90g1j+3J7FR5CmOTnetIJ6Tp/PZWc0uwKa97vcXa7rxWnMTwwbX" +
+            "l2EmXd7UAM9pHSHz4na08cyj7F47Ywvj4mMFufq4GmWocsilGDPWdUDPoyamg6i7GED8A8ah2TEAYQ4SCe3QW8PeIeqLsCq2MqO/GgCeGFq3" +
+            "ivH8zesnMtRf69/xmgggF+MIIBejAKBggqhkjOPQQDBKCCASEwggEdMIIBGTCBv6ADAgECAgEBMAoGCCqGSM49BAMCMBUxEzARBgNVBAMMCk" +
+            "JDRktTIFRlc3QwIBcNMjAwOTEzMTIyNjQwWhgPMjA5OTEyMDMxNjUzMjBaMBUxEzARBgNVBAMMCkJDRktTIFRlc3QwWTATBgcqhkjOPQIBBg" +
+            "gqhkjOPQMBBwNCAAR9SCWqNcCFdFKDpZXRCHdRFNdN54fILw6wkQifg/XrgcJNTblD8k0itEmw/MZJwMa07w8dSyrsJkfI5ace92reMAoGCC" +
+            "qGSM49BAMCA0kAMEYCIQCH7YuUatuft9l24frXikqXJLB3Feoy23qgBx3gV0ZUCgIhAMzuUzGZJZoQzs4HPlUlS+oNSXsupvKvSRKyQbOe6d" +
+            "1HA0cAMEQCIFF/bAD27bd+S0jY9vagS8sqiy9zBHmsIPdsRI+Nsl5BAiBVyGGiWxZWZ5dKpDP80iuNtT6ISuxrI47iNN6hrnkv1w==");
+
+    // bc-java 0bd9d2bae5 BCFKSStoreTest.java:106-108. The EC verification key
+    // for LEGACY_SCRYPT_SIGNED_KEY_STORE's SignatureCheck.
+    static final byte[] LEGACY_SCRYPT_SIGNED_KEY_STORE_PUB = Base64.getDecoder().decode(
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfUglqjXAhXRSg6WV0Qh3URTXTeeHyC8OsJEIn4P164HCTU25Q/JNIrRJsPzGScDGtO8PHUsq7C" +
+            "ZHyOWnHvdq3g==");
+
     /**
      * A BCFKS store BouncyCastle 1.86 itself writes at test time, using
      * scrypt (r1rv86 BCFKSStoreTest.shouldStoreUsingSCRYPT's own config:

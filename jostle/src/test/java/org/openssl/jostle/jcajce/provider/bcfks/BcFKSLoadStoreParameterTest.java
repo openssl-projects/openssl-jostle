@@ -16,6 +16,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
+import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.asn1.Der;
 
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
@@ -23,10 +27,12 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.interfaces.PBEKey;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -203,6 +209,213 @@ public class BcFKSLoadStoreParameterTest
         bc.load(new ByteArrayInputStream(out.toByteArray()), pw);
         Assertions.assertEquals(1, bc.size());
         Assertions.assertArrayEquals(cert.getEncoded(), bc.getCertificate("cert").getEncoded());
+    }
+
+    // ---- Written parallelization parameter follows the property ---------
+    // BC-shape probe: BCFKSStoreTest.checkScryptParallelization, bc-java
+    // 0bd9d2bae5.
+
+    private static final byte[] SECKEY_BYTES = {
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+
+    /**
+     * REGRESSION: default and "true" write p equal to r (8, both a
+     * conformant reader and releases up to 1.86 derive with it); "false"
+     * writes the configured p (1). In every case the store's MAC has to
+     * derive under whichever parallelization parameter was actually
+     * encoded -- the wire value is what a reader must use, not a fixed
+     * choice.
+     */
+    @Test
+    public void writtenParallelizationFollowsProperty_regression() throws Exception
+    {
+        String propertyName = BcFKSKeyStoreSpi.SCRYPT_P_EQ_R_PROPERTY;
+        String old = System.getProperty(propertyName);
+        try
+        {
+            System.clearProperty(propertyName);
+            checkScryptParallelization("unset", 8);
+
+            System.setProperty(propertyName, "true");
+            checkScryptParallelization("true", 8);
+
+            System.setProperty(propertyName, "false");
+            checkScryptParallelization("false", 1);
+        }
+        finally
+        {
+            if (old == null)
+            {
+                System.clearProperty(propertyName);
+            }
+            else
+            {
+                System.setProperty(propertyName, old);
+            }
+        }
+    }
+
+    private void checkScryptParallelization(String label, int expectedP) throws Exception
+    {
+        BCFKSLoadStoreParameter.ScryptConfig config = new BCFKSLoadStoreParameter.ScryptConfig.Builder(1024, 8, 1)
+                .withSaltLength(20)
+                .build();
+        char[] pw = storePw("scrypt parallelization " + label);
+
+        KeyStore fresh = ours();
+        fresh.load(null, pw);
+        fresh.setKeyEntry("seckey", new SecretKeySpec(SECKEY_BYTES, "AES"), pw, null);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(new BCFKSLoadStoreParameter.Builder(out, pw).withStorePBKDFConfig(config).build());
+        byte[] enc = out.toByteArray();
+
+        BcFKSFormat.ObjectStore store = BcFKSFormat.parseObjectStore(enc);
+        BcFKSFormat.PbkdMac pbkdMac = store.integrityCheck.pbkdMac;
+        Der.ScryptParams params = new Der.Reader(pbkdMac.pbkdAlgorithm.parameters).readScryptParams("scrypt-params");
+
+        Assertions.assertEquals(expectedP, params.parallelizationParameter, "wrong parallelization parameter written");
+
+        byte[] content = store.storeDataRaw;
+        byte[] macUnderEncodedP = recalculateMac(pw, pbkdMac.macAlgorithm, content, params, params.parallelizationParameter);
+        Assertions.assertTrue(Arrays.areEqual(pbkdMac.mac, macUnderEncodedP),
+                "store not derived with the encoded parallelization parameter");
+
+        boolean legacyOpens = Arrays.areEqual(pbkdMac.mac,
+                recalculateMac(pw, pbkdMac.macAlgorithm, content, params, params.blockSize));
+        Assertions.assertEquals(expectedP == params.blockSize, legacyOpens,
+                "the up-to-1.86 convention agreement disagrees with p == r");
+
+        KeyStore reloaded = ours();
+        reloaded.load(new ByteArrayInputStream(enc), pw);
+        SecretKey seckey = (SecretKey) reloaded.getKey("seckey", pw);
+        Assertions.assertArrayEquals(SECKEY_BYTES, seckey.getEncoded());
+    }
+
+    /** Mirrors BC's own recalculateMac (BCFKSStoreTest, bc-java 0bd9d2bae5): Jostle's own scrypt, not BC's. */
+    private static byte[] recalculateMac(char[] password, Der.AlgorithmIdentifier macAlgorithm, byte[] content,
+                                          Der.ScryptParams params, int p) throws Exception
+    {
+        byte[] pin = BytePasswordKdf.derivationPassword(password, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK);
+        byte[] key = new byte[params.keyLength.intValue()];
+        try
+        {
+            BytePasswordKdf.scrypt(NISelector.MemoryHardKdfNI, pin, params.salt,
+                    (int) params.costParameter, params.blockSize, p, key, 0, key.length);
+            Mac mac = Mac.getInstance(macAlgorithm.oid, JostleProvider.PROVIDER_NAME);
+            mac.init(new SecretKeySpec(key, macAlgorithm.oid));
+            return mac.doFinal(content);
+        }
+        finally
+        {
+            Arrays.clear(key);
+            Arrays.clear(pin);
+        }
+    }
+
+    /**
+     * REGRESSION, BOTH directions, probe-then-assert-both. BC 1.86 (the
+     * Gradle cache jar) loads a store written under the default (encoded p
+     * equal to r) and answers its entry; BC 1.86 FAILS a store written with
+     * the configured p (property "false", encoded p != r) with an
+     * IOException, because BC 1.86 always derives with the block size in
+     * the parallelization parameter's place. Pins that the default keeps
+     * interop with the installed base.
+     */
+    @Test
+    public void bc186ReadsDefaultWrittenScryptStoreAndRefusesConfiguredP_regression() throws Exception
+    {
+        String propertyName = BcFKSKeyStoreSpi.SCRYPT_P_EQ_R_PROPERTY;
+        String old = System.getProperty(propertyName);
+        try
+        {
+            System.clearProperty(propertyName);
+            byte[] defaultWritten = writeScryptStore();
+
+            KeyStore bcOnDefault = bc();
+            bcOnDefault.load(new ByteArrayInputStream(defaultWritten), BcFKSKeyStoreSpiTest.testPassword);
+            SecretKey seckey = (SecretKey) bcOnDefault.getKey("seckey", BcFKSKeyStoreSpiTest.testPassword);
+            Assertions.assertArrayEquals(
+                    new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, seckey.getEncoded());
+
+            System.setProperty(propertyName, "false");
+            byte[] configuredPWritten = writeScryptStore();
+
+            KeyStore bcOnConfiguredP = bc();
+            Assertions.assertThrows(IOException.class, () -> bcOnConfiguredP.load(
+                    new ByteArrayInputStream(configuredPWritten), BcFKSKeyStoreSpiTest.testPassword));
+        }
+        finally
+        {
+            if (old == null)
+            {
+                System.clearProperty(propertyName);
+            }
+            else
+            {
+                System.setProperty(propertyName, old);
+            }
+        }
+    }
+
+    private static byte[] writeScryptStore() throws Exception
+    {
+        BCFKSLoadStoreParameter.ScryptConfig config = new BCFKSLoadStoreParameter.ScryptConfig.Builder(1024, 8, 1)
+                .withSaltLength(20)
+                .build();
+        KeyStore fresh = ours();
+        fresh.load(null, BcFKSKeyStoreSpiTest.testPassword);
+        fresh.setKeyEntry("seckey",
+                new SecretKeySpec(new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, "AES"),
+                BcFKSKeyStoreSpiTest.testPassword, null);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(new BCFKSLoadStoreParameter.Builder(out, BcFKSKeyStoreSpiTest.testPassword)
+                .withStorePBKDFConfig(config)
+                .build());
+        return out.toByteArray();
+    }
+
+    /**
+     * REGRESSION: a store written with ScryptConfig(1024, 8, 1) under the
+     * default property (encoded p equal to r) loads with that SAME config
+     * (parity with BC, not a divergence); a config that differs in N is
+     * still refused, unchanged.
+     */
+    @Test
+    public void loadWithSameScryptConfigSucceeds_regression() throws Exception
+    {
+        String propertyName = BcFKSKeyStoreSpi.SCRYPT_P_EQ_R_PROPERTY;
+        String old = System.getProperty(propertyName);
+        try
+        {
+            System.clearProperty(propertyName);
+            byte[] enc = writeScryptStore();
+
+            BCFKSLoadStoreParameter.ScryptConfig writingConfig =
+                    new BCFKSLoadStoreParameter.ScryptConfig.Builder(1024, 8, 1).withSaltLength(20).build();
+            KeyStore matchLoad = ours();
+            matchLoad.load(new BCFKSLoadStoreParameter.Builder(new ByteArrayInputStream(enc),
+                    BcFKSKeyStoreSpiTest.testPassword).withStorePBKDFConfig(writingConfig).build());
+            Assertions.assertEquals(1, matchLoad.size());
+
+            BCFKSLoadStoreParameter.ScryptConfig mismatchedN =
+                    new BCFKSLoadStoreParameter.ScryptConfig.Builder(2048, 8, 1).withSaltLength(20).build();
+            KeyStore mismatchLoad = ours();
+            IOException e = Assertions.assertThrows(IOException.class,
+                    () -> mismatchLoad.load(new BCFKSLoadStoreParameter.Builder(new ByteArrayInputStream(enc),
+                            BcFKSKeyStoreSpiTest.testPassword).withStorePBKDFConfig(mismatchedN).build()));
+            Assertions.assertTrue(e.getMessage().contains("do not match"), e.getMessage());
+        }
+        finally
+        {
+            if (old == null)
+            {
+                System.clearProperty(propertyName);
+            }
+            else
+            {
+                System.setProperty(propertyName, old);
+            }
+        }
     }
 
     // ---- Signature-based integrity (SignatureCheck) ---------------------

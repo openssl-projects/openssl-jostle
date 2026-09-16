@@ -14,25 +14,32 @@ package org.openssl.jostle.jcajce.provider.bcfks;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.Der;
 
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.PrivateKey;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Enumeration;
 
 /**
@@ -236,6 +243,39 @@ public class BcFKSKeyStoreSpiTest
         Assertions.assertNotNull(store.getCertificate("cert"));
     }
 
+    /**
+     * REGRESSION: a store BouncyCastle 1.86 wrote with N=1024 r=8 p=1 --
+     * releases up to 1.86 derived with the block size where RFC 7914 has the
+     * parallelization parameter, so this only opens under that convention.
+     */
+    @Test
+    public void legacyScryptMacStoreLoads_regression() throws Exception
+    {
+        KeyStore store = load(BcFKSFixtures.LEGACY_SCRYPT_KEY_STORE, testPassword);
+        SecretKey seckey = (SecretKey) store.getKey("seckey", testPassword);
+        Assertions.assertArrayEquals(hex("000102030405060708090a0b0c0d0e0f"), seckey.getEncoded());
+    }
+
+    /**
+     * REGRESSION: same store as {@link #legacyScryptMacStoreLoads_regression},
+     * signature-checked instead of MAC-checked -- a signature-checked store
+     * has no MAC to settle the convention, so this exercises the retry at
+     * store DECRYPTION (decryptStoreData) instead.
+     */
+    @Test
+    public void legacyScryptSignedStoreLoads_regression() throws Exception
+    {
+        PublicKey verificationKey = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME)
+                .generatePublic(new X509EncodedKeySpec(BcFKSFixtures.LEGACY_SCRYPT_SIGNED_KEY_STORE_PUB));
+
+        KeyStore store = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+        store.load(new BCFKSLoadStoreParameter.Builder(
+                new ByteArrayInputStream(BcFKSFixtures.LEGACY_SCRYPT_SIGNED_KEY_STORE), verificationKey).build());
+
+        SecretKey seckey = (SecretKey) store.getKey("seckey", testPassword);
+        Assertions.assertArrayEquals(hex("000102030405060708090a0b0c0d0e0f"), seckey.getEncoded());
+    }
+
     private static byte[] hex(String s)
     {
         int len = s.length();
@@ -246,6 +286,118 @@ public class BcFKSKeyStoreSpiTest
                     + Character.digit(s.charAt(i + 1), 16));
         }
         return out;
+    }
+
+    private static int indexOfSubarray(byte[] haystack, byte[] needle)
+    {
+        outer:
+        for (int i = 0; i <= haystack.length - needle.length; i++)
+        {
+            for (int j = 0; j < needle.length; j++)
+            {
+                if (haystack[i + j] != needle[j])
+                {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
+    }
+
+    /**
+     * REGRESSION: our own conformant writer's store (p=1, r=8 -- derived AND
+     * encoded with p=1) loads on a fresh JSL KeyStore through the plain
+     * char[]-password engineLoad. Proves the encoded-p path is PRIMARY,
+     * not a coincidental retry match: the legacy-convention MAC (p := r)
+     * does NOT agree with the stored one, so only the encoded-p attempt
+     * could have verified. A store whose MAC matches under NEITHER
+     * convention still fails with the existing message.
+     */
+    @Test
+    public void conformantWriterStoreLoadsWithoutRetry_regression() throws Exception
+    {
+        String propertyName = BcFKSKeyStoreSpi.SCRYPT_P_EQ_R_PROPERTY;
+        String old = System.getProperty(propertyName);
+        try
+        {
+            System.setProperty(propertyName, "false");
+            BCFKSLoadStoreParameter.ScryptConfig config =
+                    new BCFKSLoadStoreParameter.ScryptConfig.Builder(1024, 8, 1).withSaltLength(20).build();
+            byte[] seckeyBytes = hex("000102030405060708090a0b0c0d0e0f");
+
+            KeyStore fresh = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+            fresh.load(null, testPassword);
+            fresh.setKeyEntry("seckey", new SecretKeySpec(seckeyBytes, "AES"), testPassword, null);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            fresh.store(new BCFKSLoadStoreParameter.Builder(out, testPassword)
+                    .withStorePBKDFConfig(config)
+                    .build());
+            byte[] enc = out.toByteArray();
+
+            KeyStore reloaded = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+            reloaded.load(new ByteArrayInputStream(enc), testPassword);
+            SecretKey seckey = (SecretKey) reloaded.getKey("seckey", testPassword);
+            Assertions.assertArrayEquals(seckeyBytes, seckey.getEncoded());
+
+            BcFKSFormat.ObjectStore store = BcFKSFormat.parseObjectStore(enc);
+            BcFKSFormat.PbkdMac pbkdMac = store.integrityCheck.pbkdMac;
+            Der.ScryptParams params = new Der.Reader(pbkdMac.pbkdAlgorithm.parameters).readScryptParams("scrypt-params");
+            Assertions.assertEquals(1, params.parallelizationParameter);
+            Assertions.assertEquals(8, params.blockSize);
+
+            byte[] pin = BytePasswordKdf.derivationPassword(testPassword, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK);
+            byte[] encodedKey = new byte[params.keyLength.intValue()];
+            byte[] legacyKey = new byte[params.keyLength.intValue()];
+            try
+            {
+                BytePasswordKdf.scrypt(NISelector.MemoryHardKdfNI, pin, params.salt,
+                        (int) params.costParameter, params.blockSize, params.parallelizationParameter,
+                        encodedKey, 0, encodedKey.length);
+                BytePasswordKdf.scrypt(NISelector.MemoryHardKdfNI, pin, params.salt,
+                        (int) params.costParameter, params.blockSize, params.blockSize,
+                        legacyKey, 0, legacyKey.length);
+
+                Mac encodedMac = Mac.getInstance(pbkdMac.macAlgorithm.oid, JostleProvider.PROVIDER_NAME);
+                encodedMac.init(new SecretKeySpec(encodedKey, pbkdMac.macAlgorithm.oid));
+                byte[] macUnderEncodedP = encodedMac.doFinal(store.storeDataRaw);
+                Assertions.assertArrayEquals(pbkdMac.mac, macUnderEncodedP);
+
+                Mac legacyMac = Mac.getInstance(pbkdMac.macAlgorithm.oid, JostleProvider.PROVIDER_NAME);
+                legacyMac.init(new SecretKeySpec(legacyKey, pbkdMac.macAlgorithm.oid));
+                byte[] macUnderLegacyP = legacyMac.doFinal(store.storeDataRaw);
+                Assertions.assertFalse(Arrays.areEqual(pbkdMac.mac, macUnderLegacyP),
+                        "legacy-convention MAC must not coincidentally match, or this store would not isolate "
+                                + "the encoded-p path");
+            }
+            finally
+            {
+                Arrays.clear(pin);
+                Arrays.clear(encodedKey);
+                Arrays.clear(legacyKey);
+            }
+
+            // Corrupt the actual MAC bytes: fails under NEITHER convention.
+            int macOffset = indexOfSubarray(enc, pbkdMac.mac);
+            Assertions.assertTrue(macOffset >= 0, "could not locate the MAC bytes in the encoded store");
+            byte[] corrupted = enc.clone();
+            corrupted[macOffset] ^= 1;
+            KeyStore corruptedLoad = KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+            IOException e = Assertions.assertThrows(IOException.class,
+                    () -> corruptedLoad.load(new ByteArrayInputStream(corrupted), testPassword));
+            Assertions.assertEquals("BCFKS KeyStore corrupted: MAC calculation failed", e.getMessage());
+        }
+        finally
+        {
+            if (old == null)
+            {
+                System.clearProperty(propertyName);
+            }
+            else
+            {
+                System.setProperty(propertyName, old);
+            }
+        }
     }
 
     // ---- Entry-type classification ------------------------------------------
@@ -307,7 +459,7 @@ public class BcFKSKeyStoreSpiTest
         // SECRET_KEY_ENCRYPTION, applied when the caller passes a default.
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
         Der.AlgorithmIdentifier pbkd = pbkdf2AlgId(new byte[16], 1000, null);
-        byte[] key = spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, "x".toCharArray(), 32);
+        byte[] key = spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, "x".toCharArray(), 32, false);
         Assertions.assertEquals(32, key.length);
     }
 
@@ -319,7 +471,7 @@ public class BcFKSKeyStoreSpiTest
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
         Der.AlgorithmIdentifier pbkd = pbkdf2AlgId(new byte[16], 1000, null);
         IOException e = Assertions.assertThrows(IOException.class,
-                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
         Assertions.assertTrue(e.getMessage().contains("no keyLength found"), e.getMessage());
     }
 
@@ -330,7 +482,7 @@ public class BcFKSKeyStoreSpiTest
         Der.AlgorithmIdentifier pbkd = pbkdf2AlgId(new byte[16],
                 (int) (BcFKSKeyStoreSpi.DEFAULT_MAX_IT_COUNT + 1), 32);
         IOException e = Assertions.assertThrows(IOException.class,
-                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
         Assertions.assertTrue(e.getMessage().contains("greater than"), e.getMessage());
     }
 
@@ -345,7 +497,7 @@ public class BcFKSKeyStoreSpiTest
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
         Der.AlgorithmIdentifier pbkd = pbkdf2AlgId(new byte[16], 1000, 0);
         IOException e = Assertions.assertThrows(IOException.class,
-                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
         Assertions.assertTrue(e.getMessage().contains("invalid keyLength"), e.getMessage());
     }
 
@@ -355,7 +507,7 @@ public class BcFKSKeyStoreSpiTest
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
         Der.AlgorithmIdentifier pbkd = pbkdf2AlgId(new byte[16], 1000, 1025);
         IOException e = Assertions.assertThrows(IOException.class,
-                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                () -> spi.deriveKey(pbkd, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
         Assertions.assertTrue(e.getMessage().contains("greater than"), e.getMessage());
     }
 
@@ -365,7 +517,7 @@ public class BcFKSKeyStoreSpiTest
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
         Der.AlgorithmIdentifier scrypt = scryptAlgId(16384, 1025, 1, 32);
         IOException e = Assertions.assertThrows(IOException.class,
-                () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
         Assertions.assertTrue(e.getMessage().contains("greater than"), e.getMessage());
     }
 
@@ -381,8 +533,35 @@ public class BcFKSKeyStoreSpiTest
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
         Der.AlgorithmIdentifier scrypt = scryptAlgId(1 << 30, 8, 1, 32);
         IOException e = Assertions.assertThrows(IOException.class,
-                () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
         Assertions.assertTrue(e.getMessage().contains("require more than"), e.getMessage());
+    }
+
+    /**
+     * REGRESSION: the parallelization parameter is bounded like N -- a cost
+     * parameter well within the memory cap, paired with a parallelization
+     * parameter alone large enough to exceed it, is refused before any
+     * derivation runs (same shape as {@link
+     * #scryptMemoryBoundIsRefusedBeforeAnyDerivation_regression}).
+     */
+    @Test
+    public void scryptParallelizationBoundRefusedBeforeDerivation_regression() throws Exception
+    {
+        BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(null);
+        Der.AlgorithmIdentifier scrypt = scryptAlgId(2, 8, 1 << 24, 32);
+        IOException e = Assertions.assertThrows(IOException.class,
+                () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
+        Assertions.assertTrue(e.getMessage().contains("require more than"), e.getMessage());
+    }
+
+    /** REGRESSION: r == p carries no legacy alternative; a genuine mismatch does. */
+    @Test
+    public void hasLegacyScryptAlternative_regression() throws Exception
+    {
+        Assertions.assertFalse(BcFKSKeyStoreSpi.hasLegacyScryptAlternative(scryptAlgId(1024, 8, 8, 32)));
+        Assertions.assertTrue(BcFKSKeyStoreSpi.hasLegacyScryptAlternative(scryptAlgId(1024, 8, 1, 32)));
+        // A non-scrypt KDF has no legacy alternative either.
+        Assertions.assertFalse(BcFKSKeyStoreSpi.hasLegacyScryptAlternative(pbkdf2AlgId(new byte[16], 1000, 32)));
     }
 
     @Test
@@ -393,7 +572,7 @@ public class BcFKSKeyStoreSpiTest
                 scryptAlgId(0, 8, 1, 32), scryptAlgId(1024, 0, 1, 32), scryptAlgId(1024, 8, 0, 32)})
         {
             IOException e = Assertions.assertThrows(IOException.class,
-                    () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null));
+                    () -> spi.deriveKey(scrypt, BytePasswordKdf.PURPOSE_INTEGRITY_CHECK, "x".toCharArray(), null, false));
             Assertions.assertTrue(e.getMessage().contains("invalid scrypt parameters"), e.getMessage());
         }
     }
