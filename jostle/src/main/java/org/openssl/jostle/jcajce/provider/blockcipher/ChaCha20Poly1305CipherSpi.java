@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 
 import javax.crypto.spec.GCMParameterSpec;
 import java.security.InvalidAlgorithmParameterException;
@@ -27,12 +28,12 @@ import java.security.spec.AlgorithmParameterSpec;
  * incrementally with no buffering, reusing the same GCM tag-buffer, AAD, and
  * encrypt-nonce-reuse machinery. 256-bit key, 96-bit nonce, 128-bit tag.
  *
- * <p>Accepts {@link GCMParameterSpec}, BouncyCastle's {@code AEADParameterSpec}
- * (via {@link AEADParameterSpecAccessor}), and plain {@code IvParameterSpec}
- * (12-byte nonce, tag defaulted to 128 bits). RFC 8439 fixes the tag at 128
- * bits, so this SPI rejects any other tag length at the JCE boundary with
- * {@link InvalidAlgorithmParameterException} — the native layer would otherwise
- * surface a non-JCE {@link IllegalArgumentException} for it.
+ * <p>Accepts {@link GCMParameterSpec}, {@link AEADParameterSpec}, and plain
+ * {@code IvParameterSpec} (12-byte nonce, tag defaulted to 128 bits). RFC 8439
+ * fixes the tag at 128 bits, so this SPI rejects any other tag length at the
+ * JCE boundary with {@link InvalidAlgorithmParameterException} — the native
+ * layer would otherwise surface a non-JCE {@link IllegalArgumentException}
+ * for it.
  */
 public class ChaCha20Poly1305CipherSpi extends BlockCipherSpi
 {
@@ -64,8 +65,8 @@ public class ChaCha20Poly1305CipherSpi extends BlockCipherSpi
 
     /**
      * Enforce RFC 8439's fixed 128-bit tag at the JCE boundary for any spec that
-     * carries an explicit tag length — {@link GCMParameterSpec} or BouncyCastle's
-     * {@code AEADParameterSpec}. {@code IvParameterSpec} / {@code null} carry no
+     * carries an explicit tag length — {@link GCMParameterSpec} or
+     * {@link AEADParameterSpec}. {@code IvParameterSpec} / {@code null} carry no
      * tag length and default to 128 bits in the base SPI, so they need no check.
      */
     private static void requireTag128(AlgorithmParameterSpec params) throws InvalidAlgorithmParameterException
@@ -75,9 +76,9 @@ public class ChaCha20Poly1305CipherSpi extends BlockCipherSpi
         {
             tagBits = ((GCMParameterSpec) params).getTLen();
         }
-        else if (params != null && AEADParameterSpecAccessor.matches(params))
+        else if (params instanceof AEADParameterSpec)
         {
-            tagBits = AEADParameterSpecAccessor.extract(params).getMacSizeInBits();
+            tagBits = ((AEADParameterSpec) params).getMacSizeInBits();
         }
         if (tagBits != -1 && tagBits != 128)
         {

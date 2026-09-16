@@ -166,9 +166,23 @@ public class ChaCha20Poly1305AgreementTest
     }
 
     /**
-     * Agreement via BouncyCastle's own AEADParameterSpec (nonce + 128-bit tag +
-     * associated data), resolved on the Jostle side through the reflective
-     * AEADParameterSpecAccessor.
+     * Provider-appropriate AEADParameterSpec, built fresh for each provider
+     * from the same content — BC and Jostle now each accept only their own
+     * type directly, so one object can no longer drive both.
+     */
+    private static javax.crypto.spec.IvParameterSpec aeadSpec(String provider, byte[] nonce, int tagBits, byte[] aad)
+    {
+        if (BC.equals(provider))
+        {
+            return new org.bouncycastle.jcajce.spec.AEADParameterSpec(nonce, tagBits, aad);
+        }
+        return new org.openssl.jostle.jcajce.spec.AEADParameterSpec(nonce, tagBits, aad);
+    }
+
+    /**
+     * Agreement via AEADParameterSpec (nonce + 128-bit tag + associated data),
+     * BC's own spec on BC's cipher and ours on Jostle's, built from the same
+     * content.
      */
     @Test
     public void agreesWithBC_bcAeadParameterSpec() throws Exception
@@ -184,22 +198,20 @@ public class ChaCha20Poly1305AgreementTest
             sr.nextBytes(aad);
             byte[] msg = new byte[sr.nextInt(120)];
             sr.nextBytes(msg);
-            // AAD carried by the spec itself (no separate updateAAD).
-            org.bouncycastle.jcajce.spec.AEADParameterSpec spec =
-                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(nonce, 128, aad);
 
             Cipher bcEnc = Cipher.getInstance(XFORM, BC);
-            bcEnc.init(Cipher.ENCRYPT_MODE, key, spec);
+            // AAD carried by the spec itself (no separate updateAAD).
+            bcEnc.init(Cipher.ENCRYPT_MODE, key, aeadSpec(BC, nonce, 128, aad));
             byte[] bcCt = bcEnc.doFinal(msg);
 
             Cipher jslEnc = Cipher.getInstance(XFORM, JSL);
-            jslEnc.init(Cipher.ENCRYPT_MODE, key, spec);
+            jslEnc.init(Cipher.ENCRYPT_MODE, key, aeadSpec(JSL, nonce, 128, aad));
             byte[] jslCt = jslEnc.doFinal(msg);
 
             Assertions.assertArrayEquals(bcCt, jslCt, "trial " + trial);
 
             Cipher jslDec = Cipher.getInstance(XFORM, JSL);
-            jslDec.init(Cipher.DECRYPT_MODE, key, spec);
+            jslDec.init(Cipher.DECRYPT_MODE, key, aeadSpec(JSL, nonce, 128, aad));
             Assertions.assertArrayEquals(msg, jslDec.doFinal(bcCt));
         }
     }

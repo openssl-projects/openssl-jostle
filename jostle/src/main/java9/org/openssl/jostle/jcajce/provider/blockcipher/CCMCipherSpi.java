@@ -17,6 +17,7 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.io.ExposedByteArrayOutputStream;
 
@@ -299,28 +300,33 @@ public class CCMCipherSpi extends CipherSpi
         }
         int tagBits;
         byte[] nonce;
-        // Associated data carried by a BC AEADParameterSpec, buffered after init
+        // Associated data carried by an AEADParameterSpec, buffered after init
         // (see end of method). Null for the other spec types.
         byte[] aeadAssociatedData = null;
-        if (params instanceof GCMParameterSpec)
+        if (params instanceof AEADParameterSpec)
+        {
+            AEADParameterSpec spec = (AEADParameterSpec) params;
+            tagBits = spec.getMacSizeInBits();
+            nonce = spec.getNonce();
+            aeadAssociatedData = spec.getAssociatedData();
+        }
+        else if (params instanceof GCMParameterSpec)
         {
             GCMParameterSpec spec = (GCMParameterSpec) params;
             tagBits = spec.getTLen();
             nonce = spec.getIV();
         }
-        else if (AEADParameterSpecAccessor.matches(params))
-        {
-            // BC's AEADParameterSpec extends IvParameterSpec; unwrap it BEFORE the
-            // IvParameterSpec branch so its tag length and associated data are
-            // honoured rather than silently dropped (the dropped-AAD case yields
-            // a wrong-but-valid-looking tag and a bad-tag on decrypt).
-            AEADParameterSpecAccessor acc = AEADParameterSpecAccessor.extract(params);
-            tagBits = acc.getMacSizeInBits();
-            nonce = acc.getIV();
-            aeadAssociatedData = acc.getAssociatedData();
-        }
         else if (params instanceof IvParameterSpec)
         {
+            if (params.getClass() != IvParameterSpec.class)
+            {
+                // A subclass may carry a tag length or associated data this
+                // branch would silently drop, producing a valid-looking wrong
+                // tag and a bad-tag on decrypt.
+                throw new InvalidAlgorithmParameterException(
+                        "IvParameterSpec subclasses are not supported in AEAD modes; use "
+                                + "org.openssl.jostle.jcajce.spec.AEADParameterSpec");
+            }
             // IvParameterSpec carries only the nonce; default the tag to
             // CCM_DEFAULT_TAG_BITS (64) to match BouncyCastle's CCM
             // IV-only default.

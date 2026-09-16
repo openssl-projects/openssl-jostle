@@ -16,6 +16,7 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -533,7 +534,7 @@ class BlockCipherSpi extends CipherSpi
             ensureNativeReference();
             final byte[] iv;
             final int tag;
-            // Associated data carried by a BC AEADParameterSpec, fed to the
+            // Associated data carried by an AEADParameterSpec, fed to the
             // native layer after a successful init (see below). Null otherwise.
             byte[] aeadAssociatedData = null;
             // The native layer only knows ENCRYPT/DECRYPT. WRAP/UNWRAP (used for
@@ -564,37 +565,20 @@ class BlockCipherSpi extends CipherSpi
                     tag = 0;
                 }
             }
-            else if (isAeadMode() && AEADParameterSpecAccessor.matches(params))
+            else if (params instanceof AEADParameterSpec)
             {
-                // BC's AEADParameterSpec extends IvParameterSpec; unwrap it here,
-                // BEFORE the IvParameterSpec branch, so its tag length and
-                // associated data are honoured rather than silently dropped (the
-                // dropped-AAD case produces a wrong-but-valid-looking tag).
-                AEADParameterSpecAccessor acc = AEADParameterSpecAccessor.extract(params);
-                int tLen = acc.getMacSizeInBits();
-                if (tLen < 32 || tLen > 128 || (tLen & 7) != 0)
+                if (!isAeadMode())
                 {
+                    // AEAD spec on a non-AEAD mode: it cannot be honoured, and
+                    // letting it fall into the IvParameterSpec branch would
+                    // silently drop its tag length and associated data.
                     throw new InvalidAlgorithmParameterException(
-                            "AEAD tag length must be 32 to 128 bits and a multiple of 8");
+                            "AEAD parameter spec cannot be used with non-AEAD mode " + osslMode);
                 }
-                iv = acc.getIV();
-                tag = tLen / 8;
-                aeadAssociatedData = acc.getAssociatedData();
-            }
-            else if (AEADParameterSpecAccessor.matches(params))
-            {
-                // AEAD-shaped spec on a non-AEAD mode: it cannot be honoured,
-                // and letting it fall into the IvParameterSpec branch would
-                // silently drop its tag length and associated data — exactly
-                // the failure mode the accessor exists to prevent. BC rejects
-                // this combination too.
-                throw new InvalidAlgorithmParameterException(
-                        "AEAD parameter spec cannot be used with non-AEAD mode " + osslMode);
-            }
-            else if (params instanceof IvParameterSpec)
-            {
-                iv = ((IvParameterSpec) params).getIV();
-                tag = isAeadMode() ? 16 : 0;
+                AEADParameterSpec spec = (AEADParameterSpec) params;
+                iv = spec.getNonce();
+                tag = spec.getMacSizeInBits() / 8;
+                aeadAssociatedData = spec.getAssociatedData();
             }
             else if (params instanceof GCMParameterSpec)
             {
@@ -610,6 +594,20 @@ class BlockCipherSpi extends CipherSpi
                 }
                 iv = ((GCMParameterSpec) params).getIV();
                 tag = tLen / 8;
+            }
+            else if (params instanceof IvParameterSpec)
+            {
+                if (isAeadMode() && params.getClass() != IvParameterSpec.class)
+                {
+                    // A subclass may carry a tag length or associated data this
+                    // branch would silently drop, producing a valid-looking
+                    // wrong tag. Non-AEAD modes have no such fields to drop.
+                    throw new InvalidAlgorithmParameterException(
+                            "IvParameterSpec subclasses are not supported in AEAD modes; use "
+                                    + "org.openssl.jostle.jcajce.spec.AEADParameterSpec");
+                }
+                iv = ((IvParameterSpec) params).getIV();
+                tag = isAeadMode() ? 16 : 0;
             }
             else
             {

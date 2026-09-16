@@ -861,10 +861,9 @@ public class AESParametersTest
     }
 
     /**
-     * An AEAD-shaped spec (BC's {@code AEADParameterSpec}) on a NON-AEAD mode
-     * must be rejected — silently falling into the IvParameterSpec branch would
-     * drop its tag length and AAD, the exact failure mode the reflective
-     * accessor exists to prevent. BC rejects this combination too.
+     * An AEAD-shaped spec ({@code AEADParameterSpec}) on a NON-AEAD mode must
+     * be rejected — silently falling into the IvParameterSpec branch would
+     * drop its tag length and AAD. BC rejects this combination too.
      */
     @Test
     public void aeadSpecRejectedOnNonAeadMode() throws Exception
@@ -880,7 +879,7 @@ public class AESParametersTest
         try
         {
             cbc.init(Cipher.ENCRYPT_MODE, key,
-                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, aad), random);
+                    new org.openssl.jostle.jcajce.spec.AEADParameterSpec(iv, 128, aad), random);
             Assertions.fail("AEADParameterSpec on AES/CBC must be rejected");
         }
         catch (InvalidAlgorithmParameterException expected)

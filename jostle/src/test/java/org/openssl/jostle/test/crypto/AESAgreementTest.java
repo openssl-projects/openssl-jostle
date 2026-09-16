@@ -2449,6 +2449,20 @@ public class AESAgreementTest
     }
 
     /**
+     * Provider-appropriate AEADParameterSpec, built fresh for each provider
+     * from the same content — BC and Jostle now each accept only their own
+     * type directly, so one object can no longer drive both.
+     */
+    private static IvParameterSpec aeadSpec(String provider, byte[] iv, int tagBits, byte[] aad)
+    {
+        if (BouncyCastleProvider.PROVIDER_NAME.equals(provider))
+        {
+            return new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
+        }
+        return new org.openssl.jostle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
+    }
+
+    /**
      * BouncyCastle's {@code AEADParameterSpec} carries the AAD inside the spec
      * (not via {@code updateAAD}). Since it extends {@code IvParameterSpec}, the
      * SPI used to swallow it through the IvParameterSpec branch and silently drop
@@ -2484,22 +2498,19 @@ public class AESAgreementTest
                 sr.nextBytes(msg);
                 SecretKey secretKey = new SecretKeySpec(key, "AES");
 
-                org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
-                        new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, aad);
-
                 Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
-                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(BouncyCastleProvider.PROVIDER_NAME, iv, 128, aad));
                 byte[] bcCT = bcEnc.doFinal(msg);
 
                 Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, iv, 128, aad));
                 byte[] joCT = joEnc.doFinal(msg);
 
                 Assertions.assertArrayEquals(bcCT, joCT,
                         xform + " trial=" + trial + ": AEADParameterSpec AAD not honoured (diverged from BC)");
 
                 Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, iv, 128, aad));
                 Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
                         xform + " trial=" + trial + ": AEADParameterSpec roundtrip failed");
 
@@ -2546,23 +2557,20 @@ public class AESAgreementTest
                 sr.nextBytes(msg);
                 SecretKey secretKey = new SecretKeySpec(key, "AES");
 
-                org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
-                        new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
-
                 Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, iv, tagBits, aad));
                 byte[] joCT = joEnc.doFinal(msg);
 
                 Assertions.assertEquals(msg.length + tagBits / 8, joCT.length,
                         xform + " tagBits=" + tagBits + ": ciphertext length shows the tag length was not honoured");
 
                 Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
-                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+                bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(BouncyCastleProvider.PROVIDER_NAME, iv, tagBits, aad));
                 Assertions.assertArrayEquals(bcEnc.doFinal(msg), joCT,
                         xform + " tagBits=" + tagBits + ": diverged from BC");
 
                 Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+                joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, iv, tagBits, aad));
                 Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
                         xform + " tagBits=" + tagBits + ": roundtrip failed");
             }
@@ -2593,16 +2601,13 @@ public class AESAgreementTest
             sr.nextBytes(msg);
             SecretKey secretKey = new SecretKeySpec(key, "AES");
 
-            org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
-                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, 128, specAad);
-
             Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
-            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(BouncyCastleProvider.PROVIDER_NAME, iv, 128, specAad));
             bcEnc.updateAAD(extraAad);
             byte[] bcCT = bcEnc.doFinal(msg);
 
             Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, iv, 128, specAad));
             joEnc.updateAAD(extraAad);
             byte[] joCT = joEnc.doFinal(msg);
 
@@ -2610,7 +2615,7 @@ public class AESAgreementTest
                     xform + ": spec-AAD + updateAAD concatenation diverged from BC");
 
             Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, iv, 128, specAad));
             joDec.updateAAD(extraAad);
             Assertions.assertArrayEquals(msg, joDec.doFinal(joCT),
                     xform + ": spec-AAD + updateAAD roundtrip failed");
@@ -3594,22 +3599,19 @@ public class AESAgreementTest
             sr.nextBytes(msg);
             SecretKey secretKey = new SecretKeySpec(key, "AES");
 
-            org.bouncycastle.jcajce.spec.AEADParameterSpec aeadSpec =
-                    new org.bouncycastle.jcajce.spec.AEADParameterSpec(nonce, 128, aad);
-
             Cipher bcEnc = Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME);
-            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            bcEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(BouncyCastleProvider.PROVIDER_NAME, nonce, 128, aad));
             byte[] bcCt = bcEnc.doFinal(msg);
 
             Cipher joEnc = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec);
+            joEnc.init(Cipher.ENCRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, nonce, 128, aad));
             byte[] joCt = joEnc.doFinal(msg);
 
             Assertions.assertArrayEquals(bcCt, joCt,
                     "trial=" + trial + ": CCM AEADParameterSpec AAD not honoured (diverged from BC)");
 
             Cipher joDec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
-            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec);
+            joDec.init(Cipher.DECRYPT_MODE, secretKey, aeadSpec(JostleProvider.PROVIDER_NAME, nonce, 128, aad));
             Assertions.assertArrayEquals(msg, joDec.doFinal(joCt),
                     "trial=" + trial + ": CCM AEADParameterSpec roundtrip failed");
 
