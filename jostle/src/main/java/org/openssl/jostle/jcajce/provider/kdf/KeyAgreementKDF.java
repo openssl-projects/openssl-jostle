@@ -16,7 +16,6 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 import org.openssl.jostle.util.io.ExposedByteArrayOutputStream;
-import java.lang.reflect.Method;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -31,8 +30,7 @@ import java.security.spec.AlgorithmParameterSpec;
  * <ul>
  *   <li>{@link #x942} — ANSI X9.42 / RFC 2631 KDF (the {@code DHwithRFC2631KDF}
  *       used by {@code id-alg-ESDH} / {@code id-alg-SSDH}). Byte-for-byte
- *       equivalent to BouncyCastle's
- *       {@code org.bouncycastle.crypto.agreement.kdf.DHKEKGenerator}: the SPI
+ *       equivalent to BouncyCastle's {@code DHKEKGenerator}: the SPI
  *       builds the {@code OtherInfo} structure (wrap OID + counter + key length
  *       + optional UKM) and hashes {@code ZZ || DER(OtherInfo)} once per
  *       output block.</li>
@@ -266,10 +264,9 @@ public final class KeyAgreementKDF
 
     /**
      * Extract the UKM bytes from the spec a key-agreement SPI was initialised
-     * with. Accepts Jostle's {@link UserKeyingMaterialSpec}, BouncyCastle's
-     * same-named spec (reflectively — the CMS layer passes it and we do not
-     * compile against bcprov), and null (no UKM). Any other spec type is
-     * rejected, which is also how MQV / hybrid specs surface as unsupported.
+     * with. Accepts Jostle's {@link UserKeyingMaterialSpec} and null (no UKM).
+     * Any other spec type is rejected, which is also how MQV / hybrid specs
+     * surface as unsupported.
      */
     public static byte[] extractUkm(AlgorithmParameterSpec params)
             throws InvalidAlgorithmParameterException
@@ -282,19 +279,6 @@ public final class KeyAgreementKDF
         {
             return ((UserKeyingMaterialSpec) params).getUserKeyingMaterial();
         }
-        if ("org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec".equals(params.getClass().getName()))
-        {
-            try
-            {
-                Method m = params.getClass().getMethod("getUserKeyingMaterial");
-                return (byte[]) m.invoke(params);
-            }
-            catch (Exception e)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        "unable to read UserKeyingMaterialSpec", e);
-            }
-        }
         throw new InvalidAlgorithmParameterException(
                 "unsupported parameter spec for key-agreement KDF: "
                         + params.getClass().getName());
@@ -303,49 +287,23 @@ public final class KeyAgreementKDF
     /**
      * Extract the HKDF salt from the spec a key-agreement SPI was initialised
      * with, for the RFC 8418 XDH schemes. Accepts Jostle's
-     * {@link UserKeyingMaterialSpec}, BouncyCastle's same-named spec
-     * (reflectively, as {@link #extractUkm} does), and null. Returns null when
-     * no salt was supplied, which HKDF treats as RFC 5869's default of HashLen
-     * zero octets.
+     * {@link UserKeyingMaterialSpec} and null; returns null when no salt was
+     * supplied, which HKDF treats as RFC 5869's default of HashLen zero
+     * octets.
      *
      * <p>Separate from {@link #extractUkm} rather than folded into it because
      * the two values are independent: every caller reads the UKM and only the
      * HKDF schemes read the salt.
      *
      * <p>Spec-type validation belongs to {@link #extractUkm}, which every
-     * caller runs first, so an unreadable BouncyCastle spec here is reported
-     * rather than silently treated as salt-less — a swallowed failure would
-     * derive a different KEK and look like an interop bug.
+     * caller runs first, so this method is only ever reached with a spec
+     * already known to be null or a {@link UserKeyingMaterialSpec}.
      */
     public static byte[] extractSalt(AlgorithmParameterSpec params)
-            throws InvalidAlgorithmParameterException
     {
-        if (params == null)
-        {
-            return null;
-        }
         if (params instanceof UserKeyingMaterialSpec)
         {
             return ((UserKeyingMaterialSpec) params).getSalt();
-        }
-        if ("org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec".equals(params.getClass().getName()))
-        {
-            try
-            {
-                Method m = params.getClass().getMethod("getSalt");
-                return (byte[]) m.invoke(params);
-            }
-            catch (NoSuchMethodException e)
-            {
-                // A bcprov predating the salt. Salt-less is the correct
-                // reading there, and it is not an error.
-                return null;
-            }
-            catch (Exception e)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        "unable to read the salt from UserKeyingMaterialSpec", e);
-            }
         }
         return null;
     }

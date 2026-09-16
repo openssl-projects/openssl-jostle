@@ -117,23 +117,8 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
         }
         else if (keySpec != null)
         {
-            // Accept any structurally-compatible HKDFParameterSpec (notably BouncyCastle's
-            // org.bouncycastle.jcajce.spec.HKDFParameterSpec) without a compile-time dependency on
-            // it, so high-level CMS/OpenPGP builders that construct that type can derive through this
-            // native HKDF. Same accessor contract (getIKM/getSalt/getInfo/getOutputLength), same units
-            // (output length in bytes). A spec missing any accessor surfaces as InvalidKeySpecException.
-            Class<?> cls = keySpec.getClass();
-            try
-            {
-                ikm = (byte[]) cls.getMethod("getIKM").invoke(keySpec);
-                salt = (byte[]) cls.getMethod("getSalt").invoke(keySpec);
-                info = (byte[]) cls.getMethod("getInfo").invoke(keySpec);
-                outputLength = (Integer) cls.getMethod("getOutputLength").invoke(keySpec);
-            }
-            catch (ReflectiveOperationException | ClassCastException | NullPointerException e)
-            {
-                throw new InvalidKeySpecException("unsupported KeySpec " + cls.getName(), e);
-            }
+            throw new InvalidKeySpecException("unsupported KeySpec " + keySpec.getClass().getName()
+                    + "; use org.openssl.jostle.jcajce.spec.HKDFParameterSpec");
         }
         else
         {
@@ -176,12 +161,8 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
         {
             // The IKM and the derived bytes (SecretKeySpec took its own copy)
             // are secret material — scrub both, on failure paths too. Clearing
-            // ikm is safe because getIKM() returns a fresh copy for both the
-            // typed HKDFParameterSpec and BouncyCastle's spec (the only two the
-            // reflective path accepts); a hypothetical spec that handed back its
-            // live internal array would be damaged, an edge case we accept for
-            // the same reason as the SecretKeySpec.getEncoded() zeroize rule
-            // (see java-spi.md "Zeroize the byte[] from key.getEncoded()").
+            // ikm is safe because HKDFParameterSpec.getIKM() returns a fresh
+            // copy; see java-spi.md "Zeroize the byte[] from key.getEncoded()".
             Arrays.clear(ikm);
             Arrays.clear(rawKey);
         }

@@ -27,9 +27,7 @@ import java.security.spec.AlgorithmParameterSpec;
  * form the input carries and ignores this flag.
  *
  * <p>Mirrors {@code org.bouncycastle.jcajce.spec.IESKEMParameterSpec} so a
- * caller can hand either spec to the Jostle KEM — the SPI also accepts
- * BouncyCastle's spec reflectively, which is what its ITS wrapper and
- * decryptor pass.
+ * caller building one from BC's ITS wrapper or decryptor can move.
  */
 public class IESKEMParameterSpec implements AlgorithmParameterSpec
 {

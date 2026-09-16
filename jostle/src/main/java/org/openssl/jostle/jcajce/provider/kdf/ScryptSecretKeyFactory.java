@@ -59,26 +59,8 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
         }
         else if (keySpec != null)
         {
-            // Accept any structurally-compatible ScryptKeySpec (notably BouncyCastle's
-            // org.bouncycastle.jcajce.spec.ScryptKeySpec) without a compile-time dependency
-            // on it, so high-level PBES2/PKCS#8/PKCS#12 builders that construct that type can
-            // derive keys through this native scrypt KDF. Same accessor contract, same units
-            // (keyLength in bits); the password is UTF-8 encoded below either way. A spec
-            // missing any accessor surfaces as InvalidKeySpecException from the reflective call.
-            Class<?> cls = keySpec.getClass();
-            try
-            {
-                password = (char[]) cls.getMethod("getPassword").invoke(keySpec);
-                salt = (byte[]) cls.getMethod("getSalt").invoke(keySpec);
-                costParameter = (Integer) cls.getMethod("getCostParameter").invoke(keySpec);
-                blockSize = (Integer) cls.getMethod("getBlockSize").invoke(keySpec);
-                parallelizationParameter = (Integer) cls.getMethod("getParallelizationParameter").invoke(keySpec);
-                keyLengthBits = (Integer) cls.getMethod("getKeyLength").invoke(keySpec);
-            }
-            catch (ReflectiveOperationException | ClassCastException | NullPointerException e)
-            {
-                throw new InvalidKeySpecException("unsupported KeySpec " + cls.getName(), e);
-            }
+            throw new InvalidKeySpecException("unsupported KeySpec " + keySpec.getClass().getName()
+                    + "; use org.openssl.jostle.jcajce.spec.ScryptKeySpec");
         }
         else
         {

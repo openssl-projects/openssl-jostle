@@ -21,8 +21,7 @@ import java.security.spec.AlgorithmParameterSpec;
  * {@code SharedInfo} fed verbatim to the KDF.
  *
  * <p>Mirrors {@code org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec} so a
- * caller can hand either spec to the Jostle key-agreement SPIs — the SPIs also
- * accept BouncyCastle's spec reflectively, which is what the CMS layer passes.
+ * caller building one from BC's CMS layer can move.
  *
  * <p>The optional <b>salt</b> is the HKDF salt for the RFC 8418 XDH schemes,
  * carried separately from the UKM as BouncyCastle carries it, and unused by

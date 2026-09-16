@@ -123,12 +123,26 @@ public class ETSIKEMAgreementTest
                 .generatePrivate(new PKCS8EncodedKeySpec(key.getEncoded()));
     }
 
+    /**
+     * Provider-appropriate IESKEMParameterSpec, built fresh for each provider
+     * from the same content — BC and Jostle now each accept only their own
+     * type directly, so one object can no longer drive both.
+     */
+    private static java.security.spec.AlgorithmParameterSpec iesKemSpec(String provider,
+                                                                         byte[] recipientInfo, boolean compress)
+    {
+        if (BC.equals(provider))
+        {
+            return new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(recipientInfo, compress);
+        }
+        return new IESKEMParameterSpec(recipientInfo, compress);
+    }
+
     private static byte[] wrap(String provider, PublicKey recipient, byte[] recipientInfo,
                                boolean compress, Key cek, SecureRandom sr) throws Exception
     {
         Cipher c = Cipher.getInstance(KEM, provider);
-        c.init(Cipher.WRAP_MODE, recipient,
-                new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(recipientInfo, compress), sr);
+        c.init(Cipher.WRAP_MODE, recipient, iesKemSpec(provider, recipientInfo, compress), sr);
         return c.wrap(cek);
     }
 
@@ -136,8 +150,7 @@ public class ETSIKEMAgreementTest
                               byte[] wrapped) throws Exception
     {
         Cipher c = Cipher.getInstance(KEM, provider);
-        c.init(Cipher.UNWRAP_MODE, recipient,
-                new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(recipientInfo));
+        c.init(Cipher.UNWRAP_MODE, recipient, iesKemSpec(provider, recipientInfo, false));
         return c.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
     }
 
@@ -343,29 +356,101 @@ public class ETSIKEMAgreementTest
     }
 
     /**
-     * Jostle's own spec mirror must derive what BouncyCastle's does, since the
-     * SPI reads BC's reflectively and a caller may hold either.
+     * Jostle's own spec must derive what BouncyCastle's does — wrapped with
+     * Jostle's spec through Jostle's cipher, and the full ITS content path
+     * (CCM-encrypted content plus the KEM-wrapped key) recovered through
+     * BouncyCastle's own high-level {@link JcaETSIDataDecryptor}, driven by
+     * BouncyCastle's own provider. This is the JSL-wrap-side interop
+     * evidence that {@code stockBouncyCastleItsHelpersOnJslAreRefusedTyped}
+     * used to carry before D50 inverted that cell.
      */
     @Test
     public void jostlesOwnSpecDerivesWhatBouncyCastlesDoes() throws Exception
     {
         SecureRandom sr = seededRandom("jostlesOwnSpecDerivesWhatBouncyCastlesDoes");
-        KeyPair recipient = generate("secp256r1", sr);
-        byte[] recipientInfo = new byte[12];
-        sr.nextBytes(recipientInfo);
-        byte[] cek = new byte[16];
-        sr.nextBytes(cek);
+        Provider bc = Security.getProvider(BC);
 
-        Cipher c = Cipher.getInstance(KEM, JSL);
-        c.init(Cipher.WRAP_MODE, recipient.getPublic(),
-                new IESKEMParameterSpec(recipientInfo, true), sr);
-        byte[] wrapped = c.wrap(new SecretKeySpec(cek, "AES"));
-        Assertions.assertEquals(33 + 16 + 16, wrapped.length,
-                "our spec's point-compression flag must reach the output");
+        for (int t = 0; t < TRIALS; t++)
+        {
+            KeyPair recipient = generate("secp256r1", sr);
+            byte[] recipientInfo = new byte[12];
+            sr.nextBytes(recipientInfo);
+            byte[] cek = new byte[16];
+            sr.nextBytes(cek);
+            byte[] nonce = new byte[12];
+            sr.nextBytes(nonce);
+            byte[] plaintext = new byte[1 + sr.nextInt(256)];
+            sr.nextBytes(plaintext);
 
-        // Recovered through BouncyCastle, driven by BouncyCastle's own spec.
-        Assertions.assertArrayEquals(cek,
-                unwrap(BC, crossPrivate(recipient.getPrivate(), BC), recipientInfo, wrapped).getEncoded());
+            Cipher ccm = Cipher.getInstance("CCM", JSL);
+            ccm.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, "AES"),
+                    new GCMParameterSpec(128, nonce));
+            byte[] content = ccm.doFinal(plaintext);
+
+            Cipher c = Cipher.getInstance(KEM, JSL);
+            c.init(Cipher.WRAP_MODE, recipient.getPublic(),
+                    new IESKEMParameterSpec(recipientInfo, true), sr);
+            byte[] wrapped = c.wrap(new SecretKeySpec(cek, "AES"));
+            Assertions.assertEquals(33 + 16 + 16, wrapped.length,
+                    "our spec's point-compression flag must reach the output");
+
+            // v/c/t split, exactly as the ASN.1-derived check elsewhere in
+            // this file: 33-byte compressed point, 16-byte wrapped key,
+            // 16-byte tag. Our wrap output is already the flat v||c||t form
+            // JcaETSIDataDecryptor expects — no ASN.1 round trip needed here.
+            byte[] v = java.util.Arrays.copyOfRange(wrapped, 0, 33);
+            byte[] wrappedKey = java.util.Arrays.copyOfRange(wrapped, 33, 33 + 16);
+            byte[] tag = java.util.Arrays.copyOfRange(wrapped, 33 + 16, 33 + 16 + 16);
+            Assertions.assertEquals(33, v.length, "v is the compressed point");
+            Assertions.assertEquals(16, wrappedKey.length, "c is the wrapped key");
+            Assertions.assertEquals(16, tag.length, "t is the truncated MAC");
+
+            JcaETSIDataDecryptor decryptor =
+                    JcaETSIDataDecryptor.builder(crossPrivate(recipient.getPrivate(), BC), recipientInfo)
+                            .provider(bc).build();
+            Assertions.assertArrayEquals(plaintext, decryptor.decrypt(wrapped, content, nonce),
+                    "BouncyCastle's own ITS decryptor, on BC's own provider, "
+                            + "must recover our wrap's content");
+            Assertions.assertArrayEquals(cek, decryptor.getKey(),
+                    "BouncyCastle's own ITS decryptor must recover our wrapped key");
+        }
+    }
+
+    /**
+     * The reverse direction: BouncyCastle's own {@link JceETSIKeyWrapper}, on
+     * BC's own provider, wraps a key that Jostle's cipher — driven by
+     * Jostle's own spec — must recover.
+     */
+    @Test
+    public void bouncyCastlesOwnWrapperOnBcIsRecoveredByJostle() throws Exception
+    {
+        SecureRandom sr = seededRandom("bouncyCastlesOwnWrapperOnBcIsRecoveredByJostle");
+        Provider bc = Security.getProvider(BC);
+
+        for (int t = 0; t < TRIALS; t++)
+        {
+            KeyPair recipient = generate("secp256r1", sr);
+            byte[] recipientHash = new byte[8];
+            sr.nextBytes(recipientHash);
+            byte[] cek = new byte[16];
+            sr.nextBytes(cek);
+
+            JceETSIKeyWrapper wrapper = new JceETSIKeyWrapper.Builder(
+                    (ECPublicKey) recipient.getPublic(), recipientHash).setProvider(bc).build();
+            EncryptedDataEncryptionKey edek = wrapper.wrap(cek);
+
+            EciesP256EncryptedKey ek =
+                    EciesP256EncryptedKey.getInstance(edek.getEncryptedDataEncryptionKey());
+            byte[] flat = org.bouncycastle.util.Arrays.concatenate(
+                    ek.getV().getEncodedPoint(), ek.getC().getOctets(), ek.getT().getOctets());
+
+            Cipher u = Cipher.getInstance(KEM, JSL);
+            u.init(Cipher.UNWRAP_MODE, recipient.getPrivate(),
+                    new IESKEMParameterSpec(recipientHash, false));
+            Key recovered = u.unwrap(flat, "AES", Cipher.SECRET_KEY);
+            Assertions.assertArrayEquals(cek, recovered.getEncoded(),
+                    "Jostle must recover BouncyCastle's own key wrapper's output");
+        }
     }
 
     /**
@@ -422,58 +507,78 @@ public class ETSIKEMAgreementTest
     }
 
     /**
-     * The real consumer: BouncyCastle's own ITS wrapper and data decryptor,
-     * both sourcing every primitive from {@code JSL}.
-     *
-     * <p>This is the only cell that reaches the bare {@code Cipher.CCM} lookup
-     * {@code JcaETSIDataDecryptor} performs, so it is what proves the KEM is
-     * usable rather than merely correct — before that alias existed the whole
-     * path failed at the content step with a perfect KEM.
+     * Stock bcpkix ({@code org.bouncycastle.its.jcajce.JceETSIKeyWrapper} /
+     * {@code JcaETSIDataDecryptor}) builds BC's own
+     * {@code org.bouncycastle.jcajce.spec.IESKEMParameterSpec} internally and
+     * cannot be redirected to build ours — D50 is "our own spec classes
+     * only", so {@code ETSIKEMCipherSpi} now refuses it typed. The
+     * bcpkix-jsl build (extensions repo, deferred) is the supported consumer
+     * for driving this provider through those helpers; stock bcpkix pointed
+     * at JSL is not.
      */
     @Test
-    public void bouncyCastlesOwnItsHelpersWorkThroughUs() throws Exception
+    public void stockBouncyCastleItsHelpersOnJslAreRefusedTyped() throws Exception
     {
-        SecureRandom sr = seededRandom("bouncyCastlesOwnItsHelpersWorkThroughUs");
+        SecureRandom sr = seededRandom("stockBouncyCastleItsHelpersOnJslAreRefusedTyped");
         Provider jsl = Security.getProvider(JSL);
+        Provider bc = Security.getProvider(BC);
 
-        for (int t = 0; t < TRIALS; t++)
+        KeyPair recipient = generate("secp256r1", sr);
+        byte[] recipientHash = new byte[8];
+        sr.nextBytes(recipientHash);
+        byte[] cek = new byte[16];
+        sr.nextBytes(cek);
+        byte[] nonce = new byte[12];
+        sr.nextBytes(nonce);
+        byte[] plaintext = new byte[1 + sr.nextInt(256)];
+        sr.nextBytes(plaintext);
+
+        // Wrap side: BC's own wrapper, pointed at JSL, builds BC's spec
+        // internally and hands it to our cipher.
+        JceETSIKeyWrapper wrapper = new JceETSIKeyWrapper.Builder(
+                (ECPublicKey) recipient.getPublic(), recipientHash).setProvider(jsl).build();
+        RuntimeException wrapFailure = Assertions.assertThrows(RuntimeException.class,
+                () -> wrapper.wrap(cek),
+                "stock bcpkix's key wrapper must fail when pointed at JSL after D50");
+        assertCauseNamesJostleIesKemSpec(wrapFailure);
+
+        // Unwrap side: build a genuinely valid flat blob with BC's own
+        // wrapper on BC's own provider, then hand that blob to
+        // JcaETSIDataDecryptor pointed at JSL.
+        JceETSIKeyWrapper bcWrapper = new JceETSIKeyWrapper.Builder(
+                (ECPublicKey) recipient.getPublic(), recipientHash).setProvider(bc).build();
+        EncryptedDataEncryptionKey edek = bcWrapper.wrap(cek);
+        EciesP256EncryptedKey ek =
+                EciesP256EncryptedKey.getInstance(edek.getEncryptedDataEncryptionKey());
+        byte[] flat = org.bouncycastle.util.Arrays.concatenate(
+                ek.getV().getEncodedPoint(), ek.getC().getOctets(), ek.getT().getOctets());
+
+        Cipher ccm = Cipher.getInstance("CCM", BC);
+        ccm.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, "AES"), new GCMParameterSpec(128, nonce));
+        byte[] content = ccm.doFinal(plaintext);
+
+        JcaETSIDataDecryptor decryptor =
+                JcaETSIDataDecryptor.builder(recipient.getPrivate(), recipientHash)
+                        .provider(jsl).build();
+        RuntimeException unwrapFailure = Assertions.assertThrows(RuntimeException.class,
+                () -> decryptor.decrypt(flat, content, nonce),
+                "stock bcpkix's data decryptor must fail when pointed at JSL after D50");
+        assertCauseNamesJostleIesKemSpec(unwrapFailure);
+    }
+
+    /** Unwraps BC's wrapper exceptions to find the typed refusal underneath. */
+    private static void assertCauseNamesJostleIesKemSpec(Throwable t)
+    {
+        for (Throwable cur = t; cur != null; cur = cur.getCause())
         {
-            KeyPair recipient = generate("secp256r1", sr);
-            byte[] recipientHash = new byte[8];
-            sr.nextBytes(recipientHash);
-            byte[] cek = new byte[16];
-            sr.nextBytes(cek);
-            byte[] nonce = new byte[12];
-            sr.nextBytes(nonce);
-            byte[] plaintext = new byte[1 + sr.nextInt(256)];
-            sr.nextBytes(plaintext);
-
-            Cipher ccm = Cipher.getInstance("CCM", JSL);
-            ccm.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, "AES"),
-                    new GCMParameterSpec(128, nonce));
-            byte[] content = ccm.doFinal(plaintext);
-
-            JceETSIKeyWrapper wrapper = new JceETSIKeyWrapper.Builder(
-                    (ECPublicKey) recipient.getPublic(), recipientHash).setProvider(jsl).build();
-            EncryptedDataEncryptionKey edek = wrapper.wrap(cek);
-
-            EciesP256EncryptedKey ek =
-                    EciesP256EncryptedKey.getInstance(edek.getEncryptedDataEncryptionKey());
-            byte[] v = ek.getV().getEncodedPoint();
-            byte[] c = ek.getC().getOctets();
-            byte[] tag = ek.getT().getOctets();
-            Assertions.assertEquals(33, v.length, "v is the compressed point the wrapper asks for");
-            Assertions.assertEquals(16, c.length, "c is the wrapped key");
-            Assertions.assertEquals(16, tag.length, "t is the truncated MAC");
-
-            byte[] flat = org.bouncycastle.util.Arrays.concatenate(v, c, tag);
-            JcaETSIDataDecryptor decryptor =
-                    JcaETSIDataDecryptor.builder(recipient.getPrivate(), recipientHash)
-                            .provider(jsl).build();
-            Assertions.assertArrayEquals(plaintext, decryptor.decrypt(flat, content, nonce),
-                    "the ITS path must round-trip through us end to end");
-            Assertions.assertArrayEquals(cek, decryptor.getKey(),
-                    "the decryptor must recover the content-encryption key");
+            if (cur instanceof InvalidAlgorithmParameterException
+                    && cur.getMessage() != null
+                    && cur.getMessage().contains("org.openssl.jostle.jcajce.spec.IESKEMParameterSpec"))
+            {
+                return;
+            }
         }
+        Assertions.fail("expected an InvalidAlgorithmParameterException naming "
+                + "org.openssl.jostle.jcajce.spec.IESKEMParameterSpec in the cause chain of: " + t);
     }
 }

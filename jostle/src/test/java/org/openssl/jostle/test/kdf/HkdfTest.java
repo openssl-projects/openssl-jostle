@@ -362,31 +362,27 @@ public class HkdfTest
     }
 
     /**
-     * The reflective foreign-spec branch must accept BouncyCastle's
-     * {@code org.bouncycastle.jcajce.spec.HKDFParameterSpec} (same accessor
-     * contract, output length in bytes) and derive byte-identically to the
-     * Jostle spec for the same inputs.
+     * D50/C45: the factory no longer reads a foreign spec reflectively — BC's
+     * {@code org.bouncycastle.jcajce.spec.HKDFParameterSpec} is refused typed,
+     * naming the Jostle class.
      */
     @Test
-    public void testForeignBCSpecAccepted() throws Exception
+    public void testForeignBCSpecRefused() throws Exception
     {
-        SecureRandom sr = seededRandom("testForeignBCSpecAccepted");
+        SecureRandom sr = seededRandom("testForeignBCSpecRefused");
         SecretKeyFactory kf = SecretKeyFactory.getInstance("HKDF-SHA256", JostleProvider.PROVIDER_NAME);
 
-        for (int trial = 0; trial < 10; trial++)
-        {
-            byte[] ikm = random(1 + sr.nextInt(64), sr);
-            byte[] salt = random(sr.nextInt(32), sr);
-            byte[] info = random(sr.nextInt(32), sr);
-            int len = 1 + sr.nextInt(96);
+        byte[] ikm = random(1 + sr.nextInt(64), sr);
+        byte[] salt = random(sr.nextInt(32), sr);
+        byte[] info = random(sr.nextInt(32), sr);
+        int len = 1 + sr.nextInt(96);
 
-            byte[] viaForeign = kf.generateSecret(
-                    new org.bouncycastle.jcajce.spec.HKDFParameterSpec(ikm, salt, info, len)).getEncoded();
-            byte[] viaNative = jostleHkdf("HKDF-SHA256", ikm, salt, info, len);
-
-            Assertions.assertArrayEquals(viaNative, viaForeign,
-                    "BC HKDFParameterSpec derived differently from the Jostle spec (trial " + trial + ")");
-        }
+        org.bouncycastle.jcajce.spec.HKDFParameterSpec foreign =
+                new org.bouncycastle.jcajce.spec.HKDFParameterSpec(ikm, salt, info, len);
+        java.security.spec.InvalidKeySpecException e = Assertions.assertThrows(
+                java.security.spec.InvalidKeySpecException.class, () -> kf.generateSecret(foreign));
+        Assertions.assertTrue(e.getMessage().contains("org.openssl.jostle.jcajce.spec.HKDFParameterSpec"),
+                "message must name the Jostle class: " + e.getMessage());
     }
 
     /**

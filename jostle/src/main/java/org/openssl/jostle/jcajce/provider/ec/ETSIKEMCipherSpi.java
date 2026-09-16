@@ -25,7 +25,6 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
@@ -247,9 +246,7 @@ public class ETSIKEMCipherSpi extends CipherSpi
     }
 
     /**
-     * Accepts Jostle's {@link IESKEMParameterSpec} and BouncyCastle's
-     * same-named spec (reflectively — its ITS layer passes that one and we do
-     * not compile against bcprov), as
+     * Accepts Jostle's {@link IESKEMParameterSpec} and null, as
      * {@link KeyAgreementKDF#extractUkm} does for the UKM specs.
      *
      * <p>BouncyCastle casts the spec unchecked and so raises
@@ -271,50 +268,22 @@ public class ETSIKEMCipherSpi extends CipherSpi
         {
             return ((IESKEMParameterSpec) spec).getRecipientInfo();
         }
-        if (isBouncyCastleSpec(spec))
-        {
-            try
-            {
-                Method m = spec.getClass().getMethod("getRecipientInfo");
-                return (byte[]) m.invoke(spec);
-            }
-            catch (Exception e)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        "unable to read IESKEMParameterSpec", e);
-            }
-        }
         throw new InvalidAlgorithmParameterException(
-                "expected an IESKEMParameterSpec, got " + spec.getClass().getName());
+                "expected an " + IESKEMParameterSpec.class.getName() + ", got " + spec.getClass().getName());
     }
 
+    /**
+     * Called only after {@link #readRecipientInfo} has already refused any
+     * spec that is neither null nor an {@link IESKEMParameterSpec}, so a
+     * non-Jostle spec can never reach here.
+     */
     private static boolean readPointCompression(AlgorithmParameterSpec spec)
-            throws InvalidAlgorithmParameterException
     {
         if (spec instanceof IESKEMParameterSpec)
         {
             return ((IESKEMParameterSpec) spec).hasUsePointCompression();
         }
-        if (isBouncyCastleSpec(spec))
-        {
-            try
-            {
-                Method m = spec.getClass().getMethod("hasUsePointCompression");
-                return ((Boolean) m.invoke(spec)).booleanValue();
-            }
-            catch (Exception e)
-            {
-                throw new InvalidAlgorithmParameterException(
-                        "unable to read IESKEMParameterSpec", e);
-            }
-        }
         return false;
-    }
-
-    private static boolean isBouncyCastleSpec(AlgorithmParameterSpec spec)
-    {
-        return spec != null
-                && "org.bouncycastle.jcajce.spec.IESKEMParameterSpec".equals(spec.getClass().getName());
     }
 
     @Override
