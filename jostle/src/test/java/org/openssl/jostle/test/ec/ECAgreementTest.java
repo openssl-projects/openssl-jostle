@@ -33,6 +33,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -623,6 +624,63 @@ public class ECAgreementTest
                 }
             }
         }
+    }
+
+    /**
+     * CMS_FOREIGN_KEY_KEM_EC_GAP: the peer public key CMS hands the ECDH-KDF
+     * KeyAgreement comes from a certificate decoded by the JDK's default
+     * {@code CertificateFactory} ({@code sun.security.ec.*}), while the local
+     * private key stays JSL-native — the exact shape
+     * {@code JceKeyAgreeEnvelopedRecipient} drives. Must derive the same KEK
+     * as an all-JSL agreement over the same keys.
+     */
+    @Test
+    public void ecdhKdf_certPublicKeyPeer_agreesWithJslNative() throws Exception
+    {
+        SecureRandom sr = seededRandom("ecdhKdf_certPublicKeyPeer_agreesWithJslNative");
+        KeyPair local = generate("P-256");
+        KeyPair peer = generate("P-256");
+        byte[] ukm = new byte[16];
+        sr.nextBytes(ukm);
+
+        byte[] expected = deriveKdf(JSL, "ECDHWITHSHA256KDF", local.getPrivate(), peer.getPublic(),
+                ukm, WRAP_OIDS[2]);
+
+        PublicKey certPeerPub = certOver(peer.getPublic()).getPublicKey();
+        Assertions.assertFalse(certPeerPub.getClass().getName().startsWith("org.openssl.jostle"),
+                "test precondition: peer public key must be foreign to JSL, got "
+                        + certPeerPub.getClass().getName());
+
+        KeyAgreement ka = KeyAgreement.getInstance("ECDHWITHSHA256KDF", JSL);
+        ka.init(local.getPrivate(), new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm));
+        ka.doPhase(certPeerPub, true);
+        byte[] actual = ka.generateSecret(WRAP_OIDS[2]).getEncoded();
+
+        Assertions.assertArrayEquals(expected, actual,
+                "ECDH-KDF with a certificate-decoded peer public key diverged from the JSL-native KEK");
+    }
+
+    /** Self-signed cert over {@code subjectPub}, decoded through the JDK default CertificateFactory. */
+    private static X509Certificate certOver(PublicKey subjectPub) throws Exception
+    {
+        KeyPairGenerator rsaKpg = KeyPairGenerator.getInstance("RSA", JSL);
+        rsaKpg.initialize(2048);
+        KeyPair signerKp = rsaKpg.generateKeyPair();
+        org.bouncycastle.asn1.x500.X500Name dn =
+                new org.bouncycastle.asn1.x500.X500Name("CN=Jostle EC CMS KDF Foreign Key Test");
+        org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder builder =
+                new org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder(
+                        dn, java.math.BigInteger.valueOf(1),
+                        new java.util.Date(System.currentTimeMillis() - 3600_000L),
+                        new java.util.Date(System.currentTimeMillis() + 3600_000L),
+                        dn, subjectPub);
+        org.bouncycastle.operator.ContentSigner signer =
+                new org.bouncycastle.operator.jcajce.JcaContentSignerBuilder("SHA256withRSA")
+                        .setProvider(BC).build(signerKp.getPrivate());
+        // No provider on the converter → the JDK default CertificateFactory,
+        // whose getPublicKey() returns sun.security.* key objects.
+        return new org.bouncycastle.cert.jcajce.JcaX509CertificateConverter()
+                .getCertificate(builder.build(signer));
     }
 
     // -----------------------------------------------------------------

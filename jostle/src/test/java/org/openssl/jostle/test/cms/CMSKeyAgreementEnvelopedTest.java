@@ -11,11 +11,11 @@
 
 package org.openssl.jostle.test.cms;
 
-import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.cms.CMSAlgorithm;
 import org.bouncycastle.cms.CMSEnvelopedData;
 import org.bouncycastle.cms.CMSEnvelopedDataGenerator;
+import org.bouncycastle.cms.CMSException;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.RecipientInformation;
 import org.bouncycastle.cms.jcajce.JceCMSContentEncryptorBuilder;
@@ -27,6 +27,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -34,19 +35,13 @@ import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 
 /**
- * Full CMS {@code EnvelopedData} key-agreement round-trips exercising the
- * actual consumer scenario: BouncyCastle's CMS layer drives the Jostle
- * {@code KeyAgreement} SPIs through the standard JCE API, both producing and
- * consuming the {@code KeyAgreeRecipientInfo}.
- *
- * <ul>
- *   <li>DH: {@code id-alg-ESDH} and {@code id-alg-SSDH} (X9.42 SHA-1 KDF).</li>
- *   <li>EC: {@code dhSinglePass-stdDH-sha1/256kdf-scheme} (X9.63 KDF).</li>
- * </ul>
- *
- * Each is run in both directions — JSL encrypts / BC decrypts and the reverse —
- * with AES-128/256 key wrap, AES-128-GCM content, and a random UKM, so a
- * divergence pinpoints which side is wrong.
+ * CMS {@code EnvelopedData} key-agreement {@code KeyAgreeRecipientInfo}: BC's
+ * own {@code JceKeyAgreeRecipientInfoGenerator} / {@code JceKeyAgreeRecipient},
+ * pointed at JSL, build BC's own {@code UserKeyingMaterialSpec} internally
+ * (always for EC, for DH whenever a UKM is set) and are refused typed; only
+ * Jostle spec types are accepted. {@link #dhEsdh_jslBothDirections_noUkm} is
+ * the one shape that still round-trips: DH with no UKM at all, so BC passes
+ * no spec.
  */
 public class CMSKeyAgreementEnvelopedTest
 {
@@ -82,21 +77,39 @@ public class CMSKeyAgreementEnvelopedTest
         return kpg.generateKeyPair();
     }
 
+    private static byte[] randomUkm(int len)
+    {
+        byte[] ukm = new byte[len];
+        RANDOM.nextBytes(ukm);
+        return ukm;
+    }
+
+    private static byte[] randomKid()
+    {
+        byte[] kid = new byte[8];
+        RANDOM.nextBytes(kid);
+        return kid;
+    }
+
+    private static byte[] randomData()
+    {
+        byte[] data = new byte[1 + RANDOM.nextInt(256)];
+        RANDOM.nextBytes(data);
+        return data;
+    }
+
     /**
      * One CMS EnvelopedData key-agreement round-trip. The originator/recipient
      * keypairs share a group/curve; {@code encProv} produces the envelope (key
      * agreement + AES wrap + content encryption) and {@code decProv} recovers
      * it. Asserts the recovered content matches.
      */
-    private void roundTrip(ASN1ObjectIdentifier kaOid,
+    private void roundTrip(org.bouncycastle.asn1.ASN1ObjectIdentifier kaOid,
                            KeyPair origKp, KeyPair recipKp,
-                           ASN1ObjectIdentifier wrapOid, byte[] ukm,
+                           org.bouncycastle.asn1.ASN1ObjectIdentifier wrapOid, byte[] ukm,
                            String encProv, String decProv) throws Exception
     {
-        byte[] data = new byte[1 + RANDOM.nextInt(256)];
-        RANDOM.nextBytes(data);
-        byte[] kid = new byte[8];
-        RANDOM.nextBytes(kid);
+        byte[] data = randomData();
 
         CMSEnvelopedDataGenerator gen = new CMSEnvelopedDataGenerator();
         JceKeyAgreeRecipientInfoGenerator rig = new JceKeyAgreeRecipientInfoGenerator(
@@ -105,7 +118,7 @@ public class CMSKeyAgreementEnvelopedTest
         {
             rig.setUserKeyingMaterial(ukm);
         }
-        rig.addRecipient(kid, recipKp.getPublic());
+        rig.addRecipient(randomKid(), recipKp.getPublic());
         rig.setProvider(encProv);
         gen.addRecipientInfoGenerator(rig);
 
@@ -127,33 +140,6 @@ public class CMSKeyAgreementEnvelopedTest
                         + " ukm=" + (ukm == null ? "none" : ukm.length));
     }
 
-    private static byte[] randomUkm(int len)
-    {
-        byte[] ukm = new byte[len];
-        RANDOM.nextBytes(ukm);
-        return ukm;
-    }
-
-    // ----- DH (X9.42 / RFC 2631 KDF) -----
-
-    @Test
-    public void dhEsdh_jslEncrypt_bcDecrypt() throws Exception
-    {
-        KeyPair orig = dhKeyPair();
-        KeyPair recip = dhKeyPair();
-        roundTrip(PKCSObjectIdentifiers.id_alg_ESDH, orig, recip,
-                CMSAlgorithm.AES256_WRAP, randomUkm(16), JSL, BC);
-    }
-
-    @Test
-    public void dhEsdh_bcEncrypt_jslDecrypt() throws Exception
-    {
-        KeyPair orig = dhKeyPair();
-        KeyPair recip = dhKeyPair();
-        roundTrip(PKCSObjectIdentifiers.id_alg_ESDH, orig, recip,
-                CMSAlgorithm.AES256_WRAP, randomUkm(16), BC, JSL);
-    }
-
     @Test
     public void dhEsdh_jslBothDirections_noUkm() throws Exception
     {
@@ -164,153 +150,121 @@ public class CMSKeyAgreementEnvelopedTest
     }
 
     @Test
-    public void dhSsdh_jslEncrypt_bcDecrypt() throws Exception
+    public void ecdhOnJslIsRefusedTypedEvenWithoutUkm() throws Exception
     {
-        KeyPair orig = dhKeyPair();
-        KeyPair recip = dhKeyPair();
-        roundTrip(PKCSObjectIdentifiers.id_alg_SSDH, orig, recip,
-                CMSAlgorithm.AES128_WRAP, randomUkm(20), JSL, BC);
-    }
-
-    @Test
-    public void dhSsdh_bcEncrypt_jslDecrypt() throws Exception
-    {
-        KeyPair orig = dhKeyPair();
-        KeyPair recip = dhKeyPair();
-        roundTrip(PKCSObjectIdentifiers.id_alg_SSDH, orig, recip,
-                CMSAlgorithm.AES128_WRAP, randomUkm(20), BC, JSL);
-    }
-
-    // ----- EC (X9.63 KDF) -----
-
-    @Test
-    public void ecdhSha256_jslEncrypt_bcDecrypt() throws Exception
-    {
+        // BC's generator builds a UserKeyingMaterialSpec for every EC scheme
+        // regardless of whether setUserKeyingMaterial was ever called.
         KeyPair orig = ecKeyPair("P-256");
         KeyPair recip = ecKeyPair("P-256");
-        roundTrip(CMSAlgorithm.ECDH_SHA256KDF, orig, recip,
-                CMSAlgorithm.AES256_WRAP, randomUkm(16), JSL, BC);
-    }
-
-    @Test
-    public void ecdhSha256_bcEncrypt_jslDecrypt() throws Exception
-    {
-        KeyPair orig = ecKeyPair("P-256");
-        KeyPair recip = ecKeyPair("P-256");
-        roundTrip(CMSAlgorithm.ECDH_SHA256KDF, orig, recip,
-                CMSAlgorithm.AES256_WRAP, randomUkm(16), BC, JSL);
-    }
-
-    @Test
-    public void ecdhSha1_jslEncrypt_bcDecrypt() throws Exception
-    {
-        KeyPair orig = ecKeyPair("P-384");
-        KeyPair recip = ecKeyPair("P-384");
-        roundTrip(CMSAlgorithm.ECDH_SHA1KDF, orig, recip,
-                CMSAlgorithm.AES128_WRAP, null, JSL, BC);
-    }
-
-    @Test
-    public void ecdhSha1_bcEncrypt_jslDecrypt() throws Exception
-    {
-        KeyPair orig = ecKeyPair("P-384");
-        KeyPair recip = ecKeyPair("P-384");
-        roundTrip(CMSAlgorithm.ECDH_SHA1KDF, orig, recip,
-                CMSAlgorithm.AES128_WRAP, null, BC, JSL);
-    }
-
-    @Test
-    public void ecdh_certificateRecipient_roundTrips() throws Exception
-    {
-        // CMS_FOREIGN_KEY_KEM_EC_GAP regression: addRecipient(cert) hands the
-        // JSL ECDH SPI the certificate's public key (sun.security.ec.*) —
-        // previously rejected with "expected a Jostle-provider ECPublicKey".
-        KeyPair orig = ecKeyPair("P-256");
-        KeyPair recip = ecKeyPair("P-256");
-
-        java.security.KeyPair signerKp;
-        java.security.KeyPairGenerator rsaKpg =
-                java.security.KeyPairGenerator.getInstance("RSA", JSL);
-        rsaKpg.initialize(2048);
-        signerKp = rsaKpg.generateKeyPair();
-        org.bouncycastle.asn1.x500.X500Name dn =
-                new org.bouncycastle.asn1.x500.X500Name("CN=Jostle EC KeyAgree Cert");
-        org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder builder =
-                new org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder(
-                        dn, java.math.BigInteger.valueOf(1),
-                        new java.util.Date(System.currentTimeMillis() - 3600_000L),
-                        new java.util.Date(System.currentTimeMillis() + 3600_000L),
-                        dn, recip.getPublic());
-        org.bouncycastle.operator.ContentSigner signer =
-                new org.bouncycastle.operator.jcajce.JcaContentSignerBuilder("SHA256withRSA")
-                        .setProvider(BC).build(signerKp.getPrivate());
-        java.security.cert.X509Certificate cert =
-                new org.bouncycastle.cert.jcajce.JcaX509CertificateConverter()
-                        .getCertificate(builder.build(signer));
-
-        byte[] data = new byte[64];
-        RANDOM.nextBytes(data);
 
         CMSEnvelopedDataGenerator gen = new CMSEnvelopedDataGenerator();
         JceKeyAgreeRecipientInfoGenerator rig = new JceKeyAgreeRecipientInfoGenerator(
                 CMSAlgorithm.ECDH_SHA256KDF, orig.getPrivate(), orig.getPublic(),
                 CMSAlgorithm.AES128_WRAP);
-        rig.addRecipient(cert);
+        rig.addRecipient(randomKid(), recip.getPublic());
         rig.setProvider(JSL);
         gen.addRecipientInfoGenerator(rig);
 
-        CMSEnvelopedData ed = gen.generate(
-                new CMSProcessableByteArray(data),
-                new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES128_GCM)
-                        .setProvider(JSL).build());
-        ed = new CMSEnvelopedData(ed.getEncoded());
-
-        RecipientInformation ri = ed.getRecipientInfos().getRecipients().iterator().next();
-        byte[] dec = ri.getContent(
-                new JceKeyAgreeEnvelopedRecipient(recip.getPrivate()).setProvider(JSL));
-        Assertions.assertArrayEquals(data, dec,
-                "CMS EC key-agree round-trip with certificate recipient failed");
+        byte[] data = randomData();
+        CMSException failure = Assertions.assertThrows(CMSException.class, () ->
+                        gen.generate(new CMSProcessableByteArray(data),
+                                new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES128_GCM)
+                                        .setProvider(JSL).build()),
+                "stock bcpkix's EC key-agreement generator must fail when pointed at JSL, "
+                        + "even without an explicit UKM");
+        assertCauseNamesJostleUkmSpec(failure);
     }
 
     @Test
-    public void ecdh_wrongPrivateKey_failsToDecrypt() throws Exception
+    public void dhWithUkmOnJslIsRefusedTyped() throws Exception
     {
-        // Negative path: a different recipient private key derives a
-        // different KEK, so the AES key-unwrap fails. Proves the agreement
-        // and KDF actually depend on the key — a stub KDF returning a
-        // constant KEK would pass every positive round-trip above.
+        KeyPair orig = dhKeyPair();
+        KeyPair recip = dhKeyPair();
+
+        CMSEnvelopedDataGenerator gen = new CMSEnvelopedDataGenerator();
+        JceKeyAgreeRecipientInfoGenerator rig = new JceKeyAgreeRecipientInfoGenerator(
+                PKCSObjectIdentifiers.id_alg_ESDH, orig.getPrivate(), orig.getPublic(),
+                CMSAlgorithm.AES256_WRAP);
+        rig.setUserKeyingMaterial(randomUkm(16));
+        rig.addRecipient(randomKid(), recip.getPublic());
+        rig.setProvider(JSL);
+        gen.addRecipientInfoGenerator(rig);
+
+        byte[] data = randomData();
+        CMSException failure = Assertions.assertThrows(CMSException.class, () ->
+                        gen.generate(new CMSProcessableByteArray(data),
+                                new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES128_GCM)
+                                        .setProvider(JSL).build()),
+                "stock bcpkix's DH ESDH generator with a UKM must fail when pointed at JSL");
+        assertCauseNamesJostleUkmSpec(failure);
+    }
+
+    @Test
+    public void bcEncryptedEcdhIsRefusedTypedOnJslDecrypt() throws Exception
+    {
         KeyPair orig = ecKeyPair("P-256");
         KeyPair recip = ecKeyPair("P-256");
-        KeyPair wrong = ecKeyPair("P-256");
-
-        byte[] data = new byte[64];
-        RANDOM.nextBytes(data);
-        byte[] kid = new byte[8];
-        RANDOM.nextBytes(kid);
 
         CMSEnvelopedDataGenerator gen = new CMSEnvelopedDataGenerator();
         JceKeyAgreeRecipientInfoGenerator rig = new JceKeyAgreeRecipientInfoGenerator(
                 CMSAlgorithm.ECDH_SHA256KDF, orig.getPrivate(), orig.getPublic(),
-                CMSAlgorithm.AES128_WRAP);
-        rig.addRecipient(kid, recip.getPublic());
-        rig.setProvider(JSL);
+                CMSAlgorithm.AES256_WRAP);
+        rig.addRecipient(randomKid(), recip.getPublic());
+        rig.setProvider(BC);
         gen.addRecipientInfoGenerator(rig);
 
-        CMSEnvelopedData ed = gen.generate(
-                new CMSProcessableByteArray(data),
-                new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES128_GCM)
-                        .setProvider(JSL).build());
+        CMSEnvelopedData ed = gen.generate(new CMSProcessableByteArray(randomData()),
+                new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES128_GCM).setProvider(BC).build());
         ed = new CMSEnvelopedData(ed.getEncoded());
-
         RecipientInformation ri = ed.getRecipientInfos().getRecipients().iterator().next();
-        try
+
+        CMSException failure = Assertions.assertThrows(CMSException.class, () ->
+                        ri.getContent(new JceKeyAgreeEnvelopedRecipient(recip.getPrivate()).setProvider(JSL)),
+                "JSL recipient must refuse BC's UserKeyingMaterialSpec on the decrypt side");
+        Assertions.assertEquals("originator key invalid.", failure.getMessage());
+        assertCauseNamesJostleUkmSpec(failure);
+    }
+
+    @Test
+    public void bcEncryptedSsdhIsRefusedTypedOnJslDecrypt() throws Exception
+    {
+        KeyPair orig = dhKeyPair();
+        KeyPair recip = dhKeyPair();
+
+        CMSEnvelopedDataGenerator gen = new CMSEnvelopedDataGenerator();
+        JceKeyAgreeRecipientInfoGenerator rig = new JceKeyAgreeRecipientInfoGenerator(
+                PKCSObjectIdentifiers.id_alg_SSDH, orig.getPrivate(), orig.getPublic(),
+                CMSAlgorithm.AES128_WRAP);
+        rig.setUserKeyingMaterial(randomUkm(20));
+        rig.addRecipient(randomKid(), recip.getPublic());
+        rig.setProvider(BC);
+        gen.addRecipientInfoGenerator(rig);
+
+        CMSEnvelopedData ed = gen.generate(new CMSProcessableByteArray(randomData()),
+                new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES128_GCM).setProvider(BC).build());
+        ed = new CMSEnvelopedData(ed.getEncoded());
+        RecipientInformation ri = ed.getRecipientInfos().getRecipients().iterator().next();
+
+        CMSException failure = Assertions.assertThrows(CMSException.class, () ->
+                        ri.getContent(new JceKeyAgreeEnvelopedRecipient(recip.getPrivate()).setProvider(JSL)),
+                "JSL recipient must refuse BC's UserKeyingMaterialSpec on the decrypt side (SSDH)");
+        Assertions.assertEquals("originator key invalid.", failure.getMessage());
+        assertCauseNamesJostleUkmSpec(failure);
+    }
+
+    /** Unwraps BC's wrapper exceptions to find the typed refusal underneath. */
+    private static void assertCauseNamesJostleUkmSpec(Throwable t)
+    {
+        for (Throwable cur = t; cur != null; cur = cur.getCause())
         {
-            ri.getContent(new JceKeyAgreeEnvelopedRecipient(wrong.getPrivate()).setProvider(JSL));
-            Assertions.fail("decrypt with the wrong private key must not succeed");
+            if (cur instanceof InvalidAlgorithmParameterException
+                    && cur.getMessage() != null
+                    && cur.getMessage().contains("org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec"))
+            {
+                return;
+            }
         }
-        catch (org.bouncycastle.cms.CMSException e)
-        {
-            // expected — wrong key derives a wrong KEK, unwrap fails
-        }
+        Assertions.fail("expected an InvalidAlgorithmParameterException naming "
+                + "org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec in the cause chain of: " + t);
     }
 }
