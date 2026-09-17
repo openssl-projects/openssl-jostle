@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.ec.ETSIKEMCipherSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyPairGenerator;
+import org.openssl.jostle.jcajce.provider.ec.ECWithCKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi;
 
 import java.util.HashMap;
@@ -101,6 +102,22 @@ class ProvFIPSEC
         registerKdfAgreement(provider, attr, "ECDHWITHSHA256KDF", "SHA-256", SECObjectIdentifiers.dhSinglePass_stdDH_sha256kdf_scheme.getId());
         registerKdfAgreement(provider, attr, "ECDHWITHSHA384KDF", "SHA-384", SECObjectIdentifiers.dhSinglePass_stdDH_sha384kdf_scheme.getId());
         registerKdfAgreement(provider, attr, "ECDHWITHSHA512KDF", "SHA-512", SECObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme.getId());
+
+        // RFC 6637 §7 ECDH-CKDF, mirroring ProvEC. Ungated, like the X9.63
+        // family above: SSKDF digest mode needs nothing the module doesn't
+        // already serve. No OID aliases; no SHA-1 (RFC 6637 §13).
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA256CKDF",
+                ECWithCKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithCKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-256"));
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA384CKDF",
+                ECWithCKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithCKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-384"));
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA512CKDF",
+                ECWithCKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithCKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-512"));
 
         // The IEEE 1609.2 (ITS) KEM, mirroring ProvEC. UNGATED, like every EC
         // service beside it: the construction needs EC key management, ECDH

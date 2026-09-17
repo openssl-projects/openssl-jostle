@@ -297,17 +297,27 @@ public class ECAgreementTest
         return ka.generateSecret(wrapOid).getEncoded();
     }
 
-    /** The SPI class {@code ProvEC} registers the X9.63-KDF agreements under. */
-    private static final String KDF_AGREEMENT_SPI =
-            "org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi";
+    /**
+     * The SPI classes {@code ProvEC} registers the KDF-shaped agreements
+     * under — X9.63 (CMS {@code ECDHWITHSHA*KDF}) and SP 800-56C one-step
+     * (RFC 6637 {@code ECCDHwith*CKDF}). Two different KDF constructions
+     * (see {@link org.openssl.jostle.jcajce.provider.ec.ECWithCKDFKeyAgreementSpi}'s
+     * class javadoc for the byte-order distinction), but both share the same
+     * caller-facing shape this test drives them through:
+     * {@code engineGenerateSecret(String)} keyed by wrap algorithm, raw
+     * {@code generateSecret()} refused.
+     */
+    private static final java.util.Set<String> KDF_AGREEMENT_SPIS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi",
+            "org.openssl.jostle.jcajce.provider.ec.ECWithCKDFKeyAgreementSpi"));
 
     /**
      * Whether a registered KeyAgreement name is a KDF variant, decided from the
      * registrar's CLASS name rather than the algorithm's spelling.
      * <p>
-     * Spelling does not work: the five KDF agreements carry OID aliases such as
-     * {@code 1.3.132.1.11.1}, which do not end in "KDF". A suffix test sent all
-     * ten alias spellings down the plain-ECDH branch, where {@code
+     * Spelling does not work: the five X9.63 KDF agreements carry OID aliases
+     * such as {@code 1.3.132.1.11.1}, which do not end in "KDF". A suffix test
+     * sent all ten alias spellings down the plain-ECDH branch, where {@code
      * generateSecret()} with no algorithm is rejected — the guard caught it.
      */
     private static boolean isKdfAgreement(String alg)
@@ -316,7 +326,18 @@ public class ECAgreementTest
                 CipherFamilies.EC_PREFIX, GUARDED_TYPES)
                 .get("KeyAgreement." + alg.toUpperCase(java.util.Locale.ROOT));
         Assertions.assertNotNull(cn, "no registered class for KeyAgreement." + alg);
-        return KDF_AGREEMENT_SPI.equals(cn);
+        return KDF_AGREEMENT_SPIS.contains(cn);
+    }
+
+    private static final String CKDF_AGREEMENT_SPI =
+            "org.openssl.jostle.jcajce.provider.ec.ECWithCKDFKeyAgreementSpi";
+
+    private static boolean isCkdfAgreement(String alg)
+    {
+        String cn = ProviderSurfaceGuard.registeredClassNames(Security.getProvider(JSL),
+                CipherFamilies.EC_PREFIX, GUARDED_TYPES)
+                .get("KeyAgreement." + alg.toUpperCase(java.util.Locale.ROOT));
+        return CKDF_AGREEMENT_SPI.equals(cn);
     }
 
     // -----------------------------------------------------------------
@@ -354,8 +375,16 @@ public class ECAgreementTest
                         {
                             if (isKdfAgreement(alg))
                             {
+                                // CKDF names require a UKM (RFC 6637 §8); the
+                                // X9.63 names tolerate null.
+                                byte[] driveUkm = null;
+                                if (isCkdfAgreement(alg))
+                                {
+                                    driveUkm = new byte[16];
+                                    sr.nextBytes(driveUkm);
+                                }
                                 byte[] kek = deriveKdf(JSL, alg, alice.getPrivate(), bob.getPublic(),
-                                        null, WRAP_OIDS[0]);
+                                        driveUkm, WRAP_OIDS[0]);
                                 Assertions.assertEquals(16, kek.length,
                                         alg + ": derived a KEK of the wrong length");
                             }
@@ -579,6 +608,10 @@ public class ECAgreementTest
      * be byte-identical to BouncyCastle's, across all three wrap lengths and
      * both the no-UKM and random-UKM cases. A different UKM must derive a
      * different KEK, so a KDF that ignored it cannot pass.
+     *
+     * <p>CKDF names (RFC 6637 §7) require a UKM — §8 makes {@code Param}
+     * mandatory — so their "no-UKM" trial asserts the typed refusal instead
+     * of an agreement.
      */
     @Test
     public void everyRegisteredEcdhKdfAgreesWithBouncyCastle() throws Exception
@@ -592,6 +625,8 @@ public class ECAgreementTest
                 continue;
             }
 
+            boolean isCkdf = isCkdfAgreement(alg);
+
             for (int trial = 0; trial < TRIALS; trial++)
             {
                 KeyPair alice = generate("P-256");
@@ -599,8 +634,18 @@ public class ECAgreementTest
                 PrivateKey alicePeer = toBc(alice.getPrivate());
                 PublicKey bobPeer = toBc(bob.getPublic());
 
+                if (isCkdf && trial % 2 == 0)
+                {
+                    KeyAgreement ka = KeyAgreement.getInstance(alg, JSL);
+                    PrivateKey priv = alice.getPrivate();
+                    Assertions.assertThrows(java.security.InvalidKeyException.class,
+                            () -> ka.init(priv),
+                            alg + " trial=" + trial + ": no Param must be refused typed");
+                    continue;
+                }
+
                 byte[] ukm = null;
-                if (trial % 2 == 1)
+                if (trial % 2 == 1 || isCkdf)
                 {
                     ukm = new byte[8 + sr.nextInt(40)];
                     sr.nextBytes(ukm);

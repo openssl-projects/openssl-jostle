@@ -83,7 +83,11 @@ public class FIPSECAgreementTest
     // Table 8 lists that usage as non-approved, which is the operator's
     // compliance determination rather than a capability we withhold.
     private static final String[] ECDH_KDF_NAMES = {
-            "ECDHWITHSHA1KDF", "ECDHWITHSHA224KDF", "ECDHWITHSHA256KDF", "ECDHWITHSHA384KDF", "ECDHWITHSHA512KDF"
+            "ECDHWITHSHA1KDF", "ECDHWITHSHA224KDF", "ECDHWITHSHA256KDF", "ECDHWITHSHA384KDF", "ECDHWITHSHA512KDF",
+            // RFC 6637 §7 SP 800-56C one-step KDF (a different construction —
+            // see ECWithCKDFKeyAgreementSpi's javadoc). Ungated, like the
+            // X9.63 family above. No SHA-1 (RFC 6637 §13).
+            "ECCDHWITHSHA256CKDF", "ECCDHWITHSHA384CKDF", "ECCDHWITHSHA512CKDF"
     };
 
     // AES key-wrap OIDs used as the KDF's target (KEK) algorithm, giving 16/24/
@@ -318,6 +322,10 @@ public class FIPSECAgreementTest
      * KEK across JSLFIPS, JSL, and BC — for every registered digest, every
      * AES-wrap target length, and both the no-UKM and random-UKM cases. A
      * different UKM is the differentiator.
+     *
+     * <p>The CKDF names (RFC 6637 §7) require a UKM — §8 makes {@code Param}
+     * mandatory — so their "no-UKM" trial asserts the typed refusal instead of
+     * an agreement.
      */
     @Test
     public void ecdhKdfAgrees() throws Exception
@@ -326,13 +334,25 @@ public class FIPSECAgreementTest
 
         for (String name : ECDH_KDF_NAMES)
         {
+            boolean isCkdf = name.startsWith("ECCDH");
+
             for (int trial = 0; trial < TRIALS; trial++)
             {
                 Map<String, Keys> alice = shareAcrossProviders("secp256r1");
                 Map<String, Keys> bob = shareAcrossProviders("secp256r1");
 
+                if (isCkdf && trial % 2 == 0)
+                {
+                    KeyAgreement ka = KeyAgreement.getInstance(name, FIPS);
+                    PrivateKey priv = alice.get(FIPS).priv;
+                    Assertions.assertThrows(java.security.InvalidKeyException.class,
+                            () -> ka.init(priv),
+                            name + " trial=" + trial + ": no Param must be refused typed under JSLFIPS");
+                    continue;
+                }
+
                 byte[] ukm = null;
-                if (trial % 2 == 1)
+                if (trial % 2 == 1 || isCkdf)
                 {
                     ukm = new byte[8 + sr.nextInt(40)];
                     sr.nextBytes(ukm);
@@ -359,6 +379,56 @@ public class FIPSECAgreementTest
                             tag + ": distinct UKM produced an identical KEK");
                 }
             }
+        }
+    }
+
+    /**
+     * A missing Param — no spec at all, a null UKM, or an empty one — is
+     * refused typed for the CKDF names under JSLFIPS. Same check
+     * ({@code ECWithCKDFKeyAgreementSpi.engineInit}) as JSL — a confirmation,
+     * not a new mechanism.
+     */
+    @Test
+    public void ckdfRefusesMissingParamTyped() throws Exception
+    {
+        String[] ckdfNames = {"ECCDHWITHSHA256CKDF", "ECCDHWITHSHA384CKDF", "ECCDHWITHSHA512CKDF"};
+        for (String name : ckdfNames)
+        {
+            KeyPair kp = generate(FIPS, "secp256r1");
+
+            Assertions.assertThrows(java.security.InvalidKeyException.class, () ->
+                    javax.crypto.KeyAgreement.getInstance(name, FIPS).init(kp.getPrivate()),
+                    name + ": init(Key) with no Param must be refused typed under JSLFIPS");
+
+            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+                    javax.crypto.KeyAgreement.getInstance(name, FIPS).init(kp.getPrivate(),
+                            new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(null)),
+                    name + ": a null Param must be refused typed under JSLFIPS");
+
+            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+                    javax.crypto.KeyAgreement.getInstance(name, FIPS).init(kp.getPrivate(),
+                            new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(new byte[0])),
+                    name + ": an empty Param must be refused typed under JSLFIPS");
+        }
+    }
+
+    /**
+     * Foreign spec refusal for the new CKDF names, under JSLFIPS. The check
+     * ({@code KeyAgreementKDF.extractUkm}) is provider-agnostic pure Java —
+     * same code path as JSL — so this is a confirmation, not a new mechanism.
+     */
+    @Test
+    public void ckdfRefusesForeignParameterSpecTyped() throws Exception
+    {
+        String[] ckdfNames = {"ECCDHWITHSHA256CKDF", "ECCDHWITHSHA384CKDF", "ECCDHWITHSHA512CKDF"};
+        for (String name : ckdfNames)
+        {
+            KeyPair kp = generate(FIPS, "secp256r1");
+            javax.crypto.KeyAgreement ka = javax.crypto.KeyAgreement.getInstance(name, FIPS);
+            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+                    ka.init(kp.getPrivate(),
+                            new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(new byte[16])),
+                    name + ": BC's own UserKeyingMaterialSpec must be refused typed under JSLFIPS too");
         }
     }
 

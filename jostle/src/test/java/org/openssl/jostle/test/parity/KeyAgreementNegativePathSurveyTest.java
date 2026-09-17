@@ -87,6 +87,8 @@ public class KeyAgreementNegativePathSurveyTest
     private static final SecureRandom SR = new SecureRandom();
     /** id-aes256-wrap: what the KDF variants size their derived key from. */
     private static final String AES256_WRAP = "2.16.840.1.101.3.4.1.45";
+    /** A valid RFC 6637 §8 Param, for the one cell whose init requires one. */
+    private static final byte[] CKDF_UKM = {1, 2, 3, 4, 5, 6, 7, 8};
 
     /**
      * The three JCA finish overloads. {@code NONE} is not an overload: it
@@ -179,14 +181,57 @@ public class KeyAgreementNegativePathSurveyTest
          * family rather than to the algorithm chosen for that row.
          */
         final String secretAlgorithm;
+        /**
+         * UKM required at init, or null for a cell whose no-spec
+         * {@code init(Key)} works (every cell but the CKDF one). Non-null on
+         * a cell means every "drive with the cell's own valid key" call site
+         * carries a UKM spec instead of the bare no-spec init — RFC 6637 §8
+         * makes it mandatory, so {@code init(Key)} alone always refuses now.
+         * A fault call site that deliberately substitutes a DIFFERENT key or
+         * spec (wrong-family key, null key, a foreign param spec) is
+         * unaffected — that substitution IS the fault under test.
+         */
+        final byte[] initUkm;
 
         Cell(String name, String spiClass, String kpg, String kf, String secretAlgorithm)
+        {
+            this(name, spiClass, kpg, kf, secretAlgorithm, null);
+        }
+
+        Cell(String name, String spiClass, String kpg, String kf, String secretAlgorithm,
+                byte[] initUkm)
         {
             this.name = name;
             this.spiClass = spiClass;
             this.kpgAlgorithm = kpg;
             this.bcKeyFactory = kf;
             this.secretAlgorithm = secretAlgorithm;
+            this.initUkm = initUkm;
+        }
+    }
+
+    /**
+     * The UKM spec type is provider-specific (BC refuses Jostle's own
+     * {@code UserKeyingMaterialSpec} as foreign, and vice versa) — resolve it
+     * at the point of use rather than storing one on the cell.
+     */
+    private static java.security.spec.AlgorithmParameterSpec ukmSpec(Provider p, byte[] ukm)
+    {
+        return p == bc
+                ? new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm)
+                : new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm);
+    }
+
+    /** Init with the cell's own valid key, carrying its UKM when it requires one. */
+    private static void init(KeyAgreement k, Provider p, PrivateKey priv, Cell cell) throws Exception
+    {
+        if (cell.initUkm != null)
+        {
+            k.init(priv, ukmSpec(p, cell.initUkm));
+        }
+        else
+        {
+            k.init(priv);
         }
     }
 
@@ -214,6 +259,7 @@ public class KeyAgreementNegativePathSurveyTest
         c.add(new Cell("DHWITHRFC2631KDF", "DHWithKDFKeyAgreementSpi", "DH", "DH", AES256_WRAP));
         c.add(new Cell("ECDH", "ECDHKeyAgreementSpi", "EC", "EC", AES256_WRAP));
         c.add(new Cell("ECDHWITHSHA256KDF", "ECWithKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP));
+        c.add(new Cell("ECCDHWITHSHA256CKDF", "ECWithCKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP, CKDF_UKM));
         c.add(new Cell("X25519", "XDHKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
         c.add(new Cell("X448", "XDHKeyAgreementSpi", "X448", "X448", AES256_WRAP));
         c.add(new Cell("XDH", "XDHKeyAgreementSpi", "X25519", "XDH", AES256_WRAP));
@@ -365,7 +411,7 @@ public class KeyAgreementNegativePathSurveyTest
         String ctx = p.getName() + " " + cell.name + " (baseline) " + form;
         return Observer.observe(() -> {
             KeyAgreement k = KeyAgreement.getInstance(cell.name, p);
-            k.init(keys.priv(p));
+            init(k, p, keys.priv(p), cell);
             k.doPhase(keys.peer(p), true);
             return finish(k, cell, form, ctx, tail);
         });
@@ -398,30 +444,30 @@ public class KeyAgreementNegativePathSurveyTest
                 case GENERATE_SECRET_BEFORE_INIT:
                     return finish(k, cell, form, ctx, tail);
                 case GENERATE_SECRET_BEFORE_DOPHASE:
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     return finish(k, cell, form, ctx, tail);
                 case NULL_PUBLIC_KEY_DOPHASE:
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     k.doPhase(null, true);
                     return null;
                 case WRONG_FAMILY_PUBLIC_KEY_DOPHASE:
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     k.doPhase(other.peer(p), true);
                     return null;
                 case OWN_PUBLIC_KEY_DOPHASE:
                     // Not malformed - a caller agreeing with itself. Legal
                     // arithmetic, so a refusal here would be a policy choice
                     // and worth knowing about on both sides.
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     k.doPhase(keys.own(p), true);
                     return finish(k, cell, form, ctx, tail);
                 case DOPHASE_NOT_LAST_THEN_GENERATE:
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     k.doPhase(keys.peer(p), false);
                     return finish(k, cell, form, ctx, tail);
                 case GENERATE_SECRET_TWICE:
                 {
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     k.doPhase(keys.peer(p), true);
                     // The row covers both results.
                     byte[] s1 = finish(k, cell, form, ctx, tail);
@@ -430,7 +476,7 @@ public class KeyAgreementNegativePathSurveyTest
                 }
                 case SHORT_OUTPUT_GENERATE_SECRET:
                 {
-                    k.init(keys.priv(p));
+                    init(k, p, keys.priv(p), cell);
                     k.doPhase(keys.peer(p), true);
                     // Deliberately undersized: the capacity IS the probe,
                     // so this does not use the survey's oversize buffer.

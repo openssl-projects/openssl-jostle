@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.ec.ECAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.ec.ECDHKeyAgreementSpi;
+import org.openssl.jostle.jcajce.provider.ec.ECWithCKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.ec.ECKeyFactorySpi;
@@ -138,6 +139,23 @@ class ProvEC
                 (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), "SHA-512", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", SECObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme.getId());
+
+        // RFC 6637 §7 ECDH-CKDF (the SP 800-56C one-step KDF), for OpenPGP's
+        // ECDH. No OID aliases: PGP resolves this by JCA name, not by an
+        // ASN.1 scheme OID. SHA-1 deliberately absent — RFC 6637 §13 forbids
+        // it with this KDF.
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA256CKDF",
+                ECWithCKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "SHA-256"));
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA384CKDF",
+                ECWithCKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "SHA-384"));
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA512CKDF",
+                ECWithCKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "SHA-512"));
 
         // The IEEE 1609.2 (ITS) integrated-encryption KEM, under the name
         // BouncyCastle's JceETSIKeyWrapper and JcaETSIDataDecryptor resolve a

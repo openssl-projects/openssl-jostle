@@ -105,6 +105,8 @@ public class ServedSurfaceSnapshotTest
             "Cipher.ML-KEM", "Cipher.RSA",
             "Cipher.RSA-KTS-KEM-KWS", "Cipher.RSA/ECB/PKCS1PADDING", "Cipher.SM4",
             "Cipher.SM4/CCM/NOPADDING", "KeyAgreement.DH", "KeyAgreement.DHWITHRFC2631KDF",
+            "KeyAgreement.ECCDHWITHSHA256CKDF", "KeyAgreement.ECCDHWITHSHA384CKDF",
+            "KeyAgreement.ECCDHWITHSHA512CKDF",
             "KeyAgreement.ECDH", "KeyAgreement.ECDHWITHSHA1KDF", "KeyAgreement.ECDHWITHSHA224KDF",
             "KeyAgreement.ECDHWITHSHA256KDF", "KeyAgreement.ECDHWITHSHA384KDF",
             "KeyAgreement.ECDHWITHSHA512KDF", "KeyAgreement.X25519", "KeyAgreement.X448",
