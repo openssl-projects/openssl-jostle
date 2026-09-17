@@ -46,9 +46,10 @@ import java.util.List;
  * <p><b>Non-DER input is accepted and normalised to DER.</b> See
  * {@link JOX509Certificate} for what that means to a caller.
  *
- * <p>This phase serves certificates from DER. CRLs, CertPaths and the PEM and
- * PKCS#7 container formats are not yet served by this implementation and
- * refuse typed rather than silently returning nothing.
+ * <p>Certificates and CRLs are read from DER or PEM, singly or concatenated,
+ * per the {@code CertificateFactory} contract. {@code CertPath} input is DER
+ * only ({@code PkiPath} / {@code PKCS7}); PEM there is not yet served and
+ * refuses typed rather than silently returning nothing.
  */
 public class X509CertificateFactorySpi
     extends CertificateFactorySpi
@@ -188,13 +189,15 @@ public class X509CertificateFactorySpi
     }
 
     /**
-     * Read exactly one DER object from the stream, leaving the remainder.
+     * Read exactly one object from the stream — DER (first octet
+     * {@code 0x30}) or PEM (first octet {@code '-'}) — leaving the remainder.
      *
      * <p>Reading one object and stopping is the JCA contract: measured, both
      * the JDK and BouncyCastle leave the stream positioned immediately after
-     * the certificate, so a caller can read a concatenated series. That is the
-     * OPPOSITE of the whole-blob decoders elsewhere in the tree, which refuse
-     * trailing data — and each site says which contract it serves.
+     * the certificate, so a caller can read a concatenated series (DER, PEM,
+     * or a mix). That is the OPPOSITE of the whole-blob decoders elsewhere in
+     * the tree, which refuse trailing data — and each site says which
+     * contract it serves.
      *
      * @return the object's octets, or null at end of stream
      */
@@ -210,8 +213,11 @@ public class X509CertificateFactorySpi
             }
             if (first != 0x30)
             {
-                throw new CertificateException(
-                        "expected a DER SEQUENCE; this phase does not read PEM");
+                // Not DER. SUN and BC both tolerate blank lines, comments and
+                // prose before a PEM block, so scan forward to the BEGIN line
+                // rather than refusing on the first octet; content with no
+                // block at all is refused, as SUN refuses it.
+                return readPem(in, first, ceiling);
             }
             ByteArrayOutputStream header = new ByteArrayOutputStream();
             header.write(first);
@@ -281,6 +287,173 @@ public class X509CertificateFactorySpi
         {
             throw new CertificateException("Could not parse certificate: " + e, e);
         }
+    }
+
+    /**
+     * Read one PEM block — "-----BEGIN &lt;label&gt;-----" through the
+     * newline ending "-----END &lt;label&gt;-----" — decode it and return the
+     * decoded bytes. Leaves the stream positioned immediately after that
+     * newline, the same one-object-and-stop contract {@link #readOne} keeps
+     * for DER.
+     *
+     * <p>The label is read from the header and required to match the footer
+     * (RFC 7468), but is not otherwise validated against what this call site
+     * expects ("CERTIFICATE" vs "X509 CRL"): measured, neither the JDK nor
+     * BouncyCastle check it either — a PEM block of the wrong type decodes
+     * here and is refused later, when the bytes fail to parse as the
+     * structure this call site wants, exactly as wrong-type DER input is.
+     */
+    private byte[] readPem(InputStream in, int first, int ceiling)
+        throws CertificateException
+    {
+        // Base64 expands by 4/3; doubling the DER ceiling is a generous
+        // bound on the encoded body that costs nothing to check before the
+        // decode, so a PEM block cannot be used to force an allocation the
+        // DER path would have refused. The same bound covers the preamble
+        // scan below, so a stream with no BEGIN line at all cannot be
+        // scanned forever either.
+        long bodyCeiling = 2L * ceiling + 1024;
+        try
+        {
+            String line = readPemLine(in, first, bodyCeiling);
+            long scanned = line.length();
+            while (!line.startsWith("-----BEGIN "))
+            {
+                String next = readPemLineOrNull(in, bodyCeiling);
+                if (next == null)
+                {
+                    // A genuinely empty stream never reaches here (readOne
+                    // returns null for that before calling this method), so
+                    // reaching end of stream here means content was read but
+                    // no BEGIN line was in it — refused, not treated as empty.
+                    throw new CertificateException("malformed PEM data: no header found");
+                }
+                line = next;
+                scanned += line.length();
+                if (scanned > bodyCeiling)
+                {
+                    throw new CertificateParseException(
+                            "PEM preamble exceeds the configured ceiling; raise "
+                                    + (ceiling == X509NI.maxCertificateBytes()
+                                       ? X509NI.MAX_CERT_BYTES_PROPERTY
+                                       : X509NI.MAX_CONTAINER_BYTES_PROPERTY));
+                }
+            }
+            String label = pemLabel(line, "BEGIN", "header");
+
+            StringBuilder body = new StringBuilder();
+            while (true)
+            {
+                line = readPemLineOrNull(in, bodyCeiling);
+                if (line == null)
+                {
+                    throw new CertificateException("malformed PEM data: no footer found");
+                }
+                if (line.startsWith("-----END "))
+                {
+                    break;
+                }
+                body.append(line);
+                if (body.length() > bodyCeiling)
+                {
+                    throw new CertificateParseException(
+                            "PEM body exceeds the configured ceiling; raise "
+                                    + (ceiling == X509NI.maxCertificateBytes()
+                                       ? X509NI.MAX_CERT_BYTES_PROPERTY
+                                       : X509NI.MAX_CONTAINER_BYTES_PROPERTY));
+                }
+            }
+            String footerLabel = pemLabel(line, "END", "footer");
+            if (!label.equals(footerLabel))
+            {
+                throw new CertificateException(
+                        "malformed PEM data: header and footer do not match: "
+                                + label + " / " + footerLabel);
+            }
+            try
+            {
+                return java.util.Base64.getMimeDecoder().decode(body.toString());
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new CertificateException("malformed PEM data: invalid base64", e);
+            }
+        }
+        catch (IOException e)
+        {
+            throw new CertificateException("Could not parse certificate: " + e, e);
+        }
+    }
+
+    /** The label out of a "-----BEGIN X-----" / "-----END X-----" line, or a typed refusal. */
+    private static String pemLabel(String line, String keyword, String what)
+        throws CertificateException
+    {
+        String prefix = "-----" + keyword + " ";
+        if (!line.startsWith(prefix) || !line.endsWith("-----")
+                || line.length() < prefix.length() + 5)
+        {
+            throw new CertificateException("malformed PEM data: no " + what + " found");
+        }
+        return line.substring(prefix.length(), line.length() - 5);
+    }
+
+    /**
+     * One line (trailing {@code \r}/{@code \n} stripped), or null only when
+     * the stream ends before any byte of a new line is read.
+     */
+    private static String readPemLineOrNull(InputStream in, long maxLen)
+        throws IOException, CertificateException
+    {
+        StringBuilder sb = new StringBuilder();
+        int c;
+        while ((c = in.read()) >= 0 && c != '\n')
+        {
+            if (c != '\r')
+            {
+                sb.append((char) c);
+            }
+            if (sb.length() > maxLen)
+            {
+                throw new CertificateException("malformed PEM data: line exceeds the configured ceiling");
+            }
+        }
+        if (c < 0 && sb.length() == 0)
+        {
+            return null;
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Like {@link #readPemLineOrNull}, but the line's first character was
+     * already read from the stream (by {@link #readOne}, to decide this
+     * wasn't DER) — always returns a line, even an empty one.
+     */
+    private static String readPemLine(InputStream in, int firstChar, long maxLen)
+        throws IOException, CertificateException
+    {
+        StringBuilder sb = new StringBuilder();
+        if (firstChar != '\r' && firstChar != '\n')
+        {
+            sb.append((char) firstChar);
+        }
+        if (firstChar != '\n')
+        {
+            int c;
+            while ((c = in.read()) >= 0 && c != '\n')
+            {
+                if (c != '\r')
+                {
+                    sb.append((char) c);
+                }
+                if (sb.length() > maxLen)
+                {
+                    throw new CertificateException("malformed PEM data: line exceeds the configured ceiling");
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private Certificate parse(byte[] der)
