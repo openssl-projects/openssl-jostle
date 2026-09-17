@@ -24,6 +24,7 @@ import java.security.cert.CRLReason;
 import java.security.cert.X509CRLEntry;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -271,12 +272,12 @@ class JOX509CRLEntry
 
     public Set<String> getCriticalExtensionOIDs()
     {
-        return criticalOids;
+        return criticalOids == null ? null : new HashSet<String>(criticalOids);
     }
 
     public Set<String> getNonCriticalExtensionOIDs()
     {
-        return nonCriticalOids;
+        return nonCriticalOids == null ? null : new HashSet<String>(nonCriticalOids);
     }
 
     public byte[] getExtensionValue(String oid)

@@ -40,6 +40,7 @@ import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -411,12 +412,15 @@ class JOX509CRL
 
     public Set<String> getCriticalExtensionOIDs()
     {
-        return criticalOids;
+        // A fresh copy every call: SUN's X509CRLImpl and BC's X509CRLImpl both
+        // do, and callers (DistributionPointFetcher, PKIXCertPathReviewer)
+        // call remove() on the returned set.
+        return criticalOids == null ? null : new HashSet<String>(criticalOids);
     }
 
     public Set<String> getNonCriticalExtensionOIDs()
     {
-        return nonCriticalOids;
+        return nonCriticalOids == null ? null : new HashSet<String>(nonCriticalOids);
     }
 
     public byte[] getExtensionValue(String oid)
