@@ -99,6 +99,13 @@ public class DHAlgorithmParameters
                             + (paramSpec == null ? "null" : paramSpec.getClass().getName()));
         }
         DHParameterSpec spec = (DHParameterSpec) paramSpec;
+        if (!DHParameterSpecs.isAccepted(spec))
+        {
+            throw new InvalidParameterSpecException(
+                    "unsupported DHParameterSpec subclass " + spec.getClass().getName()
+                            + "; use javax.crypto.spec.DHParameterSpec or "
+                            + "org.openssl.jostle.jcajce.spec.DHDomainParameterSpec");
+        }
         if (spec.getP() == null || spec.getG() == null)
         {
             throw new InvalidParameterSpecException("DH parameters require p and g");

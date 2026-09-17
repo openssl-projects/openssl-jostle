@@ -173,6 +173,13 @@ public class DHKeyPairGenerator extends KeyPairGenerator
                     "expected DHParameterSpec (got " + params.getClass().getName() + ")");
         }
         DHParameterSpec dhSpec = (DHParameterSpec) params;
+        if (!DHParameterSpecs.isAccepted(dhSpec))
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "unsupported DHParameterSpec subclass " + dhSpec.getClass().getName()
+                            + "; use javax.crypto.spec.DHParameterSpec or "
+                            + "org.openssl.jostle.jcajce.spec.DHDomainParameterSpec");
+        }
         if (dhSpec.getP() == null || dhSpec.getG() == null)
         {
             throw new InvalidAlgorithmParameterException(

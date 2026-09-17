@@ -273,4 +273,69 @@ public class DHX942Test
                     "PKCS#8 with " + extra + " trailing byte(s) must be rejected");
         }
     }
+
+    /**
+     * BouncyCastle's own {@code org.bouncycastle.jcajce.spec.DHDomainParameterSpec}
+     * extends {@code javax.crypto.spec.DHParameterSpec} and carries its own
+     * q, exactly as Jostle's does — so it passes an {@code instanceof
+     * DHParameterSpec} check but is not Jostle's class, and its q would
+     * otherwise be silently dropped, treating an X9.42 request as PKCS#3.
+     * Both consumers that accept a caller-supplied {@link DHParameterSpec}
+     * must refuse it typed rather than lose q silently.
+     */
+    @Test
+    public void foreignBcDhDomainParameterSpecIsRefusedTypedByAlgorithmParameters() throws Exception
+    {
+        org.bouncycastle.jcajce.spec.DHDomainParameterSpec foreign =
+                new org.bouncycastle.jcajce.spec.DHDomainParameterSpec(x942.getP(), x942.getQ(), x942.getG());
+
+        java.security.AlgorithmParameters params =
+                java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        java.security.spec.InvalidParameterSpecException e = Assertions.assertThrows(
+                java.security.spec.InvalidParameterSpecException.class, () -> params.init(foreign));
+        Assertions.assertTrue(e.getMessage().contains(foreign.getClass().getName()),
+                "message must name the refused class: " + e.getMessage());
+        Assertions.assertTrue(e.getMessage().contains(DHDomainParameterSpec.class.getName())
+                        && e.getMessage().contains(DHParameterSpec.class.getName()),
+                "message must name the accepted types: " + e.getMessage());
+    }
+
+    @Test
+    public void foreignBcDhDomainParameterSpecIsRefusedTypedByKeyPairGenerator() throws Exception
+    {
+        org.bouncycastle.jcajce.spec.DHDomainParameterSpec foreign =
+                new org.bouncycastle.jcajce.spec.DHDomainParameterSpec(x942.getP(), x942.getQ(), x942.getG());
+
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                java.security.InvalidAlgorithmParameterException.class, () -> kpg.initialize(foreign));
+        Assertions.assertTrue(e.getMessage().contains(foreign.getClass().getName()),
+                "message must name the refused class: " + e.getMessage());
+        Assertions.assertTrue(e.getMessage().contains(DHDomainParameterSpec.class.getName())
+                        && e.getMessage().contains(DHParameterSpec.class.getName()),
+                "message must name the accepted types: " + e.getMessage());
+    }
+
+    /**
+     * Positive controls beside the refusals above: Jostle's own
+     * {@link DHDomainParameterSpec} and the bare JDK {@link DHParameterSpec}
+     * are both still accepted by {@code AlgorithmParameters}, and q survives
+     * for the domain-parameter spec — proving the refusal is about the
+     * FOREIGN class, not about q or about DHParameterSpec generally.
+     */
+    @Test
+    public void jostleAndPlainDhParameterSpecsAreStillAcceptedByAlgorithmParameters() throws Exception
+    {
+        java.security.AlgorithmParameters x942Params =
+                java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        x942Params.init(x942);
+        Assertions.assertEquals(x942.getQ(),
+                x942Params.getParameterSpec(DHDomainParameterSpec.class).getQ());
+
+        java.security.AlgorithmParameters pkcs3Params =
+                java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        pkcs3Params.init(pkcs3);
+        Assertions.assertEquals(pkcs3.getP(),
+                pkcs3Params.getParameterSpec(DHParameterSpec.class).getP());
+    }
 }
