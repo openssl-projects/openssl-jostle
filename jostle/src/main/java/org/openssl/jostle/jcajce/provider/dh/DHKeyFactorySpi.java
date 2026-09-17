@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.DHDomainParameterSpec;
+import org.openssl.jostle.jcajce.spec.DHExtendedPublicKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -117,6 +119,46 @@ public class DHKeyFactorySpi extends KeyFactorySpi
                 throw new InvalidKeySpecException("unable to decode DH public key", e);
             }
         }
+        if (keySpec instanceof DHExtendedPublicKeySpec)
+        {
+            // Checked before the bare DHPublicKeySpec arm below, since this
+            // class extends it: the full domain parameter set decides PKCS#3
+            // vs X9.42, exactly as DHKeyPairGenerator/DHAlgorithmParameters
+            // decide it from a DHParameterSpec.
+            DHExtendedPublicKeySpec extended = (DHExtendedPublicKeySpec) keySpec;
+            DHParameterSpec params = extended.getParams();
+            if (!DHParameterSpecs.isAccepted(params))
+            {
+                throw new InvalidKeySpecException(
+                        "unsupported DHParameterSpec subclass " + params.getClass().getName()
+                                + "; use javax.crypto.spec.DHParameterSpec or "
+                                + "org.openssl.jostle.jcajce.spec.DHDomainParameterSpec");
+            }
+            byte[] p = magnitude(extended.getP(), "p");
+            byte[] g = magnitude(extended.getG(), "g");
+            byte[] y = magnitude(extended.getY(), "y");
+            byte[] q = params instanceof DHDomainParameterSpec
+                    ? DHComponents.unsignedMagnitude(((DHDomainParameterSpec) params).getQ())
+                    : null;
+            try
+            {
+                long ref = dhServiceNI.makePublicFromComponents(p, q, g, y);
+                return new JODHPublicKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
+            }
+            catch (RuntimeException e)
+            {
+                // A q-bearing import is validated at this call: y must lie in
+                // the subgroup q generates (BC's own KeyFactory refuses at
+                // this same site). Same underlying native code as doPhase's
+                // classifier, translated to the KeyFactory-canonical
+                // exception here rather than DHKeyAgreementSpi's.
+                if (DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE.equals(e.getMessage()))
+                {
+                    throw new InvalidKeySpecException("public value failed the DH public-key check", e);
+                }
+                throw e;
+            }
+        }
         if (keySpec instanceof DHPublicKeySpec)
         {
             DHPublicKeySpec pubSpec = (DHPublicKeySpec) keySpec;
@@ -125,12 +167,13 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             byte[] y = magnitude(pubSpec.getY(), "y");
             // DHPublicKeySpec carries no q, so this is the PKCS#3 form — the
             // same answer BouncyCastle gives for the same spec. A q-carrying
-            // key comes from a DER decode or from DHDomainParameterSpec.
+            // key comes from a DER decode or from DHExtendedPublicKeySpec /
+            // DHDomainParameterSpec.
             long ref = dhServiceNI.makePublicFromComponents(p, null, g, y);
             return new JODHPublicKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
-                + ". Use X509EncodedKeySpec or DHPublicKeySpec.");
+                + ". Use X509EncodedKeySpec, DHPublicKeySpec or DHExtendedPublicKeySpec.");
     }
 
     @Override

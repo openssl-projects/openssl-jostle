@@ -228,14 +228,18 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         }
         catch (RuntimeException e)
         {
-            // OpenSSL rejects a peer at set_peer time for two different
-            // reasons, and they need different messages: genuinely different
-            // domain parameters, or the same parameters in a different
-            // ENCODING FORM. See the Java 8 baseline copy.
+            // OpenSSL rejects a peer at set_peer time for three different
+            // reasons, and they need different messages. See the Java 8
+            // baseline copy.
             if (DHServiceNI.PEER_ENCODING_MISMATCH_MESSAGE.equals(e.getMessage()))
             {
                 throw new InvalidKeyException(
                         "DH doPhase: " + DHServiceNI.PEER_ENCODING_MISMATCH_MESSAGE, e);
+            }
+            if (DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE.equals(e.getMessage()))
+            {
+                throw new InvalidKeyException(
+                        "DH doPhase: " + DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE, e);
             }
             throw new InvalidKeyException(
                     "DH doPhase: peer key rejected (different domain parameters)", e);

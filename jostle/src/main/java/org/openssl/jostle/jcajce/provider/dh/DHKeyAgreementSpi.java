@@ -251,18 +251,25 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
             }
             catch (RuntimeException e)
             {
-                // OpenSSL rejects a peer at set_peer time for two different
+                // OpenSSL rejects a peer at set_peer time for three different
                 // reasons, and they need different messages: genuinely
-                // different domain parameters, or the same parameters in a
-                // different ENCODING FORM. The C side classifies the second
-                // (JO_DH_PEER_ENCODING_MISMATCH) because the raw OpenSSL text
-                // is "operation not supported for this keytype", which names
-                // neither cause nor cure. Translate either way, so JCE callers
-                // get the typed exception rather than a provider runtime.
+                // different domain parameters; the same parameters in a
+                // different ENCODING FORM (JO_DH_PEER_ENCODING_MISMATCH,
+                // since the raw text "operation not supported for this
+                // keytype" names neither cause nor cure); or the peer's own
+                // public value failing OpenSSL's public-key check
+                // (JO_DH_PEER_PUBKEY_INVALID). Translate all three, so JCE
+                // callers get the typed exception rather than a provider
+                // runtime.
                 if (DHServiceNI.PEER_ENCODING_MISMATCH_MESSAGE.equals(e.getMessage()))
                 {
                     throw new InvalidKeyException(
                             "DH doPhase: " + DHServiceNI.PEER_ENCODING_MISMATCH_MESSAGE, e);
+                }
+                if (DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE.equals(e.getMessage()))
+                {
+                    throw new InvalidKeyException(
+                            "DH doPhase: " + DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE, e);
                 }
                 throw new InvalidKeyException(
                         "DH doPhase: peer key rejected (different domain parameters)", e);
