@@ -34,7 +34,7 @@ import java.security.Security;
  *
  * <p>CCM permits a 7-to-13-byte nonce and a 32-to-128-bit tag, so a provider
  * choosing its own defaults produces a valid ciphertext that no other provider
- * reproduces. Measured against bcprov 1.85.2, BouncyCastle generates a
+ * reproduces. BouncyCastle generates a
  * <b>12-byte nonce</b> and a <b>64-bit tag</b> — note the tag is NOT GCM's
  * 128, which is the value a reader would assume. {@link
  * #generatedLengthsMatchBouncyCastle()} measures BC live rather than asserting

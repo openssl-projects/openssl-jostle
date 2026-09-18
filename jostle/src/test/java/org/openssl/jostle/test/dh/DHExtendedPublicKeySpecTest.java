@@ -152,7 +152,7 @@ public class DHExtendedPublicKeySpecTest
     /**
      * A y outside the subgroup is refused at import (generatePublic), the
      * same site and the same exception TYPE BC uses for the identical
-     * input. Measured (bcprov 1.86): BC's
+     * input. BC's
      * {@code KeyFactorySpi.engineGeneratePublic} constructs a
      * {@code BCDHPublicKey}, whose constructor builds a
      * {@code DHPublicKeyParameters} and validates it there, throwing
@@ -282,7 +282,7 @@ public class DHExtendedPublicKeySpecTest
 
     /**
      * BouncyCastle's own {@code DHDomainParameterSpec} as the {@code params}
-     * argument — same C44 shape J3 fixed for {@code AlgorithmParameters}/
+     * argument — the same fix already applied to {@code AlgorithmParameters}/
      * {@code KeyPairGenerator}, now inside this spec's own field.
      */
     @Test

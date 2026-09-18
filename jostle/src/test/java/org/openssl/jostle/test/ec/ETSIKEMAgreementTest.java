@@ -362,7 +362,7 @@ public class ETSIKEMAgreementTest
      * BouncyCastle's own high-level {@link JcaETSIDataDecryptor}, driven by
      * BouncyCastle's own provider. This is the JSL-wrap-side interop
      * evidence that {@code stockBouncyCastleItsHelpersOnJslAreRefusedTyped}
-     * used to carry before D50 inverted that cell.
+     * used to carry before that cell was inverted to a refusal.
      */
     @Test
     public void jostlesOwnSpecDerivesWhatBouncyCastlesDoes() throws Exception
@@ -510,8 +510,8 @@ public class ETSIKEMAgreementTest
      * Stock bcpkix ({@code org.bouncycastle.its.jcajce.JceETSIKeyWrapper} /
      * {@code JcaETSIDataDecryptor}) builds BC's own
      * {@code org.bouncycastle.jcajce.spec.IESKEMParameterSpec} internally and
-     * cannot be redirected to build ours — D50 is "our own spec classes
-     * only", so {@code ETSIKEMCipherSpi} now refuses it typed. The
+     * cannot be redirected to build ours — only our own spec classes are
+     * accepted, so {@code ETSIKEMCipherSpi} refuses it typed. The
      * bcpkix-jsl build (extensions repo, deferred) is the supported consumer
      * for driving this provider through those helpers; stock bcpkix pointed
      * at JSL is not.

@@ -224,7 +224,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                // D5 (Megan, 2026-09-13): BC returns null here; we match it,
+                // BC returns null here; we match it,
                 // against the JCE contract. Pinned in ExceptionTypeDivergencePinTest.
                 return null;
             }
@@ -253,7 +253,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                // D5, as above: BC raises a raw NullPointerException here, not
+                // BC raises a raw NullPointerException here, not
                 // ShortBufferException. Pinned in ExceptionTypeDivergencePinTest.
                 throw new NullPointerException(
                         "ECDH generateSecret: doPhase has not been called");
@@ -299,7 +299,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
         byte[] secret = engineGenerateSecret();
         if (secret == null)
         {
-            // D5, as above: BC raises a raw NullPointerException here. The
+            // BC raises a raw NullPointerException here. The
             // TYPE is the parity; the message is ours.
             throw new NullPointerException(
                     "ECDH generateSecret: doPhase has not been called");

@@ -147,7 +147,7 @@ public class RFC3211WrapCipherSpi
             throw new InvalidKeyException("key is null");
         }
 
-        // D3: bcpkix names the KEK after the wrap ("AESRFC3211Wrap"), so the
+        // bcpkix names the KEK after the wrap ("AESRFC3211Wrap"), so the
         // algorithm name is not usable. Take the bytes, check the length here,
         // and give the inner cipher a key named after the base cipher.
         byte[] enc = key.getEncoded();
@@ -376,7 +376,7 @@ public class RFC3211WrapCipherSpi
             System.arraycopy(plain, HEADER_LEN, cek, 0, cekLen);
             try
             {
-                // D4: the caller's algorithm string, untouched. bcpkix passes
+                // The caller's algorithm string, untouched. bcpkix passes
                 // the content-encryption OID, so this is often an OID.
                 return new SecretKeySpec(cek, wrappedKeyAlgorithm);
             }

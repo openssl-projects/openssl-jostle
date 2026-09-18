@@ -46,8 +46,7 @@ import java.security.spec.X509EncodedKeySpec;
  * <p>Accepted set: {@code AESWRAP}, {@code AES}, {@code AES-KWP}, matched
  * case-insensitively; a null name is refused by the Builder (see below).
  *
- * <p>Four divergences from BouncyCastle are pinned here, all measured against
- * bcprov 1.85.2:
+ * <p>Four divergences from BouncyCastle are pinned here:
  * <ol>
  * <li>BC serves ARIA, Camellia and SEED wraps from the same spec; we serve AES
  * only and refuse them typed.</li>

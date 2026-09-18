@@ -656,8 +656,8 @@ public class BcFKSKeyStoreSpiTest
      * BC returns the ENTRY's lastModifiedDate from getCreationDate, not the
      * store's own creation date (BcFKSKeyStoreSpi.java: "we return last
      * modified as it represents date current state of entry was created").
-     * This pins that we do too, measured against BC 1.86 at test time rather
-     * than a hardcoded date.
+     * This pins that we do too, measured against the installed BC at test
+     * time rather than a hardcoded date.
      */
     @Test
     public void creationDateMatchesBouncyCastlePerEntry_regression() throws Exception

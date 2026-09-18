@@ -84,8 +84,8 @@ public enum ParityVerdict
      *
      * <p>A {@code Signature.verify} reports refusal by its return value. Folding
      * that into the accept case would make a false-returning verify
-     * indistinguishable from a true-returning one - the R1 shape, one surface
-     * over.
+     * indistinguishable from a true-returning one - the same shape recurs
+     * for other boolean-returning surfaces.
      */
     MATCH_REFUSED_BY_RETURN,
 

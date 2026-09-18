@@ -24,12 +24,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * D50/C47: production never reads an {@code AlgorithmParameterSpec}
+ * Production never reads an {@code AlgorithmParameterSpec}
  * reflectively, and never carries a {@code org.bouncycastle} string literal.
  * Only Jostle's own spec types and, from their multi-release entry level,
  * the matching JDK standard type ({@code NamedParameterSpec} at java11,
- * {@code EdDSAParameterSpec} at java15) are accepted, by {@code instanceof}
- * — see C43-C46.
+ * {@code EdDSAParameterSpec} at java15) are accepted, by {@code instanceof}.
  *
  * <p>Comments are stripped before matching in both directions (a Javadoc
  * mentioning reflection or BouncyCastle reads exactly like a live

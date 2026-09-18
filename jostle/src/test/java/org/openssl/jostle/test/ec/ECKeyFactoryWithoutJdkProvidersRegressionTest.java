@@ -90,7 +90,7 @@ public class ECKeyFactoryWithoutJdkProvidersRegressionTest
                 "SHA1PRNG is unavailable after the restore");
     }
 
-    /** JSL serves all five unconditionally; the FIPS twin R2 assumes per curve. */
+    /** JSL serves all five unconditionally; the FIPS twin assumes per curve. */
     private static final String[] CURVES = {
             "secp256r1", "secp384r1", "secp521r1", "brainpoolP256r1", "sect283k1"
     };

@@ -33,7 +33,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 
 /**
- * D50/C43 regressions for {@link KTSParameterSpec}: BouncyCastle's own spec
+ * Regression coverage for {@link KTSParameterSpec}: BouncyCastle's own spec
  * type is refused typed by both KTS ciphers, and this class's own Builder is
  * what they accept — round-tripping every KDF shape and refusing malformed
  * construction.

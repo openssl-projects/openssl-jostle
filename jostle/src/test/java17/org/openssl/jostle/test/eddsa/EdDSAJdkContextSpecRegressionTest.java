@@ -28,8 +28,8 @@ import java.security.Security;
 import java.security.Signature;
 
 /**
- * D50/C46: {@code java.security.spec.EdDSAParameterSpec} (a JDK 15 API) is
- * now read typed rather than reflectively — see {@code EdSignatureSpi}'s
+ * {@code java.security.spec.EdDSAParameterSpec} (a JDK 15 API) is
+ * read typed rather than reflectively — see {@code EdSignatureSpi}'s
  * {@code java15} copy. This is the {@code java17} companion to
  * {@code EdDSATest}, driving the JDK's own spec type directly against
  * {@code ED448} and {@code ED25519CTX} (both accept a context; plain

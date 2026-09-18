@@ -75,7 +75,7 @@ import javax.crypto.spec.DHPublicKeySpec;
  * {@link #everySharedFamilyIsAccountedFor} — a fourth state is how a family
  * goes quietly unexamined.
  *
- * <p>Measured 2026-09-13 against BC 1.86: 26 shared families. 14 are cells, 12
+ * <p>26 shared families measured: 14 are cells, 12
  * are blocked, and EC additionally carries a pinned divergence.
  *
  * <h2>The block, with its reason</h2>

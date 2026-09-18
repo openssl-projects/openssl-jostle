@@ -73,7 +73,7 @@ import javax.crypto.spec.DHPrivateKeySpec;
  * and {@code XECPrivateKeySpec} Java 11, while {@code src/test/java} compiles
  * at release 8.
  *
- * <h2>Three disjoint states, measured 2026-09-13 against BC 1.86</h2>
+ * <h2>Three disjoint states</h2>
  *
  * <p>9 cells, 5 pinned, 12 blocked, 26 shared. A family in none of the three,
  * or in two, fails {@link #everySharedFamilyIsAccountedFor}. RSA additionally

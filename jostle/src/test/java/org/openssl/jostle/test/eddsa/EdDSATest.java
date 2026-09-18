@@ -180,8 +180,8 @@ public class EdDSATest
 
 
     /**
-     * D50/C46: a spec whose only structural resemblance to a context spec is
-     * a reflectively-discoverable {@code getContext()} method is no longer
+     * A spec whose only structural resemblance to a context spec is
+     * a reflectively-discoverable {@code getContext()} method is not
      * accepted — the reflective read is gone, so a spec that is neither our
      * own {@link ContextParameterSpec} nor (from JDK 15) the JDK's own
      * {@code EdDSAParameterSpec} is refused typed, same as any other unknown

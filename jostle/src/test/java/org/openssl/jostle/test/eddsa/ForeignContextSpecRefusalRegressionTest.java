@@ -26,7 +26,7 @@ import java.security.Security;
 import java.security.Signature;
 
 /**
- * D50/C46: BouncyCastle's own {@code org.bouncycastle.jcajce.spec.ContextParameterSpec}
+ * BouncyCastle's own {@code org.bouncycastle.jcajce.spec.ContextParameterSpec}
  * is refused typed by {@code EdSignatureSpi} and {@code MLDSASignatureSpi} —
  * on EVERY JDK level, since neither the baseline nor any {@code javaN} copy
  * special-cases BC's class. Lives in {@code src/test/java} (not gated by

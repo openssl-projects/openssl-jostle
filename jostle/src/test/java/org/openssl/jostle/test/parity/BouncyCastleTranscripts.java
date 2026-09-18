@@ -27,8 +27,6 @@ import javax.crypto.IllegalBlockSizeException;
  * it. A second copy would let the two drift apart independently, which is the
  * failure this consolidation exists to prevent - the same shape as any other
  * value with two sources of truth.
- *
- * <p>Measured 2026-08-31 against bcprov-jdk18on 1.85.2.
  */
 public final class BouncyCastleTranscripts
 {

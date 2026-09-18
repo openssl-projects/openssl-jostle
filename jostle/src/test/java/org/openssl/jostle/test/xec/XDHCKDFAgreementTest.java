@@ -212,9 +212,9 @@ public class XDHCKDFAgreementTest
 
     /**
      * Curve-bound at init: the LOCAL private key must match the curve this
-     * name is registered for. Measured BC parity (bcprov 1.86):
+     * name is registered for. BC raises
      * {@code InvalidKeyException("inappropriate key for X25519withSHA256CKDF")}
-     * for the same input (see pgp-agreement-surface-plan.md §3).
+     * for the same input.
      */
     @Test
     public void wrongCurveLocalKeyIsRefusedTypedAtInit() throws Exception

@@ -19,10 +19,10 @@ import org.openssl.jostle.util.Properties;
 import java.lang.reflect.Field;
 
 /**
- * D50/C47: the cleanup-delay system property moved to the Jostle namespace,
- * and the unused {@code Properties.EMULATE_ORACLE} constant is gone.
- * Reflection in test code is fine — it is production reflecting on a spec
- * that C43-C47 removed, not test code inspecting a private field.
+ * The cleanup-delay system property lives in the Jostle namespace, and the
+ * unused {@code Properties.EMULATE_ORACLE} constant is gone. Reflection in
+ * test code is fine — the concern is production reflecting on a spec, not
+ * test code inspecting a private field.
  */
 public class DisposalDaemonPropertyNameRegressionTest
 {

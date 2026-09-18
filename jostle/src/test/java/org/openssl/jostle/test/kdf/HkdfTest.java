@@ -362,7 +362,7 @@ public class HkdfTest
     }
 
     /**
-     * D50/C45: the factory no longer reads a foreign spec reflectively — BC's
+     * The factory does not read a foreign spec reflectively — BC's
      * {@code org.bouncycastle.jcajce.spec.HKDFParameterSpec} is refused typed,
      * naming the Jostle class.
      */

@@ -26,7 +26,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 
 /**
- * D50/C44 regressions for {@link AEADParameterSpec}: BouncyCastle's own spec
+ * Regression coverage for {@link AEADParameterSpec}: BouncyCastle's own spec
  * type, and any other {@code IvParameterSpec} subclass, are refused typed by
  * every AEAD-capable cipher; this class's own spec is what they accept.
  */

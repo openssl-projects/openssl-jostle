@@ -145,12 +145,12 @@ public class PkitsThreeWayTest
         // No network, ever. Setting a property is not the same as it being in
         // force — a misspelled name is a default in disguise — so each is read
         // back below. Read sites, measured from source rather than assumed:
-        //   ocsp.enable  JDK 25 (zulu 25.0.0)
+        //   ocsp.enable
         //       sun.security.provider.certpath.RevocationChecker:187, Security.getProperty
-        //   com.sun.security.enableCRLDP  JDK 25 (zulu 25.0.0)
+        //   com.sun.security.enableCRLDP
         //       sun.security.provider.certpath.RevocationChecker:194, Boolean.getBoolean
         //       (NOT DistributionPointFetcher, which reads neither)
-        //   org.bouncycastle.x509.enableCRLDP  bcprov-jdk18on 1.86
+        //   org.bouncycastle.x509.enableCRLDP
         //       org.bouncycastle.util.Properties holds the literal (and a
         //       META-INF/versions/9 copy); read in
         //       org.bouncycastle.jce.provider.CertPathValidatorUtilities via isOverrideSet

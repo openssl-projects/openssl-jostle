@@ -24,7 +24,7 @@ import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 
 /**
- * D50/C45 {@link org.openssl.jostle.test.kdf.ForeignSpecRefusalRegressionTest}
+ * {@link org.openssl.jostle.test.kdf.ForeignSpecRefusalRegressionTest}
  * FIPS twin: JSLFIPS, HKDF only (scrypt is deliberately unregistered under
  * JSLFIPS — not an approved KDF). Gated on {@code TEST_FIPS_LIB}; skipped
  * when unset.

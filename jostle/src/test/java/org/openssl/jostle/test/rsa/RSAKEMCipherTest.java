@@ -311,7 +311,7 @@ public class RSAKEMCipherTest
      * too — the narrowing brought the two into agreement rather than away from
      * it. Both halves asserted, so a drift on either side is visible.
      *
-     * <p>The two refuse at different POINTS, measured on bcprov 1.85.2: we
+     * <p>The two refuse at different POINTS: we
      * reject the spec at {@code init}, BC accepts it there and throws
      * {@code InvalidKeyException} from {@code wrap}. Asserted where each
      * actually throws, so a move of either boundary fails here.

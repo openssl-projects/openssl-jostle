@@ -40,7 +40,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 /**
- * D50/C45 regressions: BouncyCastle's own spec types are refused typed by the
+ * Regression coverage: BouncyCastle's own spec types are refused typed by the
  * key-agreement KDF, the ETSI KEM cipher, and the scrypt/HKDF secret-key
  * factories — this test file names one site for each, plus a Jostle-spec
  * positive twin producing the same bytes as BC given the same content.

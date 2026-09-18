@@ -43,7 +43,7 @@ import java.security.spec.ECGenParameterSpec;
  * <p><b>"Usually" became load-bearing on 2026-09-13, so read it before adding
  * a cell.</b> The boundary is a default, not a law: where following the
  * contract would break callers written against BouncyCastle, the ruling can go
- * the other way. D5 (Megan, 2026-09-13) takes us WITH BouncyCastle and AGAINST
+ * the other way. One case takes us WITH BouncyCastle and AGAINST
  * the JCE contract at KeyAgreement's pre-doPhase surface — see
  * {@link #ecdhGenerateSecretBeforeDoPhase_followsBouncyCastleAgainstTheContract}.
  *
@@ -155,7 +155,7 @@ public class ExceptionTypeDivergencePinTest
     }
 
     // -----------------------------------------------------------------
-    // D5 — KeyAgreement before doPhase. Here the ruling takes us WITH
+    // KeyAgreement before doPhase. Here the ruling takes us WITH
     // BouncyCastle and AGAINST the JCE contract.
     // -----------------------------------------------------------------
 
@@ -237,18 +237,18 @@ public class ExceptionTypeDivergencePinTest
 
     /**
      * ECDH generateSecret before doPhase: we follow BouncyCastle, deliberately
-     * against the JCE contract. D5, ruled by Megan on 2026-09-13.
+     * against the JCE contract.
      *
      * <p>The contract says {@code IllegalStateException} from every overload,
-     * and {@code ShortBufferException} where the buffer is too small. Measured
-     * on BC 1.86, none of that happens: {@code generateSecret()} returns null,
+     * and {@code ShortBufferException} where the buffer is too small. BC does
+     * none of that: {@code generateSecret()} returns null,
      * and the other three raise a raw {@code NullPointerException} — the
      * undersized buffer included, because BC dereferences the secret it never
      * derived before it ever reaches its length check.
      *
      * <p><b>This is the file's first cell where the ruling goes WITH BC and
-     * against the contract.</b> Ruled D5 = option 2 by Megan on 2026-09-13;
-     * she did not state a rationale, and none is invented here.
+     * against the contract.</b> No rationale was stated for this ruling, and
+     * none is invented here.
      *
      * <p>What can be said is the BOUND, because it was measured: every outcome
      * at this surface is a refusal either way, so no wrong bytes reach a
@@ -274,7 +274,7 @@ public class ExceptionTypeDivergencePinTest
     }
 
     /**
-     * The XDH half of D5, identical in shape to the ECDH cell above. Both are
+     * The XDH half of the ECDH cell above, identical in shape. Both are
      * pinned because the two SPIs are separate classes: a fix applied to one
      * and not the other is exactly the drift this file exists to catch.
      */
@@ -373,7 +373,7 @@ public class ExceptionTypeDivergencePinTest
      * resolves the peer to its own parameter type without checking the curve
      * first.
      *
-     * <p>Measured on BC 1.86: an X448 public key into an X25519 agreement
+     * <p>An X448 public key into an X25519 agreement
      * gives {@code X448PublicKeyParameters cannot be cast to
      * X25519PublicKeyParameters}. BC's ECDH path does NOT have this problem —
      * it raises an InvalidKeyException subclass there and we agree with it, so

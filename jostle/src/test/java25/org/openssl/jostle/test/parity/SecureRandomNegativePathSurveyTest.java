@@ -465,8 +465,8 @@ public class SecureRandomNegativePathSurveyTest
      * been getting right all along.
      *
      * <p><b>BouncyCastle's {@code UnsupportedOperationException} is CORRECT and
-     * stays pinned as the measured value.</b> Verified reflectively against
-     * bcprov 1.85.2: {@code DRBG$Default} extends {@code SecureRandomSpi}
+     * stays pinned as the measured value.</b> Verified reflectively:
+     * {@code DRBG$Default} extends {@code SecureRandomSpi}
      * directly and declares none of the params-taking methods, so its UOE IS the
      * contract's not-overridden case. It is not a shared error - the earlier
      * reading of this cell said so and was wrong.

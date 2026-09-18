@@ -445,7 +445,7 @@ public class FIPSECTest
                     expected.getMessage());
         }
 
-        // generateSecret before doPhase. D5 (Megan, 2026-09-13): we follow
+        // generateSecret before doPhase. We follow
         // BouncyCastle here and return null, against the JCE contract, which
         // says IllegalStateException. The SPI is shared with JSL, so this is
         // the same behaviour ECDHTest pins; the divergence from the contract

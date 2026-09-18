@@ -27,7 +27,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 
 /**
- * D50/C44 {@link AEADParameterSpecRegressionTest} FIPS twin: JSLFIPS, GCM and
+ * {@link AEADParameterSpecRegressionTest} FIPS twin: JSLFIPS, GCM and
  * CCM. Gated on {@code TEST_FIPS_LIB}; skipped when unset.
  */
 public class FIPSAEADParameterSpecRegressionTest

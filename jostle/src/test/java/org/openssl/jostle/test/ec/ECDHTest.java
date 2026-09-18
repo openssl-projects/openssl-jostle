@@ -261,11 +261,11 @@ public class ECDHTest
 
     /**
      * Before doPhase we follow BouncyCastle at this surface, including where
-     * BouncyCastle breaks the JCE contract. D5, ruled by Megan on 2026-09-13.
+     * BouncyCastle breaks the JCE contract.
      *
      * <p>The contract says {@code IllegalStateException} for every overload,
-     * and {@code ShortBufferException} for an undersized buffer. Measured on
-     * BC 1.86: {@code generateSecret()} returns null and the other three raise
+     * and {@code ShortBufferException} for an undersized buffer. BC's
+     * {@code generateSecret()} returns null and the other three raise
      * a raw {@code NullPointerException}, the undersized buffer included. The
      * divergence is pinned against LIVE BouncyCastle in
      * {@code test.parity.ExceptionTypeDivergencePinTest}; this cell pins our

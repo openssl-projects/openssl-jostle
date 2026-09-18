@@ -438,10 +438,10 @@ public class XDHTest
     }
 
     /**
-     * The XDH half of D5 — see the ECDH twin in {@code ECDHTest} for the
-     * reasoning. Contract says IllegalStateException on every overload and
-     * ShortBufferException on an undersized buffer; BC 1.86 returns null then
-     * raises raw NullPointerExceptions, and we follow BC by ruling. Pinned
+     * The XDH half of the ECDH cell — see the ECDH twin in {@code ECDHTest} for
+     * the reasoning. Contract says IllegalStateException on every overload and
+     * ShortBufferException on an undersized buffer; BC returns null then
+     * raises raw NullPointerExceptions, and we follow BC. Pinned
      * against live BC in {@code test.parity.ExceptionTypeDivergencePinTest}.
      */
     @Test

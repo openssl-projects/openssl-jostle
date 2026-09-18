@@ -30,13 +30,13 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 
 /**
- * D50/C46: the ML-KEM / ML-DSA / SLH-DSA {@code KeyPairGenerator}s no longer
+ * The ML-KEM / ML-DSA / SLH-DSA {@code KeyPairGenerator}s do not
  * read a foreign {@link AlgorithmParameterSpec} reflectively — BouncyCastle's
  * {@code org.bouncycastle.jcajce.spec.*ParameterSpec} classes are refused
  * typed. Jostle's own spec classes are the positive twin, asserting the
  * parameter set actually selected via the algorithm OID carried in the
  * generated key's encoding — proving the name was resolved to the right
- * {@code OSSLKeyType} (not silently defaulted), exactly as before D50.
+ * {@code OSSLKeyType}, not silently defaulted.
  */
 public class PQCForeignParamSpecRefusalRegressionTest
 {
@@ -102,7 +102,7 @@ public class PQCForeignParamSpecRefusalRegressionTest
                 () -> kpg.initialize(new IvParameterSpec(new byte[16])));
     }
 
-    // --- Jostle's own specs are the positive twin, unaffected by D50. --
+    // --- Jostle's own specs are the positive twin. ---
 
     @Test
     public void mlkem_ownSpecSelectsParamSet() throws Exception

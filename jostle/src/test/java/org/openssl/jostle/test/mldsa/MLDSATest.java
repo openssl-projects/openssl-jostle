@@ -173,8 +173,8 @@ public class MLDSATest
 
 
     /**
-     * D50/C46: a spec whose only structural resemblance to a context spec is
-     * a reflectively-discoverable {@code getContext()} method is no longer
+     * A spec whose only structural resemblance to a context spec is
+     * a reflectively-discoverable {@code getContext()} method is not
      * accepted — the reflective read is gone, so a spec that is not our own
      * {@link org.openssl.jostle.jcajce.spec.ContextParameterSpec} is refused
      * typed (the JDK defines no ML-DSA context spec).
