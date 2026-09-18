@@ -100,65 +100,24 @@ public class XDHWithHKDFKeyAgreementSpi extends XDHKeyAgreementSpi
     }
 
     /**
-     * The KDF output at the raw secret's own length — 32 bytes for X25519, 56
-     * for X448. BouncyCastle answers this call rather than refusing it, and
-     * uses the same length, so refusing would break a caller that works
-     * against BouncyCastle today. Before doPhase it raises instead, pinned
-     * against live BouncyCastle in {@code ExceptionTypeDivergencePinTest}.
+     * A KDF agreement yields keys only through
+     * {@link #engineGenerateSecret(String)}; the raw forms refuse.
      */
     @Override
     protected byte[] engineGenerateSecret() throws IllegalStateException
     {
-        byte[] zz = super.engineGenerateSecret();
-        if (zz == null)
-        {
-            // BouncyCastle's KDF path dereferences the absent secret to size
-            // the key, so it raises here where its raw path returns null.
-            // The type is the parity; the message is ours.
-            throw new NullPointerException(
-                    "XDH HKDF generateSecret: doPhase has not been called");
-        }
-        try
-        {
-            return hkdf(zz, zz.length);
-        }
-        finally
-        {
-            Arrays.clear(zz);
-        }
+        throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
+    /**
+     * A KDF agreement yields keys only through
+     * {@link #engineGenerateSecret(String)}; the raw forms refuse.
+     */
     @Override
     protected int engineGenerateSecret(byte[] sharedSecret, int offset)
             throws IllegalStateException, ShortBufferException
     {
-        if (sharedSecret == null)
-        {
-            throw new IllegalArgumentException("output buffer is null");
-        }
-        if (offset < 0 || offset > sharedSecret.length)
-        {
-            throw new IllegalArgumentException("offset out of range");
-        }
-
-        // Raises before doPhase, from engineGenerateSecret above.
-        byte[] derived = engineGenerateSecret();
-        try
-        {
-            if (sharedSecret.length - offset < derived.length)
-            {
-                throw new ShortBufferException(
-                        "XDH HKDF generateSecret: buffer needs " + derived.length
-                                + " bytes from offset " + offset
-                                + ", have " + (sharedSecret.length - offset));
-            }
-            System.arraycopy(derived, 0, sharedSecret, offset, derived.length);
-            return derived.length;
-        }
-        finally
-        {
-            Arrays.clear(derived);
-        }
+        throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
     @Override
@@ -178,7 +137,7 @@ public class XDHWithHKDFKeyAgreementSpi extends XDHKeyAgreementSpi
             throw new NoSuchAlgorithmException("unknown algorithm encountered: " + algorithm);
         }
 
-        // super: the local override runs the KDF, which would derive twice.
+        // super: the local raw-form override above is sealed.
         byte[] zz = super.engineGenerateSecret();
         if (zz == null)
         {

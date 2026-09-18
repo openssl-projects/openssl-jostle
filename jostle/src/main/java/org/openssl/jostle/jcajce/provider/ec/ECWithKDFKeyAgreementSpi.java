@@ -103,9 +103,8 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
     }
 
     /**
-     * BC parity: the raw pre-KDF shared secret must never escape a KDF
-     * agreement — keys are only produced via
-     * {@link #engineGenerateSecret(String)}.
+     * A KDF agreement yields keys only through
+     * {@link #engineGenerateSecret(String)}; the raw forms refuse.
      */
     @Override
     protected byte[] engineGenerateSecret() throws IllegalStateException
@@ -114,9 +113,8 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
     }
 
     /**
-     * BC parity: the raw pre-KDF shared secret must never escape a KDF
-     * agreement — keys are only produced via
-     * {@link #engineGenerateSecret(String)}.
+     * A KDF agreement yields keys only through
+     * {@link #engineGenerateSecret(String)}; the raw forms refuse.
      */
     @Override
     protected int engineGenerateSecret(byte[] sharedSecret, int offset)

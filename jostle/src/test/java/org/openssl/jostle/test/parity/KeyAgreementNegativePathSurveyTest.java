@@ -62,11 +62,12 @@ import java.util.TreeMap;
  * <p>One knob must not choose the form for every fault of a cell: that leaves
  * the other two forms unreached with nothing saying so.
  *
- * <p>The KDF-bearing agreements deliberately SEAL {@code generateSecret()} -
- * the pre-KDF shared secret must never escape, a BouncyCastle-parity property
- * pinned by {@code KeyAgreementKDFTest}. That is now a measured row per form
- * rather than a cell-shape assumption: a form whose baseline does not agree
- * contributes {@code NO_BASELINE} rows and never disappears.
+ * <p>The KDF-bearing agreements deliberately SEAL {@code generateSecret()}: a
+ * KDF agreement yields keys only through {@code generateSecret(String)}, the
+ * raw forms refuse, pinned by {@code KeyAgreementKDFTest}. That is now a
+ * measured row per form rather than a cell-shape assumption: a form whose
+ * baseline does not agree contributes {@code NO_BASELINE} rows and never
+ * disappears.
  *
  * <p>The baseline gate is per FORM, not per cell. A cell-wide gate would let a
  * refused form destroy the rows of a working one, and the derived row count

@@ -112,10 +112,9 @@ public class XDHHKDFAgreementTest
 
                 for (int i = 0; i != salts.length; i++)
                 {
-                    for (String out : new String[]{null, AES128_WRAP, AES256_WRAP})
+                    for (String out : new String[]{AES128_WRAP, AES256_WRAP})
                     {
-                        String what = curve + " " + scheme[0] + " " + saltNames[i]
-                                + " out=" + (out == null ? "raw" : out);
+                        String what = curve + " " + scheme[0] + " " + saltNames[i] + " out=" + out;
 
                         // Our private half against their public, and the reverse.
                         byte[] ours = derive(jsl(), scheme[0], a.getPrivate(), b.getPublic(),
@@ -146,6 +145,8 @@ public class XDHHKDFAgreementTest
      * salt. Pinned as a literal because it is the shape BC's
      * {@code testRFC8418HKDFAgreements} exercises, so a change on either side
      * that moves it is worth a red test rather than a silent divergence.
+     * Named form only — the raw form is sealed (see
+     * {@link #rawSharedSecretIsRefused}).
      */
     @Test
     public void agreesWithBouncyCastleOnItsOwnRfcNamedVector() throws Exception
@@ -158,8 +159,8 @@ public class XDHHKDFAgreementTest
             KeyPair b = generate(curve);
             for (String[] scheme : SCHEMES)
             {
-                byte[] ours = derive(jsl(), scheme[0], a.getPrivate(), b.getPublic(), ukm, null, null);
-                byte[] theirs = derive(bc(), scheme[0], a.getPrivate(), b.getPublic(), ukm, null, null);
+                byte[] ours = derive(jsl(), scheme[0], a.getPrivate(), b.getPublic(), ukm, null, AES256_WRAP);
+                byte[] theirs = derive(bc(), scheme[0], a.getPrivate(), b.getPublic(), ukm, null, AES256_WRAP);
                 Assertions.assertTrue(Arrays.areEqual(ours, theirs),
                         curve + " " + scheme[0] + ": BC's own RFC 8418 vector must agree");
             }
@@ -171,7 +172,8 @@ public class XDHHKDFAgreementTest
      * clears both on that path, so the derivation is empty info and HashLen
      * zeros, and BouncyCastle does the same. Covered because it is the shape a
      * caller reaches by omission rather than by choice, and the one where a
-     * stale UKM left over from a previous init would show.
+     * stale UKM left over from a previous init would show. Named form only —
+     * the raw form is sealed (see {@link #rawSharedSecretIsRefused}).
      */
     @Test
     public void agreesWithBouncyCastleWithNoSpecAtAll() throws Exception
@@ -183,16 +185,49 @@ public class XDHHKDFAgreementTest
 
             for (String[] scheme : SCHEMES)
             {
-                for (String out : new String[]{null, AES256_WRAP})
-                {
-                    byte[] ours = deriveNoSpec(jsl(), scheme[0], a.getPrivate(), b.getPublic(), out);
-                    byte[] theirs = deriveNoSpec(bc(), scheme[0], a.getPrivate(), b.getPublic(), out);
-                    Assertions.assertTrue(Arrays.areEqual(ours, theirs),
-                            curve + " " + scheme[0] + " no spec out="
-                                    + (out == null ? "raw" : out)
-                                    + ": JSL and BC must derive the same KEK");
-                }
+                byte[] ours = deriveNoSpec(jsl(), scheme[0], a.getPrivate(), b.getPublic(), AES256_WRAP);
+                byte[] theirs = deriveNoSpec(bc(), scheme[0], a.getPrivate(), b.getPublic(), AES256_WRAP);
+                Assertions.assertTrue(Arrays.areEqual(ours, theirs),
+                        curve + " " + scheme[0] + " no spec: JSL and BC must derive the same KEK");
             }
+        }
+    }
+
+    /**
+     * The raw forms are sealed — a KDF agreement yields keys only through
+     * {@code generateSecret(String)}.
+     */
+    @Test
+    public void rawSharedSecretIsRefused() throws Exception
+    {
+        for (String[] scheme : SCHEMES)
+        {
+            Assertions.assertThrows(UnsupportedOperationException.class, () ->
+            {
+                KeyPair a = generate("X25519");
+                KeyPair b = generate("X25519");
+                KeyAgreement ka = KeyAgreement.getInstance(scheme[0], jsl());
+                ka.init(a.getPrivate(), new UserKeyingMaterialSpec(randomBytes(16)));
+                ka.doPhase(b.getPublic(), true);
+                ka.generateSecret();
+            }, scheme[0] + ": raw generateSecret() must be refused");
+
+            Assertions.assertThrows(UnsupportedOperationException.class, () ->
+            {
+                KeyPair a = generate("X25519");
+                KeyPair b = generate("X25519");
+                KeyAgreement ka = KeyAgreement.getInstance(scheme[0], jsl());
+                ka.init(a.getPrivate(), new UserKeyingMaterialSpec(randomBytes(16)));
+                ka.doPhase(b.getPublic(), true);
+                try
+                {
+                    ka.generateSecret(new byte[128], 0);
+                }
+                catch (javax.crypto.ShortBufferException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }, scheme[0] + ": raw generateSecret(byte[],int) must be refused");
         }
     }
 

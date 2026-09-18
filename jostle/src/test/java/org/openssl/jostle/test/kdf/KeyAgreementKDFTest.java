@@ -415,9 +415,8 @@ public class KeyAgreementKDFTest
     }
 
     /**
-     * BC parity (the fix that sealed the raw forms): the pre-KDF shared secret
-     * must never escape a KDF agreement — both {@code generateSecret()} and
-     * {@code generateSecret(byte[], int)} throw.
+     * A KDF agreement yields keys only through {@code generateSecret(String)};
+     * the raw forms refuse.
      */
     @Test
     public void registeredEcdhKdf_rawSecretFormsAreSealed() throws Exception

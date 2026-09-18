@@ -122,7 +122,7 @@ public class ECCDHKDFAgreementTest
     }
 
     @Test
-    public void rawSharedSecretIsRefusedLikeBc()
+    public void rawSharedSecretIsRefused()
     {
         for (String name : NAMES)
         {

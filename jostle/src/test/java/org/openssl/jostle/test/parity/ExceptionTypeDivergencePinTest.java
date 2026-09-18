@@ -316,16 +316,12 @@ public class ExceptionTypeDivergencePinTest
     }
 
     /**
-     * RFC 8418 HKDF agreement before doPhase, and it does NOT follow the raw
-     * XDH cell above — adding a KDF changes what BouncyCastle does.
-     *
-     * <p>Its raw path returns null; its KDF path dereferences the absent secret
-     * to size the key, so {@code generateSecret()} and the two buffer forms
-     * raise {@code NullPointerException}, and the named form reaches
-     * BouncyCastle's HKDF parameter check first and raises
-     * {@code IllegalArgumentException}. Three of the four shapes therefore
-     * differ from the raw agreement's, which is why this is its own cell rather
-     * than another algorithm in the sweep.
+     * RFC 8418 HKDF agreement before doPhase. The raw forms are sealed:
+     * {@code generateSecret()} and the two buffer forms raise
+     * {@code UnsupportedOperationException} unconditionally, doPhase state
+     * notwithstanding. BC's raw forms raise {@code NullPointerException}
+     * here instead. The named form is not sealed, and follows BC's
+     * {@code IllegalArgumentException}.
      *
      * <p>The terminal call names a CMS wrap OID, not the bare "AES" the shared
      * sweep uses: our KDF agreements size their key from the OID and refuse the
@@ -333,7 +329,7 @@ public class ExceptionTypeDivergencePinTest
      * lookup instead of the state.
      */
     @Test
-    public void hkdfAgreementBeforeDoPhase_followsBouncyCastlesKdfPath()
+    public void hkdfAgreementBeforeDoPhase_rawFormsSealedNamedFormFollowsBouncyCastle()
             throws Exception
     {
         String agreement = "XDHwithSHA256HKDF";
@@ -344,21 +340,26 @@ public class ExceptionTypeDivergencePinTest
         KeyPair theirKp = KeyPairGenerator
                 .getInstance("X25519", BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
 
+        String[] oursSealed = {
+                "threw java.lang.UnsupportedOperationException",
+                "threw java.lang.UnsupportedOperationException",
+                "threw java.lang.UnsupportedOperationException",
+                "threw java.lang.IllegalArgumentException"};
         String[] bcKdfPath = {
                 "threw java.lang.NullPointerException",
                 "threw java.lang.NullPointerException",
                 "threw java.lang.NullPointerException",
                 "threw java.lang.IllegalArgumentException"};
 
-        Assertions.assertArrayEquals(bcKdfPath,
+        Assertions.assertArrayEquals(oursSealed,
                 sweepBeforeDoPhase(JostleProvider.PROVIDER_NAME, agreement,
                         ourKp.getPrivate(), aes256Wrap),
-                agreement + ": ours must follow BouncyCastle's KDF path");
+                agreement + ": our raw forms are sealed by policy; only the named form follows BC");
         Assertions.assertArrayEquals(bcKdfPath,
                 sweepBeforeDoPhase(BouncyCastleProvider.PROVIDER_NAME, agreement,
                         theirKp.getPrivate(), aes256Wrap),
-                agreement + ": BouncyCastle's half of the pin. If this fails BC has MOVED,"
-                        + " and following it may no longer be the ruling");
+                agreement + ": BouncyCastle's half of the pin, unaffected by our sealing policy."
+                        + " If this fails BC has MOVED.");
     }
 
     /**
