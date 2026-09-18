@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.jcajce.provider.xec.XDHKeyAgreementSpi;
+import org.openssl.jostle.jcajce.provider.xec.XDHWithCKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.xec.XDHWithHKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.xec.XECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.xec.XECKeyPairGenerator;
@@ -108,6 +109,36 @@ class ProvXDH
                 (arg) -> new XDHWithHKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), NISelector.KdfNI, "SHA-512"));
         provider.addAlias("KeyAgreement", "XDHwithSHA512HKDF", HKDF_SHA512_SCHEME_OID);
+
+        // RFC 6637 §7 SP 800-56C one-step KDF, curve-bound per BC's own
+        // registered names (see ECWithCKDFKeyAgreementSpi and
+        // XDHWithCKDFKeyAgreementSpi javadoc). No OID aliases — PGP has no
+        // ASN.1 scheme-OID negotiation, bcpg resolves purely by JCA name.
+        final String ckdfSpi = XDHWithCKDFKeyAgreementSpi.class.getName();
+        provider.addAlgorithmImplementation("KeyAgreement", "X25519withSHA256CKDF",
+                ckdfSpi, attr,
+                (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X25519", "SHA-256"));
+        provider.addAlgorithmImplementation("KeyAgreement", "X25519withSHA384CKDF",
+                ckdfSpi, attr,
+                (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X25519", "SHA-384"));
+        provider.addAlgorithmImplementation("KeyAgreement", "X25519withSHA512CKDF",
+                ckdfSpi, attr,
+                (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X25519", "SHA-512"));
+        provider.addAlgorithmImplementation("KeyAgreement", "X448withSHA256CKDF",
+                ckdfSpi, attr,
+                (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X448", "SHA-256"));
+        provider.addAlgorithmImplementation("KeyAgreement", "X448withSHA384CKDF",
+                ckdfSpi, attr,
+                (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X448", "SHA-384"));
+        provider.addAlgorithmImplementation("KeyAgreement", "X448withSHA512CKDF",
+                ckdfSpi, attr,
+                (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X448", "SHA-512"));
     }
 
     /**

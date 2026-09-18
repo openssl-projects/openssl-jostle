@@ -260,6 +260,8 @@ public class KeyAgreementNegativePathSurveyTest
         c.add(new Cell("ECDH", "ECDHKeyAgreementSpi", "EC", "EC", AES256_WRAP));
         c.add(new Cell("ECDHWITHSHA256KDF", "ECWithKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP));
         c.add(new Cell("ECCDHWITHSHA256CKDF", "ECWithCKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP, CKDF_UKM));
+        c.add(new Cell("X25519WITHSHA256CKDF", "XDHWithCKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP, CKDF_UKM));
+        c.add(new Cell("X448WITHSHA256CKDF", "XDHWithCKDFKeyAgreementSpi", "X448", "X448", AES256_WRAP, CKDF_UKM));
         c.add(new Cell("X25519", "XDHKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
         c.add(new Cell("X448", "XDHKeyAgreementSpi", "X448", "X448", AES256_WRAP));
         c.add(new Cell("XDH", "XDHKeyAgreementSpi", "X25519", "XDH", AES256_WRAP));
