@@ -17,6 +17,7 @@
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 #include "bc_err_codes.h"
+#include "dh.h"
 #include "key_spec.h"
 #include "ops.h"
 #include "jo_assert.h"
@@ -552,6 +553,18 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
     if ((size_t) (_src - src) != src_len) {
         *ret_code = JO_DER_TRAILING_DATA;
         goto err;
+    }
+
+    // A DHX (X9.42 dhpublicnumber) key decoded here never reaches
+    // dh_make_public_from_components, so this is its own call site for the
+    // same subgroup constraint. A PKCS#3 "DH" key carries no q; the callee
+    // no-ops on it.
+    if (EVP_PKEY_is_a(new_key, "DHX")) {
+        int32_t subgroup_check = dh_validate_public_key_subgroup(new_key);
+        if (subgroup_check != JO_SUCCESS) {
+            *ret_code = subgroup_check;
+            goto err;
+        }
     }
 
     key_spec *key = OPENSSL_zalloc(sizeof(key_spec));

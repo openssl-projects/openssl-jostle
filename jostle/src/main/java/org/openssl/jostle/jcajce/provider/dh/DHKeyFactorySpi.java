@@ -113,6 +113,13 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             }
             catch (RuntimeException e)
             {
+                // A DHX (X9.42) key whose y fails the DH public-key check is
+                // the same refusal as the components-path branch below —
+                // same type, same message.
+                if (DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE.equals(e.getMessage()))
+                {
+                    throw new InvalidKeySpecException("public value failed the DH public-key check", e);
+                }
                 // Malformed encoding surfaces from the decoder as OpenSSLException
                 // / IllegalArgumentException; the KeyFactory contract requires
                 // InvalidKeySpecException (RSAKeyFactorySpi precedent).

@@ -150,6 +150,19 @@ int32_t dh_make_public_from_components(key_spec *spec,
                                        const uint8_t *g_be, size_t g_len,
                                        const uint8_t *y_be, size_t y_len);
 
+/*
+ * Validate a q-bearing DH public key already built as an EVP_PKEY, from
+ * ANY decode/import path: runs EVP_PKEY_public_check itself, then checks
+ * that y actually lies in the subgroup q generates — Legendre/Jacobi
+ * symbol when p is a safe prime (p = 2q+1, where that subgroup is exactly
+ * the quadratic residues), y^q mod p == 1 otherwise. A no-op returning
+ * JO_SUCCESS when q is absent (PKCS#3).
+ *
+ * Returns JO_SUCCESS, JO_DH_PEER_PUBKEY_INVALID (a genuine refusal), or
+ * JO_OPENSSL_ERROR (an internal failure, distinct from a refusal).
+ */
+int32_t dh_validate_public_key_subgroup(EVP_PKEY *key);
+
 
 // =============================================================
 // Key agreement

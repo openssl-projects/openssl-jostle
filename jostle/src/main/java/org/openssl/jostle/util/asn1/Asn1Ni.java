@@ -13,6 +13,7 @@ package org.openssl.jostle.util.asn1;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 
 public interface Asn1Ni extends DefaultServiceNI
 {
@@ -84,6 +85,13 @@ public interface Asn1Ni extends DefaultServiceNI
                 throw new IllegalArgumentException("invalid key encoding option");
             case JO_FAILED_ACCESS_ENCODING_OPTION:
                 throw new AccessException("unable to access string with encoding option");
+            case JO_DH_PEER_PUBKEY_INVALID:
+                // Only reachable when the decoded SPKI is a DHX (X9.42) key
+                // carrying q; DHKeyFactorySpi's X509EncodedKeySpec branch
+                // matches this exact message and rethrows the JCE-canonical
+                // InvalidKeySpecException, same as its own components-path
+                // branch.
+                throw new IllegalArgumentException(DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE);
             default:
         }
         return baseErrorHandler(code);

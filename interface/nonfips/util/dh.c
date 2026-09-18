@@ -547,10 +547,105 @@ int32_t dh_make_private_from_components(key_spec *spec,
 
 
 /*
- * A q-bearing public import can be validated immediately: y must lie in
- * the subgroup q generates. Costs one EVP_PKEY_public_check per q-bearing
- * import (BC's own KeyFactory pays the same, at the same site).
+ * Is y in the subgroup of order q, mod p? A safe prime's (p = 2q+1) order-q
+ * subgroup is exactly the quadratic residues, tested with the
+ * Legendre/Jacobi symbol; any other q-bearing shape (the DSA-style group,
+ * q a large prime factor of p-1 but not (p-1)/2) is tested directly.
+ *
+ * Returns 1 (in the subgroup), 0 (not in the subgroup), or -1 on an
+ * internal BN failure — distinct from "not in the subgroup" so the caller
+ * can tell a genuine refusal from an allocation/library error.
  */
+static int y_in_q_subgroup(EVP_PKEY *key) {
+    BIGNUM *p = NULL;
+    BIGNUM *q = NULL;
+    BIGNUM *y = NULL;
+    BIGNUM *safe_prime_check = NULL;
+    BIGNUM *r = NULL;
+    BN_CTX *ctx = NULL;
+    int ret = -1;
+
+    if (1 != EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_P, &p)
+            || 1 != EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_Q, &q)
+            || 1 != EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PUB_KEY, &y)) {
+        goto exit;
+    }
+
+    safe_prime_check = BN_new();
+    ctx = BN_CTX_new();
+    if (safe_prime_check == NULL || ctx == NULL) {
+        goto exit;
+    }
+
+    if (1 != BN_lshift1(safe_prime_check, q) || 1 != BN_add_word(safe_prime_check, 1)) {
+        goto exit;
+    }
+
+    if (0 == BN_cmp(safe_prime_check, p)) {
+        int kronecker = BN_kronecker(y, p, ctx);
+        if (kronecker == -2) {
+            goto exit;
+        }
+        ret = kronecker == 1 ? 1 : 0;
+    } else {
+        r = BN_new();
+        if (r == NULL) {
+            goto exit;
+        }
+        if (1 == BN_mod_exp(r, y, q, p, ctx)) {
+            ret = BN_is_one(r) ? 1 : 0;
+        }
+    }
+
+exit:
+    BN_CTX_free(ctx);
+    BN_free(safe_prime_check);
+    BN_free(r);
+    BN_clear_free(p);
+    BN_clear_free(q);
+    BN_clear_free(y);
+    return ret;
+}
+
+/*
+ * Full validation for a q-bearing DH public key already built as an
+ * EVP_PKEY, from ANY decode/import path: OpenSSL's own
+ * EVP_PKEY_public_check, THEN y is checked to actually lie in the
+ * subgroup q generates. EVP_PKEY_public_check only range-checks a named
+ * safe-prime group; the subgroup test is ours.
+ *
+ * A no-op returning JO_SUCCESS when q is absent (PKCS#3) — costs one
+ * EVP_PKEY_public_check per q-bearing import either way (BC's own
+ * KeyFactory pays the same, at the same site, for the components path).
+ */
+int32_t dh_validate_public_key_subgroup(EVP_PKEY *key) {
+    jo_assert(key != NULL);
+
+    BIGNUM *q_probe = NULL;
+    if (1 != EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_Q, &q_probe)) {
+        ERR_clear_error();
+        return JO_SUCCESS;
+    }
+    BN_clear_free(q_probe);
+
+    EVP_PKEY_CTX *check_ctx = EVP_PKEY_CTX_new_from_pkey(
+            get_global_jostle_ossl_lib_ctx(), key, NULL);
+    if (check_ctx == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+    int check_ok = 1 == EVP_PKEY_public_check(check_ctx);
+    EVP_PKEY_CTX_free(check_ctx);
+    if (!check_ok) {
+        return JO_DH_PEER_PUBKEY_INVALID;
+    }
+
+    int subgroup_check = y_in_q_subgroup(key);
+    if (subgroup_check == 1) {
+        return JO_SUCCESS;
+    }
+    return subgroup_check == 0 ? JO_DH_PEER_PUBKEY_INVALID : JO_OPENSSL_ERROR;
+}
+
 int32_t dh_make_public_from_components(key_spec *spec,
                                        const uint8_t *p_be, size_t p_len,
                                        const uint8_t *q_be, size_t q_len,
@@ -570,19 +665,11 @@ int32_t dh_make_public_from_components(key_spec *spec,
         return ret_code;
     }
 
-    EVP_PKEY_CTX *check_ctx = EVP_PKEY_CTX_new_from_pkey(
-            get_global_jostle_ossl_lib_ctx(), spec->key, NULL);
-    if (check_ctx == NULL) {
+    ret_code = dh_validate_public_key_subgroup(spec->key);
+    if (ret_code != JO_SUCCESS) {
         EVP_PKEY_free(spec->key);
         spec->key = NULL;
-        return JO_OPENSSL_ERROR;
-    }
-    int check_ok = 1 == EVP_PKEY_public_check(check_ctx);
-    EVP_PKEY_CTX_free(check_ctx);
-    if (!check_ok) {
-        EVP_PKEY_free(spec->key);
-        spec->key = NULL;
-        return JO_DH_PEER_PUBKEY_INVALID;
+        return ret_code;
     }
     return JO_SUCCESS;
 }
