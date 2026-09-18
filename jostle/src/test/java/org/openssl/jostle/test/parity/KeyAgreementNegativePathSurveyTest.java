@@ -30,6 +30,7 @@ import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -193,14 +194,27 @@ public class KeyAgreementNegativePathSurveyTest
          * unaffected — that substitution IS the fault under test.
          */
         final byte[] initUkm;
+        /**
+         * Non-null only for the RFC 9580 hybrid-HKDF cells: T, wrapped
+         * together with the (mandatory) UKM into a
+         * {@code HybridValueParameterSpec} rather than a bare UKM spec. The
+         * UKM field doubles as the HKDF info string for these cells.
+         */
+        final byte[] hybridT;
 
         Cell(String name, String spiClass, String kpg, String kf, String secretAlgorithm)
         {
-            this(name, spiClass, kpg, kf, secretAlgorithm, null);
+            this(name, spiClass, kpg, kf, secretAlgorithm, null, null);
         }
 
         Cell(String name, String spiClass, String kpg, String kf, String secretAlgorithm,
                 byte[] initUkm)
+        {
+            this(name, spiClass, kpg, kf, secretAlgorithm, initUkm, null);
+        }
+
+        Cell(String name, String spiClass, String kpg, String kf, String secretAlgorithm,
+                byte[] initUkm, byte[] hybridT)
         {
             this.name = name;
             this.spiClass = spiClass;
@@ -208,6 +222,7 @@ public class KeyAgreementNegativePathSurveyTest
             this.bcKeyFactory = kf;
             this.secretAlgorithm = secretAlgorithm;
             this.initUkm = initUkm;
+            this.hybridT = hybridT;
         }
     }
 
@@ -223,12 +238,29 @@ public class KeyAgreementNegativePathSurveyTest
                 : new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm);
     }
 
+    /**
+     * The cell's required init spec: a bare UKM spec, or (hybrid cells) that
+     * UKM spec wrapped as the HKDF info inside a provider-appropriate
+     * {@code HybridValueParameterSpec} carrying the cell's fixed T.
+     */
+    private static java.security.spec.AlgorithmParameterSpec initSpec(Provider p, Cell cell)
+    {
+        java.security.spec.AlgorithmParameterSpec ukm = ukmSpec(p, cell.initUkm);
+        if (cell.hybridT == null)
+        {
+            return ukm;
+        }
+        return p == bc
+                ? new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(cell.hybridT, true, ukm)
+                : new org.openssl.jostle.jcajce.spec.HybridValueParameterSpec(cell.hybridT, true, ukm);
+    }
+
     /** Init with the cell's own valid key, carrying its UKM when it requires one. */
     private static void init(KeyAgreement k, Provider p, PrivateKey priv, Cell cell) throws Exception
     {
         if (cell.initUkm != null)
         {
-            k.init(priv, ukmSpec(p, cell.initUkm));
+            k.init(priv, initSpec(p, cell));
         }
         else
         {
@@ -271,7 +303,25 @@ public class KeyAgreementNegativePathSurveyTest
         c.add(new Cell("XDHwithSHA256HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
         c.add(new Cell("XDHwithSHA384HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
         c.add(new Cell("XDHwithSHA512HKDF", "XDHWithHKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP));
+        // RFC 9580 v6 hybrid HKDF. The curve fixes the digest, so exactly
+        // two names exist; the UKM field carries the fixed HKDF info string
+        // and hybridT is a fixed-length filler (its value is unchecked here
+        // — only exception shape is under survey, not KEK correctness).
+        c.add(new Cell("X25519withSHA256HKDF", "XDHWithHybridHKDFKeyAgreementSpi", "X25519", "X25519",
+                AES256_WRAP, "OpenPGP X25519".getBytes(StandardCharsets.US_ASCII), hybridT(64)));
+        c.add(new Cell("X448withSHA512HKDF", "XDHWithHybridHKDFKeyAgreementSpi", "X448", "X448",
+                AES256_WRAP, "OpenPGP X448".getBytes(StandardCharsets.US_ASCII), hybridT(112)));
         return c;
+    }
+
+    private static byte[] hybridT(int len)
+    {
+        byte[] t = new byte[len];
+        for (int i = 0; i < len; i++)
+        {
+            t[i] = (byte) i;
+        }
+        return t;
     }
 
     // ------------------------------------------------------------------

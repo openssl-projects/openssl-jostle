@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider;
 import org.openssl.jostle.jcajce.provider.xec.XDHKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.xec.XDHWithCKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.xec.XDHWithHKDFKeyAgreementSpi;
+import org.openssl.jostle.jcajce.provider.xec.XDHWithHybridHKDFKeyAgreementSpi;
 import org.openssl.jostle.jcajce.provider.xec.XECKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.xec.XECKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -138,6 +139,19 @@ class ProvXDH
         provider.addAlgorithmImplementation("KeyAgreement", "X448withSHA512CKDF",
                 ckdfSpi, attr,
                 (arg) -> new XDHWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X448", "SHA-512"));
+
+        // RFC 9580 §5.1.6/§5.1.7 v6 hybrid HKDF: the curve fixes the digest,
+        // so exactly two names exist, no OID aliases (same PGP-has-no-OID
+        // reasoning as the CKDF names above).
+        final String hybridHkdfSpi = XDHWithHybridHKDFKeyAgreementSpi.class.getName();
+        provider.addAlgorithmImplementation("KeyAgreement", "X25519withSHA256HKDF",
+                hybridHkdfSpi, attr,
+                (arg) -> new XDHWithHybridHKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), NISelector.KdfNI, "X25519", "SHA-256"));
+        provider.addAlgorithmImplementation("KeyAgreement", "X448withSHA512HKDF",
+                hybridHkdfSpi, attr,
+                (arg) -> new XDHWithHybridHKDFKeyAgreementSpi(NISelector.ECServiceNI,
                         keyFactory(provider), NISelector.KdfNI, "X448", "SHA-512"));
     }
 
