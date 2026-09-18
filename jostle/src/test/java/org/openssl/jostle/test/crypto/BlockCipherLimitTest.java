@@ -2936,4 +2936,43 @@ public class BlockCipherLimitTest
             }
         }
     }
+
+    /** A negative cipher ordinal must be rejected, not crash or misreport fetchable. */
+    @Test
+    public void BlockCipher_cipherFetchable_badCipherOrdinalRejectedTyped()
+    {
+        int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
+        Assertions.assertFalse(blockCipherNI.cipherFetchable(-1, gcmMode),
+                "a negative cipher ordinal must not report fetchable");
+    }
+
+    /** The typed code itself, straight off the ni_ entry point, for a bad cipher ordinal. */
+    @Test
+    public void BlockCipher_ni_cipherFetchable_badCipherOrdinalIsTypedCode()
+    {
+        int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
+        int code = blockCipherNI.ni_cipherFetchable(-1, gcmMode);
+        Assertions.assertEquals(
+                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_CIPHER.getCode(),
+                code, "an unrecognised cipher ordinal must report JO_INVALID_CIPHER");
+    }
+
+    /** A mode this cipher does not name (out-of-range ordinal included) must be rejected. */
+    @Test
+    public void BlockCipher_ni_cipherFetchable_badModeOrdinalIsTypedCode()
+    {
+        int code = blockCipherNI.ni_cipherFetchable(AES_256, 9999);
+        Assertions.assertEquals(
+                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_MODE.getCode(),
+                code, "a mode ordinal AES256 has no name for must report JO_INVALID_MODE");
+    }
+
+    /** A (cipher, mode) pair the loaded library genuinely serves must answer fetchable. */
+    @Test
+    public void BlockCipher_cipherFetchable_knownGoodOrdinalsFetch()
+    {
+        int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
+        Assertions.assertTrue(blockCipherNI.cipherFetchable(AES_256, gcmMode),
+                "AES-256-GCM must be fetchable on the base interface library");
+    }
 }

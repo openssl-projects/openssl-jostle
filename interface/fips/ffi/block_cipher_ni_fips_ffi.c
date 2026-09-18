@@ -22,15 +22,16 @@
 //
 
 /* *INDENT-OFF* */
-#define JoBlockCipher_dispose       JoFIPS_JoBlockCipher_dispose
-#define JoBlockCipher_doFinal       JoFIPS_JoBlockCipher_doFinal
-#define JoBlockCipher_getBlockSize  JoFIPS_JoBlockCipher_getBlockSize
-#define JoBlockCipher_getFinalSize  JoFIPS_JoBlockCipher_getFinalSize
-#define JoBlockCipher_getUpdateSize JoFIPS_JoBlockCipher_getUpdateSize
-#define JoBlockCipher_init          JoFIPS_JoBlockCipher_init
-#define JoBlockCipher_make_instance JoFIPS_JoBlockCipher_make_instance
-#define JoBlockCipher_update        JoFIPS_JoBlockCipher_update
-#define JoBlockCipher_updateAAD     JoFIPS_JoBlockCipher_updateAAD
+#define JoBlockCipher_cipherFetchable JoFIPS_JoBlockCipher_cipherFetchable
+#define JoBlockCipher_dispose         JoFIPS_JoBlockCipher_dispose
+#define JoBlockCipher_doFinal         JoFIPS_JoBlockCipher_doFinal
+#define JoBlockCipher_getBlockSize    JoFIPS_JoBlockCipher_getBlockSize
+#define JoBlockCipher_getFinalSize    JoFIPS_JoBlockCipher_getFinalSize
+#define JoBlockCipher_getUpdateSize   JoFIPS_JoBlockCipher_getUpdateSize
+#define JoBlockCipher_init            JoFIPS_JoBlockCipher_init
+#define JoBlockCipher_make_instance   JoFIPS_JoBlockCipher_make_instance
+#define JoBlockCipher_update          JoFIPS_JoBlockCipher_update
+#define JoBlockCipher_updateAAD       JoFIPS_JoBlockCipher_updateAAD
 /* *INDENT-ON* */
 
 #include "block_cipher_ni_ffi.c"

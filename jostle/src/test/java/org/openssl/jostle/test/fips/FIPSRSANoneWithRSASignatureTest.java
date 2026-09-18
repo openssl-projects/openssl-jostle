@@ -11,140 +11,163 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.util.Arrays;
 
-import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 /**
  * Behaviour lock for {@code NoneWithRSA} through the FIPS provider ("JSLFIPS").
  * <p>
- * {@code ProvFIPSRSA} registers {@code NoneWithRSA} by constructing the base
- * {@code RSASignatureSpi} with digest name {@code "NONE"} (the PKCS#1 v1.5
- * <em>digest</em> path, not the raw {@code RSASignatureSpi.None} path the
- * non-FIPS provider uses) — so {@code Signature.getInstance("NoneWithRSA",
- * "JSLFIPS")} <b>resolves</b>, but the FIPS module <b>refuses to service it</b>:
- * {@code EVP_DigestSign/VerifyInit} tries to fetch a digest named {@code NONE},
- * which does not exist in the FIPS {@code OSSL_LIB_CTX}, and fails at
- * <em>init</em> with an unsupported-algorithm error. The SPI's
- * {@code engineInitSign} / {@code engineInitVerify} translate that native
- * {@link OpenSSLException} into the JCE-canonical, fallback-eligible
- * {@link InvalidKeyException} (the original {@code OpenSSLException} is preserved
- * as the cause). This mirrors the SHA-1 signature-generation gate (see
- * {@code FIPSSha1SignatureGateTest}, whose rejection fires at {@code sign()}
- * rather than init and therefore stays an {@code OpenSSLException}): the service
- * is present but the module is the authority that rejects the non-approved
- * operation.
+ * Capability, not approval: the module performs raw PKCS#1 v1.5 signing
+ * (measured directly against the OpenSSL FIPS provider: {@code
+ * EVP_PKEY_sign_init} + {@code EVP_PKEY_CTX_set_rsa_padding(RSA_PKCS1_PADDING)}
+ * with no digest set, then {@code EVP_PKEY_sign}, succeeds and round-trips on
+ * both 3.1.2 and 3.5.8), so JSLFIPS serves it — approval is the operator's
+ * determination, not this provider's to simulate by feeding a digest name
+ * ("NONE") the module was never going to fetch. {@code ProvFIPSRSA} registers
+ * {@code NoneWithRSA} through {@code RSASignatureSpi.None} exactly as
+ * {@code ProvRSA} does: the raw path, {@code PADDING_PKCS1_NONE}, no digest
+ * fetch.
  * <p>
- * This test <b>pins that current behaviour</b> so a future change is caught
- * loudly and deliberately: if {@code NoneWithRSA} is ever dropped from JSLFIPS
- * (resolution would then throw {@code NoSuchAlgorithmException}) or ever becomes
- * functional (the {@code assertThrows} would fail), this test goes red and the
- * change is reviewed against the security policy rather than shipping silently.
+ * (This test used to pin a deliberately-manufactured refusal — registering
+ * through the digest-name path with the impossible name "NONE" — as if it
+ * were a module limitation. It was not: the module was never asked to do
+ * the thing it was said to refuse.)
  * <p>
- * (The non-FIPS provider serves a fully-functional {@code NoneWithRSA}; that
- * round-trip / BouncyCastle-agreement coverage lives in
- * {@code RSANoneWithRSASignatureTest}.) Gated on {@code TEST_FIPS_LIB}; skipped
- * when unset.
+ * Gated on {@code TEST_FIPS_LIB}; skipped when unset.
  */
 public class FIPSRSANoneWithRSASignatureTest
 {
     private static final String FIPS = JostleFIPSProvider.PROVIDER_NAME;
+    private static final String JSL = JostleProvider.PROVIDER_NAME;
+    private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private static KeyPair generateFipsKeyPair() throws Exception
-    {
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", FIPS);
-        kpg.initialize(2048);
-        return kpg.generateKeyPair();
-    }
-
-    private static byte[] randomTbs()
-    {
-        // Well under k - 11 (= 245 for a 2048-bit modulus): a size the raw
-        // engine would accept if the module serviced NONE at all.
-        byte[] tbs = new byte[32];
-        RANDOM.nextBytes(tbs);
-        return tbs;
-    }
-
-    /**
-     * Class-level gate: the whole class skips when TEST_FIPS_LIB is unset.
-     * Gating here rather than per test method fails closed, so a test added
-     * later is gated automatically.
-     */
     @BeforeAll
     static void before()
     {
         FIPSTestUtil.assumeFipsProvider();
-    }
-
-    /**
-     * {@code NoneWithRSA} resolves through JSLFIPS (registered) but the module
-     * refuses to initialise a raw signature: {@code initSign} fails with an
-     * {@link OpenSSLException} whose message reports the unsupported {@code NONE}
-     * algorithm fetch in the FIPS lib ctx.
-     */
-    @Test
-    public void noneWithRsaResolvesButModuleRefusesSign() throws Exception
-    {
-        KeyPair kp = generateFipsKeyPair();
-
-        // Registered: resolution succeeds.
-        Signature signer = Signature.getInstance("NoneWithRSA", FIPS);
-        Assertions.assertNotNull(signer, "NoneWithRSA must remain registered in JSLFIPS");
-
-        byte[] tbs = randomTbs();
-        // The refusal fires at initSign (digest "NONE" is unfetchable); the SPI
-        // translates the native OpenSSLException to the JCE-canonical,
-        // fallback-eligible InvalidKeyException, preserving the OpenSSLException
-        // as the cause.
-        InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class, () ->
+        if (Security.getProvider(JSL) == null)
         {
-            signer.initSign(kp.getPrivate());
-            signer.update(tbs);
-            signer.sign();
-        }, "the FIPS module must refuse the NoneWithRSA signing path at init");
-        Assertions.assertTrue(ex.getCause() instanceof OpenSSLException,
-                "InvalidKeyException must carry the underlying OpenSSLException as its cause");
-        String msg = String.valueOf(ex.getMessage());
-        Assertions.assertTrue(msg.startsWith("OpenSSL Error:") && msg.contains("unsupported"),
-                "expected an unsupported-algorithm module rejection, got: " + msg);
+            Security.addProvider(new JostleProvider());
+        }
+        if (Security.getProvider(BC) == null)
+        {
+            Security.addProvider(new BouncyCastleProvider());
+        }
     }
 
-    /**
-     * The verify direction is refused the same way: {@code initVerify} on a
-     * {@code NoneWithRSA} instance fails with an unsupported-algorithm
-     * {@link OpenSSLException} (the raw path fetches {@code NONE} for both
-     * directions).
-     */
-    @Test
-    public void noneWithRsaResolvesButModuleRefusesVerify() throws Exception
+    private static byte[] randomTbs(SecureRandom sr)
     {
-        KeyPair kp = generateFipsKeyPair();
+        // Well under k - 11 (= 245 for a 2048-bit modulus).
+        byte[] tbs = new byte[1 + sr.nextInt(200)];
+        sr.nextBytes(tbs);
+        return tbs;
+    }
+
+    /** JSLFIPS resolves and actually signs/verifies — registration is usable, on both modules. */
+    @Test
+    public void noneWithRsaSignsAndVerifiesOnTheLoadedModule() throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance("RSA", FIPS).generateKeyPair();
+        byte[] tbs = randomTbs(RANDOM);
+
+        Signature signer = Signature.getInstance("NoneWithRSA", FIPS);
+        signer.initSign(kp.getPrivate());
+        signer.update(tbs);
+        byte[] sig = signer.sign();
 
         Signature verifier = Signature.getInstance("NoneWithRSA", FIPS);
-        byte[] tbs = randomTbs();
-        // Refusal fires at initVerify and is translated to InvalidKeyException,
-        // exactly as the signing direction (digest "NONE" is unfetchable).
-        InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class, () ->
-        {
-            verifier.initVerify(kp.getPublic());
-            verifier.update(tbs);
-            verifier.verify(new byte[256]);
-        }, "the FIPS module must refuse the NoneWithRSA verify path at init");
-        Assertions.assertTrue(ex.getCause() instanceof OpenSSLException,
-                "InvalidKeyException must carry the underlying OpenSSLException as its cause");
-        String msg = String.valueOf(ex.getMessage());
-        Assertions.assertTrue(msg.startsWith("OpenSSL Error:") && msg.contains("unsupported"),
-                "expected an unsupported-algorithm module rejection, got: " + msg);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(tbs);
+        Assertions.assertTrue(verifier.verify(sig),
+                "NoneWithRSA must sign and verify under JSLFIPS (" + FIPSTestUtil.moduleDescription() + ")");
+    }
+
+    /**
+     * Byte-identical to JSL and to BouncyCastle on the same key and input —
+     * PKCS#1 v1.5 signing is deterministic, so this is a direct check that
+     * JSLFIPS runs the SAME raw path, not merely "a" working path.
+     */
+    @Test
+    public void noneWithRsaMatchesJslAndBouncyCastleByteForByte() throws Exception
+    {
+        KeyPair fipsKp = KeyPairGenerator.getInstance("RSA", FIPS).generateKeyPair();
+        KeyFactory jslKf = KeyFactory.getInstance("RSA", JSL);
+        PrivateKey jslPriv = jslKf.generatePrivate(new PKCS8EncodedKeySpec(fipsKp.getPrivate().getEncoded()));
+        PublicKey jslPub = jslKf.generatePublic(new X509EncodedKeySpec(fipsKp.getPublic().getEncoded()));
+        KeyFactory bcKf = KeyFactory.getInstance("RSA", BC);
+        PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(fipsKp.getPrivate().getEncoded()));
+        PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(fipsKp.getPublic().getEncoded()));
+
+        byte[] tbs = randomTbs(RANDOM);
+
+        Signature fipsSigner = Signature.getInstance("NoneWithRSA", FIPS);
+        fipsSigner.initSign(fipsKp.getPrivate());
+        fipsSigner.update(tbs);
+        byte[] fipsSig = fipsSigner.sign();
+
+        Signature jslSigner = Signature.getInstance("NoneWithRSA", JSL);
+        jslSigner.initSign(jslPriv);
+        jslSigner.update(tbs);
+        byte[] jslSig = jslSigner.sign();
+
+        Signature bcSigner = Signature.getInstance("NoneWithRSA", BC);
+        bcSigner.initSign(bcPriv);
+        bcSigner.update(tbs);
+        byte[] bcSig = bcSigner.sign();
+
+        Assertions.assertArrayEquals(jslSig, fipsSig,
+                "JSLFIPS and JSL must produce byte-identical deterministic NoneWithRSA signatures");
+        Assertions.assertArrayEquals(bcSig, fipsSig,
+                "JSLFIPS and BouncyCastle must produce byte-identical deterministic NoneWithRSA signatures");
+
+        // And each verifies under JSLFIPS.
+        Signature fipsVerifyJsl = Signature.getInstance("NoneWithRSA", FIPS);
+        fipsVerifyJsl.initVerify(fipsKp.getPublic());
+        fipsVerifyJsl.update(tbs);
+        Assertions.assertTrue(fipsVerifyJsl.verify(jslSig), "JSLFIPS rejected a JSL NoneWithRSA signature");
+
+        Signature fipsVerifyBc = Signature.getInstance("NoneWithRSA", FIPS);
+        fipsVerifyBc.initVerify(fipsKp.getPublic());
+        fipsVerifyBc.update(tbs);
+        Assertions.assertTrue(fipsVerifyBc.verify(bcSig), "JSLFIPS rejected a BC NoneWithRSA signature");
+    }
+
+    /** Tampering the signed bytes must break verification — proves this isn't a stub. */
+    @Test
+    public void noneWithRsaTamperedInputFailsVerification() throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance("RSA", FIPS).generateKeyPair();
+        byte[] tbs = randomTbs(RANDOM);
+
+        Signature signer = Signature.getInstance("NoneWithRSA", FIPS);
+        signer.initSign(kp.getPrivate());
+        signer.update(tbs);
+        byte[] sig = signer.sign();
+
+        byte[] tampered = Arrays.clone(tbs);
+        tampered[RANDOM.nextInt(tampered.length)] ^= 0x01;
+
+        Signature verifier = Signature.getInstance("NoneWithRSA", FIPS);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(tampered);
+        Assertions.assertFalse(verifier.verify(sig), "JSLFIPS verified a tampered NoneWithRSA message");
     }
 }

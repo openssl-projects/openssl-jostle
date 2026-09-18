@@ -42,4 +42,7 @@ public class BlockCipherJNI implements BlockCipherNI
     @Override
     public native void ni_dispose(long ref);
 
+    @Override
+    public native int ni_cipherFetchable(int cipher, int mode);
+
 }

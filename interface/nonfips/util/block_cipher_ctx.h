@@ -137,5 +137,21 @@ int32_t block_cipher_get_final_size(block_cipher_ctx *ctx, size_t len);
  */
 int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len);
 
+/*
+ * Whether the lib ctx this tree is bound to can fetch the EVP_CIPHER for
+ * (cipher_id, mode_id) at all - a cheap, side-effect-free EVP_CIPHER_fetch +
+ * free, no context created. Three outcomes: JO_INVALID_CIPHER / JO_INVALID_MODE
+ * for an ordinal outside the real RC4..DES_EDE3 / ECB..WRAP_INV range (a
+ * genuinely bad ordinal); 1 for a valid cipher and valid mode with no
+ * OpenSSL name for that exact pairing (e.g. AES + CFB64 - unprobed, not
+ * refused, since the real init path is the authority for a pairing this
+ * lookup cannot name either); 1 or 0 from the real fetch otherwise. The
+ * error queue is scrubbed on the fetch either way so a negative answer
+ * leaves no trace. This answers "should this mode be offered at all", not
+ * "will this exact key/iv work" - the same fetch-vs-usability split as
+ * OpenSSLFIPSNI.canFetch.
+ */
+int32_t block_cipher_fetchable(int32_t cipher_id, int32_t mode_id);
+
 
 #endif //BLOCK_CIPHER_SPI_H

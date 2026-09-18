@@ -44,6 +44,13 @@ public interface BlockCipherNI extends DefaultServiceNI
 
     void ni_dispose(long ref);
 
+    /**
+     * Whether this NI's bound lib ctx can fetch the {@code EVP_CIPHER} for
+     * {@code (cipher, mode)} at all. 1 fetchable (or unprobed, for a pair
+     * with no OpenSSL name), 0 not fetchable.
+     */
+    int ni_cipherFetchable(int cipher, int mode);
+
 
     //
     // NB: We are expected to throw some specific checked exceptions.
@@ -188,6 +195,17 @@ public interface BlockCipherNI extends DefaultServiceNI
     default void dispose(long ref)
     {
         ni_dispose(ref);
+    }
+
+    /**
+     * Whether this NI's bound lib ctx can fetch the {@code EVP_CIPHER} for
+     * {@code (cipher, mode)}. A cheap, side-effect-free probe — no context
+     * is created. Native always answers 0 or 1 for this call, so there is
+     * no error code to translate.
+     */
+    default boolean cipherFetchable(int cipher, int mode)
+    {
+        return ni_cipherFetchable(cipher, mode) == 1;
     }
 
 

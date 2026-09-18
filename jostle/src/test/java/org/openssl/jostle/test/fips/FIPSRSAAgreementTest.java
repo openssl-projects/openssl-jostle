@@ -526,23 +526,21 @@ public class FIPSRSAAgreementTest
     }
 
     /**
-     * Sign and verify under one registered name, allowing for the two
-     * refusals the module legitimately makes.
+     * Sign and verify under one registered name, allowing for the one
+     * refusal the module legitimately makes.
      *
-     * <p>Neither is skipped: each is asserted to refuse with its own pinned
-     * message, so a refusal for any OTHER reason still fails the guard.
+     * <p><b>SHA-1 signing</b> is the {@code signature-digest-check}
+     * fipsinstall switch — on under {@code -pedantic}, off at defaults — so
+     * both signing and refusing are correct answers and the contract is "one
+     * or the other", per the assert-the-contract rule in testing.md. The two
+     * module versions also word the refusal differently, so the match is on
+     * the property rather than on either one's text. It is not skipped: it
+     * is asserted to refuse with its own pinned message, so a refusal for any
+     * OTHER reason still fails the guard.
      *
-     * <ol>
-     * <li><b>SHA-1 signing</b> is the {@code signature-digest-check}
-     *     fipsinstall switch — on under {@code -pedantic}, off at defaults —
-     *     so both signing and refusing are correct answers and the contract is
-     *     "one or the other", per the assert-the-contract rule in testing.md.
-     *     The two module versions also word the refusal differently, so the
-     *     match is on the property rather than on either one's text.</li>
-     * <li><b>NoneWithRSA</b> is registered DELIBERATELY unusable: the module
-     *     has no NONE digest, so init fails and the non-approved raw path is
-     *     unreachable. {@code FIPSRSANoneWithRSASignatureTest} pins it.</li>
-     * </ol>
+     * <p>The module performs raw PKCS#1 v1.5 signing fine, so
+     * {@code NoneWithRSA} is driven and verified exactly like every other
+     * registered name, with no special case.
      */
     private static void driveFipsSignature(String alg, KeyPair kp, SecureRandom sr) throws Exception
     {
@@ -550,7 +548,6 @@ public class FIPSRSAAgreementTest
         sr.nextBytes(msg);
         String n = bareName(alg);
         boolean sha1 = n.contains("SHA1") || n.equals("1.2.840.113549.1.1.5");
-        boolean none = n.equals("NONEWITHRSA");
 
         try
         {
@@ -563,10 +560,6 @@ public class FIPSRSAAgreementTest
             v.initVerify(kp.getPublic());
             v.update(msg);
             Assertions.assertTrue(v.verify(sig), alg + ": did not verify its own signature");
-
-            Assertions.assertFalse(none,
-                    "NoneWithRSA signed — it is registered to be refused by the module, "
-                            + "so a working one means the non-approved raw path is now reachable");
         }
         catch (java.security.InvalidKeyException e)
         {
@@ -580,12 +573,6 @@ public class FIPSRSAAgreementTest
                 // passes on that module and fails on the other.
                 Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
                         alg + ": refused, but not by the signature-digest-check gate: " + m);
-                return;
-            }
-            if (none)
-            {
-                Assertions.assertTrue(m.contains("NONE"),
-                        alg + ": refused, but not for the absent NONE digest: " + m);
                 return;
             }
             throw e;

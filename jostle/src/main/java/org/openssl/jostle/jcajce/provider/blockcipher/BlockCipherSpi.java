@@ -32,6 +32,8 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 class BlockCipherSpi extends CipherSpi
@@ -238,6 +240,72 @@ class BlockCipherSpi extends CipherSpi
         if (mandatedMode != null && mandatedMode != osslMode)
         {
             throw new NoSuchAlgorithmException("cipher mode " + osslMode + " not supported");
+        }
+
+        requireModeFetchable(osslMode);
+    }
+
+    private static final Map<BlockCipherNI, Map<Integer, Boolean>> FETCHABLE_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Refuse a mode the loaded provider cannot fetch at lookup time
+     * (Cipher.getInstance), rather than at init — a name a provider
+     * registers must be usable. Probed with one representative key size per
+     * family (measured: AES-128/192/256-OCB are equally unfetchable, so any
+     * one size stands for all three), cached per NI instance so repeated
+     * getInstance calls cost one native probe per (provider, mode) for the
+     * life of the JVM. The (cipher, mode) -> OpenSSL name mapping lives only
+     * in C (block_cipher_fetch_name, interface/{nonfips,fips}/util/
+     * block_cipher_ctx.c) — this method passes ordinals, never a name, so
+     * there is nothing on this side that can drift from it. A family this
+     * method cannot name (defaultProbeCipher returns null) is left unprobed;
+     * a (cipher, mode) pair native cannot name is also reported fetchable —
+     * unprobed, not refused — so this check can never be MORE restrictive
+     * than the real init call.
+     */
+    private void requireModeFetchable(OSSLMode mode) throws NoSuchAlgorithmException
+    {
+        OSSLCipher probeCipher = mandatedCipher != null ? mandatedCipher : defaultProbeCipher(keyAlgorithm);
+        if (probeCipher == null)
+        {
+            return;
+        }
+        int cipherOrdinal = probeCipher.ordinal();
+        int modeOrdinal = mode.ordinal();
+        int key = (cipherOrdinal << 16) | modeOrdinal;
+        Map<Integer, Boolean> perNi = FETCHABLE_CACHE.computeIfAbsent(blockCipherNi, k -> new ConcurrentHashMap<>());
+        boolean fetchable = perNi.computeIfAbsent(key, k -> blockCipherNi.cipherFetchable(cipherOrdinal, modeOrdinal));
+        if (!fetchable)
+        {
+            throw new NoSuchAlgorithmException(
+                    "cipher mode " + mode + " is not supported by the loaded provider");
+        }
+    }
+
+    /**
+     * A representative {@link OSSLCipher} for {@code keyAlgorithm}, for
+     * probing mode fetchability before the real key (and so the exact
+     * key-size variant) is known. Returns null for a family this method does
+     * not recognise, so the probe is skipped rather than guessed at.
+     */
+    private static OSSLCipher defaultProbeCipher(String keyAlgorithm)
+    {
+        switch (keyAlgorithm)
+        {
+            case "AES":
+                return OSSLCipher.AES256;
+            case "ARIA":
+                return OSSLCipher.ARIA256;
+            case "CAMELLIA":
+                return OSSLCipher.CAMELLIA256;
+            case "SM4":
+                return OSSLCipher.SM4;
+            case "DESede":
+                return OSSLCipher.DES_EDE3;
+            case CHACHA20:
+                return OSSLCipher.CHACHA20;
+            default:
+                return null;
         }
     }
 

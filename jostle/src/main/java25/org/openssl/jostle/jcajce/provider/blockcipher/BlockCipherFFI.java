@@ -46,6 +46,8 @@ public class BlockCipherFFI implements BlockCipherNI
 
     private final MethodHandle disposeFuncHandle;
 
+    private final MethodHandle cipherFetchableFuncHandle;
+
     public BlockCipherFFI()
     {
         this(SymbolLookup.loaderLookup());
@@ -157,6 +159,14 @@ public class BlockCipherFFI implements BlockCipherNI
         MemorySegment disposeFunc = lookup.find(symPrefix + "JoBlockCipher_dispose").orElseThrow();
         disposeFuncHandle = linker.downcallHandle(disposeFunc,
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        MemorySegment cipherFetchableFunc = lookup.find(symPrefix + "JoBlockCipher_cipherFetchable").orElseThrow();
+        cipherFetchableFuncHandle = linker.downcallHandle(cipherFetchableFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_INT, // cipher_id
+                        ValueLayout.JAVA_INT // mode_id
+                ));
 
     }
 
@@ -368,6 +378,25 @@ public class BlockCipherFFI implements BlockCipherNI
                     t);
             throw new RuntimeException(t.getMessage(), t);
         }
+    }
+
+    @Override
+    public int ni_cipherFetchable(int cipher, int mode)
+    {
+        int code = 0;
+        try
+        {
+            code = (int) cipherFetchableFuncHandle.invokeExact(cipher, mode);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFI BlockCipherNI_cipherFetchable",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
     }
 
 }

@@ -97,15 +97,13 @@ class ProvFIPSRSA
         registerPkcs1Signature(provider, attr, "SHA3-384withRSA", "SHA3-384", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_384.getId());
         registerPkcs1Signature(provider, attr, "SHA3-512withRSA", "SHA3-512", NISTObjectIdentifiers.id_rsassa_pkcs1_v1_5_with_sha3_512.getId());
 
-        // Registered by constructing the base RSASignatureSpi with digest
-        // "NONE" (the PKCS#1 v1.5 digest path), NOT the raw RSASignatureSpi.None
-        // subclass the non-FIPS provider uses: the module has no "NONE" digest,
-        // so init fails and the non-approved raw path is never reached. The
-        // className therefore names the base class that is actually constructed
-        // (see FIPSRSANoneWithRSASignatureTest for the pinned behaviour).
+        // Capability, not approval: the module performs raw PKCS#1 v1.5
+        // signing, so JSLFIPS serves it; approval is the operator's
+        // determination. Registered through RSASignatureSpi.None exactly as
+        // ProvRSA does — the raw path, no digest fetch.
         provider.addAlgorithmImplementation("Signature", "NoneWithRSA",
-                RSASignatureSpi.class.getName(), attr,
-                (arg) -> new RSASignatureSpi(FIPSNISelector.RSAServiceNI, keyFactory(provider), "NONE"));
+                RSASignatureSpi.None.class.getName(), attr,
+                (arg) -> new RSASignatureSpi.None(FIPSNISelector.RSAServiceNI, keyFactory(provider)));
 
         provider.addAlgorithmImplementation("Signature", "RSASSA-PSS",
                 RSAPSSSignatureSpi.class.getName(), attr,

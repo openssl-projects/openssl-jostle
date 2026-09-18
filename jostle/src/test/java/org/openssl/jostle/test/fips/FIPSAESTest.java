@@ -535,42 +535,21 @@ public class FIPSAESTest
     }
 
     /**
-     * JCA contract lock: {@code Cipher.init} must fail with a declared type,
-     * never the unchecked {@code OpenSSLException} (which defeats caller
-     * catches and JCE provider fallback). OCB is the real trigger, no fault
-     * injection needed — it is in the mode enum so {@code getInstance}
-     * succeeds, but the FIPS module will not fetch AES-*-OCB.
-     *
-     * <p>Pins the exception TYPE only; whether OCB should be refused earlier at
-     * {@code getInstance} is open (jslfips-gaps-from-bc-libs.md item 2a).
+     * JCA contract lock: a name JSLFIPS registers must be usable — a
+     * registered service that resolves and then fails at {@code init} is
+     * exactly what AES-OCB used to do.
+     * {@code BlockCipherSpi.engineSetMode} now probes fetchability at
+     * {@code Cipher.getInstance} time, so OCB is refused there, typed
+     * ({@code NoSuchAlgorithmException}), rather than resolving and failing
+     * opaquely at {@code init}. This closes the item this test used to leave
+     * open (whether OCB should be refused earlier at {@code getInstance}).
      */
     @Test
-    public void unfetchableMode_initThrowsDeclaredJceException()
-        throws Exception
+    public void unfetchableMode_refusedTypedAtGetInstance()
     {
-        // getInstance succeeds today — that is the premise of the test.
-        Cipher c = Cipher.getInstance("AES/OCB/NoPadding", JostleFIPSProvider.PROVIDER_NAME);
-        Assertions.assertNotNull(c);
-
-        SecretKey key = randomKey(32);
-        byte[] nonce = new byte[12];
-        RANDOM.nextBytes(nonce);
-
-        Throwable thrown = Assertions.assertThrows(Throwable.class,
-                () -> c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(nonce)));
-
-        Assertions.assertFalse(
-                thrown instanceof org.openssl.jostle.jcajce.provider.OpenSSLException,
-                "Cipher.init must not leak the unchecked OpenSSLException: " + thrown);
-        Assertions.assertTrue(
-                thrown instanceof InvalidKeyException
-                        || thrown instanceof InvalidAlgorithmParameterException,
-                "Cipher.init must fail with a declared JCE exception, got: " + thrown);
-
-        // The diagnostic detail must survive the translation, otherwise the
-        // wrapping trades a contract violation for an undebuggable failure.
-        Assertions.assertNotNull(thrown.getMessage());
-        Assertions.assertTrue(thrown.getMessage().startsWith("OpenSSL Error:"),
-                "underlying OpenSSL detail must be preserved, got: " + thrown.getMessage());
+        NoSuchAlgorithmException ex = Assertions.assertThrows(NoSuchAlgorithmException.class,
+                () -> Cipher.getInstance("AES/OCB/NoPadding", JostleFIPSProvider.PROVIDER_NAME),
+                "AES-OCB must be refused typed at getInstance under JSLFIPS, not resolve and fail at init");
+        Assertions.assertNotNull(ex);
     }
 }

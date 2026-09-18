@@ -1117,4 +1117,57 @@ public class FIPSBlockCipherLimitTest
             ni.dispose(ok);
         }
     }
+
+    /** A negative cipher ordinal must be rejected at the FIPS NI too, not crash. */
+    @Test
+    public void BlockCipher_cipherFetchable_badCipherOrdinalRejectedTyped()
+    {
+        Assertions.assertFalse(ni.cipherFetchable(-1, OSSLMode.GCM.ordinal()),
+                "a negative cipher ordinal must not report fetchable");
+    }
+
+    /** The typed code itself, straight off the ni_ entry point, for a bad cipher ordinal. */
+    @Test
+    public void BlockCipher_ni_cipherFetchable_badCipherOrdinalIsTypedCode()
+    {
+        int code = ni.ni_cipherFetchable(-1, OSSLMode.GCM.ordinal());
+        Assertions.assertEquals(
+                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_CIPHER.getCode(),
+                code, "an unrecognised cipher ordinal must report JO_INVALID_CIPHER");
+    }
+
+    /** An out-of-range mode ordinal must be rejected at the FIPS NI too. */
+    @Test
+    public void BlockCipher_ni_cipherFetchable_badModeOrdinalIsTypedCode()
+    {
+        int code = ni.ni_cipherFetchable(OSSLCipher.AES256.ordinal(), 9999);
+        Assertions.assertEquals(
+                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_MODE.getCode(),
+                code, "a mode ordinal AES256 has no name for must report JO_INVALID_MODE");
+    }
+
+    /** GCM must still fetch under the FIPS lib ctx, at every AES key size. */
+    @Test
+    public void BlockCipher_cipherFetchable_gcmFetchesOnFipsModule()
+    {
+        for (OSSLCipher cipher : new OSSLCipher[]{OSSLCipher.AES128, OSSLCipher.AES192, OSSLCipher.AES256})
+        {
+            Assertions.assertTrue(ni.cipherFetchable(cipher.ordinal(), OSSLMode.GCM.ordinal()),
+                    cipher + "-GCM must be fetchable under the FIPS lib ctx");
+        }
+    }
+
+    /**
+     * At the NI level: OCB is registered but the FIPS module refuses to
+     * fetch it, at every AES key size.
+     */
+    @Test
+    public void BlockCipher_cipherFetchable_ocbDoesNotFetchOnFipsModule()
+    {
+        for (OSSLCipher cipher : new OSSLCipher[]{OSSLCipher.AES128, OSSLCipher.AES192, OSSLCipher.AES256})
+        {
+            Assertions.assertFalse(ni.cipherFetchable(cipher.ordinal(), OSSLMode.OCB.ordinal()),
+                    cipher + "-OCB must NOT be fetchable under the FIPS lib ctx");
+        }
+    }
 }

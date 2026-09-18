@@ -306,3 +306,14 @@ void JoBlockCipher_dispose
     }
     block_cipher_ctx_destroy(ctx);
 }
+
+/**
+ * Whether the bound lib ctx can fetch the EVP_CIPHER for (cipher_id, mode_id).
+ * @param cipher_id OSSLCipher ordinal
+ * @param mode_id OSSLMode ordinal
+ * @return 1 fetchable (or unprobed), 0 not fetchable
+ */
+int32_t JoBlockCipher_cipherFetchable
+(int32_t cipher_id, int32_t mode_id) {
+    return block_cipher_fetchable(cipher_id, mode_id);
+}

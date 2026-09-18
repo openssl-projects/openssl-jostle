@@ -371,3 +371,15 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     }
     block_cipher_ctx_destroy(ctx);
 }
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_BlockCipherJNI
+ * Method:    cipherFetchable
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_ni_1cipherFetchable
+(JNIEnv *env, jobject cl, jint cipherId, jint modeId) {
+    UNUSED(env);
+    UNUSED(cl);
+    return block_cipher_fetchable(cipherId, modeId);
+}

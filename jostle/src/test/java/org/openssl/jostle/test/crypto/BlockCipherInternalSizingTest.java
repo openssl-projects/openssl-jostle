@@ -178,6 +178,12 @@ public class BlockCipherInternalSizingTest
         {
             real.ni_dispose(ref);
         }
+
+        @Override
+        public int ni_cipherFetchable(int cipher, int mode)
+        {
+            return real.ni_cipherFetchable(cipher, mode);
+        }
     }
 
     /** Reaches the {@code protected} SPI methods by being one. */
@@ -359,6 +365,12 @@ public class BlockCipherInternalSizingTest
 
         @Override
         public void ni_dispose(long ref)
+        {
+            throw notUsed();
+        }
+
+        @Override
+        public int ni_cipherFetchable(int cipher, int mode)
         {
             throw notUsed();
         }
