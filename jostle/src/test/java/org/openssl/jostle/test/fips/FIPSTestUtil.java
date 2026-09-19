@@ -117,6 +117,21 @@ final class FIPSTestUtil
     }
 
     /**
+     * Does the loaded module implement {@code name} as a key type?
+     * <p>
+     * Asks the module, through the same {@code capability_can_fetch(
+     * JO_CAP_OP_KEYMGMT, ...)} the {@code ProvFIPS*} registrars gate on. A test
+     * that asks the PROVIDER instead is comparing the registration with itself
+     * — a registrar that dropped a family the module serves would then look
+     * like a module that does not serve it.
+     */
+    static boolean moduleServesKeyMgmt(String name)
+    {
+        return FIPSNISelector.OpenSSLFIPSNI.canFetch(
+                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_KEYMGMT, name) != 0;
+    }
+
+    /**
      * The message a verify-only FIPS module's {@code initSign} must carry.
      * Pinned once so every DSA test asserts the same text — see
      * {@code DefaultServiceNI.baseErrorHandler}'s

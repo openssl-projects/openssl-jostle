@@ -45,6 +45,8 @@ public final class CipherFamilies
     // required and explicit.
     public static final String RSA_PREFIX = "org.openssl.jostle.jcajce.provider.rsa.";
     public static final String MLKEM_PREFIX = "org.openssl.jostle.jcajce.provider.mlkem.";
+    public static final String MLDSA_PREFIX = "org.openssl.jostle.jcajce.provider.mldsa.";
+    public static final String SLHDSA_PREFIX = "org.openssl.jostle.jcajce.provider.slhdsa.";
     public static final String DSA_PREFIX = "org.openssl.jostle.jcajce.provider.dsa.";
     public static final String EC_PREFIX = "org.openssl.jostle.jcajce.provider.ec.";
     public static final String ED_PREFIX = "org.openssl.jostle.jcajce.provider.ed.";
