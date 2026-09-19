@@ -10,7 +10,7 @@
 > single-module preamble and bare algorithm lists. Regeneration WILL drop them
 > — diff against the previous version and splice them back.
 
-The Jostle (`JSL`) provider registers **362** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
+The Jostle (`JSL`) provider registers **373** services across **16** JCA service types. Each list is the set of PRIMARY algorithm names registered for that type. An OID appears only where it is registered as a PRIMARY; OIDs that are aliases of a named algorithm are not listed, so this is not the full OID-addressable surface.
 
 ## AlgorithmParameterGenerator (2)
 
@@ -150,22 +150,33 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 54. `SM4`
 55. `SM4/CCM/NOPADDING`
 
-## KeyAgreement (14)
+## KeyAgreement (25)
 
 1. `DH`
 2. `DHWITHRFC2631KDF`
-3. `ECDH`
-4. `ECDHWITHSHA1KDF`
-5. `ECDHWITHSHA224KDF`
-6. `ECDHWITHSHA256KDF`
-7. `ECDHWITHSHA384KDF`
-8. `ECDHWITHSHA512KDF`
-9. `X25519`
-10. `X448`
-11. `XDH`
-12. `XDHWITHSHA256HKDF`
-13. `XDHWITHSHA384HKDF`
-14. `XDHWITHSHA512HKDF`
+3. `ECCDHWITHSHA256CKDF`
+4. `ECCDHWITHSHA384CKDF`
+5. `ECCDHWITHSHA512CKDF`
+6. `ECDH`
+7. `ECDHWITHSHA1KDF`
+8. `ECDHWITHSHA224KDF`
+9. `ECDHWITHSHA256KDF`
+10. `ECDHWITHSHA384KDF`
+11. `ECDHWITHSHA512KDF`
+12. `X25519`
+13. `X25519WITHSHA256CKDF`
+14. `X25519WITHSHA256HKDF`
+15. `X25519WITHSHA384CKDF`
+16. `X25519WITHSHA512CKDF`
+17. `X448`
+18. `X448WITHSHA256CKDF`
+19. `X448WITHSHA384CKDF`
+20. `X448WITHSHA512CKDF`
+21. `X448WITHSHA512HKDF`
+22. `XDH`
+23. `XDHWITHSHA256HKDF`
+24. `XDHWITHSHA384HKDF`
+25. `XDHWITHSHA512HKDF`
 
 ## KeyFactory (35)
 
@@ -468,7 +479,7 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 > supported" to the KMAC paragraph. Splice it back from the previous version and
 > re-check its counts and gating claims against both modules.
 
-The Jostle FIPS (`JSLFIPS`) provider registers **202** services against the 3.1.2 module and **285** against 3.5.8, across **14** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+The Jostle FIPS (`JSLFIPS`) provider registers **213** services against the 3.1.2 module and **288** against 3.5.8, across **14** JCA service types — what the OpenSSL FIPS module serves, not a subset filtered against its security policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable — and on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
 
 **Two modules are supported, and the list below is the 3.5.8 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
@@ -478,8 +489,9 @@ detectable at startup the provider asks the loaded module and registers
 accordingly:
 
 - **X25519 / X448** (`KeyAgreement`, `KeyFactory`, `KeyPairGenerator`, and the
-  `XDH` names) are registered only when the module resolves the keymgmt fetch.
-  3.1.2 does; 3.5.8 does not, and against it these eight services are absent
+  `XDH` names, including every `X25519WITH…`, `X448WITH…` and `XDHWITH…`
+  CKDF / HKDF `KeyAgreement`) are registered only when the module resolves the
+  keymgmt fetch. 3.1.2 does; 3.5.8 does not, and against it these 19 services are absent
   and `getInstance` throws `NoSuchAlgorithmException` so a caller can fall
   through to another provider. They are therefore NOT in the list below.
 - **ML-KEM, ML-DSA and SLH-DSA** go the other way: 3.5.8 implements all three
@@ -616,16 +628,19 @@ silent fall-through to the base provider's KDF.
 31. `RSA`
 32. `RSA-KTS-KEM-KWS`
 
-## KeyAgreement (8)
+## KeyAgreement (11)
 
 1. `DH`
 2. `DHWITHRFC2631KDF`
-3. `ECDH`
-4. `ECDHWITHSHA1KDF`
-5. `ECDHWITHSHA224KDF`
-6. `ECDHWITHSHA256KDF`
-7. `ECDHWITHSHA384KDF`
-8. `ECDHWITHSHA512KDF`
+3. `ECCDHWITHSHA256CKDF`
+4. `ECCDHWITHSHA384CKDF`
+5. `ECCDHWITHSHA512CKDF`
+6. `ECDH`
+7. `ECDHWITHSHA1KDF`
+8. `ECDHWITHSHA224KDF`
+9. `ECDHWITHSHA256KDF`
+10. `ECDHWITHSHA384KDF`
+11. `ECDHWITHSHA512KDF`
 
 ## KeyFactory (31)
 
