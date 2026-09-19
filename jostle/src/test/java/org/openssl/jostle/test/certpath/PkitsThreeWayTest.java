@@ -28,8 +28,13 @@ import java.util.Map;
  * so a third construction site cannot drift from the phase classes; those
  * differ only in parameters, which is where this class branches.
  *
- * <p>BouncyCastle's disagreements are prose, never assertions: a bcprov fix
- * must not turn this suite red.
+ * <p>Every provider in {@code PROVIDERS} is asserted against PKITS on every
+ * row, BouncyCastle included; an entry in {@code EXCLUSIONS} is a SANCTION
+ * against that assertion, scoped to one (row, provider), not an exemption from
+ * measuring it. So a bcprov fix DOES turn this suite red, deliberately and in
+ * one cell: {@code theForeignExclusionsAreStillEarnt} fails by name when a
+ * sanctioned row starts agreeing, because a stale sanction is
+ * indistinguishable from a justified one. Delete the line it names.
  */
 public class PkitsThreeWayTest
 {
@@ -91,7 +96,8 @@ public class PkitsThreeWayTest
                 "recursive indirect-CRL resolution refused by check_crl_path; error 54. "
                         + "Pinned in PkitsRevocationDivergenceTest."));
 
-        // BouncyCastle's. Prose only.
+        // BouncyCastle's. Each is a sanction against a live assertion, and
+        // theForeignExclusionsAreStillEarnt reddens when one goes stale.
         EXCLUSIONS.add(new Exclusion("4.3.2", BC,
                 "BC accepts a path PKITS, SUN and this provider all refuse; SUN names "
                         + "\"subject/issuer name chaining check failed\", we return error 20"));
