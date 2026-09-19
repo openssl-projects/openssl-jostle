@@ -38,7 +38,7 @@
 int32_t JoX509_allocate(const uint8_t *der, int32_t der_len, int32_t max_bytes,
                         int64_t *out_ref, int32_t *out_consumed)
 {
-    X509 *cert = NULL;
+    x509_handle *cert = NULL;
     int32_t consumed = 0;
     int32_t ret;
 
@@ -53,9 +53,13 @@ int32_t JoX509_allocate(const uint8_t *der, int32_t der_len, int32_t max_bytes,
     {
         return JO_INPUT_IS_NULL;
     }
-    if (der_len < 0 || max_bytes <= 0)
+    if (der_len < 0)
     {
         return JO_INPUT_LEN_IS_NEGATIVE;
+    }
+    if (max_bytes <= 0)
+    {
+        return JO_CERT_MAX_BYTES_INVALID;
     }
     /* An empty input IS a failed certificate decode, and that is the wording a
      * generateCertificate caller needs; the JNI twin maps it identically. */
@@ -86,7 +90,7 @@ int32_t JoX509_fieldsLen(int64_t ref)
     {
         return JO_CERT_CTX_IS_NULL;
     }
-    return x509_cert_fields_len((X509 *) (intptr_t) ref);
+    return x509_cert_fields_len((x509_handle *) (intptr_t) ref);
 }
 
 int32_t JoX509_fields(int64_t ref, uint8_t *blob, int32_t blob_len,
@@ -105,7 +109,7 @@ int32_t JoX509_fields(int64_t ref, uint8_t *blob, int32_t blob_len,
     {
         return JO_OUTPUT_TOO_SMALL;
     }
-    return x509_cert_fields((X509 *) (intptr_t) ref, blob, (size_t) blob_len, sizes, info);
+    return x509_cert_fields((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len, sizes, info);
 }
 
 int32_t JoX509_extensionsLen(int64_t ref)
@@ -114,7 +118,7 @@ int32_t JoX509_extensionsLen(int64_t ref)
     {
         return JO_CERT_CTX_IS_NULL;
     }
-    return x509_cert_extensions_len((X509 *) (intptr_t) ref);
+    return x509_cert_extensions_len((x509_handle *) (intptr_t) ref);
 }
 
 int32_t JoX509_extensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t count,
@@ -135,7 +139,7 @@ int32_t JoX509_extensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t 
     {
         return JO_OUTPUT_TOO_SMALL;
     }
-    return x509_cert_extensions((X509 *) (intptr_t) ref, blob, (size_t) blob_len,
+    return x509_cert_extensions((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len,
                                 (size_t) count, oid_sizes, val_sizes, critical);
 }
 
@@ -145,7 +149,7 @@ void JoX509_dispose(int64_t ref)
     {
         return;
     }
-    x509_cert_free((X509 *) (intptr_t) ref);
+    x509_cert_free((x509_handle *) (intptr_t) ref);
 }
 
 /* ---------------------------------------------------------------- CRLs --- */
@@ -153,7 +157,7 @@ void JoX509_dispose(int64_t ref)
 int32_t JoX509_allocateCrl(const uint8_t *der, int32_t der_len, int32_t max_bytes,
                            int64_t *out_ref, int32_t *out_consumed)
 {
-    X509_CRL *crl = NULL;
+    x509_handle *crl = NULL;
     int32_t consumed = 0;
     int32_t ret;
 
@@ -168,9 +172,13 @@ int32_t JoX509_allocateCrl(const uint8_t *der, int32_t der_len, int32_t max_byte
     {
         return JO_INPUT_IS_NULL;
     }
-    if (der_len < 0 || max_bytes <= 0)
+    if (der_len < 0)
     {
         return JO_INPUT_LEN_IS_NEGATIVE;
+    }
+    if (max_bytes <= 0)
+    {
+        return JO_CERT_MAX_BYTES_INVALID;
     }
     if (der_len == 0)
     {
@@ -178,7 +186,8 @@ int32_t JoX509_allocateCrl(const uint8_t *der, int32_t der_len, int32_t max_byte
     }
     if (der_len > max_bytes)
     {
-        return JO_CERT_TOO_LARGE;
+        /* The CRL bound, named as its own — see the JNI twin. */
+        return JO_CRL_TOO_LARGE;
     }
 
     ret = x509_crl_decode(der, (size_t) der_len, (size_t) max_bytes, &crl, &consumed);
@@ -197,7 +206,7 @@ int32_t JoX509_crlFieldsLen(int64_t ref)
     {
         return JO_CERT_CTX_IS_NULL;
     }
-    return x509_crl_fields_len((X509_CRL *) (intptr_t) ref);
+    return x509_crl_fields_len((x509_handle *) (intptr_t) ref);
 }
 
 int32_t JoX509_crlFields(int64_t ref, uint8_t *blob, int32_t blob_len,
@@ -216,7 +225,7 @@ int32_t JoX509_crlFields(int64_t ref, uint8_t *blob, int32_t blob_len,
     {
         return JO_OUTPUT_TOO_SMALL;
     }
-    return x509_crl_fields((X509_CRL *) (intptr_t) ref, blob, (size_t) blob_len, sizes, info);
+    return x509_crl_fields((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len, sizes, info);
 }
 
 int32_t JoX509_crlExtensionsLen(int64_t ref)
@@ -225,7 +234,7 @@ int32_t JoX509_crlExtensionsLen(int64_t ref)
     {
         return JO_CERT_CTX_IS_NULL;
     }
-    return x509_crl_extensions_len((X509_CRL *) (intptr_t) ref);
+    return x509_crl_extensions_len((x509_handle *) (intptr_t) ref);
 }
 
 int32_t JoX509_crlExtensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t count,
@@ -243,7 +252,7 @@ int32_t JoX509_crlExtensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32
     {
         return JO_OUTPUT_TOO_SMALL;
     }
-    return x509_crl_extensions((X509_CRL *) (intptr_t) ref, blob, (size_t) blob_len,
+    return x509_crl_extensions((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len,
                                (size_t) count, oid_sizes, val_sizes, critical);
 }
 
@@ -253,7 +262,7 @@ int32_t JoX509_crlEntriesLen(int64_t ref)
     {
         return JO_CERT_CTX_IS_NULL;
     }
-    return x509_crl_entries_len((X509_CRL *) (intptr_t) ref);
+    return x509_crl_entries_len((x509_handle *) (intptr_t) ref);
 }
 
 int32_t JoX509_crlEntries(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t count,
@@ -273,7 +282,7 @@ int32_t JoX509_crlEntries(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t 
     {
         return JO_OUTPUT_TOO_SMALL;
     }
-    return x509_crl_entries((X509_CRL *) (intptr_t) ref, blob, (size_t) blob_len,
+    return x509_crl_entries((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len,
                             (size_t) count, sizes, dates);
 }
 
@@ -283,5 +292,5 @@ void JoX509_disposeCrl(int64_t ref)
     {
         return;
     }
-    x509_crl_free((X509_CRL *) (intptr_t) ref);
+    x509_crl_free((x509_handle *) (intptr_t) ref);
 }

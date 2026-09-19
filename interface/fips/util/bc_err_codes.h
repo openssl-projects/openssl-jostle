@@ -628,6 +628,28 @@
  */
 #define JO_CERT_TOO_LARGE -179
 /*
+ * The handle is not null but is of the OTHER kind -- a certificate handle
+ * passed to a CRL accessor, or the reverse, which was dereferenced as the
+ * wrong struct and faulted inside libcrypto. The handle is jostle's own, so a
+ * violated invariant may abort; it may not CORRUPT, and these were wild
+ * accesses rather than controlled aborts, so the kind is refused typed.
+ */
+#define JO_CERT_CTX_WRONG_KIND -181
+/*
+ * The per-call certificate ceiling is zero or negative. Its own code rather
+ * than JO_INPUT_LEN_IS_NEGATIVE, which names the wrong parameter: a caller
+ * given "input len is negative" for a bad maxBytes looks at the wrong
+ * argument.
+ */
+#define JO_CERT_MAX_BYTES_INVALID -182
+/*
+ * The input exceeds the CRL ceiling. Distinct from JO_CERT_TOO_LARGE so the
+ * refusal names the CRL property rather than the certificate one; the two
+ * ceilings are deliberately different sizes, and a refusal naming a bound the
+ * deployment did not set is a refusal it cannot act on.
+ */
+#define JO_CRL_TOO_LARGE -183
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config

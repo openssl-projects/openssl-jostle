@@ -303,6 +303,22 @@ public interface X509NI
                     "certificate exceeds the configured ceiling; raise "
                             + MAX_CERT_BYTES_PROPERTY);
         }
+        if (ec == ErrorCode.JO_CRL_TOO_LARGE)
+        {
+            throw new CertificateParseException(
+                    "CRL exceeds the configured ceiling; raise "
+                            + MAX_CONTAINER_BYTES_PROPERTY);
+        }
+        if (ec == ErrorCode.JO_CERT_MAX_BYTES_INVALID)
+        {
+            // Not "certificate": the same code serves the CRL path, and naming the
+            // wrong object is the fault the CRL ceiling message above just fixed.
+            throw new IllegalArgumentException("maximum bytes must be positive");
+        }
+        if (ec == ErrorCode.JO_CERT_CTX_WRONG_KIND)
+        {
+            throw new IllegalArgumentException("handle is not of the kind this call expects");
+        }
         return baseErrorHandler(code);
     }
 }

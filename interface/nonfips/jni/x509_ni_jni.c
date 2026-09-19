@@ -28,11 +28,11 @@
  * raises the configurable property gets a refusal, never an abort.
  */
 
-/* The X509* handle a caller hands back. NULL-checked at every entry point,
- * never asserted: it is caller data. */
-static X509 *handle_of(jlong ref)
+/* The x509_handle a caller hands back. Null and kind are checked in util at
+ * every entry point, never asserted: it is caller data. */
+static x509_handle *handle_of(jlong ref)
 {
-    return (X509 *) (intptr_t) ref;
+    return (x509_handle *) (intptr_t) ref;
 }
 
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509ServiceJNI_ni_1allocate
@@ -46,7 +46,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509Service
     jint *consumed = NULL;
     jlong result = 0;
     jint code = JO_FAIL;
-    X509 *cert = NULL;
+    x509_handle *cert = NULL;
     int32_t used = 0;
 
     init_bytearray_ctx(&der);
@@ -81,14 +81,19 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509Service
         code = JO_INPUT_IS_NULL;
         goto exit;
     }
-    if (off < 0 || len < 0)
+    if (off < 0)
+    {
+        code = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+    if (len < 0)
     {
         code = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
     if (maxBytes <= 0)
     {
-        code = JO_INPUT_LEN_IS_NEGATIVE;
+        code = JO_CERT_MAX_BYTES_INVALID;
         goto exit;
     }
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&der, env, _der))
@@ -373,9 +378,9 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509ServiceJ
 
 /* ---------------------------------------------------------------- CRLs --- */
 
-static X509_CRL *crl_of(jlong ref)
+static x509_handle *crl_of(jlong ref)
 {
-    return (X509_CRL *) (intptr_t) ref;
+    return (x509_handle *) (intptr_t) ref;
 }
 
 /*
@@ -425,7 +430,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509Service
     jint *consumed = NULL;
     jlong result = 0;
     jint code = JO_FAIL;
-    X509_CRL *crl = NULL;
+    x509_handle *crl = NULL;
     int32_t used = 0;
 
     init_bytearray_ctx(&der);
@@ -452,9 +457,19 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509Service
         code = JO_INPUT_IS_NULL;
         goto exit;
     }
-    if (off < 0 || len < 0 || maxBytes <= 0)
+    if (off < 0)
+    {
+        code = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+    if (len < 0)
     {
         code = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+    if (maxBytes <= 0)
+    {
+        code = JO_CERT_MAX_BYTES_INVALID;
         goto exit;
     }
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&der, env, _der))
@@ -479,7 +494,10 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509Service
     }
     if (len > maxBytes)
     {
-        code = JO_CERT_TOO_LARGE;
+        /* The CRL ceiling, not the certificate one: the two are deliberately
+         * different sizes and the refusal names the property that moves THIS
+         * bound. */
+        code = JO_CRL_TOO_LARGE;
         goto exit;
     }
 

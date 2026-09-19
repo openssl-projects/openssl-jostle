@@ -108,20 +108,39 @@
  *
  * Returns JO_SUCCESS with *out set, or a negative JO_* with *out NULL.
  */
+/*
+ * The handle a caller holds. NOT the raw X509* / X509_CRL*: a raw pointer
+ * carries no kind, and a wrong-kind handle was dereferenced as the other
+ * struct and faulted inside libcrypto.
+ *
+ * The kinds are non-trivial magics, neither 0 nor 1, so freed or zeroed memory
+ * does not read as a valid kind.
+ *
+ * Checked in util, so both bridges inherit it and the glue only unwraps.
+ */
+#define X509_KIND_CERT 0x58433501u   /* "XC5\1" */
+#define X509_KIND_CRL  0x584C3502u   /* "XL5\2" */
+
+typedef struct
+{
+    uint32_t kind;
+    void *obj;
+} x509_handle;
+
 int32_t x509_cert_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
-                         X509 **out, int32_t *consumed);
+                         x509_handle **out, int32_t *consumed);
 
 /*
  * Total bytes the fields blob needs. Call, allocate, then call x509_cert_fields.
  * Returns a byte count >= 0, or a negative JO_*.
  */
-int32_t x509_cert_fields_len(X509 *cert);
+int32_t x509_cert_fields_len(x509_handle *h);
 
 /*
  * Fill blob/sizes/info. blob must be at least x509_cert_fields_len bytes and
  * sizes at least X509_SLOT_COUNT entries, info at least X509_INFO_COUNT.
  */
-int32_t x509_cert_fields(X509 *cert, uint8_t *blob, size_t blob_len,
+int32_t x509_cert_fields(x509_handle *h, uint8_t *blob, size_t blob_len,
                          int32_t *sizes, int32_t *info);
 
 /*
@@ -131,7 +150,7 @@ int32_t x509_cert_fields(X509 *cert, uint8_t *blob, size_t blob_len,
  * oid_sizes, val_sizes and critical each hold ext_count entries, as reported
  * by X509_INFO_EXT_COUNT.
  */
-int32_t x509_cert_extensions_len(X509 *cert);
+int32_t x509_cert_extensions_len(x509_handle *h);
 
 /*
  * count is the CAPACITY of oid_sizes / val_sizes / critical, and is checked
@@ -141,10 +160,11 @@ int32_t x509_cert_extensions_len(X509 *cert);
  * INFO_EXT_COUNT, a second thread -- would get a heap overflow, and a count of
  * zero against a certificate with extensions would write through NULL.
  */
-int32_t x509_cert_extensions(X509 *cert, uint8_t *blob, size_t blob_len, size_t count,
+int32_t x509_cert_extensions(x509_handle *h, uint8_t *blob, size_t blob_len, size_t count,
                              int32_t *oid_sizes, int32_t *val_sizes, int32_t *critical);
 
-void x509_cert_free(X509 *cert);
+/* Refuses a handle of the other kind typed, and frees nothing. */
+int32_t x509_cert_free(x509_handle *h);
 
 /* ---------------------------------------------------------------- CRLs --- */
 
@@ -180,10 +200,10 @@ void x509_cert_free(X509 *cert);
 #define X509_DEFAULT_MAX_CRL_BYTES (64 * 1024 * 1024)
 
 int32_t x509_crl_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
-                        X509_CRL **out, int32_t *consumed);
+                        x509_handle **out, int32_t *consumed);
 
-int32_t x509_crl_fields_len(X509_CRL *crl);
-int32_t x509_crl_fields(X509_CRL *crl, uint8_t *blob, size_t blob_len,
+int32_t x509_crl_fields_len(x509_handle *h);
+int32_t x509_crl_fields(x509_handle *h, uint8_t *blob, size_t blob_len,
                         int32_t *sizes, int32_t *info);
 
 /*
@@ -196,14 +216,15 @@ int32_t x509_crl_fields(X509_CRL *crl, uint8_t *blob, size_t blob_len,
  * count is the CAPACITY of sizes (entries) and dates (2 * entries), checked
  * against the CRL's entry count before the first write.
  */
-int32_t x509_crl_entries_len(X509_CRL *crl);
-int32_t x509_crl_entries(X509_CRL *crl, uint8_t *blob, size_t blob_len, size_t count,
+int32_t x509_crl_entries_len(x509_handle *h);
+int32_t x509_crl_entries(x509_handle *h, uint8_t *blob, size_t blob_len, size_t count,
                          int32_t *sizes, int32_t *dates);
 
-int32_t x509_crl_extensions_len(X509_CRL *crl);
-int32_t x509_crl_extensions(X509_CRL *crl, uint8_t *blob, size_t blob_len, size_t count,
+int32_t x509_crl_extensions_len(x509_handle *h);
+int32_t x509_crl_extensions(x509_handle *h, uint8_t *blob, size_t blob_len, size_t count,
                             int32_t *oid_sizes, int32_t *val_sizes, int32_t *critical);
 
-void x509_crl_free(X509_CRL *crl);
+/* Refuses a handle of the other kind typed, and frees nothing. */
+int32_t x509_crl_free(x509_handle *h);
 
 #endif

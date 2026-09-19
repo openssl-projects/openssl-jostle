@@ -161,7 +161,12 @@ public class X509ServiceFFI implements X509NI
             err[0] = ErrorCode.JO_INPUT_IS_NULL.getCode();
             return 0;
         }
-        if (off < 0 || len < 0)
+        if (off < 0)
+        {
+            err[0] = ErrorCode.JO_INPUT_OFFSET_IS_NEGATIVE.getCode();
+            return 0;
+        }
+        if (len < 0)
         {
             err[0] = ErrorCode.JO_INPUT_LEN_IS_NEGATIVE.getCode();
             return 0;
@@ -351,12 +356,16 @@ public class X509ServiceFFI implements X509NI
             return 0;
         }
         // Split to match the JNI twin code for code, not merely "a typed
-        // refusal": there a negative off or len is JO_INPUT_LEN_IS_NEGATIVE and
-        // only a bad off+len against the array is JO_INPUT_OUT_OF_RANGE. One
-        // combined check here returned the second code for both, so the same
-        // input produced different codes on the two legs and a limit test would
-        // have had to pin two messages for one contract.
-        if (off < 0 || len < 0)
+        // refusal": the same input must produce the same code on both legs, or
+        // a limit test has to pin two messages for one contract. The offset and
+        // the length have their own codes because a caller told the length is
+        // negative when the offset is looks at the wrong argument.
+        if (off < 0)
+        {
+            err[0] = ErrorCode.JO_INPUT_OFFSET_IS_NEGATIVE.getCode();
+            return 0;
+        }
+        if (len < 0)
         {
             err[0] = ErrorCode.JO_INPUT_LEN_IS_NEGATIVE.getCode();
             return 0;

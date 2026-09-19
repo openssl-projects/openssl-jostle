@@ -40,8 +40,44 @@
  * Measured: plain d2i_X509 under a FIPS ctx yields an ED25519 key the module
  * does not serve.
  */
+/*
+ * Handle plumbing. The wrapper exists so an accessor can tell a certificate
+ * handle from a CRL handle; a raw pointer cannot, and the mismatch used to
+ * reach libcrypto and fault. See x509.h for the measured crashes.
+ */
+static x509_handle *handle_new(uint32_t kind, void *obj)
+{
+    x509_handle *h = OPENSSL_malloc(sizeof(x509_handle));
+    if (h == NULL)
+    {
+        return NULL;
+    }
+    h->kind = kind;
+    h->obj = obj;
+    return h;
+}
+
+/*
+ * Null and kind, in that order, BEFORE the object is touched. Checked here
+ * rather than in the two bridges so both inherit it once and neither can
+ * forget; the glue only unwraps.
+ */
+static int32_t handle_unwrap(x509_handle *h, uint32_t kind, void **out)
+{
+    if (h == NULL)
+    {
+        return JO_CERT_CTX_IS_NULL;
+    }
+    if (h->kind != kind)
+    {
+        return JO_CERT_CTX_WRONG_KIND;
+    }
+    *out = h->obj;
+    return JO_SUCCESS;
+}
+
 int32_t x509_cert_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
-                         X509 **out, int32_t *consumed)
+                         x509_handle **out, int32_t *consumed)
 {
     const unsigned char *p = der;
     X509 *cert;
@@ -79,13 +115,34 @@ int32_t x509_cert_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
      * the stream.
      */
     *consumed = (int32_t) (p - der);
-    *out = cert;
+    *out = handle_new(X509_KIND_CERT, cert);
+    if (*out == NULL)
+    {
+        X509_free(cert);
+        *consumed = 0;
+        return JO_OPENSSL_ERROR;
+    }
     return JO_SUCCESS;
 }
 
-void x509_cert_free(X509 *cert)
+int32_t x509_cert_free(x509_handle *h)
 {
+    X509 *cert = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CERT, (void **) &cert);
+    if (kind_rc != JO_SUCCESS)
+    {
+        /* Frees NOTHING on the wrong kind: freeing through the other type is
+         * the fault this wrapper exists to stop. A correct dispose still
+         * works afterwards. */
+        return kind_rc;
+    }
     X509_free(cert);
+    /* Scrubbed before release as defence in depth; a dispose after dispose is
+     * still a caller fault. */
+    h->kind = 0;
+    h->obj = NULL;
+    OPENSSL_free(h);
+    return JO_SUCCESS;
 }
 
 /*
@@ -442,8 +499,15 @@ fail:
     return JO_OPENSSL_ERROR;
 }
 
-int32_t x509_cert_fields_len(X509 *cert)
+int32_t x509_cert_fields_len(x509_handle *h)
 {
+    X509 *cert = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CERT, (void **) &cert);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     cert_slots s;
     int32_t ret;
     size_t total = 0;
@@ -545,9 +609,16 @@ static int32_t ext_lookup(X509 *cert, int nid, void **out)
     return JO_CERT_EXTENSION_INVALID;
 }
 
-int32_t x509_cert_fields(X509 *cert, uint8_t *blob, size_t blob_len,
+int32_t x509_cert_fields(x509_handle *h, uint8_t *blob, size_t blob_len,
                          int32_t *sizes, int32_t *info)
 {
+    X509 *cert = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CERT, (void **) &cert);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     cert_slots s;
     int32_t ret;
     size_t off = 0;
@@ -842,8 +913,15 @@ static int32_t each_extension(const STACK_OF(X509_EXTENSION) *exts,
     return JO_SUCCESS;
 }
 
-int32_t x509_cert_extensions_len(X509 *cert)
+int32_t x509_cert_extensions_len(x509_handle *h)
 {
+    X509 *cert = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CERT, (void **) &cert);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     size_t needed = 0;
     int32_t ret;
 
@@ -862,9 +940,16 @@ int32_t x509_cert_extensions_len(X509 *cert)
     return (int32_t) needed;
 }
 
-int32_t x509_cert_extensions(X509 *cert, uint8_t *blob, size_t blob_len, size_t count,
+int32_t x509_cert_extensions(x509_handle *h, uint8_t *blob, size_t blob_len, size_t count,
                              int32_t *oid_sizes, int32_t *val_sizes, int32_t *critical)
 {
+    X509 *cert = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CERT, (void **) &cert);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     size_t needed = 0;
 
     jo_assert(cert != NULL);
@@ -887,7 +972,7 @@ int32_t x509_cert_extensions(X509 *cert, uint8_t *blob, size_t blob_len, size_t 
  * ctx.
  */
 int32_t x509_crl_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
-                        X509_CRL **out, int32_t *consumed)
+                        x509_handle **out, int32_t *consumed)
 {
     const unsigned char *p = der;
     X509_CRL *crl;
@@ -914,13 +999,30 @@ int32_t x509_crl_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
         return JO_CRL_DECODE_FAILED;
     }
     *consumed = (int32_t) (p - der);
-    *out = crl;
+    *out = handle_new(X509_KIND_CRL, crl);
+    if (*out == NULL)
+    {
+        X509_CRL_free(crl);
+        *consumed = 0;
+        return JO_OPENSSL_ERROR;
+    }
     return JO_SUCCESS;
 }
 
-void x509_crl_free(X509_CRL *crl)
+int32_t x509_crl_free(x509_handle *h)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        /* Frees NOTHING on the wrong kind -- see x509_cert_free. */
+        return kind_rc;
+    }
     X509_CRL_free(crl);
+    h->kind = 0;
+    h->obj = NULL;
+    OPENSSL_free(h);
+    return JO_SUCCESS;
 }
 
 /*
@@ -1117,8 +1219,15 @@ static int32_t crl_gather(X509_CRL *crl, crl_slots *s)
     return JO_SUCCESS;
 }
 
-int32_t x509_crl_fields_len(X509_CRL *crl)
+int32_t x509_crl_fields_len(x509_handle *h)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     crl_slots s;
     int32_t ret;
     size_t total = 0;
@@ -1144,9 +1253,16 @@ int32_t x509_crl_fields_len(X509_CRL *crl)
     return (int32_t) total;
 }
 
-int32_t x509_crl_fields(X509_CRL *crl, uint8_t *blob, size_t blob_len,
+int32_t x509_crl_fields(x509_handle *h, uint8_t *blob, size_t blob_len,
                         int32_t *sizes, int32_t *info)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     crl_slots s;
     int32_t ret;
     size_t off = 0;
@@ -1274,8 +1390,15 @@ static int32_t each_entry(X509_CRL *crl, uint8_t *blob, size_t blob_len, size_t 
     return JO_SUCCESS;
 }
 
-int32_t x509_crl_entries_len(X509_CRL *crl)
+int32_t x509_crl_entries_len(x509_handle *h)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     size_t needed = 0;
     int32_t ret;
 
@@ -1294,9 +1417,16 @@ int32_t x509_crl_entries_len(X509_CRL *crl)
     return (int32_t) needed;
 }
 
-int32_t x509_crl_entries(X509_CRL *crl, uint8_t *blob, size_t blob_len, size_t count,
+int32_t x509_crl_entries(x509_handle *h, uint8_t *blob, size_t blob_len, size_t count,
                          int32_t *sizes, int32_t *dates)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     size_t needed = 0;
 
     jo_assert(crl != NULL);
@@ -1308,8 +1438,15 @@ int32_t x509_crl_entries(X509_CRL *crl, uint8_t *blob, size_t blob_len, size_t c
     return each_entry(crl, blob, blob_len, count, sizes, dates, &needed);
 }
 
-int32_t x509_crl_extensions_len(X509_CRL *crl)
+int32_t x509_crl_extensions_len(x509_handle *h)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     size_t needed = 0;
     int32_t ret;
 
@@ -1328,9 +1465,16 @@ int32_t x509_crl_extensions_len(X509_CRL *crl)
     return (int32_t) needed;
 }
 
-int32_t x509_crl_extensions(X509_CRL *crl, uint8_t *blob, size_t blob_len, size_t count,
+int32_t x509_crl_extensions(x509_handle *h, uint8_t *blob, size_t blob_len, size_t count,
                             int32_t *oid_sizes, int32_t *val_sizes, int32_t *critical)
 {
+    X509_CRL *crl = NULL;
+    int32_t kind_rc = handle_unwrap(h, X509_KIND_CRL, (void **) &crl);
+    if (kind_rc != JO_SUCCESS)
+    {
+        return kind_rc;
+    }
+
     size_t needed = 0;
 
     jo_assert(crl != NULL);
