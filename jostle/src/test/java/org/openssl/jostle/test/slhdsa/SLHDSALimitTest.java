@@ -628,23 +628,43 @@ public class SLHDSALimitTest
         }
     }
 
-    //TODO  @Test()
-    public void SLHDSAServiceJNI_decode_1publicKey_keyLength() throws Exception
+    /**
+     * An unnamed parameter set is refused BY TYPE, on both decoders.
+     * <p>
+     * This cell was disabled and expected "unknown key length", a contract
+     * SLH-DSA cannot have: each security parameter n (16, 24, 32) is shared by
+     * four sets — SHA2 and SHAKE, fast and small — so a 2n-byte public key or
+     * a 4n-byte private key is ambiguous four ways, and {@code slhdsa.c} has
+     * no length-inference path. ML-DSA's lengths are unique per set, which is
+     * why only that family infers. Both halves are measured under
+     * {@code assertAll} so neither masks the other.
+     */
+    @Test()
+    public void SLHDSAServiceJNI_decode_unnamedSet_refusedByType() throws Exception
     {
-        // Either side of each valid key len
-        for (int len : new int[]{1311, 1313, 1951, 1953, 2951, 2953})
+        // Either side of every real SLH-DSA key length, on this family's own
+        // boundaries: public keys are 2n and private keys 4n for n = 16, 24,
+        // 32. Plus 7, far from all of them — the refusal is by TYPE and does
+        // not depend on the length at all, which is what the spread shows.
+        for (int len : new int[]{7, 31, 33, 47, 49, 63, 65, 95, 97, 127, 129})
         {
             long keyRef = 0;
             try
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                slhdsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.NONE.getKsType(), new byte[len], 0, len);
-                Assertions.fail();
-            }
-            catch (IllegalArgumentException e)
-            {
-                Assertions.assertEquals("unknown key length", e.getMessage());
+                final long ref = keyRef;
+                Assertions.assertAll("length " + len,
+                        () -> Assertions.assertEquals("invalid key type for SLH-DSA",
+                                Assertions.assertThrows(IllegalArgumentException.class,
+                                        () -> slhdsaServiceNI.decode_publicKey(ref,
+                                                OSSLKeyType.NONE.getKsType(), new byte[len], 0, len))
+                                        .getMessage()),
+                        () -> Assertions.assertEquals("invalid key type for SLH-DSA",
+                                Assertions.assertThrows(IllegalArgumentException.class,
+                                        () -> slhdsaServiceNI.decode_privateKey(ref,
+                                                OSSLKeyType.NONE.getKsType(), new byte[len], 0, len))
+                                        .getMessage()));
             }
             finally
             {
