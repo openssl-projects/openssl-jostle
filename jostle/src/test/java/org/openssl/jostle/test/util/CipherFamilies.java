@@ -135,6 +135,135 @@ public final class CipherFamilies
         }
     };
 
+    /**
+     * The SPI class ARIA, Camellia and SM4 share for key generation. It is
+     * named here as a PREFIX in its own right because none of the three family
+     * prefixes matches it, so a per-family guard cannot see those three
+     * KeyGenerators at all — measured 2026-09-20, surface 0 for each while
+     * {@code KeyGenerator.getInstance("ARIA", "JSL")} succeeds.
+     */
+    public static final String SYMMETRIC_KEYGEN_PREFIX =
+            "org.openssl.jostle.jcajce.provider.blockcipher.SymmetricKeyGenerator";
+
+    /** {@code AES}, the three per-width names, and the eighteen OID arcs. */
+    public static final CipherSurfaceDriver.KeyGenLengths AES_KEYGEN =
+            new CipherSurfaceDriver.KeyGenLengths()
+    {
+        public int[] acceptedBits(String n)
+        {
+            int fixed = fixedAesBits(n);
+            return fixed == 0 ? new int[]{128, 192, 256} : new int[]{fixed};
+        }
+
+        public int keyBytesFor(String n, int bits)
+        {
+            return bits / 8;
+        }
+
+        public int defaultKeyBytes(String n)
+        {
+            int fixed = fixedAesBits(n);
+            // The bare name defaults to the strongest it serves.
+            return fixed == 0 ? 32 : fixed / 8;
+        }
+    };
+
+    /** Both registrations and both OID spellings take a 256-bit key (RFC 8439). */
+    public static final CipherSurfaceDriver.KeyGenLengths CHACHA20_KEYGEN =
+            new CipherSurfaceDriver.KeyGenLengths()
+    {
+        public int[] acceptedBits(String n)
+        {
+            return new int[]{256};
+        }
+
+        public int keyBytesFor(String n, int bits)
+        {
+            return 32;
+        }
+
+        public int defaultKeyBytes(String n)
+        {
+            return 32;
+        }
+    };
+
+    /**
+     * Only the 3-key form. Both JCE spellings are accepted: 192 is the full
+     * width and 168 the effective width with the parity bits discounted.
+     */
+    public static final CipherSurfaceDriver.KeyGenLengths DESEDE_KEYGEN =
+            new CipherSurfaceDriver.KeyGenLengths()
+    {
+        public int[] acceptedBits(String n)
+        {
+            return new int[]{168, 192};
+        }
+
+        public int keyBytesFor(String n, int bits)
+        {
+            // 168 yields 24 bytes, not 21: the parity bits are carried in the
+            // key material even though they do not count towards its strength.
+            return 24;
+        }
+
+        public int defaultKeyBytes(String n)
+        {
+            return 24;
+        }
+    };
+
+    /**
+     * The three families served by {@link #SYMMETRIC_KEYGEN_PREFIX}. ARIA and
+     * Camellia carry the three AES widths; SM4 is single-width.
+     */
+    public static final CipherSurfaceDriver.KeyGenLengths SYMMETRIC_KEYGEN =
+            new CipherSurfaceDriver.KeyGenLengths()
+    {
+        public int[] acceptedBits(String n)
+        {
+            return "SM4".equals(n) ? new int[]{128} : new int[]{128, 192, 256};
+        }
+
+        public int keyBytesFor(String n, int bits)
+        {
+            return bits / 8;
+        }
+
+        public int defaultKeyBytes(String n)
+        {
+            return "SM4".equals(n) ? 16 : 32;
+        }
+    };
+
+    /**
+     * The one width an AES KeyGenerator name pins, or 0 when the name pins
+     * none. The OID arc decides for the OID spellings, exactly as it does for
+     * the Cipher names in {@link #AES}.
+     */
+    private static int fixedAesBits(String n)
+    {
+        String bare = n.startsWith("OID.") ? n.substring(4) : n;
+        if (bare.startsWith("2.16.840.1.101.3.4.1."))
+        {
+            int arc = Integer.parseInt(bare.substring("2.16.840.1.101.3.4.1.".length()));
+            return arc < 20 ? 128 : arc < 40 ? 192 : 256;
+        }
+        if (bare.contains("128"))
+        {
+            return 128;
+        }
+        if (bare.contains("192"))
+        {
+            return 192;
+        }
+        if (bare.contains("256"))
+        {
+            return 256;
+        }
+        return 0;
+    }
+
     /** The width is in the name for the per-size registrations; 256 otherwise. */
     private static int byWidthInName(String n)
     {

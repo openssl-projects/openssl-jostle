@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.CipherSurfaceDriver;
+import org.openssl.jostle.test.util.KeyGeneratorSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -4069,5 +4071,26 @@ public class AESAgreementTest
                 Security.getProvider(JostleProvider.PROVIDER_NAME),
                 CipherFamilies.AES_PREFIX, "AES", CipherFamilies.AES,
                 seededRandom("everyRegisteredAesCipherIsDriven"));
+    }
+
+    /**
+     * Every {@code KeyGenerator} name ProvAES registers is DRIVEN, discovered
+     * rather than listed, aliases included.
+     *
+     * <p>Measured 2026-09-20 the surface is 40 where {@code getServices()}
+     * shows 4: the eighteen OID arcs each register under two spellings, and
+     * {@code AESKeyGeneratorTest} — which covers this family's behaviour by
+     * hand — names none of them. Those 36 names are what this cell adds; the
+     * four hand-written cells there stay as they are.
+     */
+    @Test
+    public void everyRegisteredAesKeyGeneratorIsDriven()
+    {
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.AES_PREFIX, "AES KeyGenerator (JSL)",
+                new String[]{"KeyGenerator"},
+                KeyGeneratorSurfaceDriver.forProvider(
+                        JostleProvider.PROVIDER_NAME, CipherFamilies.AES_KEYGEN, "AES", 64));
     }
 }

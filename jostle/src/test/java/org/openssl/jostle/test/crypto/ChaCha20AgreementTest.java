@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.CipherSurfaceDriver;
+import org.openssl.jostle.test.util.KeyGeneratorSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -400,5 +402,22 @@ public class ChaCha20AgreementTest
                 Security.getProvider(JostleProvider.PROVIDER_NAME),
                 CipherFamilies.CHACHA20_PREFIX, "ChaCha20", CipherFamilies.CHACHA20,
                 seededRandom("everyRegisteredChaCha20CipherIsDriven"));
+    }
+
+    /**
+     * Every {@code KeyGenerator} name ProvChaCha20 registers is DRIVEN,
+     * discovered rather than listed, aliases included — the bare name plus
+     * {@code ChaCha20-Poly1305} and the two OID spellings, four in all where
+     * {@code getServices()} shows one.
+     */
+    @Test
+    public void everyRegisteredChaCha20KeyGeneratorIsDriven()
+    {
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.CHACHA20_PREFIX, "ChaCha20 KeyGenerator (JSL)",
+                new String[]{"KeyGenerator"},
+                KeyGeneratorSurfaceDriver.forProvider(
+                        JostleProvider.PROVIDER_NAME, CipherFamilies.CHACHA20_KEYGEN, "ChaCha20", 64));
     }
 }

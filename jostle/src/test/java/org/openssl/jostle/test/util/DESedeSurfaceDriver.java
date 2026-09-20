@@ -41,8 +41,11 @@ public final class DESedeSurfaceDriver
                 SecureRandom sr = new SecureRandom();
                 if ("KeyGenerator".equals(type))
                 {
-                    Assertions.assertNotNull(
-                            KeyGenerator.getInstance(alg, provider).generateKey(), alg);
+                    // Same shape as every other family's KeyGenerator arm.
+                    // Divergence point 128: BC validates Triple-DES sizes but
+                    // serves 2-key TDES at 112 and 128, which the module does not.
+                    KeyGeneratorSurfaceDriver.driveOne(
+                            provider, CipherFamilies.DESEDE_KEYGEN, "DESede", 128, alg);
                     return;
                 }
                 if (!"Cipher".equals(type))

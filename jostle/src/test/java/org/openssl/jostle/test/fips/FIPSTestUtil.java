@@ -420,6 +420,20 @@ final class FIPSTestUtil
     }
 
     /**
+     * Does the loaded module implement {@code evpName} as a cipher?
+     * <p>
+     * The general form of {@link #moduleServesTripleDes()}, for families whose
+     * absence a test asserts. Asks the MODULE, so an assertion built on it says
+     * the registration agrees with the module rather than comparing the
+     * provider with itself.
+     */
+    static boolean moduleServesCipher(String evpName)
+    {
+        return FIPSNISelector.OpenSSLFIPSNI.canFetch(
+                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_CIPHER, evpName) != 0;
+    }
+
+    /**
      * The message a decrypt-only FIPS module's Triple-DES encrypt
      * {@code Cipher.init} must carry. Pinned once so every TDES test asserts
      * the same text — see {@code DefaultServiceNI.baseErrorHandler}'s

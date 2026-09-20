@@ -1045,6 +1045,11 @@ public class CAMELLIAAgreementTest
      * encrypt/decrypt round trip on the name as registered, not a
      * {@code getInstance} that asserts non-null. See
      * {@link CipherSurfaceDriver}.
+     *
+     * <p>This family's {@code KeyGenerator} is covered in
+     * {@code ARIAAgreementTest.everyRegisteredSharedSymmetricKeyGeneratorIsDriven}:
+     * ARIA, Camellia and SM4 share one SPI class, so one cell drives all three
+     * and no family prefix can see them.
      */
     @Test
     public void everyRegisteredCamelliaCipherIsDriven() throws Exception

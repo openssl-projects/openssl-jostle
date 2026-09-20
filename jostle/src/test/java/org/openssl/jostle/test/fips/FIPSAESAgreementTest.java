@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.CipherSurfaceDriver;
+import org.openssl.jostle.test.util.KeyGeneratorSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Cipher;
@@ -488,5 +490,68 @@ public class FIPSAESAgreementTest
                 FIPSTestUtil.assumeFipsProvider(),
                 CipherFamilies.AES_PREFIX, "AES", CipherFamilies.AES,
                 seededRandom("everyRegisteredAesCipherIsDriven"));
+    }
+
+    /**
+     * Every {@code KeyGenerator} name ProvFIPSAES registers is DRIVEN,
+     * discovered rather than listed, aliases included — the same 40 names as
+     * the base provider, measured 2026-09-20.
+     */
+    @Test
+    public void everyRegisteredAesKeyGeneratorIsDriven()
+    {
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                FIPSTestUtil.assumeFipsProvider(),
+                CipherFamilies.AES_PREFIX, "AES KeyGenerator (JSLFIPS)",
+                new String[]{"KeyGenerator"},
+                KeyGeneratorSurfaceDriver.forProvider(
+                        JostleFIPSProvider.PROVIDER_NAME, CipherFamilies.AES_KEYGEN, "AES", 64));
+    }
+
+    /**
+     * JSLFIPS's symmetric KeyGenerator registration AGREES with the module, in
+     * BOTH directions: registered where the module implements the family,
+     * absent where it does not.
+     *
+     * <p>Asked of the MODULE, never of the provider, so this is not the
+     * registration compared with itself. Both directions are asserted because a
+     * one-directional check is a silent skip: a module that grew ARIA while
+     * JSLFIPS failed to register it would pass.
+     *
+     * <p>The question is per SPI CLASS, not per family. ARIA, Camellia and SM4
+     * share one class, so one prefix answers for all three and the module side
+     * is "serves any of them".
+     *
+     * <p>Measured 2026-09-20: on both supported modules every family here is
+     * absent, so the empty branch is the one taken. The non-empty branch is
+     * unexercised today and exists so a module change cannot pass silently.
+     */
+    @Test
+    public void symmetricKeyGeneratorRegistrationAgreesWithTheModule()
+    {
+        java.security.Provider fips = FIPSTestUtil.assumeFipsProvider();
+
+        assertRegistrationTracksModule(fips, CipherFamilies.SYMMETRIC_KEYGEN_PREFIX,
+                "ARIA, Camellia or SM4",
+                FIPSTestUtil.moduleServesCipher("ARIA-128-CBC")
+                        || FIPSTestUtil.moduleServesCipher("CAMELLIA-128-CBC")
+                        || FIPSTestUtil.moduleServesCipher("SM4-CBC"));
+
+        assertRegistrationTracksModule(fips, CipherFamilies.CHACHA20_PREFIX,
+                "ChaCha20", FIPSTestUtil.moduleServesCipher("ChaCha20"));
+    }
+
+    private static void assertRegistrationTracksModule(java.security.Provider fips, String prefix,
+                                                       String what, boolean servedByModule)
+    {
+        boolean registered = !ProviderSurfaceGuard.registeredSurface(
+                fips, prefix, new String[]{"KeyGenerator"}).isEmpty();
+
+        Assertions.assertEquals(servedByModule, registered,
+                servedByModule
+                        ? "the module implements " + what + ", so JSLFIPS must register a"
+                                + " KeyGenerator under " + prefix
+                        : "the module does not implement " + what + ", so JSLFIPS must register"
+                                + " no KeyGenerator under " + prefix);
     }
 }

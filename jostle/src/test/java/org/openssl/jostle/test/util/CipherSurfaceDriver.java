@@ -90,6 +90,30 @@ public final class CipherSurfaceDriver
     }
 
     /**
+     * What a registered <b>KeyGenerator</b> name accepts. Deliberately separate
+     * from {@link KeyLength}, which answers about Cipher names and yields ONE
+     * length: AES's Cipher set includes XTS at 64 bytes, and no AES
+     * KeyGenerator accepts 512 bits, so the two questions have different
+     * answers and must not share a table.
+     */
+    public interface KeyGenLengths
+    {
+        /** The key sizes, in bits, this name accepts at {@code init(int)}. */
+        int[] acceptedBits(String upperCasedName);
+
+        /**
+         * The raw key length in bytes for one accepted size. Usually
+         * {@code bits / 8} — but DESede's 168 yields 24 bytes, not 21, because
+         * the parity bits are carried, so the table answers rather than the
+         * caller computing.
+         */
+        int keyBytesFor(String upperCasedName, int bits);
+
+        /** The raw key length a fresh generator produces with no {@code init}. */
+        int defaultKeyBytes(String upperCasedName);
+    }
+
+    /**
      * Drive every registered Cipher name under {@code prefix}, collecting
      * failures rather than stopping at the first.
      *

@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.CipherSurfaceDriver;
+import org.openssl.jostle.test.util.KeyGeneratorSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.asn1.oids.NSRIObjectIdentifiers;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
@@ -1794,5 +1796,34 @@ public class ARIAAgreementTest
                 Security.getProvider(JostleProvider.PROVIDER_NAME),
                 CipherFamilies.ARIA_PREFIX, "ARIA", CipherFamilies.ARIA,
                 seededRandom("everyRegisteredAriaCipherIsDriven"));
+    }
+
+    /**
+     * Every {@code KeyGenerator} name served by the SHARED symmetric key
+     * generator is DRIVEN — {@code ARIA}, {@code CAMELLIA} and {@code SM4}.
+     *
+     * <p>One cell for three families, because one SPI class serves all three
+     * and the class is the unit of registration. It is NOT split three ways:
+     * a per-family prefix matches nothing here, which is the defect this cell
+     * exists to close. Measured 2026-09-20, each family's own prefix discovers
+     * ZERO KeyGenerators while {@code KeyGenerator.getInstance("ARIA", "JSL")}
+     * succeeds — the class is {@code blockcipher.SymmetricKeyGenerator} and no
+     * family prefix is a prefix of it. The package-level claim guard is
+     * satisfied throughout, so nothing else would have reported this.
+     *
+     * <p>It lives in the ARIA class because the three are equal claimants and
+     * ARIA is first alphabetically; {@code CAMELLIAAgreementTest} and
+     * {@code SM4AgreementTest} carry a line pointing here.
+     */
+    @Test
+    public void everyRegisteredSharedSymmetricKeyGeneratorIsDriven()
+    {
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                CipherFamilies.SYMMETRIC_KEYGEN_PREFIX,
+                "ARIA, Camellia and SM4 KeyGenerator (JSL)",
+                new String[]{"KeyGenerator"},
+                KeyGeneratorSurfaceDriver.forProvider(
+                        JostleProvider.PROVIDER_NAME, CipherFamilies.SYMMETRIC_KEYGEN, null, 64));
     }
 }
