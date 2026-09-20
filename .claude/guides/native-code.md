@@ -44,10 +44,14 @@ the other — they are separate source files by design.
 7. Operations-test macros (`OPS_FAILED_ACCESS_1`, `OPS_OPENSSL_ERROR_3`, `OPS_FAILED_INIT_2`, etc.) defined in `interface/nonfips/util/ops.h` are placed inside conditionals so tests can fault-inject failure paths. They expand to `is_ops_set(N) ||` in OPS builds and to nothing otherwise; the `OPS_OFFSET_*` macros let tests differentiate between multiple call sites that produce the same error code.
 
 
-### A parameter WE control is an invariant and may assert; one a CALLER controls is an input and must refuse typed
+### A parameter WE control is an invariant and MUST abort; one a CALLER controls is an input and must refuse typed
 
 **The rule** (Megan, 2026-09-02): *"error is not expected to be null so an abort
-is acceptable"* — because *"it's like that because we control it."*
+is acceptable"* — because *"it's like that because we control it."* Strengthened
+2026-09-20 (Megan): *"can't just ever return silently for things like that."*
+A silent return on a violated invariant is a defect: it hides a jostle bug.
+`if (err == NULL) return 0;` is never correct in a bridge or util entry point,
+and neither is a Java-side `if (err == null)` short-circuit on the FFI side.
 
 The bridge-validation rules elsewhere in these guides say a `jo_assert` reachable
 from the NI surface is a defect: a JVM `abort()` where a typed refusal belongs.
@@ -86,6 +90,15 @@ jo_assert((*env)->GetArrayLength(env, _err) >= 1);   /* before GetIntArrayElemen
 `SetIntArrayRegion` sites need no such guard — the JVM bounds-checks them and
 raises `ArrayIndexOutOfBoundsException`. Only the `GetIntArrayElements` idiom
 corrupts, which is why the source lint keys on it and not on "err array".
+
+**And the Java side of an FFI handler does no validation at all** (Megan,
+2026-09-20): *"We should not need to be doing any sanitisation in the java side
+of an FFI handler other than to pass NULL or handle a copy or a pointer if it is
+critical."* So a null array crosses as `MemorySegment.NULL` with its length
+alongside, and C answers — which is also what makes the two bridges return the
+same code for the same input. The single sanctioned exception is an
+object-identity question C cannot see: `SpecFFI`'s aliasing check, recorded in
+testing.md.
 
 These asserts survive any build configuration, and that is by construction rather
 than by luck: `jo_assert_f` calls `abort()` with no `NDEBUG` guard and

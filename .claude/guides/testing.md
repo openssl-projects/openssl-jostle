@@ -576,6 +576,9 @@ instead of aborting on a null error array"*. The first run on
 `RuntimeException`, because `MemorySegment.ofArray(null)` NPEs and the catch
 rewraps it. The commit's subject was true of half the surface it named.
 
+The direction of that fix was later reversed (2026-09-20): a null error array
+aborts on both bridges; the leg lesson stands.
+
 **What caught it was the pin, one leg later** — not review, not the survey that
 found the original defect, not re-reading the ruling that had said "both
 bridges". That is the argument for pinning guards that already look correct,
@@ -904,6 +907,35 @@ A `jo_assert` on a caller-derived value in the C bridge is a JVM `abort()` — a
 3. **Pin the exact message** (per "Pin the exception message in OPS / Limit-test catch blocks") and run on **both** JNI and FFI — the two bridges validate separately and must return identical codes.
 
 `RSALimitTest.RSAServiceNI_nullSignerCtx_rejectedTyped`, `FIPSRSAServiceLimitTest.nullSignerCtx_allEntryPointsRejectedTyped`, and `SpecLimitTest.encap_nullInput` / `decap_nullInput` are the reference tests. Add these before considering a new or edited C bridge done — they are the test-side half of the bridge-validation rules in native-code.md (a `jo_assert` reachable from the NI surface is the defect; this test is what proves it was replaced with a typed code).
+
+### A jostle-controlled parameter never returns silently
+
+`err`, `consumed` and internal handles are jostle's own. When one is null or too
+short the native layer aborts (`jo_assert`) on BOTH bridges; where the FFI
+downcall is not critical the Java passes the array's null-ness and length down
+and the C asserts. Never a `return 0` on a null `err`, never a Java-side
+`if (err == null)`, never a write. Probe every entry point standalone per bridge
+(exit 134 + missing XML); an abort is not an in-suite cell. Checking a bridge:
+grep `if (_?err == NULL)` followed by a bare return, on both trees; each hit is a
+defect unless a Java exception is pending (`GetIntArrayElements` returned NULL).
+Ruled 2026-09-20.
+
+**The one Java-side refusal that stays is an object-identity question (aliasing)
+that only Java can answer; it returns the same code as the JNI twin.** `SpecFFI`
+:261/:349 are the two sites. JNI decides aliasing with `IsSameObject`; on FFI the
+two arrays become independent arena segments, so C cannot see that they were one
+object, and without the Java check a non-overlapping alias half-succeeds on FFI
+while JNI refuses. Irreducible, and documented at `SpecFFI` :253-258.
+
+**Grep for the REFUSAL, not for the null check, and read the block under a
+condition before reporting it.** `return ErrorCode.` and `err[0] = ErrorCode.`
+find a refusal directly; `if (x == null)` finds every marshalling site too, and
+those pass a NULL segment down rather than refusing. Measured 2026-09-20:
+`return ErrorCode.` across all of `java25` is exactly 2, both the `SpecFFI`
+aliasing sites above. **A null check and its return can also be separated by a
+comment** — a four-line comment between the two put `rand_jni.c`'s bare return
+outside a `-A2` window and hid it from a census twice. Read the block, not the
+window.
 
 ### Test that the SPI is correctly usable after reset
 
@@ -1472,3 +1504,59 @@ leg that ran it as a skip.
 When reporting OPS coverage, state the BUILD (`nm -gU … | grep set_ops_test`,
 0 = plain) and the leg, and check `skip=0` in the result XML. A result with
 `tests=N skipped=N` is not coverage.
+
+### Instrument lessons measured on the null-error-array sweep (2026-09-20)
+
+Each of these cost a wrong answer that read as a right one. They are grouped
+because they were paid in one arc, not because they are one rule.
+
+1. **An unfiltered leg catches what no pin matrix names.** Paid twice in one
+   day. A pin matrix answers about the classes you listed; the class that breaks
+   is the one you did not.
+2. **An aborting cell can show as SKIPPED with a complete-looking class XML.**
+   The discriminator is exit 134 plus the assert string in the log, NOT the
+   per-class XML — which refines the older "abort = 134 + missing XML", because
+   the XML was present and looked finished. Two structural instruments (the last
+   PASSED line, and a class-list-versus-result-file diff) both pointed at the
+   wrong class; the assert string was the honest signal. **Read the log before
+   the XML.**
+3. **Grep for the refusal, not the null check**, and read the block under a
+   condition before reporting it. Recorded in full under the controlled-parameter
+   rule above.
+4. **A null check and its return can be separated by a comment.** Read the block,
+   not the window: a `-A2` grep window missed a bare return four comment lines
+   below its `if`, in two trees, across two separate censuses.
+5. **"Comment-only" does NOT imply an identical class file.** Added comment lines
+   rewrite the `LineNumberTable`, so the class-file hash moves. Measured twice:
+   `5663994b` → `4ab30671`, and `c3059883` → `a0f72b7d`, both for edits that
+   changed no code. The instrument is a `javap -c -p` diff (no debug tables),
+   which was identical at 1541 and 619 lines respectively. A reviewer comparing
+   class hashes would call a comment trim a code change.
+6. **Check descriptor-comment, C signature and `FunctionDescriptor` arity
+   mechanically** before sending a tree. A stale descriptor comment listing 7
+   parameters sat above a C function and a descriptor that both took 9, and
+   reading looked like checking. Write the parser, and make it a bounded
+   line-walking one: measured the same day, a regex over C parameter lists
+   backtracked until the 120s tool timeout killed it.
+7. **After a mirror step, assert the file SET and the parity count — never the
+   command's exit status.** `cp a b 2>/dev/null || echo "(no twin)"` succeeded
+   and created a file that must not exist; only the twin count moving 110 → 111
+   caught it.
+8. **The harness reports the WRAPPER, not a `nohup`'d child.** A backgrounded
+   script launched with `nohup … &` inside an already-backgrounded call returns
+   its wrapper's exit 0 immediately, the task is reported complete, and the work
+   is still running. Reading the empty result file as "produced nothing" then led
+   to a `--stop` that killed the run's first leg mid-flight. Read the process
+   list and the result files, not the completion notice. Same fault as the
+   trailing-`; echo` case under "The wrapper's answer is not the thing's answer".
+
+**And a filter trap of a different shape: test filters match `Class.method`, so a
+METHOD name containing `OpsTest` is dropped by the `*OpsTest` exclusion.** The
+pattern is not anchored to the class, so an ordinary unit test in a class the
+exclusion does not name silently vanishes from every unit leg. The live case is
+`FIPSOpsAnnotationParityTest.everyFipsOpsTestPinsMessageAndLinksFipsTree` (:71) —
+the class is not an `*OpsTest`, the method name contains one. The unit legs
+exclude `*OpsTest*` (`jostle/build.gradle` 462, 493, 524, 555), so that cell is
+dropped there and runs only because the integration include matches the same
+string (:674). Its leg coverage is decided by its name rather than by anyone's
+intent. Name methods so no exclusion pattern can match them.
