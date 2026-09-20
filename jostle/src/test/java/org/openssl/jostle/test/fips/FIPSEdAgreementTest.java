@@ -27,6 +27,7 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
@@ -37,6 +38,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
@@ -594,5 +596,251 @@ public class FIPSEdAgreementTest
             Assertions.assertFalse(verify("EDDSA", FIPS, kp.getPublic(), tampered, fipsSig),
                     "EDDSA / " + curve + ": a tampered message verified");
         }
+    }
+
+    // ------------------------------------------------- key-service surface
+
+    private static final String[] ED_KEY_TYPES = {"KeyFactory", "KeyPairGenerator"};
+
+    /**
+     * Every {@code ed} KeyFactory and KeyPairGenerator JSLFIPS registers is
+     * DRIVEN, discovered rather than listed, aliases included.
+     *
+     * <p>Discovery is what reaches the six names {@code getServices()} omits:
+     * {@code EDDSA} on both types, and the four OID spellings on KeyFactory.
+     * Measured 2026-09-20, the surface is 12 where the primaries are 6.
+     * {@code ED} is a PRIMARY, not an alias, so it was never the name at risk.
+     *
+     * <p>Gated on the MODULE, not on the provider: asking the provider whether
+     * it registered Ed and then checking that it did compares the registration
+     * with itself. On a module serving neither curve the assertion is that the
+     * WHOLE surface is absent, never a skip — a skip passes equally against a
+     * registrar that had dropped a family the module can serve. The
+     * per-NAME half is {@code edAgreementIsAvailableIffTheModuleImplementsIt};
+     * this cell adds that each registered name can actually be operated.
+     *
+     * <p>Sibling to {@link #everyRegisteredEdSignatureIsCovered()}, which reads
+     * {@code getServices()} and so sees primaries only. The two answer
+     * different questions and neither subsumes the other.
+     *
+     * <p>Falsified 2026-09-20, every sabotage RED with
+     * {@code everyRegisteredEdSignatureIsCovered} green throughout. A driver
+     * that throws reports {@code 12 of 12}, and {@code 4} or {@code 8} with one
+     * type dropped, so the count in the failure text IS the discovered surface.
+     * A gate asking {@code EDDSA} takes the absence branch on 3.5.8 and fails
+     * against 12 registered names. The refusal arm handed its OWN curve fails
+     * on exactly the six curve-specific KeyFactory names, so it discriminates
+     * rather than always firing.
+     */
+    @Test
+    public void everyRegisteredEdKeyServiceIsDriven() throws Exception
+    {
+        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+        final SecureRandom sr = seededRandom("everyRegisteredEdKeyServiceIsDriven");
+
+        // EDDSA is jostle's own generic name and not a module algorithm, so
+        // canFetch answers 0 for it on every module: the gate names the curves.
+        if (!FIPSTestUtil.moduleServesKeyMgmt("ED25519")
+                && !FIPSTestUtil.moduleServesKeyMgmt("ED448"))
+        {
+            Assertions.assertTrue(
+                    ProviderSurfaceGuard.registeredSurface(
+                            provider, CipherFamilies.ED_PREFIX, ED_KEY_TYPES).isEmpty(),
+                    "the module implements neither Ed curve, so JSLFIPS must "
+                            + "register no ed key service at all");
+            return;
+        }
+
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                provider, CipherFamilies.ED_PREFIX, "ED (JSLFIPS)", ED_KEY_TYPES,
+                new ProviderSurfaceGuard.ServiceDriver()
+                {
+                    @Override
+                    public void drive(String type, String algorithm) throws Exception
+                    {
+                        driveEdKeyService(type, algorithm, sr);
+                    }
+                });
+    }
+
+    /**
+     * The curve a registered name identifies, or {@code null} where the name is
+     * curve-agnostic. The OIDs ARE the curve identifiers (RFC 8410).
+     */
+    private static String edCurveOf(String algorithm)
+    {
+        String a = algorithm.toUpperCase(java.util.Locale.ROOT);
+        if (a.startsWith("OID."))
+        {
+            a = a.substring(4);
+        }
+        if ("ED25519".equals(a) || "1.3.101.112".equals(a))
+        {
+            return "ED25519";
+        }
+        if ("ED448".equals(a) || "1.3.101.113".equals(a))
+        {
+            return "ED448";
+        }
+        // ED and EDDSA name no curve: both serve either, which is the property
+        // the generic arm below measures.
+        return null;
+    }
+
+    private static void driveEdKeyService(String type, String algorithm, SecureRandom sr)
+        throws Exception
+    {
+        String curve = edCurveOf(algorithm);
+
+        if ("KeyPairGenerator".equals(type))
+        {
+            driveEdKeyPairGenerator(algorithm, curve, sr);
+            return;
+        }
+        if (!"KeyFactory".equals(type))
+        {
+            throw new IllegalStateException("unknown service type " + type);
+        }
+        driveEdKeyFactory(algorithm, curve, sr);
+    }
+
+    private static void driveEdKeyPairGenerator(String algorithm, String curve, SecureRandom sr)
+        throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance(algorithm, FIPS).generateKeyPair();
+        String made = kp.getPublic().getAlgorithm().toUpperCase(java.util.Locale.ROOT);
+
+        if (curve != null)
+        {
+            Assertions.assertEquals(curve, made, algorithm + ": generated the wrong curve");
+        }
+        else
+        {
+            // A curve-agnostic generator picks one; ask the key rather than
+            // assume, and require the module to serve what it picked.
+            Assertions.assertTrue(FIPSTestUtil.moduleServesKeyMgmt(made),
+                    algorithm + ": generated " + made + ", which the module does not serve");
+        }
+
+        crossAndSign(algorithm, made, kp, sr);
+    }
+
+    private static void driveEdKeyFactory(String algorithm, String curve, SecureRandom sr)
+        throws Exception
+    {
+        if (curve == null)
+        {
+            // Generic: it must serve BOTH curves. Driving one would pass
+            // against a factory that had silently become curve-specific.
+            int driven = 0;
+            for (String c : new String[]{"ED25519", "ED448"})
+            {
+                if (FIPSTestUtil.moduleServesKeyMgmt(c))
+                {
+                    driveEdKeyFactoryOnCurve(algorithm, c, sr);
+                    driven++;
+                }
+            }
+            Assertions.assertTrue(driven > 0,
+                    algorithm + ": no curve was driven, so this name proved nothing");
+            return;
+        }
+
+        driveEdKeyFactoryOnCurve(algorithm, curve, sr);
+        assertRefusesTheOtherCurve(algorithm, curve);
+    }
+
+    private static void driveEdKeyFactoryOnCurve(String algorithm, String curve, SecureRandom sr)
+        throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance(curve, FIPS).generateKeyPair();
+        KeyFactory kf = KeyFactory.getInstance(algorithm, FIPS);
+
+        PublicKey pub = kf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
+        PrivateKey priv = kf.generatePrivate(new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded()));
+
+        Assertions.assertTrue(Arrays.areEqual(kp.getPublic().getEncoded(), pub.getEncoded()),
+                algorithm + " / " + curve + ": public round-trip changed the encoding");
+        Assertions.assertTrue(Arrays.areEqual(kp.getPrivate().getEncoded(), priv.getEncoded()),
+                algorithm + " / " + curve + ": private round-trip changed the encoding");
+
+        // The pair the factory under test produced is what crosses, so a
+        // factory returning something unusable fails here rather than passing
+        // on the encoding comparison alone.
+        crossAndSign(algorithm + " / " + curve, curve, new KeyPair(pub, priv), sr);
+    }
+
+    /**
+     * The crossing and back: encode, decode through BC and through JSL, sign
+     * with the decoded private key and verify with the JSLFIPS public key, then
+     * the reverse. A tampered message must fail at the foreign verifier, or a
+     * verify stubbed to succeed would satisfy both directions.
+     *
+     * <p>The CONCRETE curve is what crosses, never the discovered name: BC has
+     * no name {@code ED} at all (measured 2026-09-20), so a generic name is
+     * resolved to a curve before it reaches another provider. Translating at
+     * the foreign call site leaves the guard reading what the registrar wrote.
+     */
+    private static void crossAndSign(String label, String curve, KeyPair fipsKp, SecureRandom sr)
+        throws Exception
+    {
+        byte[] spki = fipsKp.getPublic().getEncoded();
+        byte[] pkcs8 = fipsKp.getPrivate().getEncoded();
+        byte[] msg = new byte[1 + sr.nextInt(512)];
+        sr.nextBytes(msg);
+
+        for (String provider : new String[]{BC, JSL})
+        {
+            String where = label + " -> " + provider;
+            PrivateKey priv = privateVia(curve, provider, pkcs8);
+            PublicKey pub = publicVia(curve, provider, spki);
+
+            Assertions.assertTrue(
+                    verify(curve, FIPS, fipsKp.getPublic(), msg, sign(curve, provider, priv, msg)),
+                    where + ": JSLFIPS rejected a signature made with the decoded private key");
+            Assertions.assertTrue(
+                    verify(curve, provider, pub, msg, sign(curve, FIPS, fipsKp.getPrivate(), msg)),
+                    where + ": the decoded public key rejected a JSLFIPS signature");
+
+            byte[] tampered = Arrays.clone(msg);
+            tampered[sr.nextInt(tampered.length)] ^= 0x01;
+            Assertions.assertFalse(
+                    verify(curve, provider, pub, tampered,
+                            sign(curve, FIPS, fipsKp.getPrivate(), msg)),
+                    where + ": a tampered message verified");
+        }
+    }
+
+    /**
+     * A curve-specific KeyFactory must REFUSE the other curve, on both halves.
+     * The type is the one BouncyCastle raises for the same input, measured
+     * 2026-09-20: {@link InvalidKeySpecException} from BC and from us, both
+     * halves and both directions. The message stays ours.
+     *
+     * <p>Without this the curve-specific names prove only that they accept
+     * their own curve, which a factory that quietly accepted both would also
+     * satisfy.
+     *
+     * <p>The wrong-curve fixture is minted by JSL, which serves both curves
+     * whatever the module does. An encoding is the sanctioned crossing and its
+     * bytes do not depend on who produced them, so this stays measurable on a
+     * module that implements only one curve.
+     */
+    private static void assertRefusesTheOtherCurve(String algorithm, String curve)
+        throws Exception
+    {
+        String other = "ED25519".equals(curve) ? "ED448" : "ED25519";
+
+        KeyPair wrong = KeyPairGenerator.getInstance(other, JSL).generateKeyPair();
+        final byte[] spki = wrong.getPublic().getEncoded();
+        final byte[] pkcs8 = wrong.getPrivate().getEncoded();
+        final KeyFactory kf = KeyFactory.getInstance(algorithm, FIPS);
+
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(spki)),
+                algorithm + ": accepted an " + other + " public key");
+        Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8)),
+                algorithm + ": accepted an " + other + " private key");
     }
 }
