@@ -76,19 +76,23 @@ done
 # holding only cycle 3's evidence. Unset => nothing is copied and the output is
 # byte-identical to before. Copied BEFORE verification, so a cycle that FAILS
 # keeps the evidence you most want to read.
+# Which build is INSTALLED, probed the way verify-results.py probes it, so no
+# caller has to remember to vary a variable. Computed OUTSIDE the snapshot block
+# because the abort probe below needs it too, and a run with no snapshot
+# directory must still be told which build it has.
+BUILD_STATE=plain
+for _lib in jostle/src/main/resources/native/*/*/*interface_ffi*; do
+  case "$_lib" in *.txt) continue;; esac
+  [ -f "$_lib" ] || continue
+  if grep -qa JoOps_setFlag "$_lib"; then BUILD_STATE=ops; fi
+done
+
 if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
   # The two-pass gate runs the SAME task names twice - integrationTest25JNI/FFI
   # on the shipped library, then again on the instrumented one - so a flat
   # destination has pass 2 overwrite pass 1, and those are different evidence
   # (OpsTests skip on the shipped build, run on the instrumented one). Split by
-  # the build state actually INSTALLED, probed the way verify-results.py probes
-  # it, so no caller has to remember to vary the variable.
-  BUILD_STATE=plain
-  for _lib in jostle/src/main/resources/native/*/*/*interface_ffi*; do
-    case "$_lib" in *.txt) continue;; esac
-    [ -f "$_lib" ] || continue
-    if grep -qa JoOps_setFlag "$_lib"; then BUILD_STATE=ops; fi
-  done
+  # the installed build state, as computed above.
   SNAP_DIR="$JOSTLE_RESULT_SNAPSHOT_DIR/$BUILD_STATE"
   echo "=== snapshotting result XML to $SNAP_DIR ==="
   # Provenance travels with the copy: XML alone cannot say which module made it.
@@ -135,6 +139,80 @@ if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
     cp "$src"/TEST-*.xml "$SNAP_DIR/$t/"
     echo "  $t: $n files"
   done
+
+fi
+
+# The controlled-parameter aborts cannot be in-suite cells: an abort takes the
+# whole leg with it. They are re-measured here instead, one child JVM per row,
+# so the gate covers them rather than trusting a hand run from whenever.
+#
+# Deliberately OUTSIDE the snapshot block. Inside it, a gate run with no
+# snapshot directory would skip the probe and say nothing - a silent gap, which
+# is the shape this whole rule exists to remove. The table goes to SNAP_DIR when
+# there is one and under jostle/build otherwise, and is printed either way.
+#
+# Guarded on the INSTALLED build, not an env var: the OPS macros change which
+# branch is reached, so an ops build is not a valid host for the rows, and a
+# guard the caller cannot forget is worth more than one they must remember.
+if [ "$BUILD_STATE" = ops ]; then
+  echo "=== abort probe SKIPPED: ops build installed, rows require a plain build ==="
+else
+  echo "=== abort probe ==="
+  # Name the artefact exactly. build/libs also holds -sources and -javadoc jars,
+  # and `find ... | head -1` returns them in filesystem order, so a wrong pick
+  # would fail the gate for the wrong reason. Require exactly one match.
+  _probe_jar=""
+  for _j in jostle/build/libs/openssl-jostle-*.jar; do
+    case "$_j" in
+      *-sources.jar|*-javadoc.jar) continue;;
+    esac
+    [ -f "$_j" ] || continue
+    if [ -n "$_probe_jar" ]; then
+      echo "abort probe: more than one candidate jar in jostle/build/libs" >&2
+      echo "  $_probe_jar" >&2
+      echo "  $_j" >&2
+      exit 1
+    fi
+    _probe_jar="$_j"
+  done
+  if [ -z "$_probe_jar" ]; then
+    echo "abort probe: no openssl-jostle jar in jostle/build/libs" >&2
+    exit 1
+  fi
+
+  if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
+    _probe_out="$SNAP_DIR/abort-probe.txt"
+  else
+    mkdir -p jostle/build
+    _probe_out=jostle/build/abort-probe.txt
+  fi
+
+  _probe_cp="jostle/build/classes/java/test:jostle/build/resources/test:$_probe_jar"
+  # The status is written into the file and read back from it. `set -e` would
+  # otherwise end the script at a failing row before the table was archived, and
+  # an `; echo $?` after the redirect would report the echo's status, not the
+  # probe's. An `if` condition is exempt from `set -e`, so this records what the
+  # runner actually answered.
+  {
+    if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
+      cat "$SNAP_DIR/run-info.txt"
+      echo "---"
+    fi
+    if "${JAVA_HOME:-/usr}/bin/java" -cp "$_probe_cp" \
+         org.openssl.jostle.probe.NativeAbortProbeRunner \
+         "$_probe_cp" ${TEST_FIPS_LIB:+"$TEST_FIPS_LIB"} 2>&1
+    then
+      echo "probe_exit: 0"
+    else
+      echo "probe_exit: $?"
+    fi
+  } > "$_probe_out"
+  tail -2 "$_probe_out"
+  echo "abort probe table: $_probe_out"
+  if ! grep -q '^probe_exit: 0$' "$_probe_out"; then
+    echo "abort probe FAILED - see $_probe_out" >&2
+    exit 1
+  fi
 fi
 
 python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${VERIFY_TASKS[@]}"
