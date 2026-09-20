@@ -16,7 +16,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.HybridValueParameterSpec;
 import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -29,6 +32,7 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.Provider;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -331,5 +335,176 @@ public class XDHCKDFAgreementTest
                         name(curve, digest) + " must be registered");
             }
         }
+    }
+
+    // ------------------------------------------------- surface discovery
+
+    /**
+     * Every {@code xec} service the provider registers is DRIVEN, with the
+     * surface discovered rather than listed.
+     *
+     * <p>Discovery includes ALIASES, so this is 33 services where
+     * {@code getServices()} reports 19 primaries — the OID spellings are names
+     * a caller can resolve and an alias landing on the wrong primary is a real
+     * defect.
+     *
+     * <p>The driver dispatches on the SPI CLASS, never on the name. The two
+     * spellings are genuinely ambiguous: {@code X25519WITHSHA256HKDF} is the
+     * RFC 9580 hybrid while {@code XDHWITHSHA256HKDF} is the plain one, and
+     * both match any pattern built from the string.
+     */
+    @Test
+    public void everyRegisteredXdhServiceIsDriven()
+    {
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                Security.getProvider(JSL), CipherFamilies.XEC_PREFIX, "XDH",
+                new String[]{"KeyAgreement", "KeyFactory", "KeyPairGenerator"},
+                new ProviderSurfaceGuard.ServiceDriver()
+                {
+                    @Override
+                    public void drive(String type, String algorithm) throws Exception
+                    {
+                        driveXecService(type, algorithm);
+                    }
+                });
+    }
+
+    /** The curve a registered name identifies. */
+    private static String curveOf(String algorithm)
+    {
+        String a = algorithm.toUpperCase(java.util.Locale.ROOT);
+        if (a.startsWith("OID."))
+        {
+            a = a.substring(4);
+        }
+        // For the key services the OID IS the curve identifier: 1.3.101.110 is
+        // X25519 and 1.3.101.111 is X448. Mapped rather than parsed.
+        if ("1.3.101.110".equals(a))
+        {
+            return "X25519";
+        }
+        if ("1.3.101.111".equals(a))
+        {
+            return "X448";
+        }
+        if (a.startsWith("X25519"))
+        {
+            return "X25519";
+        }
+        if (a.startsWith("X448"))
+        {
+            return "X448";
+        }
+        // Bare XDH, and the three HKDF KeyAgreement OIDs, name no curve: what
+        // is under test there is the KDF, so drive one curve and say so.
+        return "X25519";
+    }
+
+    private static String spiOf(String type, String algorithm)
+    {
+        Provider.Service svc = Security.getProvider(JSL).getService(type, algorithm);
+        Assertions.assertNotNull(svc, type + "." + algorithm + ": discovered but does not resolve");
+        String cn = svc.getClassName();
+        return cn.substring(cn.lastIndexOf('.') + 1);
+    }
+
+    private static void driveXecService(String type, String algorithm) throws Exception
+    {
+        String curve = curveOf(algorithm);
+        if ("KeyPairGenerator".equals(type))
+        {
+            KeyPair kp = KeyPairGenerator.getInstance(algorithm, JSL).generateKeyPair();
+            Assertions.assertNotNull(kp.getPrivate(), algorithm + ": no private key");
+            // BC decodes it, so the encoding is not merely self-consistent.
+            Assertions.assertNotNull(bcPublic(curve, kp.getPublic()),
+                    algorithm + ": public half did not decode through BC");
+            return;
+        }
+        if ("KeyFactory".equals(type))
+        {
+            KeyPair kp = generate(curve);
+            KeyFactory kf = KeyFactory.getInstance(algorithm, JSL);
+            PublicKey pub = kf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
+            PrivateKey prv = kf.generatePrivate(new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded()));
+            Assertions.assertArrayEquals(kp.getPublic().getEncoded(), pub.getEncoded(),
+                    algorithm + ": public round-trip changed the encoding");
+            Assertions.assertArrayEquals(kp.getPrivate().getEncoded(), prv.getEncoded(),
+                    algorithm + ": private round-trip changed the encoding");
+            return;
+        }
+        if (!"KeyAgreement".equals(type))
+        {
+            throw new IllegalStateException("unknown service type " + type);
+        }
+
+        String spi = spiOf(type, algorithm);
+        KeyPair alice = generate(curve);
+        KeyPair bob = generate(curve);
+
+        if ("XDHKeyAgreementSpi".equals(spi))
+        {
+            KeyAgreement jsl = KeyAgreement.getInstance(algorithm, JSL);
+            jsl.init(alice.getPrivate());
+            jsl.doPhase(bob.getPublic(), true);
+            KeyAgreement bc = KeyAgreement.getInstance(algorithm, BC);
+            bc.init(bcPrivate(curve, alice.getPrivate()));
+            bc.doPhase(bcPublic(curve, bob.getPublic()), true);
+            Assertions.assertArrayEquals(bc.generateSecret(), jsl.generateSecret(),
+                    algorithm + ": raw shared secret differs from BC");
+            return;
+        }
+
+        byte[] ukm = new byte[16 + RANDOM.nextInt(48)];
+        RANDOM.nextBytes(ukm);
+
+        if ("XDHWithCKDFKeyAgreementSpi".equals(spi) || "XDHWithHKDFKeyAgreementSpi".equals(spi))
+        {
+            byte[] ours = deriveKek(JSL, algorithm, alice.getPrivate(), bob.getPublic(),
+                    new UserKeyingMaterialSpec(ukm));
+            byte[] theirs = deriveKek(BC, algorithm, bcPrivate(curve, alice.getPrivate()),
+                    bcPublic(curve, bob.getPublic()),
+                    new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm));
+            Assertions.assertArrayEquals(theirs, ours, algorithm + ": derived KEK differs from BC");
+            return;
+        }
+
+        if ("XDHWithHybridHKDFKeyAgreementSpi".equals(spi))
+        {
+            // BC honours its own HybridValueParameterSpec and forms T || Z on
+            // the same construction, so the same T and UKM must give the same
+            // bytes. The second measure is that T reaches the KDF at all.
+            byte[] t1 = new byte[32];
+            byte[] t2 = new byte[32];
+            RANDOM.nextBytes(t1);
+            RANDOM.nextBytes(t2);
+            final byte[] ours = deriveKek(JSL, algorithm, alice.getPrivate(), bob.getPublic(),
+                    new HybridValueParameterSpec(t1, true, new UserKeyingMaterialSpec(ukm)));
+            final byte[] theirs = deriveKek(BC, algorithm,
+                    bcPrivate(curve, alice.getPrivate()), bcPublic(curve, bob.getPublic()),
+                    new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(t1, true,
+                            new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm)));
+            final byte[] otherT = deriveKek(JSL, algorithm, alice.getPrivate(), bob.getPublic(),
+                    new HybridValueParameterSpec(t2, true, new UserKeyingMaterialSpec(ukm)));
+            final String name = algorithm;
+            Assertions.assertAll(
+                    () -> Assertions.assertArrayEquals(theirs, ours,
+                            name + ": derived KEK differs from BC"),
+                    () -> Assertions.assertFalse(Arrays.areEqual(ours, otherT),
+                            name + ": the hybrid value does not reach the KDF"));
+            return;
+        }
+
+        throw new IllegalStateException(algorithm + ": unknown SPI " + spi
+                + " — teach the driver an operation for it");
+    }
+
+    private static byte[] deriveKek(String provider, String algorithm, PrivateKey priv,
+                                    PublicKey pub, java.security.spec.AlgorithmParameterSpec spec)
+            throws Exception
+    {
+        KeyAgreement ka = KeyAgreement.getInstance(algorithm, provider);
+        ka.init(priv, spec);
+        ka.doPhase(pub, true);
+        return ka.generateSecret(WRAP_OIDS[0]).getEncoded();
     }
 }

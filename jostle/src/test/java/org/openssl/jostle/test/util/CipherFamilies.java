@@ -51,6 +51,7 @@ public final class CipherFamilies
     public static final String EC_PREFIX = "org.openssl.jostle.jcajce.provider.ec.";
     public static final String ED_PREFIX = "org.openssl.jostle.jcajce.provider.ed.";
     public static final String DH_PREFIX = "org.openssl.jostle.jcajce.provider.dh.";
+    public static final String XEC_PREFIX = "org.openssl.jostle.jcajce.provider.xec.";
 
     /**
      * NIST's AES arc: {@code 2.16.840.1.101.3.4.1.{1..9}} is AES-128,

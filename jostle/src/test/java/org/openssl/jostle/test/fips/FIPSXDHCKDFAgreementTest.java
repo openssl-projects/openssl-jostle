@@ -18,7 +18,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.HybridValueParameterSpec;
 import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
+import org.openssl.jostle.test.util.CipherFamilies;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -244,5 +247,181 @@ public class FIPSXDHCKDFAgreementTest
             return new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(param);
         }
         return new UserKeyingMaterialSpec(param);
+    }
+
+    // ------------------------------------------------- surface discovery
+
+    private static final String[] XEC_TYPES =
+            {"KeyAgreement", "KeyFactory", "KeyPairGenerator"};
+
+    /**
+     * Every {@code xec} service JSLFIPS registers is DRIVEN, discovered rather
+     * than listed, aliases included.
+     *
+     * <p>Gated on the MODULE, not on the provider: asking the provider whether
+     * it registered XDH and then checking it registered XDH compares the
+     * registration with itself. 3.1.2 serves the family and 3.5.8 does not, and
+     * on the module that does not the assertion is that the WHOLE surface is
+     * absent — a skip would pass equally against a registrar that had silently
+     * dropped a family the module can serve. The all-or-nothing half across the
+     * individual names is {@code FIPSXDHKDFTest.xdhServedIffModuleImplementsIt};
+     * this cell adds that each registered name can actually be operated.
+     */
+    @Test
+    public void everyRegisteredXdhServiceIsDriven()
+    {
+        if (!FIPSTestUtil.moduleServesKeyMgmt("X25519"))
+        {
+            Assertions.assertTrue(
+                    ProviderSurfaceGuard.registeredSurface(
+                            fips(), CipherFamilies.XEC_PREFIX, XEC_TYPES).isEmpty(),
+                    "the module does not implement X25519, so JSLFIPS must register "
+                            + "no xec service at all");
+            return;
+        }
+
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                fips(), CipherFamilies.XEC_PREFIX, "XDH (JSLFIPS)", XEC_TYPES,
+                new ProviderSurfaceGuard.ServiceDriver()
+                {
+                    @Override
+                    public void drive(String type, String algorithm) throws Exception
+                    {
+                        driveFipsXecService(type, algorithm);
+                    }
+                });
+    }
+
+    /** The curve a registered name identifies; the OIDs ARE the curve identifiers. */
+    private static String xecCurveOf(String algorithm)
+    {
+        String a = algorithm.toUpperCase(java.util.Locale.ROOT);
+        if (a.startsWith("OID."))
+        {
+            a = a.substring(4);
+        }
+        if ("1.3.101.110".equals(a))
+        {
+            return "X25519";
+        }
+        if ("1.3.101.111".equals(a))
+        {
+            return "X448";
+        }
+        if (a.startsWith("X448"))
+        {
+            return "X448";
+        }
+        // Bare XDH and the HKDF KeyAgreement OIDs name no curve: the KDF is what
+        // is under test there, so drive one curve.
+        return "X25519";
+    }
+
+    private static void driveFipsXecService(String type, String algorithm) throws Exception
+    {
+        String curve = xecCurveOf(algorithm);
+        if ("KeyPairGenerator".equals(type))
+        {
+            KeyPair kp = KeyPairGenerator.getInstance(algorithm, fips()).generateKeyPair();
+            Assertions.assertNotNull(kp.getPrivate(), algorithm + ": no private key");
+            return;
+        }
+        if ("KeyFactory".equals(type))
+        {
+            KeyPair kp = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
+            KeyFactory kf = KeyFactory.getInstance(algorithm, fips());
+            Assertions.assertArrayEquals(kp.getPublic().getEncoded(),
+                    kf.generatePublic(new X509EncodedKeySpec(
+                            kp.getPublic().getEncoded())).getEncoded(),
+                    algorithm + ": public round-trip changed the encoding");
+            Assertions.assertArrayEquals(kp.getPrivate().getEncoded(),
+                    kf.generatePrivate(new PKCS8EncodedKeySpec(
+                            kp.getPrivate().getEncoded())).getEncoded(),
+                    algorithm + ": private round-trip changed the encoding");
+            return;
+        }
+        if (!"KeyAgreement".equals(type))
+        {
+            throw new IllegalStateException("unknown service type " + type);
+        }
+
+        // Dispatch on the SPI CLASS. X25519WITHSHA256HKDF is the RFC 9580
+        // hybrid and XDHWITHSHA256HKDF is the plain one; no pattern built from
+        // the name can tell them apart.
+        String cn = fips().getService(type, algorithm).getClassName();
+        String spi = cn.substring(cn.lastIndexOf('.') + 1);
+
+        KeyPair alice = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
+        KeyPair bob = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
+
+        if ("XDHKeyAgreementSpi".equals(spi))
+        {
+            // The module and mainline must derive the same raw secret.
+            Assertions.assertArrayEquals(
+                    rawSecret(jsl(), algorithm, curve, alice, bob),
+                    rawSecret(fips(), algorithm, curve, alice, bob),
+                    algorithm + ": module and base derived different raw secrets");
+            return;
+        }
+
+        byte[] ukm = randomBytes(16 + RANDOM.nextInt(32));
+
+        if ("XDHWithCKDFKeyAgreementSpi".equals(spi) || "XDHWithHKDFKeyAgreementSpi".equals(spi))
+        {
+            Assertions.assertArrayEquals(
+                    fipsKek(jsl(), algorithm, curve, alice, bob, new UserKeyingMaterialSpec(ukm)),
+                    fipsKek(fips(), algorithm, curve, alice, bob, new UserKeyingMaterialSpec(ukm)),
+                    algorithm + ": module and base derived different KEKs");
+            return;
+        }
+
+        if ("XDHWithHybridHKDFKeyAgreementSpi".equals(spi))
+        {
+            // Same T and UKM through the module and through mainline must give
+            // the same bytes; the second measure is that T reaches the KDF.
+            byte[] t1 = randomBytes(32);
+            byte[] t2 = randomBytes(32);
+            final byte[] inModule = fipsKek(fips(), algorithm, curve, alice, bob,
+                    new HybridValueParameterSpec(t1, true, new UserKeyingMaterialSpec(ukm)));
+            final byte[] inBase = fipsKek(jsl(), algorithm, curve, alice, bob,
+                    new HybridValueParameterSpec(t1, true, new UserKeyingMaterialSpec(ukm)));
+            final byte[] otherT = fipsKek(fips(), algorithm, curve, alice, bob,
+                    new HybridValueParameterSpec(t2, true, new UserKeyingMaterialSpec(ukm)));
+            final String name = algorithm;
+            Assertions.assertAll(
+                    () -> Assertions.assertArrayEquals(inBase, inModule,
+                            name + ": module and base derived different KEKs"),
+                    () -> Assertions.assertFalse(Arrays.areEqual(inModule, otherT),
+                            name + ": the hybrid value does not reach the KDF"));
+            return;
+        }
+
+        throw new IllegalStateException(algorithm + ": unknown SPI " + spi
+                + " — teach the driver an operation for it");
+    }
+
+    /**
+     * Keys belong to the provider instance that made them. Encodings are the
+     * only crossing, so both halves are re-decoded through the target provider.
+     */
+    private static byte[] fipsKek(Provider p, String algorithm, String curve, KeyPair alice,
+                                  KeyPair bob, java.security.spec.AlgorithmParameterSpec spec)
+            throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance(curve, p);
+        KeyAgreement ka = KeyAgreement.getInstance(algorithm, p);
+        ka.init(kf.generatePrivate(new PKCS8EncodedKeySpec(alice.getPrivate().getEncoded())), spec);
+        ka.doPhase(kf.generatePublic(new X509EncodedKeySpec(bob.getPublic().getEncoded())), true);
+        return ka.generateSecret(AES256_WRAP).getEncoded();
+    }
+
+    private static byte[] rawSecret(Provider p, String algorithm, String curve, KeyPair alice,
+                                    KeyPair bob) throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance(curve, p);
+        KeyAgreement ka = KeyAgreement.getInstance(algorithm, p);
+        ka.init(kf.generatePrivate(new PKCS8EncodedKeySpec(alice.getPrivate().getEncoded())));
+        ka.doPhase(kf.generatePublic(new X509EncodedKeySpec(bob.getPublic().getEncoded())), true);
+        return ka.generateSecret();
     }
 }
