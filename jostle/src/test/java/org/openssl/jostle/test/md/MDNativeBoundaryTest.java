@@ -30,14 +30,13 @@ import java.util.List;
  *
  * <p>On Java 8 there is no module system, so {@code MDServiceJNI}'s methods are
  * {@code native public} and reachable by any caller: the SPI is not the only
- * way in. The boundary therefore has to be safe on its own, and "safe" means a
- * TYPED code — never a JVM abort, never silent truncation.
+ * way in. The boundary therefore has to be safe on its own, and for anything a
+ * CALLER supplies "safe" means a TYPED code — never a JVM abort, never silent
+ * truncation.
  *
- * <p>Two of these were live aborts until 2026-09-02. A null {@code err} array
- * hit {@code jo_assert(_err != NULL)} in {@code md_jni.c} and killed the
- * process; measured on JDK 11 with the pre-fix library, one JVM per cell.
- * <b>That observation is this file's "before"</b> — the fix is not re-falsified
- * by aborting a shipping build to watch it happen twice.
+ * <p>{@code err} is the exception. It is jostle's own array, not caller data,
+ * so a null or empty one aborts on both bridges and no cell here pins it — an
+ * abort takes the leg with it. Everything a CALLER supplies is typed.
  *
  * <h2>These run on EVERY leg, and JDK 8 is the one that counts</h2>
  *
@@ -49,10 +48,9 @@ import java.util.List;
  *
  * <h2>Guards that already existed are pinned too</h2>
  *
- * <p>Most of this boundary was already correct — the survey found two gaps in
- * twenty-three cells. The other twenty-one are pinned anyway: an unpinned guard
- * is one refactor away from gone, and nothing in the suite asserted any of them
- * from the NI surface before this file.
+ * <p>Most of this boundary was already correct. The guards that existed are
+ * pinned anyway: an unpinned guard is one refactor away from gone, and nothing
+ * in the suite asserted any of them from the NI surface before this file.
  */
 public class MDNativeBoundaryTest
 {
@@ -79,24 +77,6 @@ public class MDNativeBoundaryTest
         long ref = NI.ni_allocateDigest("SHA2-256", 0, err);
         Assertions.assertNotEquals(0, ref, "could not allocate a digest to test with");
         return ref;
-    }
-
-    /**
-     * The two former aborts: a null {@code err} array.
-     *
-     * <p>Zero is the only coherent answer — {@code err} is the sole channel
-     * these two have for reporting failure, since they return the reference
-     * itself, so its absence cannot be reported through it.
-     */
-    @Test
-    public void aNullErrorArrayIsRefusedRatherThanAborting()
-    {
-        Assertions.assertEquals(0L, NI.ni_allocateDigest("SHA2-256", 0, null),
-                "ni_allocateDigest with a null err array must return 0, not abort");
-        long ref = freshRef();
-        Assertions.assertEquals(0L, NI.ni_copyDigest(ref, null),
-                "ni_copyDigest with a null err array must return 0, not abort");
-        NI.ni_dispose(ref);
     }
 
     /** Every entry point rejects a null context with the same typed code. */

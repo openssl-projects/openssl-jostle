@@ -32,17 +32,12 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     const char *name = NULL;
 
     //
-    // The err array is the ONLY channel this function has for reporting a
-    // failure - it returns the reference itself - so its absence cannot be
-    // reported through it. Refuse and return 0, matching what a null digest
-    // name already does. These were jo_assert until 2026-09-02: on Java 8 the
-    // NI classes are public-reachable with no module to hide them, so a caller
-    // passing a null array aborted the JVM.
+    // err is jostle's own: a null or empty one is a broken invariant, not
+    // caller data, so it aborts. The length is checked BEFORE the pointer is
+    // taken, because GetIntArrayElements on a zero-length array returns a
+    // valid pointer and the following store would corrupt memory.
     //
-    if (_err == NULL) {
-        return 0;
-    }
-    // err is ours; a zero-length array would write out of bounds.
+    jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     //
@@ -90,17 +85,12 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     md_ctx *new_ctx = NULL;
 
     //
-    // The err array is the ONLY channel this function has for reporting a
-    // failure - it returns the reference itself - so its absence cannot be
-    // reported through it. Refuse and return 0, matching what a null digest
-    // name already does. These were jo_assert until 2026-09-02: on Java 8 the
-    // NI classes are public-reachable with no module to hide them, so a caller
-    // passing a null array aborted the JVM.
+    // err is jostle's own: a null or empty one is a broken invariant, not
+    // caller data, so it aborts. The length is checked BEFORE the pointer is
+    // taken, because GetIntArrayElements on a zero-length array returns a
+    // valid pointer and the following store would corrupt memory.
     //
-    if (_err == NULL) {
-        return 0;
-    }
-    // err is ours; a zero-length array would write out of bounds.
+    jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     //

@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.jcajce.provider.ec;
 
-import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -451,12 +450,10 @@ public class ECServiceFFI implements ECServiceNI
     @Override
     public int ni_getCurveComponent(String curveName, int component, byte[] out)
     {
-        if (curveName == null)
-        {
-            return ErrorCode.JO_NAME_IS_NULL.getCode();
-        }
         try (Arena a = Arena.ofConfined())
         {
+            // nativeString yields MemorySegment.NULL for a null name, so the
+            // refusal is C's: JoEC_getCurveComponent returns JO_NAME_IS_NULL.
             MemorySegment name = nativeString(a, curveName);
             if (out == null)
             {
@@ -486,26 +483,28 @@ public class ECServiceFFI implements ECServiceNI
                                 byte[] cofactor, byte[] out)
     {
         byte[][] inputs = {p, a, b, gx, gy, order, cofactor};
-        for (byte[] in : inputs)
-        {
-            if (in == null)
-            {
-                return ErrorCode.JO_INPUT_IS_NULL.getCode();
-            }
-        }
         try (Arena arena = Arena.ofConfined())
         {
             // Copied into the arena rather than passed as heap segments: a
             // zero-length input is legitimate here (a == 0 on secp256k1) and
             // MemorySegment.ofArray on an empty array is a valid but
             // non-dereferenceable segment, so the C side would receive a
-            // pointer it must not treat as null.
+            // pointer it must not treat as null. A null input travels as
+            // MemorySegment.NULL, which is what JoEC_findCurveName refuses
+            // with JO_INPUT_IS_NULL, in this same order.
             MemorySegment[] segs = new MemorySegment[inputs.length];
+            long[] lens = new long[inputs.length];
             for (int i = 0; i < inputs.length; i++)
             {
+                if (inputs[i] == null)
+                {
+                    segs[i] = MemorySegment.NULL;
+                    continue;
+                }
                 segs[i] = arena.allocate(Math.max(1, inputs[i].length));
                 MemorySegment.copy(inputs[i], 0, segs[i],
                         ValueLayout.JAVA_BYTE, 0, inputs[i].length);
+                lens[i] = inputs[i].length;
             }
             MemorySegment outSeg = out == null
                     ? MemorySegment.NULL
@@ -513,13 +512,13 @@ public class ECServiceFFI implements ECServiceNI
             long outLen = out == null ? 0L : out.length;
 
             int written = (int) findCurveNameH.invokeExact(fieldType,
-                    segs[0], (long) inputs[0].length,
-                    segs[1], (long) inputs[1].length,
-                    segs[2], (long) inputs[2].length,
-                    segs[3], (long) inputs[3].length,
-                    segs[4], (long) inputs[4].length,
-                    segs[5], (long) inputs[5].length,
-                    segs[6], (long) inputs[6].length,
+                    segs[0], lens[0],
+                    segs[1], lens[1],
+                    segs[2], lens[2],
+                    segs[3], lens[3],
+                    segs[4], lens[4],
+                    segs[5], lens[5],
+                    segs[6], lens[6],
                     outSeg, outLen);
             if (out != null && written > 0)
             {

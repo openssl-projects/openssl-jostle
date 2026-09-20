@@ -68,7 +68,8 @@ public class MDServiceFFI implements MDServiceNI
                         ValueLayout.ADDRESS, // *md_dtx
                         ValueLayout.ADDRESS, // const char *name
                         ValueLayout.JAVA_INT,// xof_len
-                        ValueLayout.ADDRESS // int *err
+                        ValueLayout.ADDRESS, // int *err
+                        ValueLayout.JAVA_INT // err_len
                 ), Linker.Option.critical(true)
         );
 
@@ -76,7 +77,8 @@ public class MDServiceFFI implements MDServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // *md_ctx (the clone)
                         ValueLayout.ADDRESS, // md_ctx *src
-                        ValueLayout.ADDRESS // int *err
+                        ValueLayout.ADDRESS, // int *err
+                        ValueLayout.JAVA_INT // err_len
                 ), Linker.Option.critical(true)
         );
 
@@ -134,22 +136,14 @@ public class MDServiceFFI implements MDServiceNI
     @Override
     public long ni_allocateDigest(String name, int xofLen, int[] err)
     {
-        // The err array is the ONLY channel this method has for reporting a
-        // failure - it returns the reference itself - so its absence cannot be
-        // reported through it. Refuse and return 0, matching the JNI bridge
-        // (md_jni.c) exactly: the same hostile input must get the same answer
-        // through either bridge. Without this, MemorySegment.ofArray(null)
-        // raises NullPointerException, which the catch below rewraps as a bare
-        // RuntimeException - neither typed nor equal to the JNI answer.
-        if (err == null)
-        {
-            return 0;
-        }
         try (var a = Arena.ofConfined())
         {
             var nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
-            var errSeg = MemorySegment.ofArray(err);
-            var ctxSeg = (MemorySegment) allocateDigestFuncHandle.invokeExact(nameSeg, xofLen, errSeg);
+            // err is jostle's own: its null-ness and length travel down and C
+            // asserts them, so nothing is checked here.
+            var errSeg = err == null ? MemorySegment.NULL : MemorySegment.ofArray(err);
+            var ctxSeg = (MemorySegment) allocateDigestFuncHandle.invokeExact(nameSeg, xofLen, errSeg,
+                    err == null ? 0 : err.length);
             return ctxSeg.address();
         }
         catch (Throwable t)
@@ -162,23 +156,12 @@ public class MDServiceFFI implements MDServiceNI
     @Override
     public long ni_copyDigest(long ref, int[] err)
     {
-        // The err array is the ONLY channel this method has for reporting a
-        // failure - it returns the reference itself - so its absence cannot be
-        // reported through it. Refuse and return 0, matching the JNI bridge
-        // (md_jni.c) exactly: the same hostile input must get the same answer
-        // through either bridge. Without this, MemorySegment.ofArray(null)
-        // raises NullPointerException, which the catch below rewraps as a bare
-        // RuntimeException - neither typed nor equal to the JNI answer.
-        if (err == null)
-        {
-            return 0;
-        }
         try
         {
-            var errSeg = MemorySegment.ofArray(err);
+            var errSeg = err == null ? MemorySegment.NULL : MemorySegment.ofArray(err);
             var ctxSeg = (MemorySegment) copyDigestFuncHandle.invokeExact(
                     MemorySegment.ofAddress(ref),
-                    errSeg);
+                    errSeg, err == null ? 0 : err.length);
             return ctxSeg.address();
         }
         catch (Throwable t)

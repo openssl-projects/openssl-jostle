@@ -16,8 +16,11 @@
 #include "../util/ops.h"
 #include "../util/jo_assert.h"
 
-md_ctx *JoMD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
+md_ctx *JoMD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err, int32_t err_len) {
+    /* err is jostle's own: a null or empty one is a broken invariant, so it
+     * aborts rather than being reported through the channel that is missing. */
     jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (digest_name == NULL) {
         *err = JO_NAME_IS_NULL;
         return NULL;
@@ -28,8 +31,9 @@ md_ctx *JoMD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err) {
     return ctx;
 }
 
-md_ctx *JoMD_Copy(md_ctx *src, int32_t *err) {
+md_ctx *JoMD_Copy(md_ctx *src, int32_t *err, int32_t err_len) {
     jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (src == NULL) {
         *err = JO_MD_CTX_IS_NULL;
         return NULL;

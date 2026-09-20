@@ -295,7 +295,7 @@ public interface X509NI
         }
         if (ec == ErrorCode.JO_CERT_CTX_IS_NULL)
         {
-            throw new IllegalArgumentException("certificate handle is null");
+            throw new IllegalArgumentException("handle is null");
         }
         if (ec == ErrorCode.JO_CERT_TOO_LARGE)
         {

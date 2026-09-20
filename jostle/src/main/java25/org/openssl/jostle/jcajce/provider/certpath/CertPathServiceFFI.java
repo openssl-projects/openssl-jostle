@@ -80,37 +80,36 @@ public class CertPathServiceFFI implements CertPathNI
                          long timeSecs, int strict, int revocation,
                          byte[] chainOut, int[] outInfo)
     {
-        // A null array cannot become a MemorySegment, and MemorySegment.ofArray
-        // would NPE and surface as a bare RuntimeException — the shape the FFI
-        // bridge was corrected for once already. Refuse with the code the JNI
-        // bridge returns for the same input.
-        if (der == null)
-        {
-            return org.openssl.jostle.jcajce.provider.ErrorCode.JO_INPUT_IS_NULL.getCode();
-        }
-        if (sizes == null || outInfo == null || chainOut == null)
-        {
-            return org.openssl.jostle.jcajce.provider.ErrorCode.JO_OUTPUT_IS_NULL.getCode();
-        }
-
         try (Arena arena = Arena.ofConfined())
         {
-            MemorySegment derSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, der);
-            MemorySegment sizesSeg = arena.allocateFrom(ValueLayout.JAVA_INT, sizes);
-            MemorySegment chainSeg = arena.allocate(Math.max(chainOut.length, 1));
-            MemorySegment infoSeg = arena.allocate(ValueLayout.JAVA_INT, Math.max(outInfo.length, 1));
+            // A null array travels as MemorySegment.NULL with a zero length,
+            // so the refusal is C's and both bridges answer the same code:
+            // JoCertPath_verify takes der first (JO_INPUT_IS_NULL), then the
+            // three output arrays together (JO_OUTPUT_IS_NULL).
+            MemorySegment derSeg = der == null
+                    ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_BYTE, der);
+            MemorySegment sizesSeg = sizes == null
+                    ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_INT, sizes);
+            MemorySegment chainSeg = chainOut == null
+                    ? MemorySegment.NULL : arena.allocate(Math.max(chainOut.length, 1));
+            MemorySegment infoSeg = outInfo == null
+                    ? MemorySegment.NULL
+                    : arena.allocate(ValueLayout.JAVA_INT, Math.max(outInfo.length, 1));
 
-            int rc = (int) verifyH.invokeExact(derSeg, der.length,
-                    sizesSeg, sizes.length,
+            int rc = (int) verifyH.invokeExact(derSeg, der == null ? 0 : der.length,
+                    sizesSeg, sizes == null ? 0 : sizes.length,
                     count, crlCount, anchorCount, timeSecs, strict, revocation,
-                    chainSeg, chainOut.length,
-                    infoSeg, outInfo.length);
+                    chainSeg, chainOut == null ? 0 : chainOut.length,
+                    infoSeg, outInfo == null ? 0 : outInfo.length);
 
             // outInfo comes back on the failure paths too: the decode failure
             // reports WHICH certificate in it, and returning rc alone would
             // lose that. Only the chain is success-only.
-            MemorySegment.copy(infoSeg, ValueLayout.JAVA_INT, 0, outInfo, 0, outInfo.length);
-            if (rc == 0)
+            if (outInfo != null)
+            {
+                MemorySegment.copy(infoSeg, ValueLayout.JAVA_INT, 0, outInfo, 0, outInfo.length);
+            }
+            if (rc == 0 && chainOut != null)
             {
                 MemorySegment.copy(chainSeg, ValueLayout.JAVA_BYTE, 0, chainOut, 0, chainOut.length);
             }

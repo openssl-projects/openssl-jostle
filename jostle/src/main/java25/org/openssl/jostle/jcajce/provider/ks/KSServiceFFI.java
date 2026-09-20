@@ -68,7 +68,8 @@ public class KSServiceFFI
     {
         this.allocateH = linker.downcallHandle(
                 lookup.find("JoKS_Allocate").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.disposeH = linker.downcallHandle(
                 lookup.find("JoKS_Dispose").orElseThrow(),
@@ -81,7 +82,7 @@ public class KSServiceFFI
                 lookup.find("JoKS_StoreLen").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+                        ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         this.storeH = linker.downcallHandle(
                 lookup.find("JoKS_Store").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
@@ -89,7 +90,8 @@ public class KSServiceFFI
                         ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
         this.getKeyLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetKeyLen").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.getKeyH = linker.downcallHandle(
                 lookup.find("JoKS_GetKey").orElseThrow(),
@@ -101,7 +103,8 @@ public class KSServiceFFI
                 Linker.Option.critical(true));
         this.getCertificateChainLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetCertificateChainLen").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.getCertificateChainH = linker.downcallHandle(
                 lookup.find("JoKS_GetCertificateChain").orElseThrow(),
@@ -121,7 +124,8 @@ public class KSServiceFFI
                 Linker.Option.critical(true));
         this.getAliasesLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetAliasesLen").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.getAliasesH = linker.downcallHandle(
                 lookup.find("JoKS_GetAliases").orElseThrow(),
@@ -145,7 +149,8 @@ public class KSServiceFFI
                 Linker.Option.critical(true));
         this.getCreationDateH = linker.downcallHandle(
                 lookup.find("JoKS_GetCreationDate").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
     }
 
@@ -168,7 +173,7 @@ public class KSServiceFFI
         {
             MemorySegment typeSeg = type == null ? MemorySegment.NULL : arena.allocateFrom(type);
             MemorySegment errSeg = errSegment(err);
-            MemorySegment ctx = (MemorySegment) allocateH.invokeExact(typeSeg, errSeg);
+            MemorySegment ctx = (MemorySegment) allocateH.invokeExact(typeSeg, errSeg, errLen(err));
             return ctx.address();
         }
         catch (Throwable t)
@@ -271,7 +276,10 @@ public class KSServiceFFI
                 {
                     passwordSeg.asByteBuffer().put(password);
                 }
-                MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+                // err is jostle's own; its null-ness and length travel down so
+                // C asserts them, exactly as the critical entry points do.
+                MemorySegment errSeg = err == null
+                        ? MemorySegment.NULL : a.allocate(ValueLayout.JAVA_INT);
 
                 MemorySegment randSeg;
                 if (randSource == null)
@@ -287,7 +295,8 @@ public class KSServiceFFI
 
                 MemorySegment ctx = MemorySegment.ofAddress(ref);
                 int len = (int) storeLenH.invokeExact(ctx, passwordSeg, passwordSeg.byteSize(),
-                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, errSeg);
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSeg, errSeg,
+                        errLen(err));
                 err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
                 if (err[0] != 0 || len == 0)
                 {
@@ -340,7 +349,7 @@ public class KSServiceFFI
             MemorySegment errSeg = errSegment(err);
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             int len = (int) getKeyLenH.invokeExact(ctx, aliasSeg,
-                    passwordSeg, passwordSeg.byteSize(), errSeg);
+                    passwordSeg, passwordSeg.byteSize(), errSeg, errLen(err));
             if (err[0] != 0 || len == 0)
             {
                 return null;
@@ -386,7 +395,7 @@ public class KSServiceFFI
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment errSeg = errSegment(err);
             MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) getCertificateChainLenH.invokeExact(ctx, aliasSeg, errSeg);
+            int len = (int) getCertificateChainLenH.invokeExact(ctx, aliasSeg, errSeg, errLen(err));
             if (err[0] != 0 || len == 0)
             {
                 return null;
@@ -459,7 +468,7 @@ public class KSServiceFFI
         {
             MemorySegment errSeg = errSegment(err);
             MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) getAliasesLenH.invokeExact(ctx, errSeg);
+            int len = (int) getAliasesLenH.invokeExact(ctx, errSeg, errLen(err));
             if (err[0] != 0 || len == 0)
             {
                 return null;
@@ -543,7 +552,8 @@ public class KSServiceFFI
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment errSeg = errSegment(err);
-            return (long) getCreationDateH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, errSeg);
+            return (long) getCreationDateH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, errSeg,
+                    errLen(err));
         }
         catch (Throwable t)
         {
@@ -552,12 +562,19 @@ public class KSServiceFFI
         }
     }
 
+    /**
+     * The caller's error array, handed to C as it stands. A null or empty array
+     * is not refused here: err is jostle's own, so C asserts both the pointer
+     * and the length and aborts on a broken invariant. These downcalls are
+     * critical, so the array crosses rather than being copied.
+     */
     private static MemorySegment errSegment(int[] err)
     {
-        if (err == null || err.length == 0)
-        {
-            throw new NullPointerException("error array must not be null or empty");
-        }
-        return MemorySegment.ofArray(err);
+        return err == null ? MemorySegment.NULL : MemorySegment.ofArray(err);
+    }
+
+    private static int errLen(int[] err)
+    {
+        return err == null ? 0 : err.length;
     }
 }

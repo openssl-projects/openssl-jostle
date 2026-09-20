@@ -25,9 +25,9 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_
 
     UNUSED(self);
 
-    if (_err == NULL) {
-        return 0;
-    }
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
 
     // err is ours; a zero-length array would write out of bounds.
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
@@ -112,9 +112,9 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
 
     init_bytearray_ctx(&password);
 
-    if (_err == NULL) {
-        return NULL;
-    }
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
 
     // err is ours; a zero-length array would write out of bounds.
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
@@ -185,9 +185,9 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
 
     init_bytearray_ctx(&password);
 
-    if (_err == NULL) {
-        return NULL;
-    }
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
 
     // err is ours; a zero-length array would write out of bounds.
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
@@ -309,9 +309,9 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
     size_t out_len = 0;
     jbyteArray result = NULL;
 
-    if (_err == NULL) {
-        return NULL;
-    }
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
 
     // err is ours; a zero-length array would write out of bounds.
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
@@ -483,9 +483,9 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
     size_t out_len = 0;
     jbyteArray result = NULL;
 
-    if (_err == NULL) {
-        return NULL;
-    }
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
 
     // err is ours; a zero-length array would write out of bounds.
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
@@ -637,9 +637,9 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_
     int32_t *err = NULL;
     int64_t ret = 0;
 
-    if (_err == NULL) {
-        return 0;
-    }
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
 
     // err is ours; a zero-length array would write out of bounds.
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);

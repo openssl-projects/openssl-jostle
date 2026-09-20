@@ -26,34 +26,39 @@
  * written. That is the same check the JNI side derives from GetArrayLength;
  * stating it twice is the cost of the two bridges validating independently.
  *
- * JoX509_allocate is the exception, and deliberately so: its off/len range
- * check against the caller's array lives in X509ServiceFFI, because this
- * function receives an already-copied slice and never sees off at all. The
- * copy itself is what bounds the slice. The sibling FFI bridges use
- * check_in_range(size, off, len) here instead, so a reader comparing them
- * should know this one is not missing the check — it is on the other side of
- * the copy, and it returns the same codes as the JNI twin for the same input.
+ * The allocate entry points receive the WHOLE array, its size, and off/len,
+ * and range-check with check_in_range as every sibling FFI bridge does. No
+ * input validation is left on the Java side of this bridge.
  */
 
-int32_t JoX509_allocate(const uint8_t *der, int32_t der_len, int32_t max_bytes,
-                        int64_t *out_ref, int32_t *out_consumed)
+int32_t JoX509_allocate(const uint8_t *der, int32_t der_size, int32_t off, int32_t len,
+                        int32_t max_bytes, int64_t *out_ref,
+                        int32_t *out_consumed, int32_t consumed_len, int32_t err_len)
 {
     x509_handle *cert = NULL;
     int32_t consumed = 0;
     int32_t ret;
 
-    if (out_ref == NULL || out_consumed == NULL)
-    {
-        return JO_OUTPUT_IS_NULL;
-    }
+    /* err and consumed are jostle's own arrays. A null or empty one is a
+     * broken invariant, not caller data, so it aborts here — before anything
+     * is written through the pointer. */
+    jo_assert(err_len >= 1);
+    jo_assert(out_consumed != NULL && consumed_len >= 1);
+    jo_assert(out_ref != NULL);
     *out_ref = 0;
     *out_consumed = 0;
 
+    /* Check order matches the JNI twin code for code: the same input must
+     * produce the same code on both bridges. */
     if (der == NULL)
     {
         return JO_INPUT_IS_NULL;
     }
-    if (der_len < 0)
+    if (off < 0)
+    {
+        return JO_INPUT_OFFSET_IS_NEGATIVE;
+    }
+    if (len < 0)
     {
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
@@ -61,20 +66,24 @@ int32_t JoX509_allocate(const uint8_t *der, int32_t der_len, int32_t max_bytes,
     {
         return JO_CERT_MAX_BYTES_INVALID;
     }
+    if (der_size < 0 || !check_in_range((size_t) der_size, (size_t) off, (size_t) len))
+    {
+        return JO_INPUT_OUT_OF_RANGE;
+    }
     /* An empty input IS a failed certificate decode, and that is the wording a
      * generateCertificate caller needs; the JNI twin maps it identically. */
-    if (der_len == 0)
+    if (len == 0)
     {
         return JO_CERT_DECODE_FAILED;
     }
     /* The ceiling, refused typed HERE. util asserts it, so this is the only
      * thing standing between a raised property and an abort. */
-    if (der_len > max_bytes)
+    if (len > max_bytes)
     {
         return JO_CERT_TOO_LARGE;
     }
 
-    ret = x509_cert_decode(der, (size_t) der_len, (size_t) max_bytes, &cert, &consumed);
+    ret = x509_cert_decode(der + off, (size_t) len, (size_t) max_bytes, &cert, &consumed);
     if (ret != JO_SUCCESS)
     {
         return ret;
@@ -121,8 +130,10 @@ int32_t JoX509_extensionsLen(int64_t ref)
     return x509_cert_extensions_len((x509_handle *) (intptr_t) ref);
 }
 
-int32_t JoX509_extensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t count,
-                          int32_t *oid_sizes, int32_t *val_sizes, int32_t *critical)
+int32_t JoX509_extensions(int64_t ref, uint8_t *blob, int32_t blob_len,
+                          int32_t *oid_sizes, int32_t oid_sizes_len,
+                          int32_t *val_sizes, int32_t val_sizes_len,
+                          int32_t *critical, int32_t critical_len)
 {
     if (ref == 0)
     {
@@ -132,15 +143,18 @@ int32_t JoX509_extensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t 
     {
         return JO_OUTPUT_IS_NULL;
     }
-    /* util asserts the three arrays non-NULL, so a zero capacity is refused
-     * here rather than handed down; the capacity itself is checked against the
-     * certificate's extension count inside util, before the first write. */
-    if (blob_len < 0 || count <= 0)
+    /* util asserts the three arrays non-NULL and indexes all three to one
+     * count, so they must agree before anything is handed down; the count
+     * itself is checked against the certificate's extension count inside util,
+     * before the first write. Three capacities rather than one because only
+     * the caller's three lengths can show a disagreement. */
+    if (blob_len < 0 || oid_sizes_len <= 0
+            || val_sizes_len != oid_sizes_len || critical_len != oid_sizes_len)
     {
         return JO_OUTPUT_TOO_SMALL;
     }
     return x509_cert_extensions((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len,
-                                (size_t) count, oid_sizes, val_sizes, critical);
+                                (size_t) oid_sizes_len, oid_sizes, val_sizes, critical);
 }
 
 void JoX509_dispose(int64_t ref)
@@ -154,25 +168,33 @@ void JoX509_dispose(int64_t ref)
 
 /* ---------------------------------------------------------------- CRLs --- */
 
-int32_t JoX509_allocateCrl(const uint8_t *der, int32_t der_len, int32_t max_bytes,
-                           int64_t *out_ref, int32_t *out_consumed)
+int32_t JoX509_allocateCrl(const uint8_t *der, int32_t der_size, int32_t off, int32_t len,
+                           int32_t max_bytes, int64_t *out_ref,
+                           int32_t *out_consumed, int32_t consumed_len, int32_t err_len)
 {
     x509_handle *crl = NULL;
     int32_t consumed = 0;
     int32_t ret;
 
-    if (out_ref == NULL || out_consumed == NULL)
-    {
-        return JO_OUTPUT_IS_NULL;
-    }
+    /* err and consumed are jostle's own arrays. A null or empty one is a
+     * broken invariant, not caller data, so it aborts here — before anything
+     * is written through the pointer. */
+    jo_assert(err_len >= 1);
+    jo_assert(out_consumed != NULL && consumed_len >= 1);
+    jo_assert(out_ref != NULL);
     *out_ref = 0;
     *out_consumed = 0;
 
+    /* Same order as JoX509_allocate and as the JNI twin. */
     if (der == NULL)
     {
         return JO_INPUT_IS_NULL;
     }
-    if (der_len < 0)
+    if (off < 0)
+    {
+        return JO_INPUT_OFFSET_IS_NEGATIVE;
+    }
+    if (len < 0)
     {
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
@@ -180,17 +202,21 @@ int32_t JoX509_allocateCrl(const uint8_t *der, int32_t der_len, int32_t max_byte
     {
         return JO_CERT_MAX_BYTES_INVALID;
     }
-    if (der_len == 0)
+    if (der_size < 0 || !check_in_range((size_t) der_size, (size_t) off, (size_t) len))
+    {
+        return JO_INPUT_OUT_OF_RANGE;
+    }
+    if (len == 0)
     {
         return JO_CRL_DECODE_FAILED;
     }
-    if (der_len > max_bytes)
+    if (len > max_bytes)
     {
         /* The CRL bound, named as its own — see the JNI twin. */
         return JO_CRL_TOO_LARGE;
     }
 
-    ret = x509_crl_decode(der, (size_t) der_len, (size_t) max_bytes, &crl, &consumed);
+    ret = x509_crl_decode(der + off, (size_t) len, (size_t) max_bytes, &crl, &consumed);
     if (ret != JO_SUCCESS)
     {
         return ret;
@@ -237,8 +263,10 @@ int32_t JoX509_crlExtensionsLen(int64_t ref)
     return x509_crl_extensions_len((x509_handle *) (intptr_t) ref);
 }
 
-int32_t JoX509_crlExtensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t count,
-                             int32_t *oid_sizes, int32_t *val_sizes, int32_t *critical)
+int32_t JoX509_crlExtensions(int64_t ref, uint8_t *blob, int32_t blob_len,
+                             int32_t *oid_sizes, int32_t oid_sizes_len,
+                             int32_t *val_sizes, int32_t val_sizes_len,
+                             int32_t *critical, int32_t critical_len)
 {
     if (ref == 0)
     {
@@ -248,12 +276,14 @@ int32_t JoX509_crlExtensions(int64_t ref, uint8_t *blob, int32_t blob_len, int32
     {
         return JO_OUTPUT_IS_NULL;
     }
-    if (blob_len < 0 || count <= 0)
+    /* Three capacities, agreeing, for the reason given on JoX509_extensions. */
+    if (blob_len < 0 || oid_sizes_len <= 0
+            || val_sizes_len != oid_sizes_len || critical_len != oid_sizes_len)
     {
         return JO_OUTPUT_TOO_SMALL;
     }
     return x509_crl_extensions((x509_handle *) (intptr_t) ref, blob, (size_t) blob_len,
-                               (size_t) count, oid_sizes, val_sizes, critical);
+                               (size_t) oid_sizes_len, oid_sizes, val_sizes, critical);
 }
 
 int32_t JoX509_crlEntriesLen(int64_t ref)

@@ -15,10 +15,11 @@
 #include "../util/jo_assert.h"
 #include "../util/ks.h"
 
-ks_ctx *JoKS_Allocate(const char *type, int32_t *err) {
-    if (err == NULL) {
-        return NULL;
-    }
+ks_ctx *JoKS_Allocate(const char *type, int32_t *err, int32_t err_len) {
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (type == NULL) {
         *err = JO_KS_TYPE_IS_NULL;
         return NULL;
@@ -51,14 +52,15 @@ int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *passw
 int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
                       int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                       int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                      void *rnd_src, int32_t *err) {
+                      void *rnd_src, int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
 
-    if (err == NULL) {
-        return 0;
-    }
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (ctx == NULL) {
         *err = JO_KS_CTX_IS_NULL;
         return 0;
@@ -171,14 +173,16 @@ exit:
     return ret;
 }
 
-int32_t JoKS_GetKeyLen(ks_ctx *ctx, const char *alias, uint8_t *password, size_t password_size, int32_t *err) {
+int32_t JoKS_GetKeyLen(ks_ctx *ctx, const char *alias, uint8_t *password, size_t password_size,
+                       int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
 
-    if (err == NULL) {
-        return 0;
-    }
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (ctx == NULL) {
         *err = JO_KS_CTX_IS_NULL;
         return 0;
@@ -243,14 +247,15 @@ exit:
     return ret;
 }
 
-int32_t JoKS_GetCertificateChainLen(ks_ctx *ctx, const char *alias, int32_t *err) {
+int32_t JoKS_GetCertificateChainLen(ks_ctx *ctx, const char *alias, int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
 
-    if (err == NULL) {
-        return 0;
-    }
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (ctx == NULL) {
         *err = JO_KS_CTX_IS_NULL;
         return 0;
@@ -364,14 +369,15 @@ int32_t JoKS_DeleteEntry(ks_ctx *ctx, const char *alias) {
     return ks_delete_entry(ctx, alias);
 }
 
-int32_t JoKS_GetAliasesLen(ks_ctx *ctx, int32_t *err) {
+int32_t JoKS_GetAliasesLen(ks_ctx *ctx, int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
 
-    if (err == NULL) {
-        return 0;
-    }
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (ctx == NULL) {
         *err = JO_KS_CTX_IS_NULL;
         return 0;
@@ -462,10 +468,11 @@ int32_t JoKS_IsCertificateEntry(ks_ctx *ctx, const char *alias) {
     return ks_is_certificate_entry(ctx, alias);
 }
 
-int64_t JoKS_GetCreationDate(ks_ctx *ctx, const char *alias, int32_t *err) {
-    if (err == NULL) {
-        return 0;
-    }
+int64_t JoKS_GetCreationDate(ks_ctx *ctx, const char *alias, int32_t *err, int32_t err_len) {
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
     if (ctx == NULL) {
         *err = JO_KS_CTX_IS_NULL;
         return 0;

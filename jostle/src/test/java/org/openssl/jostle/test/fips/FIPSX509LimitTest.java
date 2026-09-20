@@ -48,16 +48,11 @@ import org.openssl.jostle.test.certpath.PkitsCertificates;
  * companion at the boundary: an arbitrary large value passes a check written
  * with an off-by-100.
  * <p>
- * Runs on both bridges — they validate separately, and the offset check in
- * particular lives in JAVA on the FFI leg and in C on the JNI one.
+ * Runs on both bridges. They validate separately and in C on both: the offset
+ * and range checks are the bridge's own, and must answer the same code.
  * <p>
- * <b>One invariant is deliberately uncovered here.</b> A null or zero-length
- * {@code consumed} / {@code err} array is jostle's own plumbing, not caller
- * data: the JNI half asserts (length checked before the pointer is taken, so
- * it cannot corrupt) and the FFI half refuses typed, its check living in Java
- * where there is no controlled abort to give. Both are sanctioned and neither
- * is a defect, but an abort cannot be pinned by an in-process cell — it takes
- * the leg with it.
+ * {@code err} and {@code consumed} are jostle's own; a null or empty one
+ * aborts on both bridges, so no cell pins them.
  */
 public class FIPSX509LimitTest
 {
@@ -469,7 +464,7 @@ public class FIPSX509LimitTest
 
     private static void nullHandle(Executable call)
     {
-        assertTyped(IllegalArgumentException.class, "certificate handle is null", call);
+        assertTyped(IllegalArgumentException.class, "handle is null", call);
     }
 
     private static void tooSmall(Executable call)
