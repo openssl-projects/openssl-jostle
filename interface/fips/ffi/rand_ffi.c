@@ -7,6 +7,7 @@
 
 #include "types.h"
 #include "../util/bc_err_codes.h"
+#include "../util/jo_assert.h"
 #include "../util/rand.h"
 
 static int rand_strength_supported(int32_t strength) {
@@ -17,10 +18,11 @@ JO_RAND_CTX *JoRand_createContext(const char *mechanism, const char *variant, ui
                                   int32_t strength, uint8_t prediction_resistant,
                                   uint8_t *personalization_string,
                                   size_t personalization_string_size,
-                                  int32_t *err) {
-    if (err == NULL) {
-        return NULL;
-    }
+                                  int32_t *err, int32_t err_len) {
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
 
     if (mechanism == NULL || variant == NULL) {
         *err = JO_NAME_IS_NULL;

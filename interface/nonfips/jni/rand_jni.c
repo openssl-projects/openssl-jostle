@@ -38,14 +38,10 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandService
     java_bytearray_ctx personalization_string;
     init_bytearray_ctx(&personalization_string);
 
-    if (_err == NULL) {
-        // Match the FFI twin (JoRand_createContext): a null err out-array is a
-        // caller-derived value, so return a null context instead of aborting
-        // the JVM. With no array there is no channel to report a specific
-        // code; the NI default method always supplies err.
-        return (jlong) 0;
-    }
-    // err is ours; a zero-length array would write out of bounds.
+    // err is jostle's own, so a null or empty one is a broken invariant rather
+    // than caller data. Both are asserted before the pointer is taken, because
+    // a zero-length array would otherwise be written out of bounds.
+    jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);

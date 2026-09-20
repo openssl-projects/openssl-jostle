@@ -72,7 +72,8 @@ public class RandServiceFFI implements RandServiceNI
                         ValueLayout.JAVA_BYTE,  // prediction_resistant
                         ValueLayout.ADDRESS,    // personalization_string
                         ValueLayout.JAVA_LONG,  // personalization_string_size
-                        ValueLayout.ADDRESS     // err
+                        ValueLayout.ADDRESS,    // err
+                        ValueLayout.JAVA_INT    // err_len
                 )
         );
 
@@ -128,7 +129,11 @@ public class RandServiceFFI implements RandServiceNI
             MemorySegment mechanismSeg = mechanism == null ? MemorySegment.NULL : a.allocateFrom(mechanism);
             MemorySegment variantSeg = variant == null ? MemorySegment.NULL : a.allocateFrom(variant);
             MemorySegment personalizationStringSeg = byteArraySegment(a, personalizationString);
-            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            // err crosses with its length so C does the checking and both
+            // bridges answer the same way.
+            MemorySegment errSeg = err == null
+                    ? MemorySegment.NULL
+                    : a.allocate(ValueLayout.JAVA_INT, Math.max(err.length, 1));
 
             MemorySegment ctx = (MemorySegment) createContextFuncHandle.invokeExact(
                     mechanismSeg,
@@ -138,7 +143,8 @@ public class RandServiceFFI implements RandServiceNI
                     (byte) (predictionResistant ? 1 : 0),
                     personalizationStringSeg,
                     personalizationStringSeg.byteSize(),
-                    errSeg
+                    errSeg,
+                    err == null ? 0 : err.length
             );
             err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
             return ctx.address();

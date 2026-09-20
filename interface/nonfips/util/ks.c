@@ -477,9 +477,8 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
 }
 
 ks_ctx *ks_allocate(const char *type, int32_t *err) {
-    if (err == NULL) {
-        return NULL;
-    }
+    /* err is jostle's own: assert, never return. */
+    jo_assert(err != NULL);
     *err = JO_FAIL;
 
     if (type == NULL) {
