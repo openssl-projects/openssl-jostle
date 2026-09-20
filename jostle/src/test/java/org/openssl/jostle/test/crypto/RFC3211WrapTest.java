@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.Rfc3211WrapFamilies;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -12,33 +13,23 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.Key;
-import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 
 /**
  * RFC 3211 password-based key wrap, the CMS PasswordRecipientInfo construction.
  * <p>
- * Byte equality against BouncyCastle is NOT asserted: 2.3.1 pads with random
- * bytes, so two conforming implementations differ by design. The instrument is
- * cross-unwrap in both directions plus equality of the wrapped LENGTH.
+ * Contract cells only. The BouncyCastle comparison, the registered-surface
+ * guard and the tamper table are in {@code RFC3211WrapAgreementTest}.
+ * <p>
+ * Byte equality against BouncyCastle is asserted nowhere and cannot be: 2.3.1
+ * pads with random bytes, so two conforming implementations differ by design.
  */
 public class RFC3211WrapTest
 {
     private static final String JSL = JostleProvider.PROVIDER_NAME;
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
     private static final SecureRandom RANDOM = new SecureRandom();
-
-    /** ours, BC's, KEK bytes, block size. */
-    private static final String[][] FAMILIES = {
-            {"AESRFC3211Wrap", "AESRFC3211WRAP", "16", "16"},
-            {"DESedeRFC3211Wrap", "DESEDERFC3211WRAP", "24", "8"},
-            {"CamelliaRFC3211Wrap", "CAMELLIARFC3211WRAP", "16", "16"},
-    };
-
-    /** 1 and 2 matter: below three bytes the check value covers PADDING. */
-    private static final int[] CEK_LENGTHS = {1, 2, 3, 5, 8, 16, 24, 32, 40};
 
     @BeforeAll
     static void before()
@@ -76,30 +67,6 @@ public class RFC3211WrapTest
         return c.unwrap(blob, "1.2.840.113549.3.7", Cipher.SECRET_KEY).getEncoded();
     }
 
-    @Test
-    public void crossUnwrapsWithBouncyCastleBothDirectionsAtEveryCekLength() throws Exception
-    {
-        for (String[] f : FAMILIES)
-        {
-            for (int cekLen : CEK_LENGTHS)
-            {
-                byte[] kek = rand(Integer.parseInt(f[2]));
-                byte[] iv = rand(Integer.parseInt(f[3]));
-                byte[] cek = rand(cekLen);
-                String tag = f[0] + " cek=" + cekLen;
-
-                byte[] ours = wrap(JSL, f[0], kek, iv, cek);
-                byte[] theirs = wrap(BC, f[1], kek, iv, cek);
-
-                Assertions.assertEquals(theirs.length, ours.length, tag + ": wrapped length");
-                Assertions.assertArrayEquals(cek, unwrap(BC, f[1], kek, iv, ours),
-                        tag + ": BC could not unwrap ours");
-                Assertions.assertArrayEquals(cek, unwrap(JSL, f[0], kek, iv, theirs),
-                        tag + ": we could not unwrap BC's");
-            }
-        }
-    }
-
     /**
      * 2.3.4: the IV is applied to the inner layer, so the same CEK under the
      * same KEK wraps differently each time. Fails for an implementation that
@@ -108,14 +75,14 @@ public class RFC3211WrapTest
     @Test
     public void sameCekAndKekWrapDifferentlyEachTime() throws Exception
     {
-        for (String[] f : FAMILIES)
+        for (String alg : Rfc3211WrapFamilies.registeredNames())
         {
-            byte[] kek = rand(Integer.parseInt(f[2]));
-            byte[] iv = rand(Integer.parseInt(f[3]));
+            byte[] kek = rand(Rfc3211WrapFamilies.anyValidKek(alg));
+            byte[] iv = rand(Rfc3211WrapFamilies.blockOf(alg));
             byte[] cek = rand(16);
-            Assertions.assertFalse(Arrays.areEqual(wrap(JSL, f[0], kek, iv, cek),
-                            wrap(JSL, f[0], kek, iv, cek)),
-                    f[0] + ": two wraps of one CEK were identical");
+            Assertions.assertFalse(Arrays.areEqual(wrap(JSL, alg, kek, iv, cek),
+                            wrap(JSL, alg, kek, iv, cek)),
+                    alg + ": two wraps of one CEK were identical");
         }
     }
 
@@ -126,19 +93,19 @@ public class RFC3211WrapTest
     @Test
     public void kekIsAcceptedByLengthWhateverItsAlgorithmNameSays() throws Exception
     {
-        for (String[] f : FAMILIES)
+        for (String alg : Rfc3211WrapFamilies.registeredNames())
         {
-            byte[] kek = rand(Integer.parseInt(f[2]));
-            byte[] iv = rand(Integer.parseInt(f[3]));
+            byte[] kek = rand(Rfc3211WrapFamilies.anyValidKek(alg));
+            byte[] iv = rand(Rfc3211WrapFamilies.blockOf(alg));
             byte[] cek = rand(16);
 
-            for (String keyName : new String[]{f[0], "AES", "1.2.840.113549.3.7"})
+            for (String keyName : new String[]{alg, "AES", "1.2.840.113549.3.7"})
             {
-                Cipher c = Cipher.getInstance(f[0], JSL);
+                Cipher c = Cipher.getInstance(alg, JSL);
                 c.init(Cipher.WRAP_MODE, new SecretKeySpec(kek, keyName), new IvParameterSpec(iv), RANDOM);
                 byte[] blob = c.wrap(new SecretKeySpec(cek, "CEK"));
-                Assertions.assertArrayEquals(cek, unwrap(BC, f[1], kek, iv, blob),
-                        f[0] + ": KEK named " + keyName + " produced a wrap BC rejected");
+                Assertions.assertArrayEquals(cek, unwrap(BC, alg, kek, iv, blob),
+                        alg + ": KEK named " + keyName + " produced a wrap BC rejected");
             }
         }
     }
@@ -297,29 +264,6 @@ public class RFC3211WrapTest
         byte[] blob = c.wrap(new SecretKeySpec(cek, "CEK"));
         Assertions.assertArrayEquals(cek, unwrap(BC, "AESRFC3211WRAP", kek, iv, blob),
                 "the reported IV is not the IV the wrap used");
-    }
-
-    /** Every registered RFC 3211 name is driven above. */
-    @Test
-    public void everyRegisteredRfc3211WrapIsCovered()
-    {
-        Provider provider = Security.getProvider(JSL);
-        java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
-        for (Provider.Service s : provider.getServices())
-        {
-            if ("Cipher".equals(s.getType())
-                    && s.getAlgorithm().toUpperCase(java.util.Locale.ROOT).contains("RFC3211"))
-            {
-                registered.add(s.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
-            }
-        }
-        java.util.SortedSet<String> covered = new java.util.TreeSet<String>();
-        for (String[] f : FAMILIES)
-        {
-            covered.add(f[0].toUpperCase(java.util.Locale.ROOT));
-        }
-        Assertions.assertEquals(covered, registered,
-                "registered RFC 3211 wraps and the set this class drives must match exactly");
     }
 
     /**
