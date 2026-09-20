@@ -389,7 +389,7 @@ dependencies {
     // it depends on bcutil for the ASN.1 CMS structures).
     //
     // bcutil also carries org.bouncycastle.asn1.cms.CCMParameters/GCMParameters,
-    // the references AlgorithmParametersBcParityTest compares the CCM and GCM
+    // the references AlgorithmParametersAgreementTest compares the CCM and GCM
     // codecs against. Take them from HERE: bcprov ships same-named classes
     // under org.bouncycastle.internal.asn1.cms, an internal package with no
     // API-stability promise, and an IDE will offer that import first.

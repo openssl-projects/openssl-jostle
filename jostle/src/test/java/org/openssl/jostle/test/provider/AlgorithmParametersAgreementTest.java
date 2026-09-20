@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.util.AlgorithmParametersSurfaceDriver;
+import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.spec.DHParameterSpec;
@@ -31,6 +33,7 @@ import javax.crypto.spec.IvParameterSpec;
 import java.io.IOException;
 import java.security.AlgorithmParameterGenerator;
 import java.security.AlgorithmParameters;
+import java.security.spec.InvalidParameterSpecException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.DSAParameterSpec;
@@ -65,7 +68,7 @@ import java.util.List;
  * is the compensating control and must stay: a source lint cannot be masked by
  * a test-classpath dependency, which is exactly why it is a source lint.
  */
-public class AlgorithmParametersBcParityTest
+public class AlgorithmParametersAgreementTest
 {
     private static final String JSL = JostleProvider.PROVIDER_NAME;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -76,6 +79,13 @@ public class AlgorithmParametersBcParityTest
         if (Security.getProvider(JSL) == null)
         {
             Security.addProvider(new JostleProvider());
+        }
+        // The cells below this compare against BouncyCastle's LIGHTWEIGHT
+        // ASN.1 classes, which need no provider. The discovery guard compares
+        // against BC's JCE codecs, which do.
+        if (Security.getProvider("BC") == null)
+        {
+            Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
         }
     }
 
@@ -101,6 +111,9 @@ public class AlgorithmParametersBcParityTest
     /**
      * CCM tops the priority: it is the only codec with no external reference
      * at all, and the only one that does not ride {@code Der}.
+     *
+     * <p>Kept: reads back through BouncyCastle's lightweight CCMParameters, a
+     * different source from the JCE codec the guard uses.
      */
     @Test
     public void ccmMatchesBouncyCastleAndCrossDecodes() throws Exception
@@ -129,6 +142,10 @@ public class AlgorithmParametersBcParityTest
         }
     }
 
+    /*
+     * Kept: reads back through BouncyCastle's lightweight GCMParameters, a
+     * different source from the JCE codec the guard uses.
+     */
     @Test
     public void gcmMatchesBouncyCastleAndCrossDecodes() throws Exception
     {
@@ -197,6 +214,10 @@ public class AlgorithmParametersBcParityTest
         }
     }
 
+    /*
+     * Kept: compares against BouncyCastle's lightweight DSAParameter, not its
+     * JCE codec.
+     */
     @Test
     public void dsaMatchesBouncyCastle() throws Exception
     {
@@ -209,6 +230,10 @@ public class AlgorithmParametersBcParityTest
                 p.getEncoded(), "DSA parameters diverged from BouncyCastle");
     }
 
+    /*
+     * Kept: compares against BouncyCastle's lightweight DHParameter, not its
+     * JCE codec.
+     */
     @Test
     public void dhPkcs3MatchesBouncyCastle() throws Exception
     {
@@ -221,6 +246,9 @@ public class AlgorithmParametersBcParityTest
                 p.getEncoded(), "DH PKCS#3 parameters diverged from BouncyCastle");
     }
 
+    /*
+     * Kept: drives several named curves; the guard drives one.
+     */
     @Test
     public void ecNamedCurvesMatchBouncyCastle() throws Exception
     {
@@ -246,6 +274,10 @@ public class AlgorithmParametersBcParityTest
                 "only " + compared + " curves compared — the fixture has gone vacuous");
     }
 
+    /*
+     * Kept: drives three IV lengths against a from-spec DEROctetString; the
+     * guard drives one against BouncyCastle's JCE codec.
+     */
     @Test
     public void ivCodecMatchesBouncyCastle() throws Exception
     {
@@ -290,20 +322,32 @@ public class AlgorithmParametersBcParityTest
         return o;
     }
 
-    /** A valid encoding for each codec, as the corpus's starting point. */
+    /**
+     * Every registered name with a valid encoding, discovered. A hand list
+     * here would cover whatever was remembered on the day and its floor would
+     * rot the first time a name was added.
+     */
     private static List<String[]> codecsWithValidEncodings() throws Exception
     {
         List<String[]> out = new ArrayList<String[]>();
-        out.add(new String[]{"CCM", hex(encodedOf("CCM", new GCMParameterSpec(96, nonce(12))))});
-        out.add(new String[]{"GCM", hex(encodedOf("GCM", new GCMParameterSpec(96, nonce(12))))});
-        out.add(new String[]{"AES", hex(encodedOf("AES", new IvParameterSpec(nonce(16))))});
-        out.add(new String[]{"EC", hex(encodedOf("EC", new ECGenParameterSpec("P-256")))});
-        AlgorithmParameterGenerator dsa = AlgorithmParameterGenerator.getInstance("DSA", JSL);
-        dsa.init(2048);
-        out.add(new String[]{"DSA", hex(dsa.generateParameters().getEncoded())});
-        AlgorithmParameterGenerator dh = AlgorithmParameterGenerator.getInstance("DH", JSL);
-        dh.init(1024);
-        out.add(new String[]{"DH", hex(dh.generateParameters().getEncoded())});
+        for (String entry : surfaceNames())
+        {
+            out.add(new String[]{entry, hex(
+                    AlgorithmParametersSurfaceDriver.encodeThrough(JSL, entry))});
+        }
+        return out;
+    }
+
+    /** The registered AlgorithmParameters names, aliases included. */
+    private static java.util.SortedSet<String> surfaceNames()
+    {
+        java.util.SortedSet<String> out = new java.util.TreeSet<String>();
+        for (String entry : ProviderSurfaceGuard.registeredSurface(
+                Security.getProvider(JSL), AlgorithmParametersSurfaceDriver.PREFIX,
+                new String[]{"AlgorithmParameters"}))
+        {
+            out.add(entry.substring("AlgorithmParameters.".length()));
+        }
         return out;
     }
 
@@ -338,8 +382,8 @@ public class AlgorithmParametersBcParityTest
     public void everyCodecRefusesTrailingBytes() throws Exception
     {
         List<String[]> codecs = codecsWithValidEncodings();
-        Assertions.assertTrue(codecs.size() >= 6,
-                "only " + codecs.size() + " codecs in the sweep — it has gone vacuous");
+        Assertions.assertFalse(codecs.isEmpty(),
+                "no codec was discovered, so this sweep asserted nothing");
         List<String> accepted = new ArrayList<String>();
         for (String[] c : codecs)
         {
@@ -378,26 +422,31 @@ public class AlgorithmParametersBcParityTest
     @Test
     public void everySequenceCodecRefusesAnExtraElementInside() throws Exception
     {
-        String[][] cases = {
-                {"CCM", "CCM parameters"},
-                {"GCM", "GCM parameters"},
-                {"DSA", "Dss-Parms"},
-                {"DH", "DHParameter"},
-        };
+        // Which names have an inside comes from the SPI CLASS: the CBC and
+        // plain-IV codecs are an OCTET STRING and have none.
+        List<String[]> cases = new ArrayList<String[]>();
+        for (String alg : surfaceNames())
+        {
+            String spi = AlgorithmParametersSurfaceDriver.spiClassOf(JSL, alg);
+            if ("GCMAlgorithmParameters".equals(spi) || "CCMAlgorithmParameters".equals(spi))
+            {
+                cases.add(new String[]{alg, spi.substring(0, 3) + " parameters"});
+            }
+            else if ("DSAAlgorithmParameters".equals(spi))
+            {
+                cases.add(new String[]{alg, "Dss-Parms"});
+            }
+            else if ("DHAlgorithmParameters".equals(spi))
+            {
+                cases.add(new String[]{alg, "DHParameter"});
+            }
+        }
+        Assertions.assertFalse(cases.isEmpty(), "no SEQUENCE-shaped codec was discovered");
+
         List<String> accepted = new ArrayList<String>();
         for (String[] c : cases)
         {
-            byte[] valid;
-            if ("CCM".equals(c[0]) || "GCM".equals(c[0]))
-            {
-                valid = encodedOf(c[0], new GCMParameterSpec(96, nonce(12)));
-            }
-            else
-            {
-                AlgorithmParameterGenerator g = AlgorithmParameterGenerator.getInstance(c[0], JSL);
-                g.init("DSA".equals(c[0]) ? 2048 : 1024);
-                valid = g.generateParameters().getEncoded();
-            }
+            byte[] valid = AlgorithmParametersSurfaceDriver.encodeThrough(JSL, c[0]);
             // Unwrap the outer SEQUENCE, append one more INTEGER, rewrap.
             Assertions.assertEquals(0x30, valid[0] & 0xFF, c[0] + ": expected an outer SEQUENCE");
             int hdr = (valid[1] & 0x80) == 0 ? 2 : 2 + (valid[1] & 0x7F);
@@ -424,5 +473,138 @@ public class AlgorithmParametersBcParityTest
         }
         Assertions.assertTrue(accepted.isEmpty(),
                 "codecs accepted an unexhausted SEQUENCE (extra element inside): " + accepted);
+    }
+
+    /**
+     * The IV and nonce length rules, probed at the boundary and one either
+     * side, with BouncyCastle's answer at the same points beside ours.
+     *
+     * <p>We are the conforming side and BC accepts every length, so each is
+     * pinned in both halves: a bcprov bump that makes BC start refusing fails
+     * here rather than leaving our half reading as parity.
+     */
+    @Test
+    public void theIvLengthRulesDivergeFromBouncyCastleInOurFavour() throws Exception
+    {
+        String cbc = "2.16.840.1.101.3.4.1.42";
+
+        Assertions.assertNotNull(encodedOf(cbc, new IvParameterSpec(nonce(16))),
+                "CBC must accept the one length it specifies");
+
+        for (int bad : new int[]{15, 17, 12, 32})
+        {
+            Assertions.assertThrows(InvalidParameterSpecException.class,
+                    () -> encodedOf(cbc, new IvParameterSpec(nonce(bad))),
+                    "CBC at " + bad + " bytes must be refused");
+            assertBouncyCastleStillAccepts(cbc, new IvParameterSpec(nonce(bad)),
+                    "CBC at " + bad + " bytes");
+        }
+
+        for (int ok : new int[]{7, 13})
+        {
+            Assertions.assertNotNull(encodedOf("CCM", new GCMParameterSpec(128, nonce(ok))),
+                    "CCM must accept " + ok + ", a boundary of RFC 5084's range");
+        }
+
+        for (int bad : new int[]{6, 14, 16, 32})
+        {
+            Assertions.assertThrows(InvalidParameterSpecException.class,
+                    () -> encodedOf("CCM", new GCMParameterSpec(128, nonce(bad))),
+                    "CCM at a " + bad + "-byte nonce must be refused");
+            assertBouncyCastleStillAccepts("CCM", new GCMParameterSpec(128, nonce(bad)),
+                    "CCM at a " + bad + "-byte nonce");
+        }
+    }
+
+    /**
+     * The third divergence, asserted rather than described: BouncyCastle's CCM
+     * codec refuses an {@code IvParameterSpec} at every length; ours accepts
+     * one across RFC 5084's range.
+     */
+    @Test
+    public void bouncyCastlesCcmCodecRefusesAnIvParameterSpecAndOursDoesNot() throws Exception
+    {
+        for (int len : new int[]{7, 12, 13})
+        {
+            Assertions.assertNotNull(encodedOf("CCM", new IvParameterSpec(nonce(len))),
+                    "our CCM codec must accept an IvParameterSpec at " + len + " bytes");
+
+            AlgorithmParameters theirs = AlgorithmParameters.getInstance("CCM", "BC");
+            Assertions.assertThrows(InvalidParameterSpecException.class,
+                    () -> theirs.init(new IvParameterSpec(nonce(len))),
+                    "BouncyCastle now accepts an IvParameterSpec for CCM at " + len
+                            + " bytes. The divergence has moved — re-measure it.");
+        }
+    }
+
+    /** BC's half of a length divergence: it must still accept what we refuse. */
+    private static void assertBouncyCastleStillAccepts(String alg, java.security.spec.AlgorithmParameterSpec spec,
+                                                       String what)
+        throws Exception
+    {
+        AlgorithmParameters theirs = AlgorithmParameters.getInstance(alg, "BC");
+        theirs.init(spec);
+        Assertions.assertNotNull(theirs.getEncoded(),
+                what + ": BouncyCastle no longer accepts it, so the divergence has moved —"
+                        + " re-measure both halves before changing this pin.");
+    }
+
+    // ----------------------------------------------------------------
+    // (c) the whole registered surface, by discovery
+    // ----------------------------------------------------------------
+
+    /**
+     * Every {@code AlgorithmParameters} name JSL registers is DRIVEN,
+     * discovered rather than listed, aliases included.
+     *
+     * <p>The cells above drive a handful of names by hand; every other
+     * registered spelling reached nothing before this.
+     *
+     * <p>One prefix reaches all eight SPI classes, so there is no package list
+     * to keep in step.
+     */
+    @Test
+    public void everyRegisteredAlgorithmParametersIsDriven()
+    {
+        ProviderSurfaceGuard.assertEveryServiceDriven(
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
+                AlgorithmParametersSurfaceDriver.PREFIX, "AlgorithmParameters (JSL)",
+                new String[]{"AlgorithmParameters"},
+                AlgorithmParametersSurfaceDriver.forProvider(JostleProvider.PROVIDER_NAME));
+    }
+
+    /**
+     * The reverse direction: every row of the driver's SPI-class table is
+     * reached by a registered name.
+     *
+     * <p>"Every registered name is driven" is structural here — the driven set
+     * IS the discovered set, so no hand-written covered list exists to go
+     * stale. What CAN go stale is the spec table, and a row for a class nothing
+     * registers any more is the same defect as a dead entry in a covered list:
+     * it reads as coverage and exercises nothing.
+     */
+    @Test
+    public void everySpecTableRowIsReachedByARegisteredName()
+    {
+        java.security.Provider jsl = Security.getProvider(JSL);
+        java.util.SortedSet<String> reached = new java.util.TreeSet<String>();
+
+        for (String entry : ProviderSurfaceGuard.registeredSurface(
+                jsl, AlgorithmParametersSurfaceDriver.PREFIX,
+                new String[]{"AlgorithmParameters"}))
+        {
+            String alg = entry.substring("AlgorithmParameters.".length());
+            String cn = jsl.getService("AlgorithmParameters", alg).getClassName();
+            reached.add(cn.substring(cn.lastIndexOf('.') + 1));
+        }
+
+        java.util.SortedSet<String> unreached =
+                new java.util.TreeSet<String>(java.util.Arrays.asList(
+                        AlgorithmParametersSurfaceDriver.KNOWN_SPI_CLASSES));
+        unreached.removeAll(reached);
+
+        Assertions.assertTrue(unreached.isEmpty(),
+                "the driver carries spec rows for SPI classes no registered name resolves to, so"
+                        + " those rows read as coverage and exercise nothing: " + unreached);
     }
 }
