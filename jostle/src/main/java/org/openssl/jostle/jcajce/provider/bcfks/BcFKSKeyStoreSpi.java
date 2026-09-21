@@ -269,7 +269,10 @@ public class BcFKSKeyStoreSpi
 
     private static int validateIterationCount(int iterationCount) throws IOException
     {
-        if (iterationCount < 0)
+        // A floor as well as a cap: zero is not a degenerate-but-legal count,
+        // it reaches the KDF and OpenSSL refuses it with an unchecked
+        // exception where the contract here is a typed IOException.
+        if (iterationCount < 1)
         {
             throw new IOException("BCFKS KeyStore: invalid iteration count");
         }
@@ -279,6 +282,21 @@ public class BcFKSKeyStoreSpi
             throw new IOException("BCFKS KeyStore: iteration count (" + iterationCount + ") greater than " + max);
         }
         return iterationCount;
+    }
+
+    /**
+     * An empty salt reaches the KDF and is refused there with an unchecked
+     * exception, where the contract on this path is a typed IOException. Not
+     * null-checked: both callers take the salt from a DER OCTET STRING, which
+     * yields an empty array rather than null, and there is no non-DER caller.
+     */
+    private static byte[] validateSalt(byte[] salt) throws IOException
+    {
+        if (salt.length == 0)
+        {
+            throw new IOException("BCFKS KeyStore: empty salt");
+        }
+        return salt;
     }
 
     private static int validateKeyLength(int keyLength) throws IOException
@@ -340,6 +358,7 @@ public class BcFKSKeyStoreSpi
                 }
                 Der.ScryptParams params = new Der.Reader(pbkdAlgorithm.parameters).readScryptParams("scrypt-params");
                 int p = legacyScryptParallelization ? params.blockSize : params.parallelizationParameter;
+                byte[] salt = validateSalt(params.salt);
                 validateScryptParams(params.costParameter, params.blockSize, p);
                 int keyLength = params.keyLength != null
                         ? validateKeyLength(params.keyLength.intValue())
@@ -349,13 +368,14 @@ public class BcFKSKeyStoreSpi
                     throw new IOException("BCFKS KeyStore: scrypt cost parameter out of range");
                 }
                 byte[] out = new byte[keyLength];
-                BytePasswordKdf.scrypt(memoryHardKdfNI, derivationPassword, params.salt,
+                BytePasswordKdf.scrypt(memoryHardKdfNI, derivationPassword, salt,
                         (int) params.costParameter, params.blockSize, p, out, 0, out.length);
                 return out;
             }
             if (PKCSObjectIdentifiers.id_PBKDF2.getId().equals(pbkdAlgorithm.oid))
             {
                 Der.Pbkdf2Params params = new Der.Reader(pbkdAlgorithm.parameters).readPbkdf2Params("PBKDF2-params");
+                byte[] salt = validateSalt(params.salt);
                 int iterationCount = validateIterationCount(params.iterationCount);
                 int keyLength = params.keyLength != null
                         ? validateKeyLength(params.keyLength.intValue())
@@ -363,7 +383,7 @@ public class BcFKSKeyStoreSpi
                 String prfOid = params.prf != null ? params.prf.oid : PKCSObjectIdentifiers.id_hmacWithSHA1.getId();
                 String digest = digestForHmacOid(prfOid);
                 byte[] out = new byte[keyLength];
-                BytePasswordKdf.pbkdf2(kdfNI, derivationPassword, params.salt, iterationCount,
+                BytePasswordKdf.pbkdf2(kdfNI, derivationPassword, salt, iterationCount,
                         digest, out, 0, out.length);
                 return out;
             }

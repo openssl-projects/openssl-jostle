@@ -349,7 +349,9 @@ final class BcFKSFormat
 
     static EncryptedObjectStoreData parseEncryptedObjectStoreData(byte[] der) throws IOException
     {
-        Der.Reader seq = new Der.Reader(der).readTLV(Der.SEQUENCE, "EncryptedObjectStoreData");
+        Der.Reader top = new Der.Reader(der);
+        Der.Reader seq = top.readTLV(Der.SEQUENCE, "EncryptedObjectStoreData");
+        top.requireEnd("trailing bytes after EncryptedObjectStoreData");
         Der.AlgorithmIdentifier encryptionAlgorithm = seq.readAlgorithmIdentifier("encryptionAlgorithm");
         byte[] encryptedContent = seq.readTLV(Der.OCTET_STRING, "encryptedContent").remaining();
         seq.requireEnd("trailing bytes in EncryptedObjectStoreData");
@@ -358,7 +360,9 @@ final class BcFKSFormat
 
     static ObjectStoreData parseObjectStoreData(byte[] der) throws IOException
     {
-        Der.Reader seq = new Der.Reader(der).readTLV(Der.SEQUENCE, "ObjectStoreData");
+        Der.Reader top = new Der.Reader(der);
+        Der.Reader seq = top.readTLV(Der.SEQUENCE, "ObjectStoreData");
+        top.requireEnd("trailing bytes after ObjectStoreData");
 
         int version = seq.readSmallInteger("version");
         // BouncyCastle's own reader does not check this; ours does. BC always writes 1.
@@ -433,7 +437,9 @@ final class BcFKSFormat
 
     static EncryptedPrivateKeyData parseEncryptedPrivateKeyData(byte[] der) throws IOException
     {
-        Der.Reader seq = new Der.Reader(der).readTLV(Der.SEQUENCE, "EncryptedPrivateKeyData");
+        Der.Reader top = new Der.Reader(der);
+        Der.Reader seq = top.readTLV(Der.SEQUENCE, "EncryptedPrivateKeyData");
+        top.requireEnd("trailing bytes after EncryptedPrivateKeyData");
         Der.EncryptedPrivateKeyInfo epki = seq.readEncryptedPrivateKeyInfo("encryptedPrivateKeyInfo");
         Der.Reader certSeq = seq.readTLV(Der.SEQUENCE, "certificates");
         List<byte[]> certs = new ArrayList<byte[]>();
@@ -454,7 +460,10 @@ final class BcFKSFormat
      */
     static Der.EncryptedPrivateKeyInfo parseEncryptedSecretKeyData(byte[] der) throws IOException
     {
-        return new Der.Reader(der).readEncryptedPrivateKeyInfo("EncryptedSecretKeyData");
+        Der.Reader top = new Der.Reader(der);
+        Der.EncryptedPrivateKeyInfo info = top.readEncryptedPrivateKeyInfo("EncryptedSecretKeyData");
+        top.requireEnd("trailing bytes after EncryptedSecretKeyData");
+        return info;
     }
 
     /**
@@ -476,7 +485,9 @@ final class BcFKSFormat
 
     static SecretKeyData parseSecretKeyData(byte[] der) throws IOException
     {
-        Der.Reader seq = new Der.Reader(der).readTLV(Der.SEQUENCE, "SecretKeyData");
+        Der.Reader top = new Der.Reader(der);
+        Der.Reader seq = top.readTLV(Der.SEQUENCE, "SecretKeyData");
+        top.requireEnd("trailing bytes after SecretKeyData");
         String oid = seq.readObjectIdentifier("keyAlgorithm");
         byte[] keyBytes = seq.readTLV(Der.OCTET_STRING, "keyBytes").remaining();
         seq.requireEnd("trailing bytes in SecretKeyData");
@@ -522,7 +533,9 @@ final class BcFKSFormat
 
     static PbkdKeyData parsePbkdKeyData(byte[] der) throws IOException
     {
-        Der.Reader seq = new Der.Reader(der).readTLV(Der.SEQUENCE, "PbkdKeyData");
+        Der.Reader top = new Der.Reader(der);
+        Der.Reader seq = top.readTLV(Der.SEQUENCE, "PbkdKeyData");
+        top.requireEnd("trailing bytes after PbkdKeyData");
         String keyAlgorithm = seq.readUTF8String("keyAlgorithm");
         byte[] password = seq.readTLV(Der.OCTET_STRING, "password").remaining();
 
