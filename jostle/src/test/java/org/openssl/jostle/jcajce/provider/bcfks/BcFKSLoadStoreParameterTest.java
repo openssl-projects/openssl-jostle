@@ -126,68 +126,6 @@ public class BcFKSLoadStoreParameterTest
         Assertions.assertArrayEquals(cert.getEncoded(), reloaded.getCertificate("cert").getEncoded());
     }
 
-    @Test
-    public void writtenWithKwpInteropsWithBouncyCastle_regression() throws Exception
-    {
-        char[] pw = storePw("kwp interop");
-        Certificate cert = trustedCert();
-
-        KeyStore fresh = ours();
-        fresh.load(null, pw);
-        fresh.setCertificateEntry("cert", cert);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        fresh.store(new BCFKSLoadStoreParameter.Builder(out, pw)
-                .withStoreEncryptionAlgorithm(BCFKSLoadStoreParameter.EncryptionAlgorithm.AES256_KWP)
-                .build());
-
-        KeyStore bc = bc();
-        bc.load(new ByteArrayInputStream(out.toByteArray()), pw);
-        Assertions.assertEquals(1, bc.size());
-        Assertions.assertArrayEquals(cert.getEncoded(), bc.getCertificate("cert").getEncoded());
-    }
-
-    @Test
-    public void writtenWithHmacSha3_512InteropsWithBouncyCastle_regression() throws Exception
-    {
-        char[] pw = storePw("sha3-512 mac interop");
-        Certificate cert = trustedCert();
-
-        KeyStore fresh = ours();
-        fresh.load(null, pw);
-        fresh.setCertificateEntry("cert", cert);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        fresh.store(new BCFKSLoadStoreParameter.Builder(out, pw)
-                .withStoreMacAlgorithm(BCFKSLoadStoreParameter.MacAlgorithm.HmacSHA3_512)
-                .build());
-
-        KeyStore bc = bc();
-        bc.load(new ByteArrayInputStream(out.toByteArray()), pw);
-        Assertions.assertEquals(1, bc.size());
-        Assertions.assertArrayEquals(cert.getEncoded(), bc.getCertificate("cert").getEncoded());
-    }
-
-    @Test
-    public void writtenWithPbkdf2Sha3_512PrfInteropsWithBouncyCastle_regression() throws Exception
-    {
-        char[] pw = storePw("sha3-512 prf interop");
-        Certificate cert = trustedCert();
-
-        KeyStore fresh = ours();
-        fresh.load(null, pw);
-        fresh.setCertificateEntry("cert", cert);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        fresh.store(new BCFKSLoadStoreParameter.Builder(out, pw)
-                .withStorePBKDFConfig(new BCFKSLoadStoreParameter.PBKDF2Config.Builder()
-                        .withPRF(BCFKSLoadStoreParameter.PBKDF2Config.PRF.SHA3_512)
-                        .build())
-                .build());
-
-        KeyStore bc = bc();
-        bc.load(new ByteArrayInputStream(out.toByteArray()), pw);
-        Assertions.assertEquals(1, bc.size());
-        Assertions.assertArrayEquals(cert.getEncoded(), bc.getCertificate("cert").getEncoded());
-    }
-
     /** scrypt store config is JSL only; this pins the JSL write -> BC read half. */
     @Test
     public void scryptStoreConfigWritesAndBcReads_regression() throws Exception

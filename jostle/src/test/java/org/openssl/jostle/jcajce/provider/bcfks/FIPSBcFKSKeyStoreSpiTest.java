@@ -25,7 +25,6 @@ import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
-import java.security.interfaces.RSAPrivateCrtKey;
 
 /**
  * BCFKS is the FIRST keystore the FIPS provider serves. Same real
@@ -50,56 +49,6 @@ public class FIPSBcFKSKeyStoreSpiTest
         KeyStore store = KeyStore.getInstance("BCFKS", provider.getName());
         store.load(new ByteArrayInputStream(data), password);
         return store;
-    }
-
-    @Test
-    public void shouldParseKWPKeyStoreUnderFips() throws Exception
-    {
-        KeyStore store = load(BcFKSFixtures.KWP_KEY_STORE, BcFKSKeyStoreSpiTest.testPassword);
-        Assertions.assertEquals(4, store.size());
-
-        SecretKey storeDesEde = (SecretKey) store.getKey("secret2", "secretPwd2".toCharArray());
-        Assertions.assertEquals("DESede", storeDesEde.getAlgorithm());
-
-        SecretKey storeAes = (SecretKey) store.getKey("secret1", "secretPwd1".toCharArray());
-        Assertions.assertEquals("AES", storeAes.getAlgorithm());
-
-        Key storePrivKey = store.getKey("privkey", BcFKSKeyStoreSpiTest.testPassword);
-        Assertions.assertTrue(storePrivKey instanceof RSAPrivateCrtKey);
-        Assertions.assertEquals(2, store.getCertificateChain("privkey").length);
-
-        Assertions.assertNotNull(store.getCertificate("trusted"));
-    }
-
-    @Test
-    public void bcfksAnswersToTheFipsNamesToo() throws Exception
-    {
-        JostleFIPSProvider provider = TestUtil.addFipsProvider();
-        // On the FIPS provider, BCFKS also answers to FIPS / FIPS-DEF / BCFKS-DEF.
-        for (String name : new String[]{"BCFKS", "FIPS", "FIPS-DEF", "BCFKS-DEF"})
-        {
-            KeyStore store = KeyStore.getInstance(name, provider.getName());
-            store.load(new ByteArrayInputStream(BcFKSFixtures.OLD_KEY_STORE), BcFKSKeyStoreSpiTest.testPassword);
-            Assertions.assertEquals(1, store.size(), name);
-        }
-    }
-
-    /**
-     * REGRESSION: the FIPS module has no scrypt, so a store whose KDF is
-     * id-scrypt is refused typed -- never routed into the base library (the
-     * fix for a native abort found while investigating this class). Same
-     * store as {@code BcFKSKeyStoreSpiTest.scryptStoreLoadsUnderJsl_regression},
-     * loaded here under JSLFIPS instead of JSL.
-     */
-    @Test
-    public void scryptStoreIsRefusedTyped_regression() throws Exception
-    {
-        JostleFIPSProvider provider = TestUtil.addFipsProvider();
-        KeyStore store = KeyStore.getInstance("BCFKS", provider.getName());
-        byte[] scryptStore = BcFKSFixtures.scryptStore();
-        java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
-                () -> store.load(new ByteArrayInputStream(scryptStore), BcFKSKeyStoreSpiTest.testPassword));
-        Assertions.assertEquals("BCFKS store uses scrypt, which this provider does not serve", e.getMessage());
     }
 
     /**

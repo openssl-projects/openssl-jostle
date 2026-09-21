@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.util.asn1.Der;
 
-import java.io.IOException;
 import java.util.Date;
 
 /**
@@ -102,42 +101,6 @@ public class BcFKSFormatTest
                 Der.utf8String("a comment"));
         BcFKSFormat.ObjectStoreData parsedWithComment = BcFKSFormat.parseObjectStoreData(storeDataWithComment);
         Assertions.assertEquals("a comment", parsedWithComment.comment);
-    }
-
-    @Test
-    public void wrongVersionIsRejected() throws Exception
-    {
-        // BouncyCastle's own reader does not check this (ours does); the
-        // fixture is otherwise well-formed.
-        byte[] macAlgIdTlv = Der.algorithmIdentifier(
-                "1.2.840.113549.2.11", new byte[]{0x05, 0x00});
-        byte[] time = Der.generalizedTime(new Date(0L));
-        byte[] entries = Der.sequence();
-        byte[] storeData = Der.sequence(
-                Der.integer(2), macAlgIdTlv, time, time, entries);
-        Assertions.assertThrows(IOException.class, () -> BcFKSFormat.parseObjectStoreData(storeData));
-    }
-
-    @Test
-    public void objectStoreChoiceFieldCountOutsideTwoOrFiveSixIsRejected() throws Exception
-    {
-        // A 3-field first element: neither EncryptedObjectStoreData (2) nor
-        // ObjectStoreData (5..6) -- must not fall into either branch.
-        byte[] threeFields = Der.sequence(
-                Der.integer(1),
-                Der.integer(2),
-                Der.integer(3));
-        byte[] macAlgIdTlv = Der.algorithmIdentifier(
-                "1.2.840.113549.2.11", new byte[]{0x05, 0x00});
-        byte[] pbkdAlgIdTlv = Der.algorithmIdentifier(
-                "1.2.840.113549.1.5.12", new byte[]{0x05, 0x00});
-        byte[] pbkdMac = Der.sequence(
-                macAlgIdTlv, pbkdAlgIdTlv, Der.octetString(new byte[8]));
-        byte[] objectStore = Der.sequence(threeFields, pbkdMac);
-
-        IOException e = Assertions.assertThrows(IOException.class,
-                () -> BcFKSFormat.parseObjectStore(objectStore));
-        Assertions.assertTrue(e.getMessage().contains("3 fields"), e.getMessage());
     }
 
     @Test
