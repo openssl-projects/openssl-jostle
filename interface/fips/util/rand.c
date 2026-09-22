@@ -40,7 +40,13 @@ static char *rand_provider_name = NULL;
 struct jo_rand_ctx_st {
     EVP_RAND_CTX *evp_ctx;
     size_t max_request;
+#ifdef JOSTLE_OPS
+    // The fixed-entropy parent, owned by this ctx when one was used. NULL on
+    // every ordinary ctx, and the field does not exist in a released build.
+    EVP_RAND_CTX *test_parent;
+#endif
 };
+
 
 static unsigned int rand_strength(int32_t strength) {
     return (unsigned int) strength;
@@ -131,11 +137,19 @@ void rand_destroy(void) {
     }
 }
 
-JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use_df,
-                             int32_t strength, int prediction_resistant,
-                             const uint8_t *personalization_string,
-                             size_t personalization_string_len,
-                             int32_t *err) {
+/*
+ * The whole construction, with the parent supplied by the caller. One body, so
+ * a fixed-entropy context and a production one cannot drift apart; and an
+ * explicit parameter rather than shared state, so no concurrent creation on
+ * another thread can pick up a parent that was meant for one call.
+ */
+static JO_RAND_CTX *rand_ctx_create_with_parent(const char *mechanism, const char *variant,
+                                                int use_df, int32_t strength,
+                                                int prediction_resistant,
+                                                const uint8_t *personalization_string,
+                                                size_t personalization_string_len,
+                                                EVP_RAND_CTX *parent, int32_t *err) {
+    jo_assert(parent != NULL);
     jo_assert(mechanism != NULL);
     jo_assert(variant != NULL);
     jo_assert(strength >= 0);
@@ -156,16 +170,6 @@ JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use
         ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
                        "rand_ctx_create: EVP_RAND_fetch failed");
         *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3030);
-        EVP_RAND_free(rand);
-        rand_ctx_destroy(ctx);
-        return NULL;
-    }
-
-    EVP_RAND_CTX *parent = RAND_get0_private(rand_libctx);
-    if (OPS_OPENSSL_ERROR_6 parent == NULL) {
-        ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
-                       "rand_ctx_create: RAND_get0_private failed");
-        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3031);
         EVP_RAND_free(rand);
         rand_ctx_destroy(ctx);
         return NULL;
@@ -253,12 +257,38 @@ JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use
     return ctx;
 }
 
+JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use_df,
+                             int32_t strength, int prediction_resistant,
+                             const uint8_t *personalization_string,
+                             size_t personalization_string_len,
+                             int32_t *err) {
+    jo_assert(rand_libctx != NULL);
+    jo_assert(err != NULL);
+
+    EVP_RAND_CTX *parent = RAND_get0_private(rand_libctx);
+    if (OPS_OPENSSL_ERROR_6 parent == NULL) {
+        ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
+                       "rand_ctx_create: RAND_get0_private failed");
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(3031);
+        return NULL;
+    }
+
+    return rand_ctx_create_with_parent(mechanism, variant, use_df, strength,
+                                       prediction_resistant, personalization_string,
+                                       personalization_string_len, parent, err);
+}
+
 void rand_ctx_destroy(JO_RAND_CTX *ctx) {
     if (ctx == NULL) {
         return;
     }
 
+    // Child first, then the parent it chained to. Refcounting makes either
+    // order safe; this one reads the way the chain is torn down.
     EVP_RAND_CTX_free(ctx->evp_ctx);
+#ifdef JOSTLE_OPS
+    EVP_RAND_CTX_free(ctx->test_parent);
+#endif
     OPENSSL_free(ctx);
 }
 
@@ -343,6 +373,91 @@ int32_t rand_ctx_reseed(JO_RAND_CTX *ctx, int32_t strength,
 
     return JO_UNEXPECTED_STATE;
 }
+
+#ifdef JOSTLE_OPS
+/*
+ * Build the fixed-entropy parent. TEST-RAND is inside the validated module,
+ * flagged unapproved, so an ordinary fetch cannot see it: the lib ctx pins
+ * fips=yes. "-fips" relaxes that default for this ONE fetch, made from
+ * rand_libctx itself. Measured on 3.1.2 and 3.5.8: resolves via provider
+ * "fips".
+ *
+ * This fetch is the ONLY thing the hook does to rand_libctx: it does not set a
+ * DRBG type, install a RAND, change default properties or load a provider, so
+ * the approved-mode gate on that ctx is exactly as it was afterwards.
+ */
+static EVP_RAND_CTX *ops_test_rand_ctx(const uint8_t *entropy, size_t entropy_len,
+                                       const uint8_t *nonce, size_t nonce_len) {
+    
+    EVP_RAND *test_rand = EVP_RAND_fetch(rand_libctx, "TEST-RAND", "-fips");
+    if (test_rand == NULL) {
+        
+        return NULL;
+    }
+
+    EVP_RAND_CTX *ctx = EVP_RAND_CTX_new(test_rand, NULL);
+    EVP_RAND_free(test_rand);
+    if (ctx == NULL) {
+        
+        return NULL;
+    }
+
+    // A child asks its parent for at least its own strength, and the test RNG
+    // reports whatever its strength parameter says. Without this the first
+    // vector fails on a parent that claims less than the child needs.
+    unsigned int parent_strength = (unsigned int) JO_RAND_MAX_STRENGTH;
+
+    OSSL_PARAM params[4];
+    int n = 0;
+    params[n++] = OSSL_PARAM_construct_octet_string(OSSL_RAND_PARAM_TEST_ENTROPY,
+                                                    (void *) entropy, entropy_len);
+    if (nonce_len > 0) {
+        params[n++] = OSSL_PARAM_construct_octet_string(OSSL_RAND_PARAM_TEST_NONCE,
+                                                        (void *) nonce, nonce_len);
+    }
+    params[n++] = OSSL_PARAM_construct_uint(OSSL_RAND_PARAM_STRENGTH, &parent_strength);
+    params[n] = OSSL_PARAM_construct_end();
+
+    if (1 != EVP_RAND_CTX_set_params(ctx, params)
+            || 1 != EVP_RAND_instantiate(ctx, 0, 0, NULL, 0, NULL)) {
+        EVP_RAND_CTX_free(ctx);
+        
+        return NULL;
+    }
+    
+    return ctx;
+}
+
+JO_RAND_CTX *rand_ctx_create_test(const char *mechanism, const char *variant, int use_df,
+                                  int32_t strength, int prediction_resistant,
+                                  const uint8_t *personalization_string,
+                                  size_t personalization_string_len,
+                                  const uint8_t *entropy, size_t entropy_len,
+                                  const uint8_t *nonce, size_t nonce_len,
+                                  int32_t *err) {
+    jo_assert(err != NULL);
+    jo_assert(entropy_len == 0 || entropy != NULL);
+    jo_assert(nonce_len == 0 || nonce != NULL);
+
+    EVP_RAND_CTX *parent = ops_test_rand_ctx(entropy, entropy_len, nonce, nonce_len);
+    if (parent == NULL) {
+        *err = JO_OPENSSL_ERROR;
+        return NULL;
+    }
+
+    // The same construction the provider uses, with the parent passed in. No
+    // shared state, so a creation on another thread cannot pick this parent up.
+    JO_RAND_CTX *ctx = rand_ctx_create_with_parent(mechanism, variant, use_df, strength,
+                                                   prediction_resistant, personalization_string,
+                                                   personalization_string_len, parent, err);
+    if (ctx == NULL) {
+        EVP_RAND_CTX_free(parent);
+        return NULL;
+    }
+    ctx->test_parent = parent;
+    return ctx;
+}
+#endif
 
 int32_t rand_drbg_strength(const char *mechanism, const char *variant) {
     jo_assert(mechanism != NULL);

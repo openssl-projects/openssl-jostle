@@ -47,6 +47,22 @@ public interface OperationsTestNI
     int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource);
 
     /**
+     * Create a DRBG whose entropy is the bytes given rather than the real
+     * chain, so a known-answer vector can be reproduced. Operations-test
+     * builds only.
+     *
+     * <p>The handle is an ordinary rand context and carries no marking: the
+     * guard is the build, not the type. Generate, reseed and dispose of it
+     * through {@code RandServiceNI}, so a vector exercises the shipped code
+     * rather than a test-only generator.
+     *
+     * @return the handle, or 0 with {@code err[0]} set
+     */
+    long op_createTestDrbg(String mechanism, String variant, boolean useDerivationFunction,
+                           int strength, boolean predictionResistant, byte[] personalizationString,
+                           byte[] entropy, byte[] nonce, int[] err);
+
+    /**
      * Set ops test flag true
      *
      * @param flag the flag

@@ -42,6 +42,7 @@ public class OperationsTestFFI implements OperationsTestNI
     private final boolean opsAvailable;
     private final MethodHandle setOpsFuncHandler;
     private final MethodHandle getRandomBytes;
+    private final MethodHandle createTestDrbg;
 
     public OperationsTestFFI()
     {
@@ -81,11 +82,29 @@ public class OperationsTestFFI implements OperationsTestNI
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
                     ValueLayout.ADDRESS));
+
+            MemorySegment createTestDrbgFunc =
+                    lookup.find(symPrefix + "JoOps_createTestDrbg").orElseThrow();
+            createTestDrbg = linker.downcallHandle(createTestDrbgFunc, FunctionDescriptor.of(
+                    ValueLayout.ADDRESS,   // the handle
+                    ValueLayout.ADDRESS,   // mechanism
+                    ValueLayout.ADDRESS,   // variant
+                    ValueLayout.JAVA_INT,  // use_df
+                    ValueLayout.JAVA_INT,  // strength
+                    ValueLayout.JAVA_INT,  // prediction resistance
+                    ValueLayout.ADDRESS,   // personalization
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS,   // entropy
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS,   // nonce
+                    ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS)); // err
         }
         else
         {
             setOpsFuncHandler = null;
             getRandomBytes = null;
+            createTestDrbg = null;
         }
     }
 
@@ -111,6 +130,55 @@ public class OperationsTestFFI implements OperationsTestNI
         {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public long op_createTestDrbg(String mechanism, String variant, boolean useDerivationFunction,
+                                  int strength, boolean predictionResistant,
+                                  byte[] personalizationString, byte[] entropy, byte[] nonce,
+                                  int[] err)
+    {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+
+        // Arena copies rather than critical segments: this entry point is not
+        // on a hot path and copying keeps the marshalling obvious.
+        try (Arena arena = Arena.ofConfined())
+        {
+            MemorySegment mech = arena.allocateFrom(mechanism);
+            MemorySegment var = arena.allocateFrom(variant);
+            MemorySegment pers = copyIn(arena, personalizationString);
+            MemorySegment ent = copyIn(arena, entropy);
+            MemorySegment non = copyIn(arena, nonce);
+            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT, 1);
+
+            MemorySegment handle = (MemorySegment) createTestDrbg.invokeExact(
+                    mech, var, useDerivationFunction ? 1 : 0, strength,
+                    predictionResistant ? 1 : 0,
+                    pers, (long) lengthOf(personalizationString),
+                    ent, (long) lengthOf(entropy),
+                    non, (long) lengthOf(nonce),
+                    errSeg);
+
+            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+            return handle.address();
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static MemorySegment copyIn(Arena arena, byte[] value)
+    {
+        return value == null ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_BYTE, value);
+    }
+
+    private static int lengthOf(byte[] value)
+    {
+        return value == null ? 0 : value.length;
     }
 
     @Override

@@ -22,6 +22,7 @@
 //
 
 /* *INDENT-OFF* */
+#define JoOps_createTestDrbg JoFIPS_JoOps_createTestDrbg
 #define JoOps_getRandomBytes JoFIPS_JoOps_getRandomBytes
 #define JoOps_setFlag        JoFIPS_JoOps_setFlag
 /* *INDENT-ON* */

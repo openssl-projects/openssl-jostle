@@ -51,4 +51,10 @@ class OperationsTestFIPSJNI implements OperationsTestNI
 
     @Override
     public native int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource);
+
+    @Override
+    public native long op_createTestDrbg(String mechanism, String variant,
+                                         boolean useDerivationFunction, int strength,
+                                         boolean predictionResistant, byte[] personalizationString,
+                                         byte[] entropy, byte[] nonce, int[] err);
 }

@@ -47,6 +47,27 @@ int32_t rand_ctx_reseed(JO_RAND_CTX *ctx, int32_t strength,
                         const uint8_t *additional_input,
                         size_t additional_input_len);
 
+#ifdef JOSTLE_OPS
+/*
+ * Operations-test only: a DRBG whose entropy is fixed rather than drawn from
+ * the real chain, so a known-answer vector can be reproduced. Present only in
+ * a JOSTLE_OPS build; a released library carries no such entry point.
+ *
+ * The handle is an ordinary JO_RAND_CTX and carries no marking: the guard is
+ * the build, not the type. It is generated from, reseeded and destroyed
+ * through the same rand_ctx_random_bytes / rand_ctx_reseed / rand_ctx_destroy
+ * the provider uses, so a vector validates the shipped code rather than a
+ * test-only generator.
+ */
+JO_RAND_CTX *rand_ctx_create_test(const char *mechanism, const char *variant, int use_df,
+                                  int32_t strength, int prediction_resistant,
+                                  const uint8_t *personalization_string,
+                                  size_t personalization_string_len,
+                                  const uint8_t *entropy, size_t entropy_len,
+                                  const uint8_t *nonce, size_t nonce_len,
+                                  int32_t *err);
+#endif
+
 int32_t rand_drbg_strength(const char *mechanism, const char *variant);
 
 #endif //RAND_H

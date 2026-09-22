@@ -83,6 +83,11 @@ public class FIPSTestGateParityTest
             // guards that keep the FIPS suite honest on exactly those legs.
             "FIPSTestNamingParityTest.java",
             "FIPSTestGateParityTest.java",
+            // Reads interface/fips as text to pin that the approved-mode
+            // property is relaxed at one site only. No module, and it must run
+            // on the non-FIPS legs, where a second relaxed fetch is exactly as
+            // possible and nothing behavioural would see it.
+            "FIPSRelaxedPropertyParityTest.java",
             // FIPSNativeBindingIsolationTest carries a MIRROR cell over the
             // BASE provider — "no JSL service holds a FIPS binding" — which is
             // the control for its FIPS cell and must run on the ordinary
