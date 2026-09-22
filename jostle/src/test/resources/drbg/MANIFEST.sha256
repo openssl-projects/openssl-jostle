@@ -1,0 +1,3 @@
+# CAVP-drbgtestvectors.zip sha256 5f7e5658ebd5b4e6785a7b12fa32333511d2acc2f2d9c5ae1ffa16b699377769
+# 156 blocks selected by tools/generate-drbg-vectors.py
+d89b9d7e18e883706d115a979e41e7291fde1646fcd4370ad1bf0c8ffdc51be3  cavp-drbg-vectors.txt
