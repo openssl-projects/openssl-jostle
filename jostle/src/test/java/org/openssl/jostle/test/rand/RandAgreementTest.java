@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.rand.RandAlgorithm;
 import org.openssl.jostle.util.Arrays;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -79,6 +80,54 @@ public class RandAgreementTest
             }
         }
         return names;
+    }
+
+    /**
+     * The loader must accept either line-ending form. This cell derives both
+     * from one checkout, so no platform is the only witness.
+     */
+    @Test
+    public void theTableIsIndependentOfTheCheckoutsLineEndings()
+    {
+        byte[] lf = CavpDrbgVectors.normalise(CavpDrbgVectors.resourceBytes());
+        byte[] crlf = new String(lf, StandardCharsets.US_ASCII).replace("\n", "\r\n")
+                .getBytes(StandardCharsets.US_ASCII);
+
+        // True of any file carrying a newline, so it holds whatever git did.
+        Assertions.assertNotEquals(CavpDrbgVectors.sha256Hex(lf), CavpDrbgVectors.sha256Hex(crlf),
+                "the two forms are identical, so this cell would compare the file with itself");
+
+        String manifest = CavpDrbgVectors.manifestSha256();
+        Assertions.assertEquals(manifest, CavpDrbgVectors.sha256Hex(CavpDrbgVectors.normalise(lf)),
+                "the LF form does not match the manifest");
+        Assertions.assertEquals(manifest, CavpDrbgVectors.sha256Hex(CavpDrbgVectors.normalise(crlf)),
+                "the manifest check is not independent of line endings");
+
+        List<CavpDrbgVectors.Vector> fromLf = CavpDrbgVectors.parse(lf);
+        List<CavpDrbgVectors.Vector> fromCrlf = CavpDrbgVectors.parse(crlf);
+        List<CavpDrbgVectors.Vector> loaded = CavpDrbgVectors.load();
+
+        Assertions.assertEquals(CavpDrbgVectors.EXPECTED_BLOCKS, fromCrlf.size());
+        Assertions.assertEquals(fromLf.size(), fromCrlf.size());
+        Assertions.assertEquals(loaded.size(), fromCrlf.size());
+
+        List<String> lfKeys = new ArrayList<String>();
+        List<String> crlfKeys = new ArrayList<String>();
+        List<String> loadedKeys = new ArrayList<String>();
+        for (int i = 0; i < fromCrlf.size(); i++)
+        {
+            lfKeys.add(fromLf.get(i).key());
+            crlfKeys.add(fromCrlf.get(i).key());
+            loadedKeys.add(loaded.get(i).key());
+            Assertions.assertTrue(Arrays.areEqual(fromLf.get(i).returnedBits,
+                            fromCrlf.get(i).returnedBits),
+                    "ReturnedBits differ at " + fromCrlf.get(i).key());
+            Assertions.assertTrue(Arrays.areEqual(loaded.get(i).returnedBits,
+                            fromCrlf.get(i).returnedBits),
+                    "ReturnedBits differ from the loaded table at " + fromCrlf.get(i).key());
+        }
+        Assertions.assertEquals(lfKeys, crlfKeys);
+        Assertions.assertEquals(loadedKeys, crlfKeys);
     }
 
     /**

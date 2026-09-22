@@ -61,6 +61,10 @@ One block per line, pipe-delimited, fixed 19 columns; absent fields are empty.
 The column names are in the file's own header comment. `ReturnedBits` is the
 output of the **second** generate call, per the archive's Readme.
 
+The vector file is written with LF endings and pinned to them in
+`.gitattributes`; `CavpDrbgVectors` hashes it after normalising line endings to
+LF, so a checkout that rewrites them does not break the check.
+
 `MANIFEST.sha256` carries the vector file's sha256 and the source archive's.
 `CavpDrbgVectors.load()` checks the vector file against it before parsing, so an
 altered or truncated resource is a named mismatch rather than a silent change of

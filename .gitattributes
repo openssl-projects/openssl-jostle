@@ -10,3 +10,6 @@
 # Binary files should be left untouched
 *.jar           binary
 
+# The DRBG vector resource is generated with LF and its sha256 is recorded in a
+# manifest the tests check, so the checkout must not rewrite its line endings.
+jostle/src/test/resources/drbg/* text eol=lf
