@@ -20,7 +20,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -69,6 +71,14 @@ public class FIPSRelaxedPropertyParityTest
      */
     private static final int MIN_C_FILES = 20;
 
+    /**
+     * Windows runners check out with CRLF ({@code core.autocrlf}, and
+     * {@code .gitattributes} pins {@code eol} only for {@code gradlew} and
+     * {@code *.bat}), so a column-0 closing brace never matches. Splitting on
+     * {@code \r?\n} makes both scans see the same lines on every checkout.
+     */
+    private static final String LINE_SPLIT = "\r?\n";
+
     @Test
     public void theApprovedModeGateIsRelaxedAtExactlyOneSite() throws IOException
     {
@@ -88,81 +98,136 @@ public class FIPSRelaxedPropertyParityTest
                         + ", which is fewer than a correct walk can reach -- this scan is not"
                         + " reading the tree it reports on");
 
-        List<String> sites = new ArrayList<String>();
+        Map<Path, String> texts = new LinkedHashMap<Path, String>();
         for (Path source : sources)
         {
-            String text = stripComments(read(source));
-            String[] lines = text.split("\n", -1);
+            texts.put(source, read(source));
+        }
+        Path randC = tree.resolve("util").resolve(EXPECTED_FILE);
+
+        Scan asCheckedOut = scan(texts, randC);
+        assertScanIsClean(asCheckedOut);
+
+        // The same input with CRLF endings must scan identically. Without this
+        // the LF run is green and only a Windows CI job can see the difference,
+        // which is exactly how the first version of this lint shipped red.
+        Map<Path, String> crlf = new LinkedHashMap<Path, String>();
+        for (Map.Entry<Path, String> entry : texts.entrySet())
+        {
+            crlf.put(entry.getKey(), entry.getValue().replace("\r\n", "\n").replace("\n", "\r\n"));
+        }
+        Scan withCarriageReturns = scan(crlf, randC);
+        assertScanIsClean(withCarriageReturns);
+
+        Assertions.assertEquals(asCheckedOut.describe(), withCarriageReturns.describe(),
+                "this scan is not line-ending independent -- a CRLF checkout sees something"
+                        + " different from an LF one, which is green on POSIX and red on Windows");
+    }
+
+    /** What one pass over the tree found. */
+    private static final class Scan
+    {
+        private final List<String> sites = new ArrayList<String>();
+        private int open = -1;
+        private int close = -1;
+        private int inside;
+        private int outside;
+
+        String describe()
+        {
+            return "sites=" + sites + " open=" + open + " close=" + close
+                    + " inside=" + inside + " outside=" + outside;
+        }
+    }
+
+    private static Scan scan(Map<Path, String> texts, Path randC)
+    {
+        Scan result = new Scan();
+
+        for (Map.Entry<Path, String> entry : texts.entrySet())
+        {
+            String[] lines = stripComments(entry.getValue()).split(LINE_SPLIT, -1);
             for (int i = 0; i < lines.length; i++)
             {
                 if (lines[i].contains(RELAXED_LITERAL))
                 {
-                    sites.add(source.getFileName() + ":" + (i + 1) + "  " + lines[i].trim());
+                    result.sites.add(entry.getKey().getFileName() + ":" + (i + 1)
+                            + "  " + lines[i].trim());
                 }
             }
         }
 
-        Assertions.assertEquals(1, sites.size(),
-                "the FIPS tree must relax fips=yes at exactly one site, the operations-test"
-                        + " entropy hook. Found " + sites.size() + ":\n  "
-                        + String.join("\n  ", sites));
-        Assertions.assertTrue(sites.get(0).startsWith(EXPECTED_FILE + ":"),
-                "the one relaxed fetch has moved out of " + EXPECTED_FILE + ": " + sites.get(0));
+        String randText = texts.get(randC);
+        if (randText == null)
+        {
+            return result;
+        }
+        String[] body = stripComments(randText).split(LINE_SPLIT, -1);
 
-        // Inside the hook's BODY, not merely later in the file: "after the
-        // function starts" is satisfied by a fetch anywhere below it, which
-        // includes every production function that follows.
-        Path randC = tree.resolve("util").resolve(EXPECTED_FILE);
-        String[] body = stripComments(read(randC)).split("\n", -1);
-
-        int open = -1;
         for (int i = 0; i < body.length; i++)
         {
             if (body[i].contains(EXPECTED_FUNCTION) && body[i].contains("("))
             {
-                open = i;
+                result.open = i;
                 break;
             }
         }
-        Assertions.assertTrue(open >= 0,
-                EXPECTED_FUNCTION + " is gone from " + EXPECTED_FILE
-                        + "; this guard no longer knows where the sanctioned site is");
 
         // The body ends at the next line that is exactly a closing brace at
         // column 0, which is this file's function-terminator convention.
-        int close = -1;
-        for (int i = open + 1; i < body.length; i++)
+        for (int i = result.open + 1; result.open >= 0 && i < body.length; i++)
         {
             if ("}".equals(body[i]))
             {
-                close = i;
+                result.close = i;
                 break;
             }
         }
-        Assertions.assertTrue(close > open,
-                "cannot find the end of " + EXPECTED_FUNCTION + " from line " + (open + 1));
 
-        int inside = 0;
-        int outside = 0;
         for (int i = 0; i < body.length; i++)
         {
             if (!body[i].contains(RELAXED_LITERAL))
             {
                 continue;
             }
-            if (i >= open && i <= close)
+            if (result.open >= 0 && result.close > result.open
+                    && i >= result.open && i <= result.close)
             {
-                inside++;
+                result.inside++;
             }
             else
             {
-                outside++;
+                result.outside++;
             }
         }
-        Assertions.assertEquals(1, inside,
+        return result;
+    }
+
+    private static void assertScanIsClean(Scan scan)
+    {
+        Assertions.assertEquals(1, scan.sites.size(),
+                "the FIPS tree must relax fips=yes at exactly one site, the operations-test"
+                        + " entropy hook. Found " + scan.sites.size() + ":\n  "
+                        + String.join("\n  ", scan.sites));
+        Assertions.assertTrue(scan.sites.get(0).startsWith(EXPECTED_FILE + ":"),
+                "the one relaxed fetch has moved out of " + EXPECTED_FILE + ": "
+                        + scan.sites.get(0));
+
+        Assertions.assertTrue(scan.open >= 0,
+                EXPECTED_FUNCTION + " is gone from " + EXPECTED_FILE
+                        + "; this guard no longer knows where the sanctioned site is");
+        Assertions.assertTrue(scan.close > scan.open,
+                "cannot find the end of " + EXPECTED_FUNCTION + " from line "
+                        + (scan.open + 1));
+
+        // Inside the hook's BODY, not merely later in the file: "after the
+        // function starts" is satisfied by a fetch anywhere below it, which
+        // includes every production function that follows.
+        Assertions.assertEquals(1, scan.inside,
                 "expected exactly one relaxed fetch inside " + EXPECTED_FUNCTION
-                        + " (lines " + (open + 1) + ".." + (close + 1) + "), found " + inside);
-        Assertions.assertEquals(0, outside,
+                        + " (lines " + (scan.open + 1) + ".." + (scan.close + 1) + "), found "
+                        + scan.inside);
+        Assertions.assertEquals(0, scan.outside,
                 "a relaxed fetch appears in " + EXPECTED_FILE + " OUTSIDE "
                         + EXPECTED_FUNCTION + ", which is a production path");
     }
