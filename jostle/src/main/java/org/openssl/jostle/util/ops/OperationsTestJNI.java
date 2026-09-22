@@ -48,4 +48,10 @@ public class OperationsTestJNI implements OperationsTestNI
                                          boolean predictionResistant, byte[] personalizationString,
                                          byte[] entropy, byte[] nonce, int[] err);
 
+    @Override
+    public native int op_setTestEntropy(long ref, byte[] entropy);
+
+    @Override
+    public native boolean op_randLibctxFipsEnabled();
+
 }

@@ -57,6 +57,20 @@ JO_RAND_CTX *rand_ctx_create_test(const char *mechanism, const char *variant, in
                                   const uint8_t *entropy, size_t entropy_len,
                                   const uint8_t *nonce, size_t nonce_len,
                                   int32_t *err);
+
+/*
+ * Operations-test only: re-set the parent's fixed entropy between draws, so a
+ * reseed or prediction-resistance vector can be driven. Aborts on a handle
+ * that carries no test parent -- a production handle silently accepting this
+ * would run the vector on the real entropy chain and pass.
+ */
+int32_t rand_ctx_set_test_entropy(JO_RAND_CTX *ctx, const uint8_t *entropy, size_t entropy_len);
+
+/*
+ * Operations-test only: whether this lib ctx pins approved mode. Read-only,
+ * and answers about the context the SecureRandom service fetches through.
+ */
+int32_t rand_libctx_fips_enabled(void);
 #endif
 
 int32_t rand_drbg_strength(const char *mechanism, const char *variant);

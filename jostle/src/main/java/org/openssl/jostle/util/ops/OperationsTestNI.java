@@ -56,11 +56,40 @@ public interface OperationsTestNI
      * through {@code RandServiceNI}, so a vector exercises the shipped code
      * rather than a test-only generator.
      *
+     * <p>Pass an EMPTY array, never null, for a vector with no personalisation
+     * string: with the derivation function on, OpenSSL derives different bytes
+     * from a null one and raises nothing. Null aborts.
+     *
      * @return the handle, or 0 with {@code err[0]} set
      */
     long op_createTestDrbg(String mechanism, String variant, boolean useDerivationFunction,
                            int strength, boolean predictionResistant, byte[] personalizationString,
                            byte[] entropy, byte[] nonce, int[] err);
+
+    /**
+     * Re-set the fixed entropy on a handle {@link #op_createTestDrbg} returned,
+     * so reseed and prediction-resistance vectors can be driven. OpenSSL takes
+     * fresh entropy before a reseed and before each prediction-resistance
+     * generate, not one stream consumed in order.
+     *
+     * <p>Aborts on a handle that carries no fixed entropy.
+     *
+     * @return {@code 0}, or a negative error code
+     */
+    int op_setTestEntropy(long ref, byte[] entropy);
+
+    /**
+     * Whether the lib ctx backing SecureRandom pins approved mode. Read-only,
+     * operations-test builds only.
+     *
+     * <p>It answers about the context the service actually fetches through, so
+     * a test can assert the fixed-entropy hook leaves the FIPS tree's rand ctx
+     * unrelaxed rather than inferring it from a provider name.
+     *
+     * <p>Aborts before the provider has initialised its rand ctx, so call it
+     * after registration.
+     */
+    boolean op_randLibctxFipsEnabled();
 
     /**
      * Set ops test flag true

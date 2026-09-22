@@ -22,9 +22,11 @@
 //
 
 /* *INDENT-OFF* */
-#define JoOps_createTestDrbg JoFIPS_JoOps_createTestDrbg
-#define JoOps_getRandomBytes JoFIPS_JoOps_getRandomBytes
-#define JoOps_setFlag        JoFIPS_JoOps_setFlag
+#define JoOps_createTestDrbg        JoFIPS_JoOps_createTestDrbg
+#define JoOps_getRandomBytes        JoFIPS_JoOps_getRandomBytes
+#define JoOps_randLibctxFipsEnabled JoFIPS_JoOps_randLibctxFipsEnabled
+#define JoOps_setFlag               JoFIPS_JoOps_setFlag
+#define JoOps_setTestEntropy        JoFIPS_JoOps_setTestEntropy
 /* *INDENT-ON* */
 
 #include "ops_ffi.c"

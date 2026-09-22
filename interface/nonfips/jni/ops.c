@@ -51,6 +51,14 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1c
     //
 
     jo_assert(_err != NULL);
+
+    // Empty is legal, NULL is not. With the derivation function on, a NULL
+    // personalisation string yields DIFFERENT bytes from a zero-length one and
+    // raises nothing, so a vector driven with NULL fails its comparison with
+    // no indication why.
+    jo_assert(_personalization != NULL);
+    jo_assert(_entropy != NULL);
+    jo_assert(_nonce != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
 
     java_bytearray_ctx personalization;
@@ -84,6 +92,39 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1c
 
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &err);
     return (jlong) (size_t) ctx;
+}
+
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1setTestEntropy
+(JNIEnv *env, jobject o, jlong ref, jbyteArray _entropy) {
+    UNUSED(o);
+
+    //
+    // Operations testing only, so input verification is forgone as it is on the
+    // rest of this surface. The handle must be one op_createTestDrbg returned;
+    // util aborts on anything else.
+    //
+
+    jo_assert(_entropy != NULL);
+
+    java_bytearray_ctx entropy;
+    init_bytearray_ctx(&entropy);
+
+    jo_assert(load_bytearray_ctx(&entropy, env, _entropy) != 0);
+
+    int32_t rc = rand_ctx_set_test_entropy((JO_RAND_CTX *) (size_t) ref,
+                                           entropy.bytearray, entropy.size);
+
+    release_bytearray_ctx(&entropy);
+
+    return (jint) rc;
+}
+
+JNIEXPORT jboolean JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1randLibctxFipsEnabled
+(JNIEnv *env, jobject o) {
+    UNUSED(env);
+    UNUSED(o);
+
+    return rand_libctx_fips_enabled() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1getEntropy

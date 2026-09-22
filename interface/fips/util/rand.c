@@ -436,8 +436,14 @@ JO_RAND_CTX *rand_ctx_create_test(const char *mechanism, const char *variant, in
                                   const uint8_t *nonce, size_t nonce_len,
                                   int32_t *err) {
     jo_assert(err != NULL);
-    jo_assert(entropy_len == 0 || entropy != NULL);
-    jo_assert(nonce_len == 0 || nonce != NULL);
+
+    // Unconditional, not length-conditional: empty is legal and NULL is not, and
+    // a NULL personalisation string derives different bytes with no error. The
+    // length-permitting form would let a null array through as (NULL, 0) on the
+    // FFI bridge, where a null array crosses as a NULL segment with length 0.
+    jo_assert(personalization_string != NULL);
+    jo_assert(entropy != NULL);
+    jo_assert(nonce != NULL);
 
     EVP_RAND_CTX *parent = ops_test_rand_ctx(entropy, entropy_len, nonce, nonce_len);
     if (parent == NULL) {
@@ -456,6 +462,47 @@ JO_RAND_CTX *rand_ctx_create_test(const char *mechanism, const char *variant, in
     }
     ctx->test_parent = parent;
     return ctx;
+}
+
+/*
+ * Re-set the parent's entropy between draws. A reseed row supplies a fresh
+ * EntropyInput before the reseed, and a prediction-resistance row supplies one
+ * before each generate; neither is one concatenation consumed in order, so a
+ * create-time hook alone cannot drive them.
+ */
+int32_t rand_ctx_set_test_entropy(JO_RAND_CTX *ctx, const uint8_t *entropy, size_t entropy_len) {
+    jo_assert(ctx != NULL);
+    jo_assert(entropy != NULL);
+    jo_assert(entropy_len > 0);
+
+    // A production handle carries no test parent. Aborting says so; a typed
+    // refusal would let a vector run on the real entropy chain and still pass.
+    jo_assert(ctx->test_parent != NULL);
+
+    ERR_clear_error();
+
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_octet_string(OSSL_RAND_PARAM_TEST_ENTROPY,
+                                                  (void *) entropy, entropy_len);
+    params[1] = OSSL_PARAM_construct_end();
+
+    if (1 != EVP_RAND_CTX_set_params(ctx->test_parent, params)) {
+        return JO_OPENSSL_ERROR;
+    }
+
+    return JO_SUCCESS;
+}
+
+/*
+ * Whether this lib ctx pins approved mode as its default property query.
+ * Read-only. It answers about the context the SecureRandom service actually
+ * fetches through, not about a provider name, so a test can assert the entropy
+ * hook above leaves the FIPS tree's rand ctx unrelaxed.
+ */
+int32_t rand_libctx_fips_enabled(void) {
+    jo_assert(rand_libctx != NULL);
+
+    return EVP_default_properties_is_fips_enabled(rand_libctx) ? 1 : 0;
 }
 #endif
 

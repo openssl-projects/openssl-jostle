@@ -57,4 +57,10 @@ class OperationsTestFIPSJNI implements OperationsTestNI
                                          boolean useDerivationFunction, int strength,
                                          boolean predictionResistant, byte[] personalizationString,
                                          byte[] entropy, byte[] nonce, int[] err);
+
+    @Override
+    public native int op_setTestEntropy(long ref, byte[] entropy);
+
+    @Override
+    public native boolean op_randLibctxFipsEnabled();
 }

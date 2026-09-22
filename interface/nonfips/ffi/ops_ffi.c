@@ -48,4 +48,17 @@ void *JoOps_createTestDrbg(const char *mechanism, const char *variant, int32_t u
                                          entropy, entropy_len, nonce, nonce_len, err);
 }
 
+// Forwarders rather than renaming the util functions, which the JNI bridge
+// calls directly. The handle is one JoOps_createTestDrbg returned; util aborts
+// on a production handle, which carries no test parent.
+int32_t JoOps_setTestEntropy(void *ctx, const uint8_t *entropy, size_t entropy_len)
+{
+    return rand_ctx_set_test_entropy((JO_RAND_CTX *) ctx, entropy, entropy_len);
+}
+
+int32_t JoOps_randLibctxFipsEnabled(void)
+{
+    return rand_libctx_fips_enabled();
+}
+
 #endif

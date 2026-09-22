@@ -43,6 +43,8 @@ public class OperationsTestFFI implements OperationsTestNI
     private final MethodHandle setOpsFuncHandler;
     private final MethodHandle getRandomBytes;
     private final MethodHandle createTestDrbg;
+    private final MethodHandle setTestEntropy;
+    private final MethodHandle randLibctxFipsEnabled;
 
     public OperationsTestFFI()
     {
@@ -99,12 +101,27 @@ public class OperationsTestFFI implements OperationsTestNI
                     ValueLayout.ADDRESS,   // nonce
                     ValueLayout.JAVA_LONG,
                     ValueLayout.ADDRESS)); // err
+
+            MemorySegment setTestEntropyFunc =
+                    lookup.find(symPrefix + "JoOps_setTestEntropy").orElseThrow();
+            setTestEntropy = linker.downcallHandle(setTestEntropyFunc, FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,  // status
+                    ValueLayout.ADDRESS,   // the handle
+                    ValueLayout.ADDRESS,   // entropy
+                    ValueLayout.JAVA_LONG));
+
+            MemorySegment fipsEnabledFunc =
+                    lookup.find(symPrefix + "JoOps_randLibctxFipsEnabled").orElseThrow();
+            randLibctxFipsEnabled = linker.downcallHandle(fipsEnabledFunc,
+                    FunctionDescriptor.of(ValueLayout.JAVA_INT));
         }
         else
         {
             setOpsFuncHandler = null;
             getRandomBytes = null;
             createTestDrbg = null;
+            setTestEntropy = null;
+            randLibctxFipsEnabled = null;
         }
     }
 
@@ -164,6 +181,44 @@ public class OperationsTestFFI implements OperationsTestNI
 
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             return handle.address();
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public int op_setTestEntropy(long ref, byte[] entropy)
+    {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+
+        try (Arena arena = Arena.ofConfined())
+        {
+            return (int) setTestEntropy.invokeExact(
+                    MemorySegment.ofAddress(ref),
+                    copyIn(arena, entropy), (long) lengthOf(entropy));
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public boolean op_randLibctxFipsEnabled()
+    {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+
+        try
+        {
+            return ((int) randLibctxFipsEnabled.invokeExact()) != 0;
         }
         catch (Throwable e)
         {
