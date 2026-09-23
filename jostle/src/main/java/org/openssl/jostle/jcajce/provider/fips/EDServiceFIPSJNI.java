@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
@@ -21,6 +23,14 @@ import org.openssl.jostle.rand.RandSource;
  */
 class EDServiceFIPSJNI implements EDServiceNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native long ni_allocateSigner(int[] err);
 

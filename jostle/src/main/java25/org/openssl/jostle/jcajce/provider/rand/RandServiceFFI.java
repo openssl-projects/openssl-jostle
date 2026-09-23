@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.rand;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Arena;
 import java.lang.foreign.Linker;
@@ -25,6 +26,14 @@ import java.util.logging.Logger;
 // marshalling serves both interface libraries (see MDServiceFFI).
 public class RandServiceFFI implements RandServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     private static final Logger L = Logger.getLogger("Rand_NI_FFI");
     private static final Linker linker = Linker.nativeLinker();
 

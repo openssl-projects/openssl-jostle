@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 
 /**
@@ -22,6 +23,14 @@ import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
  */
 class RandServiceFIPSJNI implements RandServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native long ni_createContext(String mechanism, String variant, boolean useDerivationFunction,
                                         int strength, boolean predictionResistant,

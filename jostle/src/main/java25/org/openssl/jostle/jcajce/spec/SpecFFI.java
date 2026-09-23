@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
@@ -26,6 +27,14 @@ import java.util.logging.Logger;
 // marshalling serves both interface libraries (see MDServiceFFI).
 public class SpecFFI implements SpecNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
     private static final Logger L = Logger.getLogger("SpecNI_FFI");
     private static final Linker linker = Linker.nativeLinker();
 

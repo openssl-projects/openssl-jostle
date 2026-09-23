@@ -12,7 +12,6 @@
 package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
@@ -55,13 +54,6 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     /** Negative is the "use digest output length" sentinel. */
     private int saltLen = -1;
 
-
-    /**
-     * Digest output sizes, asked of the interface library rather than
-     * tabulated. Keyed by digest name, which is what the size is a property
-     * of; the two libraries agree on every digest they both serve.
-     */
-    private static final NativeLengthCache<String> DIGEST_LENGTHS = new NativeLengthCache<String>();
 
     /** Resolves the salt length the native sentinel stands for. May be null. */
     private final MDServiceNI mdServiceNI;
@@ -262,35 +254,16 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
         {
             return -1;
         }
-        int cached = DIGEST_LENGTHS.get(digestName);
-        if (cached != NativeLengthCache.UNKNOWN)
-        {
-            return cached;
-        }
-        long ref = 0;
         try
         {
-            ref = mdServiceNI.allocateDigest(digestName, 0);
-            int len = mdServiceNI.getDigestOutputLen(ref);
-            if (len <= 0)
-            {
-                return -1;
-            }
-            DIGEST_LENGTHS.cache(digestName, len);
-            return len;
+            int len = mdServiceNI.digestOutputLength(digestName);
+            return len > 0 ? len : -1;
         }
         catch (RuntimeException e)
         {
             // A digest this library cannot fetch means we cannot state the
             // salt length; the caller gets null rather than a wrong number.
             return -1;
-        }
-        finally
-        {
-            if (ref != 0)
-            {
-                mdServiceNI.dispose(ref);
-            }
         }
     }
 }

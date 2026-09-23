@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 
 /**
@@ -21,6 +22,14 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
  */
 class MDServiceFIPSJNI implements MDServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     native public long ni_allocateDigest(String name, int xofLen, int[] err);
 

@@ -12,7 +12,6 @@
 package org.openssl.jostle.jcajce.provider.rand;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 
 /**
  * SecureRandom algorithms registered by the Jostle provider.
@@ -57,14 +56,6 @@ public enum RandAlgorithm
     private final String variant;
     private final boolean useDerivationFunction;
     private final boolean honorsConfig;
-
-    /**
-     * Memoizes the OpenSSL-reported strength per mechanism/variant so each
-     * distinct variant is probed at most once. The probe is keyless metadata —
-     * no DRBG is instantiated and no entropy is drawn — mirroring the
-     * {@link NativeLengthCache} usage for cipher/MAC lengths elsewhere.
-     */
-    private static final NativeLengthCache<String> STRENGTH_CACHE = new NativeLengthCache<String>();
 
     RandAlgorithm(String jcaName, String mechanism, String variant,
                   boolean useDerivationFunction, boolean honorsConfig)
@@ -176,27 +167,11 @@ public enum RandAlgorithm
         return maxStrengthFor(NISelector.RandServiceNI, variant);
     }
 
-    //
-    // The strength of a variant is a fixed property OpenSSL reports (cipher
-    // key length / digest size), identical whichever interface library
-    // probes it - so the cache is keyed by mechanism/variant alone and shared
-    // across NI backends. The NI parameter only decides which library's
-    // (initialised) rand lib ctx answers the probe: the FIPS SPIs must probe
-    // the FIPS library, whose rand ctx is the one set up for JSLFIPS.
-    //
+    // Asked of the NI's own library, which caches it: a strength one module
+    // reports never answers for another.
     static int maxStrengthFor(RandServiceNI ni, String variant)
     {
         String mechanism = variant != null && variant.startsWith("AES") ? "CTR-DRBG" : "HASH-DRBG";
-        String key = mechanism + "/" + variant;
-
-        int cached = STRENGTH_CACHE.get(key);
-        if (cached != NativeLengthCache.UNKNOWN)
-        {
-            return cached;
-        }
-
-        int strength = ni.drbgStrength(mechanism, variant);
-        STRENGTH_CACHE.cache(key, strength);
-        return strength;
+        return ni.drbgMaxStrength(mechanism, variant);
     }
 }

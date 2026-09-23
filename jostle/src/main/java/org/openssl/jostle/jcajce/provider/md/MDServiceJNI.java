@@ -11,8 +11,18 @@
 
 package org.openssl.jostle.jcajce.provider.md;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+
 public class MDServiceJNI implements MDServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     native public long ni_allocateDigest(String name, int xofLen, int[] err);
 

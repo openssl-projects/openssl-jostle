@@ -15,7 +15,6 @@ import org.openssl.jostle.jcajce.interfaces.MLXKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
@@ -64,9 +63,6 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
     private boolean extract;
     private AlgorithmParameterSpec kemSpec;
     private RandSource randSource;
-
-    // OpenSSL-probed encapsulation lengths, memoized once per group (see NativeLengthCache).
-    private static final NativeLengthCache<OSSLKeyType> encapsulationLengths = new NativeLengthCache<OSSLKeyType>();
 
     public MLXKEMKeyGenerator(MLXKEMParameterSpec parameterSpec)
     {
@@ -284,13 +280,8 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
         try
         {
-            int encapsulationLen = encapsulationLengths.get(spec.getType());
-            if (encapsulationLen == NativeLengthCache.UNKNOWN)
-            {
-                encapsulationLen = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length,
-                        null, 0, 0, randSource);
-                encapsulationLengths.cache(spec.getType(), encapsulationLen);
-            }
+            int encapsulationLen = spec.getSpecNI().encapsulationLength(spec.getReference(), spec.getType(),
+                    secret.length, randSource);
             byte[] wrappedKey = new byte[encapsulationLen];
             int len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length,
                     wrappedKey, 0, wrappedKey.length, randSource);

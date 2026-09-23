@@ -1,5 +1,6 @@
 package org.openssl.jostle.jcajce.provider.mac;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
@@ -9,6 +10,14 @@ import java.util.logging.Logger;
 // marshalling serves both interface libraries (see MDServiceFFI).
 public class MacServiceFFI implements MacServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     private static final Logger L = Logger.getLogger("MAC_NI_FFI");
     private static final Linker LINKER = Linker.nativeLinker();
 

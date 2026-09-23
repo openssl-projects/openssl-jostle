@@ -10,8 +10,18 @@
 
 package org.openssl.jostle.jcajce.provider.mac;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+
 public class MacServiceJNI implements MacServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native long ni_allocateMac(String macName, String canonicalDigestName, int[] err);
 

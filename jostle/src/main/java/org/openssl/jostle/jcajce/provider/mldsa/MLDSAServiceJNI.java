@@ -10,10 +10,20 @@
 
 package org.openssl.jostle.jcajce.provider.mldsa;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.RandSource;
 
 public class MLDSAServiceJNI implements MLDSAServiceNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
     public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
     @Override

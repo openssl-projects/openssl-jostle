@@ -12,7 +12,6 @@ package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -76,11 +75,6 @@ public class MLKEMKTSCipherSpi
     // unbounded KDF allocation. 4096 bits is generously above any real AES-KW
     // KEK (128/192/256-bit) while bounding the allocation.
     private static final int MAX_KEK_BITS = 4096;
-
-    // OpenSSL-probed encapsulation (ciphertext) lengths, memoized once per
-    // parameter set (see NativeLengthCache) — OpenSSL is the single source of
-    // truth, no transcribed 768/1088/1568 table.
-    private static final NativeLengthCache<OSSLKeyType> encapsulationLengths = new NativeLengthCache<OSSLKeyType>();
 
     // Bound to one interface library. The factory translates a foreign key
     // into THIS provider's lib ctx; specNI is what a Jostle key's own spec is
@@ -586,16 +580,8 @@ public class MLKEMKTSCipherSpi
      */
     private int encapsulationLength()
     {
-        OSSLKeyType type = keySpec.getType();
-        int cached = encapsulationLengths.get(type);
-        if (cached != NativeLengthCache.UNKNOWN)
-        {
-            return cached;
-        }
-        int probed = keySpec.getSpecNI().encap(keySpec.getReference(), null,
-            new byte[SHARED_SECRET_LEN], 0, SHARED_SECRET_LEN, null, 0, 0, randSource);
-        encapsulationLengths.cache(type, probed);
-        return probed;
+        return keySpec.getSpecNI().encapsulationLength(keySpec.getReference(), keySpec.getType(),
+                SHARED_SECRET_LEN, randSource);
     }
 
     // --- unused streaming entry points --------------------------------------

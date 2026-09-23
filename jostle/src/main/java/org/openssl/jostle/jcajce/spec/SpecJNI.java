@@ -10,10 +10,19 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.RandSource;
 
 public class SpecJNI implements SpecNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native void ni_dispose(long reference);
 

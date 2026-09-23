@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.mac;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
@@ -187,5 +188,20 @@ public interface MacServiceNI extends DefaultServiceNI
 
         }
         return baseErrorHandler(code);
+    }
+
+    /** This implementation's memo; one per instance, so a length belongs to its library. */
+    NativeLengthCache<String> lengthCache();
+
+    /** The MAC length for {@code ref}, asked of this library once per {@code cacheKey}. */
+    default int macLength(long ref, String cacheKey)
+    {
+        int len = lengthCache().get(cacheKey);
+        if (len == NativeLengthCache.UNKNOWN)
+        {
+            len = macLengthMeta(ref);
+            lengthCache().cache(cacheKey, len);
+        }
+        return len;
     }
 }

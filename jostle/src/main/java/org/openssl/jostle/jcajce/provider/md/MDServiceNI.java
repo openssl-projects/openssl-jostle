@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.md;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
@@ -117,5 +118,33 @@ public interface MDServiceNI extends DefaultServiceNI
 
     }
 
+    /** This implementation's memo; one per instance, so a length belongs to its library. */
+    NativeLengthCache<String> lengthCache();
 
+    /**
+     * The digest's output length in bytes, asked of this library once per name.
+     * A digest the library cannot fetch throws as {@link #allocateDigest} does; a
+     * non-positive answer (an XOF) is returned and not cached.
+     */
+    default int digestOutputLength(String opensslDigestName)
+    {
+        int len = lengthCache().get(opensslDigestName);
+        if (len == NativeLengthCache.UNKNOWN)
+        {
+            long ref = allocateDigest(opensslDigestName, 0);
+            try
+            {
+                len = getDigestOutputLen(ref);
+            }
+            finally
+            {
+                if (ref != 0)
+                {
+                    dispose(ref);
+                }
+            }
+            lengthCache().cache(opensslDigestName, len);
+        }
+        return len;
+    }
 }

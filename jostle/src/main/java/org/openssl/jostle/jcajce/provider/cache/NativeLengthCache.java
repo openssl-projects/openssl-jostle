@@ -11,36 +11,28 @@
 package org.openssl.jostle.jcajce.provider.cache;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Thread-safe memo of native-reported fixed output lengths — cipher block size,
- * signature length, KEM encapsulation length, MAC length — keyed by whatever
- * uniquely identifies the algorithm variant for a given consumer.
+ * Thread-safe memo of native-reported fixed output lengths (digest size,
+ * signature length, KEM encapsulation length, MAC length, DRBG strength), keyed
+ * by whatever identifies the variant.
  *
- * <p>OpenSSL is the single source of truth. A consumer probes the native layer
- * once per variant, records the result via {@link #cache}, and thereafter reads
- * it back via {@link #get} to skip the probe. Nothing is hard-coded — the cached
- * value is whatever OpenSSL reported, so there is no transcribed table that can
- * drift from native truth.
+ * <p>OpenSSL is the single source of truth: a probe asks the native layer once
+ * per variant and records the answer here, so nothing is transcribed.
  *
- * <p>Each consumer (e.g. a single SPI class) owns one {@code static final}
- * instance, so key spaces never collide across algorithm families. The cache
- * lives here, in one place, rather than inside the SPIs: the SPIs have
- * per-Java-version copies in the multi-release jar (Java 8 {@code synchronized}
- * vs. Java 9+ {@code reachabilityFence}), and duplicating the guard logic across
- * those copies would invite drift. Holding the {@code static final} reference is
- * the only thing each copy repeats; the guard logic is single-copy here.
+ * <p>One instance per NI implementation, held by that implementation and reached
+ * through its interface. A fact is therefore bound to the interface library, and
+ * so to the module, that reported it; a static cache would let one module answer
+ * for another.
  *
  * <p>{@code putIfAbsent} makes a concurrent double-probe benign: both threads
- * compute the same fixed value, so whichever wins stores the same answer.
+ * compute the same fixed value.
  *
- * <p>Internal plumbing. This type is {@code public} only so sibling
- * {@code org.openssl.jostle.jcajce.provider.*} packages in this module can share
- * it; its package is deliberately NOT exported from the module, preserving the
- * encapsulation the per-family package-private helpers used to have.
+ * <p>Internal plumbing: {@code public} for sibling provider packages, its
+ * package deliberately not exported from the module.
  *
- * @param <K> the consumer's key type — an enum (cipher / key-type) or a
- *            composite identifier.
+ * @param <K> the key type, an enum or a composite identifier.
  */
 public final class NativeLengthCache<K>
 {
@@ -48,6 +40,7 @@ public final class NativeLengthCache<K>
     public static final int UNKNOWN = -1;
 
     private final ConcurrentHashMap<K, Integer> lengths = new ConcurrentHashMap<K, Integer>();
+    private final AtomicInteger probes = new AtomicInteger();
 
     /**
      * Returns the memoized length for {@code key}, or {@link #UNKNOWN} when the
@@ -72,9 +65,16 @@ public final class NativeLengthCache<K>
      */
     public void cache(K key, int length)
     {
+        probes.incrementAndGet();
         if (key != null && length > 0)
         {
             lengths.putIfAbsent(key, length);
         }
+    }
+
+    /** Calls to {@link #cache}, one per miss that reached native. */
+    public int probes()
+    {
+        return probes.get();
     }
 }

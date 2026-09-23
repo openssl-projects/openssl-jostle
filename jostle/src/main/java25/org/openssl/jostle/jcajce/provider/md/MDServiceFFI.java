@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.md;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
@@ -26,6 +27,14 @@ import java.util.logging.Logger;
  */
 public class MDServiceFFI implements MDServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
 
     private static final Logger L = Logger.getLogger("MD_NI_FFI");
     private static final Linker linker = Linker.nativeLinker();

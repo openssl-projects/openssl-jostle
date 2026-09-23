@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.rand;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
@@ -89,5 +90,21 @@ public interface RandServiceNI extends DefaultServiceNI
         }
 
         return baseErrorHandler(code);
+    }
+
+    /** This implementation's memo; one per instance, so a strength belongs to its library. */
+    NativeLengthCache<String> lengthCache();
+
+    /** The DRBG's maximum strength, asked of this library once per mechanism and variant. */
+    default int drbgMaxStrength(String mechanism, String variant)
+    {
+        String key = mechanism + "/" + variant;
+        int strength = lengthCache().get(key);
+        if (strength == NativeLengthCache.UNKNOWN)
+        {
+            strength = drbgStrength(mechanism, variant);
+            lengthCache().cache(key, strength);
+        }
+        return strength;
     }
 }

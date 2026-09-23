@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
@@ -97,5 +98,23 @@ public interface SpecNI extends DefaultServiceNI
                 throw new IllegalArgumentException("input and output must not be the same array");
         }
         return baseErrorHandler(code);
+    }
+
+    /** This implementation's memo; one per instance, so a length belongs to its library. */
+    NativeLengthCache<OSSLKeyType> lengthCache();
+
+    /**
+     * The encapsulation length for the key {@code keyRef}, asked of this library
+     * once per key type by a size query that writes nothing.
+     */
+    default int encapsulationLength(long keyRef, OSSLKeyType type, int secretLen, RandSource randSource)
+    {
+        int len = lengthCache().get(type);
+        if (len == NativeLengthCache.UNKNOWN)
+        {
+            len = encap(keyRef, null, new byte[secretLen], 0, secretLen, null, 0, 0, randSource);
+            lengthCache().cache(type, len);
+        }
+        return len;
     }
 }

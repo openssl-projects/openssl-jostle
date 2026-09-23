@@ -11,10 +11,20 @@
 
 package org.openssl.jostle.jcajce.provider.ed;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.RandSource;
 
 public class EDServiceJNI implements EDServiceNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native long ni_allocateSigner(int[] err);
 

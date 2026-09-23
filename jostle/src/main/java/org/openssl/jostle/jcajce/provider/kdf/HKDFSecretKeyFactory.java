@@ -10,7 +10,6 @@
 package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
@@ -32,10 +31,6 @@ import java.security.spec.KeySpec;
  */
 public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
 {
-    // Probed from OpenSSL, never asked of another JCA provider (java-spi.md,
-    // "OpenSSL is the single source of truth"). Shared across JSL and JSLFIPS:
-    // FIPS 180-4 / FIPS 202 fix the output sizes, so the two cannot disagree.
-    private static final NativeLengthCache<String> DIGEST_LENGTHS = new NativeLengthCache<String>();
 
     private final String digestAlgorithm;
     private final int maxOutputLength;
@@ -66,16 +61,10 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
      */
     private static int hashLengthBytes(MDServiceNI mdServiceNI, String opensslDigestName)
     {
-        int len = DIGEST_LENGTHS.get(opensslDigestName);
-        if (len != NativeLengthCache.UNKNOWN)
-        {
-            return len;
-        }
-        long ref = 0;
+        int len;
         try
         {
-            ref = mdServiceNI.allocateDigest(opensslDigestName, 0);
-            len = mdServiceNI.getDigestOutputLen(ref);
+            len = mdServiceNI.digestOutputLength(opensslDigestName);
         }
         catch (RuntimeException e)
         {
@@ -83,19 +72,11 @@ public class HKDFSecretKeyFactory extends SecretKeyFactorySpi
             // native error; report it against the name that failed.
             throw new IllegalArgumentException("unsupported HKDF digest: " + opensslDigestName, e);
         }
-        finally
-        {
-            if (ref != 0)
-            {
-                mdServiceNI.dispose(ref);
-            }
-        }
         if (len <= 0)
         {
             // An XOF has no fixed size, so it cannot bound the output.
             throw new IllegalArgumentException("digest reports no fixed length: " + opensslDigestName);
         }
-        DIGEST_LENGTHS.cache(opensslDigestName, len);
         return len;
     }
 

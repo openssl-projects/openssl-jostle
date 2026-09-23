@@ -13,7 +13,6 @@ package org.openssl.jostle.jcajce.provider.mac;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.KMACParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
@@ -60,9 +59,6 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     // NI backend its provider passes in - NISelector.MacServiceNI for JSL,
     // FIPSNISelector.MacServiceNI (the FIPS interface library) for JSLFIPS.
     private final MacServiceNI macServiceNI;
-
-    // OpenSSL-probed MAC lengths, memoized once per (macName, function) (see NativeLengthCache).
-    private static final NativeLengthCache<String> macLengths = new NativeLengthCache<String>();
 
     // The one registered MAC that takes a nonce. Named here for the same reason
     // the native init_mac_ctx dispatches on it: which parameter specs a
@@ -229,13 +225,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
      */
     private int macLength()
     {
-        int len = macLengths.get(cacheKey);
-        if (len == NativeLengthCache.UNKNOWN)
-        {
-            len = macServiceNI.macLengthMeta(ref.getReference());
-            macLengths.cache(cacheKey, len);
-        }
-        return len;
+        return macServiceNI.macLength(ref.getReference(), cacheKey);
     }
 
     /**

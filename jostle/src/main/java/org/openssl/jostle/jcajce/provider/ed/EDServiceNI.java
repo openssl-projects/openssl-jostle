@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.ed;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.rand.RandSource;
@@ -154,5 +156,21 @@ public interface EDServiceNI extends DefaultServiceNI
 
     }
 
+    /** This implementation's memo; one per instance, so a length belongs to its library. */
+    NativeLengthCache<OSSLKeyType> lengthCache();
 
+    /**
+     * The signature length for the signer {@code ref}, asked of this library once
+     * per key type. A null type probes without caching (a variable-length path).
+     */
+    default int signatureLength(long ref, OSSLKeyType type, RandSource randSource)
+    {
+        int len = lengthCache().get(type);
+        if (len == NativeLengthCache.UNKNOWN)
+        {
+            len = sign(ref, null, 0, randSource);
+            lengthCache().cache(type, len);
+        }
+        return len;
+    }
 }

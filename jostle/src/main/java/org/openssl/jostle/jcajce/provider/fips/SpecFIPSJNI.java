@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 
@@ -22,6 +24,14 @@ import org.openssl.jostle.rand.RandSource;
  */
 class SpecFIPSJNI implements SpecNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native void ni_dispose(long reference);
 

@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.ed;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -28,6 +30,14 @@ import java.util.logging.Logger;
 // silently drive the BASE library (see MDServiceFFI, FIPSLibraryLookup).
 public class EdDSAServiceFFI implements EDServiceNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
 
     private static final Logger L = Logger.getLogger("EdDSA_NI_FFI");
     private static final Linker linker = Linker.nativeLinker();

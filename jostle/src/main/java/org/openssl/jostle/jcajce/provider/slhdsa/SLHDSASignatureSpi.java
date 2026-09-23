@@ -17,7 +17,6 @@ import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
@@ -46,9 +45,6 @@ public class SLHDSASignatureSpi extends SignatureSpi
         DETERMINISTIC
     }
 
-
-    // OpenSSL-probed signature lengths, memoized once per parameter set (see NativeLengthCache).
-    private static final NativeLengthCache<OSSLKeyType> signatureLengths = new NativeLengthCache<OSSLKeyType>();
 
     private final OSSLKeyType forcedType;
     private SLHDSARef ref = null;
@@ -248,20 +244,8 @@ public class SLHDSASignatureSpi extends SignatureSpi
             byte[] sig = null;
             try
             {
-                int len = NativeLengthCache.UNKNOWN;
-                if (lastKey != null)
-                {
-                    len = signatureLengths.get(lastKey.getType());
-                }
-                if (len == NativeLengthCache.UNKNOWN)
-                {
-                    len = (int) slhdsaServiceNI.sign(ref.getReference(), null, 0, randSource);
-                    if (lastKey != null)
-                    {
-                        // Memoize OpenSSL's reported length for this parameter set.
-                        signatureLengths.cache(lastKey.getType(), len);
-                    }
-                }
+                int len = slhdsaServiceNI.signatureLength(ref.getReference(),
+                        lastKey != null ? lastKey.getType() : null, randSource);
                 sig = new byte[len];
                 long written = slhdsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
                 if (written != sig.length)

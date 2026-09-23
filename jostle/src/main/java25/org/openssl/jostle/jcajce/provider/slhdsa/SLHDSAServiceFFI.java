@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -23,6 +25,14 @@ import java.util.logging.Logger;
 
 public class SLHDSAServiceFFI implements SLHDSAServiceNI
 {
+    private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> lengthCache()
+    {
+        return lengthCache;
+    }
+
 
     private static final Logger L = Logger.getLogger("SLH_DSA_NI_FFI");
     // Per-instance, NOT the process-global loaderLookup: the base and FIPS

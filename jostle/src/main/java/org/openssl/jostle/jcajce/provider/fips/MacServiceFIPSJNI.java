@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 
 /**
@@ -21,6 +22,14 @@ import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
  */
 class MacServiceFIPSJNI implements MacServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native long ni_allocateMac(String macName, String canonicalDigestName, int[] err);
 

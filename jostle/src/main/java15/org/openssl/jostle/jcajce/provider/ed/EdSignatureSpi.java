@@ -19,7 +19,6 @@ import org.openssl.jostle.jcajce.interfaces.EdDSAKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
-import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -37,12 +36,6 @@ public class EdSignatureSpi extends SignatureSpi
     // matching KeyFactory.
     private final EDServiceNI edServiceNI;
     private final EdKeyFactorySpi keyFactory;
-
-    // OpenSSL-probed signature lengths, memoized once per key type (see
-    // NativeLengthCache). Shared across both providers deliberately: RFC 8032
-    // fixes the Ed25519 / Ed448 signature length, so the two interface
-    // libraries cannot disagree about it, and OSSLKeyType is a complete key.
-    private static final NativeLengthCache<OSSLKeyType> signatureLengths = new NativeLengthCache<OSSLKeyType>();
 
     private final OSSLKeyType forcedType;
     private EdDsaRef ref;
@@ -253,20 +246,8 @@ public class EdSignatureSpi extends SignatureSpi
         byte[] sig = null;
         try
         {
-            int len = NativeLengthCache.UNKNOWN;
-            if (lastKey instanceof JOEdPrivateKey)
-            {
-                len = signatureLengths.get(((JOEdPrivateKey) lastKey).getType());
-            }
-            if (len == NativeLengthCache.UNKNOWN)
-            {
-                len = edServiceNI.sign(ref.getReference(), null, 0, randSource);
-                if (lastKey instanceof JOEdPrivateKey)
-                {
-                    // Memoize OpenSSL's reported length for this key type.
-                    signatureLengths.cache(((JOEdPrivateKey) lastKey).getType(), len);
-                }
-            }
+            OSSLKeyType type = lastKey instanceof JOEdPrivateKey ? ((JOEdPrivateKey) lastKey).getType() : null;
+            int len = edServiceNI.signatureLength(ref.getReference(), type, randSource);
             sig = new byte[len];
             int written = edServiceNI.sign(ref.getReference(), sig, 0, randSource);
             if (written != sig.length)

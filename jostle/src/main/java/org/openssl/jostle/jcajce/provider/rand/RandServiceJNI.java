@@ -11,8 +11,18 @@
 
 package org.openssl.jostle.jcajce.provider.rand;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+
 public class RandServiceJNI implements RandServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     public native long ni_createContext(String mechanism, String variant, boolean useDerivationFunction,
                                         int strength, boolean predictionResistant,
                                         byte[] personalizationString, int[] err);
