@@ -17,6 +17,7 @@ import java.lang.ref.ReferenceQueue;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -40,6 +41,10 @@ public class DisposalDaemon
     private static final ScheduledExecutorService cleanupExecutor;
     private static final DisposalDaemon disposalDaemon = new DisposalDaemon();
     private static final Thread disposalThread;
+
+    /** With no listener registered the hot path pays one volatile read and nothing else. */
+    private static final CopyOnWriteArrayList<DisposalListener> listeners =
+            new CopyOnWriteArrayList<DisposalListener>();
 
     private static final long cleanupDelay;
     private static final String CLEANUP_DELAY_PROP = "org.openssl.jostle.native.cleanup_delay";
@@ -103,13 +108,14 @@ public class DisposalDaemon
                     while (item != null)
                     {
                         refs.remove(item);
-                        item.dispose();
-                        item = (ReferenceWrapperWithDisposerRunnable) referenceQueue.poll();
+                        disposeAndReport(item);
 
                         if (LOG.isLoggable(Level.FINE))
                         {
                             LOG.fine("Shutdown hook disposed: " + item);
                         }
+
+                        item = (ReferenceWrapperWithDisposerRunnable) referenceQueue.poll();
                     }
 
                 }
@@ -121,6 +127,110 @@ public class DisposalDaemon
         }
     }
 
+    /** Adds a listener. Duplicates are permitted; each is called once per add. */
+    public static void addListener(DisposalListener listener)
+    {
+        if (listener == null)
+        {
+            throw new NullPointerException("listener cannot be null");
+        }
+        listeners.add(listener);
+    }
+
+    /** Removes one occurrence of the listener. Unknown listeners are ignored. */
+    public static void removeListener(DisposalListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    /** Handles registered and not yet taken off the queue by the daemon. */
+    public static int pending()
+    {
+        return refs.size();
+    }
+
+    // A listener that throws must not stop a handle being freed, nor kill the
+    // daemon thread.
+    private static void fireRegistered(long ref, String label)
+    {
+        for (DisposalListener l : listeners)
+        {
+            try
+            {
+                l.registered(ref, label);
+            }
+            catch (Throwable t)
+            {
+                LOG.log(Level.WARNING, "disposal listener threw on registered", t);
+            }
+        }
+    }
+
+    private static void fireDisposing(long ref)
+    {
+        for (DisposalListener l : listeners)
+        {
+            try
+            {
+                l.disposing(ref);
+            }
+            catch (Throwable t)
+            {
+                LOG.log(Level.WARNING, "disposal listener threw on disposing", t);
+            }
+        }
+    }
+
+    private static void fireDisposed(long ref)
+    {
+        for (DisposalListener l : listeners)
+        {
+            try
+            {
+                l.disposed(ref);
+            }
+            catch (Throwable t)
+            {
+                LOG.log(Level.WARNING, "disposal listener threw on disposed", t);
+            }
+        }
+    }
+
+    private static void fireFailed(long ref, Throwable cause)
+    {
+        for (DisposalListener l : listeners)
+        {
+            try
+            {
+                l.failed(ref, cause);
+            }
+            catch (Throwable t)
+            {
+                LOG.log(Level.WARNING, "disposal listener threw on failed", t);
+            }
+        }
+    }
+
+    /**
+     * Runs the disposer and reports the outcome. A disposer that throws yields
+     * exactly one {@code failed} and the daemon keeps running; the warning
+     * carries the Throwable, so the cause is not reduced to a message.
+     */
+    private static void disposeAndReport(ReferenceWrapperWithDisposerRunnable item)
+    {
+        fireDisposing(item.getReference());
+        try
+        {
+            item.dispose();
+            fireDisposed(item.getReference());
+        }
+        catch (Throwable t)
+        {
+            LOG.log(Level.WARNING, "exception disposing " + item, t);
+            fireFailed(item.getReference(), t);
+        }
+    }
+
     public static void addDisposable(Disposable disposable)
     {
         ReferenceWrapperWithDisposerRunnable ref = new ReferenceWrapperWithDisposerRunnable(disposable, referenceQueue);
@@ -129,6 +239,7 @@ public class DisposalDaemon
         {
             LOG.fine("Registered: " + disposable.toString());
         }
+        fireRegistered(ref.reference, ref.label);
     }
 
     public void run()
@@ -147,7 +258,7 @@ public class DisposalDaemon
                     {
                         LOG.fine("Disposed: " + item);
                     }
-                    item.dispose();
+                    disposeAndReport(item);
                 }
                 else
                 {
@@ -164,7 +275,7 @@ public class DisposalDaemon
                             {
                                 LOG.fine("Disposed: " + item);
                             }
-                            item.dispose();
+                            disposeAndReport(item);
                         }
                     }, cleanupDelay, TimeUnit.MILLISECONDS);
                 }
@@ -176,7 +287,7 @@ public class DisposalDaemon
             }
             catch (Throwable e)
             {
-                LOG.warning("exception in disposal thread: " + e.getMessage());
+                LOG.log(Level.WARNING, "exception in disposal thread", e);
             }
         }
     }
@@ -187,6 +298,10 @@ public class DisposalDaemon
 
         private final Runnable disposer;
         private final String label;
+
+        // The referent is unreachable when the phantom fires, so the handle is
+        // captured here, like the label.
+        private final long reference;
 
         /**
          * Creates a new phantom reference that refers to the given object and
@@ -205,7 +320,13 @@ public class DisposalDaemon
         {
             super(referent, q);
             this.label = referent.toString(); // capture label from referent
+            this.reference = referent.getReference();
             this.disposer = referent.getDisposeAction();
+        }
+
+        public long getReference()
+        {
+            return reference;
         }
 
         public void dispose()

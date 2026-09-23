@@ -10,11 +10,13 @@
 
 package org.openssl.jostle.disposal;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public abstract class NativeDisposer
         implements Runnable
 {
     private final long reference;
-    private boolean called = false;
+    private final AtomicBoolean called = new AtomicBoolean(false);
 
     public NativeDisposer(long reference)
     {
@@ -25,11 +27,11 @@ public abstract class NativeDisposer
     @Override
     public void run()
     {
-        if (called)
+        // An eager dispose() racing the daemon would otherwise free twice.
+        if (!called.compareAndSet(false, true))
         {
             return;
         }
-        called = true;
 
         dispose(reference);
     }

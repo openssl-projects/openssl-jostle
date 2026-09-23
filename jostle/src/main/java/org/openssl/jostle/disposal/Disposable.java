@@ -17,4 +17,11 @@ package org.openssl.jostle.disposal;
 public interface Disposable
 {
     Runnable getDisposeAction();
+
+    /**
+     * The native handle this instance guards. Disposal events are keyed by this
+     * value, captured at registration, because the referent is unreachable by
+     * the time the phantom fires.
+     */
+    long getReference();
 }
