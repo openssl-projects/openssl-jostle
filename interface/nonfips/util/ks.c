@@ -1051,8 +1051,10 @@ int32_t ks_set_certificate_chain(ks_ctx *ctx, const char *alias, const uint8_t *
     const unsigned char *p = chain;
     const unsigned char *end = chain + chain_len;
     while (p < end) {
-        X509 *cert = d2i_X509(NULL, &p, (long) (end - p));
-        if (cert == NULL) {
+        /* Bound to this library's context, not the process default. */
+        X509 *cert = X509_new_ex(get_global_jostle_ossl_lib_ctx(), NULL);
+        if (cert == NULL || d2i_X509(&cert, &p, (long) (end - p)) == NULL) {
+            X509_free(cert);
             sk_X509_pop_free(parsed, X509_free);
             return JO_KS_LOAD_FAILED;
         }
@@ -1101,8 +1103,10 @@ int32_t ks_set_certificate_entry(ks_ctx *ctx, const char *alias, const uint8_t *
     }
 
     const unsigned char *p = certificate;
-    X509 *cert = d2i_X509(NULL, &p, (long) certificate_len);
-    if (cert == NULL || p != certificate + certificate_len) {
+    /* Bound to this library's context, not the process default. */
+    X509 *cert = X509_new_ex(get_global_jostle_ossl_lib_ctx(), NULL);
+    if (cert == NULL || d2i_X509(&cert, &p, (long) certificate_len) == NULL
+        || p != certificate + certificate_len) {
         X509_free(cert);
         return JO_KS_LOAD_FAILED;
     }
