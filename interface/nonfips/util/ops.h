@@ -10,6 +10,34 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Disposal ledger types. One value per native context type a Java-held
+// handle owns; created / destroyed are counted per type in operations-test
+// builds. Append only: LedgerType.ordinal() in OperationsTestNI is the
+// C value, the same trap as OpsTestFlag.
+typedef enum jo_ledger_type {
+    JO_LEDGER_MD_CTX = 0,
+    JO_LEDGER_MAC_CTX,
+    JO_LEDGER_BLOCK_CIPHER_CTX,
+    JO_LEDGER_CCM_CTX,
+    JO_LEDGER_KEY_SPEC,
+    JO_LEDGER_ASN1_CTX,
+    JO_LEDGER_RSA_CTX,
+    JO_LEDGER_RSA_OAEP_CTX,
+    JO_LEDGER_RSA_PKCS1_CTX,
+    JO_LEDGER_DSA_CTX,
+    JO_LEDGER_EC_CTX,
+    JO_LEDGER_EC_KEX_CTX,
+    JO_LEDGER_DH_KEX_CTX,
+    JO_LEDGER_EDEC_CTX,
+    JO_LEDGER_MLDSA_CTX,
+    JO_LEDGER_SLH_DSA_CTX,
+    JO_LEDGER_KS_CTX,
+    JO_LEDGER_RAND_CTX,
+    JO_LEDGER_X509_CERT,
+    JO_LEDGER_X509_CRL,
+    JO_LEDGER_TYPES
+} jo_ledger_type;
+
 
 // If we are doing a build that includes
 // code for operations testing.
@@ -71,8 +99,9 @@
 #define OPS_FAILED_ACCESS_7 is_ops_set(38) ||
 #define OPS_FAILED_ACCESS_8 is_ops_set(39) ||
 #define OPS_FAILED_ACCESS_9 is_ops_set(40) ||
+#define OPS_LEDGER_SKIP_FREE_1 is_ops_set(41) ||
 
-#define OPS_MAX_TEST 41
+#define OPS_MAX_TEST 42
 
 // Per-flag offset macros. Pairs with OPS_OPENSSL_ERROR_N (same suffix).
 // Expansion includes the leading "+" so non-OPS builds drop entirely.
@@ -119,6 +148,22 @@ void set_ops_test(const uint32_t index, const uint32_t value);
 int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred, void * rnd_src);
 
 int get_ops_test(const uint32_t index);
+
+// Disposal ledger: JO_LEDGER_CREATED at every success return of a create,
+// JO_LEDGER_DESTROYED after the NULL check of every destroy. Counted with
+// CRYPTO_atomic_add under a ledger-owned lock; a failed add aborts.
+#define JO_LEDGER_CREATED(t) ledger_created(t)
+#define JO_LEDGER_DESTROYED(t) ledger_destroyed(t)
+
+void ledger_created(int type);
+
+void ledger_destroyed(int type);
+
+void ledger_reset(void);
+
+int ledger_get_created(int type);
+
+int ledger_get_destroyed(int type);
 
 #endif
 
@@ -170,6 +215,11 @@ int get_ops_test(const uint32_t index);
 #define OPS_FAILED_ACCESS_7
 #define OPS_FAILED_ACCESS_8
 #define OPS_FAILED_ACCESS_9
+#define OPS_LEDGER_SKIP_FREE_1
+
+// Non-OPS: the ledger vanishes; the enum stays so call sites compile.
+#define JO_LEDGER_CREATED(t) ((void) 0)
+#define JO_LEDGER_DESTROYED(t) ((void) 0)
 
 // Non-OPS: macros vanish entirely. Call sites read the same in both builds.
 #define OPS_OFFSET_OPENSSL_ERROR_1(x)

@@ -848,6 +848,7 @@ dh_kex_ctx *dh_kex_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_DH_KEX_CTX);
     return ctx;
 }
 
@@ -856,6 +857,7 @@ void dh_kex_destroy(dh_kex_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_DH_KEX_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }

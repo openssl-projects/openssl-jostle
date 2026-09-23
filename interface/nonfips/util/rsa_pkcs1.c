@@ -29,6 +29,7 @@ rsa_pkcs1_ctx *rsa_pkcs1_ctx_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_RSA_PKCS1_CTX);
     return ctx;
 }
 
@@ -37,6 +38,7 @@ void rsa_pkcs1_ctx_destroy(rsa_pkcs1_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_RSA_PKCS1_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }

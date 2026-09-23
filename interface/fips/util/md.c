@@ -127,6 +127,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
 
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_MD_CTX);
     return ctx;
 }
 
@@ -167,6 +168,7 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
     ctx->xof = src->xof;
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_MD_CTX);
     return ctx;
 }
 
@@ -174,6 +176,12 @@ void md_ctx_destroy(md_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    // Operations test only: skip the free so the ledger shows one md_ctx
+    // created and never destroyed. The count below must not run first.
+    if (OPS_LEDGER_SKIP_FREE_1 0) {
+        return;
+    }
+    JO_LEDGER_DESTROYED(JO_LEDGER_MD_CTX);
 
     if (ctx->mdctx != NULL) {
         EVP_MD_CTX_free(ctx->mdctx);

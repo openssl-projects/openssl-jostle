@@ -707,6 +707,7 @@ mldsa_ctx *mldsa_ctx_create(int *err) {
     mldsa_ctx *ctx = (mldsa_ctx *) OPENSSL_zalloc(sizeof(mldsa_ctx));
     jo_assert(ctx != NULL);
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_MLDSA_CTX);
     return ctx;
 }
 
@@ -715,6 +716,7 @@ void mldsa_ctx_destroy(mldsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_MLDSA_CTX);
 
     if (ctx->sig != NULL) {
         EVP_SIGNATURE_free(ctx->sig);

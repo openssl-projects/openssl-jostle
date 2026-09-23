@@ -20,6 +20,9 @@
 #include "ops.h"
 #include "rand/jostle_lib_ctx.h"
 
+// Frees a context without counting it: the create failure paths release what
+// they built and never reached the ledger.
+static void mac_release(mac_ctx *mctx);
 
 /*
  * KMAC-128 and KMAC-256 differ only in the underlying cSHAKE and their default
@@ -230,6 +233,7 @@ mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) 
     }
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_MAC_CTX);
     return mctx;
 
 exit:
@@ -341,13 +345,14 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
     mctx->initialized = src->initialized;
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_MAC_CTX);
     return mctx;
 
 exit:
 
     // mac_free is NULL-tolerant per field and clear_frees the key, so it is the
     // right cleanup for a partially-built ctx.
-    mac_free(mctx);
+    mac_release(mctx);
     return NULL;
 }
 
@@ -623,11 +628,10 @@ int32_t mac_reset(mac_ctx *mctx) {
     return init_mac_ctx(mctx);
 }
 
-void mac_free(mac_ctx *mctx) {
+static void mac_release(mac_ctx *mctx) {
     if (mctx == NULL) {
         return;
     }
-
     if (mctx->ctx != NULL) {
         EVP_MAC_CTX_free(mctx->ctx);
     }
@@ -652,4 +656,12 @@ void mac_free(mac_ctx *mctx) {
         OPENSSL_free(mctx->custom);
     }
     OPENSSL_free(mctx);
+}
+
+void mac_free(mac_ctx *mctx) {
+    if (mctx == NULL) {
+        return;
+    }
+    JO_LEDGER_DESTROYED(JO_LEDGER_MAC_CTX);
+    mac_release(mctx);
 }

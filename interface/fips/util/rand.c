@@ -23,6 +23,10 @@
 #include "ops.h"
 #include "rand/jostle_fips_ctx.h"
 
+// Frees a context without counting it: the create failure paths release what
+// they built and never reached the ledger.
+static void rand_ctx_release(JO_RAND_CTX *ctx);
+
 /*
  * OpenSSL DRBGs are commonly configured with a 2^16-byte max request.
  * Keep each RAND_priv_bytes_ex call at or below that boundary and loop for
@@ -171,7 +175,7 @@ static JO_RAND_CTX *rand_ctx_create_with_parent(const char *mechanism, const cha
                        "rand_ctx_create: EVP_RAND_fetch failed");
         *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3030);
         EVP_RAND_free(rand);
-        rand_ctx_destroy(ctx);
+        rand_ctx_release(ctx);
         return NULL;
     }
 
@@ -181,7 +185,7 @@ static JO_RAND_CTX *rand_ctx_create_with_parent(const char *mechanism, const cha
         ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
                        "rand_ctx_create: EVP_RAND_CTX_new failed");
         *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(3032);
-        rand_ctx_destroy(ctx);
+        rand_ctx_release(ctx);
         return NULL;
     }
 
@@ -197,7 +201,7 @@ static JO_RAND_CTX *rand_ctx_create_with_parent(const char *mechanism, const cha
         ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
                        "rand_ctx_create: EVP_RAND_enable_locking failed");
         *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_11(3034);
-        rand_ctx_destroy(ctx);
+        rand_ctx_release(ctx);
         return NULL;
     }
 
@@ -231,7 +235,7 @@ static JO_RAND_CTX *rand_ctx_create_with_parent(const char *mechanism, const cha
         ERR_raise_data(ERR_LIB_PROV, ERR_R_INIT_FAIL,
                        "rand_ctx_create: EVP_RAND_instantiate failed");
         *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_10(3033);
-        rand_ctx_destroy(ctx);
+        rand_ctx_release(ctx);
         return NULL;
     }
 
@@ -254,6 +258,7 @@ static JO_RAND_CTX *rand_ctx_create_with_parent(const char *mechanism, const cha
     }
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_RAND_CTX);
     return ctx;
 }
 
@@ -278,11 +283,10 @@ JO_RAND_CTX *rand_ctx_create(const char *mechanism, const char *variant, int use
                                        personalization_string_len, parent, err);
 }
 
-void rand_ctx_destroy(JO_RAND_CTX *ctx) {
+static void rand_ctx_release(JO_RAND_CTX *ctx) {
     if (ctx == NULL) {
         return;
     }
-
     // Child first, then the parent it chained to. Refcounting makes either
     // order safe; this one reads the way the chain is torn down.
     EVP_RAND_CTX_free(ctx->evp_ctx);
@@ -290,6 +294,14 @@ void rand_ctx_destroy(JO_RAND_CTX *ctx) {
     EVP_RAND_CTX_free(ctx->test_parent);
 #endif
     OPENSSL_free(ctx);
+}
+
+void rand_ctx_destroy(JO_RAND_CTX *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+    JO_LEDGER_DESTROYED(JO_LEDGER_RAND_CTX);
+    rand_ctx_release(ctx);
 }
 
 int32_t rand_ctx_random_bytes(JO_RAND_CTX *ctx, uint8_t *output,

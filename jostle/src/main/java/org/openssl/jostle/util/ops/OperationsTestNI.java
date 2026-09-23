@@ -92,6 +92,37 @@ public interface OperationsTestNI
     boolean op_randLibctxFipsEnabled();
 
     /**
+     * Creates counted for a ledger type since the last reset, in the library
+     * this NI drives. Operations-test builds only; counts only what a
+     * Java-held handle owns, so a failed create counts nothing.
+     */
+    int op_ledgerCreated(int type);
+
+    /** Destroys counted for a ledger type since the last reset. */
+    int op_ledgerDestroyed(int type);
+
+    /** Zeroes every ledger count in this library. */
+    void op_ledgerReset();
+
+    default int ledgerCreated(LedgerType type)
+    {
+        assert opsTestAvailable();
+        return op_ledgerCreated(type.ordinal());
+    }
+
+    default int ledgerDestroyed(LedgerType type)
+    {
+        assert opsTestAvailable();
+        return op_ledgerDestroyed(type.ordinal());
+    }
+
+    default void ledgerReset()
+    {
+        assert opsTestAvailable();
+        op_ledgerReset();
+    }
+
+    /**
      * Set ops test flag true
      *
      * @param flag the flag
@@ -174,6 +205,36 @@ public interface OperationsTestNI
         OPS_FAILED_ACCESS_7,
         OPS_FAILED_ACCESS_8,
         OPS_FAILED_ACCESS_9,
+        OPS_LEDGER_SKIP_FREE_1,
+    }
+
+    /**
+     * Native context types the disposal ledger counts. The ordinal is the C
+     * enum value in interface/nonfips/util/ops.h, so new types are APPENDED,
+     * never inserted, the same trap as {@link OpsTestFlag}.
+     */
+    enum LedgerType
+    {
+        MD_CTX,
+        MAC_CTX,
+        BLOCK_CIPHER_CTX,
+        CCM_CTX,
+        KEY_SPEC,
+        ASN1_CTX,
+        RSA_CTX,
+        RSA_OAEP_CTX,
+        RSA_PKCS1_CTX,
+        DSA_CTX,
+        EC_CTX,
+        EC_KEX_CTX,
+        DH_KEX_CTX,
+        EDEC_CTX,
+        MLDSA_CTX,
+        SLH_DSA_CTX,
+        KS_CTX,
+        RAND_CTX,
+        X509_CERT,
+        X509_CRL,
     }
 
 }

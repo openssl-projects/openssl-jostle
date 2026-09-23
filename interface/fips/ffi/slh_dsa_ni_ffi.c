@@ -25,9 +25,7 @@ key_spec *JoSLHDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rand_sr
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     *ret_val = slh_dsa_generate_key_pair(spec, type, NULL, 0, rand_src);
 
@@ -65,8 +63,7 @@ key_spec *JoSLHDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     *ret_val = slh_dsa_generate_key_pair(spec, type, seed, seed_len, rand_src);
 

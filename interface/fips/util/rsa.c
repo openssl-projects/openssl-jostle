@@ -485,6 +485,7 @@ rsa_ctx *rsa_ctx_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_RSA_CTX);
     return ctx;
 }
 
@@ -493,6 +494,7 @@ void rsa_ctx_destroy(rsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_RSA_CTX);
 
     if (ctx->digest_ctx != NULL) {
         EVP_MD_CTX_free(ctx->digest_ctx);

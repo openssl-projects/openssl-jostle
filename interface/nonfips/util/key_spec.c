@@ -12,11 +12,13 @@
 #include <openssl/evp.h>
 
 #include "jo_assert.h"
+#include "ops.h"
 
 
 key_spec *create_spec(void) {
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
+    JO_LEDGER_CREATED(JO_LEDGER_KEY_SPEC);
     return spec;
 }
 
@@ -37,6 +39,7 @@ void free_key_spec(key_spec *spec) {
     if (spec == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_KEY_SPEC);
     free_spec(spec);
     OPENSSL_clear_free(spec, sizeof(*spec));
 }

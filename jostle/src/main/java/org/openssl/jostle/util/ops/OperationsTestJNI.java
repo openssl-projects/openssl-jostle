@@ -54,4 +54,13 @@ public class OperationsTestJNI implements OperationsTestNI
     @Override
     public native boolean op_randLibctxFipsEnabled();
 
+    @Override
+    public native int op_ledgerCreated(int type);
+
+    @Override
+    public native int op_ledgerDestroyed(int type);
+
+    @Override
+    public native void op_ledgerReset();
+
 }

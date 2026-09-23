@@ -104,6 +104,7 @@ asn1_ctx *asn1_writer_allocate(int32_t *err) {
     ctx->buffer = BIO_new(BIO_s_mem());
     jo_assert(ctx->buffer != NULL);
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_ASN1_CTX);
     return ctx;
 }
 
@@ -111,6 +112,7 @@ void asn1_writer_free(asn1_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_ASN1_CTX);
     if (ctx->buffer != NULL) {
         BIO_free_all(ctx->buffer);
     }
@@ -504,6 +506,7 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
     key->key = new_key;
 
     *ret_code = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_KEY_SPEC);
     return key;
 
 err:
@@ -573,6 +576,7 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
     key->key = new_key;
 
     *ret_code = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_KEY_SPEC);
     return key;
 
 err:

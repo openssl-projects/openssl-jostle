@@ -110,6 +110,7 @@ ccm_ctx *ccm_ctx_create(uint32_t cipher_id, int32_t *err) {
     }
     ctx->initialized = 0;
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_CCM_CTX);
     return ctx;
 }
 
@@ -118,6 +119,7 @@ void ccm_ctx_destroy(ccm_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_CCM_CTX);
     if (ctx->evp != NULL) {
         EVP_CIPHER_CTX_free(ctx->evp);
         ctx->evp = NULL;

@@ -349,6 +349,7 @@ edec_ctx *edec_ctx_create(int32_t *err) {
     jo_assert(ctx->message != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_EDEC_CTX);
     return ctx;
 }
 
@@ -356,6 +357,7 @@ void edec_ctx_destroy(edec_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_EDEC_CTX);
 
     if (ctx->message != NULL) {
         BIO_reset(ctx->message);

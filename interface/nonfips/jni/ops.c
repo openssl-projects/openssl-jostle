@@ -153,4 +153,25 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1ge
 }
 
 
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1ledgerCreated
+(JNIEnv *env, jobject o, jint type) {
+    UNUSED(env);
+    UNUSED(o);
+    return (jint) ledger_get_created((int) type);
+}
+
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1ledgerDestroyed
+(JNIEnv *env, jobject o, jint type) {
+    UNUSED(env);
+    UNUSED(o);
+    return (jint) ledger_get_destroyed((int) type);
+}
+
+JNIEXPORT void JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1ledgerReset
+(JNIEnv *env, jobject o) {
+    UNUSED(env);
+    UNUSED(o);
+    ledger_reset();
+}
+
 #endif

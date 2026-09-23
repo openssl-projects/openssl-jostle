@@ -112,6 +112,12 @@ public final class DisposalRecorder implements DisposalListener
         return total(failed);
     }
 
+    /** Disposals, counting a reused value each time. */
+    public int disposedCount()
+    {
+        return total(disposed);
+    }
+
     /** Values registered more than once in the window, i.e. addresses the allocator handed back. */
     public int reusedCount()
     {

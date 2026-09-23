@@ -497,6 +497,7 @@ ks_ctx *ks_allocate(const char *type, int32_t *err) {
     jo_assert(ctx->type != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_KS_CTX);
     return ctx;
 }
 
@@ -504,6 +505,7 @@ void ks_free(ks_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_KS_CTX);
     clear_entries(ctx);
     OPENSSL_clear_free(ctx->pending_store, ctx->pending_store_len);
     OPENSSL_clear_free(ctx->type, strlen(ctx->type) + 1);

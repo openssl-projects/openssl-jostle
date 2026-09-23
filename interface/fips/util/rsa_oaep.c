@@ -33,6 +33,7 @@ rsa_oaep_ctx *rsa_oaep_ctx_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_RSA_OAEP_CTX);
     return ctx;
 }
 
@@ -41,6 +42,7 @@ void rsa_oaep_ctx_destroy(rsa_oaep_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_RSA_OAEP_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }

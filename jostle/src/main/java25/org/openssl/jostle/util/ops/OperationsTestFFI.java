@@ -45,6 +45,9 @@ public class OperationsTestFFI implements OperationsTestNI
     private final MethodHandle createTestDrbg;
     private final MethodHandle setTestEntropy;
     private final MethodHandle randLibctxFipsEnabled;
+    private final MethodHandle ledgerCreated;
+    private final MethodHandle ledgerDestroyed;
+    private final MethodHandle ledgerReset;
 
     public OperationsTestFFI()
     {
@@ -114,6 +117,19 @@ public class OperationsTestFFI implements OperationsTestNI
                     lookup.find(symPrefix + "JoOps_randLibctxFipsEnabled").orElseThrow();
             randLibctxFipsEnabled = linker.downcallHandle(fipsEnabledFunc,
                     FunctionDescriptor.of(ValueLayout.JAVA_INT));
+
+            // int32_t JoOps_ledgerCreated(int32_t type)
+            ledgerCreated = linker.downcallHandle(
+                    lookup.find(symPrefix + "JoOps_ledgerCreated").orElseThrow(),
+                    FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            // int32_t JoOps_ledgerDestroyed(int32_t type)
+            ledgerDestroyed = linker.downcallHandle(
+                    lookup.find(symPrefix + "JoOps_ledgerDestroyed").orElseThrow(),
+                    FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+            // void JoOps_ledgerReset(void)
+            ledgerReset = linker.downcallHandle(
+                    lookup.find(symPrefix + "JoOps_ledgerReset").orElseThrow(),
+                    FunctionDescriptor.ofVoid());
         }
         else
         {
@@ -122,6 +138,9 @@ public class OperationsTestFFI implements OperationsTestNI
             createTestDrbg = null;
             setTestEntropy = null;
             randLibctxFipsEnabled = null;
+            ledgerCreated = null;
+            ledgerDestroyed = null;
+            ledgerReset = null;
         }
     }
 
@@ -219,6 +238,57 @@ public class OperationsTestFFI implements OperationsTestNI
         try
         {
             return ((int) randLibctxFipsEnabled.invokeExact()) != 0;
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public int op_ledgerCreated(int type)
+    {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+        try
+        {
+            return (int) ledgerCreated.invokeExact(type);
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public int op_ledgerDestroyed(int type)
+    {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+        try
+        {
+            return (int) ledgerDestroyed.invokeExact(type);
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void op_ledgerReset()
+    {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+        try
+        {
+            ledgerReset.invokeExact();
         }
         catch (Throwable e)
         {

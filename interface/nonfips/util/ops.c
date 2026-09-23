@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include "ops.h"
 
+#include <openssl/crypto.h>
 #include <openssl/rand.h>
 
 
@@ -45,6 +46,67 @@ int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred,
 
 int get_ops_test(const uint32_t index) {
     return OPS_ARR[index];
+}
+
+//
+// Disposal ledger. Per-type counts of creates and destroys, per interface
+// library. The lock is created once and passed on every CRYPTO_atomic_add:
+// without native atomics the call falls back to it and returns 0 if it is
+// NULL, which would silently drop a count, so the return is asserted.
+//
+static int ledger_created_counts[JO_LEDGER_TYPES] = {0};
+static int ledger_destroyed_counts[JO_LEDGER_TYPES] = {0};
+static CRYPTO_RWLOCK *ledger_lock = NULL;
+static CRYPTO_ONCE ledger_once = CRYPTO_ONCE_STATIC_INIT;
+
+static void ledger_init(void) {
+    ledger_lock = CRYPTO_THREAD_lock_new();
+}
+
+static CRYPTO_RWLOCK *ledger_lock_get(void) {
+    jo_assert(CRYPTO_THREAD_run_once(&ledger_once, ledger_init) == 1);
+    jo_assert(ledger_lock != NULL);
+    return ledger_lock;
+}
+
+static void ledger_add(int *slot, int amount) {
+    int ret = 0;
+    jo_assert(CRYPTO_atomic_add(slot, amount, &ret, ledger_lock_get()) == 1);
+}
+
+static int ledger_read(int *slot) {
+    int ret = 0;
+    jo_assert(CRYPTO_atomic_load_int(slot, &ret, ledger_lock_get()) == 1);
+    return ret;
+}
+
+void ledger_created(int type) {
+    jo_assert(type >= 0 && type < JO_LEDGER_TYPES);
+    ledger_add(&ledger_created_counts[type], 1);
+}
+
+void ledger_destroyed(int type) {
+    jo_assert(type >= 0 && type < JO_LEDGER_TYPES);
+    ledger_add(&ledger_destroyed_counts[type], 1);
+}
+
+int ledger_get_created(int type) {
+    jo_assert(type >= 0 && type < JO_LEDGER_TYPES);
+    return ledger_read(&ledger_created_counts[type]);
+}
+
+int ledger_get_destroyed(int type) {
+    jo_assert(type >= 0 && type < JO_LEDGER_TYPES);
+    return ledger_read(&ledger_destroyed_counts[type]);
+}
+
+// Atomic per slot: each count is brought to zero through the same add the
+// counters use, so a reset never races a concurrent count into a torn value.
+void ledger_reset(void) {
+    for (int t = 0; t < JO_LEDGER_TYPES; t++) {
+        ledger_add(&ledger_created_counts[t], -ledger_read(&ledger_created_counts[t]));
+        ledger_add(&ledger_destroyed_counts[t], -ledger_read(&ledger_destroyed_counts[t]));
+    }
 }
 
 

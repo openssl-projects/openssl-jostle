@@ -24,9 +24,7 @@ key_spec *JoMLDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src)
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     *ret_val = mldsa_generate_key_pair(spec, type, NULL, 0, rnd_src);
 
@@ -64,8 +62,7 @@ key_spec *JoMLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *s
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     *ret_val = mldsa_generate_key_pair(spec, type, seed, seed_len, rnd_src);
 

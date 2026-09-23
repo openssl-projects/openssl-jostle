@@ -22,9 +22,7 @@ key_spec *JoMLXKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src
         return NULL;
     }
 
-    key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
-
-    jo_assert(spec != NULL);
+    key_spec *spec = create_spec();
 
     *ret_val = mlxkem_generate_key_pair(spec, type, rnd_src);
 

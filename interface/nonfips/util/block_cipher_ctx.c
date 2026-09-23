@@ -19,10 +19,11 @@
 #include "jo_assert.h"
 #include "rand/jostle_lib_ctx.h"
 
-
+// Frees a context without counting it: the create failure paths release what
+// they built and never reached the ledger.
+static void block_cipher_ctx_release(block_cipher_ctx *ctx);
 
 #define REQUIRE_IV_LEN(expected) if (iv_len != (expected)) return JO_INVALID_IV_LEN;
-
 
 /**
  * AEAD-mode discriminator. GCM, OCB, and ChaCha20-Poly1305 (the synthetic
@@ -412,11 +413,12 @@ block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, 
         }
     }
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_BLOCK_CIPHER_CTX);
     return ctx;
 
 failed:
     *err = JO_FAIL;
-    block_cipher_ctx_destroy(ctx);
+    block_cipher_ctx_release(ctx);
     ctx = NULL;
     return ctx;
 }
@@ -2594,11 +2596,10 @@ int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
 }
 
 
-void block_cipher_ctx_destroy(block_cipher_ctx *ctx) {
+static void block_cipher_ctx_release(block_cipher_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
-
     if (ctx->counter != NULL) {
         counter_free(ctx->counter);
     }
@@ -2612,6 +2613,14 @@ void block_cipher_ctx_destroy(block_cipher_ctx *ctx) {
     BUF_MEM_free(ctx->accum);
 
     OPENSSL_clear_free(ctx, sizeof(*ctx));
+}
+
+void block_cipher_ctx_destroy(block_cipher_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+    JO_LEDGER_DESTROYED(JO_LEDGER_BLOCK_CIPHER_CTX);
+    block_cipher_ctx_release(ctx);
 }
 
 int32_t block_cipher_fetchable(int32_t cipher_id, int32_t mode_id) {

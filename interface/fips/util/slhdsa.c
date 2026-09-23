@@ -457,6 +457,7 @@ slh_dsa_ctx *slh_dsa_ctx_create(int32_t *err) {
     slh_dsa_ctx *ctx = (slh_dsa_ctx *) OPENSSL_zalloc(sizeof(slh_dsa_ctx));
     jo_assert(ctx != NULL);
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_SLH_DSA_CTX);
     return ctx;
 }
 
@@ -465,6 +466,7 @@ void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_SLH_DSA_CTX);
 
     if (ctx->sig != NULL) {
         EVP_SIGNATURE_free(ctx->sig);

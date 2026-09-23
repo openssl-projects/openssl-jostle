@@ -61,4 +61,20 @@ int32_t JoOps_randLibctxFipsEnabled(void)
     return rand_libctx_fips_enabled();
 }
 
+// Disposal ledger, read by type; the counts live in util/ops.c.
+int32_t JoOps_ledgerCreated(int32_t type)
+{
+    return ledger_get_created((int) type);
+}
+
+int32_t JoOps_ledgerDestroyed(int32_t type)
+{
+    return ledger_get_destroyed((int) type);
+}
+
+void JoOps_ledgerReset(void)
+{
+    ledger_reset();
+}
+
 #endif

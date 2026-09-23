@@ -122,6 +122,7 @@ int32_t x509_cert_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
         *consumed = 0;
         return JO_OPENSSL_ERROR;
     }
+    JO_LEDGER_CREATED(JO_LEDGER_X509_CERT);
     return JO_SUCCESS;
 }
 
@@ -136,6 +137,7 @@ int32_t x509_cert_free(x509_handle *h)
          * works afterwards. */
         return kind_rc;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_X509_CERT);
     X509_free(cert);
     /* Scrubbed before release as defence in depth; a dispose after dispose is
      * still a caller fault. */
@@ -1006,6 +1008,7 @@ int32_t x509_crl_decode(const uint8_t *der, size_t der_len, size_t max_bytes,
         *consumed = 0;
         return JO_OPENSSL_ERROR;
     }
+    JO_LEDGER_CREATED(JO_LEDGER_X509_CRL);
     return JO_SUCCESS;
 }
 
@@ -1018,6 +1021,7 @@ int32_t x509_crl_free(x509_handle *h)
         /* Frees NOTHING on the wrong kind -- see x509_cert_free. */
         return kind_rc;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_X509_CRL);
     X509_CRL_free(crl);
     h->kind = 0;
     h->obj = NULL;

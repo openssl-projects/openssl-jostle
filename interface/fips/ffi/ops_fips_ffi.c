@@ -24,6 +24,9 @@
 /* *INDENT-OFF* */
 #define JoOps_createTestDrbg        JoFIPS_JoOps_createTestDrbg
 #define JoOps_getRandomBytes        JoFIPS_JoOps_getRandomBytes
+#define JoOps_ledgerCreated         JoFIPS_JoOps_ledgerCreated
+#define JoOps_ledgerDestroyed       JoFIPS_JoOps_ledgerDestroyed
+#define JoOps_ledgerReset           JoFIPS_JoOps_ledgerReset
 #define JoOps_randLibctxFipsEnabled JoFIPS_JoOps_randLibctxFipsEnabled
 #define JoOps_setFlag               JoFIPS_JoOps_setFlag
 #define JoOps_setTestEntropy        JoFIPS_JoOps_setTestEntropy

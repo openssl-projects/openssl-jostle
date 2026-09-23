@@ -618,6 +618,7 @@ dsa_ctx *dsa_ctx_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_DSA_CTX);
     return ctx;
 }
 
@@ -628,6 +629,7 @@ void dsa_ctx_destroy(dsa_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_DSA_CTX);
     dsa_ctx_clear_session(ctx);
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }

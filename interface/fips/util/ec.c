@@ -1005,6 +1005,7 @@ ec_ctx *ec_ctx_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_EC_CTX);
     return ctx;
 }
 
@@ -1015,6 +1016,7 @@ void ec_ctx_destroy(ec_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_EC_CTX);
     ec_ctx_clear_session(ctx);
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
@@ -1476,6 +1478,7 @@ ec_kex_ctx *ec_kex_create(int32_t *err) {
     jo_assert(ctx != NULL);
 
     *err = JO_SUCCESS;
+    JO_LEDGER_CREATED(JO_LEDGER_EC_KEX_CTX);
     return ctx;
 }
 
@@ -1484,6 +1487,7 @@ void ec_kex_destroy(ec_kex_ctx *ctx) {
     if (ctx == NULL) {
         return;
     }
+    JO_LEDGER_DESTROYED(JO_LEDGER_EC_KEX_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }
