@@ -27,6 +27,14 @@ the other — they are separate source files by design.
    1. **A null input array with `off == len == 0` slips past the range checks straight into a util `jo_assert`.** `load_bytearray_ctx` returns *success* for a null Java array (`bytearray == NULL`, `size == 0`), and `check_bytearray_in_range(ctx, 0, 0)` / `check_in_range(size, 0, 0)` *pass* — so the access-translation (1.4) and the range checks (1.3) do NOT catch it. You MUST explicitly null-check the loaded pointer: `if (input.bytearray == NULL) { ret = JO_INPUT_IS_NULL; goto exit; }` (JNI) / `if (input == NULL) { return JO_INPUT_IS_NULL; }` (FFI). This is precisely the check the spec `encap`/`decap` bridges were missing while every sibling bridge had it.
    2. **Type-check EVERY `jlong`/pointer handle, not just some of them.** The RSA session entry points type-checked the `key_spec` handle but `jo_assert`ed the `ctx` handle *in the same function* — a `0` ctx handle from an NI caller then aborted the JVM instead of returning `JO_SIGNER_CTX_IS_NULL`. An entry point that returns a typed code for one caller-derived handle but `jo_assert`s another is the smell; fix all of them.
 
+   3. **`len == 0 || ptr != NULL` is blind to a null array arriving over FFI.** FFI passes a null Java array as
+      the pair (NULL, 0), so an assertion or check conditional on the length accepts it silently, while JNI,
+      which sees the null array itself, aborts or refuses. Where empty and null must be told apart (a DRBG's
+      personalisation string, entropy or nonce: OpenSSL derives different bytes from a null string than from an
+      empty one and raises nothing), check the pointer unconditionally. The test DRBG entry point had the
+      length-conditional form on two arrays and nothing on the third, so FFI would have derived different bytes
+      from a null personalisation while JNI aborted: the silent direction.
+
    **Cross-check every new or edited bridge against its siblings, and lock each check with a `*LimitTest`.** `asn1_ni_*.c`, `dsa_ni_*.c`, and `ec_ni_*.c` are the reference for the complete null/range/handle validation set — a bridge that omits a check a sibling performs (or `jo_assert`s where a sibling returns a typed code) is the defect. A `jo_assert` reachable from the NI surface is invisible to every positive test but is exactly what a limit test (or a hostile caller) hits, so pair every bridge input-check with a `*LimitTest` that drives the NI with the null/zero value and pins the typed rejection (see the limit-test completeness rule in testing.md) — an un-tested check is one refactor away from silently regressing to an abort.
 
 2. **Abstraction layer (`interface/nonfips/util/`)** is the only place that calls OpenSSL. It maintains state in structs across the JCA new → init → update → final → reset lifecycle. Util **trusts** the bridge to have validated user-supplied inputs and asserts those preconditions as invariants (see point 5). That includes `rnd_src` — both JNI and FFI bridges null-check the RandSource on every entry point that takes one, so util just `jo_assert`s it. Util's only legitimate `if (X) return JO_*` patterns are:
@@ -367,6 +375,58 @@ certification-path call re-parses its result through the X.509 factory, so
 `certpath.c` deliberately uses `OPENSSL_ERROR_7-12` and `FAILED_ACCESS_4-6`
 where `x509.c` uses `1-6` and `1-3`. A shared flag fires in both files at once
 and the test cannot say which it drove.
+
+### A census of "who allocates X" includes the bridges, and a first pass is not a census
+
+Util owns allocation, but the bridges can allocate too, and nothing forces them through util's constructor.
+Seven FFI glue files per tree built a `key_spec` with a bare `OPENSSL_zalloc(sizeof(key_spec))` plus an
+assert, which is `create_spec()`'s body exactly, while every JNI counterpart called `create_spec()`. Shipped
+behaviour was correct; the disposal ledger found it, because those specs were freed through a counted
+destroy but never created through a counted create. The first pass then routed ten of the fourteen sites and
+missed the SLH-DSA pair, which a whole-area grep caught. So before routing an allocation, run the grep for its
+exact spelling over the whole of `interface/`, both trees, and state the count before and after; the only
+remaining hits should be the constructor itself and the util sites that already count.
+
+### Count a function's returns by what each one returns
+
+A "success return" is one that returns the thing, not one that says `return ctx;`.
+`block_cipher_ctx_create` has two `return ctx;` statements, and the second sits under the `failed:` label
+after `ctx = NULL`; a census that counted two success returns would have placed a create count on a failed
+create. Read the value on every return path before placing anything at "every success return".
+
+### Splitting a free into count-and-release moves the NULL check
+
+A create that frees a half-built context through its own public destroy on failure would count a destroy
+for a create that never counted, so the ledger splits each such destroy into a static `<type>_release`
+holding the body and a public wrapper that NULL-checks, counts, then releases; the failure paths call the
+release. The public destroy used to absorb a NULL; the release, reached from a cleanup label, must now do it
+itself. `block_cipher_ctx_create` reaches `failed:` with a NULL context after an allocation failure, and the
+first version of its release dereferenced it. Every function reached from a cleanup label is NULL-tolerant in
+its own right, whatever its caller checks (`mac_release`, `block_cipher_ctx_release`, `rand_ctx_release`).
+
+### The OPS disposal ledger: what it counts and how to add a type
+
+In an operations-test build `util/ops.c` keeps per-type created and destroyed counts for every native context
+type a Java-held handle owns; a plain build compiles the macros to nothing and exports no ledger symbol.
+`JO_LEDGER_CREATED(t)` sits at every success return of every create, and `JO_LEDGER_DESTROYED(t)` after the
+NULL check of every destroy. A create counts on success only, so a leak inside a failed create is not visible
+here. Counts go through `CRYPTO_atomic_add` with a ledger-owned lock, and every return is asserted: without
+native atomics the call falls back to the lock and returns 0 when the lock is NULL, which would drop a count.
+The entry points are `op_ledgerCreated` / `op_ledgerDestroyed` / `op_ledgerReset` on `OperationsTestNI`.
+
+A type is IN when a Java-held handle owns one, created by a handle-returning NI call and freed by a dispose
+the Java side calls. Internal helpers (`counter_free`), library teardown (`rand_destroy`) and a struct the
+bridge builds and frees inside one call (`certpath_result`) are OUT. Internal lifetimes whose both ends are
+counted sites balance by construction and need nothing (`ks_get_key`'s encoding, `ks_set_key`'s decoded key).
+
+To add a type: append it to `enum jo_ledger_type` in `util/ops.h` and to `OperationsTestNI.LedgerType` in the
+same position (append only; the ordinal is the C value, the same trap as `OpsTestFlag`); make the change in
+both trees; put the create macro at every return that returns the object (see the returns rule above) and
+the destroy macro after the NULL check; split the destroy if its create frees through it on failure; route
+any bridge allocation through the util constructor; give the family a driver in `DisposalFamilies` or an
+extra driver in `DisposalLedgerOpsTest`; and falsify it once by removing its destroy macro, which must turn
+exactly that type red. `OPS_LEDGER_SKIP_FREE_1` makes `md_ctx_destroy` return before the count and the
+free, and the permanent cell `aSkippedFreeShowsOnExactlyThatType` requires MD_CTX off by exactly one.
 
 ### A helper that writes N elements checks the array length ITSELF
 

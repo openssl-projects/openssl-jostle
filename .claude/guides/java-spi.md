@@ -85,14 +85,40 @@ Jostle delegates its cryptography to OpenSSL, so OpenSSL — not Jostle — owns
 The rule, in order of preference:
 
 1. **Ask OpenSSL at the point of use.** If the value is cheap to fetch and not on a hot path, query the native layer each time (`EVP_MD_get_size`, `EVP_CIPHER_get_block_size`, `OSSL_RAND_PARAM_STRENGTH`, `OSSL_RAND_PARAM_MAX_REQUEST`, `EVP_PKEY_get_size`, etc.) and use what it returns.
-2. **Query once and cache** when the value is fixed per variant and the query is expensive or called often. The canonical helper is `org.openssl.jostle.jcajce.provider.cache.NativeLengthCache<K>` — one `static final` instance per consumer (SPI / enum), `get` returns `UNKNOWN` on a miss, the consumer probes native once and `cache`s the result, and `putIfAbsent` makes a concurrent double-probe benign (both threads compute the same fixed value). Its class Javadoc states the principle verbatim: "OpenSSL is the single source of truth … no transcribed table that can drift from native truth."
+2. **Query once and cache** when the value is fixed per variant and the query is expensive or called often.
+   The helper is `org.openssl.jostle.jcajce.provider.cache.NativeLengthCache<K>`, and it lives in the NI
+   implementation, not in the consumer: each NI interface that reports a fixed fact declares an accessor
+   `lengthCache()` and one default method that probes through the interface's own methods on a miss
+   (`MDServiceNI.digestOutputLength`, `MacServiceNI.macLength`, `EDServiceNI` / `MLDSAServiceNI` /
+   `SLHDSAServiceNI.signatureLength`, `SpecNI.encapsulationLength`, `RandServiceNI.drbgMaxStrength`), and
+   each concrete NI class holds its own instance in a final field. `get` returns `UNKNOWN` on a miss, `cache`
+   ignores non-positive values, and `putIfAbsent` makes a concurrent double-probe benign. The consumer calls
+   the default method on the NI it already holds and caches nothing itself.
 3. **Never** hand-write the number. If you find yourself typing `case "SHA-256": return 32;` or `private static final int[] STRENGTHS = {128, 192, 256};`, stop — that is the anti-pattern this rule exists to prevent.
 
 Canonical right-way examples in this codebase, all of which replaced a transcribed table:
 
-1. `RandAlgorithm.maxStrengthFor` queries `OSSL_RAND_PARAM_STRENGTH` (via `ni_drbgStrength`) and memoizes per mechanism/variant through a `NativeLengthCache` — it used to be a hardcoded strength table that had already drifted (SHA-1 was listed at 160, OpenSSL reports 128).
+1. `RandAlgorithm.maxStrengthFor` asks `RandServiceNI.drbgMaxStrength`, which queries `OSSL_RAND_PARAM_STRENGTH`
+   (via `ni_drbgStrength`) once per mechanism/variant and caches it in that NI instance. It used to be a
+   hardcoded strength table that had already drifted (SHA-1 was listed at 160, OpenSSL reports 128).
 2. `rand.c` reads each DRBG's chunking bound from `OSSL_RAND_PARAM_MAX_REQUEST` on the live context — the `65536` literal survives only as a fallback when the query fails.
-3. The `*Lengths` consolidation: digest output size, MAC length, cipher block size, signature length, and KEM encapsulation length are each probed from native once and memoized in `NativeLengthCache`, rather than tabulated per algorithm.
+3. Digest output size, MAC length, signature length and KEM encapsulation length are each probed from native
+   once per NI instance through the interface's default method, rather than tabulated per algorithm.
+
+**A cached fact belongs to the NI instance that asked for it, never to a static.** A static cache is shared
+by every NI instance, so whichever module answers first sets the fact for both providers: a length the base
+library reported answers for the FIPS module, and the reverse. Ten classes held exactly that static until
+the cache moved into the NI implementations. `NativeFactCacheBindingTest` builds FRESH NI instances by
+reflection (so no earlier test can have warmed them) and requires the probe counts to read 1/0, then 1/1,
+then 1/1 on a repeat, one row per interface; `FIPSNativeFactCacheBindingTest` pairs a base instance with a
+FIPS one, and records a row the module does not serve as not served only after asserting it really has no
+generator for it. `NativeFactCacheStaticLintTest` fails the build on any static cache in any source set.
+
+**An interface field is static without the keyword, so a "no statics" lint must look for it.** The lint's
+first matcher keyed on the word `static`; a cache field declared on the NI interface itself, which is exactly
+the sharing it exists to forbid, would have passed. It was found by designing the falsification before
+trusting the lint. When writing a lint against a Java modifier, ask what else the language gives that
+modifier implicitly.
 
 **Asking ANOTHER JCA PROVIDER is the same defect as transcribing, and it hides better.** A transcribed `32` is visibly a second source of truth; `MessageDigest.getInstance("SHA-256").getDigestLength()` looks like a query and is one — of the wrong oracle. It names no provider, so JCA order decides (in practice SUN), and the answer is a fact about the JDK, not about the interface library the operation will actually run on. `HKDFSecretKeyFactory` sourced its RFC 5869 `255 * HashLen` ceiling that way until MT-11; it now probes `MDServiceNI.allocateDigest` / `getDigestOutputLen` / `dispose` through the SAME NI the factory's KDF uses, so JSLFIPS asks the module and JSL asks mainline. Canonicalise BEFORE probing — OpenSSL knows `SHA2-256`, not the JCE spelling `SHA-256`.
 
@@ -521,6 +547,17 @@ the other way. Assert BOTH directions — only the second one fails.
 Name such a wrapper something no other library uses. `X500Name` is taken by both
 `sun.security.x509` and `org.bouncycastle.asn1.x500`, so a third leaves a reader
 of a stack trace guessing; ours is `JcaDistinguishedName`.
+
+### Resolve a service's family through its LOADED class hierarchy, never its registered class name
+
+A provider often registers subclasses of the class that owns the behaviour: every symmetric cipher is a
+`BlockCipherSpi` subclass, every CCM a `CCMCipherSpi` subclass, every RSA signature (PSS included) an
+`RSASignatureSpiBase` subclass. A census or guard that keys on the registered class's simple name therefore
+never sees those families, and a completeness check that reads "not registered" as "nothing to cover"
+exempts them silently. The disposal reconciliation's first version did exactly that and drove none of the
+three. Load the class (`Class.forName(s.getClassName(), false, providerLoader)`) and walk `getSuperclass()`
+to the class that declares the thing being counted (`DisposalFamilies.familyOf` is the reference), and pin a
+floor on how many families the resolution must reach so a broken walk fails instead of shrinking.
 
 ### Every SPI takes its NI by CONSTRUCTOR, and the FIPS registrar passes the FIPS one
 

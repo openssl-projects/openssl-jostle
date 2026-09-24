@@ -230,6 +230,28 @@ CORRECT sites. That over-firing was caught only by reading every line of the
 sabotaged run instead of the one line expected — the both-directions rule
 applied to the run's OUTPUT, not just to its inputs.
 
+**A source lint normalises line endings and proves it on a CRLF copy of its own input.** Windows runners
+check out with CRLF (`.gitattributes` pins `eol` only for a few paths), so a lint that splits on `"\n"` or
+compares a line to `"}"` sees every line end in `\r` and fails only on Windows: green on every POSIX leg, red
+on every Windows job. It happened twice in one week, once in a C-source lint and once in a resource-manifest
+hash. Split on `\r?\n` (or normalise to LF before hashing), then run the same scan over a CRLF copy of the
+same input and assert the two results are identical; `FIPSRelaxedPropertyParityTest` and
+`NativeFactCacheStaticLintTest` are the references. The self-check makes a Windows-only failure visible on
+the machine where the lint is written.
+
+### A falsification harness stages first, restores by content, and prints a footer
+
+A sabotage is restored with `git checkout --` from the INDEX, so anything not yet staged is destroyed by the
+restore, silently; new files must be staged before the first sabotage. Confirm each sabotage landed (count its
+marker in the file you believe you changed) and each restore by content (the marker count back to zero), not
+by the checkout's exit status. End every harness with `INDEX_BEFORE`, `INDEX_AFTER` and a worktree-versus-index
+line (`git diff --numstat | wc -l`), and quote them: equal index hashes and a zero diff are the proof the run
+left the tree as it found it. One harness restored from the index while the FIPS twin's edits were unstaged,
+and a reviewed tree lost them.
+
+**Tell whoever reads the tree that a falsification is running.** For its duration the working tree holds
+deliberately broken code, and a reader who opens a file then reasonably concludes the code is broken.
+
 ### Vary the chunking, and randomise the inputs
 
 Streaming algorithms (block ciphers, AEAD, digests, MACs, signatures) all have a buffering layer that absorbs partial blocks. A test that only calls `processBytes(wholeMessage, 0, len)` won't exercise the partial-block path; a test that only feeds bytes one at a time won't exercise the bulk path. Implementations have shipped where one path was right and the other returned garbage — and the native paths in this codebase deliberately buffer differently from the pure-Java paths (see "Behavioural difference vs. upstream BC" above), so the same input chunked differently is exactly the case where Java and native diverge.
@@ -256,6 +278,12 @@ A JCA transformation with `update`/`doFinal` promises that any split of the same
 3. **A mode with no `update()` call anywhere in the suite is uncovered on this dimension**, however many one-shot vectors it has. Grep for `.update(` per transformation before believing otherwise.
 
 **ONE PARAMETER MUST NOT GOVERN TWO DIMENSIONS — a legitimate constraint on one silently imposes an illegitimate one on the other.** This is what hid the ECB/CBC defect, and it is worth recognising by shape because it looks like ordinary parameterisation. `AESAgreementTest.exercise_complexUpdateDoFinal(xform, keys, top, step, ivLen, sr)` uses `step` for BOTH the message-length loop (`t += step`) and the split-point loop (`splitAt += step`). For a `NoPadding` mode the caller must pass `step = 16`, because non-aligned message lengths are genuinely illegal — a correct, necessary constraint. It then also forces split points onto 16-byte boundaries, which nothing requires and which skips the entire partial-block path. CFB gets byte-wise splits purely as a side effect of ITS lengths being unconstrained. Nobody chose the aligned-only splitting; it was inherited from an unrelated rule one parameter away. When a helper takes one knob, ask which dimensions it reaches.
+
+**The same fault inside a MEASUREMENT reports a refusal that is not there.** A probe drove every key-wrap
+cipher class with one IV length (12) and reported that CBC accepted neither parameter spec; CBC requires
+exactly 16, so the probe measured its own knob. The spec's class and its length are two dimensions, and both
+have to come from the class under test (a per-class table that fails loud on an unknown class), not from one
+value shared across classes.
 
 **The two dimensions are not always input shapes — they can be two providers'
 NAMING DOMAINS, and then the knob is a string column in a table.** MT-95:
@@ -311,8 +339,8 @@ serve, backed by a widely-shared SPI) or its looseness goes unnoticed.
 
 ### A count of zero from a filter that never ran is not a pass
 
-`jostle/build.gradle` excludes `*LimitTest*` on every unit leg (:454, :482, :513,
-:544). A targeted run of `--tests "*ECLimitTest*"` on a unit leg therefore
+`jostle/build.gradle` excludes `*LimitTest*` on every unit leg (the lines reading
+`excludeTestsMatching "*LimitTest*"`). A targeted run of `--tests "*ECLimitTest*"` on a unit leg therefore
 matches nothing, writes **zero result files**, and reports BUILD SUCCESSFUL —
 which reads exactly like "the limit tests are clean". They had not run at all;
 they exist only on the integration legs.
@@ -368,6 +396,11 @@ refuses, an over-counting one or one reading a stale file COMMITS.
 Key on the row's SHAPE (`rc=N classes=`), not on a value prefix, and run the
 matcher against a known-BAD file as well as a known-good one before trusting
 it.
+
+**A count that matches the prediction can be right for the wrong reason: read the SET.** A key-wrap tamper
+probe predicted three throwing block positions and three threw. Only the set pins the construction (the first
+block and the last two), and "three blocks" is equally satisfied by the first three. Assert the set of
+positions, rows or names, never only its size; two different sets of the same size pass a count.
 
 ### A probe that cannot reach the code proves nothing about it
 
@@ -535,11 +568,34 @@ and in the reassuring direction.
    immediately before the action and quote it in the report; the same
    instrument-discipline that applies to a daemon count applies to a grant.
 
+9. **A claim about an artefact is verified by reading the artefact, at the time of the report.** A grep quoted
+   as evidence that a FIPS twin carried a fix had run before a falsification restore reverted that file: true
+   when run, false when reported. Another report stated a record had been updated from the intention to update
+   it. Before a report says a file, a row or a commit is so, read it back then.
+
+10. **An edit that breaks a script makes its watcher silent, not red.** A `sed` edit split a three-line
+    assignment, the relaunched script died at once, and the watcher sat quiet for its whole timeout. Run
+    `bash -n` before relaunching, and check the process list before trusting silence.
+
+11. **A watch whose pipeline ends in a stage that cannot flush reports nothing.** A watch ending in
+    `| awk '!seen[$0]++'` delivered nothing for 30 minutes while two gate configurations completed; awk
+    buffered every line. Deduplicate inside the loop or use `grep --line-buffered`, and never end a watch
+    pipeline in `awk`, `sort` or `head`.
+
+12. **Watch every file a stage writes to.** The gate template writes each plain cycle's result line to
+    `run_all.stdout.log` and copies only a tail into the driver's log after all three cycles, so a watch on
+    the driver's log saw nothing for four hours.
+
+13. **BSD `sed` has no `\s`.** A whitespace-insensitive comparison built on `sed 's/^\(.\)\s*/\1/'` stripped
+    nothing, so three copies of a class differing only in indentation were reported as different. It failed
+    in the alarming direction; the same fault in an equality check would pass anything. Use `[[:space:]]`
+    or Python.
+
 ### Answer "which legs cover the file I touched" BEFORE choosing the verification set
 
 **Symptom: four green legs, reported as sufficient, none of which ran the file
 that covers the change.** The unit legs EXCLUDE `*LimitTest*`
-(`build.gradle` 454/482/513/544). So a change under `interface/**/util` or
+(`build.gradle`, `excludeTestsMatching "*LimitTest*"`). So a change under `interface/**/util` or
 `interface/**/jni` — whose closest coverage is almost always a `*LimitTest` —
 can be verified on every unit leg and still not have been exercised by the one
 file that tests it.
@@ -756,6 +812,11 @@ makes a flicker RARER, and rare reads as real.** The fix is to ask the object
 for the fact (`RSAKey.getModulus().bitLength()`) rather than measure something
 derived from it, and to bucket only where nothing can be asked and the encoding
 is genuinely fixed-length.
+
+**A probe set is never derived from the table it tests.** A key-wrap test first built its key-length probes
+from the family table's own row, so removing 32 from AES's row also removed 32 from the probes, and the test
+stayed green. The probe set has to be fixed independently of the table (a fixed spread of lengths around every
+boundary), or a row can lose an entry and take its own check with it.
 
 ### Three guards over one provider read three different things
 
@@ -989,6 +1050,55 @@ For `OPS_OPENSSL_ERROR_*` tests, the `.claude/skills/annotate-ops-tests/` skill 
 Any contract implemented with per-thread native state — `CRYPTO_THREAD_LOCAL` up-call targets, per-thread RAND slots, thread-local error queues — can hold perfectly on the provider-loading thread and silently not hold anywhere else, and every test that runs on the loading thread (JUnit's default: the same thread that triggered provider static-init) is structurally blind to the difference. The RAND bridge shipped with exactly this bug: `RAND_set0_private/public` write per-thread slots, so worker threads drew from a lazily-created OS-seeded DRBG instead of the caller's RandSource — and every bridge test passed, because bridge output and OS-DRBG output are byte-for-byte indistinguishable and all tests ran on the installing thread.
 
 For every such contract, add at least one test that drives the operation from a fresh `Thread` and asserts an observable *side effect on the supplied object*, not the output: a counting RandSource whose call counter must move (`BridgeRandLimitTest.testUpCallHonouredOnWorkerThread` is the reference — same-thread control first, then the worker-thread assertion, with the worker's failure captured and re-asserted on the JUnit thread). Output indistinguishability is the whole trap; assert on the up-call COUNT. The C-side companion shape is a standalone probe with a counting provider driven from two pthreads (`fips-c-review/probes/xthread_rand_probe.c`).
+
+### Tests that force garbage collection: own the frame, settle before counting
+
+**Anything whose collection a test measures must be created in a frame that is gone before the drain.** An
+enhanced-for loop's synthetic iterator slot outlives the loop in the JVM frame and roots the collection it
+iterated. After a refactor the disposal reconciliation reported exactly one leaked key per key algorithm: the
+driver list, and through it the key cache, was still reachable from the test frame during the drain. The
+earlier version had escaped it only because a later local happened to reuse the slot. Drive the work in its
+own method and drain in the caller. A permanent positive control, one handle deliberately held, is what made
+this visible: the reconciliation went red while the control stayed green, the signature of a test defect.
+
+**Settle before resetting a counter that collection moves.** A ledger reset and then read after a drive counted
+destroys of handles created BEFORE the reset (a lazily populated parameter cache, the previous cell's key
+cache, a warm-up pass), so destroys outran creates in every type. Warm every family once, collect until no
+disposal event arrives for five consecutive cycles, and only then reset and attach the recorder.
+
+**Keep the drain cap in one place.** `DisposalDrain.CAP` (300 cycles, fixed from a loaded measurement: every
+configuration drains in one cycle) is used by every disposal test, so the number the record states is the
+number every cell enforces.
+
+### The disposal reconciliation: Java events and the C ledger
+
+`DisposalDaemon` reports each native handle's life to any `DisposalListener`: `registered` on the thread that
+creates the handle, then `disposing`, and `disposed` or `failed` (carrying the Throwable) on the daemon thread,
+the cleanup executor when a cleanup delay is configured, or the shutdown hook thread at exit. Events are keyed
+by the handle value captured at registration, because the referent is gone when the phantom fires.
+`DisposalRecorder` counts per handle value, not as a set: a freed address is reused, and a set would hide a
+second handle leaked at the same value.
+
+`DisposalReconciliationIntegrationTest` (and its FIPS twin) drives K instances of every family through the
+public JCA surface via `DisposalFamilies`, forces collection, and requires every registered handle disposed
+and no disposer failed. Families are resolved through the loaded class hierarchy (see java-spi.md). The DSA
+fallbacks are pinned to the module's typed refusal messages, and each driver records its key source and
+sign/verify direction in the `[disposal]` line, so a per-module table is read from the XML rather than
+recalled. A held-handle cell must report exactly that handle missing; without it the reconciliation passes
+on a JVM that never collects. `DisposalCleanupDelayIntegrationTest` covers the delayed path in a forked JVM,
+because the delay is read once in a static initialiser, and discriminates by the THREAD the disposal ran on.
+
+`DisposalLedgerOpsTest` (and `FIPSDisposalLedgerOpsTest`) run the same drive in an operations-test build and
+then read the C ledger (see native-code.md): created must equal destroyed for EVERY type in the library under
+test, every driven type must have been created at least once, one row per create-path OPS flag must leave the
+ledger balanced, and the slot-41 cell must show exactly one md_ctx unfreed. The FIPS class also snapshots the
+BASE library's ledger around the drive: a FIPS handle freed through the base library would show there.
+
+**An allowance for cross-library movement keys on the crossing, not on the module.** On a module that refuses
+DSA key generation, the DSA driver borrows a key pair from the base provider, so two key specs and their two
+encodings legitimately move in the base ledger. The first allowance applied everywhere, so on a module where
+nothing crosses a real base leak of either type would have hidden behind it. The allowance now applies only
+when a driver reports it imported a key, and every other base type must stay untouched.
 
 ### JSL ↔ JSLFIPS key sharing: a key OBJECT belongs to its creating provider INSTANCE; nothing crosses but encodings
 
@@ -1256,6 +1366,16 @@ Clearing once at the start is NOT enough: three cycles run the same task names,
 so a leg that dies in cycle 2 inherits cycle 1's XML. `gate3.sh` clears per
 cycle and logs the count so the log shows it happened.
 
+**Archive a leg's result directory before any later step can replace it.** A chain that ran the OPS legs and
+then the plain legs lost the OPS XML, and with it the only copy of the per-type tables those cells print to
+stdout. Copy each leg's directory aside (`cp -R jostle/build/test-results/<leg>/.`) before the next leg starts,
+and read the record's figures from the archive.
+
+**"The newest XML is the clean run" depends on the order the runner uses.** The gate template runs the OPS leg
+after the plain cycles, so the newest XML in `build/` is the OPS leg's last configuration, not a plain run.
+Say which run the newest file belongs to, and point at the archived directory that holds the evidence being
+claimed.
+
 ### After applying a patch, COUNT what it added
 
 An exit code of zero says the build compiled, not that the tree is the one you
@@ -1394,6 +1514,10 @@ failed first in, so everything after it was inferred rather than measured.
 
 Enumerate the operations the surface offers and drive each independently. A
 probe whose cells are ordered will attribute the first failure to all of them.
+
+The inverse holds for acceptance. "Accepts" measured at `init` only is not acceptance: a cipher that inits
+with a parameter and then refuses at `doFinal` accepted nothing. Drive the operation the caller will perform,
+and report which operation each verdict came from.
 
 ### A negative result is INFORMATION — record the agreement, not just the difference
 
@@ -1556,7 +1680,7 @@ pattern is not anchored to the class, so an ordinary unit test in a class the
 exclusion does not name silently vanishes from every unit leg. The live case is
 `FIPSOpsAnnotationParityTest.everyFipsOpsTestPinsMessageAndLinksFipsTree` (:71) —
 the class is not an `*OpsTest`, the method name contains one. The unit legs
-exclude `*OpsTest*` (`jostle/build.gradle` 462, 493, 524, 555), so that cell is
-dropped there and runs only because the integration include matches the same
-string (:674). Its leg coverage is decided by its name rather than by anyone's
-intent. Name methods so no exclusion pattern can match them.
+exclude `*OpsTest*` (`jostle/build.gradle`, `excludeTestsMatching "*OpsTest*"`), so
+that cell is dropped there and runs only because the integration legs'
+`includeTestsMatching "*OpsTest*"` matches the same string. Its leg coverage is
+decided by its name rather than by anyone's intent. Name methods so no exclusion pattern can match them.
