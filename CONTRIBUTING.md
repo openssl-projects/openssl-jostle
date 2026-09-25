@@ -72,29 +72,29 @@ removed.
 A contribution must work on all java versions where there is a separate source path, presently this is limited to
 Javas 8,9,17,21,25.
 
-### JNI - FFI split
+### JNI - FFM split
 
-At Java 22 Oracle introduced FFI (Foreign Function Interface) which allows native code to be called from Java. Prior
-to Java 22 calls to native code were done via JNI.
+At Java 22 Oracle introduced the Foreign Function and Memory API (FFM) which allows native code to be called from
+Java. Prior to Java 22 calls to native code were done via JNI.
 
-Contributions to Jostle must support both JNI and FFI.
+Contributions to Jostle must support both JNI and FFM.
 
 This split is hidden behind a utility class called ```NISelector``` and each transformation is required to implement
-an interface defining the native calls and separate implementations of that interface for JNI and FFI. With the FFI
+an interface defining the native calls and separate implementations of that interface for JNI and FFM. With the FFM
 implementation being in the java 25 source path.
 
 For example:
 
 ```MDServiceNI``` defines the native calls for messge digests.
 ```MDServiceJNI``` defines the JNI calls for message digests.
-```MDServiceFFI``` defines the FFI calls for message digests.
+```MDServiceFFM``` defines the FFM calls for message digests.
 
 
-The JNI / FFI split is implemented in the ```NISelector``` class which is implemented both the Java 8 and Java 25 
+The JNI / FFM split is implemented in the ```NISelector``` class which is implemented both the Java 8 and Java 25 
 source paths. The version in Java 8 only returns the JNI implementation, whereas the version in the Java 25 source path
-detects if FFI is required and returns the FFI implementation.
+detects if FFM is required and returns the FFM implementation.
 
-Contributors are required to implement the JNI / FFI split in the relevant source code paths.
+Contributors are required to implement the JNI / FFM split in the relevant source code paths.
 
 New implementations are required to follow what has been done in MDServiceNI where default methods in the interface
 are used to handle return codes and generate error messages. 
@@ -142,24 +142,24 @@ In most cases implementations will wrap the entire content of the method that is
 The C code in the Jostle is used to provide an abstraction layer that:
 1. Simplifies calling from java via JNI.
 2. Maintains state between calls.
-3. Provides easy targets for FFI calls.
+3. Provides easy targets for FFM calls.
 4. Abstract away the calls to OpenSSL.
 
 ### nonfips / fips source split
 
 The native tree lives in two independent, self-contained copies:
-1. ```interface/nonfips/{jni,ffi,util}``` — the base, non-FIPS provider (```JSL```).
-2. ```interface/fips/{jni,ffi,util}``` — the FIPS provider (```JSLFIPS```), which drives a FIPS-validated module through its own ```OSSL_LIB_CTX```.
+1. ```interface/nonfips/{jni,ffm,util}``` — the base, non-FIPS provider (```JSL```).
+2. ```interface/fips/{jni,ffm,util}``` — the FIPS provider (```JSLFIPS```), which drives a FIPS-validated module through its own ```OSSL_LIB_CTX```.
 
-```interface/CMakeLists.txt``` builds four shared libraries (a JNI and an FFI library from each tree). The two trees are separate source files by design so the base code can evolve without disturbing the FIPS provider — a change in one tree does not propagate to the other. The FIPS JNI glue (```<x>_fips_jni.c```) is a symbol-rename ```#include``` of its co-located base ```<x>_ni_jni.c``` so the ```org.openssl.jostle.jcajce.provider.fips.*``` classes get distinct JNI exports. The paths in the rest of this section use the ```nonfips``` tree; the same conventions apply to ```fips```.
+```interface/CMakeLists.txt``` builds four shared libraries (a JNI and an FFM library from each tree). The two trees are separate source files by design so the base code can evolve without disturbing the FIPS provider — a change in one tree does not propagate to the other. The FIPS JNI glue (```<x>_fips_jni.c```) is a symbol-rename ```#include``` of its co-located base ```<x>_ni_jni.c``` so the ```org.openssl.jostle.jcajce.provider.fips.*``` classes get distinct JNI exports. The paths in the rest of this section use the ```nonfips``` tree; the same conventions apply to ```fips```.
 
-All functions intended to be called from Java, regardless of interface type (JNI/FFI) are required to use return codes 
+All functions intended to be called from Java, regardless of interface type (JNI/FFM) are required to use return codes 
 except in cases the code returns a pointer to an allocation. In this case these functions must accept an ```int *``` 
 as the last parameter to accept an error / success code.
 
 >
 >At the time of writing 27-Mar-2026 some functions responsible for allocations return a value either interpreted
->as a pointer or an error code if less than zero. This will be refactored as the legacy code referred to in [JNI-FFI Split] 
+>as a pointer or an error code if less than zero. This will be refactored as the legacy code referred to in [JNI-FFM Split] 
 >is removed to support systems that are likely to use a full 64-bit pointer.
 >
 
@@ -168,7 +168,7 @@ as the last parameter to accept an error / success code.
 Java has no concept of out-parameters or "passing a pointer to something." 
 
 To achieve the same effect in Java using JNI, downcalls must pass a single element integer array. The C code WILL 
-assume the array is NOT NULL and has at least one element available to be set. FFI calls are free to declare a
+assume the array is NOT NULL and has at least one element available to be set. FFM calls are free to declare a
 MemorySegment representing an integer and pass that as ```int *```.
 
 All of this must be abstracted away inside a default method within an "*NI" interface, for example:
@@ -181,9 +181,9 @@ Contributors are invited to inspect the C code in for JNI:
 ```<>/interface/nonfips/jni/org_openssl_jostle_jcajce_provider_md_MDServiceJNI.c```, method
 ```JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1allocateDigest ( ... )```
 
-And for FFI:
+And for FFM:
 
-```interface/nonfips/ffi/md_ffi.c ```, method ```md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err)```
+```interface/nonfips/ffm/md_ffm.c ```, method ```md_ctx *MD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err)```
 
 #### When to use int *err as a function parameter
 
@@ -193,15 +193,15 @@ negative when cast as a twos complement integer. So far this has been limited to
 Contributors should avoid using int *err as a function parameter when a return code or returned negative values can 
 be safely interpreted as error codes.
 
-### Commonality of call results between JNI and FFI
+### Commonality of call results between JNI and FFM
 
-As the native layer is an abstraction layer, both JNI and FFI implementations must return the same result for the same
+As the native layer is an abstraction layer, both JNI and FFM implementations must return the same result for the same
 input conditions.
 
-Both JNI implementations and functions intended to be called via FFI must validate the input parameters and return
+Both JNI implementations and functions intended to be called via FFM must validate the input parameters and return
 the same error codes if the input is invalid in some way.
 
-#### FFI / JNI similarity caveats
+#### FFM / JNI similarity caveats
 
 ##### Not being able to access an object in JNI
 
@@ -211,27 +211,27 @@ we have never had a call to request a pointer to a byte array refused.
 
 However, because it can happen, it is important to build a solution that will deal with it.
 
-This is not a problem for FFI, and the FFI callable functions do not return these codes.
+This is not a problem for FFM, and the FFM callable functions do not return these codes.
 
-#### Passing the full size of a byte array to an FFI function
+#### Passing the full size of a byte array to an FFM function
 
-FFI calls that are accepting byte arrays (as uint8_t *) must pass the full size of the array as a parameter. Passing 
-this parameter allows the FFI function to validate any offset or length parameters will not cause a buffer overflow 
-in the same way as the JNI version does. Remember the FFI code must return the same error codes as the JNI version.
+FFM calls that are accepting byte arrays (as uint8_t *) must pass the full size of the array as a parameter. Passing 
+this parameter allows the FFM function to validate any offset or length parameters will not cause a buffer overflow 
+in the same way as the JNI version does. Remember the FFM code must return the same error codes as the JNI version.
 
 This is not an issue for JNI because the array length can be requested from the JVM.
 
-Contributors should inspect for both JNI and FFI functions and are expected to follow the same patterns readily
+Contributors should inspect for both JNI and FFM functions and are expected to follow the same patterns readily
 observable there.
 
 ### Calling OpenSSL code
 
-JNI and FFI functions MUST NOT call OpenSSL directly.
+JNI and FFM functions MUST NOT call OpenSSL directly.
 
 ... but at the time of writing this guide...
 
 There are three exceptions to this so far are a couple of functions that set the OpenSSL module name, fetch OpenSSL error 
-messages and a specific function on the FFI side that is used to free the returned error message after its value has 
+messages and a specific function on the FFM side that is used to free the returned error message after its value has 
 been converted to a java string. There will be no more, and these will be refactored before the first release.
 
 Otherwise, all calls to OpenSSL MUST be from within the code located in the  ```interface/nonfips/util/``` directory.
@@ -291,7 +291,7 @@ main (java8) and java9 code paths.
 The version in java9 will examine DRBG parameters and assert they are suitable each time an up-call for random data
 is made.
 
-There is a version of the RandSource interface in java25 that supplies an FFI targetable method.
+There is a version of the RandSource interface in java25 that supplies an FFM targetable method.
 
 In 99% of cases using DefaultRandSource to wrap a SecureRandom instance will be suitable.
 
@@ -310,23 +310,23 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
 (JNIEnv *env, jobject jo, jint type, jintArray _err, jbyteArray _seed, jint seed_len, jobject rnd_src) { ... }
 ```
 
-FFI:
+FFM:
 
 ```
 key_spec *MLDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size, int32_t seed_len,
                                     void *rnd_src) 
 ```
 
-FFI implementations must create an up-call stub and pass that pointer to the downcall.
+FFM implementations must create an up-call stub and pass that pointer to the downcall.
 
 Contributors are invited, examine:
 
 ```
-org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceFFI.ni_generateKeyPair(int, int[], org.openssl.jostle.rand.RandSource)
+org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceFFM.ni_generateKeyPair(int, int[], org.openssl.jostle.rand.RandSource)
 
 ```
 
-Be aware that up-calls cannot be made during critical access, under FFI the JVM will catch it and report an
+Be aware that up-calls cannot be made during critical access, under FFM the JVM will catch it and report an
 issue with an incorrect thread state, under JNI undetermined behavior will occur.
 
 ### What to do with the RandSource on the native side
@@ -342,7 +342,7 @@ null check and then call the ```rand_set_java_srand_call( ... )```
     rand_set_java_srand_call(rnd_src);
 ```
 
-Do this for both FFI / JNI, if contributors do the null check early enough before anything is allocated
+Do this for both FFM / JNI, if contributors do the null check early enough before anything is allocated
 it should be a simple case of either setting an error code in an out parameter or returning the error code.
 
 The function ```rand_set_java_srand_call(src)``` sets a thread local that is accessed by the java random bridge.
@@ -364,7 +364,7 @@ between function entry and return.
 
 ## Testing
 
-Contributors should implement enough tests to ensure that all code paths in the FFI / JNI layer are exercised,
+Contributors should implement enough tests to ensure that all code paths in the FFM / JNI layer are exercised,
 this takes practice and time, but it is a necessary step to ensure that the code is working as expected.
 
 Testing is also about locking down expected behavior and being able to detect sudden unexpected changes in behavior.
@@ -391,7 +391,7 @@ products like encoded keys etc. are portable between both providers.
 And any other miscellaneous code that needs its correctness asserted.
 
 #### Limit tests
-Limit tests run sequentially and are designed to interact with the JNI / FFI functions by directly calling
+Limit tests run sequentially and are designed to interact with the JNI / FFM functions by directly calling
 the "*NI" layer is correctly verifying input. The term "limit" came from verifying the functions "limiting"
 behavior.
 
@@ -446,7 +446,7 @@ controlled from the java side, for example:
     @Test
     public void updateBytes_array_access() throws Exception {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(),"OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = mdNI.allocateDigest("SHA256", 0);
 
         try {
@@ -481,17 +481,17 @@ Use integration for miscellaneous tests that need to run sequentially and are no
 
 Any test target "unitTestNNxxx" will run the unit tests for the java version NN.
 
-For Java 25, the target will start with "unitTest25" but will also have a suffix of "JNI/FFI" to force
-the use of the JNI / FFI interfaces exclusively.
+For Java 25, the target will start with "unitTest25" but will also have a suffix of "JNI/FFM" to force
+the use of the JNI / FFM interfaces exclusively.
 
 Likewise, any test target "integrationTestNNxxx" will run the Integraton, OPS and Limit tests
 for the java version NN.
 
-Test targets for JVMs prior to Java 25 do not have JNI/FFI suffixes.
+Test targets for JVMs prior to Java 25 do not have JNI/FFM suffixes.
 
-### Leveraging FFI to test native code
+### Leveraging FFM to test native code
 
-You can leverage the FFI to test native code if needed, but you may need to be creative and the test may struggle
+You can leverage the FFM to test native code if needed, but you may need to be creative and the test may struggle
 with different struct layouts on different platforms, but it is possible. 
 
 

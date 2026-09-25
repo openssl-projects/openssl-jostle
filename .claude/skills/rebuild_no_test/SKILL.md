@@ -70,8 +70,8 @@ cd <repo root>
 # Stage 1 — JNI headers from current Java sources.
 ./gradlew clean compileJava
 
-# Stage 2 — native interface: builds interface_jni, interface_ffi,
-# interface_fips_jni, interface_fips_ffi and installs them into
+# Stage 2 — native interface: builds interface_jni, interface_ffm,
+# interface_fips_jni, interface_fips_ffm and installs them into
 # jostle/src/main/resources/native/<os>/<arch>.
 ./interface/build.sh
 
@@ -88,8 +88,8 @@ The build succeeding is not proof the jar picked up your native change, so
 check all three:
 
 1. **Four libraries installed.** Stage 2's tail must show four `-- Installing:`
-   lines — `libinterface_jni`, `libinterface_ffi`, `libinterface_fips_jni`,
-   `libinterface_fips_ffi`. Fewer means a tree failed to build.
+   lines — `libinterface_jni`, `libinterface_ffm`, `libinterface_fips_jni`,
+   `libinterface_fips_ffm`. Fewer means a tree failed to build.
 2. **Jar is newer than the libraries.**
    `ls -l jostle/build/libs/openssl-jostle-*.jar` against
    `ls -l jostle/src/main/resources/native/<os>/<arch>/`.

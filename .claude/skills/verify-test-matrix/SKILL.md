@@ -1,6 +1,6 @@
 ---
 name: verify-test-matrix
-description: Run Jostle's full test matrix (base test, unitTest25JNI/FFI, integrationTest25JNI/FFI) with forced execution and the FIPS module wired, then verify the result XML proves it — zero failures AND no FIPS-gated class wholesale-skipped. Covers the TWO-PASS OPS discipline (run-two-pass.sh): the ~40 *OpsTest classes need a JOSTLE_OPS_TEST=1 native build and silently skip against the shipped one, so a single pass under-covers. Also sweeps every FIPS module CONFIGURATION (sweep-fips-configs.sh), since most strictness differences are fipsinstall config rather than module version and a default-config run leaves the capability gates unexercised. Use this skill whenever the user wants the suite run and trusted — including phrases like "run the full test matrix", "run all the tests including FIPS", "verify everything is green", "did the FIPS tests actually run", "did the OPS tests run", "test both FIPS modules", "full verification pass", "declare the branch green", and similar. Exists because gradle does not treat TEST_FIPS_LIB as a task input: a cached green run silently replays wholesale-skipped FIPS classes in milliseconds.
+description: Run Jostle's full test matrix (base test, unitTest25JNI/FFM, integrationTest25JNI/FFM) with forced execution and the FIPS module wired, then verify the result XML proves it — zero failures AND no FIPS-gated class wholesale-skipped. Covers the TWO-PASS OPS discipline (run-two-pass.sh): the ~40 *OpsTest classes need a JOSTLE_OPS_TEST=1 native build and silently skip against the shipped one, so a single pass under-covers. Also sweeps every FIPS module CONFIGURATION (sweep-fips-configs.sh), since most strictness differences are fipsinstall config rather than module version and a default-config run leaves the capability gates unexercised. Use this skill whenever the user wants the suite run and trusted — including phrases like "run the full test matrix", "run all the tests including FIPS", "verify everything is green", "did the FIPS tests actually run", "did the OPS tests run", "test both FIPS modules", "full verification pass", "declare the branch green", and similar. Exists because gradle does not treat TEST_FIPS_LIB as a task input: a cached green run silently replays wholesale-skipped FIPS classes in milliseconds.
 ---
 
 # Run and verify the full test matrix
@@ -40,7 +40,7 @@ native passes for this reason; the test side needs the same.
 | pass | native build | tasks | what it covers |
 |---|---|---|---|
 | 1 | plain `./interface/build.sh` | all five | the library that actually **ships** |
-| 2 | `JOSTLE_OPS_TEST=1 ./interface/build.sh` | `integrationTest25JNI/FFI` only | the fault-injection paths — ~40 `*OpsTest` classes, 16 of them FIPS |
+| 2 | `JOSTLE_OPS_TEST=1 ./interface/build.sh` | `integrationTest25JNI/FFM` only | the fault-injection paths — ~40 `*OpsTest` classes, 16 of them FIPS |
 
 Pass 2 skips the base `test` and `unitTest25*` tasks deliberately: no `*OpsTest`
 lives there, so repeating the 27-minute `test` task would add nothing. Pass 2
@@ -70,10 +70,10 @@ library, which works on Mach-O, ELF and PE without a toolchain) and reports:
    verified the shipped library.
 2. **instrumented build, OpsTests skipped on a JNI task** → exit 2. On an
    instrumented build they have no excuse.
-3. **instrumented build, OpsTests skipped on an FFI task** → a note, not a
+3. **instrumented build, OpsTests skipped on an FFM task** → a note, not a
    failure. Some fault families are JNI-only — the `GetStringUTFChars` /
-   `GetByteArrayElements` / int32-overflow guards have no FFI counterpart — so
-   `KSServiceOpsTest` skips wholesale under FFI **by design**. Enforcement is
+   `GetByteArrayElements` / int32-overflow guards have no FFM counterpart — so
+   `KSServiceOpsTest` skips wholesale under FFM **by design**. Enforcement is
    scoped to JNI tasks for exactly this reason; do not widen it without
    re-checking that case.
 4. `--require-ops` → exit 4 unless the installed build is instrumented. Pass 2
@@ -153,12 +153,12 @@ Budget roughly 30 minutes per configuration.
 1. **Green** — zero failures and zero errors across every `TEST-*.xml` in each task's `jostle/build/test-results/<task>/` directory, naming any failing class.
 2. **No masked FIPS skips** (`--require-fips`, applied automatically when `TEST_FIPS_LIB` is set) — no class in a `.fips.` package with `tests == skipped > 0`. That signature means the class never executed: env unset in the JVM that ran it, or a cached replay.
 3. **Presence** — a requested task with no result files at all is an error (exit 3), not a pass.
-4. **OPS coverage** — which native build is installed, and whether the `*OpsTest` classes ran under it. See "The two-pass OPS discipline" above for the four cases and why FFI-task skips are not enforced.
+4. **OPS coverage** — which native build is installed, and whether the `*OpsTest` classes ran under it. See "The two-pass OPS discipline" above for the four cases and why FFM-task skips are not enforced.
 
 Exit codes: 0 verified; 1 failures/errors; 2 masked FIPS classes (or OPS classes skipped on a JNI task despite an instrumented build); 3 missing task results; 4 OPS coverage missing while `--require-ops`.
 
 ## Caveats
 
 1. **Filtered runs replace the result set.** `--tests "Foo"` leaves only Foo's XML in the task's results directory, so verification after a filtered run reports a tiny (but honest) total. Always verify immediately after a FULL run; treat a low `tests=` count in the table as "this task's last run was filtered", not as coverage.
-2. Expected skip patterns that are NOT flagged: JNI-only tests skipping under the FFI task (`OPS_FAILED_ACCESS_*` classes; `KSServiceOpsTest` skips wholesale there by design), and OPS classes skipping wholesale against a non-instrumented native build. The verifier now distinguishes both cases from a genuine masked skip rather than guessing — see "The two-pass OPS discipline". A plain-build run that skips OpsTests is reported as an incomplete verification with the second-pass commands, not as a failure.
+2. Expected skip patterns that are NOT flagged: JNI-only tests skipping under the FFM task (`OPS_FAILED_ACCESS_*` classes; `KSServiceOpsTest` skips wholesale there by design), and OPS classes skipping wholesale against a non-instrumented native build. The verifier now distinguishes both cases from a genuine masked skip rather than guessing — see "The two-pass OPS discipline". A plain-build run that skips OpsTests is reported as an incomplete verification with the second-pass commands, not as a failure.
 3. The five default tasks are the practical gate. The older-JDK tasks (`testNN`, `unitTestNN`, `integrationTestNN` for 8/11/17/21) run when their `BC_JDKNN` env vars are set; pass task names explicitly to include them.

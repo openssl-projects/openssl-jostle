@@ -41,7 +41,7 @@ vendor-specific in the content itself.
 1. Two providers ship in the same jar and can coexist in one JVM:
    1. **`JSL`** (`JostleProvider`) — the general provider, backed by mainline OpenSSL 3.x. Full algorithm set.
    2. **`JSLFIPS`** (`JostleFIPSProvider`) — backed by an externally supplied OpenSSL **FIPS** module. Registers only the subset the module serves as approved, and behaves differently in several documented ways (see FIPS sections).
-2. Runs on Java 8 → Java 25 (multi-release jar). On Java 25 it uses the FFI backend; on older JDKs, JNI. Invisible to your code.
+2. Runs on Java 8 → Java 25 (multi-release jar). On Java 25 it uses the FFM backend; on older JDKs, JNI. Invisible to your code.
 3. Choose `JSL` for general use; use `JSLFIPS` only when the deployment mandates the FIPS-validated module.
 
 ## Setup & deployment
@@ -80,7 +80,7 @@ The module name is `org.openssl.jostle.prov`.
 ### Deployment system properties (`-D…`)
 
 1. `org.openssl.jostle.loader.install_dir=<dir>` — extract native libs to `<dir>` instead of the JVM temp dir. **Essential when the temp filesystem is mounted `noexec`** (common enterprise hardening) — otherwise the native load fails.
-2. `org.openssl.jostle.loader.interface=auto|jni|ffi|none` — force the backend (default `auto`: FFI on Java 25, JNI otherwise).
+2. `org.openssl.jostle.loader.interface=auto|jni|ffm|none` — force the backend (default `auto`: FFM on Java 25, JNI otherwise).
 3. `org.openssl.jostle.loader.extract_openssl=false` — do not extract the bundled OpenSSL libraries (default `true`); supply them instead via `load_name_NN` / `load_lib_NN`. Only takes effect while `loader.interface` is `auto`.
 
 ### Verify the load
@@ -94,7 +94,7 @@ java --module-path openssl-jostle-<version>.jar \
   --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo --services
 ```
 
-Reports the provider, resolved interface (JNI/FFI), extracted native libs,
+Reports the provider, resolved interface (JNI/FFM), extracted native libs,
 OpenSSL version, and (with `--services`) every registered algorithm grouped by
 type. Use it to confirm a deployment picked up the native libraries.
 

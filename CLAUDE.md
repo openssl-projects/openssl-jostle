@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 OpenSSL Jostle is a JCA/JCE provider that delegates cryptographic implementations to OpenSSL via a native interface layer. Two languages, three layers:
 
 ```
-Java SPI  →  JNI / FFI bridge (per-transformation)  →  C abstraction (interface/nonfips/util/)  →  OpenSSL EVP_*
+Java SPI  →  JNI / FFM bridge (per-transformation)  →  C abstraction (interface/nonfips/util/)  →  OpenSSL EVP_*
 ```
 
 Building requires Java 25; the resulting jar runs on Java 8 → Java 25 via a multi-release jar.
@@ -48,11 +48,11 @@ The base `:jostle:test` task **excludes** Limit/Ops/Integration. To run those yo
 # Set BC_JDK25 to a Java 25 install; tests that need it will be skipped otherwise.
 export BC_JDK25=/path/to/jdk-25
 
-# Unit tests, JNI and FFI on Java 25 explicitly:
-./gradlew :jostle:unitTest25FFI :jostle:unitTest25JNI
+# Unit tests, JNI and FFM on Java 25 explicitly:
+./gradlew :jostle:unitTest25FFM :jostle:unitTest25JNI
 
 # Limit + Ops + Integration tests on Java 25:
-./gradlew :jostle:integrationTest25FFI :jostle:integrationTest25JNI
+./gradlew :jostle:integrationTest25FFM :jostle:integrationTest25JNI
 
 # Run a single test class or method:
 ./gradlew :jostle:test --tests "org.openssl.jostle.test.crypto.AESAgreementTest"
@@ -71,11 +71,11 @@ To switch the native build between OPS-instrumented and not, you must rebuild th
 1. `java/` — Java 8 baseline; uses `synchronized(this)` to keep native references alive.
 2. `java9/` — same classes re-implemented using `Reference.reachabilityFence(this)` in `try { ... } finally { ... }`. Loaded on JDK 9+.
 3. `java11/`, `java15/`, `java17/`, `java21/`, `java25/` — replace classes that depend on APIs added/removed at those levels.
-4. `java25/` — also contains the FFI implementations of the `*NI` interfaces (`MDServiceFFI`, `BlockCipherFFI`, etc.) and the FFI-aware `NISelector`.
+4. `java25/` — also contains the FFM implementations of the `*NI` interfaces (`MDServiceFFM`, `BlockCipherFFM`, etc.) and the FFM-aware `NISelector`.
 
 When you change a class that has overrides in `javaN/`, you **must apply equivalent changes** to every override copy. There is no *general* automation guarding against drift, but targeted source-level parity guards exist: `NativeReferenceParityTest` (in `src/test/java/.../multirelease/`) fails the build if a baseline class that holds a `NativeReference` under `synchronized(this)` is missing its `javaN/` `Reference.reachabilityFence(this)` override — see the native-references rule in `.claude/guides/java-spi.md`.
 
-**Test source sets follow the same split.** `src/test/java/` compiles at `release=8` — tests that use Java 9+ APIs (`DrbgParameters`, `Reference.reachabilityFence`, sealed classes, the FFI APIs) MUST live in `src/test/java25/`. The `unitTest25*` / `integrationTest25*` Gradle tasks run BOTH source sets together against a Java 25 JVM, so a test in `src/test/java25/` runs alongside everything in `src/test/java/`. Use this split to add strength-validation, DRBG, or FFI-only tests; put baseline coverage that works on every JDK in `src/test/java/`.
+**Test source sets follow the same split.** `src/test/java/` compiles at `release=8` — tests that use Java 9+ APIs (`DrbgParameters`, `Reference.reachabilityFence`, sealed classes, the FFM APIs) MUST live in `src/test/java25/`. The `unitTest25*` / `integrationTest25*` Gradle tasks run BOTH source sets together against a Java 25 JVM, so a test in `src/test/java25/` runs alongside everything in `src/test/java/`. Use this split to add strength-validation, DRBG, or FFM-only tests; put baseline coverage that works on every JDK in `src/test/java/`.
 
 **Test classpath uses `jar.archiveFile`, not live class outputs.** The `test25` source set compiles against the assembled multi-release jar. If you modify a class/interface that tests reference, `compileTest25Java` will see the OLD signature until the jar is rebuilt — `./gradlew :jostle:jar`. Most often surfaces when you add a new method to a project-internal interface (`RandSource`, `MDServiceNI`, etc.) and test compilation fails with "method does not override or implement a method from a supertype" because the jar still contains the pre-edit version.
 
@@ -88,29 +88,29 @@ A given crypto operation (e.g. ML-DSA signatures) involves files in roughly this
 3. **SPI class** — `SLHDSASignatureSpi` in the same provider sub-package; calls `xxxServiceNI`.
 4. **NI interface** — `SLHDSAServiceNI` declares the native operations; default methods centralize error-code-to-exception mapping (see `MDServiceNI` for the canonical pattern).
 5. **JNI implementation** — `SLHDSAServiceJNI` (Java) → `interface/nonfips/jni/slhdsa_ni_jni.c` (C glue, validates input, calls `interface/nonfips/util/slhdsa.c`).
-6. **FFI implementation** — `SLHDSAServiceFFI` in `src/main/java25/`; targets `interface/nonfips/ffi/slhdsa_ni_ffi.c` (same validation, same error codes).
+6. **FFM implementation** — `SLHDSAServiceFFM` in `src/main/java25/`; targets `interface/nonfips/ffm/slhdsa_ni_ffm.c` (same validation, same error codes).
 7. **C abstraction** — `interface/nonfips/util/slhdsa.c/.h` is the only place that calls `EVP_*` directly.
 8. **Provider registration** — `org.openssl.jostle.jcajce.provider.ProvSLHDSA.configure(JostleProvider)`, invoked from `JostleProvider.setup()`.
 
-`NISelector` decides at load time whether to return JNI or FFI impls. The decision is forced by setting `org.openssl.jostle.loader.interface=jni|ffi|auto|none`.
+`NISelector` decides at load time whether to return JNI or FFM impls. The decision is forced by setting `org.openssl.jostle.loader.interface=jni|ffm|auto|none`.
 
 
 ## Native source layout: nonfips / fips split (critical)
 
 The C under `interface/` is split into **two independent, self-contained trees** so the base (non-FIPS) code can evolve without dragging the FIPS provider along:
 
-1. `interface/nonfips/{jni,ffi,util}` — the base provider (`JSL`). Links against mainline OpenSSL 3.x. This is where all non-FIPS native work happens; the "How a transformation is wired" paths all live here.
-2. `interface/fips/{jni,ffi,util}` — the FIPS provider (`JSLFIPS`). Links against the same libcrypto but drives a FIPS-validated module via its own `OSSL_LIB_CTX` (see `util/rand/jostle_fips_ctx.c`).
+1. `interface/nonfips/{jni,ffm,util}` — the base provider (`JSL`). Links against mainline OpenSSL 3.x. This is where all non-FIPS native work happens; the "How a transformation is wired" paths all live here.
+2. `interface/fips/{jni,ffm,util}` — the FIPS provider (`JSLFIPS`). Links against the same libcrypto but drives a FIPS-validated module via its own `OSSL_LIB_CTX` (see `util/rand/jostle_fips_ctx.c`).
 
-`interface/CMakeLists.txt` (one file at the `interface/` root) builds **four** shared libraries: `interface_jni` + `interface_ffi` from `nonfips/`, and `interface_fips_jni` + `interface_fips_ffi` from `fips/`. `build.sh` / `build.bat` are unchanged — they just run `cmake .` in `interface/`.
+`interface/CMakeLists.txt` (one file at the `interface/` root) builds **four** shared libraries: `interface_jni` + `interface_ffm` from `nonfips/`, and `interface_fips_jni` + `interface_fips_ffm` from `fips/`. `build.sh` / `build.bat` are unchanged — they just run `cmake .` in `interface/`.
 
 Key consequences when editing native code:
 
 1. **The two trees are independent copies.** A change to `interface/nonfips/util/rsa.c` does NOT propagate to `interface/fips/util/rsa.c`, and vice versa. If a fix must apply to both (e.g. a shared bug class), edit both files deliberately. The FIPS tree began as a faithful copy of the base tree; divergence is expected and is the whole point of the split.
-2. **The FIPS JNI glue is a rename re-include, self-contained within `fips/jni/`.** JNI binds native methods by class-name-derived symbol, so the `org.openssl.jostle.jcajce.provider.fips.*` classes need distinct exports. Each `fips/jni/<x>_fips_jni.c` `#define`-renames the base symbols and `#include`s its **co-located** `fips/jni/<x>_ni_jni.c` copy — so `fips/jni/` holds both the base-named glue (compiled only via the include) and the `_fips_jni.c` wrappers (the actual compile units). The FFI side shares identical export names across the two libs (safe: the FIPS FFI classes resolve them with a library-scoped `SymbolLookup.libraryLookup`, not the process-global `loaderLookup`).
-3. **All relative includes (`#include "../util/..."`) resolve within a tree**, because each tree preserves the `jni`/`ffi`/`util` sibling layout. Do not add cross-tree includes.
+2. **The FIPS JNI glue is a rename re-include, self-contained within `fips/jni/`.** JNI binds native methods by class-name-derived symbol, so the `org.openssl.jostle.jcajce.provider.fips.*` classes need distinct exports. Each `fips/jni/<x>_fips_jni.c` `#define`-renames the base symbols and `#include`s its **co-located** `fips/jni/<x>_ni_jni.c` copy — so `fips/jni/` holds both the base-named glue (compiled only via the include) and the `_fips_jni.c` wrappers (the actual compile units). The FFM side shares identical export names across the two libs (safe: the FIPS FFM classes resolve them with a library-scoped `SymbolLookup.libraryLookup`, not the process-global `loaderLookup`).
+3. **All relative includes (`#include "../util/..."`) resolve within a tree**, because each tree preserves the `jni`/`ffm`/`util` sibling layout. Do not add cross-tree includes.
 
-The Java side is unaffected by the split: the base `*NI`/`*JNI`/`*FFI` classes target the `nonfips` libs; the `provider.fips.*` classes target the `fips` libs. `NISelector` / `FIPSNISelector` pick the right ones at load time.
+The Java side is unaffected by the split: the base `*NI`/`*JNI`/`*FFM` classes target the `nonfips` libs; the `provider.fips.*` classes target the `fips` libs. `NISelector` / `FIPSNISelector` pick the right ones at load time.
 
 
 ## SecureRandom flow
@@ -134,14 +134,14 @@ Direct buffer access (JNI critical regions) cannot make up-calls — fetch rando
 1. Checkstyle config: `config/checkstyle/checkstyle.xml`. PRs must pass. **It applies to `main` only** — `build.gradle` sets `checkstyle { sourceSets = [project.sourceSets.main] }`, so `check`/`build` never run `checkstyleTest` and the test tree is deliberately out of scope. Verify with `:jostle:checkstyleMain`; invoking `:jostle:checkstyleTest` by hand reports pre-existing violations that are not defects and must not be "fixed" (e.g. the `} catch (...)` bodies throughout `*LimitTest`). The braces-on-every-`if` rule in this file is a code-review convention, enforced by reading, not by Checkstyle.
 2. Match existing code style — Java looks Java, C looks C. Look at `MDServiceSPI`/`MDServiceNI`/`md.c` as the canonical reference for newer transformations; some older code follows an earlier pattern where error handling lived in the SPI rather than in `*NI` default methods.
 3. SPI sub-packages under `org.openssl.jostle.jcajce.provider` are usually named after the transformation (`mldsa`, `kdf`); `Prov<NAME>` classes register them with the provider.
-4. AUTHORS.md, LICENSE, CONTRIBUTING.md exist — read CONTRIBUTING.md before significant changes; it is the source of truth for code organization, testing expectations, and the JNI-FFI split.
+4. AUTHORS.md, LICENSE, CONTRIBUTING.md exist — read CONTRIBUTING.md before significant changes; it is the source of truth for code organization, testing expectations, and the JNI-FFM split.
 5. Use `org.openssl.jostle.util.Arrays.clone(byte[])` rather than direct `byteArray.clone()` for byte-array copies. The project helper is null-safe (returns null on null input rather than NPE-ing); a direct `.clone()` is a hidden NPE if the array reference happens to be null. Same applies to the other primitive-array clones the helper provides (`boolean[]`, `int[]`, `long[]`, `BigInteger[]`, etc.).
 6. Use `org.openssl.jostle.util.Arrays.areEqual(...)` for array equality in tests and production code rather than `java.util.Arrays.equals(...)`. Same null-safety rationale as the `clone` rule above — the project helper returns `true` when both refs are null and `false` when only one is, where the JDK overloads can NPE on certain null patterns. Applies across every primitive overload (`byte[]`, `int[]`, `long[]`, etc.) and `Object[]`.
 7. **All `if` / `else` / `else if` bodies use braces — no exceptions, even for single-statement bodies.** `if (foo) return bar;` and `if (foo) continue;` are forbidden; write `if (foo) { return bar; }` (formatted on three lines per the project's K&R-with-brace-on-newline style). The rule prevents the classic dangling-else / accidental-second-statement bug when someone adds a second line to what looks like a single-statement body, and matches the convention used in every existing braced block in the codebase. Applies to Java sources AND tests. C code in `interface/` follows the same rule.
 
 ## Useful debug entrypoints
 
-`org.openssl.jostle.util.DumpInfo` (run via the standard `java --module-path .../openssl-jostle-0.1-SNAPSHOT.jar --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo`) prints the loaded provider, OS/arch, JVM version, the resolved interface (JNI/FFI), and which native libs were extracted. Use it to confirm a build picked up the right native libraries.
+`org.openssl.jostle.util.DumpInfo` (run via the standard `java --module-path .../openssl-jostle-0.1-SNAPSHOT.jar --module org.openssl.jostle.prov/org.openssl.jostle.util.DumpInfo`) prints the loaded provider, OS/arch, JVM version, the resolved interface (JNI/FFM), and which native libs were extracted. Use it to confirm a build picked up the right native libraries.
 
 
 ## Detailed guides

@@ -70,7 +70,7 @@ on the module path:
 
 Jostle loads a native library, so from **JDK 24 onwards** the JVM warns unless
 native access is enabled for it. Which form you need depends on how the jar is
-loaded, not on whether the JNI or FFI bridge is in use — both call
+loaded, not on whether the JNI or FFM bridge is in use — both call
 `System.load`.
 
 ```
@@ -242,7 +242,7 @@ BUILD SUCCESSFUL in 2s
 
 ### Step 4. Compile interface
 
-This step will compile and install the interface layer, both JNI and FFI that
+This step will compile and install the interface layer, both JNI and FFM that
 connects the Java side of OpenSSL Jostle to the OpenSSL Library libraries.
 
 #### CMAKE 
@@ -332,7 +332,7 @@ drwxr-xr-x. 2 ec2-user ec2-user      98 Oct  2 10:43 .
 drwxr-xr-x. 4 ec2-user ec2-user      35 Oct  2 10:35 ..
 -rw-r--r--. 1 ec2-user ec2-user      69 Oct  2 10:33 deps.txt
 -rw-r--r--. 1 ec2-user ec2-user 7186360 Oct  2 08:08 libcrypto.so.3
--rwxr-xr-x. 1 ec2-user ec2-user   82680 Oct  2 10:43 libinterface_ffi.so
+-rwxr-xr-x. 1 ec2-user ec2-user   82680 Oct  2 10:43 libinterface_ffm.so
 -rwxr-xr-x. 1 ec2-user ec2-user  102352 Oct  2 10:43 libinterface_jni.so
 
 ```
@@ -369,7 +369,7 @@ The Jostle jars can be found in:
 ### Step 6. Running DumpInfo
 
 `DumpInfo` reports the loaded provider, OS/arch, JVM, the resolved native
-interface (JNI or FFI), and the extracted native libraries. Two optional
+interface (JNI or FFM), and the extracted native libraries. Two optional
 arguments may be appended to the command:
 
 1. `--fine` — emit FINE-level loader logs.
@@ -403,10 +403,10 @@ Loader:
   Load Successful: true
   Loader Message: Loader Finished Successfully
   Loader Interface Resolution Strategy: auto
-  Loader Interface: FFI
+  Loader Interface: FFM
   Loaded Native Libraries:
     Extracted: /native/linux/x86_64/libcrypto.so.3
-    Extracted: /native/linux/x86_64/libinterface_ffi.so
+    Extracted: /native/linux/x86_64/libinterface_ffm.so
 
 Native Status:
   Native Available: true
@@ -437,10 +437,10 @@ Loader:
   Load Successful: true
   Loader Message: Loader Finished Successfully
   Loader Interface Resolution Strategy: auto
-  Loader Interface: FFI
+  Loader Interface: FFM
   Loaded Native Libraries:
     Extracted: /native/linux/x86_64/libcrypto.so.3
-    Extracted: /native/linux/x86_64/libinterface_ffi.so
+    Extracted: /native/linux/x86_64/libinterface_ffm.so
 
 Native Status:
   Native Available: true
@@ -498,7 +498,7 @@ Use: --fine to emit FINE level logs, --services to list provider services groupe
 
 ```
 
-#### java 25 -- default will use FFI
+#### java 25 -- default will use FFM
 
 ```
 java --module-path jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar \
@@ -518,10 +518,10 @@ Load Attempted: true
 Load Successful: true
 Loader Message: Loader Finished Successfully
 Loader Interface Resolution Strategy: auto
-Loader Interface: FFI  <-----
+Loader Interface: FFM  <-----
 Loaded Native Libraries:
 Extracted: /native/linux/x86_64/libcrypto.so.3
-Extracted: /native/linux/x86_64/libinterface_ffi.so
+Extracted: /native/linux/x86_64/libinterface_ffm.so
 
 -- snipped
 ```
@@ -529,7 +529,7 @@ Extracted: /native/linux/x86_64/libinterface_ffi.so
 
 #### Forcing use of JNI
 
-Jostle will default to FFI when available, it can be forced to use JNI.
+Jostle will default to FFM when available, it can be forced to use JNI.
 
 ```
 -Dorg.openssl.jostle.loader.interface=JNI
@@ -899,9 +899,9 @@ This property can be one of the following values:
 
 |Setting| Description                                             |
 |-------|---------------------------------------------------------|
-| auto  | Loader will detect FFI / JNI interface automatically    |
+| auto  | Loader will detect FFM / JNI interface automatically    |
 | jni   | Force the extraction and use of the JNI interface only  |
-| ffi   | Force the extraction and use of the FFI interface only  |
+| ffm   | Force the extraction and use of the FFM interface only  |
 | none  | Do not extract an interface library                     |
 
 If "none" is selected then the name or path to the interface library must
@@ -918,7 +918,7 @@ picked up from there rather than unpacked from the jar, supplying them via
 "org.openssl.jostle.loader.load_name_NN" or "org.openssl.jostle.loader.load_lib_NN".
 
 Note this only suppresses extraction when "org.openssl.jostle.loader.interface" is left at its
-default of "auto". Setting the interface property to any other value ("jni", "ffi" or "none")
+default of "auto". Setting the interface property to any other value ("jni", "ffm" or "none")
 forces extraction to proceed regardless.
 
 #### "org.openssl.jostle.ossl_prov"

@@ -1,12 +1,12 @@
 # Native code guidance (`interface/`)
 
-Conventions for the C bridge (`jni`, `ffi`) and the OpenSSL abstraction layer
+Conventions for the C bridge (`jni`, `ffm`) and the OpenSSL abstraction layer
 (`util`), plus the native-side bug classes to review for. Auto-imported by
 CLAUDE.md.
 
 **The native tree is split into two independent copies** — `interface/nonfips/`
 (the base, non-FIPS provider) and `interface/fips/` (the FIPS provider). Each is
-self-contained with its own `jni/`, `ffi/`, and `util/` (see the "Native source
+self-contained with its own `jni/`, `ffm/`, and `util/` (see the "Native source
 layout" section of CLAUDE.md). The conventions below apply to **both** trees;
 paths are written as `interface/nonfips/...` because that is where the examples'
 algorithms live, but every rule holds identically under `interface/fips/...`. A
@@ -15,29 +15,29 @@ the other — they are separate source files by design.
 
 ## Native code conventions (`interface/`)
 
-1. **Bridge layer (`interface/nonfips/jni/`, `interface/nonfips/ffi/`)** is the only layer that validates user-supplied inputs and surfaces failures as typed return codes. The bridge MUST do all of the following before calling util:
-   1. **Null-check every user-supplied pointer** — strings (curve names, digest names), byte arrays, and native handles cast from `jlong` (JNI) or `size_t`/raw pointer (FFI). Each gets a typed return code (`JO_NAME_IS_NULL`, `JO_INPUT_IS_NULL`, `JO_KEY_SPEC_IS_NULL`, `JO_SIGNER_CTX_IS_NULL`, etc.). **Never `jo_assert` on a value derived from a Java/FFI caller.**
+1. **Bridge layer (`interface/nonfips/jni/`, `interface/nonfips/ffm/`)** is the only layer that validates user-supplied inputs and surfaces failures as typed return codes. The bridge MUST do all of the following before calling util:
+   1. **Null-check every user-supplied pointer** — strings (curve names, digest names), byte arrays, and native handles cast from `jlong` (JNI) or `size_t`/raw pointer (FFM). Each gets a typed return code (`JO_NAME_IS_NULL`, `JO_INPUT_IS_NULL`, `JO_KEY_SPEC_IS_NULL`, `JO_SIGNER_CTX_IS_NULL`, etc.). **Never `jo_assert` on a value derived from a Java/FFM caller.**
    2. **Range-check every user-supplied length** — sign (`< 0` → `JO_*_IS_NEGATIVE`), zero where zero is meaningless (`== 0` → `JO_*_IS_NEGATIVE`), and upper bound where the value will be cast to `int` downstream (`> INT32_MAX` → `JO_INPUT_TOO_LONG_INT32` / `JO_OUTPUT_TOO_LONG_INT32`).
-   3. **Range-check offset+length pairs** against the buffer they index — FFI uses `check_in_range(size, off, len)`; JNI uses `check_bytearray_in_range(ctx, off, len)`. These compute the addition safely even when both operands approach `SIZE_MAX/2`.
-   4. **Translate JNI/FFI access failures** — `load_bytearray_ctx` / `load_critical_ctx` / `GetStringUTFChars` returning failure → `JO_FAILED_ACCESS_*` / `JO_UNABLE_TO_ACCESS_NAME`.
+   3. **Range-check offset+length pairs** against the buffer they index — FFM uses `check_in_range(size, off, len)`; JNI uses `check_bytearray_in_range(ctx, off, len)`. These compute the addition safely even when both operands approach `SIZE_MAX/2`.
+   4. **Translate JNI/FFM access failures** — `load_bytearray_ctx` / `load_critical_ctx` / `GetStringUTFChars` returning failure → `JO_FAILED_ACCESS_*` / `JO_UNABLE_TO_ACCESS_NAME`.
 
-   JNI **must** request critical pointers via JVM and surface failures explicitly; FFI **must** receive the full byte-array size as a parameter so it can do its own range checks. **Both layers must return identical error codes for identical inputs** — if FFI rejects a value, JNI rejects it too with the same code, and vice versa.
+   JNI **must** request critical pointers via JVM and surface failures explicitly; FFM **must** receive the full byte-array size as a parameter so it can do its own range checks. **Both layers must return identical error codes for identical inputs** — if FFM rejects a value, JNI rejects it too with the same code, and vice versa.
 
    **Two traps the last native review found — both turn NI-surface misuse into a JVM `abort()` (a DoS) instead of a typed exception:**
-   1. **A null input array with `off == len == 0` slips past the range checks straight into a util `jo_assert`.** `load_bytearray_ctx` returns *success* for a null Java array (`bytearray == NULL`, `size == 0`), and `check_bytearray_in_range(ctx, 0, 0)` / `check_in_range(size, 0, 0)` *pass* — so the access-translation (1.4) and the range checks (1.3) do NOT catch it. You MUST explicitly null-check the loaded pointer: `if (input.bytearray == NULL) { ret = JO_INPUT_IS_NULL; goto exit; }` (JNI) / `if (input == NULL) { return JO_INPUT_IS_NULL; }` (FFI). This is precisely the check the spec `encap`/`decap` bridges were missing while every sibling bridge had it.
+   1. **A null input array with `off == len == 0` slips past the range checks straight into a util `jo_assert`.** `load_bytearray_ctx` returns *success* for a null Java array (`bytearray == NULL`, `size == 0`), and `check_bytearray_in_range(ctx, 0, 0)` / `check_in_range(size, 0, 0)` *pass* — so the access-translation (1.4) and the range checks (1.3) do NOT catch it. You MUST explicitly null-check the loaded pointer: `if (input.bytearray == NULL) { ret = JO_INPUT_IS_NULL; goto exit; }` (JNI) / `if (input == NULL) { return JO_INPUT_IS_NULL; }` (FFM). This is precisely the check the spec `encap`/`decap` bridges were missing while every sibling bridge had it.
    2. **Type-check EVERY `jlong`/pointer handle, not just some of them.** The RSA session entry points type-checked the `key_spec` handle but `jo_assert`ed the `ctx` handle *in the same function* — a `0` ctx handle from an NI caller then aborted the JVM instead of returning `JO_SIGNER_CTX_IS_NULL`. An entry point that returns a typed code for one caller-derived handle but `jo_assert`s another is the smell; fix all of them.
 
-   3. **`len == 0 || ptr != NULL` is blind to a null array arriving over FFI.** FFI passes a null Java array as
+   3. **`len == 0 || ptr != NULL` is blind to a null array arriving over FFM.** FFM passes a null Java array as
       the pair (NULL, 0), so an assertion or check conditional on the length accepts it silently, while JNI,
       which sees the null array itself, aborts or refuses. Where empty and null must be told apart (a DRBG's
       personalisation string, entropy or nonce: OpenSSL derives different bytes from a null string than from an
       empty one and raises nothing), check the pointer unconditionally. The test DRBG entry point had the
-      length-conditional form on two arrays and nothing on the third, so FFI would have derived different bytes
+      length-conditional form on two arrays and nothing on the third, so FFM would have derived different bytes
       from a null personalisation while JNI aborted: the silent direction.
 
    **Cross-check every new or edited bridge against its siblings, and lock each check with a `*LimitTest`.** `asn1_ni_*.c`, `dsa_ni_*.c`, and `ec_ni_*.c` are the reference for the complete null/range/handle validation set — a bridge that omits a check a sibling performs (or `jo_assert`s where a sibling returns a typed code) is the defect. A `jo_assert` reachable from the NI surface is invisible to every positive test but is exactly what a limit test (or a hostile caller) hits, so pair every bridge input-check with a `*LimitTest` that drives the NI with the null/zero value and pins the typed rejection (see the limit-test completeness rule in testing.md) — an un-tested check is one refactor away from silently regressing to an abort.
 
-2. **Abstraction layer (`interface/nonfips/util/`)** is the only place that calls OpenSSL. It maintains state in structs across the JCA new → init → update → final → reset lifecycle. Util **trusts** the bridge to have validated user-supplied inputs and asserts those preconditions as invariants (see point 5). That includes `rnd_src` — both JNI and FFI bridges null-check the RandSource on every entry point that takes one, so util just `jo_assert`s it. Util's only legitimate `if (X) return JO_*` patterns are:
+2. **Abstraction layer (`interface/nonfips/util/`)** is the only place that calls OpenSSL. It maintains state in structs across the JCA new → init → update → final → reset lifecycle. Util **trusts** the bridge to have validated user-supplied inputs and asserts those preconditions as invariants (see point 5). That includes `rnd_src` — both JNI and FFM bridges null-check the RandSource on every entry point that takes one, so util just `jo_assert`s it. Util's only legitimate `if (X) return JO_*` patterns are:
    1. **State checks** on bridge-validated outer pointers — e.g. `spec->key == NULL` (the `spec` was validated by the bridge, but its inner `key` field may legitimately be unset on a freshly-allocated spec), `ctx->digest_ctx == NULL` (`JO_NOT_INITIALIZED`), `ctx->opp != EC_OP_SIGN` (`JO_UNEXPECTED_STATE`).
    2. **OpenSSL-output bounds** after a probe call — e.g. `if (sig_len > (size_t) INT32_MAX) return JO_OUTPUT_TOO_LONG_INT32;` after `EVP_DigestSignFinal(NULL, &sig_len)` or `EVP_PKEY_derive(NULL, &need)`. These are values OpenSSL returned to us; we validate them before casting back to `int32_t` for the Java return path.
 
@@ -59,7 +59,7 @@ is acceptable"* — because *"it's like that because we control it."* Strengthen
 2026-09-20 (Megan): *"can't just ever return silently for things like that."*
 A silent return on a violated invariant is a defect: it hides a jostle bug.
 `if (err == NULL) return 0;` is never correct in a bridge or util entry point,
-and neither is a Java-side `if (err == null)` short-circuit on the FFI side.
+and neither is a Java-side `if (err == null)` short-circuit on the FFM side.
 
 The bridge-validation rules elsewhere in these guides say a `jo_assert` reachable
 from the NI surface is a defect: a JVM `abort()` where a typed refusal belongs.
@@ -99,13 +99,13 @@ jo_assert((*env)->GetArrayLength(env, _err) >= 1);   /* before GetIntArrayElemen
 raises `ArrayIndexOutOfBoundsException`. Only the `GetIntArrayElements` idiom
 corrupts, which is why the source lint keys on it and not on "err array".
 
-**And the Java side of an FFI handler does no validation at all** (Megan,
+**And the Java side of an FFM handler does no validation at all** (Megan,
 2026-09-20): *"We should not need to be doing any sanitisation in the java side
-of an FFI handler other than to pass NULL or handle a copy or a pointer if it is
+of an FFM handler other than to pass NULL or handle a copy or a pointer if it is
 critical."* So a null array crosses as `MemorySegment.NULL` with its length
 alongside, and C answers — which is also what makes the two bridges return the
 same code for the same input. The single sanctioned exception is an
-object-identity question C cannot see: `SpecFFI`'s aliasing check, recorded in
+object-identity question C cannot see: `SpecFFM`'s aliasing check, recorded in
 testing.md.
 
 These asserts survive any build configuration, and that is by construction rather
@@ -143,7 +143,7 @@ OAEP doesn't have implicit rejection because OAEP is IND-CCA2 secure by construc
 
 ### Review native code for the bug classes Java tests can't catch
 
-Most security-critical bugs in this codebase live in C, not Java: the JNI bridges in `interface/nonfips/jni/`, the FFI bridges in `interface/nonfips/ffi/`, and the OpenSSL abstraction layer in `interface/nonfips/util/`. A Java roundtrip test cannot catch a memory-safety incident in native code, and a function that silently produces wrong-but-self-consistent output sails through any positive-only test on either side of the boundary. Every native change should be reviewed for the following classes specifically.
+Most security-critical bugs in this codebase live in C, not Java: the JNI bridges in `interface/nonfips/jni/`, the FFM bridges in `interface/nonfips/ffm/`, and the OpenSSL abstraction layer in `interface/nonfips/util/`. A Java roundtrip test cannot catch a memory-safety incident in native code, and a function that silently produces wrong-but-self-consistent output sails through any positive-only test on either side of the boundary. Every native change should be reviewed for the following classes specifically.
 
 **Logic errors and inverted conditions**
 
@@ -173,11 +173,11 @@ if (UNSUCCESSFUL(ret) || out == NULL) {
 }
 ```
 
-The general principle: **a layer's memory-safety must never silently depend on an invariant maintained by another layer.** This is the inverse face of point 5 — where the bridge trusts util to have *validated an input*, that is a deliberate, documented contract; but where a caller trusts a callee to have *not allocated on failure*, that is an undocumented assumption that converts a future edit into a leak, so defend against it locally. The same fragility appears in every `*Len`-then-fetch pair that runs the same allocating helper twice (e.g. `JoKS_StoreLen` / `JoKS_Store`, which free `out` only after the success check). Audit every bridge entry point in `interface/nonfips/jni/` and `interface/nonfips/ffi/` that receives a callee out-parameter for this shape.
+The general principle: **a layer's memory-safety must never silently depend on an invariant maintained by another layer.** This is the inverse face of point 5 — where the bridge trusts util to have *validated an input*, that is a deliberate, documented contract; but where a caller trusts a callee to have *not allocated on failure*, that is an undocumented assumption that converts a future edit into a leak, so defend against it locally. The same fragility appears in every `*Len`-then-fetch pair that runs the same allocating helper twice (e.g. `JoKS_StoreLen` / `JoKS_Store`, which free `out` only after the success check). Audit every bridge entry point in `interface/nonfips/jni/` and `interface/nonfips/ffm/` that receives a callee out-parameter for this shape.
 
 **Integer overflow / underflow and signed→unsigned casts**
 
-Java `int` is signed; nearly every length / offset / count crossing the JNI boundary is a `jint`. A negative `jint` cast straight to `size_t` becomes ~2³¹ (or ~2⁶³ on 64-bit hosts), and is then large-but-positive — which passes any `len > 0` check, drives runaway allocations, or produces a `memcpy` that reads memory the caller never owned. **Always validate range checks before the cast**: `if (in_off < 0 || in_len < 0) return JO_INPUT_*_NEGATIVE;` precedes any `(size_t)` cast or pointer arithmetic. The FFI `check_in_range(size, off, len)` and JNI `check_bytearray_in_range(ctx, off, len)` helpers compute the addition safely even when both operands are near `SIZE_MAX/2`. `BN_num_bytes()` returns `int` but represents an unsigned magnitude — a negative return signals an OpenSSL internal error and must be checked, not blindly cast to `size_t`. Allocations of the form `n * sizeof(T)` need an upper bound on `n` to avoid wraparound; same for `len + 16` style allocations where `len` could be near `INT32_MAX`. On the way back to Java, casting a `size_t` back to `jint` requires an explicit `> INT32_MAX` check — see `JO_OUTPUT_TOO_LONG_INT32` and `JO_INPUT_TOO_LONG_INT32` in `bc_err_codes.h`. Per the "Native code conventions" point 6: use `INT32_MAX`, not `INT_MAX`, anywhere the intent is "fits in int32_t".
+Java `int` is signed; nearly every length / offset / count crossing the JNI boundary is a `jint`. A negative `jint` cast straight to `size_t` becomes ~2³¹ (or ~2⁶³ on 64-bit hosts), and is then large-but-positive — which passes any `len > 0` check, drives runaway allocations, or produces a `memcpy` that reads memory the caller never owned. **Always validate range checks before the cast**: `if (in_off < 0 || in_len < 0) return JO_INPUT_*_NEGATIVE;` precedes any `(size_t)` cast or pointer arithmetic. The FFM `check_in_range(size, off, len)` and JNI `check_bytearray_in_range(ctx, off, len)` helpers compute the addition safely even when both operands are near `SIZE_MAX/2`. `BN_num_bytes()` returns `int` but represents an unsigned magnitude — a negative return signals an OpenSSL internal error and must be checked, not blindly cast to `size_t`. Allocations of the form `n * sizeof(T)` need an upper bound on `n` to avoid wraparound; same for `len + 16` style allocations where `len` could be near `INT32_MAX`. On the way back to Java, casting a `size_t` back to `jint` requires an explicit `> INT32_MAX` check — see `JO_OUTPUT_TOO_LONG_INT32` and `JO_INPUT_TOO_LONG_INT32` in `bc_err_codes.h`. Per the "Native code conventions" point 6: use `INT32_MAX`, not `INT_MAX`, anywhere the intent is "fits in int32_t".
 
 **String functions without bounds**
 
@@ -214,23 +214,23 @@ The `OPS_FAILED_ACCESS_N`, `OPS_OPENSSL_ERROR_N`, `OPS_INT32_OVERFLOW_N`, `OPS_L
 
 **Symbol-name collisions with libcrypto exports**
 
-FFI exports are resolved by the dynamic loader against the union of `libinterface_ffi.dylib` and any other library already loaded in-process — including `libcrypto.dylib`. A C function named `RSA_sign` shadows libcrypto's own export of that name; depending on RTLD order, a call into "our" `RSA_sign` resolves to libcrypto's, producing impossible-looking SIGSEGVs inside libcrypto from what should be Jostle code. This was caught the hard way during initial RSA work — the fix was the `JoRSA_*` / `JoRSAOAEP_*` / `JoRSAPKCS1_*` prefix.
+FFM exports are resolved by the dynamic loader against the union of `libinterface_ffm.dylib` and any other library already loaded in-process — including `libcrypto.dylib`. A C function named `RSA_sign` shadows libcrypto's own export of that name; depending on RTLD order, a call into "our" `RSA_sign` resolves to libcrypto's, producing impossible-looking SIGSEGVs inside libcrypto from what should be Jostle code. This was caught the hard way during initial RSA work — the fix was the `JoRSA_*` / `JoRSAOAEP_*` / `JoRSAPKCS1_*` prefix.
 
-**Every FFI entry point the Java layer resolves starts with `Jo`** — no exceptions, and this is enforced, not merely advised: `FIPSLibraryLookupParityTest.everyResolvedFfiSymbolIsJoPrefixed` scans the resolution sites (`lookup.find("X")` / `bind(lookup, "X", …)`) and fails the build on an unprefixed name. Use an area prefix matching the house style — `JoMD_`, `JoMAC_`, `JoRSA_`, `JoBlockCipher_`, `JoOpenSSL_`, `JoNative_`, `JoFFI_`, `JoOps_`. The convention was only partially applied until 2026-08-23, when `BlockCipherNI_*`, `get_ossl_errors`, `set_openssl_module`, `is_native_available`, `openssl_library_version` and `ffi_free_unsecure_null_safe` were renamed to bring the whole surface under it.
+**Every FFM entry point the Java layer resolves starts with `Jo`** — no exceptions, and this is enforced, not merely advised: `FIPSLibraryLookupParityTest.everyResolvedFfmSymbolIsJoPrefixed` scans the resolution sites (`lookup.find("X")` / `bind(lookup, "X", …)`) and fails the build on an unprefixed name. Use an area prefix matching the house style — `JoMD_`, `JoMAC_`, `JoRSA_`, `JoBlockCipher_`, `JoOpenSSL_`, `JoNative_`, `JoFFM_`, `JoOps_`. The convention was only partially applied until 2026-08-23, when `BlockCipherNI_*`, `get_ossl_errors`, `set_openssl_module`, `is_native_available`, `openssl_library_version` and the unsecure-free helper (now `JoFFM_freeUnsecureNullSafe`) were renamed to bring the whole surface under it.
 
-A util-layer function that JNI also calls (`set_ops_test`, `OPS_GetRandomBytes` in `util/ops.c`) is **not** renamed in place — that churns the JNI bridge for no gain. Add a `Jo`-named forwarder in the FFI glue instead; `nonfips/ffi/ops_ffi.c` is the reference, and it gets a FIPS twin plus wrapper like any other glue file.
+A util-layer function that JNI also calls (`set_ops_test`, `OPS_GetRandomBytes` in `util/ops.c`) is **not** renamed in place — that churns the JNI bridge for no gain. Add a `Jo`-named forwarder in the FFM glue instead; `nonfips/ffm/ops_ffm.c` is the reference, and it gets a FIPS twin plus wrapper like any other glue file.
 
-Verify before commit with `nm jostle/src/main/resources/native/<os>/<arch>/libinterface_ffi.dylib | grep ' T '` (Linux/macOS) and grep for any name that also appears in `nm "$OPENSSL_PREFIX/lib/libcrypto.3.dylib" | grep ' T '`. JNI exports use the JVM-mandated `Java_<class>_<method>` naming, so collision is a non-issue there.
+Verify before commit with `nm jostle/src/main/resources/native/<os>/<arch>/libinterface_ffm.dylib | grep ' T '` (Linux/macOS) and grep for any name that also appears in `nm "$OPENSSL_PREFIX/lib/libcrypto.3.dylib" | grep ' T '`. JNI exports use the JVM-mandated `Java_<class>_<method>` naming, so collision is a non-issue there.
 
-**The second collision axis is the two interface libraries against each other, and it is the dangerous one.** libcrypto collisions produce impossible SIGSEGVs — loud. A base/FIPS collision produces *working crypto performed by the wrong library*: silent, and invisible to every functional test for any algorithm mainline implements identically. Since 2026-08-23 the FIPS library's entry points are renamed with a `JoFIPS_` prefix by `interface/fips/ffi/<x>_fips_ffi.c` — `#define` the base names, `#include` the byte-identical twin, exactly as `fips/jni/<x>_fips_jni.c` does. Three rules when touching this:
+**The second collision axis is the two interface libraries against each other, and it is the dangerous one.** libcrypto collisions produce impossible SIGSEGVs — loud. A base/FIPS collision produces *working crypto performed by the wrong library*: silent, and invisible to every functional test for any algorithm mainline implements identically. Since 2026-08-23 the FIPS library's entry points are renamed with a `JoFIPS_` prefix by `interface/fips/ffm/<x>_fips_ffm.c` — `#define` the base names, `#include` the byte-identical twin, exactly as `fips/jni/<x>_fips_jni.c` does. Three rules when touching this:
 
-1. **A new FFI entry point needs its `#define` added to the corresponding wrapper**, or the FIPS library silently lacks it and the Java lookup throws at construction (loud, but only when that path first runs). Add a probe for a new *family* to `FIPSLibraryLookupParityTest.ENTRY_POINTS`. Run the `regen-fips-ffi-wrappers` skill rather than hand-editing.
+1. **A new FFM entry point needs its `#define` added to the corresponding wrapper**, or the FIPS library silently lacks it and the Java lookup throws at construction (loud, but only when that path first runs). Add a probe for a new *family* to `FIPSLibraryLookupParityTest.ENTRY_POINTS`. Run the `regen-fips-ffm-wrappers` skill rather than hand-editing.
 
-   **Do NOT re-include a base twin just to reach one function it happens to define.** That was how `ffi/openssl_ffi.c` came to be in the FIPS tree — the FIPS library needed `JoOpenSSL_getErrors`, so it took the whole file, and thereby also exported `JoOpenSSL_setModule`: a function that builds a lib ctx with `jostle_ctx_init_new` (no fipsinstall config, no `fips=yes` default properties) and installs it as the FIPS global. Nothing bound it, so it was never a live defect, but its only possible effect was to make every FIPS fetch resolve to mainline — and the JNI side had never carried it, `fips/jni/openssl_fips_jni.c` having written its own `getOSSLErrors`. Since 2026-08-23 `openssl_fips_ffi.c` owns `JoFIPS_get_openssl_errors` and `ffi/openssl_ffi` is nonfips-only. The lesson generalises: when a FIPS-only file needs one helper from a base glue file, **write the helper**, because the re-include drags in every other entry point that file defines. Pinned by `FIPSLibraryLookupParityTest.fipsLibraryDoesNotCarryTheBaseInitGlue`.
-2. **A symbol defined in `util/` rather than in an `ffi/` glue file cannot use the re-include trick** — util is compiled once into the library, so re-including it duplicates every symbol. Write a thin `JoFIPS_`-named forwarder instead (`ops_fips_ffi.c` is the reference, for `set_ops_test` / `OPS_GetRandomBytes`).
-3. **Do not rename a symbol the FIPS side never resolves.** `openssl_ffi.c`'s `set_openssl_module` renamed to `JoFIPS_set_openssl_module` collides with the genuinely FIPS-specific one in `openssl_fips_ffi.c` (duplicate-symbol link error); `is_native_available`, `openssl_library_version` and `ffi_free_unsecure_null_safe` are resolved by classes with no FIPS variant through a static `loaderLookup()`, so renaming the FIPS copies would only break the base path.
+   **Do NOT re-include a base twin just to reach one function it happens to define.** That was how `ffm/openssl_ffm.c` came to be in the FIPS tree — the FIPS library needed `JoOpenSSL_getErrors`, so it took the whole file, and thereby also exported `JoOpenSSL_setModule`: a function that builds a lib ctx with `jostle_ctx_init_new` (no fipsinstall config, no `fips=yes` default properties) and installs it as the FIPS global. Nothing bound it, so it was never a live defect, but its only possible effect was to make every FIPS fetch resolve to mainline — and the JNI side had never carried it, `fips/jni/openssl_fips_jni.c` having written its own `getOSSLErrors`. Since 2026-08-23 `openssl_fips_ffm.c` owns `JoFIPS_get_openssl_errors` and `ffm/openssl_ffm` is nonfips-only. The lesson generalises: when a FIPS-only file needs one helper from a base glue file, **write the helper**, because the re-include drags in every other entry point that file defines. Pinned by `FIPSLibraryLookupParityTest.fipsLibraryDoesNotCarryTheBaseInitGlue`.
+2. **A symbol defined in `util/` rather than in an `ffm/` glue file cannot use the re-include trick** — util is compiled once into the library, so re-including it duplicates every symbol. Write a thin `JoFIPS_`-named forwarder instead (`ops_fips_ffm.c` is the reference, for `set_ops_test` / `OPS_GetRandomBytes`).
+3. **Do not rename a symbol the FIPS side never resolves.** `openssl_ffm.c`'s `set_openssl_module` renamed to `JoFIPS_set_openssl_module` collides with the genuinely FIPS-specific one in `openssl_fips_ffm.c` (duplicate-symbol link error); `is_native_available`, `openssl_library_version` and the unsecure-free helper are resolved by classes with no FIPS variant through a static `loaderLookup()`, so renaming the FIPS copies would only break the base path.
 
-**On the Java side the prefix must stay a SEPARATE parameter from the `SymbolLookup`.** The tempting cheap version — have `FIPSLibraryLookup.get()` return a name-rewriting lookup so no call site changes — is worthless: the rewriting lives in the lookup, and passing the wrong lookup is the bug being defended against. Two independent values mean each single mistake is survivable or loud; one bundled value restores the single point of failure. See `FIPSLibraryLookup`'s Javadoc and `reviews/fips-ffi-distinct-symbols-plan.md`.
+**On the Java side the prefix must stay a SEPARATE parameter from the `SymbolLookup`.** The tempting cheap version — have `FIPSLibraryLookup.get()` return a name-rewriting lookup so no call site changes — is worthless: the rewriting lives in the lookup, and passing the wrong lookup is the bug being defended against. Two independent values mean each single mistake is survivable or loud; one bundled value restores the single point of failure. See `FIPSLibraryLookup`'s Javadoc.
 
 **Internal (non-entry-point) symbols are a different problem with a different fix.** Both libraries still export ~180 identical `util`-layer names (`rsa_ctx_init`, `md_ctx_init`, …). Renaming those wholesale is unnecessary: ELF load-order interposition — which would bind the FIPS library's internal calls to the base library's copies — is prevented by `-Wl,-Bsymbolic` on both FIPS targets in `interface/CMakeLists.txt`, and macOS's two-level namespace covers the other platform. Do not remove those link options.
 
@@ -239,7 +239,7 @@ Verify before commit with `nm jostle/src/main/resources/native/<os>/<arch>/libin
 1. **Every call site in the FIPS tree spells the fips name — there is NO `#define` aliasing the base names onto them.** An alias in `jostle_lib_ctx.h` was the first shape tried and was rejected: it hides the very fact the separation exists to make visible, so `fips/util/rsa.c` would read as though it used the base accessor. Reading a FIPS fetch site must tell you which lib ctx it resolves through.
 2. **Because the base names are declared nowhere in the FIPS tree, spelling one fails to COMPILE** — `call to undeclared function 'get_global_jostle_ossl_lib_ctx'`, naming file and line (sabotage-verified). It never reaches a link, so it cannot bind to the base library's definition at load time. This is why the alias mattered: with it, the same mistake compiled silently.
 3. **The ~20 util sources carrying the rename are still under twin discipline.** They are NOT in `DIVERGENT_CONTENT` — that would stop checking them entirely, which is the opposite of what is wanted. `check-tree-parity.py` normalises this one uniform rename (`ACCESSOR_ALIASES`) before comparing, so every *other* drift is still caught, and diffs are printed normalised so the rename does not bury the real change. It also suppresses its `cp` sync advice for those files, since a raw copy either way clobbers the rename. **Renaming an accessor without updating `ACCESSOR_ALIASES` turns ~20 twins into unexplained drift.**
-4. **FIPS-only sources spell the fips names too** (`jostle_fips_ctx.c`, `capability.c`, `openssl_fips_{ffi,jni}.c`). Only `jostle_lib_ctx.{c,h}` are sanctioned-divergent.
+4. **FIPS-only sources spell the fips names too** (`jostle_fips_ctx.c`, `capability.c`, `openssl_fips_{ffm,jni}.c`). Only `jostle_lib_ctx.{c,h}` are sanctioned-divergent.
 5. **The pinned one-shot guard message differs by tree on purpose.** `JostleFIPSProviderTest` expects `set_global_jostle_fips_lib_ctx already called`; `BridgeRandLimitTest` expects the unprefixed form. The pair proves each provider's guard fired in its own library — do not "fix" the inconsistency.
 
 `FIPSLibraryLookupParityTest.libCtxAccessorsAreNamedApartAcrossTheTwoLibraries` probes the built artefacts in both directions and is falsification-verified (re-export the base name from the FIPS tree → it fails, the three sibling tests stay green).
@@ -379,7 +379,7 @@ and the test cannot say which it drove.
 ### A census of "who allocates X" includes the bridges, and a first pass is not a census
 
 Util owns allocation, but the bridges can allocate too, and nothing forces them through util's constructor.
-Seven FFI glue files per tree built a `key_spec` with a bare `OPENSSL_zalloc(sizeof(key_spec))` plus an
+Seven FFM glue files per tree built a `key_spec` with a bare `OPENSSL_zalloc(sizeof(key_spec))` plus an
 assert, which is `create_spec()`'s body exactly, while every JNI counterpart called `create_spec()`. Shipped
 behaviour was correct; the disposal ledger found it, because those specs were freed through a counted
 destroy but never created through a counted create. The first pass then routed ten of the fourteen sites and

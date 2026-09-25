@@ -4,7 +4,7 @@
     {
       "id": 0,
       "prompt": "I want to add ConcatKDF (NIST SP 800-56A §5.8.1) as a SecretKeyFactory in Jostle. ConcatKDF is similar in shape to the X9.63 KDF — given a shared secret Z, an optional fixed-info bitstring, a digest, and an output length, it iterates Hash(counter || Z || FixedInfo) and concatenates. OpenSSL exposes it via the EVP_KDF \"X963KDF\" entry actually — but treat this as a fresh addition for the exercise. Walk me through what files I'll need to create or modify and in what order. Be concrete about file paths, layers, and the verification gates I should check off.",
-      "expected_output": "Complete layer-by-layer plan covering native util (kdf.c addition or new file), JNI bridge, FFI bridge, NI surface, KeySpec, SecretKeyFactory SPI, ProvHKDF/new Prov class, JostleProvider.setup wiring, tests (unit/limit/ops/BC-agreement), error code additions, CMakeLists.txt, OPS instrumentation. Should name canonical references (e.g. X963KDFSecretKeyFactory) to model from.",
+      "expected_output": "Complete layer-by-layer plan covering native util (kdf.c addition or new file), JNI bridge, FFM bridge, NI surface, KeySpec, SecretKeyFactory SPI, ProvHKDF/new Prov class, JostleProvider.setup wiring, tests (unit/limit/ops/BC-agreement), error code additions, CMakeLists.txt, OPS instrumentation. Should name canonical references (e.g. X963KDFSecretKeyFactory) to model from.",
       "files": []
     },
     {

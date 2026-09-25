@@ -177,7 +177,7 @@ Three recurring traps, each of which has actually happened here:
    right answer for a class that names the NI interface and the wrong one for a
    class that names an intermediate. `FIPSProviderNameParityTest`'s exclusion
    check flagged only `OperationsTestFIPSJNI` under sabotage, because
-   `OperationsTestFIPSFFI` names `OperationsTestFFI` first — half the exclusion
+   `OperationsTestFIPSFFM` names `OperationsTestFFM` first — half the exclusion
    went unverified, and it read as verified. Walk the chain (bounded), and print
    the chain in the failure so the reader can see how far it got.
 
@@ -374,7 +374,7 @@ to prove RSA-PSS works without the JDK providers left it empty, and three
 unrelated classes scheduled into the same process seconds later — `RSATest`,
 `SLHDSATest`, `XDHTest` — failed 20 tests with `SHA1PRNG SecureRandom not
 available`, because their seeded-random helper needs SUN. The same tree had
-already passed `unitTest8`, `unitTest25JNI` and `unitTest25FFI` TWICE; they
+already passed `unitTest8`, `unitTest25JNI` and `unitTest25FFM` TWICE; they
 passed by luck of class ordering, since the damage only fires when the
 scheduler puts a victim after the mutator in the same JVM. `forkEvery = 1` does
 NOT contain it, and reasoning that it does from the build file rather than from
@@ -601,7 +601,7 @@ can be verified on every unit leg and still not have been exercised by the one
 file that tests it.
 
 Worked example, 2026-09-02: `md.c`'s xof validation was changed and verified on
-`unitTest8`, `unitTest11`, `unitTest25JNI` and `unitTest25FFI`, all green, then
+`unitTest8`, `unitTest11`, `unitTest25JNI` and `unitTest25FFM`, all green, then
 committed. `MDLimitTest` — 37 tests, and the file that actually covers that
 validation — runs only on the integration legs and **had not run**. It was green
 when finally run, so nothing was broken; **the answer came out right by luck,
@@ -610,7 +610,7 @@ and that is recorded as luck.**
 Two rules follow:
 
 1. **A change under `interface/**/util`, `interface/**/jni`, or a
-   `java25 *FFI.java` REQUIRES the matching `*LimitTest` on an integration leg
+   `java25 *FFM.java` REQUIRES the matching `*LimitTest` on an integration leg
    in the pre-commit set.** The Tier-1 mapping claim must NAME the Limit test
    and the leg it ran on, not merely say "unit legs green".
 2. **When a commit is authorized mid-work** ("commit what you have"), the commit
@@ -628,7 +628,7 @@ leg includes. Read the includes before choosing what to run, not after.
 methods; the fix went into the JNI glue, a pin was written, it passed on
 `unitTest8`, and it was committed under the subject *"Return a typed refusal
 instead of aborting on a null error array"*. The first run on
-`unitTest25FFI` **failed**: `MDServiceFFI` still raised a bare
+`unitTest25FFM` **failed**: `MDServiceFFM` still raised a bare
 `RuntimeException`, because `MemorySegment.ofArray(null)` NPEs and the catch
 rewraps it. The commit's subject was true of half the surface it named.
 
@@ -638,7 +638,7 @@ aborts on both bridges; the leg lesson stands.
 **What caught it was the pin, one leg later** — not review, not the survey that
 found the original defect, not re-reading the ruling that had said "both
 bridges". That is the argument for pinning guards that already look correct,
-made concrete: the JNI half was pinned and green while the FFI half was broken,
+made concrete: the JNI half was pinned and green while the FFM half was broken,
 and only running the OTHER BRIDGE separated them.
 
 So the bridge is a leg dimension in its own right:
@@ -647,14 +647,14 @@ So the bridge is a leg dimension in its own right:
    green on one bridge says nothing about the other — they are different code
    (C glue versus a Java downcall) reached through the same interface.
 2. **For any change or pin touching an NI surface, the Tier-1 mapping names a
-   JNI leg AND an FFI leg.** `java25 *FFI.java` additionally pulls in the
+   JNI leg AND an FFM leg.** `java25 *FFM.java` additionally pulls in the
    integration-leg Limit test, per the leg-coverage rule above.
 3. **A commit subject that claims a surface is checked against every leg of that
    surface before it is written.** "Refuses a null error array" is a claim about
    the boundary, not about one implementation of it.
 
 **Land a late completion as its own commit**, with a subject saying what it is
-("Complete the null error-array refusal on the FFI bridge"), rather than folding
+("Complete the null error-array refusal on the FFM bridge"), rather than folding
 it into a neighbouring commit where the half-fix becomes invisible. Honest
 history beats a tidy one.
 
@@ -663,7 +663,7 @@ history beats a tidy one.
 **Symptom: two committed tests green on five legs and red on the sixth, and the
 sixth is the one that runs the code as plain classes.** Measured 2026-09-02:
 `NamedParameterSpecAcceptanceTest` and `EdDSATest` passed on unitTest11/17/21/
-25JNI/25FFI and FAILED the base `:jostle:test`, which is what stopped Tier 2.
+25JNI/25FFM and FAILED the base `:jostle:test`, which is what stopped Tier 2.
 
 The unit and integration legs set `classpath = files(jar.archiveFile)`; the base
 `test` task does not, so it runs against raw `sourceSets.main.output` class
@@ -698,7 +698,7 @@ Three rules:
    class with a `javaN/` override. Five jar legs green says nothing about it.
 
 This is the leg-coverage lesson a third time (after the `*LimitTest`-on-unit-legs
-exclusion and the JNI/FFI bridge dimension) and the first that did NOT come out
+exclusion and the JNI/FFM bridge dimension) and the first that did NOT come out
 green by luck.
 
 ### Every JDK-level source set carries a CANARY, because wiring cannot be read
@@ -740,7 +740,7 @@ would blind that leg with nothing failing. So each source set carries a second
 canary, `SourceSetNNCanaryIntegrationTest`, named to match the integration
 filter — never widen the filter instead, which would drag every unit test onto
 those legs. Note five legs are served by four canaries: level 25 is
-`integrationTest25JNI` and `integrationTest25FFI` over one `test25` source set.
+`integrationTest25JNI` and `integrationTest25FFM` over one `test25` source set.
 And expect **before + 1 per leg**, never a shared literal: 11/17/21 go 93 -> 94
 while the 25 pair goes 95 -> 96, so one expected number would fail spuriously on
 one group or pass vacuously on the other.
@@ -871,7 +871,7 @@ The two classes are not redundant. They cover different code and different failu
 | | `<FAMILY>AgreementTest` | `FIPS<FAMILY>AgreementTest` |
 |---|---|---|
 | Providers compared | JSL vs BC | JSLFIPS vs JSL **and** JSLFIPS vs BC |
-| Native library driven | `libinterface_{jni,ffi}` | `libinterface_fips_{jni,ffi}` |
+| Native library driven | `libinterface_{jni,ffm}` | `libinterface_fips_{jni,ffm}` |
 | `OSSL_LIB_CTX` | the base one | the FIPS one, `fips=yes` default properties |
 | Runs when | always | only with `TEST_FIPS_LIB` set (`FIPSTestUtil.assumeFipsProvider()`) |
 | Registered set it guards | `JostleProvider.getServices()` | `JostleFIPSProvider.getServices()` |
@@ -965,14 +965,14 @@ A `jo_assert` on a caller-derived value in the C bridge is a JVM `abort()` — a
 
 1. **Every native handle parameter** (a `long ref` / ctx / key-spec handle) probed with `0`, asserting the exact typed rejection — `IllegalArgumentException("signer context is null")` for `JO_SIGNER_CTX_IS_NULL`, `"key spec is null"` for `JO_KEY_SPEC_IS_NULL`, etc. Do it for **every** entry point that takes the handle, not just one — the bridge validates each independently, and the bug found was one function type-checking a handle its neighbour `jo_assert`ed.
 2. **Every input byte-array parameter** probed with a `null` array **AND `off == 0, len == 0`** — the exact combination that slips past the offset/length range checks (`check_in_range(0, 0, 0)` passes) and would otherwise reach a util `jo_assert`. Assert `JO_INPUT_IS_NULL` → `NullPointerException("input is null")`. (A non-zero length is caught earlier by the range check, so the zero-length case is the one that actually exercises the null-pointer guard.)
-3. **Pin the exact message** (per "Pin the exception message in OPS / Limit-test catch blocks") and run on **both** JNI and FFI — the two bridges validate separately and must return identical codes.
+3. **Pin the exact message** (per "Pin the exception message in OPS / Limit-test catch blocks") and run on **both** JNI and FFM — the two bridges validate separately and must return identical codes.
 
 `RSALimitTest.RSAServiceNI_nullSignerCtx_rejectedTyped`, `FIPSRSAServiceLimitTest.nullSignerCtx_allEntryPointsRejectedTyped`, and `SpecLimitTest.encap_nullInput` / `decap_nullInput` are the reference tests. Add these before considering a new or edited C bridge done — they are the test-side half of the bridge-validation rules in native-code.md (a `jo_assert` reachable from the NI surface is the defect; this test is what proves it was replaced with a typed code).
 
 ### A jostle-controlled parameter never returns silently
 
 `err`, `consumed` and internal handles are jostle's own. When one is null or too
-short the native layer aborts (`jo_assert`) on BOTH bridges; where the FFI
+short the native layer aborts (`jo_assert`) on BOTH bridges; where the FFM
 downcall is not critical the Java passes the array's null-ness and length down
 and the C asserts. Never a `return 0` on a null `err`, never a Java-side
 `if (err == null)`, never a write. Probe every entry point standalone per bridge
@@ -982,17 +982,17 @@ defect unless a Java exception is pending (`GetIntArrayElements` returned NULL).
 Ruled 2026-09-20.
 
 **The one Java-side refusal that stays is an object-identity question (aliasing)
-that only Java can answer; it returns the same code as the JNI twin.** `SpecFFI`
-:261/:349 are the two sites. JNI decides aliasing with `IsSameObject`; on FFI the
+that only Java can answer; it returns the same code as the JNI twin.** `SpecFFM`
+:261/:349 are the two sites. JNI decides aliasing with `IsSameObject`; on FFM the
 two arrays become independent arena segments, so C cannot see that they were one
-object, and without the Java check a non-overlapping alias half-succeeds on FFI
-while JNI refuses. Irreducible, and documented at `SpecFFI` :253-258.
+object, and without the Java check a non-overlapping alias half-succeeds on FFM
+while JNI refuses. Irreducible, and documented at `SpecFFM` :253-258.
 
 **Grep for the REFUSAL, not for the null check, and read the block under a
 condition before reporting it.** `return ErrorCode.` and `err[0] = ErrorCode.`
 find a refusal directly; `if (x == null)` finds every marshalling site too, and
 those pass a NULL segment down rather than refusing. Measured 2026-09-20:
-`return ErrorCode.` across all of `java25` is exactly 2, both the `SpecFFI`
+`return ErrorCode.` across all of `java25` is exactly 2, both the `SpecFFM`
 aliasing sites above. **A null check and its return can also be separated by a
 comment** — a four-line comment between the two put `rand_jni.c`'s bare return
 outside a `-A2` window and hid it from a census twice. Read the block, not the
@@ -1149,14 +1149,14 @@ come back null) — otherwise a stub returning `"fips"` passes.
 
 **But scope that claim by falsification, because it is narrower than it looks.**
 The probe reports on the lib ctx reachable through *its own* NI. A single
-`*FIPSFFI` class mis-bound to the process-global `loaderLookup` drives the BASE
+`*FIPSFFM` class mis-bound to the process-global `loaderLookup` drives the BASE
 library while the probe — running through a different, correctly-bound class —
-still answers `"fips"`. That was tried: rebinding `MLDSAServiceFIPSFFI` left the
+still answers `"fips"`. That was tried: rebinding `MLDSAServiceFIPSFFM` left the
 whole PQC suite AND the provider probe green.
 
 **Where behaviour cannot distinguish two correct-looking implementations,
 enforce the invariant structurally.** `FIPSLibraryLookupParityTest` reads the
-`*FIPSFFI` sources and requires `FIPSLibraryLookup.get()`, never
+`*FIPSFFM` sources and requires `FIPSLibraryLookup.get()`, never
 `loaderLookup()` — the same shape as `NativeReferenceParityTest`, and for the
 same reason: the defect is invisible at runtime until far too late. Strip
 comments before matching; the first version flagged every correctly-written
@@ -1359,7 +1359,7 @@ and fails the "is the world as I assume?" test.
 clears before, so a task that does not run has the PREVIOUS run's XML
 snapshotted as its evidence. Measured 2026-09-09: `integrationTest11/17/21`
 held 93/93/72 files from a killed gate, including a "Could not stop all
-services" record, and `unitTest25FFI` held 2 files from a filtered re-check —
+services" record, and `unitTest25FFM` held 2 files from a filtered re-check —
 fresh-looking and nearly empty.
 
 Clearing once at the start is NOT enough: three cycles run the same task names,

@@ -27,27 +27,27 @@ Walk through this list after completing the implementation but BEFORE asking the
 5. [ ] `OPS_FAILED_ACCESS_N` macros wrap each `load_bytearray_ctx` so tests can fault-inject access failures.
 6. [ ] Every error code is typed (`JO_*_NULL`, `JO_*_FAILED_ACCESS`, etc.) — never a generic `JO_FAIL` for bridge-side rejections.
 
-### `interface/nonfips/ffi/<algo>_ni_ffi.c`
+### `interface/nonfips/ffm/<algo>_ni_ffm.c`
 
 1. [ ] Identical error codes for identical inputs vs. the JNI bridge. Verify by reading both side-by-side.
-2. [ ] Exported function names start with `Jo<MOD>_` prefix. Verify with `nm libinterface_ffi.dylib | grep " T " | grep <prefix>`.
-3. [ ] No collision with libcrypto exports: `comm -12 <(nm libinterface_ffi.dylib | grep " T " | awk '{print $3}' | sed 's/^_//' | sort -u) <(nm $OPENSSL_PREFIX/lib/libcrypto.3.dylib | grep " T " | awk '{print $3}' | sed 's/^_//' | sort -u)` should produce zero matches.
-4. [ ] `check_in_range(size, off, len)` for offset+length pairs (FFI receives the buffer SIZE directly, not via a ctx wrapper).
+2. [ ] Exported function names start with `Jo<MOD>_` prefix. Verify with `nm libinterface_ffm.dylib | grep " T " | grep <prefix>`.
+3. [ ] No collision with libcrypto exports: `comm -12 <(nm libinterface_ffm.dylib | grep " T " | awk '{print $3}' | sed 's/^_//' | sort -u) <(nm $OPENSSL_PREFIX/lib/libcrypto.3.dylib | grep " T " | awk '{print $3}' | sed 's/^_//' | sort -u)` should produce zero matches.
+4. [ ] `check_in_range(size, off, len)` for offset+length pairs (FFM receives the buffer SIZE directly, not via a ctx wrapper).
 
 ### `interface/CMakeLists.txt`
 
-1. [ ] New `.h`/`.c` files added to **every** target list. There are typically 6 sections (JNI debug, JNI release, FFI debug, FFI release, etc.). Use `replace_all` on the sibling-file pattern.
+1. [ ] New `.h`/`.c` files added to **every** target list. There are typically 6 sections (JNI debug, JNI release, FFM debug, FFM release, etc.). Use `replace_all` on the sibling-file pattern.
 2. [ ] Rebuild with `./gradlew :jostle:compileJava` (generates JNI headers) followed by `./interface/build.sh` — header generation must precede native build.
 
 ## Java layer
 
-### NI interface + JNI + FFI impls
+### NI interface + JNI + FFM impls
 
 1. [ ] `XServiceNI` interface extends `DefaultServiceNI`.
 2. [ ] `handleErrorCodes(int code)` default method covers every new typed error code with a typed exception + specific message.
 3. [ ] `XServiceJNI` declares each method `native`.
-4. [ ] `XServiceFFI` (in `src/main/java25/`) declares the FFI method handles with `Linker.Option.critical(true)` where safe.
-5. [ ] FFI `lookup.find("Jo<MOD>_*")` matches the renamed FFI exports.
+4. [ ] `XServiceFFM` (in `src/main/java25/`) declares the FFM method handles with `Linker.Option.critical(true)` where safe.
+5. [ ] FFM `lookup.find("Jo<MOD>_*")` matches the renamed FFM exports.
 6. [ ] `NISelector` has a static field for the new service.
 
 ### Spec class
@@ -95,7 +95,7 @@ Walk through this list after completing the implementation but BEFORE asking the
 3. [ ] **Tampered input rejection** — at least one negative-path test with a specific exception-message assertion.
 4. [ ] **Boundary tests** — for fixed-length inputs (key size, IV, nonce, output length), probe `min - 1`, `min`, `max`, `max + 1`.
 5. [ ] **`*LimitTest`** — NI-level tests for every input-validation site in the bridge. Range-check probes use exactly `boundary + 1` values, not arbitrary large numbers.
-6. [ ] **`*OpsTest`** — one test per OPS-instrumented site. Bridge-side `OPS_FAILED_ACCESS_*` tests are JNI-only (guard with `Assumptions.assumeFalse(Loader.isFFI())`).
+6. [ ] **`*OpsTest`** — one test per OPS-instrumented site. Bridge-side `OPS_FAILED_ACCESS_*` tests are JNI-only (guard with `Assumptions.assumeFalse(Loader.isFFM())`).
 7. [ ] **Reset/reuse** — two operations on one SPI instance; negative-then-positive sequence; positive-then-negative; role-flip (Signature only).
 8. [ ] **Offset-write contract** — for any `engineGenerateSecret(byte[], int)` / `Cipher.doFinal(out, off)` etc., use the 4-step pattern (random fill, prefix snapshot, functional comparison, shifted-window negative).
 9. [ ] **Exception messages asserted** — every `catch (X expected)` block validates the message via `assertEquals` (fixed messages) or `startsWith` / `contains` (variable messages).
@@ -108,7 +108,7 @@ Walk through this list after completing the implementation but BEFORE asking the
 
 ## Pre-commit
 
-1. [ ] `./gradlew :jostle:unitTest25JNI :jostle:unitTest25FFI :jostle:integrationTest25JNI :jostle:integrationTest25FFI` — all green on both bridges.
+1. [ ] `./gradlew :jostle:unitTest25JNI :jostle:unitTest25FFM :jostle:integrationTest25JNI :jostle:integrationTest25FFM` — all green on both bridges.
 2. [ ] If new OPS sites were added: rebuild with `JOSTLE_OPS_TEST=1 ./interface/build.sh`, then re-run the integration test tasks to confirm the new OPS tests pass.
 3. [ ] Build artefacts (`interface/CMakeFiles/`, `interface/Makefile`, `libinterface_*.dylib`, `jostle/src/main/resources/`) are NOT staged.
 4. [ ] Source + test files ARE staged.

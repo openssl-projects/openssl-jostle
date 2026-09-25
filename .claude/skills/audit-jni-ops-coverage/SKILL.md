@@ -156,11 +156,11 @@ The OPS macros are no-ops in a regular build. To run OPS tests you need a native
 ```bash
 export JOSTLE_OPS_TEST=1
 ./interface/build.sh
-./gradlew :jostle:integrationTest25FFI :jostle:integrationTest25JNI \
+./gradlew :jostle:integrationTest25FFM :jostle:integrationTest25JNI \
     --tests "org.openssl.jostle.test.<package>.<NewOpsTest>"
 ```
 
-Note: `OPS_FAILED_ACCESS_*` fault-injection is JNI-specific. The FFI bridge in `interface/nonfips/ffi/` doesn't have JVM access calls — it receives raw pointers from the caller — so OPS tests for these slots only run meaningfully on the JNI side. The `*OpsTest` files still run on both `integrationTest25FFI` and `integrationTest25JNI` tasks, but the FFI runs of an `OPS_FAILED_ACCESS_*` test typically pass trivially because the FFI path doesn't take the instrumented code branch. Verify that the new test fails (or skips) cleanly on FFI rather than asserting against an unrelated code path.
+Note: `OPS_FAILED_ACCESS_*` fault-injection is JNI-specific. The FFM bridge in `interface/nonfips/ffm/` doesn't have JVM access calls — it receives raw pointers from the caller — so OPS tests for these slots only run meaningfully on the JNI side. The `*OpsTest` files still run on both `integrationTest25FFM` and `integrationTest25JNI` tasks, but the FFM runs of an `OPS_FAILED_ACCESS_*` test typically pass trivially because the FFM path doesn't take the instrumented code branch. Verify that the new test fails (or skips) cleanly on FFM rather than asserting against an unrelated code path.
 
 Without `JOSTLE_OPS_TEST=1`, the new test will skip via `Assumptions.assumeTrue(opsTestAvailable())` rather than fail — handy for the regular `:jostle:test` task that doesn't require an OPS build.
 

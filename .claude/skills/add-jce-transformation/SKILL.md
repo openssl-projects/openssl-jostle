@@ -5,7 +5,7 @@ description: How to add a new JCE / JCA algorithm or transformation to the OpenS
 
 # Adding a JCE transformation to Jostle
 
-Jostle is a JCA/JCE provider that delegates to OpenSSL via a three-layer native interface (Java SPI → JNI/FFI bridge → C util → OpenSSL EVP_*). Adding a new transformation means landing files in coordinated places across all three layers plus tests and provider registration. The work is not hard once you know the layers — but missing any layer (especially the multi-release Java overrides or the OPS instrumentation) creates subtle bugs that don't surface until later.
+Jostle is a JCA/JCE provider that delegates to OpenSSL via a three-layer native interface (Java SPI → JNI/FFM bridge → C util → OpenSSL EVP_*). Adding a new transformation means landing files in coordinated places across all three layers plus tests and provider registration. The work is not hard once you know the layers — but missing any layer (especially the multi-release Java overrides or the OPS instrumentation) creates subtle bugs that don't surface until later.
 
 This skill walks through the canonical workflow. It does NOT duplicate the rules in `CLAUDE.md` — those are the source of truth for HOW to write each layer. This skill is about WHAT to touch and in WHAT ORDER.
 
@@ -23,8 +23,8 @@ Adding a new transformation touches at most 8 layers. Not every algorithm needs 
 
 1. **Native util** — `interface/nonfips/util/<algo>.c` + `<algo>.h`. The only place that calls `EVP_*`.
 2. **JNI bridge** — `interface/nonfips/jni/<algo>_ni_jni.c`. Validates user-supplied inputs, calls util.
-3. **FFI bridge** — `interface/nonfips/ffi/<algo>_ni_ffi.c`. Same validation, same error codes, different surface (raw pointers + sizes).
-4. **NI interface + impls** — Java side: `XServiceNI` interface, `XServiceJNI` (native methods), `XServiceFFI` (Java 25+ FFI implementations).
+3. **FFM bridge** — `interface/nonfips/ffm/<algo>_ni_ffm.c`. Same validation, same error codes, different surface (raw pointers + sizes).
+4. **NI interface + impls** — Java side: `XServiceNI` interface, `XServiceJNI` (native methods), `XServiceFFM` (Java 25+ FFM implementations).
 5. **Spec class(es)** — `org.openssl.jostle.jcajce.spec.<Name>KeySpec` for any algorithm-specific input bundle. Implements `KeySpec`.
 6. **SPI class** — Extends the right JCE SPI (`CipherSpi`, `SignatureSpi`, `KeyAgreementSpi`, `SecretKeyFactorySpi`, `KeyPairGenerator`, `KeyFactorySpi`, `MacSpi`, `MessageDigestSpi`, ...).
 7. **Provider registration** — `Prov<NAME>.configure(JostleProvider)`, then wire into `JostleProvider.setup()` so it actually loads.
@@ -49,7 +49,7 @@ CLAUDE.md names `MDServiceSPI` / `MDServiceNI` / `md.c` as the "canonical refere
 
 Read `references/family-patterns.md` for the per-family signature shape. Universal rules:
 
-1. **Bridge trusts you** — every pointer / length parameter is already validated by the JNI/FFI bridge. Use `jo_assert` on every input as an invariant (`jo_assert(ctx != NULL);` etc.).
+1. **Bridge trusts you** — every pointer / length parameter is already validated by the JNI/FFM bridge. Use `jo_assert` on every input as an invariant (`jo_assert(ctx != NULL);` etc.).
 2. **`get_global_jostle_ossl_lib_ctx()`** — never pass `NULL` to `EVP_*_fetch` / `EVP_*_new_from_name`. The lib ctx hosts the Java RAND bridge.
 3. **Error returns** — return `JO_SUCCESS` on the happy path, `JO_OPENSSL_ERROR` (or a typed code from `bc_err_codes.h`) on failure. Functions that produce a pointer take `int32_t *err` as the last parameter.
 4. **`ERR_clear_error()`** at the top of every operation, before any OpenSSL call whose error you'd surface.
@@ -72,24 +72,24 @@ For each parameter the Java caller supplies:
 4. **Offset+length pairs** — `check_bytearray_in_range(&ctx, off, len)` returns false on `off + len > size` (handles overflow safely).
 5. **`OPS_FAILED_ACCESS_N`** — for fault-injecting JNI-side access failures. One per byte-array access typically.
 
-### 3. FFI bridge (`interface/nonfips/ffi/<algo>_ni_ffi.c`)
+### 3. FFM bridge (`interface/nonfips/ffm/<algo>_ni_ffm.c`)
 
 Symmetric to the JNI bridge but takes raw pointers + sizes. Must return **identical error codes for identical inputs** — the cross-bridge regression suite depends on this. Key differences from JNI:
 
-1. **Symbol prefix** — exported function names use `Jo<MOD>_*` (e.g. `JoEC_generateKeyPair`, `JoRSA_sign`). Verify no collision with libcrypto via `nm libinterface_ffi.dylib | grep " T " | grep -E "<your-prefix>"`. CLAUDE.md "Symbol-name collisions with libcrypto exports".
-2. **No `load_bytearray_ctx`** — FFI receives raw pointers, just null-check directly.
+1. **Symbol prefix** — exported function names use `Jo<MOD>_*` (e.g. `JoEC_generateKeyPair`, `JoRSA_sign`). Verify no collision with libcrypto via `nm libinterface_ffm.dylib | grep " T " | grep -E "<your-prefix>"`. CLAUDE.md "Symbol-name collisions with libcrypto exports".
+2. **No `load_bytearray_ctx`** — FFM receives raw pointers, just null-check directly.
 3. **`check_in_range(size, off, len)`** instead of the bytearray-ctx variant.
 4. **No `OPS_FAILED_ACCESS_N`** — those flags are JNI-only.
 
-### 4. NI interface + JNI + FFI impls
+### 4. NI interface + JNI + FFM impls
 
 Three files in `jostle/src/main/java/.../jcajce/provider/<pkg>/`:
 
 1. **`<X>ServiceNI.java`** — interface extending `DefaultServiceNI`. Declares each native method abstract. Default methods centralize error-code → typed-exception mapping via `handleErrorCodes(int code)` overriding `baseErrorHandler` and adding the per-family error codes.
 2. **`<X>ServiceJNI.java`** — class implementing the interface with `native` method declarations. JNI links to these by name (`Java_<class>_<method>`).
-3. **`<X>ServiceFFI.java`** in `jostle/src/main/java25/.../` — FFI implementation using `Linker.nativeLinker()`, `Linker.Option.critical(true)`, and `MethodHandle.invokeExact`. Lookup via `lookup.find("Jo<MOD>_*")`. CLAUDE.md "SecureRandom flow" — never invoke FFI down-call inside a critical region if it can up-call into Java entropy.
+3. **`<X>ServiceFFM.java`** in `jostle/src/main/java25/.../` — FFM implementation using `Linker.nativeLinker()`, `Linker.Option.critical(true)`, and `MethodHandle.invokeExact`. Lookup via `lookup.find("Jo<MOD>_*")`. CLAUDE.md "SecureRandom flow" — never invoke FFM down-call inside a critical region if it can up-call into Java entropy.
 
-The `NISelector` picks JNI or FFI at load time. New `<X>ServiceNI` doesn't need to register itself — `NISelector` exposes it as a static field; add a getter there.
+The `NISelector` picks JNI or FFM at load time. New `<X>ServiceNI` doesn't need to register itself — `NISelector` exposes it as a static field; add a getter there.
 
 ### 5. Spec class (`jcajce/spec/<Name>KeySpec.java`)
 
@@ -157,12 +157,12 @@ After writing all the code, walk through `references/verification-checklist.md` 
 2. Add error codes + OSSLKeyType entries up front so the rest of the code can reference them.
 3. Write native util (`.c`/`.h`) and add to `CMakeLists.txt`.
 4. Write JNI bridge.
-5. Write FFI bridge.
-6. Write NI interface + JNI impl + FFI impl Java side.
+5. Write FFM bridge.
+6. Write NI interface + JNI impl + FFM impl Java side.
 7. Write spec class(es) if needed.
 8. Write SPI class (+ multi-release overrides).
 9. Write `Prov<NAME>.configure` and wire into `JostleProvider.setup()`.
 10. Build native (`./gradlew :jostle:compileJava` then `./interface/build.sh` — header generation must run before the native build).
 11. Write tests at every level.
-12. Run unit + limit + ops tests on both JNI and FFI bridges (`unitTest25JNI`, `unitTest25FFI`, `integrationTest25JNI`, `integrationTest25FFI`).
+12. Run unit + limit + ops tests on both JNI and FFM bridges (`unitTest25JNI`, `unitTest25FFM`, `integrationTest25JNI`, `integrationTest25FFM`).
 13. Walk through `references/verification-checklist.md`.

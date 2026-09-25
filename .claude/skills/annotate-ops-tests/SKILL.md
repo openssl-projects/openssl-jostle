@@ -135,7 +135,7 @@ It covers ALL flag families (this skill only auto-links offset-based
 `OPS_OPENSSL_ERROR`); `--fix` disambiguates multi-site flags by nearest line
 (safe because drift is small). Legitimately-un-anchorable calls stay
 un-anchored and are not flagged: dual-bridge sites (a flag firing in both the
-`*_jni.c` and `*_ffi.c` bridge — no single truthful `path:line`),
+`*_jni.c` and `*_ffm.c` bridge — no single truthful `path:line`),
 loop-multi-site tests (each iteration trips a different per-variant if-line),
 and `OPS_ALTERNATE` state-machine flags (no if-site).
 

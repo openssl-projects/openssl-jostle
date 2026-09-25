@@ -150,7 +150,7 @@ The OPS macros are no-ops in a regular build. To run OPS tests you need a native
 ```bash
 export JOSTLE_OPS_TEST=1
 ./interface/build.sh
-./gradlew :jostle:integrationTest25FFI :jostle:integrationTest25JNI \
+./gradlew :jostle:integrationTest25FFM :jostle:integrationTest25JNI \
     --tests "org.openssl.jostle.test.<package>.<NewOpsTest>"
 ```
 
