@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 
 /**
  * Native interface for DSA operations. Component selectors are stable
- * integer identifiers passed across the JNI/FFI boundary; they are
+ * integer identifiers passed across the JNI/FFM boundary; they are
  * mirrored from {@code interface/nonfips/util/dsa.h}.
  */
 public interface DSAServiceNI extends DefaultServiceNI

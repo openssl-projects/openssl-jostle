@@ -18,7 +18,7 @@ import org.openssl.jostle.rand.RandSource;
 /**
  * Native interface for finite-field Diffie-Hellman operations.
  * Component selectors are stable integer identifiers passed across the
- * JNI/FFI boundary; they are mirrored from {@code interface/nonfips/util/dh.h}.
+ * JNI/FFM boundary; they are mirrored from {@code interface/nonfips/util/dh.h}.
  */
 public interface DHServiceNI extends DefaultServiceNI
 {

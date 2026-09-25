@@ -41,13 +41,13 @@ public class EdDSALimitTest
     @Test
     public void EDServiceNI_sign_writesAtOffsetWithoutClobbering() throws Exception
     {
-        // Regression for the FFI whole-array copy-back clobber (finding 4):
-        // EdDSAServiceFFI.ni_sign allocated a zero-filled arena for the whole
+        // Regression for the FFM whole-array copy-back clobber (finding 4):
+        // EdDSAServiceFFM.ni_sign allocated a zero-filled arena for the whole
         // output array and copied ALL of it back, zeroing caller bytes outside
         // [offset, offset+written). Sign at a non-zero offset into an oversized
         // random-filled buffer; the bytes outside the written window must be
         // preserved and the signature at the offset must verify. Runs on JNI
-        // and FFI via TestNISelector; only the FFI path exhibited the clobber.
+        // and FFM via TestNISelector; only the FFM path exhibited the clobber.
         java.security.SecureRandom rnd = new java.security.SecureRandom();
         String name = OSSLKeyType.ED25519.getTypeName();
         long keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
@@ -799,7 +799,7 @@ public class EdDSALimitTest
     /**
      * Both negative at once — the only input that distinguishes the ORDER of
      * the two checks. {@code JoEDDSA_update}'s order was fixed in 2026-08-23
-     * but never pinned. Runs on JNI and FFI; the assertion is the same on both.
+     * but never pinned. Runs on JNI and FFM; the assertion is the same on both.
      */
     @Test()
     public void EDServiceNI_update_bothOffsetAndLenNegative_reportsOffsetOnBothBridges() throws Exception
@@ -1417,7 +1417,7 @@ public class EdDSALimitTest
         // is null"), NOT abort the JVM via jo_assert. The ctx null-check is the
         // first thing each bridge function does, so the remaining args are never
         // reached. Regression lock for the ctx null-check bridge additions
-        // (ed_jni.c / ed_ffi.c); runs on both bridges via TestNISelector.
+        // (ed_jni.c / ed_ffm.c); runs on both bridges via TestNISelector.
         byte[] sig = new byte[64];
         byte[] ctx = new byte[0];
         Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,

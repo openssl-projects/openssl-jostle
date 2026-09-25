@@ -55,8 +55,8 @@ import java.util.TreeSet;
  * has already moved one test in this tree. The guard is a parity guard by
  * nature, not by directory.
  *
- * <p>Base and FIPS bindings are DISTINCT TYPES — {@code MDServiceFFI} against
- * {@code MDServiceFIPSFFI} — so "which library does this object reach" is
+ * <p>Base and FIPS bindings are DISTINCT TYPES — {@code MDServiceFFM} against
+ * {@code MDServiceFIPSFFM} — so "which library does this object reach" is
  * decidable from the class alone.
  *
  * <p><b>What this does NOT catch:</b> a base binding reached through a STATIC
@@ -84,8 +84,8 @@ public class FIPSNativeBindingIsolationTest
 
     /**
      * A binding's library, decided from its class name. The implementation
-     * classes are {@code XServiceJNI} / {@code XServiceFFI} for the base and
-     * {@code XServiceFIPSJNI} / {@code XServiceFIPSFFI} for the module, so the
+     * classes are {@code XServiceJNI} / {@code XServiceFFM} for the base and
+     * {@code XServiceFIPSJNI} / {@code XServiceFIPSFFM} for the module, so the
      * presence of FIPS in the simple name is the discriminator — and the two
      * are different types, never the same object configured differently.
      */

@@ -16,7 +16,7 @@
 #define RSA_OP_SIGN 1
 #define RSA_OP_VERIFY 2
 
-// Padding modes. These are stable identifiers across the FFI/JNI
+// Padding modes. These are stable identifiers across the FFM/JNI
 // boundary — do NOT renumber. Map to OpenSSL's RSA_PKCS1_PADDING /
 // RSA_PKCS1_PSS_PADDING inside rsa.c.
 #define RSA_PADDING_PKCS1 1
@@ -29,7 +29,7 @@
 #define RSA_PADDING_PKCS1_NONE 3
 
 // Component selectors for rsa_get_component(). Stable identifiers
-// across the FFI/JNI boundary — do NOT renumber.
+// across the FFM/JNI boundary — do NOT renumber.
 #define RSA_COMP_MODULUS          0
 #define RSA_COMP_PUBLIC_EXPONENT  1
 #define RSA_COMP_PRIVATE_EXPONENT 2

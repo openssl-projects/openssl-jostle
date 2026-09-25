@@ -40,7 +40,7 @@ public class DHLimitTest
     /**
      * Resolved in {@code @BeforeAll} AFTER the provider is registered —
      * a static field initializer would touch {@code NISelector} before
-     * the native loader has decided JNI vs FFI.
+     * the native loader has decided JNI vs FFM.
      */
     private static DHServiceNI dh;
 
@@ -736,7 +736,7 @@ public class DHLimitTest
      * capacity" case. With zero remaining capacity the derive performs
      * no write and reports the required length — the same size-query
      * semantics as an {@code out == null} probe. This must hold
-     * identically on JNI and FFI: the FFI bridge must not mistake the
+     * identically on JNI and FFM: the FFM bridge must not mistake the
      * positive length for a write and copy past the buffer end (which
      * would throw where JNI returns cleanly).
      */

@@ -75,7 +75,7 @@ public class RSAPKCS1CipherLimitTest
         // Passing 0 for the key spec as well pins the validation ORDER (ctx
         // before key), mirroring RSALimitTest.RSAServiceNI_nullSignerCtx_rejectedTyped.
         // Regression lock for the ctx null-check bridge fix
-        // (rsa_pkcs1_ni_jni.c / rsa_pkcs1_ni_ffi.c).
+        // (rsa_pkcs1_ni_jni.c / rsa_pkcs1_ni_ffm.c).
         Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
                 () -> cipherNI.init(0, 0, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc)).getMessage());
         Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
@@ -315,7 +315,7 @@ public class RSAPKCS1CipherLimitTest
     }
 
     /**
-     * Mirror of the OAEP outOff regression — confirms the FFI doFinal
+     * Mirror of the OAEP outOff regression — confirms the FFM doFinal
      * preserves bytes preceding {@code outOff}.
      */
     @Test

@@ -26,7 +26,7 @@ import java.security.Security;
 /**
  * NI-layer input-validation tests for the three SP 800-x KDF bridges
  * ({@code KdfNI.kbkdf}, {@code sskdf}, {@code sshkdf}), mirroring
- * {@link HkdfLimitTest}. Both the JNI and the FFI bridge must return identical
+ * {@link HkdfLimitTest}. Both the JNI and the FFM bridge must return identical
  * codes for identical inputs, so every case here runs against whichever bridge
  * {@code TestNISelector} resolves and the matrix runs both.
  *

@@ -166,7 +166,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFI
  * Bridge responsibilities per the project rules: null-check the
  * caller-supplied name, range-check the caller-supplied op type, translate a
  * failed GetStringUTFChars — never let any of the three reach a util
- * jo_assert. Returns identical codes to the FFI twin for identical inputs.
+ * jo_assert. Returns identical codes to the FFM twin for identical inputs.
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI_canFetch(
     JNIEnv *env, jobject jo, jint op_type, jstring _name) {
@@ -196,7 +196,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJ
  * Signature: ()Ljava/lang/String;
  *
  * Returns null when the provider cannot be queried; the Java side treats that
- * as "unknown" and never gates on it. The buffer is local, so unlike the FFI
+ * as "unknown" and never gates on it. The buffer is local, so unlike the FFM
  * twin there is no caller-supplied length to validate. 256 is far above
  * anything a provider reports ("OpenSSL FIPS Provider 3.5.7" is 27) and
  * capability_module_version truncates rather than overruns regardless.

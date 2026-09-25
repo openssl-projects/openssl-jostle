@@ -104,7 +104,7 @@ public class FIPSTestGateParityTest
             // introduced by C edits that the non-FIPS legs also build.
             "FIPSJniSymbolRenameParityTest.java",
             // Same category: FIPSProviderNameParityTest reads the *FIPSJNI /
-            // *FIPSFFI sources as text and needs no module.
+            // *FIPSFFM sources as text and needs no module.
             "FIPSProviderNameParityTest.java"));
 
     private static final Pattern BEFORE_HOOK = Pattern.compile("@Before(?:All|Each)\\b");

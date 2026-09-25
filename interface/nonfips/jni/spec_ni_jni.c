@@ -54,7 +54,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1allocate
     // a JVM abort, not an error) and rather than letting SetIntArrayRegion
     // raise ArrayIndexOutOfBoundsException on a zero-length array — which would
     // strand the freshly allocated key_spec whose pointer the caller discards.
-    // Matches the FFI bridge's `err != null && err.length > 0` guard;
+    // Matches the FFM bridge's `err != null && err.length > 0` guard;
     // allocation succeeds and the pointer is returned either way.
     if (_err != NULL && (*env)->GetArrayLength(env, _err) > 0) {
         const int32_t err = JO_SUCCESS;
@@ -96,7 +96,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getNam
  * Signature: (J)Ljava/lang/String;
  *
  * The provider that owns this KEY's keymgmt - see the JoSpec_GetKeyProvider
- * comment in the FFI twin for why a key-level accessor is needed and why
+ * comment in the FFM twin for why a key-level accessor is needed and why
  * capability_implementing_provider does not answer the same question.
  *
  * Returns null for a null handle, a keyless spec, or a key with no provider
@@ -139,7 +139,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
 
     // rand_src is null-checked (and the thread-local up-call target bound)
     // by util's encap() AFTER the handle/array validation below — the same
-    // point the FFI path checks it, so both bridges reject identical inputs
+    // point the FFM path checks it, so both bridges reject identical inputs
     // with identical codes in the same order.
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
@@ -216,7 +216,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
     // ctxs are released independently with a whole-array copy-back (mode 0),
     // so one release would clobber the other's written bytes — silent,
     // platform-dependent corruption. Object identity covers any offset;
-    // skipped when output is null (a size query cannot alias). FFI rejects the
+    // skipped when output is null (a size query cannot alias). FFM rejects the
     // same case by reference equality, so both bridges return identical codes.
     if (output.bytearray != NULL && (*env)->IsSameObject(env, _input, _output)) {
         ret = JO_INPUT_AND_OUTPUT_ALIASED;
@@ -260,7 +260,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
 
     // rand_src is null-checked (and the thread-local up-call target bound)
     // by util's decap() AFTER the handle/array validation below — the same
-    // point the FFI path checks it, so both bridges reject identical inputs
+    // point the FFM path checks it, so both bridges reject identical inputs
     // with identical codes in the same order.
     key_spec *ks = (key_spec *) ((void *) ref);
     if (ks == NULL) {
@@ -337,7 +337,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
     // are released independently with a whole-array copy-back (mode 0), so one
     // release would clobber the other's written bytes — silent,
     // platform-dependent corruption. Object identity covers any offset;
-    // skipped when output is null (a size query cannot alias). FFI rejects the
+    // skipped when output is null (a size query cannot alias). FFM rejects the
     // same case by reference equality, so both bridges return identical codes.
     if (output.bytearray != NULL && (*env)->IsSameObject(env, _input, _output)) {
         ret = JO_INPUT_AND_OUTPUT_ALIASED;

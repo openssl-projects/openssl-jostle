@@ -37,7 +37,7 @@ typedef struct ks_ctx_st {
     ks_entry *entries;
     /*
      * DER of a keystore built by JoKS_StoreLen and consumed by the immediately
-     * following JoKS_Store (the FFI Len-then-fetch split), so the PKCS#12 is
+     * following JoKS_Store (the FFM Len-then-fetch split), so the PKCS#12 is
      * built -- and entropy drawn -- exactly once per store rather than twice.
      * NULL on the JNI path (which builds in a single call) and between stores.
      */

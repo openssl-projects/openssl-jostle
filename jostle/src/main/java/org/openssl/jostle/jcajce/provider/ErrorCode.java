@@ -138,7 +138,7 @@ public enum ErrorCode
     JO_RSA_PRIME_EXP_Q_IS_NULL(-110),
     JO_RSA_CRT_COEFFICIENT_IS_NULL(-111),
 
-    // Null native-context pointer passed across the JNI/FFI boundary
+    // Null native-context pointer passed across the JNI/FFM boundary
     // (caller-supplied long handle was 0). Bridge-layer null check.
     JO_SIGNER_CTX_IS_NULL(-112),
     JO_KEX_CTX_IS_NULL(-113),
@@ -195,7 +195,7 @@ public enum ErrorCode
 
     // encap/decap were handed the same byte[] for both the shared-secret and
     // the encapsulation buffer. The bridges reject the aliased call (JNI
-    // IsSameObject / FFI reference equality) rather than corrupt the result
+    // IsSameObject / FFM reference equality) rather than corrupt the result
     // under the JNI whole-array copy-back.
     JO_INPUT_AND_OUTPUT_ALIASED(-144),
 

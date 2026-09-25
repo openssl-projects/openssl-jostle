@@ -145,7 +145,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
     // Bridge validates scalar length so the util layer can trust the
     // value (jsize is int32_t, so scalar.size > INT32_MAX is structurally
     // impossible from JNI — only the zero-length case needs an explicit
-    // check here; the FFI bridge additionally guards against >INT32_MAX).
+    // check here; the FFM bridge additionally guards against >INT32_MAX).
     if (scalar.size == 0) {
         ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
@@ -221,7 +221,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_
     // Bridge validates point length so the util layer can trust the
     // value (jsize is int32_t, so point.size > INT32_MAX is structurally
     // impossible from JNI — only the zero-length case needs an explicit
-    // check here; the FFI bridge additionally guards against >INT32_MAX).
+    // check here; the FFM bridge additionally guards against >INT32_MAX).
     if (point.size == 0) {
         ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;

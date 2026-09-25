@@ -56,7 +56,7 @@ public class RSAOAEPCipherLimitTest
         // Passing 0 for the key spec as well pins the validation ORDER (ctx
         // before key), mirroring RSALimitTest.RSAServiceNI_nullSignerCtx_rejectedTyped.
         // Regression lock for the ctx null-check bridge fix
-        // (rsa_oaep_ni_jni.c / rsa_oaep_ni_ffi.c).
+        // (rsa_oaep_ni_jni.c / rsa_oaep_ni_ffm.c).
         Assertions.assertEquals("cipher context is null", Assertions.assertThrows(IllegalArgumentException.class,
                 () -> cipherNI.init(0, 0, RSAOAEPCipherNI.OP_ENCRYPT,
                         "SHA-256", null, null, TestUtil.RNDSrc)).getMessage());
@@ -312,7 +312,7 @@ public class RSAOAEPCipherLimitTest
     }
 
     /**
-     * Regression test for an FFI-only bug where {@code ni_doFinal}'s
+     * Regression test for an FFM-only bug where {@code ni_doFinal}'s
      * post-call output copy-back was
      * {@code outSeg.asByteBuffer().get(0, output, 0, output.length)},
      * which clobbered caller-provided bytes preceding {@code outOff}

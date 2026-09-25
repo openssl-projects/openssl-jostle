@@ -10,7 +10,7 @@
  *  ExposedByteArrayOutputStream (private nested class inside
  *  CCMBlockCipher / KCCMBlockCipher / KGCMBlockCipher). It exists to
  *  avoid the per-call array copy that ByteArrayOutputStream.toByteArray()
- *  forces — handing the underlying buffer directly to a JNI / FFI call
+ *  forces — handing the underlying buffer directly to a JNI / FFM call
  *  paired with size() saves an allocation + memcpy proportional to the
  *  buffered payload. For CCM/AEAD modes where the entire plaintext and
  *  AAD must be buffered until doFinal, the saving compounds.

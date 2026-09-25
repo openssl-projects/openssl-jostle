@@ -19,7 +19,7 @@
 #define DSA_OP_VERIFY 2
 
 // Component selectors for dsa_get_component(). Stable identifiers
-// across the FFI/JNI boundary — do NOT renumber.
+// across the FFM/JNI boundary — do NOT renumber.
 #define DSA_COMP_P              0   // FFC prime modulus p
 #define DSA_COMP_Q              1   // FFC subgroup order q
 #define DSA_COMP_G              2   // FFC generator g

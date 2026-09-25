@@ -31,7 +31,7 @@ import org.openssl.jostle.test.TestUtil;
  * checks are identical by construction — this pins that they survived into the
  * other library with the same codes and the same messages, which is the only
  * thing that catches a wrapper that dropped an entry point or a tree that
- * drifted. Both bridges validate separately, so it runs on JNI and FFI.
+ * drifted. Both bridges validate separately, so it runs on JNI and FFM.
  * <p>
  * <b>Most cells reject at the BRIDGE</b>, before any module call, so they do
  * not depend on the loaded module implementing ML-KEM — and 3.1.2 implements

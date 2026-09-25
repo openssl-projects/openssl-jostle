@@ -359,13 +359,13 @@ OSSL_LIB_CTX *get_global_jostle_ossl_lib_ctx(void) {
 
 
 /**
- * Use to set the RandSource up-call receiver, FFI callers will pass pointer
- * to FFI constructed function and JNI callers will pass jobject
+ * Use to set the RandSource up-call receiver, FFM callers will pass pointer
+ * to FFM constructed function and JNI callers will pass jobject
  *
  * Function expects, to be able to set thread local value, will abort the
  * process if it can not do so.
  *
- * @param target, FFI created function pointer, JNI pass jobject
+ * @param target, FFM created function pointer, JNI pass jobject
  *
  */
 void rand_set_java_srand_call(void *target) {

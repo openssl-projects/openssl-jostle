@@ -4,12 +4,12 @@
 #include <stdlib.h>
 
 
-// FFI and JNI both implement this. Populate *out, return bytes filled.
+// FFM and JNI both implement this. Populate *out, return bytes filled.
 // Negative return = error.
 //
 // Contract:
 //   out_len:               must fill exactly. < = JO_RAND_UP_SHORT_RESULT.
-//                          > = JO_RAND_ERROR (FFI: buffer already overrun).
+//                          > = JO_RAND_ERROR (FFM: buffer already overrun).
 //   strength:              advisory; bridge does not validate.
 //   prediction_resistance: advisory; bridge does not validate.
 //   adin / adin_len:       dropped on the floor by both bridges.

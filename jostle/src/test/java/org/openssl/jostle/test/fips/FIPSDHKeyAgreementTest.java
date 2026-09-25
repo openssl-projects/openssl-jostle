@@ -422,7 +422,7 @@ public class FIPSDHKeyAgreementTest
         // The length is therefore 256 only USUALLY. A shared secret whose top
         // octet is zero yields 255, about once in 256 runs, and this cell
         // asserted 256 unconditionally until one of those runs turned up on an
-        // FFI leg. Assert the PROPERTY — no leading zero, never longer than the
+        // FFM leg. Assert the PROPERTY — no leading zero, never longer than the
         // prime — rather than the usual value.
         KeyAgreement kaNamed = KeyAgreement.getInstance("DH", FIPS);
         kaNamed.init(a.getPrivate());

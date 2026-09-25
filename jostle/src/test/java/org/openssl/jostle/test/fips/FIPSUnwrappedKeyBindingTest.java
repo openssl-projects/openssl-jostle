@@ -38,8 +38,8 @@ import java.security.spec.X509EncodedKeySpec;
  * resident in the FIPS module.
  *
  * <p>Not a duplicate of {@code UnwrappedKeyBindingTest}. That one drives
- * {@code libinterface_{jni,ffi}} and the base lib ctx; this drives
- * {@code libinterface_fips_{jni,ffi}} and the module's. Neither substitutes
+ * {@code libinterface_{jni,ffm}} and the base lib ctx; this drives
+ * {@code libinterface_fips_{jni,ffm}} and the module's. Neither substitutes
  * for the other, and this half is the one that carries the boundary question:
  * before MT-10 a JSLFIPS unwrap called {@code KeyFactory.getInstance(alg)}
  * with no provider, so the key it returned was made by SUN and the FIPS

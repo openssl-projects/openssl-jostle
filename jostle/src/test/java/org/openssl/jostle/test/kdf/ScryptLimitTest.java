@@ -283,9 +283,9 @@ public class ScryptLimitTest
     public void testSCRYPT_empty_password_accepted() throws Exception
     {
         // An empty (non-null) password is valid and must derive on BOTH bridges
-        // — the FFI path marshals an empty array to a non-NULL 1-byte segment so
+        // — the FFM path marshals an empty array to a non-NULL 1-byte segment so
         // the bridge sees "present but empty", not JO_KDF_PASSWORD_NULL. Run
-        // under integrationTest25JNI and integrationTest25FFI for parity.
+        // under integrationTest25JNI and integrationTest25FFM for parity.
         int code = kdfNI.scrypt(new byte[0], new byte[1], 2, 8, 1, new byte[16], 0, 16);
         Assertions.assertEquals(0, code);
     }

@@ -412,8 +412,8 @@ public void updateBytes_inputNull() throws Exception {
     // reject a null (0) handle with a typed JO_MD_CTX_IS_NULL rejection
     // (IllegalArgumentException "md context is null"), NOT a jo_assert that
     // aborts the JVM. dispose/reset deliberately no-op on a null handle (see
-    // reset_nullRef_isNoOp) and are exempt. Runs on both JNI and FFI via the
-    // integrationTest25{JNI,FFI} tasks — both bridges must return the same code.
+    // reset_nullRef_isNoOp) and are exempt. Runs on both JNI and FFM via the
+    // integrationTest25{JNI,FFM} tasks — both bridges must return the same code.
     //
     @Test
     public void copyDigest_nullHandle_rejectedTyped() throws Exception

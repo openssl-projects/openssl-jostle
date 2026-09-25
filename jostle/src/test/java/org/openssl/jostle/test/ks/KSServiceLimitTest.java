@@ -30,7 +30,7 @@ import java.security.Security;
  * {@code KSServiceNI} default-method wrappers directly so the C bridge layer's
  * null / range checks surface as the JCE-friendly exceptions the higher layers
  * rely on. Runs under both {@code integrationTest25JNI} and
- * {@code integrationTest25FFI} (which select the JNI / FFI {@code KSServiceNI}
+ * {@code integrationTest25FFM} (which select the JNI / FFM {@code KSServiceNI}
  * via the loader property), proving the two bridges reject identical inputs
  * with identical error codes.
  *

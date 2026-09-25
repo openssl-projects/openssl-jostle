@@ -172,7 +172,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rand_RandServiceJ
     if (ret_code < 0) {
         // Generate failed: the output buffer holds undefined (possibly
         // partial DRBG) bytes. Scrub it so no partial output reaches the
-        // caller and the FFI twin agrees on contents (both zero on error).
+        // caller and the FFM twin agrees on contents (both zero on error).
         OPENSSL_cleanse(output.bytearray, (size_t) output_len);
     }
 

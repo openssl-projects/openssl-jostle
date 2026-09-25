@@ -40,8 +40,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * load of that library ({@link Loader#loadFipsInterface()}) - the base
  * Loader.load() never touches it, so non-FIPS deployments never load it.
  *
- * <p>This Java 8 baseline is JNI-only; the Java 25 override selects the FFI
- * implementations when the loader resolved the FFI interface.
+ * <p>This Java 8 baseline is JNI-only; the Java 25 override selects the FFM
+ * implementations when the loader resolved the FFM interface.
  */
 public class FIPSNISelector
 {

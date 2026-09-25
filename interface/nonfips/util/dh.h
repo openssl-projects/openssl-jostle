@@ -15,7 +15,7 @@
 #include "key_spec.h"
 
 // Component selectors for dh_get_component(). Stable identifiers
-// across the FFI/JNI boundary — do NOT renumber.
+// across the FFM/JNI boundary — do NOT renumber.
 #define DH_COMP_P              0   // FFC prime modulus p
 #define DH_COMP_Q              1   // FFC subgroup order q (absent on PKCS#3 keys)
 #define DH_COMP_G              2   // FFC generator g

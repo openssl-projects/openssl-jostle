@@ -50,8 +50,8 @@ import java.util.regex.Pattern;
  * {@code fips/jni/spec_ni_jni.c} but not to {@code spec_fips_jni.c}'s rename
  * list, and the FIPS library exported
  * {@code Java_..._jcajce_spec_SpecJNI_ni_1getKeyProvider} alongside the base
- * library's copy of the same name. The FFI half of the same change was
- * correct, so {@code FIPSLibraryLookupParityTest} — which probes FFI entry
+ * library's copy of the same name. The FFM half of the same change was
+ * correct, so {@code FIPSLibraryLookupParityTest} — which probes FFM entry
  * points — stayed green. This test is its JNI counterpart.
  *
  * <p><b>Gradle does not track {@code interface/} as a test-task input</b>, so

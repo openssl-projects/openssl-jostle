@@ -49,7 +49,7 @@ public class SLHDSALimitTest
         // is null"), NOT abort the JVM via jo_assert. The ctx null-check is the
         // first thing each bridge does, so the remaining args are never reached.
         // Regression lock for the ctx null-check bridge fix (slhdsa_ni_jni.c /
-        // slhdsa_ni_ffi.c); runs on both JNI and FFI via TestNISelector.
+        // slhdsa_ni_ffm.c); runs on both JNI and FFM via TestNISelector.
         byte[] context = new byte[0];
         byte[] sig = new byte[256];
         Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
@@ -67,13 +67,13 @@ public class SLHDSALimitTest
     @Test
     public void SLHDSAServiceNI_sign_writesAtOffsetWithoutClobbering() throws Exception
     {
-        // Regression for the FFI whole-array copy-back clobber (finding 4):
-        // SLHDSAServiceFFI.ni_sign allocated a zero-filled arena for the whole
+        // Regression for the FFM whole-array copy-back clobber (finding 4):
+        // SLHDSAServiceFFM.ni_sign allocated a zero-filled arena for the whole
         // output array and copied ALL of it back, zeroing caller bytes outside
         // [offset, offset+written). Sign at a non-zero offset into an oversized
         // random-filled buffer; the bytes outside the written window must be
         // preserved and the signature at the offset must verify. Runs on JNI
-        // and FFI via TestNISelector; only the FFI path exhibited the clobber.
+        // and FFM via TestNISelector; only the FFM path exhibited the clobber.
         // SLH_DSA_SHA2_128f is the fast-signing 128-bit variant (keeps the
         // sequential limit-test cost down).
         java.security.SecureRandom rnd = new java.security.SecureRandom();
@@ -2172,14 +2172,14 @@ public class SLHDSALimitTest
     // Integer.MIN_VALUE probes for every int offset/length parameter — catches
     // a check written `len > 0` (which accepts MIN_VALUE) or any Math.abs/-len
     // that stays negative for MIN_VALUE, before the value reaches a size_t cast
-    // on the native side. Runs on JNI and FFI via TestNISelector.
+    // on the native side. Runs on JNI and FFM via TestNISelector.
     // -------------------------------------------------------------------------
 
     /**
      * Both negative at once — the only input that distinguishes the ORDER of
      * the two checks, and so the only one that catches the bridges disagreeing.
      * Probed one at a time (as above) each answers correctly under either
-     * order. Runs on JNI and FFI; the assertion is the same on both.
+     * order. Runs on JNI and FFM; the assertion is the same on both.
      */
     @Test
     public void SLHDSAServiceNI_update_bothOffsetAndLenNegative_reportsOffsetOnBothBridges() throws Exception
@@ -2296,8 +2296,8 @@ public class SLHDSALimitTest
     public void SLHDSAServiceNI_sign_nullOutput_lengthQueryIgnoresOffset() throws Exception
     {
         // A length query (null output) must return the signature length on BOTH
-        // JNI and FFI, ignoring the offset argument entirely — even a negative
-        // one. Before the parity fix the FFI bridge validated the offset first
+        // JNI and FFM, ignoring the offset argument entirely — even a negative
+        // one. Before the parity fix the FFM bridge validated the offset first
         // and diverged (JO_OUTPUT_OFFSET_IS_NEGATIVE / JO_OUTPUT_OUT_OF_RANGE)
         // while JNI returned the length. Runs on both bridges via TestNISelector.
         final long signer = slhdsaServiceNI.allocateSigner();
@@ -2330,7 +2330,7 @@ public class SLHDSALimitTest
         // the ctx's message BIO immediately (it does not retain the caller
         // pointer), so reusing that array as the sign output must produce a
         // valid signature and must not corrupt bytes outside the written
-        // window. Runs on JNI and FFI via TestNISelector.
+        // window. Runs on JNI and FFM via TestNISelector.
         java.security.SecureRandom rnd = new java.security.SecureRandom();
         final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
         final long signer = slhdsaServiceNI.allocateSigner();

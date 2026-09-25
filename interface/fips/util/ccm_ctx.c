@@ -16,7 +16,7 @@
 #include <string.h>
 
 // Per NIST SP 800-38C §6.1, CCM tag length t ∈ {4,6,8,10,12,14,16}.
-// Non-static: the JNI/FFI bridges call this to validate the caller's
+// Non-static: the JNI/FFM bridges call this to validate the caller's
 // tag length (declared in ccm_ctx.h); ccm_ctx_init asserts it.
 int valid_ccm_tag_len(size_t tag_len) {
     switch (tag_len) {
@@ -140,7 +140,7 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
     jo_assert(iv != NULL);
 
     // opp_mode, iv_len and tag_len are range/set validated by the bridge
-    // (ccm_ni_jni.c / ccm_ni_ffi.c) and asserted here as invariants — a
+    // (ccm_ni_jni.c / ccm_ni_ffm.c) and asserted here as invariants — a
     // firing assert means the bridge skipped a check (programmer error),
     // not a user-input error. The exact key_len-vs-cipher check is owned
     // by ccm_fetch_evp_cipher below (it holds the cipher→key-length
@@ -197,7 +197,7 @@ static int32_t ccm_do_one_shot(ccm_ctx *ctx,
                                const uint8_t *in, size_t in_len,
                                uint8_t *out, size_t out_len) {
     jo_assert(ctx != NULL);
-    // The bridge (ccm_ni_jni.c / ccm_ni_ffi.c) rejects a NULL input and a
+    // The bridge (ccm_ni_jni.c / ccm_ni_ffm.c) rejects a NULL input and a
     // NULL output buffer (JO_INPUT_IS_NULL / JO_OUTPUT_IS_NULL), and rejects
     // a NULL aad only when aad_len != 0 — so aad may be NULL exactly when
     // aad_len == 0. Assert those bridge invariants here.
@@ -419,7 +419,7 @@ int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len)
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
     }
-    // op_mode is validated by the bridge (ccm_ni_jni.c / ccm_ni_ffi.c) and
+    // op_mode is validated by the bridge (ccm_ni_jni.c / ccm_ni_ffm.c) and
     // asserted here; input_len reaches us as a non-negative Java int (the
     // bridge rejects negatives), so it is in [0, INT32_MAX]. Both branches
     // cast a value derived from it back to int32_t. A firing assert means

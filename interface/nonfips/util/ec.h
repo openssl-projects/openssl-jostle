@@ -17,7 +17,7 @@
 #define EC_OP_VERIFY 2
 
 // Component selectors for ec_get_component(). Stable identifiers
-// across the FFI/JNI boundary — do NOT renumber.
+// across the FFM/JNI boundary — do NOT renumber.
 #define EC_COMP_CURVE_NAME      0   // OpenSSL group name as UTF-8 bytes
 #define EC_COMP_PUBLIC_X        1   // affine X coordinate of public point
 #define EC_COMP_PUBLIC_Y        2   // affine Y coordinate of public point
@@ -25,7 +25,7 @@
 
 
 // Component selectors for ec_get_curve_component(). Stable identifiers
-// across the FFI/JNI boundary — do NOT renumber. These index the CURVE
+// across the FFM/JNI boundary — do NOT renumber. These index the CURVE
 // TABLE by name; EC_COMP_* above index a KEY by its spec.
 #define EC_CURVE_COMP_FIELD_TYPE  0   // EC_FIELD_TYPE_* below, one byte
 #define EC_CURVE_COMP_DEGREE      1   // field degree in bits, big-endian

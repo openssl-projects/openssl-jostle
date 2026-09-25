@@ -131,7 +131,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_get
  * Bridge responsibilities per the project rules: null-check the
  * caller-supplied name, range-check the caller-supplied op type, translate a
  * failed GetStringUTFChars — never let any of the three reach a util
- * jo_assert. Returns identical codes to the FFI twin for identical inputs.
+ * jo_assert. Returns identical codes to the FFM twin for identical inputs.
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_canFetch(
     JNIEnv *env, jobject jo, jint op_type, jstring _name) {

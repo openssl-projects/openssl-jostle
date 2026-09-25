@@ -255,7 +255,7 @@ exit:
 
 /*
  * Output-buffer checks shared by the three WI-4 KDF entry points, mirroring
- * kdf_check_output in kdf_ffi.c one for one. The two bridges MUST return
+ * kdf_check_output in kdf_ffm.c one for one. The two bridges MUST return
  * identical codes for identical inputs; keeping each side's checks in one
  * function is what makes that reviewable.
  */

@@ -72,7 +72,7 @@ public class NoJdkProviderNamesInProductionTest
 
         Assertions.assertTrue(scanned > 100,
                 "only " + scanned + " production sources scanned — the walk is not reaching the tree");
-        // A dropped source-set root (e.g. java25, which carries the FFI
+        // A dropped source-set root (e.g. java25, which carries the FFM
         // bindings) must not pass vacuously — assert we actually reached it.
         Assertions.assertTrue(sawJava25,
                 "no java25 source file was scanned — a source-set root was dropped from mainSourceRoots()");

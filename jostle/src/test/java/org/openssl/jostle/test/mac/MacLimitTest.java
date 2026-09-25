@@ -562,7 +562,7 @@ public class MacLimitTest
     // typed JO_MAC_CTX_IS_NULL rejection (IllegalArgumentException "mac
     // context is null"), NOT a jo_assert that aborts the JVM. dispose/reset
     // deliberately no-op on a null handle (see reset_nullRef) and are exempt.
-    // Runs on both JNI and FFI via integrationTest25{JNI,FFI} — both bridges
+    // Runs on both JNI and FFM via integrationTest25{JNI,FFM} — both bridges
     // must return the same code.
     // ---------------------------------------------------------------------
 

@@ -24,7 +24,7 @@ import java.security.Security;
  * positive-side companion at the boundary, per the limit-test rule: an
  * arbitrary large value passes a check written with an off-by-100.
  *
- * <p>Runs on both bridges — the JNI and FFI halves validate separately and
+ * <p>Runs on both bridges — the JNI and FFM halves validate separately and
  * must return identical codes for identical inputs.
  */
 public class CertPathLimitTest

@@ -76,7 +76,7 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
         // synchronized(this) keeps this key (and thus its PKEYKeySpec) reachable
         // across the native encoding call in ASN1Encoder, which reads
         // spec.getReference() but does not itself fence the spec — the caller
-        // must. See java-spi.md "Native references must outlive every JNI/FFI call".
+        // must. See java-spi.md "Native references must outlive every JNI/FFM call".
         try
         {
             // FIPS 204: AlgorithmIdentifier parameters MUST be absent.

@@ -706,7 +706,7 @@ public class RSATest
      * discarded the caller's RNG). PSS pulls fresh salt from the RandSource on
      * every sign, so a counting SecureRandom is invoked once per sign — if
      * reInit dropped it, the second sign would draw from the default and the
-     * counter would stop advancing. Runs on both JNI and FFI.
+     * counter would stop advancing. Runs on both JNI and FFM.
      */
     @Test
     public void testPss_reInit_preservesCallerSuppliedSecureRandom() throws Exception

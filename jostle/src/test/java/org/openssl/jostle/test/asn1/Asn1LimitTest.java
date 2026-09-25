@@ -114,7 +114,7 @@ public class Asn1LimitTest
         // ("asn1 context is null"), NOT abort the JVM via jo_assert. Passing 0
         // for the key ref as well pins the validation ORDER (asn1 ctx before
         // key). Regression lock for the ctx null-check bridge fix
-        // (asn1_ni_jni.c / asn1_ni_ffi.c).
+        // (asn1_ni_jni.c / asn1_ni_ffm.c).
         Assertions.assertEquals("asn1 context is null", Assertions.assertThrows(IllegalArgumentException.class,
                 () -> TestNISelector.Asn1NI.encodePublicKey(0, 0)).getMessage());
         Assertions.assertEquals("asn1 context is null", Assertions.assertThrows(IllegalArgumentException.class,
@@ -334,10 +334,10 @@ public class Asn1LimitTest
     public void encodePrivateKey_prefix_encoding_option_rejected() throws Exception
     {
         // A prefix of a valid option must be REJECTED, not accepted: "d" is
-        // NOT "default" and "s" is NOT "seed_only". The FFI bridge used to
+        // NOT "default" and "s" is NOT "seed_only". The FFM bridge used to
         // compare with strncmp against the caller-supplied length (a prefix
         // match); it now uses exact strcmp like the JNI twin. Runs on both
-        // JNI and FFI via TestNISelector, so it pins that the FFI no longer
+        // JNI and FFM via TestNISelector, so it pins that the FFM no longer
         // prefix-accepts.
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);

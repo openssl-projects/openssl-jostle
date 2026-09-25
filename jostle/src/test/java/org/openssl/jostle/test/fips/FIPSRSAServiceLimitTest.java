@@ -730,7 +730,7 @@ public class FIPSRSAServiceLimitTest
      * {@code JO_SIGNER_CTX_IS_NULL} -> {@link IllegalArgumentException}
      * ("signer context is null"), NOT abort the JVM via a {@code jo_assert}.
      * Regression lock for the bridge fix that replaced the ctx {@code jo_assert}
-     * with a typed return in interface/fips/{jni/rsa_ni_jni.c, ffi/rsa_ni_ffi.c}.
+     * with a typed return in interface/fips/{jni/rsa_ni_jni.c, ffm/rsa_ni_ffm.c}.
      */
     @Test
     public void nullSignerCtx_allEntryPointsRejectedTyped()

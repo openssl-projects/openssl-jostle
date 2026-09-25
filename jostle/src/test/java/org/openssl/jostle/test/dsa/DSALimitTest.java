@@ -40,7 +40,7 @@ public class DSALimitTest
     /**
      * Resolved in {@code @BeforeAll} AFTER the provider is registered —
      * a static field initializer would touch {@code NISelector} before
-     * the native loader has decided JNI vs FFI.
+     * the native loader has decided JNI vs FFM.
      */
     private static DSAServiceNI dsa;
 

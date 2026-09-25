@@ -41,8 +41,8 @@ import java.util.List;
  * <h2>These run on EVERY leg, and JDK 8 is the one that counts</h2>
  *
  * <p>Written against {@code NISelector.MDServiceNI}, so the JNI legs exercise
- * the JNI bridge and the FFI legs the FFI one — the same nulls must be safe
- * through both, and the FFI path has no glue in front of the C at all. The file
+ * the JNI bridge and the FFM legs the FFM one — the same nulls must be safe
+ * through both, and the FFM path has no glue in front of the C at all. The file
  * lives in {@code src/test/java} so it reaches {@code unitTest8}, which is
  * where the exposure is real rather than theoretical.
  *

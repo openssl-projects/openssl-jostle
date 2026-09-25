@@ -96,7 +96,7 @@ public class ModuleOpensTest
      * An {@code InaccessibleObjectException} is what a genuinely-needed
      * {@code opens} would produce, and it would fail here by type.
      *
-     * <p>The refused class is named per BRIDGE — {@code ...ServiceFFI} or
+     * <p>The refused class is named per BRIDGE — {@code ...ServiceFFM} or
      * {@code ...ServiceJNI} by leg — so the assertion pins its PACKAGE, which
      * is the part under test, and not the bridge, which is not.
      */

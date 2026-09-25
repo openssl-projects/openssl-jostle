@@ -20,7 +20,7 @@
 #     * ONE FEWER NATIVE BUILD. No restore pass.
 #
 #   Pass 1 also drops work the serial version repeats: run-matrix.sh runs
-#   `test unitTest25JNI unitTest25FFI integrationTest25JNI integrationTest25FFI`,
+#   `test unitTest25JNI unitTest25FFM integrationTest25JNI integrationTest25FFM`,
 #   but :jostle:test ALREADY dependsOn all four (build.gradle ~line 990), and
 #   --rerun makes them execute a second time. Pass 1 here is `:jostle:test`
 #   alone, which covers the same set once.

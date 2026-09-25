@@ -40,8 +40,8 @@ import java.security.Security;
  * returns is bound to that instance and resident in the module.
  *
  * <p>Not a duplicate of {@code KtsProviderInstancePinningTest}: that drives
- * {@code libinterface_{jni,ffi}} and the base lib ctx, this drives
- * {@code libinterface_fips_{jni,ffi}} and the module's, and only this half can
+ * {@code libinterface_{jni,ffm}} and the base lib ctx, this drives
+ * {@code libinterface_fips_{jni,ffm}} and the module's, and only this half can
  * ask whether the module actually served the key. Before MT-16 a JSLFIPS KTS
  * unwrap reconstructed its key inside an AES key-wrap {@code Cipher} resolved
  * by NAME, so a second JSLFIPS instance installed under that name got the

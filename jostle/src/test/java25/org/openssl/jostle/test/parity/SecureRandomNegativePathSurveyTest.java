@@ -38,7 +38,7 @@ import java.util.TreeSet;
  * <p><b>Placement is forced.</b> The JDK column needs {@link DrbgParameters},
  * which is Java 9+, and CLAUDE.md requires such tests in
  * {@code src/test/java25}. So this class runs on {@code unitTest25JNI} and
- * {@code unitTest25FFI} only, not on legs 8/11/17/21.
+ * {@code unitTest25FFM} only, not on legs 8/11/17/21.
  *
  * <p><b>The JDK column is reached by CONFIGURATION, not by name.</b> Of our
  * eighteen names BouncyCastle serves one ({@code DEFAULT}) and the JDK serves

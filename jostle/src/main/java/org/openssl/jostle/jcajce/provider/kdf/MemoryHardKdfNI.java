@@ -28,7 +28,7 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
  * {@link KdfNI} keeps PBKDF2 and HKDF, which the FIPS module does serve.</p>
  *
  * <p>Implemented only by the JSL bridges ({@code MemoryHardKdfNIJNI},
- * {@code MemoryHardKdfNIFFI}); there is deliberately no FIPS counterpart.</p>
+ * {@code MemoryHardKdfNIFFM}); there is deliberately no FIPS counterpart.</p>
  */
 public interface MemoryHardKdfNI extends DefaultServiceNI
 {

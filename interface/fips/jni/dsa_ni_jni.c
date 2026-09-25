@@ -102,7 +102,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dsa_DSAServiceJN
     // Empty arrays are meaningless FFC components — surface the same
     // typed code the EC scalar path uses for a zero-length input.
     // (jsize is int32_t, so > INT32_MAX is structurally impossible
-    // from JNI; the FFI bridge additionally guards against it.)
+    // from JNI; the FFM bridge additionally guards against it.)
     if (p_ctx.size == 0 || q_ctx.size == 0 || g_ctx.size == 0) {
         ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;

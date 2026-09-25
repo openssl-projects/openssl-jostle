@@ -387,8 +387,8 @@ public class HkdfTest
 
     /**
      * Zero-length IKM is RFC-legal (HMAC pads an empty key) and must agree
-     * with BC — and, critically, behave identically on the JNI and FFI bridges
-     * (this pins the FFI marshaling of a zero-length heap array; the suite
+     * with BC — and, critically, behave identically on the JNI and FFM bridges
+     * (this pins the FFM marshaling of a zero-length heap array; the suite
      * runs this test on both bridges).
      */
     @Test

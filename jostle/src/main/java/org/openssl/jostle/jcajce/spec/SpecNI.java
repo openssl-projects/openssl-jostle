@@ -93,7 +93,7 @@ public interface SpecNI extends DefaultServiceNI
                 // encap/decap write two distinct buffers (shared secret and
                 // encapsulation); passing one array for both would corrupt the
                 // result under the JNI whole-array copy-back. Both bridges reject
-                // the aliased call with this code (JNI IsSameObject / FFI reference
+                // the aliased call with this code (JNI IsSameObject / FFM reference
                 // equality) so the NI surface behaves identically.
                 throw new IllegalArgumentException("input and output must not be the same array");
         }

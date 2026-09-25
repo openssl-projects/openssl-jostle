@@ -17,7 +17,7 @@ import org.openssl.jostle.rand.RandSource;
 
 /**
  * Native interface for RSA signing operations. Padding-mode and component
- * selectors are stable integer identifiers passed across the JNI/FFI
+ * selectors are stable integer identifiers passed across the JNI/FFM
  * boundary; they are mirrored from {@code interface/nonfips/util/rsa.h}.
  *
  * <p>The signing API expects the caller to manage two distinct native

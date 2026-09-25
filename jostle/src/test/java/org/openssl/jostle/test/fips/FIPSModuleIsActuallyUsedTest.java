@@ -49,7 +49,7 @@ import java.util.List;
  * reports on the lib ctx reachable through {@code OpenSSLFIPSNI}, so it proves
  * the module is loaded, configured {@code fips=yes}, and serving the names
  * JSLFIPS registers. It does NOT prove each algorithm SPI is bound to that same
- * library: deliberately rebinding {@code MLDSAServiceFIPSFFI} to the
+ * library: deliberately rebinding {@code MLDSAServiceFIPSFFM} to the
  * process-global {@code loaderLookup} left every test here green, because the
  * probe runs through a different, correctly-bound class. That invariant is
  * enforced structurally by {@link FIPSLibraryLookupParityTest} instead.

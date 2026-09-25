@@ -15,7 +15,7 @@
 #include "key_spec.h"
 
 
-// Operation modes — stable across the FFI/JNI boundary; do NOT
+// Operation modes — stable across the FFM/JNI boundary; do NOT
 // renumber. Map to JCE Cipher.ENCRYPT_MODE / DECRYPT_MODE on the
 // Java side.
 #define RSA_OAEP_OP_ENCRYPT 1

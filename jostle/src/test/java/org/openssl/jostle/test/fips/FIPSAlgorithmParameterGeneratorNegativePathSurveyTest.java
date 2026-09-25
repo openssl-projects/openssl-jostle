@@ -35,9 +35,9 @@ import java.util.TreeSet;
  * The JSLFIPS half of the Group C {@code AlgorithmParameterGenerator} survey.
  *
  * <p>Required by the both-classes rule: the base survey compares JSL against
- * BouncyCastle and the JDK and drives {@code libinterface_{jni,ffi}} through the
+ * BouncyCastle and the JDK and drives {@code libinterface_{jni,ffm}} through the
  * base {@code OSSL_LIB_CTX}; this one drives
- * {@code libinterface_fips_{jni,ffi}} through the FIPS lib ctx. Neither
+ * {@code libinterface_fips_{jni,ffm}} through the FIPS lib ctx. Neither
  * substitutes for the other, and a JSLFIPS-only defect is invisible to the base
  * class.
  *

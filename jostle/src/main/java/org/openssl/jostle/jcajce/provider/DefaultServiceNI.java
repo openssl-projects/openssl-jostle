@@ -156,7 +156,7 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("output offset + length is out of range");
             case JO_OUTPUT_LEN_IS_NEGATIVE:
                 throw new IllegalArgumentException("output len negative");
-            case JO_OUTPUT_TOO_LONG_INT32: // need to use a special FFI call to test this
+            case JO_OUTPUT_TOO_LONG_INT32: // need to use a special FFM call to test this
                 throw new OverflowException("output too long int32");
             case JO_UNEXPECTED_STATE:
                 throw new IllegalStateException("unexpected state");

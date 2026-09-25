@@ -60,7 +60,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
  * Implemented in here and in java22 code path
- * Version in Java 22 src path will check for the use of FFI interface and use that if loaded.
+ * Version in Java 22 src path will check for the use of FFM interface and use that if loaded.
  */
 public class NISelector
 {

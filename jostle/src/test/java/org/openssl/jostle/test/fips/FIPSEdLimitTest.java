@@ -30,7 +30,7 @@ import java.security.SecureRandom;
 /**
  * Input-validation limit tests at the FIPS EdDSA service NI surface
  * ({@code FIPSNISelector.EDServiceNI}). The FIPS glue is the base
- * {@code ed_jni.c} / {@code ed_ni_ffi.c} re-included under renamed symbols, so
+ * {@code ed_jni.c} / {@code ed_ni_ffm.c} re-included under renamed symbols, so
  * the bridge's null / range / negative / type / state checks and their typed
  * messages are identical by construction — this pins that they survived into
  * the FIPS interface library unchanged. Mirrors the base {@code EdDSALimitTest}.
@@ -237,7 +237,7 @@ public class FIPSEdLimitTest
                 assertIAE("input len is negative", () -> ed.update(ref, in, 0, bad));
                 // Both negative at once. Both bridges check OFFSET first, so
                 // that is the message. Pinned because the order is part of what
-                // a caller sees, and because JNI and FFI must agree: the FFI
+                // a caller sees, and because JNI and FFM must agree: the FFM
                 // side checked LENGTH first until 2026-08-23, so the same input
                 // produced different codes from the two bridges.
                 assertIAE("input offset is negative", () -> ed.update(ref, in, bad, bad));

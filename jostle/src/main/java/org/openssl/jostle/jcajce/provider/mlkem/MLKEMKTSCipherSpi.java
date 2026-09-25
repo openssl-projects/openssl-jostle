@@ -293,7 +293,7 @@ public class MLKEMKTSCipherSpi
         // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
         // across the native length-probe + encapsulate calls; nothing after the
         // block touches keySpec. See java-spi.md "Native references must outlive
-        // every JNI/FFI call".
+        // every JNI/FFM call".
         synchronized (this)
         {
             try
@@ -382,7 +382,7 @@ public class MLKEMKTSCipherSpi
         // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
         // across the native length-probe + decapsulate calls; nothing after the
         // block touches keySpec. See java-spi.md "Native references must outlive
-        // every JNI/FFI call".
+        // every JNI/FFM call".
         synchronized (this)
         {
             try

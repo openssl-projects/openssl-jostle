@@ -74,7 +74,7 @@ static int32_t check_is_ec_or_xec(const EVP_PKEY *pkey) {
 
 int32_t ec_curve_supported(const char *curve_name) {
     // Bridge-validated invariant: curve_name was null-checked by the
-    // JNI / FFI bridge, which surfaced JO_NAME_IS_NULL on its own.
+    // JNI / FFM bridge, which surfaced JO_NAME_IS_NULL on its own.
     jo_assert(curve_name != NULL);
 
     // OpenSSL's EC keymgmt validates the curve name lazily —
@@ -410,7 +410,7 @@ static int32_t emit_curve_bn(const BIGNUM *bn, uint8_t *out, size_t out_len) {
 
 int32_t ec_get_curve_component(const char *curve_name, int32_t component,
                                uint8_t *out, size_t out_len) {
-    // Bridge-validated invariant: the JNI / FFI bridge null-checked the
+    // Bridge-validated invariant: the JNI / FFM bridge null-checked the
     // name and surfaced JO_NAME_IS_NULL itself.
     jo_assert(curve_name != NULL);
 
@@ -583,7 +583,7 @@ int32_t ec_find_curve_name(int32_t field_type,
                            const uint8_t *cofactor, size_t cofactor_len,
                            uint8_t *out, size_t out_len) {
     // Bridge-validated invariants: every pointer was null-checked and every
-    // length range-checked by the JNI / FFI bridge.
+    // length range-checked by the JNI / FFM bridge.
     jo_assert(p != NULL && a != NULL && b != NULL);
     jo_assert(gx != NULL && gy != NULL);
     jo_assert(order != NULL && cofactor != NULL);
@@ -709,7 +709,7 @@ int32_t ec_make_private_from_components(key_spec *spec,
                                         size_t scalar_len,
                                         void *rnd_src) {
     // Bridge-validated inputs: pointer null checks AND scalar length
-    // bounds (zero-length, > INT32_MAX) are done by both JNI and FFI
+    // bounds (zero-length, > INT32_MAX) are done by both JNI and FFM
     // bridges before this util function runs. Util asserts as
     // invariants — if any of these fire, the bridge skipped a check.
     jo_assert(spec != NULL);
@@ -887,7 +887,7 @@ int32_t ec_make_public_from_components(key_spec *spec,
                                        size_t point_len,
                                        void *rnd_src) {
     // Bridge-validated inputs: pointer null checks AND point length
-    // bounds (zero-length, > INT32_MAX) are done by both JNI and FFI
+    // bounds (zero-length, > INT32_MAX) are done by both JNI and FFM
     // bridges before this util function runs. Util asserts as
     // invariants — if any of these fire, the bridge skipped a check.
     jo_assert(spec != NULL);
@@ -1235,7 +1235,7 @@ exit:
 
 
 int32_t ec_ctx_update(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
-    // Bridges pass in_len as int32_t (JNI: jint; FFI: int32_t) and
+    // Bridges pass in_len as int32_t (JNI: jint; FFM: int32_t) and
     // already null-check `in` and bounds-check the offset/length pair,
     // so an in_len exceeding INT32_MAX is structurally impossible from
     // either bridge. Util treats both as invariants.
@@ -1379,7 +1379,7 @@ int32_t ec_ctx_sign(ec_ctx *ctx, uint8_t *out, size_t out_len,
 
 int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
                       void *rnd_src) {
-    // Bridges pass sig_len as int32_t (JNI: jint; FFI: int32_t) and
+    // Bridges pass sig_len as int32_t (JNI: jint; FFM: int32_t) and
     // already null-check `sig` and range-check the length, so sig_len
     // exceeding INT32_MAX is structurally impossible from either bridge.
     jo_assert(ctx != NULL);

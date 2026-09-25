@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
  *
  * <p>Allowlists are empty except for one exact carve-out: {@code Loader.java}
  * is the one production file permitted a single {@code Class.forName(...)}
- * call (it loads the FFI implementation class by name at runtime, per
+ * call (it loads the FFM implementation class by name at runtime, per
  * {@code Loader.interfaceType}). Every other reflective entry point has no
  * legitimate production use.
  */

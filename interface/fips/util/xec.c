@@ -27,7 +27,7 @@
  * OpenSSL call has a unique offset within the file.
  */
 int32_t xec_generate_key(key_spec *spec, const char *name, void *rnd_src) {
-    // Bridge-validated invariants (the JNI / FFI bridge null-checks these
+    // Bridge-validated invariants (the JNI / FFM bridge null-checks these
     // and surfaces JO_NAME_IS_NULL / JO_RAND_NO_RAND_UP_CALL itself).
     jo_assert(spec != NULL);
     jo_assert(name != NULL);

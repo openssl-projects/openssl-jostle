@@ -29,9 +29,9 @@ import java.security.Security;
  * <p>Every rejection is asserted by exact message: the code→exception mapping in
  * {@code KdfNI.handleErrorCodes} is the only place a {@code JO_*} code becomes a
  * typed exception, and a type-only assertion would pass if a case moved to a
- * different arm with the same type. Both bridges (JNI and FFI) must return the
+ * different arm with the same type. Both bridges (JNI and FFM) must return the
  * same code for the same input — the {@code integrationTest25JNI} /
- * {@code integrationTest25FFI} tasks run this class against each.</p>
+ * {@code integrationTest25FFM} tasks run this class against each.</p>
  */
 public class Argon2LimitTest
 {

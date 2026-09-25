@@ -50,7 +50,7 @@ public class MLDSALimitTest
         // is null"), NOT abort the JVM via jo_assert. The ctx null-check is the
         // first thing the bridge does, so the remaining args are never reached.
         // Regression lock for the ctx null-check bridge fix
-        // (mldsa_ni_jni.c / mldsa_ni_ffi.c). Runs on BOTH JNI and FFI via
+        // (mldsa_ni_jni.c / mldsa_ni_ffm.c). Runs on BOTH JNI and FFM via
         // TestNISelector.
         byte[] ctx = new byte[0];
         byte[] sig = new byte[8];
@@ -69,13 +69,13 @@ public class MLDSALimitTest
     @Test
     public void MLDSAServiceNI_sign_writesAtOffsetWithoutClobbering() throws Exception
     {
-        // Regression for the FFI whole-array copy-back clobber (finding 4):
-        // MLDSAServiceFFI.ni_sign allocated a zero-filled arena for the whole
+        // Regression for the FFM whole-array copy-back clobber (finding 4):
+        // MLDSAServiceFFM.ni_sign allocated a zero-filled arena for the whole
         // output array and copied ALL of it back, zeroing caller bytes outside
         // [offset, offset+written). Sign at a non-zero offset into an oversized
         // random-filled buffer; the bytes outside the written window must be
         // preserved and the signature at the offset must verify. Runs on JNI
-        // and FFI via TestNISelector; only the FFI path exhibited the clobber.
+        // and FFM via TestNISelector; only the FFM path exhibited the clobber.
         java.security.SecureRandom rnd = new java.security.SecureRandom();
         long keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
         long signer = mldsaServiceNI.allocateSigner();

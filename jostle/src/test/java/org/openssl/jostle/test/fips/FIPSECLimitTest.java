@@ -972,7 +972,7 @@ public class FIPSECLimitTest
     // getCurveComponent / findCurveName (MT-21)
     //
     // Both bridges validate independently and must reject identical inputs
-    // with identical codes, so every case here runs on JNI and FFI alike.
+    // with identical codes, so every case here runs on JNI and FFM alike.
     // -----------------------------------------------------------------
 
     @Test

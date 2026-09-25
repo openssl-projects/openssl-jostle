@@ -21,7 +21,7 @@
 /*
  * JNI bridge for X.509 certificate parsing. Every user-supplied pointer is
  * null-checked and every length range-checked HERE; util asserts them as
- * invariants. Returns identical codes to x509_ni_ffi.c for identical inputs.
+ * invariants. Returns identical codes to x509_ni_ffm.c for identical inputs.
  *
  * The certificate CEILING is a caller parameter rather than a constant util
  * enforces, so this layer owns the typed refusal above it. A deployment that

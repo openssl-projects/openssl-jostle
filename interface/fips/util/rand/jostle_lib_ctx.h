@@ -54,7 +54,7 @@ OSSL_LIB_CTX *get_global_jostle_fips_ossl_lib_ctx(void);
  *
  *   1. The FIPS libraries define and export ONLY the fips-named symbols.
  *      There is no get_global_jostle_ossl_lib_ctx in interface_fips_jni or
- *      interface_fips_ffi for ELF load-order interposition to bind the base
+ *      interface_fips_ffm for ELF load-order interposition to bind the base
  *      library's copy to, and none for a future FIPS-tree file to reach by
  *      accident. That is a property of the NAMES, so it holds on every
  *      platform and independently of the -Wl,-Bsymbolic on the FIPS targets
@@ -90,7 +90,7 @@ void rand_set_java_srand_call(void *target);
  * Clear the per-thread RandSource up-call target. Every entry point that
  * binds a target with rand_set_java_srand_call MUST clear it before
  * returning: the target's lifetime is the duration of that native call (a
- * JNI local ref / an FFI arena-scoped stub), so a stale value read by a
+ * JNI local ref / an FFM arena-scoped stub), so a stale value read by a
  * future draw outside any entry point would be use-after-free. With the
  * target cleared, such a draw fails typed ("rand_src was null") instead.
  */

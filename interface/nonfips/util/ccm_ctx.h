@@ -51,7 +51,7 @@ typedef struct ccm_ctx {
 
 /**
  * True if tag_len is a valid CCM tag length (NIST SP 800-38C §6.1:
- * {4,6,8,10,12,14,16} bytes). Exposed so the JNI/FFI bridges validate
+ * {4,6,8,10,12,14,16} bytes). Exposed so the JNI/FFM bridges validate
  * the caller's tag length and return JO_INVALID_TAG_LEN; ccm_ctx_init
  * asserts it as a bridge-validated invariant.
  */

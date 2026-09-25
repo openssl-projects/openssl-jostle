@@ -18,18 +18,18 @@ import java.lang.invoke.MethodType;
 
 /**
  * Single source of truth for the {@link RandSource} entropy up-call ABI shared
- * by every FFI service class.
+ * by every FFM service class.
  *
- * <p>Each {@code *ServiceFFI} used to declare its own {@code entropyFd} /
+ * <p>Each {@code *ServiceFFM} used to declare its own {@code entropyFd} /
  * {@code entropyMt} copies; they drifted (some declared the {@code out} pointer
  * as a bare {@code ADDRESS}, others as
  * {@code ADDRESS.withTargetLayout(JAVA_BYTE)} — functionally identical for this
  * up-call, since {@link RandSource#getRandomSegment} reinterprets the segment,
  * but a drift surface all the same). Centralising them here removes that.
  *
- * <p>Mirrors the C typedef {@code ffi_get_rand} in {@code rand_upcall_ffi.h}:
+ * <p>Mirrors the C typedef {@code ffm_get_rand} in {@code rand_upcall_ffm.h}:
  * {@code int32_t (*)(uint8_t *out, size_t len, int32_t strength, int32_t predictionResistance)}.
- * Java-25 only (FFI), so it lives alongside the Java-25 {@code RandSource}
+ * Java-25 only (FFM), so it lives alongside the Java-25 {@code RandSource}
  * override.
  */
 public final class EntropyUpcall

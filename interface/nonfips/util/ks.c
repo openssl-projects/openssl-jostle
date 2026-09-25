@@ -172,7 +172,7 @@ static void clear_entries(ks_ctx *ctx) {
 }
 
 /*
- * Drop any DER cached by JoKS_StoreLen for the FFI Len-then-fetch split. The
+ * Drop any DER cached by JoKS_StoreLen for the FFM Len-then-fetch split. The
  * cache is only valid for the entry set present when it was built, so every
  * entry mutation (and load) must invalidate it. The SPI issues StoreLen and
  * Store back-to-back with no mutation in between, so this is defence in depth

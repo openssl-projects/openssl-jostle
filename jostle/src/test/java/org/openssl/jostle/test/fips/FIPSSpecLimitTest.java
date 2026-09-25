@@ -28,7 +28,7 @@ import org.openssl.jostle.test.TestUtil;
  * The FIPS glue is the base bridge re-included under renamed symbols, so the
  * checks are identical by construction — this pins that they survived into the
  * other library with the same codes and the same messages. Both bridges
- * validate separately, so it runs on JNI and FFI.
+ * validate separately, so it runs on JNI and FFM.
  * <p>
  * Most cells reject at the BRIDGE, before any module call, so they run on both
  * supported modules. The encap/decap cells need an ML-KEM key and say so;

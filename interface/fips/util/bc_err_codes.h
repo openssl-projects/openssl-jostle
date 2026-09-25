@@ -147,7 +147,7 @@
 #define JO_RSA_CRT_COEFFICIENT_IS_NULL -111
 
 /*
- * Null native-context pointer passed in across the JNI/FFI boundary.
+ * Null native-context pointer passed in across the JNI/FFM boundary.
  * The bridge layer null-checks the user-supplied long handle and
  * returns one of these — never asserts. Distinct codes per ctx type
  * so the JCE caller's exception message names what was missing.
@@ -304,7 +304,7 @@
 /*
  * encap / decap were handed the same byte array for both the shared-secret
  * and the encapsulation buffer. The bridge rejects the aliased call typed
- * (JNI IsSameObject / FFI reference equality) rather than corrupt the result
+ * (JNI IsSameObject / FFM reference equality) rather than corrupt the result
  * under the JNI whole-array copy-back on release. Both bridges return this
  * code for identical inputs.
  */
@@ -380,7 +380,7 @@
 
 /*
  * The JNI critical-region load of the customisation-string array failed.
- * Mirrors JO_FAILED_ACCESS_IV; the FFI bridge cannot produce it, but both
+ * Mirrors JO_FAILED_ACCESS_IV; the FFM bridge cannot produce it, but both
  * bridges must return identical codes for identical inputs, so it is
  * defined once here rather than per bridge.
  */
@@ -397,7 +397,7 @@
 
 /*
  * The JNI critical-region load of the optional context/info array failed
- * (KBKDF Context, SSKDF FixedInfo). The FFI bridge cannot produce it, but both
+ * (KBKDF Context, SSKDF FixedInfo). The FFM bridge cannot produce it, but both
  * bridges must return identical codes for identical inputs, so it is defined
  * once here rather than per bridge. KBKDF's Label reuses JO_KDF_SALT_FAILED_ACCESS
  * because Label IS the OSSL_KDF_PARAM_SALT parameter.

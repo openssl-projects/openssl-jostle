@@ -25,7 +25,7 @@ import java.security.Security;
 
 /**
  * NI-layer input-validation tests for the HKDF bridge ({@code KdfNI.hkdf}),
- * mirroring {@link PBKdf2LimitTest}. Exercises the JNI / FFI bridges' null /
+ * mirroring {@link PBKdf2LimitTest}. Exercises the JNI / FFM bridges' null /
  * negative / range rejections (identical codes on both bridges), the NI-level
  * acceptance of null salt / null info (the only way to reach the C
  * {@code salt == NULL} / {@code info == NULL} paths, since

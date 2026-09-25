@@ -25,8 +25,8 @@ static CRYPTO_THREAD_LOCAL java_srand_id;
 // by accident; do not reintroduce it. What remains live:
 //
 //   1. jostle_ctx_init_new / jostle_ctx_destroy — plain lib ctx lifecycle
-//      (bridge-less). Reached only through the base-named FFI init export
-//      (ffi/openssl_ffi.c, part of the shared FFI glue set); the JSLFIPS
+//      (bridge-less). Reached only through the base-named FFM init export
+//      (ffm/openssl_ffm.c, part of the shared FFM glue set); the JSLFIPS
 //      Java classes always use jostle_ctx_init_fips instead.
 //   2. set_global_jostle_fips_lib_ctx / get_global_jostle_fips_ossl_lib_ctx —
 //      the provider-wide lib ctx accessor used by every util module. Named
@@ -127,8 +127,8 @@ OSSL_LIB_CTX *get_global_jostle_fips_ossl_lib_ctx(void) {
 
 
 /**
- * Use to set the RandSource up-call receiver, FFI callers will pass pointer
- * to FFI constructed function and JNI callers will pass jobject
+ * Use to set the RandSource up-call receiver, FFM callers will pass pointer
+ * to FFM constructed function and JNI callers will pass jobject
  *
  * Function expects, to be able to set thread local value, will abort the
  * process if it can not do so.
@@ -138,7 +138,7 @@ OSSL_LIB_CTX *get_global_jostle_fips_ossl_lib_ctx(void) {
  * thread-local — the validated module manages its own entropy (see the
  * FIPS-tree note at the top of this file).
  *
- * @param target, FFI created function pointer, JNI pass jobject
+ * @param target, FFM created function pointer, JNI pass jobject
  *
  */
 void rand_set_java_srand_call(void *target) {

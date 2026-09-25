@@ -16,8 +16,8 @@ import java.lang.foreign.MemorySegment;
 import java.security.SecureRandom;
 
 /**
- * Consistent layout for access VIA FFI.
- * This version adds an accessible method for upcalls via FFI.
+ * Consistent layout for access VIA FFM.
+ * This version adds an accessible method for upcalls via FFM.
  */
 public interface RandSource
 {
@@ -38,9 +38,9 @@ public interface RandSource
 
     default int getRandomSegment(MemorySegment memorySegment, long len, int strength, int predictionResistant)
     {
-        // Signature matches the C upcall typedef ffi_get_rand:
+        // Signature matches the C upcall typedef ffm_get_rand:
         // int32_t (*)(uint8_t *, size_t, int32_t, int32_t) — see the entropy
-        // FunctionDescriptor in the *ServiceFFI classes. `len` is a size_t and
+        // FunctionDescriptor in the *ServiceFFM classes. `len` is a size_t and
         // `predictionResistant` an int32_t; the C bridge rejects any request
         // above INT32_MAX before calling, so len fits an int here, and
         // getRandomBytes takes an int length and a boolean flag.
@@ -57,7 +57,7 @@ public interface RandSource
             // the first fetch legitimately returns 1024, and `rc != len` would
             // abort a valid large draw as JO_RAND_UP_SHORT_RESULT, leaving the
             // chunking loop below dead. The JNI twin issues one full-size call
-            // and succeeds; this keeps the FFI path consistent.
+            // and succeeds; this keeps the FFM path consistent.
             int rc = this.getRandomBytes(buf, buf.length, strength, predResist);
             if (rc != buf.length)
             {

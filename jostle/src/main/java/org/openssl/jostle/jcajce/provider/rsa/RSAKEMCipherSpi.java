@@ -309,7 +309,7 @@ public class RSAKEMCipherSpi
         // synchronized(this) keeps keySpec (a field-held PKEYKeySpec) reachable
         // across the native encapsulate call; nothing after the block touches
         // keySpec. See java-spi.md "Native references must outlive every
-        // JNI/FFI call".
+        // JNI/FFM call".
         synchronized (this)
         {
             try

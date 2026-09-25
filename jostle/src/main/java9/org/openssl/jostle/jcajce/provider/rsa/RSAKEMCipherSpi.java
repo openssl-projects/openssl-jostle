@@ -310,7 +310,7 @@ public class RSAKEMCipherSpi
         // reachabilityFence keeps keySpec (a field-held PKEYKeySpec) reachable
         // across the native encapsulate call; nothing after the block touches
         // keySpec. See java-spi.md "Native references must outlive every
-        // JNI/FFI call".
+        // JNI/FFM call".
         try
         {
             int written = keySpec.getSpecNI().encap(keySpec.getReference(), KEM_OP,

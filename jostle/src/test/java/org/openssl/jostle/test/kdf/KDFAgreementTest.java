@@ -68,8 +68,8 @@ import java.util.TreeSet;
  *
  * <p>The non-FIPS half of the pair {@link org.openssl.jostle.test.fips.FIPSKDFAgreementTest}
  * completes. The two are not redundant — this one drives
- * {@code libinterface_{jni,ffi}} against the base {@code OSSL_LIB_CTX} and runs
- * always; that one drives {@code libinterface_fips_{jni,ffi}} against the FIPS
+ * {@code libinterface_{jni,ffm}} against the base {@code OSSL_LIB_CTX} and runs
+ * always; that one drives {@code libinterface_fips_{jni,ffm}} against the FIPS
  * lib ctx and only with {@code TEST_FIPS_LIB} set. A base-only KDF (scrypt,
  * Argon2, the unapproved PBKDF2 PRFs) can only be covered here.</p>
  *

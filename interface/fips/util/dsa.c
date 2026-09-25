@@ -855,7 +855,7 @@ exit:
 
 
 int32_t dsa_ctx_update(dsa_ctx *ctx, const uint8_t *in, size_t in_len) {
-    // Bridges pass in_len as int32_t (JNI: jint; FFI: int32_t) and
+    // Bridges pass in_len as int32_t (JNI: jint; FFM: int32_t) and
     // already null-check `in` and bounds-check the offset/length pair,
     // so an in_len exceeding INT32_MAX is structurally impossible from
     // either bridge. Util treats both as invariants.
@@ -999,7 +999,7 @@ int32_t dsa_ctx_sign(dsa_ctx *ctx, uint8_t *out, size_t out_len,
 
 int32_t dsa_ctx_verify(dsa_ctx *ctx, const uint8_t *sig, size_t sig_len,
                        void *rnd_src) {
-    // Bridges pass sig_len as int32_t (JNI: jint; FFI: int32_t) and
+    // Bridges pass sig_len as int32_t (JNI: jint; FFM: int32_t) and
     // already null-check `sig` and range-check the length, so sig_len
     // exceeding INT32_MAX is structurally impossible from either bridge.
     jo_assert(ctx != NULL);

@@ -60,16 +60,16 @@ public class SpecLimitTest
     @Test
     public void encapDecap_writeAtOffsetsWithoutClobbering() throws Exception
     {
-        // Regression for the FFI whole-array copy-back clobber (finding 4):
-        // SpecFFI.ni_encap/ni_decap allocated zero-filled arenas for the whole
+        // Regression for the FFM whole-array copy-back clobber (finding 4):
+        // SpecFFM.ni_encap/ni_decap allocated zero-filled arenas for the whole
         // output arrays (encapsulation, shared secret) and copied ALL of them
         // back, zeroing caller bytes outside the written window. Exercises all
         // three write windows — encap's encapsulation (at off) and shared
         // secret (at inOff), and decap's shared secret (at off) — at non-zero
         // offsets in oversized random-filled buffers, asserting the bytes
-        // outside each window are preserved. Runs on JNI and FFI via
-        // TestNISelector; only the FFI path exhibited the clobber (and it is
-        // inherited by the FIPS SpecFIPSFFI).
+        // outside each window are preserved. Runs on JNI and FFM via
+        // TestNISelector; only the FFM path exhibited the clobber (and it is
+        // inherited by the FIPS SpecFIPSFFM).
         java.security.SecureRandom rnd = new java.security.SecureRandom();
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
@@ -160,7 +160,7 @@ public class SpecLimitTest
         // A null input array (with a valid keyspec) must surface the typed
         // JO_INPUT_IS_NULL -> NullPointerException("input is null"), NOT abort
         // the JVM via the util jo_assert. Regression lock for the spec input
-        // null-check bridge fix (spec_ni_jni.c / spec_ni_ffi.c).
+        // null-check bridge fix (spec_ni_jni.c / spec_ni_ffm.c).
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
@@ -434,7 +434,7 @@ public class SpecLimitTest
     public void encap_nullRandSrc() throws Exception
     {
         // Both bridges should reject a null rand_src with the same exception:
-        // JNI returns JO_RAND_NO_RAND_UP_CALL directly; FFI passes a NULL
+        // JNI returns JO_RAND_NO_RAND_UP_CALL directly; FFM passes a NULL
         // upcall stub and encap() in the util layer returns the same code.
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
@@ -523,7 +523,7 @@ public class SpecLimitTest
         // Null ciphertext (with a valid keyspec) must surface the typed
         // JO_INPUT_IS_NULL -> NullPointerException("input is null"), NOT abort
         // the JVM via the util jo_assert. Regression lock for the spec input
-        // null-check bridge fix (spec_ni_jni.c / spec_ni_ffi.c).
+        // null-check bridge fix (spec_ni_jni.c / spec_ni_ffm.c).
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
@@ -819,7 +819,7 @@ public class SpecLimitTest
     public void decap_nullRandSrc() throws Exception
     {
         // Both bridges should reject a null rand_src with the same exception:
-        // JNI returns JO_RAND_NO_RAND_UP_CALL directly; FFI passes a NULL
+        // JNI returns JO_RAND_NO_RAND_UP_CALL directly; FFM passes a NULL
         // upcall stub and decap() in the util layer returns the same code
         // before any OpenSSL call.
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
@@ -1068,7 +1068,7 @@ public class SpecLimitTest
      * legitimate third case the C cannot distinguish from the other two, so a
      * typed exception would be claiming more than the accessor knows.
      *
-     * <p>Runs on BOTH bridges via TestNISelector; the JNI and FFI paths return
+     * <p>Runs on BOTH bridges via TestNISelector; the JNI and FFM paths return
      * NULL from different code and must agree. Without this a 0 handle would
      * reach a util dereference — the abort-instead-of-typed-answer class the
      * limit tests exist for.

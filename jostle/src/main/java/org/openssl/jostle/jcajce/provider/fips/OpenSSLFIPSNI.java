@@ -16,7 +16,7 @@ import org.openssl.jostle.jcajce.provider.OpenSSLNI;
  * Native interface for initialising the FIPS interface library.
  *
  * <p>The FIPS provider runs against its own interface library
- * (libinterface_fips_jni / libinterface_fips_ffi): a separate compile of the
+ * (libinterface_fips_jni / libinterface_fips_ffm): a separate compile of the
  * same native util layer whose own copy of the process globals holds a
  * FIPS-only OSSL_LIB_CTX, so the FIPS and non-FIPS Jostle providers can
  * coexist in one JVM.
@@ -132,7 +132,7 @@ public interface OpenSSLFIPSNI
      *
      * <p><b>What it does NOT prove.</b> The answer describes the lib ctx
      * reachable through THIS NI - the FIPS interface library's - not the one a
-     * particular algorithm SPI happens to be bound to. A single {@code *FIPSFFI}
+     * particular algorithm SPI happens to be bound to. A single {@code *FIPSFFM}
      * class that resolved its symbols through the process-global
      * {@code loaderLookup} instead of {@link FIPSLibraryLookup} would drive the
      * BASE library while this probe still answered {@code "fips"}, because the

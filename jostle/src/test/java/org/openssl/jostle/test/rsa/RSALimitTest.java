@@ -427,7 +427,7 @@ public class RSALimitTest
         // A 0/null ctx handle at any RSA session entry point must surface the
         // typed JO_SIGNER_CTX_IS_NULL -> IllegalArgumentException("signer context
         // is null"), NOT abort the JVM via jo_assert. Regression lock for the
-        // ctx null-check bridge fix (rsa_ni_jni.c / rsa_ni_ffi.c).
+        // ctx null-check bridge fix (rsa_ni_jni.c / rsa_ni_ffm.c).
         byte[] sig = new byte[256];
         Assertions.assertEquals("signer context is null", Assertions.assertThrows(IllegalArgumentException.class,
                 () -> rsaServiceNI.initSign(0, 0, "SHA-256", RSAServiceNI.PADDING_PKCS1, null, 0, TestUtil.RNDSrc)).getMessage());
@@ -1206,7 +1206,7 @@ public class RSALimitTest
     }
 
     /**
-     * Regression test for an FFI-only bug where {@code ni_sign}'s
+     * Regression test for an FFM-only bug where {@code ni_sign}'s
      * post-call output copy-back was {@code outSeg.asByteBuffer().get(sig)},
      * which clobbered any caller-provided bytes preceding {@code outOff}
      * with zeros. Confirms the signature lands at {@code outOff} and the

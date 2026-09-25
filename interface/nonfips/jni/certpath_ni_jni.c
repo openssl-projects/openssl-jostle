@@ -21,7 +21,7 @@
 /*
  * JNI bridge for certification path validation. Every user-supplied pointer is
  * null-checked and every length range-checked HERE; util asserts them as
- * invariants. Returns identical codes to certpath_ni_ffi.c for identical
+ * invariants. Returns identical codes to certpath_ni_ffm.c for identical
  * inputs.
  *
  * The certificate and CRL counts are bounded SEPARATELY before any

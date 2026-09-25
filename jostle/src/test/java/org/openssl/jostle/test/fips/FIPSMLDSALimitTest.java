@@ -34,7 +34,7 @@ import java.security.SecureRandom;
  * The FIPS glue is the base bridge re-included under renamed symbols, so the
  * checks are identical by construction — this pins that they survived into the
  * other library with the same codes and the same messages. Both bridges
- * validate separately, so it runs on JNI and FFI.
+ * validate separately, so it runs on JNI and FFM.
  * <p>
  * Cells that reject at the BRIDGE before any module call run on both supported
  * modules; the rest need a real key and skip where the module has no ML-DSA

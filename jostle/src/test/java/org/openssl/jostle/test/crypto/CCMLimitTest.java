@@ -30,11 +30,11 @@ import java.util.Arrays;
  * to a different code fails loudly.
  *
  * <p>The validation lives in the bridge layer ({@code ccm_ni_jni.c} /
- * {@code ccm_ni_ffi.c}) and the two bridges are contractually required
- * to return identical codes for identical inputs — the FFI Java layer
+ * {@code ccm_ni_ffm.c}) and the two bridges are contractually required
+ * to return identical codes for identical inputs — the FFM Java layer
  * passes null arrays through as {@code MemorySegment.NULL}/size 0, so
  * the C check fires the same way on both. Every test therefore runs
- * unchanged on JNI and FFI.
+ * unchanged on JNI and FFM.
  *
  * <p>Boundary probes use exactly {@code boundary + 1} (the smallest
  * rejected value) and are paired with a positive companion proving the
@@ -173,14 +173,14 @@ public class CCMLimitTest
 
     /**
      * NI-surface boundary for {@code valid_ccm_tag_len} — now called by
-     * the bridge ({@code ccm_ni_jni.c} / {@code ccm_ni_ffi.c}), with
+     * the bridge ({@code ccm_ni_jni.c} / {@code ccm_ni_ffm.c}), with
      * {@code ccm_ctx_init} asserting it as an invariant: every valid tag
      * length is accepted and each adjacent value is rejected. The
      * negative-tag tests above are caught by the bridge's
      * {@code tag_len < 0} check before {@code valid_ccm_tag_len} runs;
      * this is the only coverage of its positive set-membership rejection
      * (unreachable through the JCE path, which validates in CCMCipherSpi
-     * before calling native). Bridge-agnostic — runs on both JNI and FFI.
+     * before calling native). Bridge-agnostic — runs on both JNI and FFM.
      */
     @Test
     public void init_tagLen_setMembershipBoundary() throws Exception
@@ -221,7 +221,7 @@ public class CCMLimitTest
 
     /**
      * NI-surface boundary for the bridge's iv_len (nonce) check
-     * ({@code ccm_ni_jni.c} / {@code ccm_ni_ffi.c}, asserted in
+     * ({@code ccm_ni_jni.c} / {@code ccm_ni_ffm.c}, asserted in
      * {@code ccm_ctx_init}): 7..13 bytes accepted, 0/6/14 rejected with
      * JO_INVALID_IV_LEN. Like the tag-length check this is unreachable
      * through the JCE path (CCMCipherSpi validates the nonce length
@@ -587,7 +587,7 @@ public class CCMLimitTest
 
     /**
      * Bridge parity for multi-fault inputs: when more than one validation
-     * could fire, JNI and FFI must report the SAME code. Here the AAD
+     * could fire, JNI and FFM must report the SAME code. Here the AAD
      * length is out of range AND the input array is null; both bridges run
      * all null/negative scalar checks before any range check, so both
      * return JO_INPUT_IS_NULL (not JO_INPUT_OUT_OF_RANGE). This runs on

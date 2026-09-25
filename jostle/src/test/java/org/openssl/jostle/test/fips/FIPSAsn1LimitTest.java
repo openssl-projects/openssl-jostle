@@ -175,7 +175,7 @@ public class FIPSAsn1LimitTest
         // must surface the typed JO_ASN1_CTX_IS_NULL -> IllegalArgumentException
         // ("asn1 context is null"), NOT abort the JVM via jo_assert — the FIPS
         // glue re-includes the base bridge, so this pins the same fix through
-        // the FIPS library (asn1_ni_jni.c / asn1_ni_ffi.c under interface/fips/).
+        // the FIPS library (asn1_ni_jni.c / asn1_ni_ffm.c under interface/fips/).
         // Passing 0 for the key ref as well pins the validation ORDER (asn1 ctx
         // before key).
         assertIAE("asn1 context is null", () -> asn1.encodePublicKey(0, 0));
@@ -314,10 +314,10 @@ public class FIPSAsn1LimitTest
     public void encodePrivateKey_prefix_encoding_option_rejected()
     {
         // A prefix of a valid option must be REJECTED, not accepted: "d" is
-        // NOT "default" and "s" is NOT "seed_only". The FFI bridge used to
+        // NOT "default" and "s" is NOT "seed_only". The FFM bridge used to
         // compare with strncmp against the caller-supplied length (a prefix
         // match); it now uses exact strcmp like the JNI twin. Runs on both
-        // JNI and FFI via FIPSNISelector, pinning that the FFI no longer
+        // JNI and FFM via FIPSNISelector, pinning that the FFM no longer
         // prefix-accepts.
         long a = asn1.allocate();
         try

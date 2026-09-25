@@ -103,7 +103,7 @@ static int peer_pubkey_check_failed(void) {
 
 int32_t dh_group_supported(const char *group_name) {
     // Bridge-validated invariant: group_name was null-checked by the
-    // JNI / FFI bridge, which surfaced JO_NAME_IS_NULL on its own.
+    // JNI / FFM bridge, which surfaced JO_NAME_IS_NULL on its own.
     jo_assert(group_name != NULL);
 
     // Like the EC keymgmt, the DH keymgmt validates the group name

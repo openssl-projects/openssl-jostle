@@ -452,7 +452,7 @@ JO_RAND_CTX *rand_ctx_create_test(const char *mechanism, const char *variant, in
     // Unconditional, not length-conditional: empty is legal and NULL is not, and
     // a NULL personalisation string derives different bytes with no error. The
     // length-permitting form would let a null array through as (NULL, 0) on the
-    // FFI bridge, where a null array crosses as a NULL segment with length 0.
+    // FFM bridge, where a null array crosses as a NULL segment with length 0.
     jo_assert(personalization_string != NULL);
     jo_assert(entropy != NULL);
     jo_assert(nonce != NULL);
